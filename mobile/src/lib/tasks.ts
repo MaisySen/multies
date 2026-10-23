@@ -58,6 +58,14 @@ export function dayLabel(due: string): string {
   return new Date(`${due.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
 }
 
+/** "Alex Rivera" from "Alex Rivera <alex@example.com.au>", or the address when there is no name. */
+export function senderName(from: string | null | undefined): string {
+  if (!from) return "";
+  const m = from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  if (!m) return from.trim();
+  return m[1].trim() || m[2].trim();
+}
+
 /** A sensible next action for a task on the board, by its status group. */
 export function moveLabel(s: TaskStatus) { return `Move to ${statusLabel(nextStatus(s))}`; }
 

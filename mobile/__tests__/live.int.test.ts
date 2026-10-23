@@ -19,7 +19,7 @@ const runDemo = process.env.MYMAIL_LIVE_DEMO === "1" ? it : it.skip;
 
 /** jest-expo swaps out fetch and web streams, so the live test talks HTTPS through Node directly. */
 function nodeFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  const https = require("node:https") as typeof import("node:https");
+  const https = (url.startsWith("http:") ? require("node:http") : require("node:https")) as typeof import("node:https");
   return new Promise((resolve, reject) => {
     const req = https.request(url, { method: init.method ?? "GET", headers: init.headers as Record<string, string> }, (res) => {
       const chunks: Buffer[] = [];

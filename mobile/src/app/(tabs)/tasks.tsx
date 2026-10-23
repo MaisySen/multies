@@ -4,7 +4,7 @@ import { router, Stack } from "expo-router";
 import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, Loading, Segmented } from "@/components/ui";
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
-import { STATUSES, dueLabel, moveLabel, nextStatus, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
+import { STATUSES, dueLabel, moveLabel, nextStatus, senderName, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
 import { colors, radius, space } from "@/theme";
 
 type Who = "all" | "me";
@@ -98,7 +98,7 @@ export function Meta({ t }: { t: Task }) {
       {t.assignee ? <Badge label={t.assignee.name} icon={t.assignee.type === "agent" ? "cpu" : "user"} /> : null}
       {t.subtasks.total ? <Badge label={`${t.subtasks.done}/${t.subtasks.total}`} icon="list" /> : null}
       {t.commentCount ? <Badge label={String(t.commentCount)} icon="message-circle" /> : null}
-      {t.source?.from ? <Text style={{ color: colors.subtle, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>From email: {t.source.from}</Text> : null}
+      {t.source?.from ? <Text style={{ color: colors.subtle, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>From email: {senderName(t.source.from)}</Text> : null}
     </View>
   );
 }

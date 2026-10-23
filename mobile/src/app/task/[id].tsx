@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Avatar, Badge, Banner, Button, Chip, EmptyState, Field, Icon, Loading } from "@/components/ui";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
-import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday } from "@/lib/tasks";
+import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
 import { displayName, longDate, shortDate } from "@/lib/format";
 import { ApiError } from "@/api/errors";
 import type { AssigneeId, Task, TaskPatch } from "@/api/types";
@@ -109,7 +109,7 @@ export default function TaskDetail() {
               </View>
               <Text style={[font.small, { color: colors.fg }]} numberOfLines={6}>{r.latestText || r.subject}</Text>
             </Pressable>
-          )) : <Text style={font.small}>From {t.source.from ?? "an email"}: {t.source.subject ?? ""}</Text>}
+          )) : <Text style={font.small}>From {senderName(t.source.from) || "an email"}: {t.source.subject ?? ""}</Text>}
           {t.source.messageId ? (
             <Button variant="secondary" icon="mail" label="Open the email" testID="open-email"
               onPress={() => router.push({ pathname: "/thread/[id]", params: { id: t.source!.messageId! } })} />

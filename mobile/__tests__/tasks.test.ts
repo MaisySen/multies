@@ -1,6 +1,6 @@
 import { SampleTransport } from "@/sample/transport";
 import { endpoints } from "@/api/endpoints";
-import { dayFrom, dueLabel, nextMonday, nextStatus, sortTasks } from "@/lib/tasks";
+import { dayFrom, dueLabel, nextMonday, nextStatus, senderName, sortTasks } from "@/lib/tasks";
 import { extractPushData, routeForPush, describePush, fallbackText } from "@/lib/push-events";
 import { bytes, initials, parseRecipients, quoteForReply, shortDate, timeLeft } from "@/lib/format";
 import type { Task } from "@/api/types";
@@ -78,6 +78,13 @@ describe("task helpers", () => {
     expect(dueLabel("2026-10-25", now)?.text).toBe("Due tomorrow");
     expect(dueLabel("2026-10-21T00:00:00.000Z", now)).toEqual({ text: "Overdue 3 days", tone: "bad" });
     expect(dueLabel("2026-10-30", now)?.text).toMatch(/^Due Fri,? 30 Oct/);
+  });
+  it("shows the sender's name from a From header", () => {
+    expect(senderName("Alex Rivera <founders@northwind.test>")).toBe("Alex Rivera");
+    expect(senderName("\"Li Chen\" <li@greenroof.com.au>")).toBe("Li Chen");
+    expect(senderName("<orders@bondi.au>")).toBe("orders@bondi.au");
+    expect(senderName("Sam Patel")).toBe("Sam Patel");
+    expect(senderName(null)).toBe("");
   });
   it("picks next Monday", () => {
     expect(nextMonday(new Date("2026-10-24T10:00:00"))).toBe("2026-10-26");
