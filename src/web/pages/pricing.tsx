@@ -1,55 +1,100 @@
+import { useState } from "react";
+import { Minus, Plus } from "lucide-react";
 import { PlanCards } from "@/web/components/plan-cards";
-import { PLAN_ORDER, PLANS } from "@/shared/plans";
-import { Check, Minus } from "lucide-react";
+import { ADDON_ORDER, ADDONS, PLANS, chargeFor, effectiveLimits, formatPlanPrice, type AddonId, type AddonQuantities } from "@/shared/plans";
+import { Button } from "@/web/components/ui/button";
 import { LOCALE } from "@/shared/locale";
 
-const rows: { label: string; get: (id: (typeof PLAN_ORDER)[number]) => string | boolean }[] = [
-  { label: "Custom domains", get: (id) => String(PLANS[id].limits.domains) },
-  { label: "Mailboxes", get: (id) => String(PLANS[id].limits.mailboxes) },
-  { label: "Aliases & forwards", get: (id) => PLANS[id].limits.aliases.toLocaleString(LOCALE) },
-  { label: "Storage per mailbox", get: (id) => `${PLANS[id].limits.storagePerMailboxMb / 1024} GB` },
-  { label: "Recipients per day", get: (id) => PLANS[id].limits.dailySends.toLocaleString(LOCALE) },
-  { label: "Live DNS verification", get: () => true },
-  { label: "Per-domain DKIM keys", get: () => true },
-  { label: "Catch-all & plus addressing", get: () => true },
-  { label: "Delivery logs & audit trail", get: () => true },
-  { label: "Priority support", get: (id) => id === "business" },
+/** Google Workspace Business Starter, per user a month on an annual plan (Google's Australian price list, read 23 October 2026). */
+const GOOGLE_STARTER_AUD = 9.9;
+
+const FAQ: { q: string; a: string }[] = [
+  { q: "Is Free really free forever?", a: "Yes. One domain, three mailboxes for three people, 3 GB, mail apps, 25 AI actions and three agent inboxes a month, with no card and no trial clock. The limits are in our terms, and if they ever change, existing free workspaces keep what they have." },
+  { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace. The AI assistant is A$5 a month for everyone on the team." },
+  { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
+  { q: "What are agent inboxes?", a: "Email addresses for AI agents. Create one with a single API call or from an MCP client, read threads as JSON, get new mail by webhook or a live stream, and send with caps and an optional human approval step. Every action is in the audit log." },
+  { q: "Where is my mail stored?", a: "Today mail is stored with Cloudflare, whose database for this region cannot be pinned to Australia. We are moving mail storage to servers in Sydney and will say so here only once it is true." },
+  { q: "I'm on Pro or Business. What changes?", a: "Nothing unless you want it to. Your plan, limits and price stay as they are, and you can add add-ons to the same subscription, or move to Free and keep only the add-ons you use." },
 ];
 
 export function PricingPage() {
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-32 sm:pt-40">
       <div className="mx-auto mb-14 max-w-2xl text-center">
-        <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Pricing</h1>
-        <p className="mt-4 text-[17px] text-muted">Every plan includes verified DNS, webmail and inbound routing. Pay for room to grow, not for features held hostage.</p>
+        <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Free for your business. A few dollars for what you add.</h1>
+        <p className="mt-4 text-[17px] text-muted">Email on your own domain for your team and your AI agents. No per person pricing, ever.</p>
       </div>
       <PlanCards headingLevel={2} />
-      <div className="mt-20 overflow-x-auto rounded-2xl border border-line" tabIndex={0} role="region" aria-label="Plan comparison">
-        <table className="w-full min-w-[560px] text-sm">
-          <caption className="sr-only">Plan comparison</caption>
-          <thead>
-            <tr className="border-b border-line bg-surface text-left">
-              <th scope="col" className="px-5 py-4 font-medium text-muted">Compare plans</th>
-              {PLAN_ORDER.map((id) => <th key={id} scope="col" className="px-5 py-4 font-semibold">{PLANS[id].name}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.label} className="border-b border-line last:border-0">
-                <th scope="row" className="px-5 py-3.5 text-left font-normal text-muted">{r.label}</th>
-                {PLAN_ORDER.map((id) => {
-                  const v = r.get(id);
-                  return (
-                    <td key={id} className="px-5 py-3.5">
-                      {v === true ? <Check className="h-4 w-4 text-ok" aria-label="Included" /> : v === false ? <Minus className="h-4 w-4 text-subtle" aria-label="Not included" /> : v}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Calculator />
+      <section className="mx-auto mt-24 max-w-3xl" aria-labelledby="faq">
+        <h2 id="faq" className="text-2xl font-semibold tracking-tight">Questions</h2>
+        <dl className="mt-6 divide-y divide-line border-y border-line">
+          {FAQ.map((f) => (
+            <div key={f.q} className="py-5">
+              <dt className="font-medium">{f.q}</dt>
+              <dd className="mt-2 text-sm leading-relaxed text-muted">{f.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
     </div>
+  );
+}
+
+/** Pick add-ons, see the total, the interval and the per person comparison. */
+function Calculator() {
+  const [people, setPeople] = useState(10);
+  const [addons, setAddons] = useState<AddonQuantities>({ mailboxes: 2, ai: 1 });
+  const charge = chargeFor(addons);
+  const limits = effectiveLimits(PLANS.starter, addons);
+  const google = people * GOOGLE_STARTER_AUD;
+  const set = (id: AddonId, n: number) => setAddons({ ...addons, [id]: Math.max(0, Math.min(ADDONS[id].maxQuantity, n)) });
+  const shortOfSeats = limits.seats < people;
+  return (
+    <section className="mt-20 rounded-2xl border border-line bg-surface p-6 sm:p-8" aria-labelledby="calc">
+      <h2 id="calc" className="text-xl font-semibold tracking-tight">Work out your price</h2>
+      <div className="mt-6 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
+        <div>
+          <label className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-muted">People on your team</span>
+            <input type="number" min={1} max={500} value={people} onChange={(e) => setPeople(Math.max(1, Math.min(500, Number(e.target.value) || 1)))}
+              className="w-24 rounded-lg border border-line-strong bg-canvas px-3 py-1.5 text-right tabular-nums" />
+          </label>
+          <ul className="mt-4 divide-y divide-line border-y border-line">
+            {ADDON_ORDER.map((id) => {
+              const a = ADDONS[id];
+              const qty = addons[id] ?? 0;
+              return (
+                <li key={id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                  <span>{a.name} <span className="text-subtle">{formatPlanPrice(a.priceMonthly)}{a.maxQuantity === 1 ? "" : ` per ${a.unit}`}</span></span>
+                  <span className="flex items-center gap-1" role="group" aria-label={`${a.name} quantity`}>
+                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => set(id, qty - 1)}><Minus className="h-3.5 w-3.5" /></Button>
+                    <output className="w-8 text-center tabular-nums">{qty}</output>
+                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => set(id, qty + 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        <div className="flex flex-col justify-between gap-6 rounded-xl bg-canvas/60 p-5">
+          <div>
+            <p className="text-sm text-muted">MyMail for your whole team</p>
+            <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums" aria-live="polite">
+              {charge.amount === 0 ? "A$0" : formatPlanPrice(charge.amount)}<span className="text-base font-normal text-subtle"> {charge.amount === 0 ? "forever" : charge.interval === "year" ? "a year" : "a month"}</span>
+            </p>
+            <p className="mt-3 text-sm text-muted">
+              {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB, {limits.aiActionsMonthly.toLocaleString(LOCALE)} AI actions and {limits.agentInboxes} agent inboxes a month.
+            </p>
+            {shortOfSeats && <p className="mt-2 text-sm text-warn">That's room for {limits.seats} people. Add a mailbox pack for every five more.</p>}
+          </div>
+          <div className="border-t border-line pt-4 text-sm">
+            <p className="text-muted">Google Workspace Business Starter for {people} {people === 1 ? "person" : "people"}</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums">{formatPlanPrice(google)} a month</p>
+            <p className="mt-1 text-xs text-subtle">A$9.90 per person a month on an annual plan, from Google's Australian price list (October 2026), excluding GST.</p>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
