@@ -95,6 +95,18 @@ export async function applyMigrations(driver: MigrationDriver): Promise<string[]
   return applied;
 }
 
+/**
+ * Runs independent write statements in one round trip where the driver can (a D1 batch,
+ * which is also atomic), else one after another (SQLite in Node, where a query costs no
+ * network time). On D1 each statement awaited on its own is a round trip to the database.
+ */
+export async function runBatch(db: DB, statements: PromiseLike<unknown>[]): Promise<void> {
+  if (!statements.length) return;
+  const d = db as unknown as { batch?: (s: unknown[]) => Promise<unknown> };
+  if (typeof d.batch === "function") { await d.batch(statements); return; }
+  for (const s of statements) await s;
+}
+
 /** Convenience for Node and tests: migrate a Drizzle handle. */
 export async function migrate(db: DB): Promise<string[]> {
   return applyMigrations(migrationDriver((db as unknown as { $client: unknown }).$client));

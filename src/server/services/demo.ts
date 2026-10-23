@@ -1,19 +1,21 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import type { Deps } from "../context";
-import { appSettings, auditLogs, deliveries, domains, members, organizations, users } from "../db/schema";
+import { appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
+import { runBatch } from "../db";
 import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { sql } from "drizzle-orm";
 import { authFor } from "../auth";
 import { createAlias, createMailbox } from "./addresses";
 import { createDomain } from "./domains";
 import { deliverInbound } from "./mail/delivery";
-import { storeMessage } from "./mail/store";
-import { sendMessage } from "./mail/send";
+import { makeSnippet } from "./mail/mime";
 import type { ParsedEmail } from "./mail/mime";
 import type { AuthContext } from "../context";
 import { listMailboxes } from "./addresses";
 import { setAddons } from "./plans";
 import { approveSend, createAgent, listThreads, replyInThread } from "./agents";
+
+const chunk = <T>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
 export const DEMO_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -60,12 +62,15 @@ export async function createDemoWorkspace(deps: Deps) {
   const userId = signup.response.user.id;
   const orgId = newId("org");
   await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "starter" });
-  // Free plus the A$3 mailbox pack, so the sample's four mailboxes fit.
-  await setAddons(deps.db, orgId, { mailboxes: 1 });
-  await deps.db.insert(members).values({ id: newId("mem"), organizationId: orgId, userId, role: "owner" });
-  await deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
+  // Free plus the A$3 mailbox pack, so the sample's four mailboxes fit. Independent steps run together.
+  const [dkimKey] = await Promise.all([
+    sampleDkimKey(deps),
+    setAddons(deps.db, orgId, { mailboxes: 1 }),
+    deps.db.insert(members).values({ id: newId("mem"), organizationId: orgId, userId, role: "owner" }),
+    deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId)),
+  ]);
 
-  const domain = await createDomain(deps, orgId, domainName, { dkimKey: await sampleDkimKey(deps) });
+  const domain = await createDomain(deps, orgId, domainName, { dkimKey });
   // Sample domains can't have real DNS; mark them verified and say so in the report.
   await deps.db.update(domains).set({
     status: "verified",
@@ -87,21 +92,31 @@ export async function createDemoWorkspace(deps: Deps) {
   ]);
 
   const now = deps.now().getTime();
-  // Sample mail is written straight into the mailboxes rather than through full inbound
-  // delivery: delivery re-checks routing, plan, storage, webhooks and agents for every
-  // message, which made a demo about 640 database queries and ran past the Worker's CPU
-  // limit on production. These messages need none of that, so it is now about a sixth.
+  // Sample mail is written straight into the mailboxes in one batch rather than through
+  // full inbound delivery: delivery re-checks routing, plan, storage, webhooks and agents
+  // for every message, which made a demo about 640 sequential database round trips and ran
+  // past the Worker's CPU limit on production.
+  const rows: (typeof messages.$inferInsert)[] = [];
   const delivered: (typeof deliveries.$inferInsert)[] = [];
-  const seed = async (from: { address: string; name: string }, localPart: string, subject: string, text: string, date: Date, archived = false) => {
-    const mb = boxFor(localPart);
-    const messageId = await storeMessage(deps.db, {
-      orgId, mailboxId: mb.id, folder: archived ? "archive" : "inbox", isRead: archived,
-      messageIdHeader: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: mb.address }], cc: [], subject, text, date,
-      authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, sizeBytes: text.length + 600,
+  const used = new Map<string, number>();
+  const put = (mb: { id: string; address: string }, folder: "inbox" | "archive" | "sent", from: { address: string; name: string }, to: string[], subject: string, text: string, date: Date, sentBy?: string) => {
+    const id = newId("msg");
+    const sizeBytes = text.length + 600;
+    rows.push({
+      id, orgId, mailboxId: mb.id, folder, isRead: folder !== "inbox", threadId: newId("thr"),
+      messageIdHeader: `<${randomToken(9)}@${from.address.split("@")[1]}>`, fromAddress: from.address, fromName: from.name,
+      to: JSON.stringify(to.map((address) => ({ address }))), cc: "[]", bcc: "[]", subject, text, snippet: makeSnippet(text), sizeBytes,
+      authResults: folder === "sent" ? null : JSON.stringify({ spf: "pass", dkim: "pass", dmarc: "pass" }), sentByUserId: sentBy ?? null, date,
     });
-    delivered.push({ id: newId("dlv"), orgId, messageId, direction: "inbound", fromAddress: from.address, toAddress: mb.address, subject, status: "delivered", provider: "demo", detail: `Delivered to ${mb.address}`, createdAt: date });
+    used.set(mb.id, (used.get(mb.id) ?? 0) + sizeBytes);
+    return id;
   };
-  for (const m of [...SAMPLE_INBOUND].reverse()) await seed(m.from, m.to, m.subject, m.text, new Date(now - m.hoursAgo * 3600_000));
+  const seed = (from: { address: string; name: string }, localPart: string, subject: string, text: string, date: Date, archived = false) => {
+    const mb = boxFor(localPart);
+    const id = put(mb, archived ? "archive" : "inbox", from, [mb.address], subject, text, date);
+    delivered.push({ id: newId("dlv"), orgId, messageId: id, direction: "inbound", fromAddress: from.address, toAddress: mb.address, subject, status: "delivered", provider: "demo", detail: `Delivered to ${mb.address}`, createdAt: date });
+  };
+  for (const m of [...SAMPLE_INBOUND].reverse()) seed(m.from, m.to, m.subject, m.text, new Date(now - m.hoursAgo * 3600_000));
 
   const HISTORY = [
     ["Uptime", "alerts@uptime.example", "support", "Weekly summary: 100% uptime"],
@@ -114,22 +129,31 @@ export async function createDemoWorkspace(deps: Deps) {
   ] as const;
   for (let i = 0; i < 18; i++) {
     const [name, address, box, subject] = HISTORY[i % HISTORY.length];
-    await seed({ address, name }, box, subject, `${subject}.\n\nThis is an older message in your demo workspace's archive.`, new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000), true);
+    seed({ address, name }, box, subject, `${subject}.\n\nThis is an older message in your demo workspace's archive.`, new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000), true);
   }
-  // D1 allows 100 bound values per statement: 12 columns a row, so 8 rows at a time.
-  for (let i = 0; i < delivered.length; i += 8) await deps.db.insert(deliveries).values(delivered.slice(i, i + 8));
+  // Two messages Alex sent: one outside MyMail (a sandbox never delivers it) and one to the
+  // team@ alias, which lands in the founders and support inboxes.
+  const alex = { address: founders.address, name: "Alex Rivera" };
+  const priyaAt = new Date(now - 20 * 60_000);
+  const priyaText = "Hi Priya,\n\nThanks so much! Wednesday at 2pm works great. I'll send an invite.\n\nAlex";
+  const toPriya = put(founders, "sent", alex, ["priya@seedround.vc"], "Re: Following up from demo day", priyaText, priyaAt, userId);
+  delivered.push({ id: newId("dlv"), orgId, messageId: toPriya, direction: "outbound", fromAddress: alex.address, toAddress: "priya@seedround.vc", subject: "Re: Following up from demo day", status: "sent", provider: "demo", detail: "Sandbox workspace: shown as sent, not delivered outside MyMail.", createdAt: priyaAt });
+  const teamAt = new Date(now - 10 * 60_000);
+  const team = `team@${domain.name}`;
+  const checklist = "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain ✅\n2. support@ and billing@ mailboxes live ✅\n3. sales@ alias forwarding to the founders ✅\n\nLet's ship it.\nAlex";
+  const toTeam = put(founders, "sent", alex, [team], "Launch checklist for Friday", checklist, teamAt, userId);
+  for (const box of ["founders", "support"]) put(boxFor(box), "inbox", alex, [team], "Launch checklist for Friday", checklist, teamAt);
+  delivered.push({ id: newId("dlv"), orgId, messageId: toTeam, direction: "outbound", fromAddress: alex.address, toAddress: team, subject: "Launch checklist for Friday", status: "delivered", provider: "internal", detail: `Alias → ${founders.address}, support@${domain.name}`, createdAt: teamAt });
+
+  // One statement per message (D1 allows 100 bound values per statement), all in one batch.
+  await runBatch(deps.db, [
+    ...rows.map((r) => deps.db.insert(messages).values(r)),
+    ...chunk(delivered, 8).map((c) => deps.db.insert(deliveries).values(c)),
+    ...[...used].map(([id, n]) => deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${n}` }).where(eq(mailboxes.id, id))),
+  ]);
   await deps.db.run(sql`UPDATE messages SET folder = 'archive', is_read = 1 WHERE org_id = ${orgId} AND folder = 'inbox' AND date < ${now - 58 * 3600_000}`);
 
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
-  await sendMessage(deps, auth, {
-    mailboxId: founders.id, to: ["priya@seedround.vc"], subject: "Re: Following up from demo day",
-    text: "Hi Priya,\n\nThanks so much! Wednesday at 2pm works great. I'll send an invite.\n\nAlex",
-  });
-  await sendMessage(deps, auth, {
-    mailboxId: founders.id, to: [`team@${domain.name}`], subject: "Launch checklist for Friday",
-    text: "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain ✅\n2. support@ and billing@ mailboxes live ✅\n3. sales@ alias forwarding to the founders ✅\n\nLet's ship it.\nAlex",
-  });
-
   await seedDemoAgents(deps, auth, domain, now);
 
   // Backdate the delivery log to each message's date so the activity chart has history.

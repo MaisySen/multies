@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import Database from "better-sqlite3";
 import { openSqlite } from "@/server/db/node";
-import { applyMigrations, migrate, migrationDriver, pendingMigrations } from "@/server/db";
+import { applyMigrations, migrate, migrationDriver, pendingMigrations, runBatch, type DB } from "@/server/db";
 import { MIGRATIONS } from "@/server/db/migrations.generated";
 
 describe("migrations", () => {
@@ -35,5 +35,17 @@ describe("migrations", () => {
     await expect(applyMigrations(migrationDriver(raw))).rejects.toThrow();
     const tables = raw.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='aliases'").all();
     expect(tables).toEqual([]);
+  });
+});
+
+describe("runBatch", () => {
+  it("sends statements in one D1 batch, and runs them in order on SQLite", async () => {
+    const batches: unknown[][] = [];
+    await runBatch({ batch: async (s: unknown[]) => { batches.push(s); } } as unknown as DB, [Promise.resolve(1), Promise.resolve(2)]);
+    expect(batches).toEqual([[expect.anything(), expect.anything()]]);
+    const order: number[] = [];
+    const step = (n: number): PromiseLike<number> => ({ then: (ok) => { order.push(n); return Promise.resolve(ok ? ok(n) : n) as never; } });
+    await runBatch(openSqlite(":memory:"), [step(1), step(2), step(3)]);
+    expect(order).toEqual([1, 2, 3]);
   });
 });
