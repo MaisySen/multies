@@ -120,6 +120,13 @@
       "when": 1792766190974,
       "tag": "0016_byo_ai_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1792773433523,
+      "tag": "0017_suite_work_contacts",
+      "breakpoints": true
     }
   ]
 }

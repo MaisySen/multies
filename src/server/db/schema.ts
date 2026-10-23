@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 
 const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
 const createdAt = () => ts("created_at").notNull().$defaultFn(() => new Date());
@@ -625,3 +625,236 @@ export const importJobs = sqliteTable("import_jobs", {
   finishedAt: ts("finished_at"),
   createdAt: createdAt(),
 }, (t) => [index("import_jobs_org_idx").on(t.orgId), index("import_jobs_status_idx").on(t.status)]);
+
+
+// ---------------------------------------------------------------- suite: work management, docs, contacts
+// Every suite table follows the same rules: a sortable id, org_id, who created it (a member,
+// an agent or the system), updated_at, a version number and a deleted_at tombstone. Writes go
+// through services/suite/write.ts, which also records an activity entry and a change entry.
+
+const suiteCols = () => ({
+  createdByType: text("created_by_type", { enum: ["member", "agent", "system"] }).notNull().default("member"),
+  createdById: text("created_by_id"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  version: integer("version").notNull().default(1),
+  deletedAt: ts("deleted_at"),
+});
+
+/** A project holds tasks on a board with its own ordered statuses. */
+export const projects = sqliteTable("projects", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** A short key shown before task numbers, e.g. OPS. */
+  key: text("key").notNull(),
+  color: text("color").notNull().default("#ff5a36"),
+  /** Next task number in this project. */
+  nextNumber: integer("next_number").notNull().default(1),
+  archivedAt: ts("archived_at"),
+  ...suiteCols(),
+}, (t) => [index("projects_org_idx").on(t.orgId)]);
+
+/** Custom statuses per project, in board order. `category` maps each to to do, doing or done. */
+export const projectStatuses = sqliteTable("project_statuses", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  category: text("category", { enum: ["todo", "doing", "done"] }).notNull(),
+  color: text("color").notNull().default("#8a8f98"),
+  position: integer("position").notNull(),
+  ...suiteCols(),
+}, (t) => [index("project_statuses_project_idx").on(t.projectId, t.position)]);
+
+export const tasks = sqliteTable("tasks", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  number: integer("number").notNull(),
+  statusId: text("status_id").notNull(),
+  /** Mirrors the status's category so lists and agents can filter without a join. */
+  status: text("status", { enum: ["todo", "doing", "done"] }).notNull().default("todo"),
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  assigneeType: text("assignee_type", { enum: ["member", "agent"] }),
+  assigneeId: text("assignee_id"),
+  priority: text("priority", { enum: ["none", "low", "medium", "high", "urgent"] }).notNull().default("none"),
+  startAt: ts("start_at"),
+  dueAt: ts("due_at"),
+  /** JSON string[] */
+  labels: text("labels").notNull().default("[]"),
+  parentId: text("parent_id"),
+  /** Order inside a status column (fractional, so a move writes one row). */
+  position: real("position").notNull().default(0),
+  /** The email thread the task came from; replies on it show on the task. */
+  threadId: text("thread_id"),
+  messageId: text("message_id"),
+  sourceFrom: text("source_from"),
+  sourceSubject: text("source_subject"),
+  completedAt: ts("completed_at"),
+  /** Due date reminders already sent, e.g. "due:2026-10-24". */
+  reminderSentFor: text("reminder_sent_for"),
+  ...suiteCols(),
+}, (t) => [
+  index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
+  index("tasks_org_thread_idx").on(t.orgId, t.threadId),
+  index("tasks_org_due_idx").on(t.orgId, t.dueAt),
+  index("tasks_parent_idx").on(t.parentId),
+  uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
+]);
+
+export const taskComments = sqliteTable("task_comments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  authorName: text("author_name").notNull(),
+  body: text("body").notNull(),
+  ...suiteCols(),
+}, (t) => [index("task_comments_task_idx").on(t.taskId, t.createdAt)]);
+
+/** A saved filter on a project (or across projects): which view, and which filters. */
+export const savedViews = sqliteTable("saved_views", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id"),
+  userId: text("user_id"),
+  name: text("name").notNull(),
+  view: text("view", { enum: ["board", "list", "calendar", "timeline"] }).notNull().default("list"),
+  /** JSON: { assignee?, status?, priority?, label?, due?, q? } */
+  filters: text("filters").notNull().default("{}"),
+  ...suiteCols(),
+}, (t) => [index("saved_views_org_idx").on(t.orgId, t.projectId)]);
+
+/** Rich text docs (Tiptap JSON), linked to projects, tasks, threads or contacts. */
+export const docs = sqliteTable("docs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  /** Tiptap (ProseMirror) JSON. */
+  content: text("content").notNull().default("{\"type\":\"doc\",\"content\":[]}"),
+  /** Plain text of the content, for search and for agents. */
+  plainText: text("plain_text").notNull().default(""),
+  projectId: text("project_id"),
+  ...suiteCols(),
+}, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
+
+export const companies = sqliteTable("companies", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  domain: text("domain"),
+  notes: text("notes").notNull().default(""),
+  ...suiteCols(),
+}, (t) => [index("companies_org_idx").on(t.orgId), uniqueIndex("companies_org_domain_uq").on(t.orgId, t.domain)]);
+
+/** People the workspace corresponds with. Created from mail automatically, or by hand. */
+export const contacts = sqliteTable("contacts", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  companyId: text("company_id"),
+  name: text("name").notNull().default(""),
+  email: text("email").notNull(),
+  phone: text("phone"),
+  title: text("title"),
+  notes: text("notes").notNull().default(""),
+  source: text("source", { enum: ["mail", "manual", "import", "agent"] }).notNull().default("mail"),
+  ownerUserId: text("owner_user_id"),
+  messageCount: integer("message_count").notNull().default(0),
+  firstContactAt: ts("first_contact_at"),
+  lastContactAt: ts("last_contact_at"),
+  ...suiteCols(),
+}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_company_idx").on(t.companyId)]);
+
+/** A simple sales pipeline. Values are in cents, AUD. */
+export const deals = sqliteTable("deals", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  stage: text("stage", { enum: ["lead", "qualified", "proposal", "won", "lost"] }).notNull().default("lead"),
+  valueCents: integer("value_cents").notNull().default(0),
+  contactId: text("contact_id"),
+  companyId: text("company_id"),
+  ownerUserId: text("owner_user_id"),
+  expectedCloseAt: ts("expected_close_at"),
+  position: real("position").notNull().default(0),
+  ...suiteCols(),
+}, (t) => [index("deals_org_stage_idx").on(t.orgId, t.stage, t.position)]);
+
+/** The glue: any item linked to any item (a doc to a task, a contact to a thread). */
+export const entityLinks = sqliteTable("entity_links", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  fromType: text("from_type").notNull(),
+  fromId: text("from_id").notNull(),
+  toType: text("to_type").notNull(),
+  toId: text("to_id").notNull(),
+  relation: text("relation").notNull().default("related"),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.fromType, t.fromId, t.toType, t.toId] }), index("entity_links_to_idx").on(t.orgId, t.toType, t.toId)]);
+
+/** Who did what to which item: the timeline on tasks and contacts, and the source of webhooks. */
+export const activity = sqliteTable("activity", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  actorType: text("actor_type", { enum: ["member", "agent", "system"] }).notNull(),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  verb: text("verb").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  data: text("data").notNull().default("{}"),
+  createdAt: createdAt(),
+}, (t) => [index("activity_entity_idx").on(t.entityType, t.entityId, t.createdAt), index("activity_org_idx").on(t.orgId, t.createdAt)]);
+
+/** An ordered change feed per workspace: the sync cursor for web, mobile and agents. */
+export const changes = sqliteTable("changes", {
+  seq: integer("seq").primaryKey({ autoIncrement: true }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  op: text("op", { enum: ["create", "update", "delete"] }).notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: createdAt(),
+}, (t) => [index("changes_org_seq_idx").on(t.orgId, t.seq)]);
+
+/** Simple rules: when this happens, do that. No AI and no outside sends without approval. */
+export const automations = sqliteTable("automations", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon"] }).notNull(),
+  /** JSON: email_received { from?, subjectContains?, mailboxId? }; status_changed { projectId?, toCategory? }; due_soon { hoursBefore } */
+  conditions: text("conditions").notNull().default("{}"),
+  action: text("action", { enum: ["create_task", "notify"] }).notNull(),
+  /** JSON: create_task { projectId, assigneeType?, assigneeId?, priority?, dueInDays? }; notify { to: "assignee" | "creator" | userId } */
+  actionConfig: text("action_config").notNull().default("{}"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  runCount: integer("run_count").notNull().default(0),
+  lastRunAt: ts("last_run_at"),
+  lastError: text("last_error"),
+  ...suiteCols(),
+}, (t) => [index("automations_org_trigger_idx").on(t.orgId, t.trigger)]);
+
+/** In-app notifications (automations, assignments, reminders). Pushed to phones when registered. */
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  type: text("type").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  readAt: ts("read_at"),
+  createdAt: createdAt(),
+}, (t) => [index("notifications_user_idx").on(t.userId, t.orgId, t.createdAt)]);
+
+/** Phones registered for push (Expo push tokens). Payloads carry only an event type and an id. */
+export const pushDevices = sqliteTable("push_devices", {
+  token: text("token").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  platform: text("platform", { enum: ["ios", "android"] }).notNull(),
+  createdAt: createdAt(),
+  lastSeenAt: ts("last_seen_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("push_devices_org_idx").on(t.orgId), index("push_devices_user_idx").on(t.userId)]);
