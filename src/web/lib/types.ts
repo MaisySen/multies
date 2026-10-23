@@ -14,6 +14,7 @@ export interface PublicConfig {
   mode: "production" | "development";
   demoEnabled: boolean;
   outboundDriver: string;
+  billingEnabled: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
 }

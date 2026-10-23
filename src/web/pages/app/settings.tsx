@@ -5,8 +5,7 @@ import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
-import { PLAN_ORDER, PLANS, type PlanId } from "@/shared/plans";
-import { Badge, Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
@@ -16,6 +15,7 @@ import { cn } from "@/web/lib/cn";
 const TABS = [
   { to: "/app/settings", label: "General", end: true },
   { to: "/app/settings/team", label: "Team" },
+  { to: "/app/settings/billing", label: "Billing" },
   { to: "/app/settings/account", label: "Account & security" },
   { to: "/app/settings/mail", label: "Mail routing" },
 ];
@@ -43,7 +43,6 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       <WorkspaceSection />
-      <PlanSection />
       <DangerZone />
     </div>
   );
@@ -110,42 +109,6 @@ function WorkspaceSection() {
           <Field label="Workspace name" className="flex-1">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />}</Field>
           <Button type="submit" variant="secondary" loading={m.isPending} disabled={!name.trim() || name === org.data?.organization.name}>Save</Button>
         </form>
-      )}
-    </Section>
-  );
-}
-
-function PlanSection() {
-  const org = useOrg();
-  const qc = useQueryClient();
-  const m = useMutation({
-    mutationFn: (plan: PlanId) => api.post("/org/plan", { plan }),
-    onSuccess: () => { qc.invalidateQueries(); toast.success("Plan updated"); },
-    onError: (e) => toast.error(e.message),
-  });
-  const current = org.data?.organization.plan;
-  return (
-    <Section title="Plan" description={<>Limits are enforced on the server. Billing isn't connected yet, so switching plans is free while MyMail is in preview.</>}>
-      <div className="grid gap-3 lg:grid-cols-3">
-        {PLAN_ORDER.map((id) => {
-          const p = PLANS[id];
-          const isCurrent = id === current;
-          return (
-            <div key={id} className={cn("flex flex-col rounded-xl border p-4", isCurrent ? "border-brand/50 bg-brand-soft/40" : "border-line")}>
-              <div className="flex items-center justify-between"><span className="font-semibold">{p.name}</span>{isCurrent && <Badge tone="brand">Current</Badge>}</div>
-              <div className="mt-1 text-sm text-muted">${p.priceMonthly}/mo</div>
-              <ul className="mt-3 flex-1 space-y-1 text-xs text-muted">
-                <li>{p.limits.domains} domains · {p.limits.mailboxes} mailboxes</li>
-                <li>{p.limits.aliases.toLocaleString()} aliases · {p.limits.storagePerMailboxMb / 1024} GB each</li>
-                <li>{p.limits.dailySends.toLocaleString()} recipients / day</li>
-              </ul>
-              {!isCurrent && <Button size="sm" variant="secondary" className="mt-4" loading={m.isPending && m.variables === id} onClick={() => m.mutate(id)}>Switch to {p.name}</Button>}
-            </div>
-          );
-        })}
-      </div>
-      {org.data && (
-        <p className="mt-3 text-xs text-subtle">Using {org.data.usage.domains} domain{org.data.usage.domains === 1 ? "" : "s"}, {org.data.usage.mailboxes} mailbox{org.data.usage.mailboxes === 1 ? "" : "es"} and {org.data.usage.aliases} alias{org.data.usage.aliases === 1 ? "" : "es"}.</p>
       )}
     </Section>
   );
