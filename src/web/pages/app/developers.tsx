@@ -50,9 +50,9 @@ function ApiKeys() {
   });
   return (
     <Section title="API keys" description="Keys act for the whole workspace. Give each app or script its own, so you can delete one without breaking the rest.">
-      <div className="space-y-2">
+      <div>
         {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.length ? keys.data.map((k) => (
-          <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-bg/40 px-3 py-2">
+          <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
             <div className="flex min-w-0 items-center gap-2.5">
               <KeyRound className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{k.name}</span>
@@ -65,7 +65,7 @@ function ApiKeys() {
             </div>
           </div>
         )) : <p className="text-sm text-muted">No API keys yet.</p>}
-        <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Create API key</Button>
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Create API key</Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New API key"
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!name.trim()} onClick={() => create.mutate()}>Create</Button></>}>
@@ -106,9 +106,9 @@ function Webhooks() {
   const toggle = (ev: string) => setPicked((cur) => (ev === "*" ? ["*"] : cur.includes(ev) ? cur.filter((x) => x !== ev) : [...cur.filter((x) => x !== "*"), ev]));
   return (
     <Section title="Webhooks" description="We POST events to your URL, signed with the Standard Webhooks spec. Failed deliveries retry for about nine hours.">
-      <div className="space-y-2">
+      <div>
         {endpoints.isPending ? <Skeleton className="h-12" /> : endpoints.data?.length ? endpoints.data.map((e) => <EndpointRow key={e.id} e={e} />) : <p className="text-sm text-muted">No endpoints yet.</p>}
-        <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add endpoint</Button>
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add endpoint</Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New webhook endpoint"
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!url.trim() || !picked.length} onClick={() => create.mutate()}>Add endpoint</Button></>}>
@@ -149,8 +149,8 @@ function EndpointRow({ e }: { e: Endpoint }) {
   const del = useMutation({ mutationFn: () => api.del(`/developer/webhooks/${e.id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks"] }) });
   const toggle = useMutation({ mutationFn: () => api.patch(`/developer/webhooks/${e.id}`, { enabled: !e.enabled }), onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks"] }) });
   return (
-    <div className="rounded-lg border border-line bg-bg/40">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2">
+    <div className="border-b border-line last:border-b-0">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <button className="flex min-w-0 items-center gap-2.5 text-left" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
           <WebhookIcon className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
           <span className="truncate font-mono text-[12.5px]">{e.url}</span>
@@ -163,7 +163,7 @@ function EndpointRow({ e }: { e: Endpoint }) {
         </div>
       </div>
       {expanded && (
-        <div className="space-y-3 border-t border-line px-3 py-3 text-sm">
+        <div className="space-y-3 pb-4 pl-6 text-sm">
           <div className="text-xs text-muted">Events: <span className="font-mono">{e.events.join(", ")}</span></div>
           <div className="flex items-center gap-2 text-xs">
             {reveal.data ? <><code className="min-w-0 flex-1 break-all font-mono">{reveal.data.secret}</code><CopyButton value={reveal.data.secret} /></>

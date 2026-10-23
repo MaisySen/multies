@@ -28,7 +28,7 @@ export function MailAppsSettings() {
 function NotConnected({ missing }: { missing: string[] }) {
   return (
     <Section title="Mail apps" description="Read and send from Outlook, Apple Mail, Thunderbird or your phone over IMAP and SMTP.">
-      <div className="rounded-lg border border-line bg-bg/40 p-4 text-sm">
+      <div className="text-sm">
         <p className="font-medium">This server has no mail server connected yet.</p>
         <p className="mt-1 text-muted">
           Mail apps connect through Stalwart, an open-source mail server that runs next to MyMail.
@@ -74,9 +74,9 @@ function ServerSettings({ access, username }: { access: MailAccess; username: st
   ];
   return (
     <Section title="Server settings" description="Most apps fill these in from your address. If yours asks, use these.">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-x-8 sm:grid-cols-2">
         {rows.map((r) => (
-          <div key={r.kind} className="rounded-lg border border-line bg-bg/40 p-3">
+          <div key={r.kind} className="border-t border-line py-3">
             <div className="mb-2 text-xs font-medium text-muted">{r.kind}</div>
             <div className="flex items-center justify-between gap-2"><code className="min-w-0 truncate font-mono text-[13px]">{r.host}</code><CopyButton value={r.host} /></div>
             <div className="mt-2 flex gap-4 text-[13px] text-muted"><span>Port <span className="font-mono tabular-nums text-fg">{r.port}</span></span><span>{securityLabel(r.security)}</span></div>
@@ -111,7 +111,7 @@ function AppPasswords({ mailboxId, address }: { mailboxId: string; address: stri
     <Section title="App passwords" description={<>One per device, so you can sign out a lost phone without touching the others. For <span className="text-fg">{address}</span>.</>}>
       <div className="space-y-2">
         {list.isPending ? <Skeleton className="h-12" /> : list.data?.length ? list.data.map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-bg/40 px-3 py-2">
+          <div key={p.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
             <div className="flex min-w-0 items-center gap-2.5">
               <KeyRound className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{p.name}</span>

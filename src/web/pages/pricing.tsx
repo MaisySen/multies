@@ -22,7 +22,7 @@ export function PricingPage() {
         <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Pricing</h1>
         <p className="mt-4 text-[17px] text-muted">Every plan includes verified DNS, webmail and inbound routing. Pay for room to grow, not for features held hostage.</p>
       </div>
-      <PlanCards />
+      <PlanCards headingLevel={2} />
       <div className="mt-20 overflow-x-auto rounded-2xl border border-line">
         <table className="w-full min-w-[560px] text-sm">
           <caption className="sr-only">Plan comparison</caption>

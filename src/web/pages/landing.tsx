@@ -63,7 +63,7 @@ export function Landing() {
 
       <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24 sm:py-32">
         <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
-          <div>
+          <div className="min-w-0">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">DNS you can see, not guess at.</h2>
             <p className="mt-4 max-w-md text-muted">Whether mail lands is decided by four DNS records. MyMail checks each one live, says what's wrong in plain words, and merges the SPF record you already have instead of breaking it.</p>
             <DnsSnippet />

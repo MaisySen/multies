@@ -34,7 +34,7 @@ export function EmptyState({ icon, title, body, action, className }: { icon: Rea
         <div className="absolute inset-0 -m-3 rounded-full bg-brand/10 blur-xl" aria-hidden />
         <div className="relative grid h-12 w-12 place-items-center rounded-xl border border-line-strong bg-elevated text-muted [&_svg]:h-5 [&_svg]:w-5">{icon}</div>
       </div>
-      <h3 className="text-[15px] font-semibold">{title}</h3>
+      <h2 className="text-[15px] font-semibold">{title}</h2>
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}
     </div>
@@ -69,8 +69,8 @@ export function Avatar({ label, className }: { label: string; className?: string
   for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return (
     <span
-      className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white/95", className)}
-      style={{ background: `linear-gradient(135deg, hsl(${h} 55% 45%), hsl(${(h + 40) % 360} 60% 35%))` }}
+      className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-fg", className)}
+      style={{ background: `hsl(${h} 22% 24%)` }}
       aria-hidden
     >
       {label}

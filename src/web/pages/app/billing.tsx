@@ -119,14 +119,14 @@ export function BillingSettings() {
       </Section>
 
       <Section title="Plans" description={paidFlow ? "Upgrades go through secure checkout. Change or cancel anytime from the billing portal." : "Switch any time. While billing isn't connected, every plan is free."}>
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid lg:grid-cols-3">
           {PLAN_ORDER.map((id) => {
             const p = PLANS[id];
             const isCurrent = id === b.plan.id;
             const higher = PLAN_ORDER.indexOf(id) > PLAN_ORDER.indexOf(b.plan.id);
             const hasLiveSub = !!sub && ["active", "trialing", "past_due"].includes(sub.status ?? "");
             return (
-              <div key={id} className={cn("flex flex-col rounded-xl border p-4", isCurrent ? "border-brand/50 bg-brand-soft/40" : "border-line")}>
+              <div key={id} className={cn("flex flex-col border-line py-4 lg:px-5 lg:first:pl-0 lg:last:pr-0 [&:not(:first-child)]:border-t lg:[&:not(:first-child)]:border-l lg:[&:not(:first-child)]:border-t-0", isCurrent && "text-fg")}>
                 <div className="flex items-center justify-between"><span className="font-semibold">{p.name}</span>{isCurrent && <Badge tone="brand">Current</Badge>}</div>
                 <div className="mt-1 text-sm"><span className="text-lg font-semibold">${p.priceMonthly}</span><span className="text-muted">/mo</span></div>
                 <ul className="mt-3 flex-1 space-y-1 text-xs text-muted">

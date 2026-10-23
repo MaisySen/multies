@@ -141,7 +141,7 @@ function InboundSection() {
         <Step n={2} title="Create a signing key">
           <div className="mt-2 space-y-2">
             {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.map((k) => (
-              <div key={k.id} className="flex items-center justify-between gap-3 rounded-lg border border-line bg-bg/40 px-3 py-2">
+              <div key={k.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
                 <div className="flex min-w-0 items-center gap-2.5"><KeyRound className="h-4 w-4 shrink-0 text-subtle" /><code className="truncate font-mono text-[12.5px]">{k.id}</code></div>
                 <div className="flex shrink-0 items-center gap-3 text-xs text-subtle">
                   <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
@@ -197,7 +197,7 @@ function OutboundSection() {
   const live = config.data?.outboundDriver && config.data.outboundDriver !== "log";
   return (
     <Section title="Outbound mail" description="How mail to addresses outside MyMail leaves the platform.">
-      <div className={cn("flex gap-3 rounded-lg border p-4 text-sm", live ? "border-ok/20 bg-ok-soft/40" : "border-warn/20 bg-warn-soft/40")}>
+      <div className={cn("flex gap-3 border-l-2 py-1 pl-4 text-sm", live ? "border-ok" : "border-warn")}>
         {live ? <Send className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
           <div className="font-medium">{live ? "Sending through Resend" : "No email provider connected"}</div>

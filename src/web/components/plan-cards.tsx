@@ -3,7 +3,8 @@ import { PLAN_ORDER, PLANS } from "@/shared/plans";
 import { ButtonLink } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
 
-export function PlanCards({ ctaTo = "/signup" }: { ctaTo?: string }) {
+export function PlanCards({ ctaTo = "/signup", headingLevel = 3 }: { ctaTo?: string; headingLevel?: 2 | 3 }) {
+  const H = headingLevel === 2 ? "h2" : "h3";
   return (
     <div className="grid gap-4 md:grid-cols-3">
       {PLAN_ORDER.map((id) => {
@@ -11,7 +12,7 @@ export function PlanCards({ ctaTo = "/signup" }: { ctaTo?: string }) {
         return (
           <div key={id} className={cn("relative flex flex-col rounded-2xl border p-6", p.highlighted ? "border-brand/60 bg-surface" : "border-line bg-surface")}>
             {p.highlighted && <span className="absolute -top-2.5 left-6 rounded-full bg-brand px-2.5 py-0.5 text-[11px] font-semibold text-brand-fg">Most popular</span>}
-            <h3 className="text-[15px] font-semibold">{p.name}</h3>
+            <H className="text-[15px] font-semibold">{p.name}</H>
             <p className="mt-1 text-sm text-muted">{p.tagline}</p>
             <p className="mt-6 flex items-baseline gap-1">
               <span className="text-4xl font-semibold tracking-tight">${p.priceMonthly}</span>
