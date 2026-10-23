@@ -77,15 +77,15 @@ export async function createDemoWorkspace(deps: Deps) {
   }).where(eq(domains.id, domain.id));
 
   const mk = (localPart: string, displayName: string) => createMailbox(deps.db, orgId, { domainId: domain.id, localPart, displayName });
-  const founders = await mk("founders", "Alex Rivera");
-  await mk("support", "Northwind Support");
-  await mk("billing", "Northwind Billing");
-  await mk("hello", "Northwind");
-  await createAlias(deps.db, orgId, { domainId: domain.id, localPart: "sales", destinations: [founders.address, "alex.rivera@gmail.example"] });
-  await createAlias(deps.db, orgId, { domainId: domain.id, localPart: "team", destinations: [founders.address, `support@${domain.name}`] });
+  const [founders] = await Promise.all([mk("founders", "Alex Rivera"), mk("support", "Northwind Support"), mk("billing", "Northwind Billing"), mk("hello", "Northwind")]);
+  await Promise.all([
+    createAlias(deps.db, orgId, { domainId: domain.id, localPart: "sales", destinations: [founders.address, "alex.rivera@gmail.example"] }),
+    createAlias(deps.db, orgId, { domainId: domain.id, localPart: "team", destinations: [founders.address, `support@${domain.name}`] }),
+  ]);
 
   const now = deps.now().getTime();
-  for (const m of [...SAMPLE_INBOUND].reverse()) {
+  // Independent deliveries run together: on D1 each one is several round trips.
+  await Promise.all([...SAMPLE_INBOUND].reverse().map(async (m) => {
     const date = new Date(now - m.hoursAgo * 3600_000);
     const email: ParsedEmail = {
       messageId: `<${randomToken(9)}@${m.from.address.split("@")[1]}>`,
@@ -93,7 +93,7 @@ export async function createDemoWorkspace(deps: Deps) {
       attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
     };
     await deliverInbound(deps, { envelopeFrom: m.from.address, rcptTo: `${m.to}@${domain.name}`, email, sizeBytes: m.text.length + 600, via: "demo" });
-  }
+  }));
 
   const HISTORY = [
     ["Uptime", "alerts@uptime.example", "support", "Weekly summary: 100% uptime"],
@@ -104,7 +104,7 @@ export async function createDemoWorkspace(deps: Deps) {
     ["Customer", "sam@acme-corp.example", "support", "Thanks for the quick fix!"],
     ["Recruiting", "talent@hire.example", "hello", "Intro: senior engineer, ex-Fastmail"],
   ] as const;
-  for (let i = 0; i < 18; i++) {
+  await Promise.all(Array.from({ length: 18 }, async (_, i) => {
     const [name, address, box, subject] = HISTORY[i % HISTORY.length];
     const date = new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000);
     const email: ParsedEmail = {
@@ -112,7 +112,7 @@ export async function createDemoWorkspace(deps: Deps) {
       subject, text: `${subject}.\n\nThis is an older message in your demo workspace's archive.`, date, attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
     };
     await deliverInbound(deps, { envelopeFrom: address, rcptTo: `${box}@${domain.name}`, email, sizeBytes: 900, via: "demo" });
-  }
+  }));
   await deps.db.run(sql`UPDATE messages SET folder = 'archive', is_read = 1 WHERE org_id = ${orgId} AND folder = 'inbox' AND date < ${now - 58 * 3600_000}`);
 
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
@@ -140,17 +140,14 @@ export async function createDemoWorkspace(deps: Deps) {
     ["alias.created", 66, { address: `sales@${domain.name}` }],
     ["billing.addons_updated", 60, { addons: { mailboxes: 1 } }],
   ];
-  for (const [action, h, metadata] of trail) {
-    await deps.db.insert(auditLogs).values({ id: newId("aud"), orgId, actorUserId: userId, actorEmail: email, action, metadata: metadata ? JSON.stringify(metadata) : null, createdAt: at(h) });
-  }
+  await deps.db.insert(auditLogs).values(trail.map(([action, h, metadata]) => ({ id: newId("aud"), orgId, actorUserId: userId, actorEmail: email, action, metadata: metadata ? JSON.stringify(metadata) : null, createdAt: at(h) })));
   return { userId, orgId, headers: signup.headers };
 }
 
 /** Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. */
 async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
   const support = (await listMailboxes(deps.db, auth.orgId)).find((m) => m.localPart === "support")!;
-  const invoices = await createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null });
-  const triage = await createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] });
+  const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] })]);
   const inbound = async (to: string, from: { address: string; name: string }, subject: string, text: string, hoursAgo: number) => {
     const email: ParsedEmail = {
       messageId: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: to }], cc: [], subject, text, date: new Date(now - hoursAgo * 3600_000),
@@ -158,27 +155,31 @@ async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: strin
     };
     await deliverInbound(deps, { envelopeFrom: from.address, rcptTo: to, email, sizeBytes: text.length + 600, via: "demo" });
   };
-  await inbound(invoices.agent.address, { address: "tom@bondiplumbing.example", name: "Tom Nguyen" }, "Re: Invoice INV-1042",
-    "Hi,\n\nSorry, this one slipped. Can you resend the invoice? I can't find the PDF.\n\nCheers,\nTom", 2);
-  await inbound(`support@${domain.name}`, { address: "kai@flatwhite.example", name: "Kai Morgan" }, "Password reset not arriving",
-    "Hi,\n\nI've asked for a password reset three times and nothing has come through. Is something broken?\n\nKai", 0.5);
+  await Promise.all([inbound(invoices.agent.address, { address: "tom@bondiplumbing.example", name: "Tom Nguyen" }, "Re: Invoice INV-1042",
+    "Hi,\n\nSorry, this one slipped. Can you resend the invoice? I can't find the PDF.\n\nCheers,\nTom", 2),
+  inbound(`support@${domain.name}`, { address: "kai@flatwhite.example", name: "Kai Morgan" }, "Password reset not arriving",
+    "Hi,\n\nI've asked for a password reset three times and nothing has come through. Is something broken?\n\nKai", 0.5)]);
 
   const as = (a: { id: string }) => ({ ...auth, agentId: a.id, sessionId: `agent:${a.id}` });
   const threadOf = async (mailboxId: string, subject: string) => (await listThreads(deps, auth.orgId, [mailboxId], { limit: 20 })).data.find((t) => t.subject === subject)!.id;
 
+  await Promise.all([
   // The invoice chaser's reply waits for a person, as every send does by default.
-  await replyInThread(deps, as(invoices.agent), invoices.agent.id, await threadOf(invoices.agent.inboxId, "Re: Invoice INV-1042"), {
+  replyInThread(deps, as(invoices.agent), invoices.agent.id, await threadOf(invoices.agent.inboxId, "Re: Invoice INV-1042"), {
     text: "Hi Tom,\n\nNo worries. Here is INV-1042 again: A$1,850.00 for the bathroom refit, due 14 October.\n\nYou can pay by bank transfer to BSB 062-000, account 1234 5678, with INV-1042 as the reference.\n\nThanks,\nNorthwind accounts",
-  });
+  }),
   // Support triage answered Maria, a person approved it, and it went out labelled as the agent's.
-  const maria = await replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Can we move our team over this week?"), {
+  (async () => {
+    const maria = await replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Can we move our team over this week?"), {
     text: "Hi Maria,\n\nNothing gets lost. Mail keeps arriving at Google until your MX change spreads, then it arrives here, so check both for a day.\n\nAnd yes: an alias can reach as many people as you like, so sales@ can go to all three of you.\n\nNorthwind Support",
   });
-  if (maria.status === "pending_approval") await approveSend(deps, auth, maria.approval.id);
+    if (maria.status === "pending_approval") await approveSend(deps, auth, maria.approval.id);
+  })(),
   // And one more waiting for a decision.
-  await replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Password reset not arriving"), {
+  replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Password reset not arriving"), {
     text: "Hi Kai,\n\nSorry about that. Reset emails can land in spam, so please check there first. I've also asked the team to look at your account, and someone will reply today.\n\nNorthwind Support",
-  });
+  }),
+  ]);
 }
 
 /** Removes sandbox workspaces (and their users) older than the TTL. */
