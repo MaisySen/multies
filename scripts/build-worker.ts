@@ -36,7 +36,7 @@ const SECRET_KEYS = [
   "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
   "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_PRO", "STRIPE_PRICE_BUSINESS",
   "RESEND_API_KEY", "SENTRY_DSN_API", "SENTRY_DSN_WEB", "SENTRY_ENVIRONMENT",
-  "PLATFORM_ADMIN_EMAILS", "SYSTEM_FROM", "SYSTEM_FROM_NAME",
+  "PLATFORM_ADMIN_EMAILS", "SYSTEM_FROM", "SYSTEM_FROM_NAME", "DEPLOY_TOKEN",
 ];
 const secretFiles = process.argv.flatMap((a, i) => (a === "--secrets" ? [process.argv[i + 1]] : []));
 const secrets: Record<string, string> = {};
@@ -61,12 +61,17 @@ await build({
   platform: "browser",
   target: "es2022",
   conditions: ["worker", "browser"],
+  // Node built-ins come from the runtime (nodejs_compat), not the bundle.
+  external: ["node:*"],
   minify: true,
   sourcemap: false,
   alias: { "@": path.join(root, "src") },
   define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }) },
   logLevel: "warning",
 });
+
+// Never serve the server bundle or the hosting declaration as static files.
+writeFileSync(path.join(out, ".assetsignore"), "_worker.js\ntab-site.json\n.assetsignore\n");
 
 writeFileSync(path.join(out, "tab-site.json"), JSON.stringify({
   kind: "worker",

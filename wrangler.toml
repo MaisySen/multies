@@ -1,13 +1,20 @@
-# Deploy MyMail itself to Cloudflare Workers + D1 (free tier is enough to start).
+# MyMail on Cloudflare Workers + D1. CI deploys this on every push to main
+# (.github/workflows/ci.yml) with the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
+# repository secrets. Manual deploy:
 #   npm run build:web && npm run build:worker
-#   npx wrangler d1 create mymail            # paste the id below
-#   npx wrangler deploy
-#   npx wrangler secret put APP_SECRET       # 32+ random chars
-#   npx wrangler secret put RESEND_API_KEY   # optional, enables external sending
+#   npx wrangler d1 migrations apply mymail --remote && npx wrangler deploy
+# Secrets live in Cloudflare, never in this file:
+#   npx wrangler secret put APP_SECRET        # 32+ random chars (required)
+#   npx wrangler secret put RESEND_API_KEY    # outbound mail
+#   npx wrangler secret put SENTRY_DSN_API    # error tracking (API)
+#   npx wrangler secret put SENTRY_DSN_WEB    # error tracking (browser)
+#   npx wrangler secret put STRIPE_SECRET_KEY # billing
+#   npx wrangler secret put AUTH0_CLIENT_SECRET (plus AUTH0_DOMAIN and AUTH0_CLIENT_ID)
 name = "mymail"
 main = "dist/worker/_worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
 
 [assets]
 directory = "dist/worker"
@@ -18,12 +25,21 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "mymail"
-database_id = "REPLACE_WITH_YOUR_D1_ID"
+database_id = "8509ce19-9fcd-4272-91de-58a7095d6a4d"
+# Migrations run once per deploy, before the new code goes live:
+#   npx wrangler d1 migrations apply mymail --remote
+migrations_dir = "drizzle"
+migrations_table = "d1_migrations"
 
 [vars]
 APP_MODE = "production"
-APP_URL = "https://mail.yourdomain.com"
-DEMO_MODE = "false"
+# Until a custom domain is attached, the app lives on its workers.dev address.
+APP_URL = "https://mymail.mymail-app.workers.dev"
+DEMO_MODE = "true"
+SENTRY_ENVIRONMENT = "production"
+
+[observability]
+enabled = true
 
 # Re-check DNS, expire sessions and purge demo sandboxes every 15 minutes.
 [triggers]
