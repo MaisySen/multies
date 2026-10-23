@@ -28,9 +28,12 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
 }
 
 export async function listDomains(db: DB, orgId: string) {
-  const rows = await db.select().from(domains).where(eq(domains.orgId, orgId)).orderBy(asc(domains.createdAt));
-  const mbx = await db.select({ domainId: mailboxes.domainId, n: count() }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).groupBy(mailboxes.domainId);
-  const als = await db.select({ domainId: aliases.domainId, n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).groupBy(aliases.domainId);
+  // Independent reads run together: on D1 each one is a network round trip.
+  const [rows, mbx, als] = await Promise.all([
+    db.select().from(domains).where(eq(domains.orgId, orgId)).orderBy(asc(domains.createdAt)),
+    db.select({ domainId: mailboxes.domainId, n: count() }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).groupBy(mailboxes.domainId),
+    db.select({ domainId: aliases.domainId, n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).groupBy(aliases.domainId),
+  ]);
   const m = new Map(mbx.map((r) => [r.domainId, r.n]));
   const a = new Map(als.map((r) => [r.domainId, r.n]));
   return rows.map((d) => ({ row: d, counts: { mailboxes: m.get(d.id) ?? 0, aliases: a.get(d.id) ?? 0 } }));

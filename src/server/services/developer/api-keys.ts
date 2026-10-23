@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { apiKeys, members } from "../../db/schema";
+import { apiKeys, members, organizations } from "../../db/schema";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
 
@@ -41,24 +41,26 @@ export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
  * Resolves `Authorization: Bearer mm_live_...` to a workspace context. The key acts as
  * a workspace admin; `read` keys are limited to GET by the API layer.
  */
-export async function resolveApiKey(deps: Deps, header: string | undefined): Promise<(AuthContext & { apiKeyId: string; scope: ApiKeyScope }) | null> {
+export async function resolveApiKey(deps: Deps, header: string | undefined): Promise<(AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean }) | null> {
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
   if (!token) return null;
-  const k = await deps.db.select().from(apiKeys).where(eq(apiKeys.keyHash, await sha256Hex(token))).get();
-  if (!k) return null;
+  // One round trip: the key, whether its creator is still a member, and the workspace's state.
+  const row = await deps.db.select({ k: apiKeys, memberId: members.id, suspendedAt: organizations.suspendedAt })
+    .from(apiKeys)
+    .innerJoin(organizations, eq(organizations.id, apiKeys.orgId))
+    .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
+    .where(eq(apiKeys.keyHash, await sha256Hex(token))).get();
+  if (!row) return null;
+  const { k } = row;
   const now = deps.now();
   // Write at most once a minute per key.
   if (!k.lastUsedAt || now.getTime() - k.lastUsedAt.getTime() > 60_000) {
     await deps.db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, k.id));
   }
-  let userId = k.createdByUserId ?? "";
-  if (userId) {
-    // A key outlives its creator's membership only as a plain workspace key.
-    const m = await deps.db.select().from(members).where(and(eq(members.userId, userId), eq(members.organizationId, k.orgId))).get();
-    if (!m) userId = "";
-  }
+  // A key outlives its creator's membership only as a plain workspace key.
+  const userId = k.createdByUserId && row.memberId ? k.createdByUserId : "";
   return {
     userId, email: `api-key:${k.prefix}`, name: `API key "${k.name}"`, orgId: k.orgId, role: "admin",
-    sessionId: `apikey:${k.id}`, apiKeyId: k.id, scope: k.scope,
+    sessionId: `apikey:${k.id}`, apiKeyId: k.id, scope: k.scope, orgSuspended: !!row.suspendedAt,
   };
 }

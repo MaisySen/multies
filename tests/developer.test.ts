@@ -1,10 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import { makeTestApp, Client } from "./helpers";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
 import { DISABLE_AFTER_DEAD, emitEvent, retryDueDeliveries } from "@/server/services/developer/webhooks";
-import { webhookEndpoints } from "@/server/db/schema";
+import { organizations, webhookEndpoints } from "@/server/db/schema";
 
 type Captured = { url: string; headers: Record<string, string>; body: string };
 
@@ -32,6 +33,25 @@ describe("API keys and the v1 REST API", () => {
     ctx = await makeTestApp();
     c = new Client(ctx.app);
     await c.signup();
+  });
+
+  it("refuses keys of a suspended workspace, and checks the key once per request", async () => {
+    const made = await c.post("/api/developer/keys", { name: "CI" });
+    const orgId = (await c.get("/api/account/me")).body.organization.id;
+    const select = ctx.deps.db.select.bind(ctx.deps.db);
+    const callers: string[] = [];
+    const spy = vi.spyOn(ctx.deps.db, "select").mockImplementation(((...a: Parameters<typeof select>) => {
+      callers.push(new Error().stack ?? "");
+      return select(...a);
+    }) as typeof select);
+    expect((await bearer(ctx, made.body.secret, "GET", "/api/v1/domains")).status).toBe(200);
+    spy.mockRestore();
+    // Authentication is one query: the key, its creator's membership and the workspace together.
+    expect(callers.filter((s) => !s.includes("listDomains"))).toHaveLength(1);
+    await ctx.db.update(organizations).set({ suspendedAt: new Date(), suspendedReason: "test" }).where(eq(organizations.id, orgId));
+    const res = await bearer(ctx, made.body.secret, "GET", "/api/v1/domains");
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("workspace_suspended");
   });
 
   it("creates a key shown once, and the key works on /api/v1", async () => {
