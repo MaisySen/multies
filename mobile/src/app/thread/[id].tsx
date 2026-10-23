@@ -28,15 +28,17 @@ export default function Thread() {
     });
   };
 
+  // One call: the server takes the title from the subject, the notes from the newest message and
+  // links the task to this thread, so replies show on the task.
   const makeTask = async () => {
     if (!msg) return;
-    const t = await tasks.create.mutateAsync({
-      title: msg.subject || "Follow up",
-      notes: `From ${displayName(msg.from)}: ${msg.snippet}`,
-      source: { messageId: msg.id, threadId: msg.threadId, from: displayName(msg.from), subject: msg.subject },
-    });
-    if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    router.push({ pathname: "/task/[id]", params: { id: t.id } });
+    try {
+      const t = await tasks.fromEmail.mutateAsync({ messageId: msg.id });
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      router.push({ pathname: "/task/[id]", params: { id: t.id } });
+    } catch (e) {
+      Alert.alert("Couldn't make the task", (e as Error).message);
+    }
   };
 
   return (
@@ -59,7 +61,7 @@ export default function Thread() {
           <Text style={[font.title, { fontSize: 23 }]} accessibilityRole="header">{msg?.subject || "(no subject)"}</Text>
           {thread.map((m) => <MessageCard key={m.id} m={m} agentName={m.sentByAgentId ? agents.data?.find((a) => a.id === m.sentByAgentId)?.name ?? "Agent" : undefined} />)}
           {FEATURES.tasks ? (
-            <Button variant="secondary" icon="check-square" label="Make a task from this email" onPress={makeTask} testID="make-task" />
+            <Button variant="secondary" icon="check-square" label="Make a task from this email" onPress={makeTask} loading={tasks.fromEmail.isPending} testID="make-task" />
           ) : null}
         </ScrollView>
       )}
