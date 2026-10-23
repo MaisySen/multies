@@ -20,6 +20,10 @@ import { addDependency, removeDependency } from "../services/suite/tasks";
 import { createForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
 import { createMeeting, listMeetings } from "../services/suite/meetings";
+import { createField, listFields, type FilterOp } from "../services/suite/fields";
+import { inviteGuest, listGuests } from "../services/suite/guests";
+import { portfolio } from "../services/suite/portfolio";
+import { updateProject } from "../services/suite/tasks";
 import {
   createAgent, eventsSince, getAgent, latestEventSeq, listAgents, listThreads, readThread, replyInThread, requestSend, scopeFor, searchMessages, type Actor,
 } from "../services/agents";
@@ -161,6 +165,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
 
   registerSuiteTools(server, deps, actor, writable);
   registerR7Tools(server, deps, actor, writable);
+  registerR8Tools(server, deps, actor, writable);
   return server;
 }
 
@@ -385,5 +390,80 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     }
     const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined });
     return { meeting: { id: r.meeting.id, title: r.meeting.title, startsAt: r.meeting.startsAt, guestUrl: r.meeting.guestUrl, invitees: r.meeting.invitees, videoEnabled: r.meeting.videoEnabled }, invites: r.invites };
+  }));
+}
+
+
+/** Custom fields, guests and the portfolio. A guest invite from an agent follows its approval rules. */
+function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void) {
+  const ro = { readOnlyHint: true, openWorldHint: false };
+  const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+  const a = actor as unknown as SuiteActor;
+  const fieldTypes = z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]);
+
+  server.registerTool("list_custom_fields", {
+    title: "List a project's custom fields", annotations: ro,
+    description: "The custom fields on a project with their type and, for select fields, their options (id and label). Currency is AUD.",
+    inputSchema: { projectId: z.string() },
+  }, tool(async (x: { projectId: string }) => ({ fields: await listFields(deps, a.orgId, x.projectId) })));
+
+  server.registerTool("create_custom_field", {
+    title: "Add a custom field to a project", annotations: rw,
+    description: "Types: text, number, currency (AUD), date, select, multiselect, person, checkbox, url. Select types take option labels.",
+    inputSchema: { projectId: z.string(), name: z.string().min(1).max(60), type: fieldTypes, options: z.array(z.string().max(60)).max(50).optional() },
+  }, tool(async (x: { projectId: string; name: string; type: z.infer<typeof fieldTypes>; options?: string[] }) => {
+    writable();
+    return { field: await createField(deps, a, x.projectId, { name: x.name, type: x.type, options: x.options?.map((label) => ({ label })) }) };
+  }));
+
+  server.registerTool("set_task_fields", {
+    title: "Set custom field values on a task", annotations: rw,
+    description: "values maps a field id or field name to a value. Text and URL: string. Number and currency (AUD): number. Date: YYYY-MM-DD. Select: option label or id. Multi select: list of labels. Person: member:<id> or agent:<id>. Checkbox: true or false. null clears.",
+    inputSchema: { taskId: z.string(), values: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.null()])) },
+  }, tool(async (x: { taskId: string; values: Record<string, unknown> }) => {
+    writable();
+    const t = await updateTask(deps, a, x.taskId, { fields: x.values });
+    return { ref: t.ref, fields: t.fields };
+  }));
+
+  server.registerTool("find_tasks_by_field", {
+    title: "Find tasks by a custom field", annotations: ro,
+    description: "Tasks in a project whose field matches. op is eq, ne, gt, gte, lt, lte, contains, empty or notempty. Optionally sort by a field.",
+    inputSchema: { projectId: z.string(), fieldId: z.string(), op: z.enum(["eq", "ne", "gt", "gte", "lt", "lte", "contains", "empty", "notempty"]).optional(), value: z.string().optional(), sortBy: z.string().optional(), desc: z.boolean().optional() },
+  }, tool(async (x: { projectId: string; fieldId: string; op?: FilterOp; value?: string; sortBy?: string; desc?: boolean }) => {
+    const list = await listTasks(deps, a, { projectId: x.projectId, fieldFilters: [{ fieldId: x.fieldId, op: x.op ?? "eq", value: x.value }], sort: x.sortBy ? `field:${x.sortBy}` : undefined, dir: x.desc ? "desc" : "asc" });
+    return { tasks: list.map((t) => ({ id: t.id, ref: t.ref, title: t.title, status: t.statusName, fields: t.fields })) };
+  }));
+
+  server.registerTool("list_guests", {
+    title: "List a project's guests", annotations: ro,
+    description: "Outside people (clients) invited to a project, with their status.",
+    inputSchema: { projectId: z.string() },
+  }, tool(async (x: { projectId: string }) => ({ guests: await listGuests(deps, a.orgId, x.projectId) })));
+
+  server.registerTool("invite_guest", {
+    title: "Invite a guest to a project", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    description: "Invite an outside person by email to one project. Guests are free and see only that project's tasks, comments and docs. The invite email goes from this agent's inbox and follows its approval rules, so it may wait for a person to approve it.",
+    inputSchema: { projectId: z.string(), email: z.string().email(), name: z.string().max(80).optional() },
+  }, tool(async (x: { projectId: string; email: string; name?: string }) => {
+    writable();
+    if (!a.agentId) throw new HttpError(422, "agent_required", "Guest invites from MCP go out as an agent. Use an agent key.");
+    const r = await inviteGuest(deps, a, x.projectId, x);
+    return { guest: r.guest, delivery: r.delivery };
+  }));
+
+  server.registerTool("get_portfolio", {
+    title: "Portfolio of all projects", annotations: ro,
+    description: "Every project with owner, progress (percent done), overdue count, time logged, next due date and the health flag set by people (on_track, at_risk, off_track).",
+  }, tool(async () => ({ projects: await portfolio(deps, a.orgId) })));
+
+  server.registerTool("set_project_health", {
+    title: "Set a project's health", annotations: rw,
+    description: "Set the health flag on the portfolio: on_track, at_risk, off_track, or null to clear, with an optional short note.",
+    inputSchema: { projectId: z.string(), health: z.enum(["on_track", "at_risk", "off_track"]).nullable(), note: z.string().max(500).optional() },
+  }, tool(async (x: { projectId: string; health: "on_track" | "at_risk" | "off_track" | null; note?: string }) => {
+    writable();
+    const p = await updateProject(deps, a, x.projectId, { health: x.health, ...(x.note !== undefined ? { healthNote: x.note } : {}) });
+    return { project: { id: p.id, name: p.name, health: p.health, healthNote: p.healthNote } };
   }));
 }

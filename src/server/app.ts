@@ -31,6 +31,7 @@ import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/im
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
+import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -172,6 +173,11 @@ export function createApp(deps: Deps) {
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
   app.route("/api/public", publicRoutes());
+  app.route("/api/fields", fieldRoutes());
+  app.route("/api/portfolio", portfolioRoutes());
+  app.route("/api/guests", guestAdminRoutes());
+  app.route("/api/files", fileRoutes());
+  app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());

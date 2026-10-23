@@ -22,6 +22,7 @@ import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
 import { registerSuiteRoutes } from "./v1-suite";
 import { registerSuiteR7Routes } from "./v1-suite-r7";
+import { registerSuiteR8Routes } from "./v1-suite-r8";
 
 // ---------------------------------------------------------------- schemas
 
@@ -305,6 +306,7 @@ export function v1Routes() {
   registerAgentRoutes(api);
   registerSuiteRoutes(api);
   registerSuiteR7Routes(api);
+  registerSuiteR8Routes(api);
   registerMcpRoute(api);
   return api;
 }
