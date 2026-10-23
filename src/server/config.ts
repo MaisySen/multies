@@ -31,8 +31,14 @@ export interface AppConfig {
     /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
     breachCheck: boolean;
   };
-  /** Error tracking. Each side turns on when its DSN is set. */
-  sentry: { dsnApi?: string; dsnWeb?: string; environment: string };
+  /** Error tracking and tracing. Each side turns on when its DSN is set. */
+  sentry: { dsnApi?: string; dsnWeb?: string; environment: string; tracesSampleRate: number };
+  /** Release id (the git commit) reported to Sentry and in logs and /api/health. */
+  release: string;
+  /** RFC 9116 contact for vulnerability reports (a mailto: or https: URI). */
+  securityContact: string;
+  /** Days a workspace keeps its paid plan after a failed payment before it is restricted. */
+  billingGraceDays: number;
   /** User ids or verified emails that get platform admin (operator console) on sign-in. */
   platformAdmins: string[];
   /** Stripe billing. `enabled` only when every key below is set. */
@@ -111,6 +117,11 @@ const EnvSchema = z.object({
   MAIL_CLIENT_HOST: z.string().optional(),
   MAIL_IMAP_PORT: z.string().optional(),
   MAIL_SMTP_PORT: z.string().optional(),
+  SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
+  RELEASE: z.string().optional(),
+  SENTRY_RELEASE: z.string().optional(),
+  SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
+  BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -170,7 +181,13 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET } } : {}),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },
-    sentry: { dsnApi: env.SENTRY_DSN_API, dsnWeb: env.SENTRY_DSN_WEB, environment: env.SENTRY_ENVIRONMENT ?? mode },
+    sentry: {
+      dsnApi: env.SENTRY_DSN_API, dsnWeb: env.SENTRY_DSN_WEB, environment: env.SENTRY_ENVIRONMENT ?? mode,
+      tracesSampleRate: clampRate(env.SENTRY_TRACES_SAMPLE_RATE, 0.1),
+    },
+    release: env.RELEASE ?? env.SENTRY_RELEASE ?? "dev",
+    securityContact: env.SECURITY_CONTACT ?? `mailto:security@${hostOf(env.APP_URL ?? "http://localhost")}`,
+    billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     billing: {
       // Only the secret key is required. Prices are found by lookup key (and created in
@@ -204,4 +221,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       };
     })(),
   };
+}
+
+function clampRate(v: string | undefined, fallback: number): number {
+  const n = v === undefined ? fallback : Number(v);
+  return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
 }

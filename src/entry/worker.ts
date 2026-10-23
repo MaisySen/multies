@@ -11,7 +11,8 @@ import { applyMigrations, migrationDriver, schema, type DB } from "../server/db"
 import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { getOrCreateStoredSecret, runMaintenance } from "../server/services/maintenance";
-import type { Deps } from "../server/context";
+import type { Deps, RateLimitBinding } from "../server/context";
+import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -41,9 +42,19 @@ async function boot(env: WorkerEnv) {
   const deps: Deps = {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
+    rateLimiters: {
+      auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
+    },
   };
   return { app: createApp(deps), deps };
 }
+
+/** A Cloudflare rate limiting binding, when wrangler.toml declares one. */
+function binding(v: unknown): RateLimitBinding | undefined {
+  return v && typeof (v as RateLimitBinding).limit === "function" ? (v as RateLimitBinding) : undefined;
+}
+
+let pageHeaders: { csp: string; hsts: boolean } | null = null;
 
 function getReady(env: WorkerEnv) {
   ready ??= boot(env).catch((err) => { ready = null; throw err; });
@@ -84,7 +95,7 @@ const handler = {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
-    if (url.pathname.startsWith("/api/")) {
+    if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
       const { app, deps } = await getReady(env);
       if (Date.now() - lastMaintenance > 10 * 60_000) {
         lastMaintenance = Date.now();
@@ -92,13 +103,19 @@ const handler = {
       }
       return app.fetch(request);
     }
+    pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
     const asset = await env.ASSETS.fetch(request);
-    if (asset.status !== 404) return asset;
+    if (asset.status !== 404) {
+      const res = withSecurityHeaders(asset, pageHeaders);
+      // Hashed build files never change; everything else revalidates.
+      if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
+      return res;
+    }
     // SPA fallback: unknown paths render the app shell, which routes client-side.
     const shell = await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
-    const headers = new Headers(shell.headers);
-    headers.set("cache-control", "no-cache");
-    return new Response(shell.body, { status: 200, headers });
+    const res = withSecurityHeaders(new Response(shell.body, { status: 200, headers: shell.headers }), pageHeaders);
+    res.headers.set("cache-control", "no-cache");
+    return res;
   },
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
