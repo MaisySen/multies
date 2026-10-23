@@ -11,7 +11,7 @@ import { Badge, CopyButton } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
 import type { Project } from "./data";
 
-interface Guest { id: string; email: string; name: string; status: "pending" | "active" | "revoked"; lastSeenAt: string | null; approvalId: string | null; createdAt: string }
+interface Guest { id: string; email: string; name: string; status: "pending" | "active" | "revoked"; lastSeenAt: string | null; approvalId: string | null; approvalStatus: "pending" | "sent" | "rejected" | "failed" | "expired" | null; createdAt: string }
 interface InviteResult { guest: Guest; delivery: { status: "sent" | "pending_approval" | "not_sent"; detail?: string }; inviteUrl?: string }
 
 export function GuestsDialog({ project, onClose }: { project: Project; onClose: () => void }) {
@@ -51,7 +51,9 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
           <li key={g.id} className="flex items-center gap-2 py-2 text-[13px]">
             <Mail className="h-3.5 w-3.5 text-muted" aria-hidden />
             <span className="min-w-0 truncate">{g.name ? `${g.name} · ` : ""}{g.email}</span>
-            <Badge tone={g.status === "active" ? "ok" : "neutral"}>{g.status === "active" ? "Joined" : g.approvalId ? "Waiting for approval" : "Invited"}</Badge>
+            <Badge tone={g.status === "active" ? "ok" : g.approvalStatus === "rejected" || g.approvalStatus === "failed" || g.approvalStatus === "expired" ? "bad" : "neutral"}>
+              {g.status === "active" ? "Joined" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
+            </Badge>
             {g.lastSeenAt && <span className="hidden text-[11.5px] text-subtle sm:inline">seen {timeAgo(g.lastSeenAt)}</span>}
             <Button variant="ghost" size="icon" className="ml-auto" aria-label={`Remove ${g.email}`} onClick={() => remove(g)}><Trash2 className="h-4 w-4" /></Button>
           </li>

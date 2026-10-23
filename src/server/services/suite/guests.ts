@@ -10,7 +10,7 @@
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { isMimeType, isSafeToken, looksLikeEmail } from "../../lib/input-checks";
 import type { AuthContext, Deps } from "../../context";
-import { docs, organizations, projectGuests, taskFiles, tasks } from "../../db/schema";
+import { docs, organizations, projectGuests, sendApprovals, taskFiles, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { randomToken, sha256Hex } from "../../lib/crypto";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
@@ -23,18 +23,23 @@ export const GUEST_SESSION_DAYS = 90;
 export const MAX_GUESTS_PER_PROJECT = 50;
 
 type GuestRow = typeof projectGuests.$inferSelect;
-export function presentGuest(g: GuestRow) {
+type ApprovalStatus = (typeof sendApprovals.$inferSelect)["status"];
+export function presentGuest(g: GuestRow, approvalStatus: ApprovalStatus | null = null) {
   return {
     id: g.id, projectId: g.projectId, email: g.email, name: g.name, status: g.status,
     invitedBy: { type: g.invitedByType, id: g.invitedById }, approvalId: g.approvalId,
+    /** For an agent's invite: where its email stands in the approval queue. */
+    approvalStatus: g.approvalId ? approvalStatus : null,
     lastSeenAt: iso(g.lastSeenAt), inviteExpiresAt: iso(g.inviteExpiresAt), createdAt: g.createdAt.toISOString(),
   };
 }
 export type Guest = ReturnType<typeof presentGuest>;
 
 export async function listGuests(deps: Deps, orgId: string, projectId: string) {
-  const rows = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.orgId, orgId), eq(projectGuests.projectId, projectId))).orderBy(desc(projectGuests.createdAt));
-  return rows.filter((r) => r.status !== "revoked").map(presentGuest);
+  const rows = await deps.db.select({ g: projectGuests, approval: sendApprovals.status }).from(projectGuests)
+    .leftJoin(sendApprovals, eq(sendApprovals.id, projectGuests.approvalId))
+    .where(and(eq(projectGuests.orgId, orgId), eq(projectGuests.projectId, projectId))).orderBy(desc(projectGuests.createdAt));
+  return rows.filter((r) => r.g.status !== "revoked").map((r) => presentGuest(r.g, r.approval));
 }
 
 function inviteText(inviter: string, org: string, project: string) {
@@ -89,7 +94,7 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
     });
     delivery = res.delivered ? { status: "sent" } : { status: "not_sent", detail: res.detail };
   }
-  const guest = presentGuest((await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get())!);
+  const guest = presentGuest((await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get())!, delivery.status === "pending_approval" ? "pending" : null);
   await recordWrite(deps, actor, { entityType: "project", entityId: project.id, op: "update", verb: "invited_guest", data: { guestId: id, email }, event: "guest.invited", eventData: { guest, delivery: delivery.status } });
   // The link is only handed back when the email did not go out, so a person can pass it on by hand.
   return { guest, delivery, ...(delivery.status === "not_sent" && !actor.agentId ? { inviteUrl: url } : {}) };
@@ -113,6 +118,11 @@ export async function acceptInvite(deps: Deps, token: string) {
   const now = deps.now();
   if (!g || g.status === "revoked") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   if (!g.inviteExpiresAt || g.inviteExpiresAt < now) throw new HttpError(410, "invite_expired", "This invite link has expired. Ask for a new one.");
+  if (g.approvalId) {
+    // An agent's invite counts only once a person approved its email.
+    const a = await deps.db.select({ status: sendApprovals.status }).from(sendApprovals).where(eq(sendApprovals.id, g.approvalId)).get();
+    if (a?.status !== "sent") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
+  }
   const secret = randomToken(32);
   await deps.db.update(projectGuests).set({ status: "active", sessionHash: await sha256Hex(secret), inviteHash: null, inviteExpiresAt: null, lastSeenAt: now, updatedAt: now }).where(eq(projectGuests.id, g.id));
   if (g.status === "pending") {
