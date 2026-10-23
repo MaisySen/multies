@@ -24,6 +24,7 @@ import {
   TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate,
 } from "./suite-schemas";
 import { runDueJobs } from "../services/jobs";
+import { parseFieldFilters } from "../services/suite/fields";
 
 type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
 /** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
@@ -50,11 +51,12 @@ export function taskRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => {
       const q = parseQuery(c, TaskQuery);
-      const list = () => listTasks(c.var.deps, c.var.auth, { ...q, includeSubtasks: q.includeSubtasks === "true" });
+      const fieldFilters = parseFieldFilters(c.req.query());
+      const list = () => listTasks(c.var.deps, c.var.auth, { ...q, includeSubtasks: q.includeSubtasks === "true", fieldFilters });
       let tasks = await list();
       // A demo opened from the mobile app or the API has its sample seed still waiting: run it
       // here, in this request's own budget, the first time someone lists tasks.
-      if (!tasks.length && Object.values(q).every((v) => v === undefined)) {
+      if (!tasks.length && !fieldFilters.length && Object.values(q).every((v) => v === undefined)) {
         const seeded = await runDueJobs(c.var.deps, 1, { types: ["demo.seed_suite"], orgId: c.var.auth.orgId });
         if (seeded.ran) tasks = await list();
       }

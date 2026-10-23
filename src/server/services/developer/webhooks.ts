@@ -37,6 +37,14 @@ export const WEBHOOK_EVENTS = [
   "form.submitted",
   "meeting.created",
   "meeting.updated",
+  "project.updated",
+  "custom_field.created",
+  "custom_field.updated",
+  "custom_field.deleted",
+  "task.file_added",
+  "guest.invited",
+  "guest.joined",
+  "guest.revoked",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

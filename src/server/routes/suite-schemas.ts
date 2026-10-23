@@ -15,7 +15,19 @@ export const ProjectCreate = z.object({
 export const ProjectPatch = z.object({
   name: z.string().trim().min(1).max(80).optional(), description: z.string().max(2000).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   archived: z.boolean().optional(), statuses: z.array(StatusInput).min(1).max(20).optional(),
+  health: z.enum(["on_track", "at_risk", "off_track"]).nullable().optional().openapi({ description: "Set by hand on the portfolio: on_track, at_risk, off_track, or null for not set." }),
+  healthNote: z.string().max(500).optional(), ownerId: z.string().nullable().optional().openapi({ description: "The user id of the project's owner, or null." }),
 }).openapi("ProjectPatch");
+
+export const FieldValues = z.record(z.string(), z.union([z.string().max(2000), z.number(), z.boolean(), z.array(z.string().max(200)).max(50), z.null()]))
+  .openapi({ description: "Custom field values by field id (or field name). Text and URL: string. Number and currency (AUD): number. Date: YYYY-MM-DD. Single select: option id or label. Multi select: array of option ids or labels. Person: member:<id> or agent:<id>. Checkbox: true or false. null clears a value.", example: { fld_budget: 1250, fld_client: "Harbour Coffee" } });
+const FieldOptionInput = z.object({ id: z.string().max(40).optional(), label: z.string().trim().min(1).max(60), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() });
+export const FieldCreate = z.object({
+  name: z.string().trim().min(1).max(60), type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]),
+  options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional(),
+}).openapi("FieldCreate");
+export const FieldPatch = z.object({ name: z.string().trim().min(1).max(60).optional(), options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional() }).openapi("FieldPatch");
+export const GuestInvite = z.object({ email: z.string().trim().email().max(254), name: z.string().trim().max(80).optional(), agentId: z.string().optional() }).openapi("GuestInvite");
 
 export const TaskCreate = z.object({
   title: z.string().trim().min(1).max(300).openapi({ example: "Send Harbour Coffee the revised quote" }),
@@ -27,6 +39,7 @@ export const TaskCreate = z.object({
   labels: z.array(z.string().max(40)).max(20).optional(),
   parentId: z.string().nullable().optional().openapi({ description: "Makes this a subtask of another task." }),
   source: z.object({ messageId: z.string().optional(), threadId: z.string().optional() }).nullable().optional().openapi({ description: "The email this task is about. The task links to its thread." }),
+  fields: FieldValues.optional(),
 }).openapi("TaskCreate");
 export const TaskFromEmail = z.object({
   messageId: z.string().optional(), threadId: z.string().optional(),
@@ -38,6 +51,7 @@ export const TaskPatch = z.object({
   statusId: z.string().optional(), status: Category.optional(), assignee: AssigneeRef, assigneeId: AssigneeRef,
   priority: Priority.optional(), start: date, due: date, labels: z.array(z.string().max(40)).max(20).optional(),
   parentId: z.string().nullable().optional(), position: z.number().finite().optional(),
+  fields: FieldValues.optional(),
   version: z.number().int().optional().openapi({ description: "Send the version you read to reject the write if someone changed the task since." }),
 }).openapi("TaskPatch");
 export const TaskQuery = z.object({
@@ -45,6 +59,8 @@ export const TaskQuery = z.object({
   assignee: z.string().optional().openapi({ description: "me, none, member:<id> or agent:<id>." }), priority: Priority.optional(), label: z.string().optional(),
   dueBefore: z.string().optional(), dueAfter: z.string().optional(), q: z.string().max(200).optional(),
   parentId: z.string().optional(), includeSubtasks: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(1000).optional(),
+  sort: z.string().max(80).regex(/^(due|priority|title|created|field:[A-Za-z0-9_-]{1,64})$/).optional().openapi({ description: "due, priority, title, created or field:<fieldId>." }),
+  dir: z.enum(["asc", "desc"]).optional(),
 });
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({

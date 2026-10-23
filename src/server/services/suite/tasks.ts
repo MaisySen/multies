@@ -8,6 +8,7 @@ import type { Deps } from "../../context";
 import { agents, docs, entityLinks, members, messages, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
+import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, setTaskFieldValues, valuesForTasks, type FieldFilter } from "./fields";
 import { assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 
 export type Category = "todo" | "doing" | "done";
@@ -36,6 +37,7 @@ function presentProject(p: ProjectRow, statuses: StatusRow[], counts?: Record<Ca
     id: p.id, name: p.name, description: p.description, key: p.key, color: p.color, archived: !!p.archivedAt,
     statuses: statuses.filter((s) => s.projectId === p.id).sort((a, b) => a.position - b.position).map(presentStatus),
     counts: counts ?? { todo: 0, doing: 0, done: 0 },
+    health: p.health ?? null, healthNote: p.healthNote, ownerId: p.ownerUserId ?? null,
     createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(), version: p.version,
   };
 }
@@ -105,20 +107,36 @@ export async function defaultProject(deps: Deps, actor: SuiteActor) {
   return (await deps.db.select().from(projects).where(and(eq(projects.orgId, actor.orgId), isNull(projects.deletedAt))).orderBy(asc(projects.createdAt)).get())!;
 }
 
-export async function updateProject(deps: Deps, actor: SuiteActor, id: string, patch: { name?: string; description?: string; color?: string; archived?: boolean; statuses?: StatusInput[] }) {
+export async function updateProject(deps: Deps, actor: SuiteActor, id: string, patch: {
+  name?: string; description?: string; color?: string; archived?: boolean; statuses?: StatusInput[];
+  health?: "on_track" | "at_risk" | "off_track" | null; healthNote?: string; ownerId?: string | null;
+}) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
   const now = deps.now();
+  if (patch.ownerId) {
+    const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
+    if (!m) throw new HttpError(422, "validation_failed", "The owner must be a member of this workspace.");
+  }
   await deps.db.update(projects).set({
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
     ...(patch.description !== undefined ? { description: patch.description } : {}),
     ...(patch.color !== undefined ? { color: patch.color } : {}),
     ...(patch.archived !== undefined ? { archivedAt: patch.archived ? now : null } : {}),
+    ...(patch.health !== undefined ? { health: patch.health } : {}),
+    ...(patch.healthNote !== undefined ? { healthNote: patch.healthNote.slice(0, 500) } : {}),
+    ...(patch.ownerId !== undefined ? { ownerUserId: patch.ownerId } : {}),
     updatedAt: now, version: p.version + 1,
   }).where(eq(projects.id, id));
   if (patch.statuses) await replaceStatuses(deps, actor, p, patch.statuses);
-  await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "update", version: p.version + 1, verb: "updated", data: { fields: Object.keys(patch) } });
-  return getProject(deps, actor.orgId, id);
+  const project = await getProject(deps, actor.orgId, id);
+  await recordWrite(deps, actor, {
+    entityType: "project", entityId: id, op: "update", version: p.version + 1,
+    verb: patch.health !== undefined && patch.health !== p.health ? "health_changed" : "updated",
+    data: { fields: Object.keys(patch), ...(patch.health !== undefined ? { health: patch.health } : {}) },
+    event: "project.updated", eventData: { project, changed: Object.keys(patch) },
+  });
+  return project;
 }
 
 /** Saves the ordered status list. Tasks in a removed status move to the first status of the same group. */
@@ -168,7 +186,7 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const memberIds = [...new Set(rows.filter((r) => r.assigneeType === "member" && r.assigneeId).map((r) => r.assigneeId!))];
   const agentIds = [...new Set(rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!))];
   const parentIds = rows.map((r) => r.id);
-  const [sts, us, ags, subs, cms, prs] = await Promise.all([
+  const [sts, us, ags, subs, cms, prs, fieldValues] = await Promise.all([
     statusIds.length ? deps.db.select().from(projectStatuses).where(inArray(projectStatuses.id, statusIds)) : [],
     memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
     agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, agentIds), eq(agents.orgId, orgId))) : [],
@@ -177,6 +195,7 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     parentIds.length ? deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
       .where(and(inArray(taskComments.taskId, parentIds.slice(0, 500)), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId) : [],
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),
+    valuesForTasks(deps, orgId, parentIds),
   ]);
   const subtasks = new Map<string, { total: number; done: number }>();
   for (const s of subs) {
@@ -192,6 +211,7 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     subtasks,
     comments: new Map(cms.map((c) => [c.taskId, Number(c.n)])),
     projects: new Map(prs.map((p) => [p.id, p])),
+    fields: fieldValues,
   };
 }
 type Lookups = Awaited<ReturnType<typeof lookups>>;
@@ -214,6 +234,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     source: t.threadId || t.messageId ? { threadId: t.threadId, messageId: t.messageId, from: t.sourceFrom ?? "", subject: t.sourceSubject ?? "" } : null,
     subtasks: l.subtasks.get(t.id) ?? { total: 0, done: 0 },
     commentCount: l.comments.get(t.id) ?? 0,
+    fields: l.fields.get(t.id) ?? {},
     completedAt: iso(t.completedAt),
     createdBy: { type: t.createdByType, id: t.createdById },
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(), version: t.version,
@@ -224,6 +245,23 @@ export type Task = ReturnType<typeof presentTask>;
 export interface TaskFilters {
   projectId?: string; status?: Category; statusId?: string; threadId?: string; assignee?: string; priority?: Priority; label?: string;
   dueBefore?: string; dueAfter?: string; q?: string; parentId?: string | null; includeSubtasks?: boolean; limit?: number;
+  /** Custom field filters, from `field.<id>=<op>:<value>` query parameters. */
+  fieldFilters?: FieldFilter[];
+  /** `field:<id>`, `due`, `priority`, `title` or `created`; `dir` is asc unless desc. */
+  sort?: string; dir?: "asc" | "desc";
+}
+
+const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
+
+async function orderFor(deps: Deps, orgId: string, f: TaskFilters): Promise<SQL[]> {
+  const dir = f.dir === "desc" ? "desc" : "asc";
+  const by = (e: SQL | typeof tasks.title) => (dir === "desc" ? desc(e) : asc(e));
+  if (f.sort?.startsWith("field:")) return [...await fieldOrderBy(deps, orgId, f.sort.slice(6), dir), asc(tasks.position)];
+  if (f.sort === "due") return [sql`${tasks.dueAt} is null`, by(sql`${tasks.dueAt}`)];
+  if (f.sort === "priority") return [by(PRIORITY_ORDER), asc(tasks.position)];
+  if (f.sort === "title") return [by(tasks.title)];
+  if (f.sort === "created") return [by(sql`${tasks.createdAt}`)];
+  return [asc(tasks.position), desc(tasks.createdAt)];
 }
 
 export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
@@ -247,7 +285,8 @@ export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = 
   if (f.parentId === null) conds.push(isNull(tasks.parentId));
   else if (f.parentId) conds.push(eq(tasks.parentId, f.parentId));
   else if (!f.includeSubtasks && !f.threadId) conds.push(isNull(tasks.parentId));
-  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(asc(tasks.position), desc(tasks.createdAt)).limit(Math.min(f.limit ?? 500, 1000));
+  if (f.fieldFilters?.length) conds.push(...await fieldFilterConditions(deps, actor.orgId, f.fieldFilters));
+  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? 500, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
 }
@@ -313,6 +352,7 @@ export interface CreateTaskInput {
   title: string; notes?: string; projectId?: string; statusId?: string; status?: Category; assignee?: Assignee | null;
   priority?: Priority; start?: string | null; due?: string | null; labels?: string[]; parentId?: string | null;
   source?: { messageId?: string; threadId?: string } | null;
+  fields?: Record<string, unknown>;
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
@@ -353,6 +393,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     completedAt: status.category === "done" ? now : null, ...createdBy(actor), createdAt: now, updatedAt: now,
   };
   await deps.db.insert(tasks).values(row);
+  if (input.fields && Object.keys(input.fields).length) await setTaskFieldValues(deps, actor.orgId, { id, projectId: project.id }, input.fields);
   if (source.messageId) {
     const m = await deps.db.select({ fromAddress: messages.fromAddress }).from(messages).where(eq(messages.id, source.messageId)).get();
     if (m) {
@@ -389,6 +430,8 @@ const normaliseLabels = (l?: string[]) => [...new Set((l ?? []).map((x) => x.tri
 export interface UpdateTaskInput {
   title?: string; notes?: string; projectId?: string; statusId?: string; status?: Category; assignee?: Assignee | null; priority?: Priority;
   start?: string | null; due?: string | null; labels?: string[]; parentId?: string | null; position?: number; version?: number;
+  /** Custom field values by field id (or name); null clears one. */
+  fields?: Record<string, unknown>;
 }
 
 export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string, patch: UpdateTaskInput) {
@@ -434,6 +477,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   }
   if (patch.position !== undefined) set.position = patch.position;
   await deps.db.update(tasks).set(set).where(eq(tasks.id, t.id));
+  if (set.projectId) await clearForeignValues(deps, t.id, set.projectId);
+  if (patch.fields && Object.keys(patch.fields).length) changed.fields = await setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId }, patch.fields);
   const task = await getTask(deps, actor, t.id);
   const statusChanged = !!changed.status;
   const verb = statusChanged ? "moved" : changed.assignee !== undefined ? "assigned" : "updated";
@@ -508,9 +553,10 @@ export async function taskDetail(deps: Deps, actor: SuiteActor, idOrRef: string)
     linked(deps, actor.orgId, "task", task.id, "doc"),
     linked(deps, actor.orgId, "task", task.id, "contact"),
   ]);
-  const [dependencies, time] = await Promise.all([
+  const [dependencies, time, customFields] = await Promise.all([
     dependenciesOf(deps, actor.orgId, task.id),
     import("./time").then(({ taskTime }) => taskTime(deps, actor, task.id)),
+    listFields(deps, actor.orgId, task.projectId),
   ]);
   const docRows = linkedDocs.length ? await deps.db.select({ id: docs.id, title: docs.title, updatedAt: docs.updatedAt }).from(docs).where(and(inArray(docs.id, linkedDocs), isNull(docs.deletedAt))) : [];
   const { contactsByIds } = await import("./contacts");
@@ -520,6 +566,7 @@ export async function taskDetail(deps: Deps, actor: SuiteActor, idOrRef: string)
     contacts: await contactsByIds(deps, actor.orgId, linkedContacts),
     blockedBy: dependencies.blockedBy, blocking: dependencies.blocking,
     time: { totalSeconds: time.totalSeconds, entries: time.entries.slice(0, 50) },
+    customFields,
   };
 }
 

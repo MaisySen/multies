@@ -15,6 +15,7 @@ import {
 import { appendToDoc, createDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
 import { contactDetail, createDeal, listCompanies, listContacts, listDeals, updateContact, updateDeal, upsertContact } from "../services/suite/contacts";
 import { assigneeOf } from "./suite";
+import { parseFieldFilters } from "../services/suite/fields";
 import {
   CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
 } from "./suite-schemas";
@@ -36,12 +37,13 @@ const Task = z.object({
   source: z.object({ threadId: z.string().nullable(), messageId: z.string().nullable(), from: z.string(), subject: z.string() }).nullable(),
   subtasks: z.object({ total: z.number(), done: z.number() }), commentCount: z.number(), completedAt: z.string().nullable(),
   createdBy: z.object({ type: z.string(), id: z.string().nullable() }), createdAt: z.string(), updatedAt: z.string(), version: z.number().int(),
+  fields: z.record(z.string(), z.unknown()).openapi({ description: "Custom field values by field id. See Field for the value types." }),
 }).openapi("Task");
 const Status = z.object({ id: z.string(), name: z.string(), category: z.enum(["todo", "doing", "done"]), color: z.string(), position: z.number() });
 const Project = z.object({ id: z.string(), name: z.string(), description: z.string(), key: z.string(), color: z.string(), archived: z.boolean(), statuses: z.array(Status), counts: z.record(z.string(), z.number()), createdAt: z.string(), updatedAt: z.string(), version: z.number() }).openapi("Project");
 const Comment = z.object({ id: z.string(), taskId: z.string(), body: z.string(), author: z.object({ type: z.string(), id: z.string().nullable(), name: z.string() }), createdAt: z.string() }).openapi("TaskComment");
 const ThreadMessage = z.object({ id: z.string(), mailboxId: z.string(), direction: z.enum(["inbound", "outbound"]), from: z.object({ address: z.string(), name: z.string() }), subject: z.string(), date: z.string(), latestText: z.string(), byAgent: z.boolean() });
-const TaskDetail = z.object({ task: Task, subtasks: z.array(Task), comments: z.array(Comment), thread: z.array(ThreadMessage), activity: z.array(z.unknown()), docs: z.array(z.unknown()), contacts: z.array(z.unknown()) }).openapi("TaskDetail");
+const TaskDetail = z.object({ task: Task, subtasks: z.array(Task), comments: z.array(Comment), thread: z.array(ThreadMessage), activity: z.array(z.unknown()), docs: z.array(z.unknown()), contacts: z.array(z.unknown()), customFields: z.array(z.unknown()).optional().openapi({ description: "The project's custom field definitions, in order." }) }).openapi("TaskDetail");
 const Doc = z.object({ id: z.string(), title: z.string(), projectId: z.string().nullable(), excerpt: z.string(), content: z.unknown().optional(), text: z.string().optional(), links: z.array(z.object({ type: z.string(), id: z.string() })).optional(), createdAt: z.string(), updatedAt: z.string(), version: z.number() }).passthrough().openapi("Doc");
 const Contact = z.object({ id: z.string(), name: z.string(), email: z.string(), phone: z.string().nullable(), title: z.string().nullable(), notes: z.string(), source: z.string(), company: z.object({ id: z.string(), name: z.string(), domain: z.string().nullable() }).nullable(), messageCount: z.number(), firstContactAt: z.string().nullable(), lastContactAt: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(), version: z.number() }).passthrough().openapi("Contact");
 const Deal = z.object({ id: z.string(), title: z.string(), stage: z.string(), value: z.number(), currency: z.literal("AUD"), contactId: z.string().nullable(), companyId: z.string().nullable() }).passthrough().openapi("Deal");
@@ -55,9 +57,9 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   // ---------------------------------------------------------------- tasks
   api.openapi(createRoute({ method: "get", path: "/tasks", tags: tag("Tasks"), summary: "List tasks", security: secured,
-    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true.",
+    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true. Filter on custom fields with field.<fieldId>=<value> or field.<fieldId>=<op>:<value>, where op is eq, ne, gt, gte, lt, lte, contains, empty or notempty (for example field.fld_budget=gt:1000). Sort with sort=field:<fieldId> and dir=desc.",
     request: { query: TaskQuery }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
-  async (c) => { const q = c.req.valid("query"); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, includeSubtasks: q.includeSubtasks === "true" }) }); });
+  async (c) => { const q = c.req.valid("query"); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
     description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task.",
