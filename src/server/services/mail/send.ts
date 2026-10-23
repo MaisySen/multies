@@ -10,6 +10,10 @@ import { getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
 import { storeMessage } from "./store";
+import { enqueue } from "../jobs";
+import type { DeliverJobPayload } from "./deliver-job";
+import "./deliver-job";
+import { maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
 import type { ParsedAttachment } from "./mime";
 
 export interface SendResult {
@@ -34,6 +38,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (mb.status !== "active") throw badRequest("This mailbox is suspended.");
   const domain = (await db.select().from(domains).where(eq(domains.id, mb.domainId)).get())!;
   const org = await getOrg(db, auth.orgId);
+  if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", `This workspace is suspended, so it can't send mail. ${org.suspendedReason ?? ""} Contact support to review it.`.trim());
   if (domain.status !== "verified" && !org.isDemo) {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
   }
@@ -41,8 +46,11 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const recipients = [...new Set([...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].map((a) => a.toLowerCase()))];
   const plan = await getPlan(db, auth.orgId);
   const used = await sentToday(db, auth.orgId, deps.now());
-  if (used + recipients.length > plan.limits.dailySends) {
-    throw planLimit(`Daily sending limit reached (${plan.limits.dailySends} recipients on ${plan.name}). It resets at midnight UTC.`);
+  const cap = org.sendCapDaily ?? plan.limits.dailySends;
+  if (used + recipients.length > cap) {
+    throw planLimit(org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends
+      ? `This workspace can send to ${cap} recipients a day while its sending is under review. It resets at midnight UTC.`
+      : `Daily sending limit reached (${cap} recipients on ${plan.name}). It resets at midnight UTC. Upgrade for a higher limit.`);
   }
 
   let inReplyTo: string | undefined = extra.inReplyTo;
@@ -53,6 +61,19 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       inReplyTo = parent.messageIdHeader;
       references = [parent.references, parent.messageIdHeader].filter(Boolean).join(" ");
     }
+  }
+
+  // Spam heuristics on mail that leaves the platform (services/abuse.ts).
+  const externalCount = (await Promise.all(recipients.map((r) => isHosted(db, r)))).filter((h) => !h).length;
+  if (externalCount && !org.isDemo) {
+    const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
+    const verdict = scoreOutbound({ subject: input.subject, text: input.text, html: input.html, recipients: externalCount, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, auth.orgId) });
+    if (verdict.score >= SPAM_HOLD_AT) {
+      await recordAbuse(deps, auth.orgId, "outbound_held", verdict.score, verdict.reasons.join("; "));
+      await maybeAutoSuspend(deps, auth.orgId, ageDays);
+      throw new HttpError(422, "message_held", "This message looks like spam to our filters, so it wasn't sent. Check the reasons, edit the message and try again.", { reasons: verdict.reasons, score: verdict.score });
+    }
+    if (verdict.score >= SPAM_FLAG_AT) await recordAbuse(deps, auth.orgId, "outbound_flagged", verdict.score, verdict.reasons.join("; "));
   }
 
   const now = deps.now();
@@ -118,10 +139,22 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
         result.external.push({ address, status: sent.status, detail: sent.detail });
       }
     } catch (err) {
-      const detail = err instanceof OutboundError ? err.message : "The email provider could not be reached.";
-      for (const address of external) {
-        await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: "failed", provider: deps.outbound.name, detail });
-        result.external.push({ address, status: "failed", detail });
+      const retryable = !(err instanceof OutboundError) || err.retryable;
+      if (retryable) {
+        // Provider down, slow or rate limited: queue it. The job retries with backoff
+        // for about two days, then sends the sender a non-delivery notice.
+        const detail = "Delayed: the email provider is unavailable right now. We'll keep retrying automatically.";
+        await enqueue(deps, "mail.deliver", { orgId: auth.orgId, messageId: sentId, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc) } satisfies DeliverJobPayload, { orgId: auth.orgId, delayMs: 30_000 });
+        for (const address of external) {
+          await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: "delayed", provider: deps.outbound.name, detail });
+          result.external.push({ address, status: "queued", detail });
+        }
+      } else {
+        const detail = (err as OutboundError).message;
+        for (const address of external) {
+          await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: "failed", provider: deps.outbound.name, detail });
+          result.external.push({ address, status: "failed", detail });
+        }
       }
     }
   }

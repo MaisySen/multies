@@ -10,6 +10,7 @@ import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "../context";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency } from "../lib/idempotency";
+import { getOrg } from "../services/plans";
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes } from "../services/addresses";
 import { resolveApiKey } from "../services/developer/api-keys";
@@ -109,6 +110,8 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = await resolveApiKey(c.var.deps, c.req.header("authorization"));
   if (!auth) throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
   if (auth.scope === "read" && c.req.method !== "GET") throw new HttpError(403, "read_only_key", "This API key can only read.");
+  const org = await getOrg(c.var.deps.db, auth.orgId);
+  if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();
 };
