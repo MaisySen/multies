@@ -100,3 +100,37 @@ runDemo("demo workspace: lists tasks, makes one from an email, moves it to done 
   console.log(JSON.stringify({ demoMs, tasksBefore: before.length, made: task.ref, done: done.statusName, pushEnabledOnServer: reg.enabled }));
   await api.signOut();
 }, 180_000);
+
+runDemo("demo workspace: times a task, reads the running timer, stops it and starts a meeting from the task", async () => {
+  let jar: Jar = {};
+  const api = endpoints(new HttpTransport({ get: () => jar, set: (j) => { jar = j; } }, () => {}, base, nodeFetch as unknown as typeof fetch));
+  await api.startDemo();
+  const { tasks } = await api.tasks();
+  expect(tasks.length).toBeGreaterThan(0);
+  const task = tasks.find((t) => t.status !== "done") ?? tasks[0];
+
+  const { entry: started } = await api.startTimer(task.ref);
+  expect(started).toMatchObject({ taskId: task.id, running: true, source: "timer" });
+  const { entry: running } = await api.runningTimer();
+  expect(running?.id).toBe(started.id);
+  await new Promise((r) => setTimeout(r, 2000));
+  const { entry: stopped } = await api.stopTimer();
+  expect(stopped).toMatchObject({ id: started.id, running: false });
+  expect((await api.runningTimer()).entry).toBeNull();
+  const { entry: logged } = await api.logTime({ taskId: task.id, minutes: 15, note: "Logged from the mobile app's live test." });
+  expect(logged.source).toBe("manual");
+  const detail = await api.task(task.id);
+  expect(detail.time?.entries.map((e) => e.id)).toEqual(expect.arrayContaining([started.id, logged.id]));
+  expect(detail.time!.totalSeconds).toBeGreaterThanOrEqual(15 * 60);
+  expect(Array.isArray(detail.blockedBy)).toBe(true);
+
+  const { meeting } = await api.createMeeting({ source: { type: "task", id: task.id }, title: task.title });
+  expect(meeting.source).toMatchObject({ type: "task", id: task.id });
+  expect(meeting.joinUrl).toBe(`${base}/app/meetings/${meeting.id}`);
+  expect(meeting.guestUrl).toMatch(/\/m\//);
+  const upcoming = await api.meetings(true);
+  expect(upcoming.meetings.map((m) => m.id)).toContain(meeting.id);
+
+  console.log(JSON.stringify({ task: task.ref, timerSeconds: stopped?.seconds, totalSeconds: detail.time!.totalSeconds, meeting: meeting.id, joinUrl: meeting.joinUrl, guestHost: new URL(meeting.guestUrl).host, videoEnabled: upcoming.videoEnabled }));
+  await api.signOut();
+}, 180_000);

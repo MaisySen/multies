@@ -1,6 +1,7 @@
 /**
  * Smoke test: every main screen renders against the sample workspace, and the key actions work
- * (open a thread, approve an agent's message, make a task from an email, compose and send).
+ * (open a thread, approve an agent's message, make a task from an email, compose and send, run a
+ * timer on a task, start and join a meeting).
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -130,9 +131,90 @@ it("task screen shows status, due date, priority, assignee, replies and comments
   });
 });
 
+it("task screen runs a timer and logs time by hand", async () => {
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string; ref: string }[] }>("GET", "/tasks");
+  const chase = tasks.find((t) => t.title.startsWith("Chase"))!;
+  mockParams = { id: chase.id };
+  const Detail = require("@/app/task/[id]").default;
+  await wrap(<Detail />);
+  expect(await screen.findByTestId("time-total")).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("timer-start"));
+  expect(await screen.findByTestId("timer-elapsed")).toBeTruthy();
+  expect(screen.getByTestId("timer-elapsed").props.children).toMatch(/^\d\d:\d\d$/);
+  const run = await transport.request<{ entry: { taskId: string; running: boolean } | null }>("GET", "/time/running");
+  expect(run.entry).toMatchObject({ taskId: chase.id, running: true });
+
+  await fireEvent.press(screen.getByTestId("log-time"));
+  await fireEvent.changeText(screen.getByTestId("log-minutes"), "abc");
+  await fireEvent.press(screen.getByTestId("log-save"));
+  expect(await screen.findByText(/Enter minutes/)).toBeTruthy();
+  await fireEvent.changeText(screen.getByTestId("log-minutes"), "1:15");
+  await fireEvent.changeText(screen.getByTestId("log-note"), "Phone call with the bank");
+  await fireEvent.press(screen.getByTestId("log-save"));
+  await waitFor(async () => {
+    const { entries } = await transport.request<{ entries: { seconds: number; note: string }[] }>("GET", `/time?taskId=${chase.id}`);
+    expect(entries.find((e) => e.note === "Phone call with the bank")?.seconds).toBe(75 * 60);
+  });
+});
+
+it("tasks list shows the running timer and stops it", async () => {
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string; ref: string }[] }>("GET", "/tasks");
+  const chase = tasks.find((t) => t.title.startsWith("Chase"))!;
+  await transport.request("POST", "/time/start", { taskId: chase.id });
+  const Tasks = require("@/app/(tabs)/tasks").default;
+  await wrap(<Tasks />);
+  expect(await screen.findByTestId("timer-chip")).toBeTruthy();
+  expect(screen.getByText(new RegExp(chase.ref))).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("timer-chip-stop"));
+  await waitFor(() => expect(screen.queryByTestId("timer-chip")).toBeNull());
+  const after = await transport.request<{ entry: unknown }>("GET", "/time/running");
+  expect(after.entry).toBeNull();
+});
+
+it("start meeting on a task makes one linked to it and opens the join link", async () => {
+  const WebBrowser = require("expo-web-browser");
+  WebBrowser.openBrowserAsync.mockClear();
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string }[] }>("GET", "/tasks");
+  mockParams = { id: tasks[0].id };
+  const Detail = require("@/app/task/[id]").default;
+  await wrap(<Detail />);
+  await fireEvent.press(await screen.findByTestId("start-meeting"));
+  await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(expect.stringContaining("/app/meetings/")));
+  const { meetings } = await transport.request<{ meetings: { source: { type: string; id: string } | null }[] }>("GET", "/meetings?upcoming=1");
+  expect(meetings.some((m) => m.source?.type === "task" && m.source.id === tasks[0].id)).toBe(true);
+});
+
+it("thread screen starts a meeting from the email", async () => {
+  const WebBrowser = require("expo-web-browser");
+  WebBrowser.openBrowserAsync.mockClear();
+  mockParams = { id: "msg_3" };
+  const Thread = require("@/app/thread/[id]").default;
+  await wrap(<Thread />);
+  await fireEvent.press(await screen.findByTestId("start-meeting"));
+  await waitFor(() => expect(WebBrowser.openBrowserAsync).toHaveBeenCalled());
+  const { meetings } = await transport.request<{ meetings: { source: { type: string; id: string } | null }[] }>("GET", "/meetings?upcoming=1");
+  expect(meetings.some((m) => m.source?.type === "thread" && m.source.id === "thr_3")).toBe(true);
+});
+
+it("meetings list joins and copies the guest link", async () => {
+  const WebBrowser = require("expo-web-browser");
+  const Clipboard = require("expo-clipboard");
+  WebBrowser.openBrowserAsync.mockClear();
+  const Meetings = require("@/app/meetings").default;
+  await wrap(<Meetings />);
+  expect(await screen.findByText("Kiosk fit out walkthrough")).toBeTruthy();
+  expect(screen.getByText(/Video isn't switched on/)).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("join-mtg_s1"));
+  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://mymail.mymail-app.workers.dev/app/meetings/mtg_s1");
+  await fireEvent.press(screen.getByTestId("copy-mtg_s1"));
+  await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining("/m/")));
+});
+
 it("settings render", async () => {
   const Settings = require("@/app/(tabs)/settings").default;
   await wrap(<Settings />);
   expect(await screen.findByText("Delete account")).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("meetings"));
+  expect(mockPush).toHaveBeenCalledWith("/meetings");
   expect(screen.getByText("English (Australia)", { exact: false })).toBeTruthy();
 });
