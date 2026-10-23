@@ -19,7 +19,6 @@ const runDemo = process.env.MYMAIL_LIVE_DEMO === "1" ? it : it.skip;
 
 /** jest-expo swaps out fetch and web streams, so the live test talks HTTPS through Node directly. */
 function nodeFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const https = require("node:https") as typeof import("node:https");
   return new Promise((resolve, reject) => {
     const req = https.request(url, { method: init.method ?? "GET", headers: init.headers as Record<string, string> }, (res) => {
@@ -98,7 +97,6 @@ runDemo("demo workspace: lists tasks, makes one from an email, moves it to done 
   await api.unregisterPushDevice(token);
   expect((await api.pushDevices()).devices.length).toBe(devices.devices.length - 1);
 
-  // eslint-disable-next-line no-console
   console.log(JSON.stringify({ demoMs, tasksBefore: before.length, made: task.ref, done: done.statusName, pushEnabledOnServer: reg.enabled }));
   await api.signOut();
 }, 180_000);

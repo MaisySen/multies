@@ -1,8 +1,7 @@
-import { Platform, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import type { Agent, Approval } from "@/api/types";
-import { Pressable } from "react-native";
 import { Badge, Button, Card, Icon } from "./ui";
 import { timeAgo, timeLeft } from "@/lib/format";
 import { colors, space } from "@/theme";

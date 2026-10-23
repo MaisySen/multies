@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Avatar, Badge, Banner, Button, Chip, EmptyState, Field, Icon, Loading } from "@/components/ui";
@@ -21,7 +21,11 @@ export default function TaskDetail() {
   const [notes, setNotes] = useState("");
   const [comment, setComment] = useState("");
   const [subtask, setSubtask] = useState("");
-  useEffect(() => { if (t) { setTitle(t.title); setNotes(t.notes); } }, [t?.id, t?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Refill the editable fields whenever a newer copy of the task arrives (React's "adjust state
+  // when a prop changes" pattern, without an effect).
+  const [seen, setSeen] = useState<string | null>(null);
+  const stamp = t ? `${t.id}:${t.version}` : null;
+  if (t && stamp !== seen) { setSeen(stamp); setTitle(t.title); setNotes(t.notes); }
 
   if (q.isPending) return <Loading />;
   if (!t || !q.data) return <EmptyState icon="check-square" title="Task not found" body="It may have been deleted, or it isn't shared with you." />;

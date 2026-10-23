@@ -30,13 +30,13 @@ export default function DeleteAccount() {
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
       <Card style={{ gap: space.sm, borderColor: "rgba(251,113,133,0.35)" }}>
         <Text style={[font.heading, { fontSize: 18 }]}>What gets deleted</Text>
-        <Text style={font.small}>Your login, and every workspace where you're the only member, including its mailboxes, mail, agents and tasks. Paid add-ons are cancelled.</Text>
+        <Text style={font.small}>Your login, and every workspace where you{"'"}re the only member, including its mailboxes, mail, agents and tasks. Paid add-ons are cancelled.</Text>
         <Text style={font.small}>If you own a workspace other people use, hand it to someone else on the web first.</Text>
         <Text style={font.small}>Backups that still hold your data expire within 30 days. We email {me?.user.email ?? "you"} to confirm.</Text>
       </Card>
       {mode === "live" ? (
         <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" testID="delete-password" />
-      ) : <Text style={font.small}>You're in the sample workspace, so this only clears it from this phone.</Text>}
+      ) : <Text style={font.small}>You{"'"}re in the sample workspace, so this only clears it from this phone.</Text>}
       {error ? <Text style={{ color: colors.bad }} accessibilityRole="alert">{error}</Text> : null}
       <Button variant="danger" icon="user-x" label="Delete my account" onPress={confirm} loading={busy} testID="confirm-delete" />
       <Button variant="ghost" label="Signed in with Google or Auth0? Delete on the web" onPress={() => WebBrowser.openBrowserAsync(LINKS.accountSettings)} />

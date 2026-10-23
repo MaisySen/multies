@@ -1,7 +1,7 @@
 // Walks the main screens of the web build on a phone sized viewport, saves screenshots and runs
 // an axe accessibility check on each. Usage: node scripts/screens.mjs http://localhost:8790 <out-dir>
 import { chromium } from "playwright";
-import AxeBuilder from "@axe-core/playwright";
+import { AxeBuilder } from "@axe-core/playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const base = process.argv[2] ?? "http://localhost:8790";

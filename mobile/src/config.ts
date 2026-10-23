@@ -11,8 +11,8 @@ export const SAMPLE_ONLY = Platform.OS === "web" || process.env.EXPO_PUBLIC_SAMP
 
 export const EAS_PROJECT_ID = extra.eas?.projectId ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? null;
 
-function flag(name: string, fallback: boolean) {
-  const v = process.env[name];
+/** Reads a build flag. Expo inlines EXPO_PUBLIC_ values only when written out in full, so callers pass process.env.X itself. */
+function flag(v: string | undefined, fallback: boolean) {
   if (v === undefined || v === "") return fallback;
   return v === "1" || v === "true";
 }
@@ -26,8 +26,8 @@ function flag(name: string, fallback: boolean) {
  * turns it off for a build.
  */
 export const FEATURES = {
-  tasks: flag("EXPO_PUBLIC_FEATURE_TASKS", true),
-  pushServer: flag("EXPO_PUBLIC_FEATURE_PUSH_SERVER", true),
+  tasks: flag(process.env.EXPO_PUBLIC_FEATURE_TASKS, true),
+  pushServer: flag(process.env.EXPO_PUBLIC_FEATURE_PUSH_SERVER, true),
 };
 
 export const LINKS = {
