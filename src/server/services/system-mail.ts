@@ -2,6 +2,7 @@ import type { Deps } from "../context";
 import { newId } from "../lib/crypto";
 import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
 import { OutboundError } from "./mail/outbound";
+import { enqueue, PermanentJobError, registerJob } from "./jobs";
 
 export interface SystemEmail {
   to: string;
@@ -72,6 +73,7 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   }
   try {
     const res = await deps.outbound.send({ from: config.systemFrom, to: [to], subject: e.subject, text, html, messageId });
+    if (res.status === "sent") deps.log?.info("system_mail.sent", { template: e.template ?? "notice" });
     if (e.orgId) {
       await logDelivery(deps.db, {
         orgId: e.orgId, direction: "outbound", fromAddress: config.systemFrom.address, toAddress: to, subject: e.subject,
@@ -80,6 +82,21 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
     }
     return { delivered: res.status === "sent", via: "provider", detail: res.detail };
   } catch (err) {
-    return { delivered: false, via: "provider", detail: err instanceof OutboundError ? err.message : "Send failed" };
+    if (!(err instanceof OutboundError) || err.retryable) {
+      // Provider unavailable: retry from the job queue so the person still gets it.
+      await enqueue(deps, "system-mail.send", { to, subject: e.subject, text, html, messageId, orgId: e.orgId ?? null }, { orgId: e.orgId ?? null, delayMs: 30_000, maxAttempts: 6 });
+      return { delivered: false, via: "provider", detail: "Delayed: the email provider is unavailable right now. It will be retried automatically." };
+    }
+    return { delivered: false, via: "provider", detail: err.message };
   }
 }
+
+registerJob("system-mail.send", async (deps, payload) => {
+  const p = payload as { to: string; subject: string; text: string; html: string; messageId: string; orgId: string | null };
+  try {
+    await deps.outbound.send({ from: deps.config.systemFrom, to: [p.to], subject: p.subject, text: p.text, html: p.html, messageId: p.messageId });
+  } catch (err) {
+    if (err instanceof OutboundError && !err.retryable) throw new PermanentJobError(err.message);
+    throw err;
+  }
+});

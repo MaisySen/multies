@@ -6,6 +6,8 @@
 import * as Sentry from "@sentry/node";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
+import { compress } from "hono/compress";
+import { jsonLogger } from "../server/lib/logger";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createApp } from "../server/app";
@@ -15,23 +17,25 @@ import { openSqlite } from "../server/db/node";
 import { DohResolver } from "../server/services/dns/resolver";
 import { NodeResolver } from "../server/services/dns/node-resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
+import { ResilientOutbound } from "../server/services/resilience";
 import { runMaintenance } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 
 loadDotEnv();
 const config = loadConfig(process.env);
-if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, tracesSampleRate: 0.05 });
+if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, release: config.release, tracesSampleRate: config.sentry.tracesSampleRate });
 const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
 const applied = await migrate(db);
 if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`);
 
 const outbound = config.outbound.driver === "resend"
-  ? new ResendOutbound(config.outbound.resendApiKey!)
+  ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!))
   : new LogOutbound((line) => console.log(line));
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
 const deps = {
   db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis),
+  log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
   authenticate: mailauthAuthenticator(),
   reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
 };
@@ -44,6 +48,8 @@ setTimeout(tick, 5_000).unref();
 
 const webRoot = path.resolve("dist/web");
 if (existsSync(webRoot)) {
+  // gzip or brotli for the app's static files (Workers compress at the edge).
+  app.use("/*", compress());
   app.use("/*", serveStatic({ root: path.relative(process.cwd(), webRoot) }));
   // Read per request so a rebuilt web app is picked up without a restart.
   app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, "index.html"), "utf8"))));

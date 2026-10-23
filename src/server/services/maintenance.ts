@@ -11,18 +11,40 @@ import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
 import { pruneLockouts } from "./lockout";
+import { pruneJobs, runDueJobs } from "./jobs";
+import { crossCheck, recordUptimeCheck } from "./status";
+import "./mail/deliver-job";
+import "./system-mail";
 
-/** Periodic housekeeping: re-check DNS, expire sessions, purge old sandboxes. */
+/**
+ * Periodic housekeeping: drain the job queue, record the uptime self check, re-check
+ * DNS, expire sessions, purge old sandboxes, apply billing grace periods and prune
+ * short-lived tables. Each step is isolated so one failure cannot stop the others.
+ */
 export async function runMaintenance(deps: Deps) {
+  const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
+    try { return await fn(); } catch (err) { deps.log?.error("maintenance.step_failed", { step: name, error: err }); deps.reportError?.(err, { maintenance: name }); return undefined; }
+  };
+  const jobsRun = await step("jobs", () => runDueJobs(deps, 50));
+  const uptime = await step("uptime", () => recordUptimeCheck(deps));
+  const crossChecks = await step("cross_check", () => crossCheck(deps));
+  const legacy = await step("legacy", () => legacyMaintenance(deps));
+  await step("prune", async () => {
+    await pruneRateLimits(deps.db, deps.now().getTime());
+    await pruneIdempotencyKeys(deps.db, deps.now());
+    await pruneLockouts(deps.db, deps.now());
+    await pruneJobs(deps);
+  });
+  return { ...legacy, jobs: jobsRun, uptime, crossChecks };
+}
+
+async function legacyMaintenance(deps: Deps) {
   const rechecked = await recheckStaleDomains(deps);
   await deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now()));
   await deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now()));
   const purged = deps.config.demoEnabled ? await purgeDemoWorkspaces(deps) : 0;
   const webhooksRetried = await retryDueDeliveries(deps);
   await pruneDeliveries(deps);
-  await pruneRateLimits(deps.db, deps.now().getTime());
-  await pruneIdempotencyKeys(deps.db, deps.now());
-  await pruneLockouts(deps.db, deps.now());
   return { rechecked: rechecked.length, purged, webhooksRetried };
 }
 

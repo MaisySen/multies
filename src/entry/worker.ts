@@ -10,9 +10,11 @@ import { loadConfig } from "../server/config";
 import { applyMigrations, migrationDriver, schema, type DB } from "../server/db";
 import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
+import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenance } from "../server/services/maintenance";
 import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
+import { jsonLogger } from "../server/lib/logger";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -26,6 +28,8 @@ export interface WorkerEnv {
 
 /** Build-time defaults (set by scripts/build-worker.ts); real env vars win. */
 declare const __MYMAIL_BUILD_ENV__: Record<string, string>;
+/** The built index.html, served by the Worker for every app route. */
+declare const __MYMAIL_SHELL_HTML__: string;
 
 let ready: Promise<{ app: ReturnType<typeof createApp>; deps: Deps }> | null = null;
 let lastMaintenance = 0;
@@ -38,9 +42,10 @@ async function boot(env: WorkerEnv) {
   for (const [k, v] of Object.entries(env)) if (typeof v === "string") vars[k] = v;
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
   const config = loadConfig(vars);
-  const outbound = config.outbound.driver === "resend" ? new ResendOutbound(config.outbound.resendApiKey!) : new LogOutbound();
+  const outbound = config.outbound.driver === "resend" ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!)) : new LogOutbound();
   const deps: Deps = {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init),
+    log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
@@ -111,9 +116,11 @@ const handler = {
       if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
       return res;
     }
-    // SPA fallback: unknown paths render the app shell, which routes client-side.
-    const shell = await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
-    const res = withSecurityHeaders(new Response(shell.body, { status: 200, headers: shell.headers }), pageHeaders);
+    // Every app route renders the app shell, which routes client-side.
+    const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
+      ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
+      : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
+    const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), pageHeaders);
     res.headers.set("cache-control", "no-cache");
     return res;
   },
@@ -134,6 +141,7 @@ export default Sentry.withSentry((rawEnv: unknown) => {
   return {
     dsn,
     environment: (typeof env.SENTRY_ENVIRONMENT === "string" ? env.SENTRY_ENVIRONMENT : undefined) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
-    tracesSampleRate: 0.05,
+    release: (typeof env.RELEASE === "string" ? env.RELEASE : undefined) ?? buildEnv.RELEASE,
+    tracesSampleRate: Number((typeof env.SENTRY_TRACES_SAMPLE_RATE === "string" ? env.SENTRY_TRACES_SAMPLE_RATE : undefined) ?? buildEnv.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
   };
 }, handler as never);
