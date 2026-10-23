@@ -21,6 +21,7 @@ import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
+import { systemStatus } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -35,7 +36,7 @@ export function createApp(deps: Deps) {
   app.use("/api/*", secureHeaders({ crossOriginResourcePolicy: "same-origin" }));
   app.use("/api/*", async (c, next) => {
     await next();
-    c.header("cache-control", "no-store");
+    if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
   });
   app.use("/api/*", async (c, next) => {
     // Signed webhooks and the API-key REST API never use cookies, so CSRF does not apply.
@@ -56,6 +57,11 @@ export function createApp(deps: Deps) {
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }
+  });
+  app.get("/api/status", async (c) => {
+    const body = await systemStatus(deps);
+    c.header("cache-control", "public, max-age=30");
+    return c.json(body, body.overall === "down" ? 503 : 200);
   });
   app.get("/api/config", (c) =>
     c.json({

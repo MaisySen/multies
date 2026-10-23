@@ -26,6 +26,7 @@ const BillingSettings = lazy(() => import("./pages/app/billing").then((m) => ({ 
 const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
+const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: <PricingPage /> },
+      { path: "/status", element: page(<StatusPage />) },
     ],
   },
   {

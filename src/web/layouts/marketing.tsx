@@ -85,6 +85,8 @@ export function MarketingLayout() {
               <li><Link to="/#features" className="hover:text-fg">Features</Link></li>
               <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
               <li><Link to="/#faq" className="hover:text-fg">FAQ</Link></li>
+              <li><Link to="/status" className="hover:text-fg">System status</Link></li>
+              <li><a href="/api/v1/docs" className="hover:text-fg">API reference</a></li>
             </ul>
           </div>
           <div>
