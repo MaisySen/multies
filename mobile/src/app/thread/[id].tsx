@@ -6,6 +6,7 @@ import { useAgents, useMessageAction, useTaskMutations, useThread } from "@/lib/
 import { useOffline } from "@/lib/offline";
 import { bytes, displayName, longDate } from "@/lib/format";
 import { FEATURES } from "@/config";
+import { StartMeetingButton } from "@/components/meetings";
 import type { Message } from "@/api/types";
 import { colors, font, radius, space } from "@/theme";
 
@@ -63,6 +64,7 @@ export default function Thread() {
           {FEATURES.tasks ? (
             <Button variant="secondary" icon="check-square" label="Make a task from this email" onPress={makeTask} loading={tasks.fromEmail.isPending} testID="make-task" />
           ) : null}
+          {msg ? <StartMeetingButton source={{ type: "thread", id: msg.threadId }} title={msg.subject || undefined} /> : null}
         </ScrollView>
       )}
       {last ? (

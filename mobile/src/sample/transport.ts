@@ -3,6 +3,7 @@ import { ApiError } from "@/api/errors";
 import type { Approval, Message, SendInput } from "@/api/types";
 import { sampleData } from "./fixtures";
 import { taskRoute } from "./tasks";
+import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -11,11 +12,15 @@ import { taskRoute } from "./tasks";
 export class SampleTransport implements Transport {
   readonly kind = "sample" as const;
   private data = sampleData();
+  private extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
   private seq = 100;
 
   constructor(private latencyMs = 0) {}
 
-  reset() { this.data = sampleData(); }
+  reset() {
+    this.data = sampleData();
+    this.extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
+  }
 
   async request<T>(method: Method, rawPath: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
     if (this.latencyMs) await new Promise((r) => setTimeout(r, this.latencyMs));
@@ -29,8 +34,17 @@ export class SampleTransport implements Transport {
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
+    const extra = extrasRoute(this.extras, d.work, method, parts, params, body);
+    if (extra !== undefined) return json(extra);
     const work = taskRoute(d.work, d.messages, method, parts, params, body);
-    if (work !== undefined) return json(work);
+    if (work !== undefined) {
+      // GET /tasks/:id also carries the task's time and its dependencies, as the server does.
+      if (method === "GET" && parts[0] === "tasks" && parts.length === 2 && work && typeof work === "object" && "task" in work) {
+        const id = (work as { task: { id: string } }).task.id;
+        return json({ ...work, time: taskTime(this.extras, id, Date.now()), blockedBy: [], blocking: [] });
+      }
+      return json(work);
+    }
 
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });

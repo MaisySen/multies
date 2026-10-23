@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Avatar, Badge, Banner, Button, Chip, EmptyState, Field, Icon, Loading } from "@/components/ui";
+import { TaskTime } from "@/components/timer";
+import { StartMeetingButton } from "@/components/meetings";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
@@ -68,6 +70,9 @@ export default function TaskDetail() {
       <Field label="Title" value={title} onChangeText={setTitle} testID="task-title"
         onEndEditing={() => title.trim() && title !== t.title && save({ title: title.trim() }, true)} />
 
+      <TaskTime task={t} detail={d} />
+      <StartMeetingButton source={{ type: "task", id: t.id }} title={t.title} />
+
       <Group label="Status">
         {STATUSES.map((s) => <Chip key={s.id} label={s.label} selected={t.status === s.id} onPress={() => t.status !== s.id && save({ status: s.id })} />)}
       </Group>
@@ -94,6 +99,13 @@ export default function TaskDetail() {
           <Button label="Add" variant="secondary" onPress={addSubtask} loading={m.create.isPending} style={{ minHeight: 48 }} testID="add-subtask" />
         </View>
       </Section>
+
+      {d.blockedBy?.length || d.blocking?.length ? (
+        <Section title="Dependencies">
+          {d.blockedBy?.map((b) => <Linked key={`by-${b.id}`} label="Blocked by" task={b} />)}
+          {d.blocking?.map((b) => <Linked key={`bl-${b.id}`} label="Blocking" task={b} />)}
+        </Section>
+      ) : null}
 
       {t.source ? (
         <Section title={`Email thread${d.thread.length ? ` (${d.thread.length})` : ""}`}>
@@ -167,5 +179,15 @@ function Subtask({ s, onToggle }: { s: Task; onToggle: () => void }) {
         <Text style={{ color: done ? colors.subtle : colors.fg, textDecorationLine: done ? "line-through" : "none" }}>{s.title}</Text>
       </Pressable>
     </View>
+  );
+}
+
+function Linked({ label, task }: { label: string; task: Task }) {
+  return (
+    <Pressable onPress={() => router.push({ pathname: "/task/[id]", params: { id: task.id } })} accessibilityRole="button" accessibilityLabel={`${label} ${task.ref} ${task.title}`}
+      style={{ flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 44, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, paddingHorizontal: space.md }}>
+      <Text style={font.tiny}>{label}</Text>
+      <Text style={{ color: colors.fg, flex: 1, textDecorationLine: task.status === "done" ? "line-through" : "none" }} numberOfLines={1}>{task.ref} {task.title}</Text>
+    </Pressable>
   );
 }

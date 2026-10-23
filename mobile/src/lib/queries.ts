@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useSession } from "./session";
 import { cached } from "./offline";
 import { kv } from "./kv";
-import type { Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskDetail, TaskPatch, TaskQuery } from "@/api/types";
+import type { Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
   overview: ["overview"] as const,
@@ -16,6 +16,8 @@ export const keys = {
   task: (id: string) => ["task", id] as const,
   projects: ["projects"] as const,
   assignees: ["assignees"] as const,
+  timer: ["time", "running"] as const,
+  meetings: ["meetings"] as const,
 };
 
 export function useOverview() {
@@ -117,7 +119,7 @@ export function useTasks(filter: TaskQuery = {}) {
 /** One task with its subtasks, comments and the email thread it came from. */
 export function useTask(id: string) {
   const { api, mode } = useSession();
-  return useQuery({ queryKey: keys.task(id), queryFn: () => cached<TaskDetail>(kv(), `task:${mode}:${id}`, () => api.task(id)), enabled: !!id });
+  return useQuery({ queryKey: keys.task(id), queryFn: () => cached<TaskView>(kv(), `task:${mode}:${id}`, () => api.task(id)), enabled: !!id });
 }
 
 export function useAssignees() {
@@ -146,7 +148,7 @@ export function useTaskMutations() {
   };
   const put = (task: Task) => {
     qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: d.tasks.map((x) => (x.id === task.id ? task : x)) });
-    qc.setQueryData<TaskDetail>(keys.task(task.id), (d) => d && { ...d, task });
+    qc.setQueryData<TaskView>(keys.task(task.id), (d) => d && { ...d, task });
   };
   return {
     create: useMutation({ mutationFn: (v: TaskCreate) => api.createTask(v).then((r) => r.task), onSuccess: (t) => { qc.setQueryData(keys.task(t.id), undefined); refresh(); } }),
@@ -157,9 +159,9 @@ export function useTaskMutations() {
       onMutate: async (v) => {
         await qc.cancelQueries({ queryKey: keys.tasks });
         const lists = qc.getQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks });
-        const detail = qc.getQueryData<TaskDetail>(keys.task(v.id));
+        const detail = qc.getQueryData<TaskView>(keys.task(v.id));
         qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: d.tasks.map((x) => (x.id === v.id ? patchTask(x, v.patch) : x)) });
-        if (detail) qc.setQueryData<TaskDetail>(keys.task(v.id), { ...detail, task: patchTask(detail.task, v.patch) });
+        if (detail) qc.setQueryData<TaskView>(keys.task(v.id), { ...detail, task: patchTask(detail.task, v.patch) });
         return { lists, detail };
       },
       onError: (_e, v, ctx) => {
@@ -172,4 +174,50 @@ export function useTaskMutations() {
     remove: useMutation({ mutationFn: (id: string) => api.deleteTask(id), onSuccess: (_r, id) => { qc.removeQueries({ queryKey: keys.task(id) }); refresh(); } }),
     comment: useMutation({ mutationFn: (v: { id: string; body: string }) => api.addComment(v.id, v.body), onSuccess: (_r, v) => refresh(v.id) }),
   };
+}
+
+/** This person's running timer, if any. Polled so a timer started on the web shows up here too. */
+export function useRunningTimer() {
+  const { api, mode } = useSession();
+  return useQuery({
+    queryKey: keys.timer,
+    queryFn: () => cached(kv(), `meta:${mode}:timer`, () => api.runningTimer()),
+    select: (d) => d.entry,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useTimerMutations() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  const refresh = (taskId?: string | null) => {
+    qc.invalidateQueries({ queryKey: keys.timer });
+    // The old timer may belong to another task, so every open task refreshes its total.
+    qc.invalidateQueries({ queryKey: taskId ? keys.task(taskId) : ["task"] });
+  };
+  return {
+    start: useMutation({
+      mutationFn: (v: { taskId: string; note?: string }) => api.startTimer(v.taskId, v.note).then((r) => r.entry),
+      onSuccess: (entry) => { qc.setQueryData(keys.timer, { entry }); qc.invalidateQueries({ queryKey: ["task"] }); },
+    }),
+    stop: useMutation({
+      mutationFn: () => api.stopTimer().then((r) => r.entry),
+      onSuccess: (entry) => { qc.setQueryData(keys.timer, { entry: null }); refresh(entry?.taskId); },
+    }),
+    log: useMutation({ mutationFn: (v: TimeLog) => api.logTime(v).then((r) => r.entry), onSuccess: (_e, v) => refresh(v.taskId) }),
+  };
+}
+
+export function useMeetings() {
+  const { api, mode } = useSession();
+  return useQuery({ queryKey: keys.meetings, queryFn: () => cached(kv(), `meta:${mode}:meetings`, () => api.meetings(true)) });
+}
+
+export function useCreateMeeting() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: MeetingCreate) => api.createMeeting(v).then((r) => r.meeting),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.meetings }),
+  });
 }

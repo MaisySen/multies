@@ -74,6 +74,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="approval/[id]" options={{ title: "Review message" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Task" }} />
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
+        <Stack.Screen name="meetings" options={{ title: "Meetings" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack.Protected>
     </Stack>

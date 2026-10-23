@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions 
 import { router, Stack } from "expo-router";
 import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, Loading, Segmented } from "@/components/ui";
 import { useTaskMutations, useTasks } from "@/lib/queries";
+import { TimerChip } from "@/components/timer";
 import { useOffline } from "@/lib/offline";
 import { STATUSES, dueLabel, moveLabel, nextStatus, senderName, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
 import { colors, radius, space } from "@/theme";
@@ -22,8 +23,14 @@ export default function Tasks() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ headerRight: () => <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" /> }} />
+      <Stack.Screen options={{ headerRight: () => (
+        <View style={{ flexDirection: "row" }}>
+          <IconButton icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="open-meetings" />
+          <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" />
+        </View>
+      ) }} />
       <View style={{ padding: space.lg, paddingBottom: space.sm, gap: space.md }}>
+        <TimerChip />
         <Segmented label="Task view" value={view} onChange={setView} options={[{ id: "list", label: "List" }, { id: "board", label: "Board" }]} />
         <View style={{ flexDirection: "row", gap: space.sm }}>
           <Chip label="All tasks" selected={who === "all"} onPress={() => setWho("all")} />
