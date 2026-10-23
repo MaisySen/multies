@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth, requirePlatformAdmin } from "../middleware";
-import { abuseEvents, deliveries, domains, mailboxes, members, organizations, users } from "../db/schema";
+import { abuseEvents, deliveries, domains, mailboxes, organizations, users } from "../db/schema";
 import { audit } from "../services/audit";
 import { listJobs, queueStats, replayJobs } from "../services/jobs";
 import { getOrg } from "../services/plans";
