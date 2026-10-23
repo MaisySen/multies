@@ -42,7 +42,7 @@ export function AdminPage() {
         <p className="mt-1 text-sm text-muted">Every workspace on this deployment. Visible to platform admins only.</p>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {Object.entries({ Users: totals.users, Workspaces: totals.workspaces, Domains: totals.domains, Mailboxes: totals.mailboxes, "Deliveries, 24h": totals.deliveries24h }).map(([k, v]) => (
+        {Object.entries({ Users: totals.users, "Customer workspaces": totals.workspaces, Domains: totals.domains, Mailboxes: totals.mailboxes, "Deliveries, 24h": totals.deliveries24h }).map(([k, v]) => (
           <Card key={k} className="p-4"><div className="text-xs text-muted">{k}</div><div className="mt-1 text-2xl font-semibold tabular-nums">{v}</div></Card>
         ))}
       </div>
@@ -130,12 +130,23 @@ function AbuseQueue() {
   );
 }
 
+interface QueueStats { pending: number; running: number; dead: number; oldestPendingAgeMs: number }
+
+/** "45 s", "12 min", "3 h" for a queue age. */
+function formatAge(ms: number) {
+  const s = Math.round(ms / 1000);
+  if (s < 90) return `${s} s`;
+  if (s < 90 * 60) return `${Math.round(s / 60)} min`;
+  return `${Math.round(s / 3600)} h`;
+}
+
 interface DeadJob { id: string; type: string; orgId: string | null; attempts: number; lastError: string | null; updatedAt: string }
 
 function JobQueue() {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
-  const q = useQuery({ queryKey: ["admin", "jobs"], queryFn: () => api.get<{ stats: Record<string, unknown>; dead: DeadJob[] }>("/admin/jobs") });
+  const q = useQuery({ queryKey: ["admin", "jobs"], queryFn: () => api.get<{ stats: QueueStats; dead: DeadJob[] }>("/admin/jobs") });
+  const stats: Partial<QueueStats> = q.data?.stats ?? {};
   const replay = async (ids: string[]) => {
     setBusy(true);
     try { const r = await api.post<{ replayed: number }>("/admin/jobs/replay", { ids }); toast.success(`Queued ${r.replayed} again`); qc.invalidateQueries({ queryKey: ["admin", "jobs"] }); }
@@ -146,7 +157,14 @@ function JobQueue() {
     <Section title="Job queue" description="Retries for outbound and account mail. Dead jobs ran out of retries and wait here for a replay.">
       {q.isPending ? <Skeleton className="h-16" /> : (
         <>
-          <pre className="overflow-x-auto rounded-lg border border-line bg-white/[0.02] p-3 font-mono text-xs text-muted">{JSON.stringify(q.data?.stats ?? {}, null, 2)}</pre>
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {Object.entries({
+              Pending: stats.pending, Running: stats.running, Dead: stats.dead,
+              "Oldest pending": stats.oldestPendingAgeMs ? formatAge(stats.oldestPendingAgeMs) : "none",
+            }).map(([k, v]) => (
+              <div key={k} className="rounded-lg border border-line p-3"><dt className="text-xs text-muted">{k}</dt><dd className="mt-1 text-lg font-semibold tabular-nums">{v ?? 0}</dd></div>
+            ))}
+          </dl>
           {dead.length > 0 && (
             <>
               <ul className="mt-3 divide-y divide-line rounded-lg border border-line text-sm">
