@@ -198,9 +198,9 @@ function OutboundSection() {
       <div className={cn("flex gap-3 rounded-lg border p-4 text-sm", live ? "border-ok/20 bg-ok-soft/40" : "border-warn/20 bg-warn-soft/40")}>
         {live ? <Send className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
-          <div className="font-medium">{live ? `Sending through ${config.data?.outboundDriver}` : "No email provider connected"}</div>
+          <div className="font-medium">{live ? "Sending through Resend" : "No email provider connected"}</div>
           <p className="mt-0.5 text-muted">
-            {live ? "External recipients receive your mail with your domain's SPF, DKIM and DMARC." : "Mail between MyMail addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key (RESEND_API_KEY)."}
+            {live ? "Resend delivers to outside addresses once your domain is verified with Resend too (it gives you its own SPF and DKIM records). Until then, mail to outside addresses is saved to Sent and marked held in Activity." : "Mail between MyMail addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key (RESEND_API_KEY)."}
           </p>
         </div>
       </div>

@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "./context";
 import { forbidden, HttpError, unauthorized, zodToHttp } from "./lib/errors";
 import { authFor } from "./auth";
-import { members, organizations, sessions } from "./db/schema";
+import { members, organizations, sessions, users } from "./db/schema";
 import { newId } from "./lib/crypto";
 import { audit } from "./services/audit";
 
@@ -32,10 +32,19 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
   if (member.organizationId !== s.session.activeOrganizationId) {
     await db.update(sessions).set({ activeOrganizationId: member.organizationId }).where(eq(sessions.id, s.session.id));
   }
+  let platformRole = s.user.role ?? "user";
+  // Bootstrap operators: listed user ids, or listed emails once the address is verified
+  // (an unverified address proves nothing; anyone could have signed up with it).
+  const listed = deps.config.platformAdmins.includes(s.user.id.toLowerCase())
+    || (s.user.emailVerified && deps.config.platformAdmins.includes(s.user.email.toLowerCase()));
+  if (platformRole !== "admin" && listed) {
+    await db.update(users).set({ role: "admin" }).where(eq(users.id, s.user.id));
+    platformRole = "admin";
+  }
   return {
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
     sessionId: s.session.id, emailVerified: s.user.emailVerified, twoFactor: !!s.user.twoFactorEnabled,
-    platformRole: s.user.role ?? "user",
+    platformRole,
   };
 }
 
@@ -44,6 +53,12 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = await resolveAuth(c.var.deps, c.req.raw.headers);
   if (!auth) throw unauthorized();
   c.set("auth", auth);
+  await next();
+};
+
+/** Operators only (Better Auth admin role). */
+export const requirePlatformAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.var.auth.platformRole !== "admin") throw forbidden("Only platform operators can do that.");
   await next();
 };
 

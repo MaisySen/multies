@@ -3,6 +3,7 @@
  * for everything else, D1 as the database. Housekeeping runs opportunistically
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
+import * as Sentry from "@sentry/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
 import { loadConfig } from "../server/config";
@@ -36,7 +37,10 @@ async function boot(env: WorkerEnv) {
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
   const config = loadConfig(vars);
   const outbound = config.outbound.driver === "resend" ? new ResendOutbound(config.outbound.resendApiKey!) : new LogOutbound();
-  const deps: Deps = { db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init) };
+  const deps: Deps = {
+    db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init),
+    reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
+  };
   return { app: createApp(deps), deps };
 }
 
@@ -45,7 +49,7 @@ function getReady(env: WorkerEnv) {
   return ready;
 }
 
-export default {
+const handler = {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname.startsWith("/api/")) {
@@ -70,3 +74,17 @@ export default {
     ctx.waitUntil(runMaintenance(deps));
   },
 };
+
+const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;
+
+/** Sentry wraps the handler when SENTRY_DSN_API is set; without it the SDK stays off. */
+export default Sentry.withSentry((rawEnv: unknown) => {
+  const env = rawEnv as WorkerEnv;
+  const dsn = (typeof env.SENTRY_DSN_API === "string" ? env.SENTRY_DSN_API : undefined) ?? buildEnv.SENTRY_DSN_API;
+  if (!dsn) return undefined;
+  return {
+    dsn,
+    environment: (typeof env.SENTRY_ENVIRONMENT === "string" ? env.SENTRY_ENVIRONMENT : undefined) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
+    tracesSampleRate: 0.05,
+  };
+}, handler as never);

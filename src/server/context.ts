@@ -12,6 +12,8 @@ export interface Deps {
   now: () => Date;
   /** Outbound HTTP (Stripe, webhooks). Swapped for a fake in tests. */
   fetch: typeof fetch;
+  /** Sends an unexpected error to error tracking (Sentry when a DSN is set). Returns the event id. */
+  reportError?: (err: unknown, context?: Record<string, unknown>) => string | undefined;
 }
 
 export interface AuthContext {

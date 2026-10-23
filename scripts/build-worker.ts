@@ -35,17 +35,18 @@ const SECRET_KEYS = [
   "AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET",
   "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
   "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_PRO", "STRIPE_PRICE_BUSINESS",
-  "RESEND_API_KEY", "SENTRY_DSN_API", "SENTRY_DSN_WEB",
+  "RESEND_API_KEY", "SENTRY_DSN_API", "SENTRY_DSN_WEB", "SENTRY_ENVIRONMENT",
+  "PLATFORM_ADMIN_EMAILS", "SYSTEM_FROM", "SYSTEM_FROM_NAME",
 ];
-const secretsArg = process.argv.includes("--secrets") ? process.argv[process.argv.indexOf("--secrets") + 1] : undefined;
+const secretFiles = process.argv.flatMap((a, i) => (a === "--secrets" ? [process.argv[i + 1]] : []));
 const secrets: Record<string, string> = {};
-if (secretsArg) {
-  for (const line of readFileSync(secretsArg, "utf8").split("\n")) {
+for (const file of secretFiles) {
+  for (const line of readFileSync(file, "utf8").split("\n")) {
     const m = line.match(/^\s*(?:-\s*)?`?([A-Z0-9_]+)=([^\s`]+)`?\s*$/);
     if (m && SECRET_KEYS.includes(m[1])) secrets[m[1]] = m[2];
   }
-  console.log(`secrets: ${Object.keys(secrets).join(", ") || "none found"}`);
 }
+if (secretFiles.length) console.log(`secrets: ${Object.keys(secrets).join(", ") || "none found"}`);
 
 if (!existsSync(path.join(root, "dist/web/index.html"))) throw new Error("Run `npm run build:web` first.");
 rmSync(out, { recursive: true, force: true });

@@ -4,6 +4,7 @@ import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
 import { accountRoutes } from "./routes/account";
+import { adminRoutes } from "./routes/admin";
 import { authFor } from "./auth";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -46,10 +47,13 @@ export function createApp(deps: Deps) {
       billingEnabled: deps.config.billing.enabled,
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
+      // A browser DSN is public by design (it can only submit events).
+      sentry: deps.config.sentry.dsnWeb ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment } : null,
     }),
   );
 
   app.route("/api/account", accountRoutes());
+  app.route("/api/admin", adminRoutes());
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
@@ -78,7 +82,8 @@ export function createApp(deps: Deps) {
       return c.json({ error: { code, message: body.message ?? err.message } }, err.statusCode as 400);
     }
     console.error("[api] unhandled", err);
-    return c.json({ error: { code: "internal", message: "Something went wrong on our side." } }, 500);
+    const eventId = deps.reportError?.(err, { method: c.req.method, path: c.req.path });
+    return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
   });
 
   return app;

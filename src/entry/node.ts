@@ -3,6 +3,7 @@
  *   npm run dev:api   (API on :8787, Vite proxies /api to it)
  *   npm run build && npm start   (one process serves everything)
  */
+import * as Sentry from "@sentry/node";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync, readFileSync } from "node:fs";
@@ -18,6 +19,7 @@ import { runMaintenance } from "../server/services/maintenance";
 
 loadDotEnv();
 const config = loadConfig(process.env);
+if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, tracesSampleRate: 0.05 });
 const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
 const applied = await migrate(db);
 if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`);
@@ -27,7 +29,10 @@ const outbound = config.outbound.driver === "resend"
   : new LogOutbound((line) => console.log(line));
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
-const deps = { db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis) };
+const deps = {
+  db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis),
+  reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
+};
 const app = createApp(deps);
 
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.

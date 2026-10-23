@@ -9,6 +9,7 @@ import { NotFound } from "./pages/not-found";
 import { AppSkeleton } from "./layouts/app-skeleton";
 
 const AppLayout = lazy(() => import("./layouts/app").then((m) => ({ default: m.AppLayout })));
+const AdminPage = lazy(() => import("./pages/app/admin").then((m) => ({ default: m.AdminPage })));
 const DashboardPage = lazy(() => import("./pages/app/dashboard").then((m) => ({ default: m.DashboardPage })));
 const DomainsPage = lazy(() => import("./pages/app/domains").then((m) => ({ default: m.DomainsPage })));
 const DomainDetailPage = lazy(() => import("./pages/app/domain-detail").then((m) => ({ default: m.DomainDetailPage })));
@@ -55,6 +56,7 @@ export const router = createBrowserRouter([
       { path: "mailboxes", element: page(<MailboxesPage />) },
       { path: "mail", element: page(<WebmailPage />) },
       { path: "activity", element: page(<ActivityPage />) },
+      { path: "admin", element: page(<AdminPage />) },
       {
         path: "settings",
         element: page(<SettingsLayout />),

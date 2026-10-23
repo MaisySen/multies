@@ -5,7 +5,7 @@ import type { Address, AuthResults, Folder } from "@/shared/mail";
 export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
 export interface Me {
-  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean };
+  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean };
   organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member" } | null;
 }
 
@@ -17,6 +17,7 @@ export interface PublicConfig {
   billingEnabled: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
+  sentry: { dsn: string; environment: string } | null;
 }
 
 export interface Domain {

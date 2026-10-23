@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Sparkles, Users, X } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
@@ -63,7 +63,7 @@ export function AppLayout() {
         <WorkspaceSwitcher current={organization} />
       </div>
       <nav className="mt-4 flex-1 space-y-0.5 px-3" aria-label="App">
-        {nav.map(({ to, label, icon: Icon, end }) => (
+        {[...nav, ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false }] : [])].map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cn(
             "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors",
             isActive ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg",

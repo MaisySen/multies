@@ -43,7 +43,16 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       const failed = r.external.filter((e) => e.status === "failed");
       const queued = r.external.filter((e) => e.status === "queued");
       if (failed.length) toast.error(`Couldn't deliver to ${failed.map((f) => f.address).join(", ")}`, { description: failed[0].detail });
-      else if (queued.length) toast.success("Message saved to Sent", { description: `Delivered inside MyMail${r.internal.length ? ` to ${r.internal.length}` : ""}. External delivery needs an email provider key: ${queued.length} recipient${queued.length > 1 ? "s" : ""} queued.` });
+      else if (queued.length) {
+        const held = queued.some((q) => q.detail?.startsWith("Held:"));
+        const n = `${queued.length} outside recipient${queued.length > 1 ? "s" : ""}`;
+        toast.warning("Saved to Sent, not delivered outside yet", {
+          duration: 10000,
+          description: `${r.internal.length ? `Delivered inside MyMail to ${r.internal.length}. ` : ""}${held
+            ? `${n} held: verify this domain with the email provider to send outside MyMail.`
+            : `${n} queued: outside delivery starts once an email provider is connected.`}`,
+        });
+      }
       else toast.success("Message sent");
       onClose();
     },

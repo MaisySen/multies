@@ -30,6 +30,10 @@ export interface AppConfig {
     /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
     breachCheck: boolean;
   };
+  /** Error tracking. Each side turns on when its DSN is set. */
+  sentry: { dsnApi?: string; dsnWeb?: string; environment: string };
+  /** User ids or verified emails that get platform admin (operator console) on sign-in. */
+  platformAdmins: string[];
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -74,6 +78,10 @@ const EnvSchema = z.object({
   AUTH0_CLIENT_SECRET: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
+  SENTRY_DSN_API: z.string().optional(),
+  SENTRY_DSN_WEB: z.string().optional(),
+  SENTRY_ENVIRONMENT: z.string().optional(),
+  PLATFORM_ADMIN_EMAILS: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
@@ -138,6 +146,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET } } : {}),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },
+    sentry: { dsnApi: env.SENTRY_DSN_API, dsnWeb: env.SENTRY_DSN_WEB, environment: env.SENTRY_ENVIRONMENT ?? mode },
+    platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     billing: {
       // Only the secret key is required. Prices are found by lookup key (and created in
       // test mode); the webhook secret adds server-to-server sync on top of the

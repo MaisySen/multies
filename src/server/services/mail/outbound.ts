@@ -1,3 +1,4 @@
+import { Resend } from "resend";
 import { toB64 } from "../../lib/crypto";
 export interface OutboundAddress { address: string; name?: string }
 
@@ -61,34 +62,46 @@ export class LogOutbound implements OutboundProvider {
 }
 
 /** Resend (https://resend.com) transactional email API. */
+/** Resend's message when an address needs a verified sending domain first. */
+const NEEDS_DOMAIN = /verify a domain|domain is not verified|testing emails to your own email/i;
+
+export const NEEDS_DOMAIN_DETAIL =
+  "Held: the email provider only delivers to outside addresses once the sending domain is verified with it. Mail inside MyMail is unaffected.";
+
+/** Outbound through Resend's official SDK. */
 export class ResendOutbound implements OutboundProvider {
   readonly name = "resend";
-  constructor(private apiKey: string, private fetchFn: typeof fetch = (...a) => fetch(...a)) {}
+  private client: Resend;
+  constructor(apiKey: string) {
+    this.client = new Resend(apiKey);
+  }
 
   async send(msg: OutboundMessage): Promise<OutboundResult> {
     const headers: Record<string, string> = { "Message-ID": msg.messageId };
     if (msg.inReplyTo) headers["In-Reply-To"] = msg.inReplyTo;
     if (msg.references) headers["References"] = msg.references;
-    const res = await this.fetchFn("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${this.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({
+    let res: Awaited<ReturnType<Resend["emails"]["send"]>>;
+    try {
+      res = await this.client.emails.send({
         from: formatAddress(msg.from),
         to: msg.to,
         cc: msg.cc?.length ? msg.cc : undefined,
         bcc: msg.bcc?.length ? msg.bcc : undefined,
-        reply_to: msg.replyTo,
+        replyTo: msg.replyTo,
         subject: msg.subject,
         text: msg.text,
         html: msg.html,
         headers,
-        attachments: msg.attachments?.length ? msg.attachments.map((a) => ({ filename: a.filename, content: toB64(a.content), content_type: a.contentType })) : undefined,
-      }),
-    });
-    const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };
-    if (!res.ok) {
-      throw new OutboundError(`Resend rejected the message: ${body.message ?? res.statusText}`, res.status >= 500 || res.status === 429);
+        attachments: msg.attachments?.length ? msg.attachments.map((a) => ({ filename: a.filename, content: toB64(a.content), contentType: a.contentType })) : undefined,
+      });
+    } catch {
+      throw new OutboundError("The email provider could not be reached.", true);
     }
-    return { provider: this.name, status: "sent", providerMessageId: body.id };
+    if (res.error) {
+      if (NEEDS_DOMAIN.test(res.error.message)) return { provider: this.name, status: "queued", detail: NEEDS_DOMAIN_DETAIL };
+      const retryable = res.error.name === "rate_limit_exceeded" || res.error.name === "application_error" || res.error.name === "internal_server_error";
+      throw new OutboundError(`Resend rejected the message: ${res.error.message}`, retryable);
+    }
+    return { provider: this.name, status: "sent", providerMessageId: res.data?.id };
   }
 }
