@@ -11,3 +11,12 @@ condition = "AND"
 paths = ['src/server/lib/crypto\.ts']
 regexTarget = "line"
 regexes = ['-----BEGIN PRIVATE KEY-----\\n\$\{toB64']
+
+# tests/ai.test.ts uses a made up AI provider key to prove the real one is stored encrypted
+# and never echoed. It is not a credential for any service.
+[[allowlists]]
+description = "Made up AI key in the bring your own AI tests"
+condition = "AND"
+paths = ['tests/ai\.test\.ts']
+regexTarget = "line"
+regexes = ['const KEY = "sk-test-0123456789abcdefWXYZ"']
