@@ -38,7 +38,7 @@ export function MeetingCard({ m, now }: { m: Meeting; now: number }) {
       {m.invitees.length ? <Text style={font.tiny} numberOfLines={1}>With {m.invitees.join(", ")}</Text> : null}
       <View style={{ flexDirection: "row", gap: space.sm }}>
         <Button label="Join" icon="video" onPress={() => openMeeting(m.joinUrl)} style={{ flex: 1 }} testID={`join-${m.id}`} />
-        <Button label="Copy guest link" icon="link" variant="secondary" onPress={copy} style={{ flex: 1 }} testID={`copy-${m.id}`} />
+        <Button label="Copy guest link" icon="link" variant="secondary" onPress={copy} style={{ flex: 1.4 }} testID={`copy-${m.id}`} />
       </View>
     </Card>
   );
