@@ -97,6 +97,8 @@ jobs:
         with:
           name: worker-build
           path: dist/
+          # dist/worker/.assetsignore keeps the server bundle out of public assets; artifacts skip dotfiles by default.
+          include-hidden-files: true
           retention-days: 7
 
   deploy-production:
@@ -127,7 +129,9 @@ jobs:
       - name: Apply database migrations (idempotent, before the new code goes live)
         run: npx wrangler d1 migrations apply mymail --remote
       - name: Deploy the app (Workers + D1)
-        run: npx wrangler deploy --var RELEASE:$RELEASE
+        run: |
+          test -f dist/worker/.assetsignore || { echo "dist/worker/.assetsignore is missing from the promoted build"; exit 1; }
+          npx wrangler deploy --env="" --var RELEASE:$RELEASE
       - name: Smoke test production
         run: scripts/smoke.sh https://mymail.mymail-app.workers.dev "$RELEASE"
       - name: Deploy the inbound email worker
