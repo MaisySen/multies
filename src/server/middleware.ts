@@ -23,7 +23,7 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
   member ??= await db.select().from(members).where(eq(members.userId, s.user.id)).get();
   if (!member) {
     const orgId = newId("org");
-    await db.insert(organizations).values({ id: orgId, name: `${s.user.name.split(" ")[0] || "My"}'s workspace`, slug: orgId });
+    await db.insert(organizations).values({ id: orgId, name: `${s.user.name.split("@")[0].split(" ")[0] || "My"}'s workspace`, slug: orgId });
     const memberId = newId("mem");
     await db.insert(members).values({ id: memberId, organizationId: orgId, userId: s.user.id, role: "owner" });
     member = (await db.select().from(members).where(eq(members.id, memberId)).get())!;

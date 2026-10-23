@@ -207,7 +207,14 @@ export function authOptions(deps: Deps) {
       }),
       twoFactor({ issuer: config.appName, backupCodeOptions: { amount: 10, length: 10 } }),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
-      ...(config.auth.auth0 ? [genericOAuth({ config: [auth0({ ...config.auth.auth0 })] })] : []),
+      ...(config.auth.auth0 ? [genericOAuth({ config: [{
+        ...auth0({ ...config.auth.auth0 }),
+        // Auth0 database users have their email as "name"; use the nickname instead.
+        mapProfileToUser: (p) => {
+          const name = typeof p.name === "string" && !p.name.includes("@") ? p.name : String(p.nickname ?? String(p.email ?? "").split("@")[0]);
+          return { name };
+        },
+      }] })] : []),
       ...(config.auth.breachCheck ? [haveIBeenPwned({ customPasswordCompromisedMessage: "This password has appeared in a data breach. Please choose a different one." })] : []),
     ],
   } satisfies BetterAuthOptions;

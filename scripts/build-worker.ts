@@ -3,10 +3,15 @@
  *   dist/worker/_worker.js     the API (bundled), serving the SPA via ASSETS
  *   dist/worker/*              the built web app (static assets)
  *   dist/worker/tab-site.json  hosting declaration (D1 binding "DB")
- * Usage: tsx scripts/build-worker.ts [--profile preview]
+ * Usage: tsx scripts/build-worker.ts [--profile preview] [--secrets <file>]
+ *
+ * --secrets reads KEY=VALUE lines (a .env file, or a notes file with "- KEY=VALUE"
+ * lines) for hosts without a secret store. Only the keys in SECRET_KEYS are taken,
+ * and they end up inside _worker.js only, which the host never serves as a file.
+ * Never point it at a file that is committed.
  */
 import { build } from "esbuild";
-import { cpSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -26,6 +31,22 @@ const PROFILES: Record<string, Record<string, string>> = {
 };
 if (!PROFILES[profile]) throw new Error(`unknown profile ${profile}`);
 
+const SECRET_KEYS = [
+  "AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET",
+  "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
+  "STRIPE_SECRET_KEY", "STRIPE_PUBLISHABLE_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRICE_PRO", "STRIPE_PRICE_BUSINESS",
+  "RESEND_API_KEY", "SENTRY_DSN_API", "SENTRY_DSN_WEB",
+];
+const secretsArg = process.argv.includes("--secrets") ? process.argv[process.argv.indexOf("--secrets") + 1] : undefined;
+const secrets: Record<string, string> = {};
+if (secretsArg) {
+  for (const line of readFileSync(secretsArg, "utf8").split("\n")) {
+    const m = line.match(/^\s*(?:-\s*)?`?([A-Z0-9_]+)=([^\s`]+)`?\s*$/);
+    if (m && SECRET_KEYS.includes(m[1])) secrets[m[1]] = m[2];
+  }
+  console.log(`secrets: ${Object.keys(secrets).join(", ") || "none found"}`);
+}
+
 if (!existsSync(path.join(root, "dist/web/index.html"))) throw new Error("Run `npm run build:web` first.");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
@@ -42,7 +63,7 @@ await build({
   minify: true,
   sourcemap: false,
   alias: { "@": path.join(root, "src") },
-  define: { __MYMAIL_BUILD_ENV__: JSON.stringify(PROFILES[profile]) },
+  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }) },
   logLevel: "warning",
 });
 
@@ -58,4 +79,4 @@ writeFileSync(path.join(out, "tab-site.json"), JSON.stringify({
     assets_binding: "ASSETS",
   },
 }, null, 2));
-console.log(`worker built (${profile}) → ${path.relative(root, out)}`);
+console.log(`worker built (${profile}) at ${path.relative(root, out)}`);
