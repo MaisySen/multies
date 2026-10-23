@@ -108,6 +108,7 @@ export function LoginPage() {
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted">Sign in to your MyMail workspace.</p>
+      {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Use your company's SSO button below.</p>}
       {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign-in didn't complete. Try again, or use your email and password." /></div>}
       <SocialButtons />
       <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>

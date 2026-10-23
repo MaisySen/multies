@@ -26,6 +26,25 @@ function RoleBadge({ role }: { role: Role }) {
   return <Badge>Member</Badge>;
 }
 
+/** Business plan: members must sign in through SSO. The owner keeps password access as break glass. */
+function SsoEnforcement({ required }: { required: boolean }) {
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: (next: boolean) => api.put("/org/sso", { required: next }),
+    onSuccess: (_r, next) => { qc.invalidateQueries({ queryKey: qk.me }); toast.success(next ? "Members now sign in with SSO" : "SSO is optional again"); },
+    onError: (e) => showError(e),
+  });
+  return (
+    <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h2 className="text-sm font-medium">Require single sign on</h2>
+        <p className="mt-0.5 text-xs text-muted">Members and admins must sign in through your SSO provider. You, the owner, keep password sign in for emergencies.</p>
+      </div>
+      <Button size="sm" variant={required ? "secondary" : "primary"} loading={toggle.isPending} onClick={() => toggle.mutate(!required)}>{required ? "Turn off" : "Require SSO"}</Button>
+    </Card>
+  );
+}
+
 export function TeamSettings() {
   const team = useTeam();
   const me = useMe();
@@ -42,6 +61,7 @@ export function TeamSettings() {
 
   return (
     <div className="space-y-6">
+      {myRole === "owner" && <SsoEnforcement required={!!me.data?.organization?.requireSso} />}
       <Card>
         <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>

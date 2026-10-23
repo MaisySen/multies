@@ -75,6 +75,8 @@ export const sessions = sqliteTable("sessions", {
   userAgent: text("user_agent"),
   activeOrganizationId: text("active_organization_id"),
   impersonatedBy: text("impersonated_by"),
+  /** How this session signed in: "email", or the SSO provider id (auth0, google, github). */
+  loginMethod: text("login_method"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [uniqueIndex("sessions_token_uq").on(t.token), index("sessions_user_idx").on(t.userId)]);

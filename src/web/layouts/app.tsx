@@ -52,6 +52,20 @@ export function AppLayout() {
     );
   }
   const { user, organization } = me.data;
+  if (me.data.session?.ssoBlocked) {
+    return (
+      <div className="grid min-h-dvh place-items-center p-6 text-center">
+        <div className="max-w-sm">
+          <h1 className="text-lg font-semibold">{organization?.name} requires single sign on</h1>
+          <p className="mt-2 text-sm text-muted">You signed in with a password. Sign out, then choose your company's SSO on the sign in page.</p>
+          <button className="mt-5 rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+            onClick={async () => { try { await authClient.signOut(); } catch { /* already signed out */ } qc.clear(); navigate("/login?sso=required"); }}>
+            Sign out and use SSO
+          </button>
+        </div>
+      </div>
+    );
+  }
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {

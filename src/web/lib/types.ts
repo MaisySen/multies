@@ -6,7 +6,8 @@ export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
 export interface Me {
   user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean };
-  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string } | null;
+  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string; requireSso?: boolean } | null;
+  session?: { loginMethod: string; ssoBlocked: boolean };
 }
 
 export interface PublicConfig {

@@ -3,7 +3,7 @@ import { z, type ZodType } from "zod";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "./context";
 import { forbidden, HttpError, unauthorized, zodToHttp } from "./lib/errors";
-import { authFor } from "./auth";
+import { SSO_METHODS, authFor } from "./auth";
 import { members, organizations, sessions, users } from "./db/schema";
 import { newId } from "./lib/crypto";
 import { audit } from "./services/audit";
@@ -41,7 +41,13 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
     await db.update(users).set({ role: "admin" }).where(eq(users.id, s.user.id));
     platformRole = "admin";
   }
+  // Workspaces that require SSO: everyone but the owner (the break glass account) must
+  // have signed in this session through an SSO provider.
+  const org = await db.select({ requireSso: organizations.requireSso }).from(organizations).where(eq(organizations.id, member.organizationId)).get();
+  const loginMethod = (s.session as { loginMethod?: string | null }).loginMethod ?? "email";
+  const ssoBlocked = !!org?.requireSso && member.role !== "owner" && !SSO_METHODS.has(loginMethod);
   return {
+    ssoBlocked, loginMethod,
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
     sessionId: s.session.id, emailVerified: s.user.emailVerified, twoFactor: !!s.user.twoFactorEnabled,
     platformRole,
@@ -52,6 +58,11 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = await resolveAuth(c.var.deps, c.req.raw.headers);
   if (!auth) throw unauthorized();
+  // A workspace that requires SSO only lets password sessions reach account level routes
+  // (profile, export, switching workspaces), so the person can still move or leave.
+  if (auth.ssoBlocked && !c.req.path.startsWith("/api/account")) {
+    throw new HttpError(403, "sso_required", "This workspace requires single sign on. Sign out, then sign in with your company's SSO.");
+  }
   c.set("auth", auth);
   await next();
 };

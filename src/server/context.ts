@@ -39,6 +39,10 @@ export interface AuthContext {
   twoFactor?: boolean;
   /** Platform-level role (Better Auth admin plugin): "admin" for operators. */
   platformRole?: string;
+  /** How this session signed in ("email" or an SSO provider id). */
+  loginMethod?: string;
+  /** The workspace requires SSO and this session did not use it. */
+  ssoBlocked?: boolean;
 }
 
 export interface AppEnv {

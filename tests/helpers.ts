@@ -52,6 +52,7 @@ export class Client {
   get(p: string) { return this.call("GET", p); }
   post(p: string, b: unknown = {}) { return this.call("POST", p, b); }
   patch(p: string, b: unknown) { return this.call("PATCH", p, b); }
+  put(p: string, b: unknown) { return this.call("PUT", p, b); }
   del(p: string) { return this.call("DELETE", p); }
 
   /** Signs up through Better Auth and names the personal workspace "Acme". */

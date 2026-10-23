@@ -8,7 +8,7 @@ import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
 import { getOrg, usage } from "../services/plans";
 import { PLANS, isPlanId, PLAN_ORDER } from "@/shared/plans";
-import { badRequest, forbidden, HttpError } from "../lib/errors";
+import { badRequest, forbidden, HttpError, planLimit } from "../lib/errors";
 import { COUNTRIES, isTimeZone } from "@/shared/locale";
 
 export function orgRoutes() {
@@ -35,6 +35,18 @@ export function orgRoutes() {
         await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.region_changed", metadata: { timezone: input.timezone ?? before.timezone, country: input.country ?? before.country }, ip: c.var.ip });
       }
       return c.json({ ok: true });
+    })
+    // Team SSO enforcement (Business plan): members must sign in through SSO; the owner is exempt as break glass.
+    .put("/sso", async (c) => {
+      const { required } = await parseBody(c, z.object({ required: z.boolean() }));
+      const { auth, deps } = c.var;
+      if (auth.role !== "owner") throw forbidden("Only the workspace owner can change single sign on enforcement.");
+      const org = await getOrg(deps.db, auth.orgId);
+      if (required && org.plan !== "business" && !org.isDemo) throw planLimit("Requiring single sign on is part of the Business plan. Upgrade to turn it on.");
+      if (required && !deps.config.auth.auth0 && !deps.config.auth.social.google) throw badRequest("No SSO provider is connected on this deployment yet.");
+      await deps.db.update(organizations).set({ requireSso: required }).where(eq(organizations.id, auth.orgId));
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: required ? "workspace.sso_required" : "workspace.sso_optional", ip: c.var.ip });
+      return c.json({ ok: true, requireSso: required });
     })
     /**
      * Plan changes. Billing is not wired yet (no payment provider), so this only

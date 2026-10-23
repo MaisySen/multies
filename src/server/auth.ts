@@ -36,6 +36,16 @@ const ID_PREFIX: Record<string, string> = {
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
 };
 
+/** SSO methods a workspace can require: the enterprise OIDC connection and Google Workspace. */
+export const SSO_METHODS = new Set(["auth0", "google"]);
+
+/** How a new session signed in, from the Better Auth endpoint that created it. */
+export function loginMethodFor(path?: string, params?: Record<string, string | undefined>): string {
+  if (!path) return "email";
+  if (path.startsWith("/oauth2/callback/") || path.startsWith("/callback/")) return params?.providerId ?? params?.id ?? path.split("/").pop() ?? "oauth";
+  return "email";
+}
+
 async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
   if (user.email.endsWith(".test")) return;
   const first = user.name.split(" ")[0] || user.name;
@@ -124,6 +134,7 @@ export function authOptions(deps: Deps) {
       },
     },
     session: {
+      additionalFields: { loginMethod: { type: "string", required: false, input: false } },
       expiresIn: 30 * 24 * 60 * 60,
       updateAge: 24 * 60 * 60,
       freshAge: 15 * 60,
@@ -221,9 +232,9 @@ export function authOptions(deps: Deps) {
       session: {
         create: {
           // New sessions open the person's first workspace.
-          before: async (session) => {
+          before: async (session, ctx) => {
             const m = await db.select().from(schema.members).where(eq(schema.members.userId, session.userId)).get();
-            return { data: { ...session, activeOrganizationId: m?.organizationId ?? null } };
+            return { data: { ...session, activeOrganizationId: m?.organizationId ?? null, loginMethod: loginMethodFor(ctx?.path, ctx?.params) } };
           },
         },
       },

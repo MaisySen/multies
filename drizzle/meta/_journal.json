@@ -78,6 +78,13 @@
       "when": 1792734971520,
       "tag": "0010_round4_production",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792738363548,
+      "tag": "0011_session_login_method",
+      "breakpoints": true
     }
   ]
 }

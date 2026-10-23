@@ -199,5 +199,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `webhook_endpoints` ADD `consecutive_dead` integer DEFAULT 0 NOT NULL;",
       "ALTER TABLE `webhook_endpoints` ADD `disabled_reason` text;"
     ]
+  },
+  {
+    "name": "0011_session_login_method",
+    "statements": [
+      "ALTER TABLE `sessions` ADD `login_method` text;"
+    ]
   }
 ];
