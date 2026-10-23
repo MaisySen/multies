@@ -2,15 +2,16 @@
  * Sample work for the demo workspace: a client project with custom statuses, tasks made from
  * the sample mail, a doc, a few deals and two automation rules. Runs once, after the mail.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, messages } from "../../db/schema";
+import { runBatch } from "../../db";
+import { activity, agents, changes, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
 import { backfillContacts, contactIdFor, createDeal, listDeals } from "./contacts";
 import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
 import { registerJob } from "../jobs";
-import { addComment, createProject, listProjects, listTasks, createTask, createTaskFromThread, defaultProject, link, updateTask } from "./tasks";
-import type { SuiteActor } from "./common";
+import { addComment, createProject, listProjects, listTasks, createTaskFromThread, defaultProject, link } from "./tasks";
+import { createdBy, parseDate, sortableId, type SuiteActor } from "./common";
 
 const day = (now: number, d: number) => new Date(now + d * 86_400_000).toISOString().slice(0, 10);
 
@@ -59,9 +60,11 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
     const maria = msg("maria@blueharbor.co");
     const priya = msg("priya@seedround.vc");
     const jordan = msg("jordan@lumen.dev");
-    const fromMaria = maria ? await createTaskFromThread(deps, actor, { messageId: maria, projectId: client.id, statusId: st("In progress"), title: "Move Blue Harbor's 14 mailboxes on Friday", assignee: me, priority: "high", start: day(now, -2), due: day(now, 3), labels: ["migration", "client"] }) : null;
-    if (priya) await createTaskFromThread(deps, actor, { messageId: priya, projectId: tasksProject.id, title: "Send Priya the retention numbers before Wednesday", assignee: me, priority: "medium", due: day(now, 2), labels: ["investors"] });
-    if (jordan) await createTaskFromThread(deps, actor, { messageId: jordan, projectId: tasksProject.id, title: "Reply to Jordan about a referral partnership", priority: "low", due: day(now, 6) });
+    const [fromMaria] = await Promise.all([
+      maria ? createTaskFromThread(deps, actor, { messageId: maria, projectId: client.id, statusId: st("In progress"), title: "Move Blue Harbor's 14 mailboxes on Friday", assignee: me, priority: "high", start: day(now, -2), due: day(now, 3), labels: ["migration", "client"] }) : Promise.resolve(null),
+      priya ? createTaskFromThread(deps, actor, { messageId: priya, projectId: tasksProject.id, title: "Send Priya the retention numbers before Wednesday", assignee: me, priority: "medium", due: day(now, 2), labels: ["investors"] }) : Promise.resolve(null),
+      jordan ? createTaskFromThread(deps, actor, { messageId: jordan, projectId: tasksProject.id, title: "Reply to Jordan about a referral partnership", priority: "low", due: day(now, 6) }) : Promise.resolve(null),
+    ]);
 
     const plan: { title: string; status: string; start?: number; due?: number; priority?: "low" | "medium" | "high" | "urgent"; who?: "me" | "bot"; labels?: string[]; notes?: string }[] = [
       { title: "Export Blue Harbor's Google Workspace mail", status: "Done", start: -6, due: -4, who: "me", labels: ["migration"] },
@@ -73,25 +76,37 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
       { title: "Turn on DMARC quarantine after two clean weeks", status: "Backlog", start: 14, due: 17, priority: "low", labels: ["dns"] },
       { title: "Write the case study with Maria", status: "Backlog", start: 18, due: 24, labels: ["marketing"] },
     ];
-    for (const p of plan) {
-      await createTask(deps, actor, {
-        title: p.title, projectId: client.id, statusId: st(p.status), notes: p.notes,
-        start: p.start === undefined ? null : day(now, p.start), due: p.due === undefined ? null : day(now, p.due),
-        priority: p.priority ?? "none", labels: p.labels ?? [], assignee: p.who === "me" ? me : p.who === "bot" ? botAssignee : null,
-      });
-    }
+    // One batch for the planned tasks (one round trip on D1) instead of a dozen queries each.
+    const planIds = await insertTasks(deps, actor, client, plan.map((p) => ({
+      title: p.title, statusId: st(p.status), notes: p.notes ?? "",
+      start: p.start === undefined ? null : day(now, p.start), due: p.due === undefined ? null : day(now, p.due),
+      priority: p.priority ?? "none", labels: p.labels ?? [], assignee: p.who === "me" ? me : p.who === "bot" ? botAssignee : null,
+    })), now);
+    const byTitle = (t: string) => planIds[plan.findIndex((p) => p.title === t)];
+    await runBatch(deps.db, [
+      ["Check SPF, DKIM and DMARC on blueharbor.co", "Point MX records at MyMail"],
+      ["Confirm cutover time with Maria", "Point MX records at MyMail"],
+      ["Point MX records at MyMail", "Train the Blue Harbor team on the shared inbox"],
+      ["Point MX records at MyMail", "Turn on DMARC quarantine after two clean weeks"],
+    ].map(([blocker, blocked]) => deps.db.insert(entityLinks).values({ orgId, fromType: "task", fromId: byTitle(blocker), toType: "task", toId: byTitle(blocked), relation: "blocks", createdAt: new Date(now) }).onConflictDoNothing()));
     if (fromMaria) {
-      for (const [title, done] of [["List every mailbox and alias", true], ["Check the size of each mailbox", true], ["Send the MX change steps to Maria", false]] as const) {
-        const sub = await createTask(deps, actor, { title, parentId: fromMaria.id, projectId: client.id });
-        if (done) await updateTask(deps, actor, sub.id, { status: "done" });
-      }
-      await addComment(deps, actor, fromMaria.id, "Aliases with three destinations are fine. I've told Maria nothing gets lost over the weekend: mail queues at the sender until MX updates.");
-      if (bot) await addComment(deps, { ...actor, agentId: bot.id, name: bot.name }, fromMaria.id, "Checked blueharbor.co DNS: SPF includes Google today. I'll draft the new record for review before Friday.");
+      const subs = [["List every mailbox and alias", true], ["Check the size of each mailbox", true], ["Send the MX change steps to Maria", false]] as const;
+      const done = client.statuses.find((x) => x.category === "done")!;
+      const todo = client.statuses.find((x) => x.category === "todo")!;
+      await insertTasks(deps, actor, client, subs.map(([title, isDone]) => ({ title, statusId: isDone ? done.id : todo.id, parentId: fromMaria!.id, priority: "none" as const, labels: [], assignee: null, notes: "", start: null, due: null })), now);
+      await Promise.all([
+        addComment(deps, actor, fromMaria.id, "Aliases with three destinations are fine. I've told Maria nothing gets lost over the weekend: mail queues at the sender until MX updates."),
+        bot ? addComment(deps, { ...actor, agentId: bot.id, name: bot.name }, fromMaria.id, "Checked blueharbor.co DNS: SPF includes Google today. I'll draft the new record for review before Friday.") : Promise.resolve(),
+      ]);
     }
     return fromMaria;
   }
 
-  if (!(await listDocs(deps, orgId)).length) {
+  const [docsList, dealsList, autoList] = await Promise.all([listDocs(deps, orgId), listDeals(deps, orgId), listAutomations(deps, orgId)]);
+  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now)]);
+
+  async function seedDocs() {
+  if (!docsList.length) {
     const doc = await createDoc(deps, actor, {
       title: "Blue Harbor cutover plan", projectId: client.id,
       text: "Goal\nMove 14 people from Google Workspace to MyMail on Friday with no lost mail.\n\nBefore Friday\n- Export each mailbox and import it\n- Recreate sales@ with three destinations\n- Lower the MX TTL to 300 seconds on Wednesday\n\nOn Friday after 5pm AEST\n- Switch MX, then update SPF and DKIM\n- Send a test from each mailbox\n\nAfter\n- Watch DMARC reports for two weeks, then move to quarantine",
@@ -100,21 +115,93 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
     if (fromMaria) await link(deps, orgId, { type: "task", id: fromMaria.id }, { type: "doc", id: doc.id });
     await createDoc(deps, actor, { title: "Investor update notes", text: "Retention\nMonth 3 logo retention is the number Priya asked about.\n\nTo send\n- Cohort chart\n- Churn reasons, in their own words" });
   }
-
-  if (!(await listDeals(deps, orgId)).deals.length) {
-    const mariaContact = await contactIdFor(deps, orgId, "maria@blueharbor.co");
-    const jordanContact = await contactIdFor(deps, orgId, "jordan@lumen.dev");
-    const priyaContact = await contactIdFor(deps, orgId, "priya@seedround.vc");
-    await createDeal(deps, actor, { title: "Blue Harbor, 14 mailboxes", stage: "won", value: 2520, contactId: mariaContact, expectedClose: day(now, -1) });
-    await createDeal(deps, actor, { title: "Lumen referral partnership", stage: "qualified", value: 6000, contactId: jordanContact, expectedClose: day(now, 30) });
-    await createDeal(deps, actor, { title: "Seed round follow-on", stage: "proposal", value: 25000, contactId: priyaContact, expectedClose: day(now, 21) });
-    await createDeal(deps, actor, { title: "Acme Corp support inbox", stage: "lead", value: 1800, expectedClose: day(now, 45) });
   }
-  if ((await listAutomations(deps, orgId)).length) return;
 
-  for (const key of ["due_reminder", "done_notify"]) {
-    const r = RECIPES.find((x) => x.key === key)!;
-    await createAutomation(deps, actor, { name: r.name, trigger: r.trigger, conditions: r.conditions, action: r.action, actionConfig: r.actionConfig, enabled: true });
+  async function seedDeals() {
+    if (dealsList.deals.length) return;
+    const [mariaContact, jordanContact, priyaContact] = await Promise.all(["maria@blueharbor.co", "jordan@lumen.dev", "priya@seedround.vc"].map((e) => contactIdFor(deps, orgId, e)));
+    await Promise.all([
+      createDeal(deps, actor, { title: "Blue Harbor, 14 mailboxes", stage: "won", value: 2520, contactId: mariaContact, expectedClose: day(now, -1) }),
+      createDeal(deps, actor, { title: "Lumen referral partnership", stage: "qualified", value: 6000, contactId: jordanContact, expectedClose: day(now, 30) }),
+      createDeal(deps, actor, { title: "Seed round follow-on", stage: "proposal", value: 25000, contactId: priyaContact, expectedClose: day(now, 21) }),
+      createDeal(deps, actor, { title: "Acme Corp support inbox", stage: "lead", value: 1800, expectedClose: day(now, 45) }),
+    ]);
   }
-  await createAutomation(deps, actor, { name: "Mail from Blue Harbor becomes a task", trigger: "email_received", conditions: { from: "@blueharbor.co" }, action: "create_task", actionConfig: { projectId: client.id, priority: "high", dueInDays: 1 }, enabled: true });
+
+  async function seedAutomations() {
+    if (autoList.length) return;
+    await Promise.all([
+      ...["due_reminder", "done_notify"].map((key) => {
+        const r = RECIPES.find((x) => x.key === key)!;
+        return createAutomation(deps, actor, { name: r.name, trigger: r.trigger, conditions: r.conditions, action: r.action, actionConfig: r.actionConfig, enabled: true });
+      }),
+      createAutomation(deps, actor, { name: "Mail from Blue Harbor becomes a task", trigger: "email_received", conditions: { from: "@blueharbor.co" }, action: "create_task", actionConfig: { projectId: client.id, priority: "high", dueInDays: 1 }, enabled: true }),
+    ]);
+  }
+}
+
+interface SeedTask { title: string; statusId: string; notes: string; start: string | null; due: string | null; priority: "none" | "low" | "medium" | "high" | "urgent"; labels: string[]; assignee: { type: "member" | "agent"; id: string } | null; parentId?: string }
+
+/** Inserts tasks in one batch: numbers claimed together, then the rows, activity and change entries. */
+async function insertTasks(deps: Deps, actor: SuiteActor, project: { id: string; statuses: { id: string; category: "todo" | "doing" | "done" }[] }, list: SeedTask[], now: number) {
+  if (!list.length) return [];
+  const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + ${list.length}` }).where(eq(projects.id, project.id)).returning({ n: projects.nextNumber });
+  const first = Number(claimed[0].n) - list.length;
+  const at = new Date(now);
+  const ids = list.map((_, i) => sortableId("tsk", now + i));
+  const stmts: PromiseLike<unknown>[] = [];
+  list.forEach((t, i) => {
+    const category = project.statuses.find((s) => s.id === t.statusId)?.category ?? "todo";
+    stmts.push(deps.db.insert(tasks).values({
+      id: ids[i], orgId: actor.orgId, projectId: project.id, number: first + i, statusId: t.statusId, status: category, title: t.title, notes: t.notes,
+      assigneeType: t.assignee?.type ?? null, assigneeId: t.assignee?.id ?? null, priority: t.priority, startAt: parseDate(t.start), dueAt: parseDate(t.due),
+      labels: JSON.stringify(t.labels), parentId: t.parentId ?? null, position: (i + 1) * 1024, completedAt: category === "done" ? at : null,
+      ...createdBy(actor), createdAt: at, updatedAt: at,
+    }));
+    stmts.push(deps.db.insert(activity).values({ id: sortableId("act", now + i), orgId: actor.orgId, actorType: "member", actorId: actor.userId, actorName: actor.name, verb: "task.created", entityType: "task", entityId: ids[i], data: JSON.stringify({ title: t.title }), createdAt: at }));
+    stmts.push(deps.db.insert(changes).values({ orgId: actor.orgId, entityType: "task", entityId: ids[i], op: "create", version: 1, createdAt: at }));
+  });
+  await runBatch(deps.db, stmts);
+  return ids;
+}
+
+/** Round 7 samples: logged time, a public form and a meeting with Maria. Each checks for itself. */
+async function seedRound7(deps: Deps, actor: SuiteActor, client: { id: string }, now: number) {
+  const orgId = actor.orgId;
+  const [hasTime, hasForm, hasMeeting, clientTasks] = await Promise.all([
+    deps.db.select({ id: timeEntries.id }).from(timeEntries).where(eq(timeEntries.orgId, orgId)).limit(1).get(),
+    deps.db.select({ id: forms.id }).from(forms).where(eq(forms.orgId, orgId)).limit(1).get(),
+    deps.db.select({ id: meetings.id }).from(meetings).where(eq(meetings.orgId, orgId)).limit(1).get(),
+    deps.db.select({ id: tasks.id, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.parentId))).all(),
+  ]);
+  const work: Promise<unknown>[] = [];
+  if (!hasTime && clientTasks.length) {
+    // About a working week of time on the client project, in Sydney business hours.
+    const pick = (start: string) => clientTasks.find((t) => t.title.startsWith(start));
+    const log: [string, number, number, string][] = [
+      ["Export Blue Harbor", -6, 95, "Exported 14 mailboxes"], ["Export Blue Harbor", -5, 120, "Imported the big ones"], ["Set up sales@", -4, 25, ""],
+      ["Check SPF", -2, 50, "Drafted the new SPF record"], ["Move Blue Harbor", -2, 70, "Call with Maria"], ["Move Blue Harbor", -1, 45, ""],
+      ["Confirm cutover", -1, 15, "Emailed Maria's IT contact"], ["Send Priya", -3, 40, "Pulled the cohort numbers"], ["Check SPF", 0, 30, ""],
+    ];
+    const at = new Date(now);
+    work.push(runBatch(deps.db, log.flatMap(([start, d, minutes, note], i) => {
+      const t = pick(start);
+      if (!t) return [];
+      const day = new Date(now + d * 86_400_000);
+      const startedAt = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, 30 + i * 7));
+      return [deps.db.insert(timeEntries).values({ id: sortableId("tim", now + i), orgId, taskId: t.id, projectId: t.projectId, personType: "member", personId: actor.userId, startedAt, endedAt: new Date(startedAt.getTime() + minutes * 60_000), seconds: minutes * 60, note, source: i % 3 ? "timer" : "manual", ...createdBy(actor), createdAt: at, updatedAt: at })];
+    })));
+  }
+  if (!hasForm) {
+    const { createForm } = await import("./forms");
+    work.push(createForm(deps, actor, { name: "Website enquiry", description: "Tell us what you need and we'll reply within one business day.", target: "task", projectId: client.id }));
+  }
+  if (!hasMeeting) {
+    const { createMeeting } = await import("./meetings");
+    const maria = await contactIdFor(deps, orgId, "maria@blueharbor.co");
+    const tomorrow = new Date(now + 86_400_000);
+    const startsAt = new Date(Date.UTC(tomorrow.getUTCFullYear(), tomorrow.getUTCMonth(), tomorrow.getUTCDate(), 23, 0)).toISOString();
+    work.push(createMeeting(deps, actor, { title: "Cutover check-in with Maria", startsAt, durationMin: 30, ...(maria ? { source: { type: "contact" as const, id: maria } } : { invitees: ["maria@blueharbor.co"] }) }));
+  }
+  await Promise.all(work);
 }
