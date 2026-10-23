@@ -11,6 +11,8 @@ const ACTIONS: Record<string, string> = {
   "account.created": "created the workspace",
   "auth.login": "signed in",
   "auth.logout": "signed out",
+  "auth.password_changed": "changed their password",
+  "auth.sessions_revoked": "signed out other devices",
   "domain.added": "added domain",
   "domain.verified": "verified domain",
   "domain.failed": "domain failed verification",

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { api } from "@/web/lib/api";
+import { api, ApiError } from "@/web/lib/api";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
 import { PLAN_ORDER, PLANS, type PlanId } from "@/shared/plans";
 import { Badge, Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -194,6 +194,28 @@ function OutboundSection() {
 
 function AccountSection() {
   const me = useMe();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [deleting, setDeleting] = useState(false);
+  const [confirmPw, setConfirmPw] = useState("");
+  const change = useMutation({
+    mutationFn: () => api.post("/auth/password", { currentPassword: current, newPassword: next }),
+    onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
+    onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else toast.error(e.message); },
+  });
+  const revoke = useMutation({
+    mutationFn: () => api.post("/auth/sessions/revoke-others"),
+    onSuccess: () => toast.success("Signed out everywhere else"),
+    onError: (e) => toast.error(e.message),
+  });
+  const del = useMutation({
+    mutationFn: () => api.del("/auth/account", { password: confirmPw }),
+    onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
+    onError: (e) => toast.error(e.message),
+  });
   return (
     <Section title="Account" description="You sign in with your email and password. Sessions are stored server-side and expire after 30 days of inactivity.">
       <dl className="grid max-w-md gap-3 text-sm">
@@ -201,6 +223,23 @@ function AccountSection() {
         <div className="flex justify-between gap-4"><dt className="text-muted">Email</dt><dd className="truncate">{me.data?.user.email}</dd></div>
         <div className="flex justify-between gap-4"><dt className="text-muted">Role</dt><dd className="capitalize">{me.data?.organization?.role}</dd></div>
       </dl>
+      <form className="mt-6 max-w-md space-y-3 border-t border-line pt-6" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
+        <h3 className="text-sm font-medium">Change password</h3>
+        <Field label="Current password" error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
+        <Field label="New password" hint="At least 10 characters." error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>Update password</Button>
+          <Button type="button" variant="ghost" loading={revoke.isPending} onClick={() => revoke.mutate()}>Sign out other devices</Button>
+        </div>
+      </form>
+      <div className="mt-6 flex max-w-md flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div><h3 className="text-sm font-medium">Delete account</h3><p className="text-xs text-subtle">Removes you and any workspace where you're the only member, with all its mail.</p></div>
+        <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>Delete account</Button>
+      </div>
+      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member — domains, mailboxes and mail included."
+        footer={<><Button variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button><Button variant="danger" disabled={!confirmPw} loading={del.isPending} onClick={() => del.mutate()}>Delete forever</Button></>}>
+        <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
+      </Dialog>
     </Section>
   );
 }
