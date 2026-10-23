@@ -25,6 +25,7 @@ Staging on Cloudflare Workers, database in the Oceania region (Sydney). k6 1.3.0
 | --- | --- | --- | --- | --- | --- |
 | Before the API fix (release 7dd951c94125) | 1,112 | 0 | 549 ms | 1,440 ms | 1,620 ms |
 | After the API fix (release 458de402f38a) | 1,131 | 0 | 453 ms | 343 ms | 396 ms |
+| Worker placed in Sydney (release bfaffdae6fcb), API scenario only, same rate from a Python client | 300 | 0 | not run | 247 ms | 314 ms |
 
 The first run broke the API threshold. Two causes, both fixed in `perf(api)`:
 
@@ -32,6 +33,8 @@ The first run broke the API threshold. Two causes, both fixed in `perf(api)`:
 2. The key, its creator's membership and the workspace's suspension state were three queries in a row. They are now one query, and the domain list runs its three reads in parallel.
 
 Server side time for `GET /api/v1/domains`, read from the Worker's request logs, went from about 1.3 s to about 300 ms. Almost all of what is left is two round trips from a US edge to the database in Sydney.
+
+With the Worker placed next to the database (`[placement]` in `wrangler.toml`), a request crosses the Pacific once instead of once per query. On production the same day: a signed-in `GET /api/account/me` went from 815 ms median and 1,881 ms p95 to 285 ms and 357 ms, the inbox list from 2,686 ms and 3,780 ms to 267 ms and 308 ms, and a demo workspace from more than 100 s (it hit the CPU limit) to about 4 s.
 
 ## When to run it
 
