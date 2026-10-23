@@ -764,7 +764,7 @@ export interface paths {
         put?: never;
         /**
          * Add a webhook endpoint
-         * @description Events: message.received, message.sent, message.bounced, message.complained, domain.verified, domain.failed, approval.requested, approval.decided, agent.created, agent.deleted, or "*" for all. The response carries the signing secret once.
+         * @description Events: message.received, message.sent, message.bounced, message.complained, domain.verified, domain.failed, approval.requested, approval.decided, agent.created, agent.deleted, task.created, task.updated, task.deleted, task.commented, project.created, doc.created, doc.updated, contact.created, contact.updated, deal.created, deal.updated, or "*" for all. The response carries the signing secret once.
          */
         post: {
             parameters: {
@@ -781,7 +781,7 @@ export interface paths {
                          * @example https://example.com/webhooks/mymail
                          */
                         url: string;
-                        events: ("message.received" | "message.sent" | "message.bounced" | "message.complained" | "domain.verified" | "domain.failed" | "approval.requested" | "approval.decided" | "agent.created" | "agent.deleted" | "*")[];
+                        events: ("message.received" | "message.sent" | "message.bounced" | "message.complained" | "domain.verified" | "domain.failed" | "approval.requested" | "approval.decided" | "agent.created" | "agent.deleted" | "task.created" | "task.updated" | "task.deleted" | "task.commented" | "project.created" | "doc.created" | "doc.updated" | "contact.created" | "contact.updated" | "deal.created" | "deal.updated" | "*")[];
                         description?: string;
                     };
                 };
@@ -2584,6 +2584,1755 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List tasks
+         * @description Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    projectId?: string;
+                    /** @description The status group: to do, doing or done. */
+                    status?: "todo" | "doing" | "done";
+                    statusId?: string;
+                    threadId?: string;
+                    /** @description me, none, member:<id> or agent:<id>. */
+                    assignee?: string;
+                    priority?: "none" | "low" | "medium" | "high" | "urgent";
+                    label?: string;
+                    dueBefore?: string;
+                    dueAfter?: string;
+                    q?: string;
+                    parentId?: string;
+                    includeSubtasks?: "true" | "false";
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tasks. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            tasks: components["schemas"]["Task"][];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a task
+         * @description Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskCreate"];
+                };
+            };
+            responses: {
+                /** @description The task. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            task: components["schemas"]["Task"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/from-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a task from an email
+         * @description One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskFromEmail"];
+                };
+            };
+            responses: {
+                /** @description The task. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            task: components["schemas"]["Task"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The next task for this agent
+         * @description For agent keys: the most urgent open task assigned to the agent, with its thread, comments and subtasks. Null when there is nothing to do.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    agentId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The next task, or null. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            next: components["schemas"]["TaskDetail"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a task with its thread, comments and subtasks
+         * @description Takes a task id or a reference like OPS-12.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The task. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TaskDetail"];
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Delete a task and its subtasks */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Deleted. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Update a task
+         * @description Change any field, move it to another status or project, or reorder it with position. Send version to reject the write if the task changed since you read it.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TaskPatch"];
+                };
+            };
+            responses: {
+                /** @description The task. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            task: components["schemas"]["Task"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Version conflict. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/tasks/{id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Comment on a task */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CommentCreate"];
+                };
+            };
+            responses: {
+                /** @description The comment. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            comment: components["schemas"]["TaskComment"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List projects with their statuses */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Projects. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            projects: components["schemas"]["Project"][];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a project
+         * @description Statuses are optional: the default is To do, In progress, Waiting on reply and Done. Each status belongs to a group (todo, doing, done).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ProjectCreate"];
+                };
+            };
+            responses: {
+                /** @description The project. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            project: components["schemas"]["Project"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a project */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The project. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            project: components["schemas"]["Project"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a project or its statuses */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ProjectPatch"];
+                };
+            };
+            responses: {
+                /** @description The project. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            project: components["schemas"]["Project"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/docs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List or search docs */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                    projectId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Docs. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            docs: components["schemas"]["Doc"][];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a doc
+         * @description Send Tiptap JSON as content, or plain text as text. links ties it to tasks, projects, threads, contacts or deals.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DocCreate"];
+                };
+            };
+            responses: {
+                /** @description The doc. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            doc: components["schemas"]["Doc"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/docs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a doc */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The doc, with content and plain text. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            doc: components["schemas"]["Doc"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a doc */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DocPatch"];
+                };
+            };
+            responses: {
+                /** @description The doc. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            doc: components["schemas"]["Doc"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Version conflict. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/docs/{id}/append": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add text to the end of a doc */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        text: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description The doc. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            doc: components["schemas"]["Doc"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List or search contacts
+         * @description Contacts are made from mail automatically: every outside correspondent, with the company from their work domain.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                    companyId?: string;
+                    limit?: number;
+                    offset?: number | null;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Contacts. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contacts: components["schemas"]["Contact"][];
+                            total: number;
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create or update a contact by email */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ContactCreate"];
+                };
+            };
+            responses: {
+                /** @description The contact. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contact: components["schemas"]["Contact"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/contacts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * A contact with its timeline of threads, tasks and deals
+         * @description Takes a contact id or an email address.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description The contact. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contact: components["schemas"]["Contact"];
+                            threads: unknown[];
+                            tasks: components["schemas"]["Task"][];
+                            deals: components["schemas"]["Deal"][];
+                            timeline: unknown[];
+                            activity: unknown[];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a contact */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ContactPatch"];
+                };
+            };
+            responses: {
+                /** @description The contact. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contact: components["schemas"]["Contact"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/companies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List companies */
+        get: {
+            parameters: {
+                query?: {
+                    q?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Companies. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            companies: unknown[];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/deals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The deals pipeline */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Stages with totals, and deals. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            stages: unknown[];
+                            deals: components["schemas"]["Deal"][];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a deal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DealCreate"];
+                };
+            };
+            responses: {
+                /** @description The deal. */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deal: components["schemas"]["Deal"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Validation failed. */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/deals/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update or move a deal */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["DealPatch"];
+                };
+            };
+            responses: {
+                /** @description The deal. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            deal: components["schemas"]["Deal"];
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+                /** @description Not found. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What changed since a cursor
+         * @description An ordered feed of task, project, doc, contact and deal changes. Keep the cursor and pass it back as since.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    since?: number | null;
+                    limit?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Changes. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            changes: {
+                                seq: number;
+                                entity: string;
+                                id: string;
+                                op: string;
+                                version: number;
+                                at: string;
+                            }[];
+                            cursor: number;
+                            more: boolean;
+                        };
+                    };
+                };
+                /** @description Missing or invalid API key. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            error: {
+                                code: string;
+                                message: string;
+                                details?: unknown;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2917,6 +4666,369 @@ export interface components {
                 [key: string]: unknown;
             };
             createdAt: string;
+        };
+        Task: {
+            id: string;
+            /** @example OPS-12 */
+            ref: string;
+            projectId: string;
+            number: number;
+            title: string;
+            notes: string;
+            statusId: string;
+            statusName: string;
+            statusColor: string;
+            /** @enum {string} */
+            status: "todo" | "doing" | "done";
+            assignee: {
+                /** @enum {string} */
+                type: "member" | "agent";
+                id: string;
+                name: string;
+                email: string | null;
+            } | null;
+            assigneeId: string | null;
+            /** @enum {string} */
+            priority: "none" | "low" | "medium" | "high" | "urgent";
+            labels: string[];
+            start: string | null;
+            due: string | null;
+            parentId: string | null;
+            position: number;
+            source: {
+                threadId: string | null;
+                messageId: string | null;
+                from: string;
+                subject: string;
+            } | null;
+            subtasks: {
+                total: number;
+                done: number;
+            };
+            commentCount: number;
+            completedAt: string | null;
+            createdBy: {
+                type: string;
+                id: string | null;
+            };
+            createdAt: string;
+            updatedAt: string;
+            version: number;
+        };
+        TaskCreate: {
+            /** @example Send Harbour Coffee the revised quote */
+            title: string;
+            notes?: string;
+            /** @description Defaults to the workspace's first project. */
+            projectId?: string;
+            statusId?: string;
+            /**
+             * @description The status group: to do, doing or done.
+             * @enum {string}
+             */
+            status?: "todo" | "doing" | "done";
+            /**
+             * @description member:<userId> or agent:<agentId>, or null for nobody.
+             * @example agent:agt_k3j2h1g0f9e8d7c6
+             */
+            assignee?: string | null;
+            /**
+             * @description member:<userId> or agent:<agentId>, or null for nobody.
+             * @example agent:agt_k3j2h1g0f9e8d7c6
+             */
+            assigneeId?: string | null;
+            /** @enum {string} */
+            priority?: "none" | "low" | "medium" | "high" | "urgent";
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            start?: string | null;
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            due?: string | null;
+            labels?: string[];
+            /** @description Makes this a subtask of another task. */
+            parentId?: string | null;
+            /** @description The email this task is about. The task links to its thread. */
+            source?: {
+                messageId?: string;
+                threadId?: string;
+            } | null;
+        };
+        TaskFromEmail: {
+            messageId?: string;
+            threadId?: string;
+            title?: string;
+            notes?: string;
+            projectId?: string;
+            /**
+             * @description member:<userId> or agent:<agentId>, or null for nobody.
+             * @example agent:agt_k3j2h1g0f9e8d7c6
+             */
+            assignee?: string | null;
+            /** @enum {string} */
+            priority?: "none" | "low" | "medium" | "high" | "urgent";
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            due?: string | null;
+            labels?: string[];
+        };
+        TaskDetail: {
+            task: components["schemas"]["Task"];
+            subtasks: components["schemas"]["Task"][];
+            comments: components["schemas"]["TaskComment"][];
+            thread: {
+                id: string;
+                mailboxId: string;
+                /** @enum {string} */
+                direction: "inbound" | "outbound";
+                from: {
+                    address: string;
+                    name: string;
+                };
+                subject: string;
+                date: string;
+                latestText: string;
+                byAgent: boolean;
+            }[];
+            activity: unknown[];
+            docs: unknown[];
+            contacts: unknown[];
+        } | null;
+        TaskComment: {
+            id: string;
+            taskId: string;
+            body: string;
+            author: {
+                type: string;
+                id: string | null;
+                name: string;
+            };
+            createdAt: string;
+        };
+        TaskPatch: {
+            title?: string;
+            notes?: string;
+            projectId?: string;
+            statusId?: string;
+            /**
+             * @description The status group: to do, doing or done.
+             * @enum {string}
+             */
+            status?: "todo" | "doing" | "done";
+            /**
+             * @description member:<userId> or agent:<agentId>, or null for nobody.
+             * @example agent:agt_k3j2h1g0f9e8d7c6
+             */
+            assignee?: string | null;
+            /**
+             * @description member:<userId> or agent:<agentId>, or null for nobody.
+             * @example agent:agt_k3j2h1g0f9e8d7c6
+             */
+            assigneeId?: string | null;
+            /** @enum {string} */
+            priority?: "none" | "low" | "medium" | "high" | "urgent";
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            start?: string | null;
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            due?: string | null;
+            labels?: string[];
+            parentId?: string | null;
+            position?: number;
+            /** @description Send the version you read to reject the write if someone changed the task since. */
+            version?: number;
+        };
+        CommentCreate: {
+            body: string;
+        };
+        Project: {
+            id: string;
+            name: string;
+            description: string;
+            key: string;
+            color: string;
+            archived: boolean;
+            statuses: {
+                id: string;
+                name: string;
+                /** @enum {string} */
+                category: "todo" | "doing" | "done";
+                color: string;
+                position: number;
+            }[];
+            counts: {
+                [key: string]: number;
+            };
+            createdAt: string;
+            updatedAt: string;
+            version: number;
+        };
+        ProjectCreate: {
+            name: string;
+            description?: string;
+            key?: string;
+            color?: string;
+            statuses?: {
+                id?: string;
+                name: string;
+                /**
+                 * @description The status group: to do, doing or done.
+                 * @enum {string}
+                 */
+                category: "todo" | "doing" | "done";
+                color?: string;
+            }[];
+        };
+        ProjectPatch: {
+            name?: string;
+            description?: string;
+            color?: string;
+            archived?: boolean;
+            statuses?: {
+                id?: string;
+                name: string;
+                /**
+                 * @description The status group: to do, doing or done.
+                 * @enum {string}
+                 */
+                category: "todo" | "doing" | "done";
+                color?: string;
+            }[];
+        };
+        Doc: {
+            id: string;
+            title: string;
+            projectId: string | null;
+            excerpt: string;
+            content?: unknown;
+            text?: string;
+            links?: {
+                type: string;
+                id: string;
+            }[];
+            createdAt: string;
+            updatedAt: string;
+            version: number;
+        } & {
+            [key: string]: unknown;
+        };
+        DocCreate: {
+            /** @default Untitled */
+            title: string;
+            /** @description A Tiptap (ProseMirror) JSON document. */
+            content?: {
+                [key: string]: unknown;
+            };
+            /** @description Or plain text: one paragraph per line, # headings and - bullets. */
+            text?: string;
+            projectId?: string | null;
+            links?: {
+                /** @enum {string} */
+                type: "project" | "task" | "thread" | "contact" | "deal";
+                id: string;
+            }[];
+        };
+        DocPatch: {
+            title?: string;
+            content?: {
+                [key: string]: unknown;
+            };
+            version?: number;
+            links?: {
+                /** @enum {string} */
+                type: "project" | "task" | "thread" | "contact" | "deal";
+                id: string;
+            }[];
+        };
+        Contact: {
+            id: string;
+            name: string;
+            email: string;
+            phone: string | null;
+            title: string | null;
+            notes: string;
+            source: string;
+            company: {
+                id: string;
+                name: string;
+                domain: string | null;
+            } | null;
+            messageCount: number;
+            firstContactAt: string | null;
+            lastContactAt: string | null;
+            createdAt: string;
+            updatedAt: string;
+            version: number;
+        } & {
+            [key: string]: unknown;
+        };
+        ContactCreate: {
+            /** Format: email */
+            email: string;
+            name?: string;
+            phone?: string;
+            title?: string;
+            notes?: string;
+            companyId?: string | null;
+        };
+        Deal: {
+            id: string;
+            title: string;
+            stage: string;
+            value: number;
+            /** @enum {string} */
+            currency: "AUD";
+            contactId: string | null;
+            companyId: string | null;
+        } & {
+            [key: string]: unknown;
+        };
+        ContactPatch: {
+            name?: string;
+            phone?: string | null;
+            title?: string | null;
+            notes?: string;
+            companyId?: string | null;
+        };
+        DealCreate: {
+            title: string;
+            /** @enum {string} */
+            stage?: "lead" | "qualified" | "proposal" | "won" | "lost";
+            /** @description AUD, ex GST. */
+            value?: number;
+            contactId?: string | null;
+            companyId?: string | null;
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            expectedClose?: string | null;
+        };
+        DealPatch: {
+            title?: string;
+            /** @enum {string} */
+            stage?: "lead" | "qualified" | "proposal" | "won" | "lost";
+            /** @description AUD, ex GST. */
+            value?: number;
+            contactId?: string | null;
+            companyId?: string | null;
+            /**
+             * @description ISO 8601 date or date-time, e.g. 2026-10-31.
+             * @example 2026-10-31
+             */
+            expectedClose?: string | null;
+            position?: number;
         };
     };
     responses: never;

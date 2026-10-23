@@ -175,3 +175,23 @@ export interface AppNotification { id: string; type: string; entityType: string 
 /** What a push from the server carries: an event type and an id, nothing else. */
 export type PushType = "message.received" | "approval.requested" | "task.assigned" | "task.commented" | "task.email_reply" | "task.due_soon" | "automation.status" | "automation.email";
 export interface PushData { type: PushType | string; id: string }
+
+// ---------------------------------------------------------------- kept in step with the API spec
+
+/**
+ * Compile-time checks against the generated spec (src/api/v1.d.ts, `npm run gen:api`): a field
+ * added to or removed from the API's task shapes shows up here as a type error.
+ */
+type Assert<T extends true> = T;
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+type Within<A, B> = [A] extends [B] ? true : false;
+export type SpecChecks = [
+  Assert<Same<keyof S["Task"], keyof Task>>,
+  Assert<Same<keyof S["TaskComment"], keyof TaskComment>>,
+  Assert<Same<keyof NonNullable<S["TaskDetail"]>, keyof TaskDetail>>,
+  Assert<Within<keyof Project, keyof S["Project"]>>,
+  Assert<Within<keyof TaskCreate, keyof S["TaskCreate"] | "source">>,
+  Assert<Within<keyof TaskPatch, keyof S["TaskPatch"]>>,
+  Assert<Within<S["Task"]["status"], TaskStatus>>,
+  Assert<Within<S["Task"]["priority"], Priority>>,
+];
