@@ -13,7 +13,7 @@ import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 
 interface ApiKey { id: string; name: string; prefix: string; scope: "full" | "read"; lastUsedAt: string | null; createdAt: string }
-interface Endpoint { id: string; url: string; description: string | null; events: string[]; enabled: boolean; createdAt: string }
+interface Endpoint { id: string; url: string; description: string | null; events: string[]; enabled: boolean; disabledReason?: string | null; createdAt: string }
 interface Delivery { id: string; eventType: string; status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null; createdAt: string }
 
 export function DeveloperSettings() {
@@ -105,7 +105,7 @@ function Webhooks() {
   });
   const toggle = (ev: string) => setPicked((cur) => (ev === "*" ? ["*"] : cur.includes(ev) ? cur.filter((x) => x !== ev) : [...cur.filter((x) => x !== "*"), ev]));
   return (
-    <Section title="Webhooks" description="We POST events to your URL, signed with the Standard Webhooks spec. Failed deliveries retry for about nine hours.">
+    <Section title="Webhooks" description="We POST events to your URL, signed with the Standard Webhooks spec. Failed deliveries retry for about nine hours, then wait in the log for you to replay them.">
       <div>
         {endpoints.isPending ? <Skeleton className="h-12" /> : endpoints.data?.length ? endpoints.data.map((e) => <EndpointRow key={e.id} e={e} />) : <p className="text-sm text-muted">No endpoints yet.</p>}
         <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add endpoint</Button>
@@ -148,6 +148,11 @@ function EndpointRow({ e }: { e: Endpoint }) {
   const reveal = useMutation({ mutationFn: () => api.get<{ secret: string }>(`/developer/webhooks/${e.id}/secret`) });
   const del = useMutation({ mutationFn: () => api.del(`/developer/webhooks/${e.id}`), onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks"] }) });
   const toggle = useMutation({ mutationFn: () => api.patch(`/developer/webhooks/${e.id}`, { enabled: !e.enabled }), onSuccess: () => qc.invalidateQueries({ queryKey: ["webhooks"] }) });
+  const replay = useMutation({
+    mutationFn: () => api.post<{ replayed: number }>(`/developer/webhooks/${e.id}/replay`, {}),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["webhooks"] }); qc.invalidateQueries({ queryKey: ["deliveries", e.id] }); toast.success(r.replayed ? `Sending ${r.replayed} failed ${r.replayed === 1 ? "delivery" : "deliveries"} again` : "No failed deliveries to replay"); },
+  });
+  const failedCount = deliveries.data?.filter((d) => d.status === "failed").length ?? 0;
   return (
     <div className="border-b border-line last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
@@ -164,13 +169,19 @@ function EndpointRow({ e }: { e: Endpoint }) {
       </div>
       {expanded && (
         <div className="space-y-3 pb-4 pl-6 text-sm">
+          {e.disabledReason && <p className="rounded-md border border-bad/30 bg-bad/5 px-2.5 py-2 text-xs text-bad" role="alert">{e.disabledReason}</p>}
           <div className="text-xs text-muted">Events: <span className="font-mono">{e.events.join(", ")}</span></div>
           <div className="flex items-center gap-2 text-xs">
             {reveal.data ? <><code className="min-w-0 flex-1 break-all font-mono">{reveal.data.secret}</code><CopyButton value={reveal.data.secret} /></>
               : <button className="font-medium text-brand hover:underline" onClick={() => reveal.mutate()}>Show signing secret</button>}
           </div>
           <div>
-            <div className="mb-1 text-xs font-medium text-muted">Recent deliveries</div>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted">Recent deliveries</span>
+              {(failedCount > 0 || e.disabledReason) && (
+                <Button size="sm" variant="ghost" loading={replay.isPending} onClick={() => replay.mutate()}>Replay failed</Button>
+              )}
+            </div>
             {deliveries.isPending ? <Skeleton className="h-8" /> : deliveries.data?.length ? (
               <ul className="divide-y divide-line rounded-md border border-line">
                 {deliveries.data.map((d) => (

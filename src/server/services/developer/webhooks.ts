@@ -5,7 +5,8 @@
 import { and, asc, desc, eq, inArray, lte } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import type { Deps } from "../../context";
-import { webhookDeliveries, webhookEndpoints } from "../../db/schema";
+import { members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
+import { sendSystemEmail } from "../system-mail";
 import { decryptSecret, encryptSecret, newId, randomBytes, toB64 } from "../../lib/crypto";
 import { badRequest, conflict, notFound } from "../../lib/errors";
 
@@ -37,7 +38,7 @@ export function validateEndpointUrl(deps: Deps, raw: string): string {
 }
 
 export function presentEndpoint(e: typeof webhookEndpoints.$inferSelect) {
-  return { id: e.id, url: e.url, description: e.description, events: JSON.parse(e.events) as string[], enabled: e.enabled, createdAt: e.createdAt };
+  return { id: e.id, url: e.url, description: e.description, events: JSON.parse(e.events) as string[], enabled: e.enabled, disabledReason: e.disabledReason, createdAt: e.createdAt };
 }
 
 export async function listEndpoints(deps: Deps, orgId: string) {
@@ -131,13 +132,56 @@ async function attempt(deps: Deps, deliveryId: string) {
   const attempts = d.attempts + 1;
   if (!error) {
     await deps.db.update(webhookDeliveries).set({ status: "delivered", attempts, responseStatus: status, lastError: null, nextAttemptAt: null, deliveredAt: now }).where(eq(webhookDeliveries.id, d.id));
+    if (e.consecutiveDead) await deps.db.update(webhookEndpoints).set({ consecutiveDead: 0 }).where(eq(webhookEndpoints.id, e.id));
     return;
   }
   const delay = RETRY_SCHEDULE_MS[attempts - 1];
+  const dead = delay === undefined;
   await deps.db.update(webhookDeliveries).set({
-    status: delay === undefined ? "failed" : "pending", attempts, responseStatus: status, lastError: error,
-    nextAttemptAt: delay === undefined ? null : new Date(now.getTime() + delay),
+    status: dead ? "failed" : "pending", attempts, responseStatus: status, lastError: error,
+    nextAttemptAt: dead ? null : new Date(now.getTime() + delay),
   }).where(eq(webhookDeliveries.id, d.id));
+  if (dead && d.eventType !== "webhook.test") await onDeadLetter(deps, e, error);
+}
+
+/** Deliveries in a row that run out of retries before an endpoint is switched off. */
+export const DISABLE_AFTER_DEAD = 5;
+
+/**
+ * Dead letter: the delivery stays in the log as failed (replayable from Settings,
+ * Developers). An endpoint that keeps failing is disabled, as Stripe and Svix do,
+ * and the workspace owners are emailed so they can fix it and switch it back on.
+ */
+async function onDeadLetter(deps: Deps, e: typeof webhookEndpoints.$inferSelect, error: string) {
+  const n = e.consecutiveDead + 1;
+  const disable = n >= DISABLE_AFTER_DEAD;
+  await deps.db.update(webhookEndpoints).set({
+    consecutiveDead: n,
+    ...(disable ? { enabled: false, disabledReason: `Disabled after ${n} deliveries in a row failed every retry. Last error: ${error}` } : {}),
+  }).where(eq(webhookEndpoints.id, e.id));
+  deps.log?.warn("webhook.dead_letter", { endpoint: e.id, org: e.orgId, consecutive: n, disabled: disable });
+  if (!disable) return;
+  const owners = await deps.db.select({ email: users.email }).from(members).innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, e.orgId), inArray(members.role, ["owner", "admin"])));
+  for (const o of owners) {
+    await sendSystemEmail(deps, {
+      to: o.email, orgId: e.orgId, template: "webhook-disabled",
+      subject: `Webhook endpoint disabled: ${e.url}`,
+      text: `We stopped sending events to ${e.url} because ${n} deliveries in a row failed after every retry.\n\nLast error: ${error}\n\nFix the endpoint, then switch it back on and replay the failed deliveries from Settings, Developers.`,
+      action: { label: "Open developer settings", url: `${deps.config.appUrl}/app/settings/developers` },
+    }).catch(() => undefined);
+  }
+}
+
+/** Queues failed (dead-letter) deliveries for an endpoint to be sent again now. */
+export async function replayFailed(deps: Deps, orgId: string, endpointId: string, deliveryIds?: string[]) {
+  const e = await endpointInOrg(deps, orgId, endpointId);
+  const rows = await deps.db.update(webhookDeliveries).set({ status: "pending", attempts: 0, nextAttemptAt: deps.now(), lastError: null })
+    .where(and(eq(webhookDeliveries.endpointId, e.id), eq(webhookDeliveries.status, "failed"), deliveryIds?.length ? inArray(webhookDeliveries.id, deliveryIds) : undefined))
+    .returning({ id: webhookDeliveries.id });
+  if (!e.enabled) await deps.db.update(webhookEndpoints).set({ enabled: true, disabledReason: null, consecutiveDead: 0 }).where(eq(webhookEndpoints.id, e.id));
+  await Promise.all(rows.slice(0, 20).map((r) => attempt(deps, r.id)));
+  return rows.length;
 }
 
 /**

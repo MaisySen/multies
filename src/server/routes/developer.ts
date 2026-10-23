@@ -5,7 +5,7 @@ import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
 import { createApiKey, deleteApiKey, listApiKeys } from "../services/developer/api-keys";
 import {
-  WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, endpointSecret, listDeliveries, listEndpoints, sendTestEvent, updateEndpoint,
+  WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, endpointSecret, listDeliveries, listEndpoints, sendTestEvent, updateEndpoint, replayFailed,
 } from "../services/developer/webhooks";
 
 const eventsSchema = z.array(z.enum([...WEBHOOK_EVENTS, "*"])).min(1, "Pick at least one event.").max(WEBHOOK_EVENTS.length + 1);
@@ -49,5 +49,10 @@ export function developerRoutes() {
     })
     .get("/webhooks/:id/secret", async (c) => c.json({ secret: await endpointSecret(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .get("/webhooks/:id/deliveries", async (c) => c.json({ deliveries: await listDeliveries(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
-    .post("/webhooks/:id/test", async (c) => c.json({ delivery: await sendTestEvent(c.var.deps, c.var.auth.orgId, c.req.param("id")) }));
+    .post("/webhooks/:id/test", async (c) => c.json({ delivery: await sendTestEvent(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
+    // Dead letters: send failed deliveries again (all, or the ids given), re-enabling the endpoint.
+    .post("/webhooks/:id/replay", async (c) => {
+      const { ids } = await parseBody(c, z.object({ ids: z.array(z.string().max(64)).max(500).optional() }));
+      return c.json({ replayed: await replayFailed(c.var.deps, c.var.auth.orgId, c.req.param("id"), ids) });
+    });
 }

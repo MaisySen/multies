@@ -3,7 +3,8 @@ import { Webhook } from "standardwebhooks";
 import { makeTestApp, Client } from "./helpers";
 import { deliverInbound } from "@/server/services/mail/delivery";
 import { parseMime } from "@/server/services/mail/mime";
-import { retryDueDeliveries } from "@/server/services/developer/webhooks";
+import { DISABLE_AFTER_DEAD, emitEvent, retryDueDeliveries } from "@/server/services/developer/webhooks";
+import { webhookEndpoints } from "@/server/db/schema";
 
 type Captured = { url: string; headers: Record<string, string>; body: string };
 
@@ -144,6 +145,39 @@ describe("outbound webhooks (Standard Webhooks)", () => {
     await retryDueDeliveries(ctx.deps); // 200
     const list = await c.get(`/api/developer/webhooks/${ep.body.endpoint.id}/deliveries`);
     expect(list.body.deliveries[0]).toMatchObject({ status: "delivered", attempts: 3 });
+  });
+
+  it("keeps dead letters for replay and disables an endpoint that keeps failing", async () => {
+    let up = false;
+    const fetchImpl = (async () => new Response("no", { status: up ? 200 : 500 })) as typeof fetch;
+    const ctx = await makeTestApp({}, { fetch: fetchImpl });
+    let now = Date.now();
+    ctx.deps.now = () => new Date(now);
+    const c = new Client(ctx.app);
+    await c.signup();
+    const ep = await c.post("/api/developer/webhooks", { url: "https://hooks.example.com/dead", events: ["*"] });
+    const id = ep.body.endpoint.id as string;
+    const orgId = (await ctx.deps.db.select().from(webhookEndpoints).get())!.orgId;
+    for (let i = 0; i < DISABLE_AFTER_DEAD; i++) await emitEvent(ctx.deps, orgId, "message.sent", { n: i });
+    for (let i = 0; i < 6; i++) { now += 7 * 3600_000; await retryDueDeliveries(ctx.deps); }
+
+    const list = await c.get("/api/developer/webhooks");
+    const endpoint = list.body.endpoints.find((e: { id: string }) => e.id === id);
+    expect(endpoint.enabled).toBe(false);
+    expect(endpoint.disabledReason).toMatch(/Disabled after 5 deliveries in a row failed/);
+    const dead = (await c.get(`/api/developer/webhooks/${id}/deliveries`)).body.deliveries;
+    expect(dead.filter((d: { status: string }) => d.status === "failed")).toHaveLength(DISABLE_AFTER_DEAD);
+    // New events skip a disabled endpoint.
+    expect(await emitEvent(ctx.deps, orgId, "message.sent", { n: 99 })).toEqual([]);
+
+    // The receiver is fixed: replay sends every dead letter again and switches the endpoint back on.
+    up = true;
+    const replay = await c.post(`/api/developer/webhooks/${id}/replay`, {});
+    expect(replay.body.replayed).toBe(DISABLE_AFTER_DEAD);
+    const after = (await c.get(`/api/developer/webhooks/${id}/deliveries`)).body.deliveries;
+    expect(after.every((d: { status: string }) => d.status === "delivered")).toBe(true);
+    const again = (await c.get("/api/developer/webhooks")).body.endpoints.find((e: { id: string }) => e.id === id);
+    expect(again).toMatchObject({ enabled: true, disabledReason: null });
   });
 
   it("refuses private and non-https URLs in production", async () => {
