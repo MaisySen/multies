@@ -150,6 +150,11 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       id: messageId, mailboxId: mb.id, to: mb.address, from: d.email.from, subject: d.email.subject ?? "", folder: spam ? "spam" : "inbox", sizeBytes: d.sizeBytes,
       threadId: stored?.threadId, latestText: agentsNotified.parsed.latestText, codes: agentsNotified.parsed.codes, links: agentsNotified.parsed.links, agentIds: agentsNotified.agentIds,
     });
+    const { onMailStored } = await import("../suite/hooks");
+    await onMailStored(deps, {
+      orgId: mb.orgId, mailboxId: mb.id, messageId, threadId: stored?.threadId ?? "", direction: "inbound", folder: spam ? "spam" : "inbox",
+      from: d.email.from, to: d.email.to, cc: d.email.cc, subject: d.email.subject ?? "", date: d.email.date ?? deps.now(),
+    });
     return { accepted: true, code: 250, reason: "Delivered.", storedIn: [mb.id], forwardedTo: [] };
   }
 

@@ -36,6 +36,8 @@ export interface PlanLimits {
   agentMessagesMonthly: number;
   /** Messages one agent inbox can send per day. */
   agentDailySends: number;
+  /** Automation runs a calendar month (email rules, status rules, due date reminders). */
+  automationRunsMonthly: number;
 }
 
 export interface Plan {
@@ -60,7 +62,7 @@ export const PLANS: Record<PlanId, Plan> = {
     priceMonthly: 0,
     limits: {
       domains: 1, mailboxes: 3, aliases: 10, storagePerMailboxMb: 3 * GB, storageMb: 3 * GB, dailySends: 100, seats: 3,
-      agentInboxes: 3, agentMessagesMonthly: 3000, agentDailySends: 100,
+      agentInboxes: 3, agentMessagesMonthly: 3000, agentDailySends: 100, automationRunsMonthly: 100,
     },
     features: [
       "1 custom domain",
@@ -81,7 +83,7 @@ export const PLANS: Record<PlanId, Plan> = {
     legacy: true,
     limits: {
       domains: 5, mailboxes: 25, aliases: 200, storagePerMailboxMb: 10 * GB, storageMb: 250 * GB, dailySends: 2000, seats: 10,
-      agentInboxes: 10, agentMessagesMonthly: 10_000, agentDailySends: 500,
+      agentInboxes: 10, agentMessagesMonthly: 10_000, agentDailySends: 500, automationRunsMonthly: 10_000,
     },
     features: ["5 custom domains", "25 mailboxes", "10 GB per mailbox", "2,000 sends a day", "10 people", "Bring your own AI"],
   },
@@ -93,7 +95,7 @@ export const PLANS: Record<PlanId, Plan> = {
     legacy: true,
     limits: {
       domains: 50, mailboxes: 250, aliases: 5000, storagePerMailboxMb: 50 * GB, storageMb: 2500 * GB, dailySends: 20_000, seats: 100,
-      agentInboxes: 50, agentMessagesMonthly: 50_000, agentDailySends: 2000,
+      agentInboxes: 50, agentMessagesMonthly: 50_000, agentDailySends: 2000, automationRunsMonthly: 50_000,
     },
     features: ["50 custom domains", "250 mailboxes", "50 GB per mailbox", "20,000 sends a day", "100 people", "Bring your own AI"],
   },

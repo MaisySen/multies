@@ -27,6 +27,15 @@ export async function mailboxScope(db: DB, auth: Pick<AuthContext, "userId" | "o
   return rows.map((r) => r.id);
 }
 
+/** People who can open a mailbox: owners and admins, plus members granted it. */
+export async function usersWhoCanOpen(db: DB, orgId: string, mailboxId: string): Promise<string[]> {
+  const [leads, granted] = await Promise.all([
+    db.select({ userId: members.userId }).from(members).where(and(eq(members.organizationId, orgId), ne(members.role, "member"))),
+    db.select({ userId: mailboxAccess.userId }).from(mailboxAccess).where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.mailboxId, mailboxId))),
+  ]);
+  return [...new Set([...leads, ...granted].map((r) => r.userId))];
+}
+
 export async function assertMailboxAccess(db: DB, auth: Pick<AuthContext, "userId" | "orgId" | "role">, mailboxId: string) {
   const scope = await mailboxScope(db, auth);
   if (scope && !scope.includes(mailboxId)) throw notFound("Mailbox");

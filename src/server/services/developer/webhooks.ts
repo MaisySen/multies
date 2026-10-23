@@ -21,6 +21,17 @@ export const WEBHOOK_EVENTS = [
   "approval.decided",
   "agent.created",
   "agent.deleted",
+  "task.created",
+  "task.updated",
+  "task.deleted",
+  "task.commented",
+  "project.created",
+  "doc.created",
+  "doc.updated",
+  "contact.created",
+  "contact.updated",
+  "deal.created",
+  "deal.updated",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

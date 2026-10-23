@@ -100,6 +100,12 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
   }
 
+  {
+    const sent = await db.select({ threadId: messages.threadId }).from(messages).where(eq(messages.id, sentId)).get();
+    const { onMailStored } = await import("../suite/hooks");
+    await onMailStored(deps, { orgId: auth.orgId, mailboxId: mb.id, messageId: sentId, threadId: sent?.threadId ?? "", direction: "outbound", folder: "sent", from, to: toList, cc: ccList, subject: input.subject, date: now });
+  }
+
   const result: SendResult = { messageId: sentId, internal: [], external: [] };
   const internal: string[] = [];
   const external: string[] = [];

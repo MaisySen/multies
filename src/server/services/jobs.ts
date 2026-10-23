@@ -14,7 +14,7 @@ import type { Deps } from "../context";
 import { jobs } from "../db/schema";
 import { newId } from "../lib/crypto";
 
-export type JobType = "mail.deliver" | "system-mail.send" | `test.${string}`;
+export type JobType = "mail.deliver" | "system-mail.send" | "push.send" | `test.${string}`;
 
 export class RetryableJobError extends Error {}
 export class PermanentJobError extends Error {}

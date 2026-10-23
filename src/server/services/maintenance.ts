@@ -19,6 +19,7 @@ import { pruneJobs, runDueJobs } from "./jobs";
 import { crossCheck, recordUptimeCheck } from "./status";
 import "./mail/deliver-job";
 import "./system-mail";
+import "./suite/push";
 
 /**
  * Periodic housekeeping: drain the job queue, record the uptime self check, re-check
@@ -35,6 +36,7 @@ export async function runMaintenance(deps: Deps) {
   const legacy = await step("legacy", () => legacyMaintenance(deps));
   const dunning = await step("dunning", () => enforceGracePeriods(deps));
   const approvalsExpired = await step("approvals", () => expireApprovals(deps));
+  const reminders = await step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps));
   await step("prune", async () => {
     await pruneRateLimits(deps.db, deps.now().getTime());
     await pruneIdempotencyKeys(deps.db, deps.now());
@@ -43,7 +45,7 @@ export async function runMaintenance(deps: Deps) {
     await pruneAgentEvents(deps);
     await pruneImports(deps);
   });
-  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired };
+  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders };
 }
 
 const migratedClients = new WeakSet<object>();

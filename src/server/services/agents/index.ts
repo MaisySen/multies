@@ -463,6 +463,13 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, to: input.to, subject: input.subject, threadId });
     await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, from: from.address, to: input.to, subject: input.subject, threadId });
+    if (deps.config.push.enabled) {
+      try {
+        const { pushToUsers } = await import("../suite/push");
+        const { usersWhoCanOpen } = await import("../team");
+        await pushToUsers(deps, actor.orgId, await usersWhoCanOpen(deps.db, actor.orgId, from.id), { type: "approval.requested", id });
+      } catch (err) { deps.reportError?.(err, { where: "approval.push" }); }
+    }
     return { status: "pending_approval", approval };
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);

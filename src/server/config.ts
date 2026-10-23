@@ -64,6 +64,8 @@ export interface AppConfig {
    */
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
+  /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
+  push: { enabled: boolean; expoAccessToken?: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
   bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
@@ -119,6 +121,8 @@ const EnvSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
+  PUSH_ENABLED: z.string().optional(),
+  EXPO_ACCESS_TOKEN: z.string().optional(),
   STRIPE_PRICE_BUSINESS: z.string().optional(),
   SYSTEM_FROM_NAME: z.string().optional(),
   STALWART_URL: z.string().url().optional(),
@@ -226,6 +230,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
     },
     agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
+    push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
