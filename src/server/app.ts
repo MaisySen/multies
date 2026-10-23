@@ -5,6 +5,8 @@ import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
 import { authRoutes } from "./routes/auth";
 import { domainRoutes } from "./routes/domains";
+import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
+import { orgRoutes } from "./routes/org";
 import { PLANS } from "@/shared/plans";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -40,6 +42,9 @@ export function createApp(deps: Deps) {
 
   app.route("/api/auth", authRoutes());
   app.route("/api/domains", domainRoutes());
+  app.route("/api/mailboxes", mailboxRoutes());
+  app.route("/api/aliases", aliasRoutes());
+  app.route("/api/org", orgRoutes());
 
   app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404)));
   app.onError((err, c) => {
