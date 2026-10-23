@@ -15,7 +15,13 @@ const DomainDetailPage = lazy(() => import("./pages/app/domain-detail").then((m)
 const MailboxesPage = lazy(() => import("./pages/app/mailboxes").then((m) => ({ default: m.MailboxesPage })));
 const WebmailPage = lazy(() => import("./pages/app/webmail").then((m) => ({ default: m.WebmailPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
-const SettingsPage = lazy(() => import("./pages/app/settings").then((m) => ({ default: m.SettingsPage })));
+const settings = () => import("./pages/app/settings");
+const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
+const GeneralSettings = lazy(() => settings().then((m) => ({ default: m.GeneralSettings })));
+const MailSettings = lazy(() => settings().then((m) => ({ default: m.MailSettings })));
+const AccountSettings = lazy(() => settings().then((m) => ({ default: m.AccountSettings })));
+const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
+const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
 
@@ -32,6 +38,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/login", element: <LoginPage /> },
       { path: "/signup", element: <SignupPage /> },
+      { path: "/invite/:token", element: page(<InvitePage />) },
     ],
   },
   {
@@ -44,7 +51,16 @@ export const router = createBrowserRouter([
       { path: "mailboxes", element: page(<MailboxesPage />) },
       { path: "mail", element: page(<WebmailPage />) },
       { path: "activity", element: page(<ActivityPage />) },
-      { path: "settings", element: page(<SettingsPage />) },
+      {
+        path: "settings",
+        element: page(<SettingsLayout />),
+        children: [
+          { index: true, element: page(<GeneralSettings />) },
+          { path: "team", element: page(<TeamSettings />) },
+          { path: "account", element: page(<AccountSettings />) },
+          { path: "mail", element: page(<MailSettings />) },
+        ],
+      },
     ],
   },
   { path: "*", element: <NotFound /> },

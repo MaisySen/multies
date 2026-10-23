@@ -23,7 +23,7 @@ function useAuthSubmit(path: "/auth/login" | "/auth/signup") {
       await api.post(path, body);
       qc.clear();
       const next = params.get("next");
-      navigate(next && next.startsWith("/app") ? next : "/app");
+      navigate(next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app");
     } catch (err) {
       if (err instanceof ApiError && err.fields) setFields(err.fields);
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -65,6 +65,7 @@ function DemoLink() {
 
 export function LoginPage() {
   const { submit, loading, error, fields } = useAuthSubmit("/auth/login");
+  const [params] = useSearchParams();
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -76,18 +77,19 @@ export function LoginPage() {
       <p className="mt-1 text-sm text-muted">Sign in to your MyMail workspace.</p>
       <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
         <FormError message={error} />
-        <Field label="Email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="you@company.com" required autoFocus />}</Field>
-        <Field label="Password" error={fields.password}>{(p) => <PasswordInput {...p} name="password" autoComplete="current-password" required />}</Field>
+        <Field label="Email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="you@company.com" required autoFocus={!params.get("email")} defaultValue={params.get("email") ?? ""} />}</Field>
+        <Field label="Password" error={fields.password}>{(p) => <PasswordInput {...p} name="password" autoComplete="current-password" required autoFocus={!!params.get("email")} />}</Field>
         <Button type="submit" className="w-full" size="lg" loading={loading}>Sign in</Button>
       </form>
       <DemoLink />
-      <p className="mt-6 text-center text-sm text-muted">New to MyMail? <Link to="/signup" className="font-medium text-fg hover:underline">Create an account</Link></p>
+      <p className="mt-6 text-center text-sm text-muted">New to MyMail? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>
     </div>
   );
 }
 
 export function SignupPage() {
   const { submit, loading, error, fields } = useAuthSubmit("/auth/signup");
+  const [params] = useSearchParams();
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -100,13 +102,13 @@ export function SignupPage() {
       <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
         <FormError message={error && !Object.keys(fields).length ? error : null} />
         <Field label="Your name" error={fields.name}>{(p) => <Input {...p} name="name" autoComplete="name" placeholder="Ada Lovelace" required autoFocus />}</Field>
-        <Field label="Work email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="ada@company.com" required />}</Field>
+        <Field label="Work email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="ada@company.com" required defaultValue={params.get("email") ?? ""} readOnly={!!params.get("invited")} />}</Field>
         <Field label="Password" error={fields.password} hint="At least 10 characters.">{(p) => <PasswordInput {...p} name="password" autoComplete="new-password" required minLength={10} />}</Field>
-        <Field label="Company" hint="Optional — names your workspace." error={fields.organization}>{(p) => <Input {...p} name="organization" autoComplete="organization" placeholder="Analytical Engines Ltd." />}</Field>
+        {!params.get("invited") && <Field label="Company" hint="Optional — names your workspace." error={fields.organization}>{(p) => <Input {...p} name="organization" autoComplete="organization" placeholder="Analytical Engines Ltd." />}</Field>}
         <Button type="submit" className="w-full" size="lg" loading={loading}>Create account</Button>
       </form>
       <DemoLink />
-      <p className="mt-6 text-center text-sm text-muted">Already have an account? <Link to="/login" className="font-medium text-fg hover:underline">Sign in</Link></p>
+      <p className="mt-6 text-center text-sm text-muted">Already have an account? <Link to={`/login${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Sign in</Link></p>
     </div>
   );
 }

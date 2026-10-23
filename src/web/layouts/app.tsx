@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, ChevronsUpDown, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Sparkles, Users, X } from "lucide-react";
+import { Activity, Check, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
-import { useMe } from "@/web/lib/queries";
+import { useMe, useWorkspaces } from "@/web/lib/queries";
+import type { Me } from "@/web/lib/types";
+import { Dialog } from "@/web/components/ui/dialog";
+import { Button } from "@/web/components/ui/button";
+import { Field, Input } from "@/web/components/ui/input";
 import { api, ApiError } from "@/web/lib/api";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -55,13 +59,7 @@ export function AppLayout() {
         <button className="rounded-md p-1.5 text-muted hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><X className="h-5 w-5" /></button>
       </div>
       <div className="px-3">
-        <div className="flex items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
-          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-gradient-to-br from-brand to-indigo-700 text-[11px] font-bold text-white">{organization?.name[0]?.toUpperCase()}</span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-medium">{organization?.name}</div>
-            <div className="text-[11px] text-subtle">{organization ? PLANS[organization.plan].name : ""} plan</div>
-          </div>
-        </div>
+        <WorkspaceSwitcher current={organization} />
       </div>
       <nav className="mt-4 flex-1 space-y-0.5 px-3" aria-label="App">
         {nav.map(({ to, label, icon: Icon, end }) => (
@@ -92,7 +90,8 @@ export function AppLayout() {
           </button>
         }>
           <MenuLabel>{user.email}</MenuLabel>
-          <MenuItem icon={<Settings />} onSelect={() => navigate("/app/settings")}>Settings</MenuItem>
+          <MenuItem icon={<UserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
+          <MenuItem icon={<Settings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
           <MenuItem icon={<LogOut />} onSelect={signOut} danger>Sign out</MenuItem>
         </Menu>
       </div>
@@ -118,5 +117,56 @@ export function AppLayout() {
         </main>
       </div>
     </div>
+  );
+}
+
+function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
+  const ws = useWorkspaces();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [creating, setCreating] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async (id: string) => {
+    if (id === current?.id) return;
+    await api.post(`/auth/workspaces/${id}/switch`);
+    qc.clear();
+    navigate("/app");
+  };
+  const create = async () => {
+    setBusy(true); setError(null);
+    try { await api.post("/auth/workspaces", { name }); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
+    catch (e) { setError(e instanceof Error ? e.message : "Couldn't create it."); }
+    finally { setBusy(false); }
+  };
+  return (
+    <>
+      <Menu label="Switch workspace" align="start" trigger={
+        <button className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2 text-left transition-colors hover:border-line-strong">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-gradient-to-br from-brand to-indigo-700 text-[11px] font-bold text-white">{current?.name[0]?.toUpperCase()}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[13px] font-medium">{current?.name}</span>
+            <span className="block text-[11px] text-subtle">{current ? PLANS[current.plan].name : ""} plan</span>
+          </span>
+          <ChevronsUpDown className="h-4 w-4 shrink-0 text-subtle" />
+        </button>
+      }>
+        <MenuLabel>Workspaces</MenuLabel>
+        {(ws.data?.workspaces ?? []).map((w) => (
+          <MenuItem key={w.id} icon={w.id === current?.id ? <Check /> : <span className="grid h-4 w-4 place-items-center rounded bg-white/10 text-[9px] font-bold">{w.name[0]?.toUpperCase()}</span>} onSelect={() => go(w.id)}>
+            <span className="truncate">{w.name}</span>
+          </MenuItem>
+        ))}
+        <div className="my-1 border-t border-line" />
+        <MenuItem icon={<Plus />} onSelect={() => setCreating(true)}>New workspace</MenuItem>
+      </Menu>
+      <Dialog open={creating} onClose={() => setCreating(false)} title="Create a workspace" description="A separate space with its own domains, mailboxes, team and plan."
+        footer={<><Button variant="secondary" onClick={() => setCreating(false)}>Cancel</Button><Button loading={busy} disabled={!name.trim()} onClick={create}>Create workspace</Button></>}>
+        <form onSubmit={(e) => { e.preventDefault(); void create(); }}>
+          <Field label="Name" error={error ?? undefined}>{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Inc." autoFocus />}</Field>
+        </form>
+      </Dialog>
+    </>
   );
 }

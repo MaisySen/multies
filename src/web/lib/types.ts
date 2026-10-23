@@ -128,3 +128,37 @@ export interface OrgInfo {
   plan: Plan;
   usage: { domains: number; mailboxes: number; aliases: number };
 }
+
+export type Role = "owner" | "admin" | "member";
+
+export interface TeamMember {
+  userId: string;
+  email: string;
+  name: string;
+  role: Role;
+  joinedAt: string;
+  lastActiveAt: string | null;
+  /** Null for owners and admins, who can open every mailbox. */
+  mailboxIds: string[] | null;
+}
+
+export interface PendingInvite {
+  id: string;
+  email: string;
+  role: "admin" | "member";
+  mailboxIds: string[];
+  invitedByName: string | null;
+  expiresAt: string;
+  createdAt: string;
+  expired: boolean;
+}
+
+export interface TeamInfo {
+  members: TeamMember[];
+  invites: PendingInvite[];
+  seats: { members: number; pendingInvites: number; limit: number };
+}
+
+export interface InviteCreated { id: string; link: string; emailed: boolean; emailDetail?: string }
+
+export interface Workspace { id: string; name: string; plan: PlanId; role: Role; isDemo: boolean }

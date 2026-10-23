@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,24 +13,84 @@ import { Field, Input } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 
-export function SettingsPage() {
+const TABS = [
+  { to: "/app/settings", label: "General", end: true },
+  { to: "/app/settings/team", label: "Team" },
+  { to: "/app/settings/account", label: "Account & security" },
+  { to: "/app/settings/mail", label: "Mail routing" },
+];
+
+export function SettingsLayout() {
   const loc = useLocation();
   useEffect(() => { if (loc.hash) setTimeout(() => document.getElementById(loc.hash.slice(1))?.scrollIntoView({ behavior: "smooth" }), 100); }, [loc.hash]);
   return (
     <>
-      <PageHeader title="Settings" description="Workspace, plan, mail routing and your account." />
-      <div className="space-y-6">
-        <WorkspaceSection />
-        <PlanSection />
-        <InboundSection />
-        <OutboundSection />
-        <AccountSection />
-      </div>
+      <PageHeader title="Settings" description="Workspace, team, security and how mail flows." />
+      <nav aria-label="Settings" className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-line px-1">
+        {TABS.map((t) => (
+          <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cn(
+            "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-[13.5px] transition-colors",
+            isActive ? "border-brand font-medium text-fg" : "border-transparent text-muted hover:text-fg",
+          )}>{t.label}</NavLink>
+        ))}
+      </nav>
+      <Outlet />
     </>
   );
 }
 
-function Section({ id, title, description, children }: { id?: string; title: string; description: React.ReactNode; children: React.ReactNode }) {
+export function GeneralSettings() {
+  return (
+    <div className="space-y-6">
+      <WorkspaceSection />
+      <PlanSection />
+      <DangerZone />
+    </div>
+  );
+}
+
+export function MailSettings() {
+  return (
+    <div className="space-y-6">
+      <InboundSection />
+      <OutboundSection />
+    </div>
+  );
+}
+
+export function AccountSettings() {
+  return (
+    <div className="space-y-6">
+      <AccountSection />
+    </div>
+  );
+}
+
+function DangerZone() {
+  const me = useMe();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const del = useMutation({
+    mutationFn: () => api.del<{ signedOut: boolean }>("/auth/workspace", { password }),
+    onSuccess: (r) => { qc.clear(); toast.success("Workspace deleted"); navigate(r.signedOut ? "/" : "/app"); },
+  });
+  if (me.data?.organization?.role !== "owner") return null;
+  return (
+    <Section title="Danger zone" description="Deleting a workspace removes its domains, mailboxes, mail and members' access. It can't be undone.">
+      <Button variant="danger" onClick={() => setOpen(true)}><Trash2 className="h-4 w-4" />Delete workspace</Button>
+      <Dialog open={open} onClose={() => setOpen(false)} title={`Delete ${me.data.organization.name}?`} description="Everything in this workspace is permanently deleted for every member."
+        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button variant="danger" loading={del.isPending} disabled={!password} onClick={() => del.mutate()}>Delete workspace</Button></>}>
+        <Field label="Confirm with your password" error={del.error instanceof ApiError ? del.error.message : undefined}>
+          {(p) => <Input {...p} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />}
+        </Field>
+      </Dialog>
+    </Section>
+  );
+}
+
+export function Section({ id, title, description, children }: { id?: string; title: string; description: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card id={id} className="scroll-mt-6">
       <div className="grid gap-6 p-5 md:grid-cols-[260px_1fr] md:p-6">

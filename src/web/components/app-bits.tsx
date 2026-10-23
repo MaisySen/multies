@@ -32,10 +32,19 @@ const ACTIONS: Record<string, string> = {
   "inbound_key.created": "created an inbound key",
   "inbound_key.revoked": "revoked an inbound key",
   "demo.workspace_created": "opened a demo workspace",
+  "member.invited": "invited",
+  "member.invite_resent": "re-sent an invitation to",
+  "member.invite_revoked": "revoked the invitation for",
+  "member.joined": "joined the workspace",
+  "member.updated": "updated access for",
+  "member.removed": "removed",
+  "member.left": "left the workspace",
+  "workspace.created": "created the workspace",
+  "workspace.ownership_transferred": "transferred ownership to",
 };
 
 export function describeAudit(e: AuditEntry): { verb: string; object?: string } {
   const m = e.metadata ?? {};
-  const object = (m.name ?? m.address ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
+  const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };
 }

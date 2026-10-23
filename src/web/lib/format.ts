@@ -10,7 +10,14 @@ export function formatBytes(n: number): string {
 export function timeAgo(iso: string | Date | null | undefined): string {
   if (!iso) return "never";
   const d = typeof iso === "string" ? new Date(iso) : iso;
-  const s = Math.round((Date.now() - d.getTime()) / 1000);
+  const raw = Math.round((Date.now() - d.getTime()) / 1000);
+  if (raw < -45) {
+    const f = -raw;
+    if (f < 3600) return `in ${Math.round(f / 60)}m`;
+    if (f < 86400) return `in ${Math.round(f / 3600)}h`;
+    return `in ${Math.round(f / 86400)}d`;
+  }
+  const s = Math.max(0, raw);
   if (s < 45) return "just now";
   if (s < 3600) return `${Math.round(s / 60)}m ago`;
   if (s < 86400) return `${Math.round(s / 3600)}h ago`;

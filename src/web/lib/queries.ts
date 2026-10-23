@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
-import type { Alias, Dashboard, Domain, Mailbox, Me, OrgInfo, PublicConfig } from "./types";
+import type { Alias, Dashboard, Domain, Mailbox, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
 
 export const qk = {
   me: ["me"] as const,
@@ -12,6 +12,8 @@ export const qk = {
   aliases: ["aliases"] as const,
   org: ["org"] as const,
   overview: ["mail", "overview"] as const,
+  team: ["team"] as const,
+  workspaces: ["workspaces"] as const,
 };
 
 export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<Me>("/auth/me"), retry: false, staleTime: 60_000 });
@@ -22,3 +24,5 @@ export const useDomain = (id: string) => useQuery({ queryKey: qk.domain(id), que
 export const useMailboxes = () => useQuery({ queryKey: qk.mailboxes, queryFn: async () => (await api.get<{ mailboxes: Mailbox[] }>("/mailboxes")).mailboxes });
 export const useAliases = () => useQuery({ queryKey: qk.aliases, queryFn: async () => (await api.get<{ aliases: Alias[] }>("/aliases")).aliases });
 export const useOrg = () => useQuery({ queryKey: qk.org, queryFn: () => api.get<OrgInfo>("/org") });
+export const useTeam = () => useQuery({ queryKey: qk.team, queryFn: () => api.get<TeamInfo>("/team") });
+export const useWorkspaces = () => useQuery({ queryKey: qk.workspaces, queryFn: () => api.get<{ workspaces: Workspace[]; currentId: string }>("/auth/workspaces") });

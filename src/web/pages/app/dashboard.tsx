@@ -119,7 +119,7 @@ function GettingStarted({ data }: { data: Dashboard }) {
     { done: data.usage.domains > 0, title: "Add your domain", body: "We'll generate its DKIM key and DNS records.", to: "/app/domains" },
     { done: data.domains.some((d) => d.status === "verified"), title: "Verify DNS", body: "Publish the records; we check them live.", to: data.domains[0] ? `/app/domains/${data.domains[0].id}` : "/app/domains" },
     { done: data.usage.mailboxes > 0, title: "Create a mailbox", body: "An inbox for you or your team.", to: "/app/mailboxes" },
-    { done: false, title: "Connect inbound mail", body: "Route your MX through Cloudflare to MyMail.", to: "/app/settings#inbound" },
+    { done: false, title: "Connect inbound mail", body: "Route your MX through Cloudflare to MyMail.", to: "/app/settings/mail#inbound" },
   ];
   const next = steps.findIndex((s) => !s.done);
   return (
