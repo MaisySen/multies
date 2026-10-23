@@ -28,6 +28,20 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 | `reply` | Reply in a thread as an agent, threaded, with a `Re:` subject |
 | `wait_for_email` | Wait up to 50 seconds for new mail, for example a sign up code, and return it parsed |
 | `create_agent_inbox` | Workspace keys only: a new agent with its own address and key |
+| `list_tasks` | Tasks filtered by project, status, assignee (`me`, `none`, `member:<id>`, `agent:<id>`), priority, label, text or thread |
+| `get_task` | One task by id or reference (`TSK-12`): fields, subtasks, comments, the email thread it came from and its history |
+| `next_task` | The most urgent open task assigned to this agent, or null. Agents can loop: take it, do it, comment, mark it done |
+| `create_task` | A task by hand, or from an email with `messageId` or `threadId` |
+| `update_task` | Title, notes, status, dates, priority, labels or assignee |
+| `comment_on_task` | Add a comment, shown with the agent's name |
+| `list_projects` | Projects with their statuses and counts |
+| `search_docs`, `read_doc` | Find docs and read one as plain text |
+| `create_doc`, `append_to_doc` | Write a doc, optionally linked to a task, project or contact, or add to the end of one |
+| `search_contacts`, `contact_timeline` | Find people and companies, and see every thread, task and deal with one person |
+| `upsert_contact` | Add a contact or update their name, phone, job title or notes |
+
+Agents read only the threads they can open, and anything an agent sends outside MyMail still goes
+through its approval rule. A read only key can call the read tools only.
 
 Every read and send an agent makes is in the audit log, marked as coming through MCP.
 

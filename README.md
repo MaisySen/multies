@@ -16,7 +16,12 @@ Tap *Try the live demo* for a private sample workspace, or sign up and add a rea
 | --- | --- |
 | **Accounts** | Better Auth: email and password (PBKDF2-SHA256), Google, GitHub and Auth0 SSO, TOTP two factor with backup codes, email verification, password reset, breached password check, lockout after repeated failures, per device sessions. |
 | **Agent inboxes** | One API call creates an agent, its address and a scoped key. Threads as JSON (new text, one-time codes, links), send and reply with daily caps, allow lists and an approval queue, events by webhook, poll or SSE, a shared team inbox with agent replies labelled, and an audit trail. See `/agents` and [`docs/MCP.md`](docs/MCP.md). |
-| **MCP** | `/api/v1/mcp` on the official SDK (Streamable HTTP, stateless), authenticated with scoped API keys: list inboxes, threads, search, send, reply, wait for mail, create agent inboxes. |
+| **MCP** | `/api/v1/mcp` on the official SDK (Streamable HTTP, stateless), authenticated with scoped API keys: list inboxes, threads, search, send, reply, wait for mail, create agent inboxes, and the work tools (tasks, projects, docs, contacts). |
+| **Tasks and projects** | One click makes a task from any thread (title from the subject, notes from the newest text, linked to the thread); replies on the thread show in the task's history. Assignee (a person or an agent), status, start and due dates, priority, labels, subtasks and comments. Projects with their own statuses (each in a to do, doing or done group), shown as a board (dnd-kit), a list (TanStack Table), a calendar (FullCalendar) or a timeline (SVAR Gantt), with saved filters. See [`docs/suite.md`](docs/suite.md). |
+| **Docs** | Rich text docs (Tiptap) linked to projects, tasks, threads and contacts, with versioned saves; agents can search, read, create and append. |
+| **Contacts and deals** | Contacts and companies built from mail as it arrives and is sent (robot senders and your own domains skipped, free mail domains get no company), backfilled once from existing mail, each with a timeline of threads, tasks and deals. A simple pipeline board in AUD. |
+| **Automations** | Rules with no AI cost: mail from a sender or with a subject word makes a task, a status change notifies someone, a reminder before a task is due. Runs counted per month by plan. |
+| **Push** | Device registration for the mobile app and Expo push for new mail, approvals and task events, behind `PUSH_ENABLED`. The payload carries only an event type and an id. |
 | **AI assistant** | Bring your own AI: MyMail never pays for model calls. Summaries, drafted replies and sorting run only on the workspace's own OpenAI, Anthropic, OpenRouter or Groq key (Settings, encrypted at rest with APP_SECRET); without one, the app points people to connecting Claude, ChatGPT or any agent through the MCP server. No Workers AI binding and no metering. Invoice reminders come from a template and need no key. Xero (behind config) for unpaid invoices. |
 | **Import** | Gmail, Outlook and IMAP import through a runner you host ([`deploy/import-runner`](deploy/import-runner/README.md)), behind `IMPORT_RUNNER_TOKEN`. |
 | **Workspaces** | Isolated tenants with owner, admin and member roles, invitations, per mailbox access, SSO enforcement (Business), audit log with CSV export. |
@@ -198,6 +203,8 @@ See [`.env.example`](.env.example) for every variable with comments. The importa
 | `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET` | (none) | turns on the Xero connection |
 | `BODY_STORE_*` | (none) | S3 compatible bucket for attachments over 1 MB ([`deploy/au`](deploy/au/README.md)) |
 | `AGENT_MAIL_DOMAIN` | (none) | shared domain for agent inboxes in workspaces without one |
+| `PUSH_ENABLED` | (off) | `1` sends Expo push notifications to registered devices |
+| `EXPO_ACCESS_TOKEN` | (none) | optional; only needed if the Expo project requires access tokens for push |
 
 ## Security
 
