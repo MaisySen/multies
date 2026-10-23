@@ -182,7 +182,7 @@ function InboundSection() {
         </Step>
         <Step n={3} title="Deploy the Email Worker">
           From the repository's <code className="font-mono text-[12.5px]">email-worker/</code> folder, set the webhook URL and key, then route your catch-all to the worker.
-          <pre className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MYMAIL_WEBHOOK_URL = "${webhook}"
+          <pre tabIndex={0} aria-label="Email Worker settings" className="mt-2 overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/85">{`MYMAIL_WEBHOOK_URL = "${webhook}"
 MYMAIL_KEY_ID      = "${keys.data?.[0]?.id ?? "ink_…"}"
 npx wrangler deploy
 npx wrangler secret put MYMAIL_KEY_SECRET`}</pre>

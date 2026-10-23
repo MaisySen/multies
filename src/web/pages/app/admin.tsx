@@ -55,7 +55,7 @@ export function AdminPage() {
         </div>
       </Section>
       <Section title="Workspaces" description="Newest first, up to 100.">
-        <div className="overflow-x-auto rounded-lg border border-line">
+        <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Workspaces">
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-muted"><tr><th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Plan</th><th className="px-3 py-2 font-medium">Members</th><th className="px-3 py-2 font-medium">Domains</th><th className="px-3 py-2 font-medium">Created</th></tr></thead>
             <tbody className="divide-y divide-line">

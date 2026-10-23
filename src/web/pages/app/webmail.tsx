@@ -125,7 +125,8 @@ export function WebmailPage() {
   return (
     <div className="flex h-full">
       {/* Folders */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
+      <h1 className="sr-only">Mail</h1>
+      <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
         <div className="p-3">
           <Button className="w-full" onClick={() => startCompose()}><PenSquare className="h-4 w-4" />Compose</Button>
         </div>

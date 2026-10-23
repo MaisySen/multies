@@ -61,7 +61,7 @@ function Deliveries({ direction }: { direction: string }) {
   if (!rows.length) return <Card><EmptyState icon={<Mail />} title="No deliveries yet" body="Inbound, outbound and forwarded mail will be logged here with its status and the reason behind it." /></Card>;
   return (
     <Card className="overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Log entries">
         <table className="w-full min-w-[720px] text-[13px]">
           <thead><tr className="border-b border-line text-left text-xs text-subtle">
             <th scope="col" className="px-4 py-2.5 font-medium">When</th><th scope="col" className="px-4 py-2.5 font-medium">Route</th>

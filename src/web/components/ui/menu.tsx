@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode, cloneElement, isValidElement } from "react";
 import { cn } from "@/web/lib/cn";
 
 /** Small accessible dropdown: click or Enter to open, Esc / outside click to close, arrow keys to move. */
-export function Menu({ trigger, children, align = "end", label }: { trigger: ReactNode; children: ReactNode; align?: "start" | "end"; label: string }) {
+export function Menu({ trigger, children, align = "end", label }: { trigger: ReactNode; children: ReactNode; align?: "start" | "end"; label?: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -24,7 +24,11 @@ export function Menu({ trigger, children, align = "end", label }: { trigger: Rea
   }, [open]);
   return (
     <div ref={ref} className="relative">
-      <div onClick={() => setOpen((o) => !o)} aria-haspopup="menu" aria-expanded={open} aria-label={label}>{trigger}</div>
+      <div onClick={() => setOpen((o) => !o)}>
+        {isValidElement<Record<string, unknown>>(trigger)
+          ? cloneElement(trigger, { "aria-haspopup": "menu", "aria-expanded": open, ...(label && !trigger.props["aria-label"] ? { "aria-label": label } : {}) })
+          : trigger}
+      </div>
       {open && (
         <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-xl border border-line-strong bg-elevated p-1 shadow-pop", align === "end" ? "right-0" : "left-0")}>
           {children}

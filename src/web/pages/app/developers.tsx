@@ -83,7 +83,7 @@ function ApiKeys() {
         {secret && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg border border-line bg-bg/60 px-3 py-2"><code className="min-w-0 flex-1 break-all font-mono text-[12.5px]">{secret}</code><CopyButton value={secret} /></div>
-            <pre className="overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] text-muted">{`curl ${location.origin}/api/v1/mailboxes \\\n  -H "Authorization: Bearer ${secret.slice(0, 16)}..."`}</pre>
+            <pre tabIndex={0} aria-label="Example request" className="overflow-x-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] text-muted">{`curl ${location.origin}/api/v1/mailboxes \\\n  -H "Authorization: Bearer ${secret.slice(0, 16)}..."`}</pre>
           </div>
         )}
       </Dialog>

@@ -102,10 +102,10 @@ export function PageHeader({ title, description, actions }: { title: string; des
   );
 }
 
-export function Meter({ value, max, className }: { value: number; max: number; className?: string }) {
+export function Meter({ value, max, className, label }: { value: number; max: number; className?: string; label?: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]", className)} role="progressbar" aria-valuenow={value} aria-valuemax={max} aria-valuemin={0}>
+    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]", className)} role="progressbar" aria-label={label ?? `${value} of ${max} used`} aria-valuenow={value} aria-valuemax={max} aria-valuemin={0}>
       <div className={cn("h-full rounded-full transition-[width] duration-500", pct > 90 ? "bg-bad" : pct > 70 ? "bg-warn" : "bg-brand")} style={{ width: `${Math.max(pct, value > 0 ? 3 : 0)}%` }} />
     </div>
   );

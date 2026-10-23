@@ -111,7 +111,7 @@ function DmarcSection() {
         </div>
         {isAdmin && (
           <>
-            <input ref={file} type="file" accept=".xml,.gz,.zip,application/xml,application/gzip,application/zip" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
+            <input ref={file} type="file" aria-label="DMARC report file" accept=".xml,.gz,.zip,application/xml,application/gzip,application/zip" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
             <Button size="sm" variant="secondary" loading={upload.isPending} onClick={() => file.current?.click()}><FileUp className="h-4 w-4" />Upload a report</Button>
           </>
         )}
@@ -125,7 +125,7 @@ function DmarcSection() {
         <div className="grid gap-4 lg:grid-cols-5">
           <Card className="overflow-hidden lg:col-span-3">
             <div className="border-b border-line px-4 py-2.5 text-xs font-medium text-muted">Sending sources, last 30 days</div>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Sending sources">
               <table className="w-full text-left text-sm">
                 <thead className="text-xs text-subtle"><tr><th className="px-4 py-2 font-medium">Source IP</th><th className="px-4 py-2 font-medium">Domain</th><th className="px-4 py-2 text-right font-medium">Messages</th><th className="px-4 py-2 text-right font-medium">Passed</th></tr></thead>
                 <tbody>

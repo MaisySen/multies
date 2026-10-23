@@ -92,7 +92,7 @@ export function AppLayout() {
         </div>
       )}
       <div className="border-t border-line p-3">
-        <Menu label="Account menu" align="start" trigger={
+        <Menu align="start" trigger={
           <button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-white/[0.04]">
             <Avatar label={initials(user.name)} className="h-7 w-7" />
             <div className="min-w-0 flex-1">
@@ -156,7 +156,7 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
   };
   return (
     <>
-      <Menu label="Switch workspace" align="start" trigger={
+      <Menu align="start" trigger={
         <button className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2 text-left transition-colors hover:border-line-strong">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-line-strong bg-elevated text-[11px] font-bold text-fg">{current?.name[0]?.toUpperCase()}</span>
           <span className="min-w-0 flex-1">

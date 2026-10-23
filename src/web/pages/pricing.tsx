@@ -24,7 +24,7 @@ export function PricingPage() {
         <p className="mt-4 text-[17px] text-muted">Every plan includes verified DNS, webmail and inbound routing. Pay for room to grow, not for features held hostage.</p>
       </div>
       <PlanCards headingLevel={2} />
-      <div className="mt-20 overflow-x-auto rounded-2xl border border-line">
+      <div className="mt-20 overflow-x-auto rounded-2xl border border-line" tabIndex={0} role="region" aria-label="Plan comparison">
         <table className="w-full min-w-[560px] text-sm">
           <caption className="sr-only">Plan comparison</caption>
           <thead>

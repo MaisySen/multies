@@ -80,7 +80,7 @@ export function MarketingLayout() {
             <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own. Verified, private, and yours.</p>
           </div>
           <div>
-            <h3 className="text-[13px] font-medium text-fg">Product</h3>
+            <h2 className="text-[13px] font-medium text-fg">Product</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
               <li><Link to="/#features" className="hover:text-fg">Features</Link></li>
               <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
@@ -90,7 +90,7 @@ export function MarketingLayout() {
             </ul>
           </div>
           <div>
-            <h3 className="text-[13px] font-medium text-fg">Account</h3>
+            <h2 className="text-[13px] font-medium text-fg">Account</h2>
             <ul className="mt-3 space-y-2 text-sm text-muted">
               <li><Link to="/signup" className="hover:text-fg">Create account</Link></li>
               <li><Link to="/login" className="hover:text-fg">Sign in</Link></li>
