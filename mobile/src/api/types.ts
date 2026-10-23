@@ -96,6 +96,8 @@ export interface Task {
   createdAt: string;
   updatedAt: string;
   version: number;
+  /** Custom field values by field id. Older servers leave it out. */
+  fields?: FieldValues;
 }
 
 export interface TaskComment { id: string; taskId: string; body: string; author: { type: string; id: string; name: string | null }; createdAt: string }
@@ -146,8 +148,40 @@ export interface TaskExtras {
   time?: { totalSeconds: number; entries: TimeEntry[] };
   blockedBy?: Task[];
   blocking?: Task[];
+  /** The project's custom field definitions, in order. */
+  customFields?: CustomField[];
 }
 export type TaskView = TaskDetail & TaskExtras;
+
+// ---------------------------------------------------------------- custom fields and portfolio
+
+export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url";
+export interface FieldOption { id: string; label: string; color: string | null }
+/** A custom field defined on a project. */
+export interface CustomField { id: string; projectId: string; name: string; type: FieldType; options: FieldOption[]; position: number }
+/** text and url: string; number and currency (AUD): number; date: "YYYY-MM-DD"; select: option id; multiselect: option ids; person: an assignee id; checkbox: boolean. */
+export type FieldValue = string | number | boolean | string[];
+export type FieldValues = Record<string, FieldValue | null | undefined>;
+
+export type ProjectHealth = "on_track" | "at_risk" | "off_track";
+/** One row of GET /api/portfolio. */
+export interface PortfolioProject {
+  id: string;
+  name: string;
+  key: string;
+  color: string | null;
+  archived: boolean;
+  owner: { id: string; name: string } | null;
+  health: ProjectHealth | null;
+  healthNote: string | null;
+  progress: number;
+  total: number;
+  done: number;
+  overdue: number;
+  timeLoggedSeconds: number;
+  nextDue: string | null;
+  nextDueTask: { id: string; ref: string; title: string } | null;
+}
 
 export interface MeetingSource { type: "thread" | "task" | "contact"; id: string }
 
@@ -209,6 +243,8 @@ export interface TaskPatch {
   assigneeId?: AssigneeId | null;
   position?: number;
   version?: number;
+  /** Custom field values to set; null clears one. */
+  fields?: Record<string, FieldValue | null>;
 }
 
 export interface Project {
@@ -239,12 +275,13 @@ type Assert<T extends true> = T;
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Within<A, B> = [A] extends [B] ? true : false;
 export type SpecChecks = [
-  Assert<Same<keyof S["Task"], keyof Task>>,
+  // `fields` is checked apart so the app builds against specs from before and after custom fields.
+  Assert<Same<Exclude<keyof S["Task"], "fields">, Exclude<keyof Task, "fields">>>,
   Assert<Same<keyof S["TaskComment"], keyof TaskComment>>,
   Assert<Same<keyof NonNullable<S["TaskDetail"]>, keyof TaskDetail>>,
   Assert<Within<keyof Project, keyof S["Project"]>>,
   Assert<Within<keyof TaskCreate, keyof S["TaskCreate"] | "source">>,
-  Assert<Within<keyof TaskPatch, keyof S["TaskPatch"]>>,
+  Assert<Within<Exclude<keyof TaskPatch, "fields">, keyof S["TaskPatch"]>>,
   Assert<Within<S["Task"]["status"], TaskStatus>>,
   Assert<Within<S["Task"]["priority"], Priority>>,
   Assert<Within<Pick<S["TimeEntry"], keyof TimeEntry>, TimeEntry>>,

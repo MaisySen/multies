@@ -4,6 +4,7 @@ import type { Approval, Message, SendInput } from "@/api/types";
 import { sampleData } from "./fixtures";
 import { taskRoute } from "./tasks";
 import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
+import { samplePortfolio } from "./fields";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -34,6 +35,7 @@ export class SampleTransport implements Transport {
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
+    if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
     const extra = extrasRoute(this.extras, d.work, method, parts, params, body);
     if (extra !== undefined) return json(extra);
     const work = taskRoute(d.work, d.messages, method, parts, params, body);

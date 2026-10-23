@@ -18,6 +18,7 @@ export const keys = {
   assignees: ["assignees"] as const,
   timer: ["time", "running"] as const,
   meetings: ["meetings"] as const,
+  portfolio: ["portfolio"] as const,
 };
 
 export function useOverview() {
@@ -133,9 +134,14 @@ export function useProjects() {
 }
 
 function patchTask(t: Task, patch: TaskPatch): Task {
-  const { version: _v, assigneeId, ...rest } = patch;
+  const { version: _v, assigneeId, fields, ...rest } = patch;
   const next: Task = { ...t, ...rest } as Task;
   if (assigneeId !== undefined) next.assigneeId = assigneeId;
+  if (fields) {
+    const merged = { ...(t.fields ?? {}) };
+    for (const [k, v] of Object.entries(fields)) { if (v === null) delete merged[k]; else merged[k] = v; }
+    next.fields = merged;
+  }
   return next;
 }
 
@@ -220,4 +226,10 @@ export function useCreateMeeting() {
     mutationFn: (v: MeetingCreate) => api.createMeeting(v).then((r) => r.meeting),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.meetings }),
   });
+}
+
+/** Every project with its health, progress and next due date. Read only on the phone. */
+export function usePortfolio() {
+  const { api, mode } = useSession();
+  return useQuery({ queryKey: keys.portfolio, queryFn: () => cached(kv(), `meta:${mode}:portfolio`, () => api.portfolio()) });
 }

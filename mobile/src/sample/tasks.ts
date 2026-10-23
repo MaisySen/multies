@@ -1,12 +1,13 @@
 import { ApiError } from "@/api/errors";
-import type { Assignee, AssigneeId, Message, Project, Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskStatus } from "@/api/types";
+import type { Assignee, AssigneeId, CustomField, Message, Project, Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskStatus } from "@/api/types";
 import { latestOnly } from "./latest-text";
+import { applyFieldPatch, sampleFields, seedFieldValues } from "./fields";
 
 /**
  * Work management for the sample workspace: the same routes and shapes as /api/tasks, kept in
  * memory on the phone so "Explore with sample data" works with no server and no connection.
  */
-export interface SampleWork { project: Project; tasks: Task[]; comments: TaskComment[]; assignees: Assignee[]; seq: number }
+export interface SampleWork { project: Project; tasks: Task[]; comments: TaskComment[]; assignees: Assignee[]; seq: number; fields: CustomField[] }
 
 const STATUS_IDS: Record<TaskStatus, { id: string; name: string; color: string }> = {
   todo: { id: "sts_todo", name: "To do", color: "#8a8f98" },
@@ -27,7 +28,7 @@ export function sampleWork(now: number, messages: Message[]): SampleWork {
     id: "prj_ops", name: "Operations", key: "OPS", color: "#ff6a3d",
     statuses: (["todo", "doing", "done"] as TaskStatus[]).map((c, i) => ({ id: STATUS_IDS[c].id, name: STATUS_IDS[c].name, category: c, color: STATUS_IDS[c].color, position: i })),
   };
-  const work: SampleWork = { project, tasks: [], comments: [], assignees, seq: 0 };
+  const work: SampleWork = { project, tasks: [], comments: [], assignees, seq: 0, fields: sampleFields(project.id) };
   const add = (t: Partial<Task> & Pick<Task, "title">, minutesAgo: number) =>
     create(work, { title: t.title, notes: t.notes, status: t.status, due: t.due, priority: t.priority, labels: t.labels, assigneeId: t.assigneeId }, ago(minutesAgo), t.source ?? null);
   const src = (id: string) => {
@@ -44,6 +45,7 @@ export function sampleWork(now: number, messages: Message[]): SampleWork {
   const chase = work.tasks.find((t) => t.title.startsWith("Chase"))!;
   work.comments.push({ id: "cmt_1", taskId: chase.id, body: "Li says the remittance is attached. Check it against the bank feed before closing.", author: { type: "member", id: "usr_sample", name: "Mia Nguyen" }, createdAt: ago(70) });
   chase.commentCount = 1;
+  seedFieldValues(work, day);
   return work;
 }
 
@@ -69,7 +71,7 @@ function create(work: SampleWork, input: TaskCreate, at: string, source: Task["s
     ...statusOf(work.project, status), ...assigneeOf(work, input.assigneeId),
     priority: input.priority ?? "none", labels: input.labels ?? [], start: null, due: input.due ?? null, parentId: input.parentId ?? null,
     position: number * 1000, source, subtasks: { total: 0, done: 0 }, commentCount: 0, completedAt: status === "done" ? at : null,
-    createdBy: { type: "member", id: "usr_sample" }, createdAt: at, updatedAt: at, version: 1,
+    createdBy: { type: "member", id: "usr_sample" }, createdAt: at, updatedAt: at, version: 1, fields: {},
   };
   work.tasks.unshift(t);
   if (t.parentId) refreshSubtasks(work, t.parentId);
@@ -151,7 +153,7 @@ export function taskRoute(work: SampleWork, messages: Message[], method: string,
       thread: thread.map((m) => ({ id: m.id, mailboxId: m.mailboxId, direction: m.folder === "sent" ? "outbound" : "inbound", from: { address: m.from.address, name: m.from.name ?? null }, subject: m.subject, date: m.date, latestText: latestOnly(m.text), byAgent: !!m.sentByAgentId })),
       activity: [], docs: [], contacts: [],
     };
-    return detail;
+    return { ...detail, customFields: work.fields.filter((f) => f.projectId === t.projectId) };
   }
   if (method === "PATCH") {
     const p = body as TaskPatch;
@@ -164,6 +166,7 @@ export function taskRoute(work: SampleWork, messages: Message[], method: string,
     if (p.labels) t.labels = p.labels;
     if (p.assigneeId !== undefined) Object.assign(t, assigneeOf(work, p.assigneeId));
     if (p.position !== undefined) t.position = p.position;
+    if (p.fields) applyFieldPatch(work.fields, t, p.fields);
     t.version++;
     t.updatedAt = now;
     if (t.parentId) refreshSubtasks(work, t.parentId);

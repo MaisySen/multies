@@ -61,6 +61,7 @@ export default function Settings() {
       <Row icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
+      <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row icon="external-link" label="Domains, team and billing" onPress={() => open(`${API_BASE}/app`)} />
 
       <SectionTitle>Notifications</SectionTitle>
