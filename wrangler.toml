@@ -54,6 +54,17 @@ database_id = "e467919b-f7d8-4961-86b9-9cd861708efc"
 migrations_dir = "drizzle"
 migrations_table = "d1_migrations"
 
+# Doc co-editing rooms: one Durable Object per doc (src/server/collab/durable-object.ts),
+# SQLite storage backend, which the Workers Free plan includes. Not inherited by envs,
+# so staging declares its own below.
+[[durable_objects.bindings]]
+name = "DOC_ROOMS"
+class_name = "DocRoom"
+
+[[migrations]]
+tag = "v1-doc-rooms"
+new_sqlite_classes = ["DocRoom"]
+
 # Edge rate limits (Workers rate limiting API). Without these bindings the app
 # falls back to a shared counter in D1. Limits match src/server/lib/rate-limit.ts.
 [[ratelimits]]
@@ -114,6 +125,14 @@ database_name = "mymail-staging"
 database_id = "72494627-4880-4fb9-9586-e2175f16e8d3"
 migrations_dir = "drizzle"
 migrations_table = "d1_migrations"
+
+[[env.staging.durable_objects.bindings]]
+name = "DOC_ROOMS"
+class_name = "DocRoom"
+
+[[env.staging.migrations]]
+tag = "v1-doc-rooms"
+new_sqlite_classes = ["DocRoom"]
 
 [[env.staging.ratelimits]]
 name = "RL_AUTH"

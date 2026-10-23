@@ -33,6 +33,7 @@ function writeOutbox(dir: string) {
 import { ResilientOutbound } from "../server/services/resilience";
 import { runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
+import { attachCollab } from "../server/collab/node";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -70,9 +71,11 @@ if (existsSync(webRoot)) {
 }
 
 const port = Number(process.env.PORT ?? 8787);
-serve({ fetch: app.fetch, port }, () => {
+const server = serve({ fetch: app.fetch, port }, () => {
   console.log(`[mymail] ${config.mode} · http://localhost:${port} · outbound=${outbound.name} · dns=${config.dnsResolver} · demo=${config.demoEnabled}`);
 });
+// Doc co-editing: GET /api/docs/:id/collab upgrades to a WebSocket (in-memory rooms).
+attachCollab(server as unknown as import("node:http").Server, app, deps as never);
 
 function loadDotEnv() {
   const file = path.resolve(".env");

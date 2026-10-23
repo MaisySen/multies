@@ -16,6 +16,12 @@ import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
 import { S3BodyStore } from "../server/services/storage/body-store";
+import { collabAccess } from "../server/collab/access";
+import { collabDocId } from "../server/collab/room";
+import type { DocRoomNamespace } from "../server/collab/durable-object";
+
+/** The doc co-editing room (a Durable Object), exported for the DOC_ROOMS binding. */
+export { DocRoom } from "../server/collab/durable-object";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -114,10 +120,31 @@ async function deployMigrate(request: Request, env: WorkerEnv): Promise<Response
   return Response.json({ ok: true, applied }, { headers: { "cache-control": "no-store" } });
 }
 
+/**
+ * GET /api/docs/:id/collab: checks the session and the doc's workspace, then hands the
+ * WebSocket to the doc's room. Hosts without the DOC_ROOMS binding answer 503 and the
+ * editor stays in single person mode.
+ */
+async function collabUpgrade(request: Request, env: WorkerEnv, docId: string): Promise<Response> {
+  const rooms = env.DOC_ROOMS as DocRoomNamespace | undefined;
+  if (!rooms || typeof rooms.idFromName !== "function") return Response.json({ error: { code: "collab_off", message: "Co-editing is not set up on this host." } }, { status: 503 });
+  const { app, deps } = await getReady(env);
+  const access = await collabAccess(app, deps, request, docId);
+  if (!access.ok) return Response.json({ error: { code: "collab_denied", message: access.message } }, { status: access.status });
+  const headers = new Headers({ upgrade: "websocket", "x-collab-read-only": access.readOnly ? "1" : "0" });
+  for (const name of ["sec-websocket-key", "sec-websocket-version", "sec-websocket-protocol", "sec-websocket-extensions"]) {
+    const v = request.headers.get(name);
+    if (v) headers.set(name, v);
+  }
+  return rooms.get(rooms.idFromName(docId)).fetch(new Request(request.url, { method: "GET", headers }));
+}
+
 const handler = {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
+    const collabDoc = collabDocId(url.pathname);
+    if (collabDoc) return collabUpgrade(request, env, collabDoc);
     if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
       const { app, deps } = await getReady(env);
       // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
