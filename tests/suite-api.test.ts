@@ -56,7 +56,7 @@ describe("suite over the REST API", () => {
     expect((await api(wsKey, "GET", "/contacts?q=ravi")).body.contacts[0].company.domain).toBe("bondisurf.com.au");
     const feed = (await api(wsKey, "GET", "/changes?since=0")).body;
     expect(feed.changes.map((x: { entity: string }) => x.entity)).toEqual(expect.arrayContaining(["contact", "project", "task"]));
-    const spec = (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } }).then((r) => r.json())) as { paths: Record<string, unknown> };
+    const spec = (await (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } })).json()) as { paths: Record<string, unknown> };
     expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(["/tasks", "/tasks/from-email", "/tasks/{id}", "/projects", "/docs", "/contacts", "/deals", "/changes"]));
     const readKey = (await c.post("/api/developer/keys", { name: "Read", scope: "read" })).body.secret;
     expect((await api(readKey, "POST", "/tasks", { title: "x" })).status).toBe(403);
