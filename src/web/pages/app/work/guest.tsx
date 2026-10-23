@@ -135,11 +135,11 @@ export function GuestProjectPage() {
         </div>
         <p className="mb-4 text-[13px] text-muted">You can see this project's tasks, comments and docs, comment, and upload files.</p>
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <section aria-label="Tasks">
+          <section aria-label="Tasks" className={cn((openTask || openDoc) && "hidden lg:block")}>
             <ul className="divide-y divide-line rounded-xl border border-line" data-testid="guest-tasks">
               {top.map((t) => (
                 <li key={t.id}>
-                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); }} className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-white/[0.03]", openTask === t.id && "bg-white/[0.04]")}>
+                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); window.scrollTo(0, 0); }} className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-white/[0.03]", openTask === t.id && "bg-white/[0.04]")}>
                     {t.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
                     <span className="font-mono text-[11.5px] text-subtle">{t.ref}</span>
                     <span className={cn("truncate", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
@@ -157,7 +157,7 @@ export function GuestProjectPage() {
               </div>
             )}
           </section>
-          <div>
+          <div className={cn(!openTask && !openDoc && "hidden lg:block")}>
             {openTask ? <TaskView id={openTask} fields={h.customFields} onClose={() => setOpenTask(null)} />
               : openDoc ? <DocView id={openDoc} onClose={() => setOpenDoc(null)} />
                 : <Card className="p-6 text-[13px] text-muted">Pick a task or a doc to open it.</Card>}

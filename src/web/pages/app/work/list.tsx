@@ -58,7 +58,9 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     })),
     { id: "updated", header: "Updated", accessorFn: (t) => t.updatedAt, cell: ({ row }) => <span className="whitespace-nowrap text-subtle">{timeAgo(row.original.updatedAt)}</span> },
   ], [pname, onToggle, fields, people]);
-  const table = useReactTable({ data: tasks, columns, state: { sorting }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() });
+  // With a project picked (its fields showing), the Project column says the same thing on every row.
+  const columnVisibility = useMemo(() => ({ project: fields.length === 0 }), [fields.length]);
+  const table = useReactTable({ data: tasks, columns, state: { sorting, columnVisibility }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() });
   const hideOnPhone = new Set(["project", "updated", "assignee", "priority", ...fields.slice(2).map((f) => `field:${f.id}`)]);
 
   return (
@@ -87,7 +89,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
               {r.getVisibleCells().map((c) => <td key={c.id} className={cn("px-3 py-2.5", hideOnPhone.has(c.column.id) && "hidden md:table-cell", c.column.id === "title" && "max-w-[420px]")}>{flexRender(c.column.columnDef.cell, c.getContext())}</td>)}
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={8 + fields.length} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={table.getVisibleLeafColumns().length} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
         </tbody>
       </table>
     </div>
