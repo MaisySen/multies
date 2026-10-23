@@ -5,6 +5,7 @@ import {
   Archive, ArrowLeft, Ban, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import type { Folder, Message, MailboxOverview, MessageListItem } from "@/web/lib/types";
@@ -72,7 +73,7 @@ export function WebmailPage() {
       const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever" };
       if (labels[v.action]) toast.success(labels[v.action]);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
 
   const open = (id: string | null) => setParam({ m: id });

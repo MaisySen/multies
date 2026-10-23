@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -100,7 +101,7 @@ function DmarcSection() {
       qc.invalidateQueries({ queryKey: ["deliverability"] });
       toast.success(r.duplicate ? "Already had that report." : `Report from ${r.reporter} for ${r.domain}: ${r.messages} messages.`);
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <section aria-labelledby="dmarc-h">

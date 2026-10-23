@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
@@ -134,7 +135,7 @@ function WorkspaceSection() {
   const m = useMutation({
     mutationFn: () => api.patch("/org", { name, timezone, country }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qk.org }); qc.invalidateQueries({ queryKey: qk.me }); toast.success("Workspace saved"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Section title="Workspace" description="The name your team sees, and where dates and billing default to.">
@@ -169,12 +170,12 @@ function InboundSection() {
   const create = useMutation({
     mutationFn: () => api.post<{ key: { id: string; secret: string }; webhookUrl: string }>("/inbound-keys"),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["inbound-keys"] }); setCreated({ ...r.key, webhookUrl: r.webhookUrl }); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const revoke = useMutation({
     mutationFn: (id: string) => api.del(`/inbound-keys/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["inbound-keys"] }); toast.success("Key revoked"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const webhook = `${window.location.origin}/api/inbound/cloudflare`;
   return (
@@ -264,12 +265,12 @@ export function AccountSection() {
   const change = useMutation({
     mutationFn: () => unwrap(authClient.changePassword({ currentPassword: current, newPassword: next, revokeOtherSessions: true })),
     onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
-    onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else toast.error(e.message); },
+    onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else showError(e); },
   });
   const del = useMutation({
     mutationFn: () => unwrap(authClient.deleteUser({ password: confirmPw })),
     onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Section title="Password" description="Changing it signs you out on every other device.">

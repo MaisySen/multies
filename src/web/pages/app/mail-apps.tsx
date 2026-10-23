@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, KeyRound, MonitorSmartphone, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { useMailboxes } from "@/web/lib/queries";
 import { CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -105,7 +106,7 @@ function AppPasswords({ mailboxId, address }: { mailboxId: string; address: stri
   const revoke = useMutation({
     mutationFn: (id: string) => api.del(`/mail-access/app-passwords/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: key }); toast.success("App password revoked. Devices using it are signed out."); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Section title="App passwords" description={<>One per device, so you can sign out a lost phone without touching the others. For <span className="text-fg">{address}</span>.</>}>

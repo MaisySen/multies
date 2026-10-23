@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Minus, Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import type { Mailbox, MailboxOverview } from "@/web/lib/types";
 import { Button } from "@/web/components/ui/button";
@@ -66,7 +67,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const saveDraft = useMutation({
     mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text }),
     onSuccess: () => { refresh(); toast.success("Draft saved"); onClose(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const close = () => (dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose());
 

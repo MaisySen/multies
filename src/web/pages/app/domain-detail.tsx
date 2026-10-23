@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, Info, Loader2, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { useDomain, useMailboxes, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import type { Domain } from "@/web/lib/types";
@@ -168,7 +169,7 @@ function CatchAll({ domain }: { domain: Domain }) {
   const m = useMutation({
     mutationFn: (catchAllMailboxId: string | null) => api.patch<{ domain: Domain }>(`/domains/${domain.id}`, { catchAllMailboxId }),
     onSuccess: ({ domain: d }) => { qc.setQueryData(qk.domain(domain.id), d); toast.success("Catch-all updated"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Card className="mt-8 p-5">
@@ -192,7 +193,7 @@ function DangerZone({ domain }: { domain: Domain }) {
   const m = useMutation({
     mutationFn: () => api.del(`/domains/${domain.id}`),
     onSuccess: () => { qc.invalidateQueries(); toast.success(`${domain.name} removed`); navigate("/app/domains"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Card className="mt-4 border-bad/20 p-5">

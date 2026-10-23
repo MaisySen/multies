@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Download, KeyRound, Laptop, LogOut, MailWarning, ShieldCheck, Smartphone } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { describeUserAgent } from "@/shared/user-agent";
@@ -55,7 +56,7 @@ function ProfileSection() {
   const save = useMutation({
     mutationFn: () => unwrap(authClient.updateUser({ name: name ?? undefined })),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qk.me }); setName(null); toast.success("Name updated"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const resend = useMutation({
     mutationFn: () => unwrap(authClient.sendVerificationEmail({ email: me.data!.user.email, callbackURL: "/email-verified" })),
@@ -63,7 +64,7 @@ function ProfileSection() {
       if (config.data?.outboundDriver !== "log") toast.success("Check your inbox", { description: `We sent a link to ${me.data?.user.email}.` });
       else toast("Email delivery isn't connected yet", { description: "Verification emails go out once an email provider is configured." });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const value = name ?? me.data?.user.name ?? "";
   return (
@@ -210,7 +211,7 @@ function DevicesSection() {
   const revoke = useMutation({
     mutationFn: (token: string) => unwrap(authClient.revokeSession({ token })),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sessions"] }); toast.success("Signed out that device"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   const revokeAll = useMutation({
     mutationFn: () => unwrap(authClient.revokeOtherSessions()),

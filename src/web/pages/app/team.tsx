@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Crown, Link2, Mail, MoreHorizontal, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { qk, useMailboxes, useMe, useTeam } from "@/web/lib/queries";
 import type { InviteCreated, Mailbox, PendingInvite, Role, TeamMember } from "@/web/lib/types";
@@ -111,7 +112,7 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
   const setRole = useMutation({
     mutationFn: (role: "admin" | "member") => api.patch(`/team/members/${m.userId}`, { role }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success(`${m.name} updated`); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <li className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
@@ -206,7 +207,7 @@ function AccessDialog({ open, onClose, member, mailboxes }: { open: boolean; onC
   const save = useMutation({
     mutationFn: () => api.patch(`/team/members/${member.userId}`, { mailboxIds: ids }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success("Access updated"); onClose(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Dialog open={open} onClose={onClose} title={`Mailbox access for ${member.name}`} description="They can read, search and send from these mailboxes only."
@@ -224,7 +225,7 @@ function RemoveDialog({ open, onClose, member, self }: { open: boolean; onClose:
       if (self) { qc.clear(); window.location.assign("/app"); return; }
       qc.invalidateQueries({ queryKey: qk.team }); toast.success(`${member.name} removed`); onClose();
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Dialog open={open} onClose={onClose} title={self ? "Leave this workspace?" : `Remove ${member.name}?`}
@@ -257,7 +258,7 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
   const resend = useMutation({
     mutationFn: () => api.post<InviteCreated>(`/team/invites/${inv.id}/resend`),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onReissued(r); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <li className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">

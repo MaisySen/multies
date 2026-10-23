@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, AtSign, Inbox, MoreHorizontal, Pause, Pencil, Play, Plus, Trash2, Users, X } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { useAliases, useDomains, useMailboxes, useOrg, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import type { Alias, Domain, Mailbox } from "@/web/lib/types";
@@ -70,7 +71,7 @@ function MailboxList({ domains, onCreate }: { domains: Domain[]; onCreate: () =>
   const update = useMutation({
     mutationFn: ({ id, ...patch }: { id: string; status?: Mailbox["status"] }) => api.patch(`/mailboxes/${id}`, patch),
     onSuccess: () => { invalidate(); toast.success("Mailbox updated"); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
   if (!data?.length) return <Card><EmptyState icon={<Users />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New mailbox</Button>} /></Card>;
@@ -115,7 +116,7 @@ function ConfirmDelete({ open, onClose, what, path, body }: { open: boolean; onC
   const m = useMutation({
     mutationFn: () => api.del(path),
     onSuccess: () => { invalidate(); toast.success(`${what} deleted`); onClose(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Dialog open={open} onClose={onClose} title={`Delete ${what}?`} description={body}
@@ -176,7 +177,7 @@ function EditMailboxDialog({ mailbox, onClose }: { mailbox: Mailbox; onClose: ()
   const m = useMutation({
     mutationFn: () => api.patch(`/mailboxes/${mailbox.id}`, { displayName, quotaMb: Math.round(Number(quota) * 1024) }),
     onSuccess: () => { invalidate(); toast.success("Mailbox updated"); onClose(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Dialog open onClose={onClose} title={`Edit ${mailbox.address}`}
@@ -197,7 +198,7 @@ function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => v
   const toggle = useMutation({
     mutationFn: (a: Alias) => api.patch(`/aliases/${a.id}`, { enabled: !a.enabled }),
     onSuccess: invalidate,
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
   if (!data?.length) return <Card><EmptyState icon={<AtSign />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people, inside or outside your domain." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New alias</Button>} /></Card>;
@@ -286,7 +287,7 @@ function EditAliasDialog({ alias, onClose }: { alias: Alias; onClose: () => void
   const m = useMutation({
     mutationFn: () => api.patch(`/aliases/${alias.id}`, { destinations }),
     onSuccess: () => { invalidate(); toast.success("Alias updated"); onClose(); },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => showError(e),
   });
   return (
     <Dialog open onClose={onClose} title={`Edit ${alias.address}`}

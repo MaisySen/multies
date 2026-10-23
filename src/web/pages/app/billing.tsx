@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CreditCard, ExternalLink, FileText, PlugZap, Receipt } from "lucide-react";
 import { toast } from "sonner";
+import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { PLAN_ORDER, PLANS, type Plan, type PlanId, PRICE_LABEL, formatPlanPrice } from "@/shared/plans";
@@ -51,7 +52,7 @@ export function BillingSettings() {
         .then((res) => res.complete
           ? toast.success("Subscription started", { description: `You're on the ${res.plan[0].toUpperCase()}${res.plan.slice(1)} plan.` })
           : toast("Payment is still processing", { description: "Your plan updates as soon as it confirms." }))
-        .catch((e: Error) => toast.error(e.message))
+        .catch((e: Error) => showError(e))
         .finally(() => qc.invalidateQueries());
       return;
     }
@@ -60,9 +61,9 @@ export function BillingSettings() {
     qc.invalidateQueries();
   }, [params, setParams, qc]);
 
-  const checkout = useMutation({ mutationFn: (plan: PlanId) => api.post<{ url: string }>("/billing/checkout", { plan }), onSuccess: (r) => window.location.assign(r.url), onError: (e) => toast.error(e.message) });
-  const portal = useMutation({ mutationFn: () => api.post<{ url: string }>("/billing/portal"), onSuccess: (r) => window.location.assign(r.url), onError: (e) => toast.error(e.message) });
-  const switchFree = useMutation({ mutationFn: (plan: PlanId) => api.post("/org/plan", { plan }), onSuccess: () => { qc.invalidateQueries(); toast.success("Plan updated"); }, onError: (e) => toast.error(e.message) });
+  const checkout = useMutation({ mutationFn: (plan: PlanId) => api.post<{ url: string }>("/billing/checkout", { plan }), onSuccess: (r) => window.location.assign(r.url), onError: (e) => showError(e) });
+  const portal = useMutation({ mutationFn: () => api.post<{ url: string }>("/billing/portal"), onSuccess: (r) => window.location.assign(r.url), onError: (e) => showError(e) });
+  const switchFree = useMutation({ mutationFn: (plan: PlanId) => api.post("/org/plan", { plan }), onSuccess: () => { qc.invalidateQueries(); toast.success("Plan updated"); }, onError: (e) => showError(e) });
 
   if (billing.isPending) return <Card className="p-6"><Skeleton className="h-6 w-48" /><Skeleton className="mt-4 h-24" /></Card>;
   if (billing.error) return <Card className="p-6 text-sm text-bad">{billing.error.message}</Card>;
