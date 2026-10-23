@@ -153,7 +153,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       // test mode); the webhook secret adds server-to-server sync on top of the
       // checkout return.
       enabled: !!env.STRIPE_SECRET_KEY,
-      testMode: !!env.STRIPE_SECRET_KEY?.startsWith("sk_test_"),
+      testMode: /^(sk|rk)_test_/.test(env.STRIPE_SECRET_KEY ?? ""),
       stripeSecretKey: env.STRIPE_SECRET_KEY, stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
       publishableKey: env.STRIPE_PUBLISHABLE_KEY,
       prices: { pro: env.STRIPE_PRICE_PRO, business: env.STRIPE_PRICE_BUSINESS },

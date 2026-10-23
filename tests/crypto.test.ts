@@ -56,4 +56,9 @@ describe("config", () => {
     const c = loadConfig({ MAIL_MX_HOSTS: "mx1.example.net:5,mx2.example.net:15" });
     expect(c.mail.mxHosts).toEqual([{ host: "mx1.example.net", priority: 5 }, { host: "mx2.example.net", priority: 15 }]);
   });
+  it("treats restricted test keys as Stripe test mode", () => {
+    expect(loadConfig({ STRIPE_SECRET_KEY: "rk_test_abc" }).billing.testMode).toBe(true);
+    expect(loadConfig({ STRIPE_SECRET_KEY: "sk_test_abc" }).billing.testMode).toBe(true);
+    expect(loadConfig({ STRIPE_SECRET_KEY: "rk_live_abc" }).billing.testMode).toBe(false);
+  });
 });
