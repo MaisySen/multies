@@ -245,5 +245,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `integrations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`tenant_id` text,\n\t`tenant_name` text,\n\t`tokens_enc` text NOT NULL,\n\t`expires_at` integer,\n\t`connected_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`connected_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
       "CREATE UNIQUE INDEX `integrations_org_provider_uq` ON `integrations` (`org_id`,`provider`);"
     ]
+  },
+  {
+    "name": "0015_attachment_storage",
+    "statements": [
+      "ALTER TABLE `attachments` ADD `storage_key` text;"
+    ]
   }
 ];

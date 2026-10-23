@@ -91,7 +91,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const sentId = await storeMessage(db, {
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
     from, to: toList, cc: ccList, bcc: bccList, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
-    sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null,
+    sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null, bodyStore: deps.bodyStore,
   });
   if (inReplyTo) {
     await db.update(messages).set({ isAnswered: true }).where(and(eq(messages.mailboxId, mb.id), eq(messages.messageIdHeader, inReplyTo)));

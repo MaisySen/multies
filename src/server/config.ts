@@ -69,6 +69,8 @@ export interface AppConfig {
    * rules; `basic` forces the rules (AI_PROVIDER). `model` is the Workers AI model (AI_MODEL).
    */
   ai: { provider: "auto" | "workers-ai" | "basic"; model: string };
+  /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
+  bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
   importRunnerToken?: string;
   /** Xero, for invoice reminders (XERO_CLIENT_ID, XERO_CLIENT_SECRET). Off without both. */
@@ -136,6 +138,11 @@ const EnvSchema = z.object({
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
   MONITOR_URLS: z.string().optional(),
+  BODY_STORE_ENDPOINT: z.string().url().optional(),
+  BODY_STORE_BUCKET: z.string().optional(),
+  BODY_STORE_REGION: z.string().optional(),
+  BODY_STORE_ACCESS_KEY_ID: z.string().optional(),
+  BODY_STORE_SECRET_ACCESS_KEY: z.string().optional(),
   IMPORT_RUNNER_TOKEN: z.string().min(24).optional(),
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
@@ -227,6 +234,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     },
     agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
+    bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY
+      ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
+      : undefined,
     xero: env.XERO_CLIENT_ID && env.XERO_CLIENT_SECRET ? { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET } : undefined,
     ai: { provider: env.AI_PROVIDER ?? "auto", model: env.AI_MODEL ?? "@cf/meta/llama-3.1-8b-instruct-fast" },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,

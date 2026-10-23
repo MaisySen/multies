@@ -123,7 +123,7 @@ export async function importMessage(deps: Deps, id: string, raw: Uint8Array, opt
   }
   const folder = folderFor(opts.folder);
   await storeMessage(deps.db, {
-    orgId: j.orgId, mailboxId: j.mailboxId, folder, messageIdHeader: email.messageId, inReplyTo: email.inReplyTo, references: email.references,
+    bodyStore: deps.bodyStore, orgId: j.orgId, mailboxId: j.mailboxId, folder, messageIdHeader: email.messageId, inReplyTo: email.inReplyTo, references: email.references,
     from: email.from, to: email.to, cc: email.cc, replyTo: email.replyTo, subject: email.subject, text: email.text, html: email.html, date: email.date,
     isRead: opts.seen ?? true, authResults: email.authResults, attachments: email.attachments, sizeBytes: raw.byteLength,
   });

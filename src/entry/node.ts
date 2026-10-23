@@ -4,6 +4,7 @@
  *   npm run build && npm start   (one process serves everything)
  */
 import * as Sentry from "@sentry/node";
+import { S3BodyStore } from "../server/services/storage/body-store";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { compress } from "hono/compress";
@@ -49,6 +50,7 @@ const deps = {
   db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis),
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
   authenticate: mailauthAuthenticator(),
+  bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
   reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
 };
 const app = createApp(deps);

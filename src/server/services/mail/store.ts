@@ -1,11 +1,12 @@
 import { and, eq, sql } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxes, messages } from "../../db/schema";
-import { newId, toB64 } from "../../lib/crypto";
+import { fromB64, newId, toB64 } from "../../lib/crypto";
+import { attachmentKey, type BodyStore } from "../storage/body-store";
 import type { Address, AuthResults, Folder } from "@/shared/mail";
 import { makeSnippet, type ParsedAttachment } from "./mime";
 
-/** Attachments larger than this keep their metadata but not their bytes. */
+/** Attachments larger than this go to the body store, or keep only their metadata without one. */
 export const MAX_INLINE_ATTACHMENT_BYTES = 1024 * 1024;
 
 export interface StoreInput {
@@ -30,9 +31,20 @@ export interface StoreInput {
   sizeBytes?: number;
   sentByAgentId?: string | null;
   sentByUserId?: string | null;
+  /** Large attachments go here instead of being dropped, when a body store is configured. */
+  bodyStore?: BodyStore;
 }
 
 /** Finds the thread a message belongs to by walking In-Reply-To / References within the mailbox. */
+/** An attachment's bytes, from the database or the body store; null when it wasn't kept. */
+export async function attachmentBytes(row: { contentB64: string | null; storageKey: string | null }, store: BodyStore | undefined) {
+  if (row.contentB64 !== null) return fromB64(row.contentB64);
+  if (row.storageKey && store) return store.get(row.storageKey);
+  return null;
+}
+
+export const attachmentAvailable = (row: { contentB64: string | null; storageKey: string | null }) => row.contentB64 !== null || row.storageKey !== null;
+
 export async function resolveThreadId(db: DB, mailboxId: string, inReplyTo?: string, references?: string): Promise<string | null> {
   const ids = [inReplyTo, ...(references ?? "").split(/\s+/)].filter((x): x is string => !!x && x.length > 2).slice(0, 20);
   for (const id of ids) {
@@ -79,13 +91,21 @@ export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
     date: i.date,
   });
   for (const a of i.attachments ?? []) {
+    const attId = newId("att");
+    const inline = a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES;
+    let storageKey: string | null = null;
+    if (!inline && i.bodyStore) {
+      storageKey = attachmentKey(i.orgId, attId);
+      await i.bodyStore.put(storageKey, a.content, a.contentType);
+    }
     await db.insert(attachments).values({
-      id: newId("att"),
+      id: attId,
       messageId: id,
       filename: a.filename.slice(0, 255),
       contentType: a.contentType.slice(0, 255),
       sizeBytes: a.content.byteLength,
-      contentB64: a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES ? toB64(a.content) : null,
+      contentB64: inline ? toB64(a.content) : null,
+      storageKey,
     });
   }
   await db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${sizeBytes}` }).where(eq(mailboxes.id, i.mailboxId));

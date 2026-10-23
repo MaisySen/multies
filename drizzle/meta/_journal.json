@@ -106,6 +106,13 @@
       "when": 1792762705319,
       "tag": "0014_integrations_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1792763079633,
+      "tag": "0015_attachment_storage",
+      "breakpoints": true
     }
   ]
 }

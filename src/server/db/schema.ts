@@ -241,6 +241,8 @@ export const attachments = sqliteTable("attachments", {
   sizeBytes: integer("size_bytes").notNull(),
   /** Base64 content; null when the part exceeded the inline storage limit. */
   contentB64: text("content_b64"),
+  /** Where a large part lives in the body store (S3 compatible), when one is configured. */
+  storageKey: text("storage_key"),
   createdAt: createdAt(),
 }, (t) => [index("attachments_message_idx").on(t.messageId)]);
 

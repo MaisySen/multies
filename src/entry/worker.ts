@@ -16,6 +16,7 @@ import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
 import { WorkersAiProvider } from "../server/services/ai";
+import { S3BodyStore } from "../server/services/storage/body-store";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -49,6 +50,7 @@ async function boot(env: WorkerEnv) {
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
     ai: aiProvider(env, config),
+    bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },

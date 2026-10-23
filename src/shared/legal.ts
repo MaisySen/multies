@@ -23,7 +23,7 @@ const E = LEGAL_ENTITY;
 
 export const SUBPROCESSORS: string[][] = [
   ["Provider", "What they do for us", "Data", "Where"],
-  ["Cloudflare", "Hosting, database (D1), edge network, DDoS protection", "All service data", "Primary database in Oceania (Sydney region hint); edge worldwide"],
+  ["Cloudflare", "Hosting, database (D1), edge network, DDoS protection, AI assistant (Workers AI)", "All service data", "Primary database placed in Cloudflare's Oceania region (a location hint; Cloudflare does not commit to a country); edge worldwide"],
   ["Resend", "Delivery of outbound email to other providers", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices", "Billing contact, card details (held by Stripe, never by us)", "Australia and United States"],
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
@@ -72,7 +72,7 @@ export const PRIVACY: LegalDoc = {
       "We may also disclose information if Australian law requires it (for example a valid warrant), and we will tell you unless the law forbids it.",
     ] },
     { id: "overseas", title: "Overseas disclosure (APP 8)", body: [
-      "Your data is stored primarily in Australia. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
+      "Our primary database is placed in Cloudflare's Oceania region. Cloudflare treats that as a location hint and does not commit to a country, and requests are handled at the edge location nearest you. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
       "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies, so there is no cookie banner. Error monitoring does not set cookies.",
@@ -121,7 +121,7 @@ export const TERMS: LegalDoc = {
       "Keep your sign in details safe and tell us straight away if you think someone else has access. You are responsible for what happens in your workspace, including actions by members you invite.",
     ] },
     { id: "plans", title: "Plans, billing and cancellation", body: [
-      "Prices are in Australian dollars and include GST where it applies. Paid plans are billed monthly in advance through Stripe and renew automatically until cancelled.",
+      "Prices are in Australian dollars and exclude GST; where GST applies it is added at checkout and shown on your invoice. The Free plan costs nothing. Add-ons are billed through Stripe in advance, monthly, or yearly when your add-ons total under A$5 a month, and renew automatically until you remove them.",
       "Upgrades take effect immediately and are prorated. Downgrades and cancellations take effect at the end of the paid period; you keep access until then.",
       "If a payment fails we retry it and email you. Your workspace keeps working during a grace period of 7 days. After that, sending is paused until payment is made; receiving and access to existing mail continue for a further 30 days before we may close the workspace, with notice.",
       "Nothing in these terms excludes rights you have under the Australian Consumer Law. Where our services fail to meet a consumer guarantee, you are entitled to a remedy.",
@@ -235,7 +235,7 @@ export const DPA: LegalDoc = {
       ] },
     ] },
     { id: "transfers", title: "International transfers", body: [
-      "Customer data is stored primarily in Australia. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, MyMail takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
+      "Customer data is stored with the subprocessors listed, with the primary database placed in Cloudflare's Oceania region. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, MyMail takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
     ] },
     { id: "general", title: "General", body: [
       "If this agreement conflicts with the Terms on data protection, this agreement wins. Liability is as set out in the Terms. Governing law is that of the Terms, except where the Standard Contractual Clauses require otherwise.",

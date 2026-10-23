@@ -119,7 +119,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     }
     const spam = d.email.authResults.dmarc === "fail";
     const messageId = await storeMessage(db, {
-      orgId: mb.orgId,
+      bodyStore: deps.bodyStore, orgId: mb.orgId,
       mailboxId: mb.id,
       folder: spam ? "spam" : "inbox",
       messageIdHeader: d.email.messageId,

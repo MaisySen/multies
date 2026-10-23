@@ -14,7 +14,7 @@ import {
   agentAudit, approveSend, createAgent, createAgentKey, deleteAgent, eventsSince, getAgent, latestEventSeq, listAgentKeys, listAgents,
   listApprovals, listThreads, readThread, rejectSend, replyInThread, requestSend, revokeAgentKey, scopeFor, searchMessages, updateAgent, type Actor,
 } from "../services/agents";
-import { fromB64 } from "../lib/crypto";
+import { attachmentBytes } from "../services/mail/store";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -272,7 +272,8 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
     const scope = await scopeFor(c.var.deps, actor);
     const r = await c.var.deps.db.select({ a: attachments, mailboxId: messages.mailboxId }).from(attachments).innerJoin(messages, eq(messages.id, attachments.messageId))
       .where(and(eq(attachments.id, c.req.param("id")!), eq(messages.orgId, actor.orgId))).get();
-    if (!r || (scope && !scope.includes(r.mailboxId)) || r.a.contentB64 === null) throw notFound("Attachment");
-    return new Response(fromB64(r.a.contentB64) as BodyInit, { headers: { "content-type": r.a.contentType, "content-disposition": `attachment; filename="${r.a.filename.replace(/["\\\r\n]/g, "_")}"`, "x-content-type-options": "nosniff" } });
+    const bytes = r && (!scope || scope.includes(r.mailboxId)) ? await attachmentBytes(r.a, c.var.deps.bodyStore) : null;
+    if (!r || !bytes) throw notFound("Attachment");
+    return new Response(bytes as BodyInit, { headers: { "content-type": r.a.contentType, "content-disposition": `attachment; filename="${r.a.filename.replace(/["\\\r\n]/g, "_")}"`, "x-content-type-options": "nosniff" } });
   }) as never);
 }

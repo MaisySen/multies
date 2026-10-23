@@ -27,6 +27,8 @@ export interface Deps {
   log?: Logger;
   /** The AI assistant's model. Without one, assistant features answer with simple rules. */
   ai?: import("./services/ai").AiProvider;
+  /** S3 compatible storage for large attachments (BODY_STORE_*). */
+  bodyStore?: import("./services/storage/body-store").BodyStore;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 

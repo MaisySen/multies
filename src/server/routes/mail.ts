@@ -8,10 +8,9 @@ import type { Folder } from "@/shared/mail";
 import { attachments, mailboxes, messages } from "../db/schema";
 import { audit } from "../services/audit";
 import { sendMessage } from "../services/mail/send";
-import { storeMessage } from "../services/mail/store";
+import { attachmentBytes, storeMessage } from "../services/mail/store";
 import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailboxOverview, presentMessage } from "../services/mail/mailbox-view";
 import { badRequest, notFound, tooMany } from "../lib/errors";
-import { fromB64 } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
 import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
@@ -94,8 +93,9 @@ export function mailRoutes() {
       const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId }).from(attachments)
         .innerJoin(messages, eq(messages.id, attachments.messageId))
         .where(eq(attachments.id, c.req.param("id"))).get();
-      if (!a || a.orgId !== c.var.auth.orgId || (scope && !scope.includes(a.mailboxId)) || a.a.contentB64 === null) throw notFound("Attachment");
-      return new Response(fromB64(a.a.contentB64), {
+      const bytes = a && a.orgId === c.var.auth.orgId && (!scope || scope.includes(a.mailboxId)) ? await attachmentBytes(a.a, c.var.deps.bodyStore) : null;
+      if (!a || !bytes) throw notFound("Attachment");
+      return new Response(bytes as BodyInit, {
         headers: {
           "content-type": "application/octet-stream",
           "content-disposition": `attachment; filename="${a.a.filename.replace(/["\\\r\n]/g, "_")}"`,
@@ -121,7 +121,7 @@ export function mailRoutes() {
       if (!mb) throw notFound("Mailbox");
       if (input.id) await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
       const id = await storeMessage(deps.db, {
-        orgId: auth.orgId, mailboxId: mb.id, folder: "drafts",
+        bodyStore: deps.bodyStore, orgId: auth.orgId, mailboxId: mb.id, folder: "drafts",
         from: { address: mb.address, name: mb.displayName },
         to: input.to.map((address) => ({ address })), cc: (input.cc ?? []).map((address) => ({ address })), bcc: (input.bcc ?? []).map((address) => ({ address })),
         subject: input.subject, text: input.text, html: input.html, date: deps.now(), isRead: true,

@@ -8,10 +8,20 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { attachments, deliveries, mailboxes, messages } from "../../db/schema";
-import { fromB64 } from "../../lib/crypto";
+import { attachmentBytes } from "./store";
 import { PermanentJobError, RetryableJobError, registerJob } from "../jobs";
 import { deliverInbound } from "./delivery";
 import { OutboundError } from "./outbound";
+
+/** Attachments to send, from the database or the body store. */
+async function outboundAttachments(atts: { filename: string; contentType: string; contentB64: string | null; storageKey: string | null }[], deps: Deps) {
+  const out = [];
+  for (const a of atts) {
+    const content = await attachmentBytes(a, deps.bodyStore);
+    if (content) out.push({ filename: a.filename, contentType: a.contentType, content });
+  }
+  return out;
+}
 
 export interface DeliverJobPayload {
   orgId: string;
@@ -40,7 +50,7 @@ export async function runDeliver(deps: Deps, payload: unknown) {
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
       subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@mymail>`,
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined,
-      attachments: atts.filter((a) => a.contentB64).map((a) => ({ filename: a.filename, contentType: a.contentType, content: fromB64(a.contentB64!) })),
+      attachments: await outboundAttachments(atts, deps),
     });
     await deps.db.update(deliveries).set({ status: res.status, provider: res.provider, providerMessageId: res.providerMessageId ?? null, detail: res.detail ?? "Delivered after a retry." })
       .where(and(eq(deliveries.messageId, m.id), eq(deliveries.status, "delayed"), inArray(deliveries.toAddress, all(p))));

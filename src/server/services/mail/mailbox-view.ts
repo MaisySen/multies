@@ -27,7 +27,7 @@ export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[]
     messageIdHeader: m.messageIdHeader,
     authResults: m.authResults ? JSON.parse(m.authResults) : null,
     sizeBytes: m.sizeBytes,
-    attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, available: a.contentB64 !== null })),
+    attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, available: a.contentB64 !== null || a.storageKey !== null })),
   };
 }
 

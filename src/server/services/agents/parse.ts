@@ -69,7 +69,7 @@ export function agentMessage(m: Row, atts: Att[], origin: string, info?: SenderI
     html: m.html,
     codes: extractCodes(text, m.subject),
     links: extractLinks(text, m.html),
-    attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, url: a.contentB64 !== null ? `${origin}/api/v1/attachments/${a.id}` : null })),
+    attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, url: a.contentB64 !== null || a.storageKey !== null ? `${origin}/api/v1/attachments/${a.id}` : null })),
     sentBy: m.sentByAgentId
       ? { type: "agent" as const, agentId: m.sentByAgentId, name: info?.agents.get(m.sentByAgentId) ?? null }
       : m.folder === "sent" ? { type: "person" as const, userId: m.sentByUserId } : { type: "external" as const },
