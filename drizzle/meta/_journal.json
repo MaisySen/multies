@@ -113,6 +113,13 @@
       "when": 1792763079633,
       "tag": "0015_attachment_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1792766190974,
+      "tag": "0016_byo_ai_keys",
+      "breakpoints": true
     }
   ]
 }

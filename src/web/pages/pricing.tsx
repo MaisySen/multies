@@ -9,8 +9,9 @@ import { LOCALE } from "@/shared/locale";
 const GOOGLE_STARTER_AUD = 9.9;
 
 const FAQ: { q: string; a: string }[] = [
-  { q: "Is Free really free forever?", a: "Yes. One domain, three mailboxes for three people, 3 GB, mail apps, 25 AI actions and three agent inboxes a month, with no card and no trial clock. The limits are in our terms, and if they ever change, existing free workspaces keep what they have." },
-  { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace. The AI assistant is A$5 a month for everyone on the team." },
+  { q: "Is Free really free forever?", a: "Yes. One domain, three mailboxes for three people, 3 GB, mail apps and three agent inboxes, with no card and no trial clock. The limits are in our terms, and if they ever change, existing free workspaces keep what they have." },
+  { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace." },
+  { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. If you want the assistant in the inbox, add your own OpenAI, Anthropic, OpenRouter or Groq key in Settings and your provider bills you directly. MyMail never resells AI." },
   { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
   { q: "What are agent inboxes?", a: "Email addresses for AI agents. Create one with a single API call or from an MCP client, read threads as JSON, get new mail by webhook or a live stream, and send with caps and an optional human approval step. Every action is in the audit log." },
   { q: "Where is my mail stored?", a: "Today mail is stored with Cloudflare, whose database for this region cannot be pinned to Australia. We are moving mail storage to servers in Sydney and will say so here only once it is true." },
@@ -44,7 +45,7 @@ export function PricingPage() {
 /** Pick add-ons, see the total, the interval and the per person comparison. */
 function Calculator() {
   const [people, setPeople] = useState(10);
-  const [addons, setAddons] = useState<AddonQuantities>({ mailboxes: 2, ai: 1 });
+  const [addons, setAddons] = useState<AddonQuantities>({ mailboxes: 2 });
   const charge = chargeFor(addons);
   const limits = effectiveLimits(PLANS.starter, addons);
   const google = people * GOOGLE_STARTER_AUD;
@@ -84,7 +85,7 @@ function Calculator() {
               {charge.amount === 0 ? "A$0" : formatPlanPrice(charge.amount)}<span className="text-base font-normal text-subtle"> {charge.amount === 0 ? "forever" : charge.interval === "year" ? "a year" : "a month"}</span>
             </p>
             <p className="mt-3 text-sm text-muted">
-              {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB, {limits.aiActionsMonthly.toLocaleString(LOCALE)} AI actions and {limits.agentInboxes} agent inboxes a month.
+              {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB and {limits.agentInboxes} agent inboxes. AI is yours to bring, free.
             </p>
             {shortOfSeats && <p className="mt-2 text-sm text-warn">That's room for {limits.seats} people. Add a mailbox pack for every five more.</p>}
           </div>

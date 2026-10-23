@@ -36,10 +36,8 @@ binding = "ASSETS"
 not_found_handling = "none"
 run_worker_first = ["/api/*", "/.well-known/*"]
 
-# Workers AI for the assistant (triage, summaries, drafts). The free daily allocation needs
-# no card; past it, requests fail and the assistant falls back to its basic rules.
-[ai]
-binding = "AI"
+# No Workers AI binding: MyMail never pays for AI model calls. The assistant runs on each
+# workspace's own API key (bring your own AI), and agents connect through MCP.
 
 [[d1_databases]]
 binding = "DB"
@@ -103,9 +101,6 @@ crons = ["*/5 * * * *"]
 [env.staging]
 name = "mymail-staging"
 workers_dev = true
-
-[env.staging.ai]
-binding = "AI"
 
 [[env.staging.d1_databases]]
 binding = "DB"

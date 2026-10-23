@@ -6,6 +6,9 @@
  * add-ons priced per business, never per person. The old Pro and Business plans are
  * kept for the customers already on them ("legacy"), with their limits unchanged, and
  * are no longer sold.
+ *
+ * MyMail never pays for AI model calls ("bring your own AI"): the assistant runs on the
+ * workspace's own API key, and people connect Claude, ChatGPT or any agent through MCP.
  */
 export const PRICE_CURRENCY = "aud";
 
@@ -27,8 +30,6 @@ export interface PlanLimits {
   dailySends: number;
   /** People who can sign in to the workspace (owner included). */
   seats: number;
-  /** AI assistant actions (summaries, triage, drafts) per calendar month. */
-  aiActionsMonthly: number;
   /** Inboxes that AI agents use through the API and MCP. */
   agentInboxes: number;
   /** Messages agents can send per calendar month, across all agent inboxes. */
@@ -59,14 +60,14 @@ export const PLANS: Record<PlanId, Plan> = {
     priceMonthly: 0,
     limits: {
       domains: 1, mailboxes: 3, aliases: 10, storagePerMailboxMb: 3 * GB, storageMb: 3 * GB, dailySends: 100, seats: 3,
-      aiActionsMonthly: 25, agentInboxes: 3, agentMessagesMonthly: 3000, agentDailySends: 100,
+      agentInboxes: 3, agentMessagesMonthly: 3000, agentDailySends: 100,
     },
     features: [
       "1 custom domain",
       "3 mailboxes and 3 people",
       "3 GB shared storage",
       "Outlook, Apple Mail and phone access (IMAP and SMTP)",
-      "25 AI assistant actions a month",
+      "Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.",
       "3 agent inboxes with API and MCP access",
       "Free import from Gmail or Outlook",
     ],
@@ -80,9 +81,9 @@ export const PLANS: Record<PlanId, Plan> = {
     legacy: true,
     limits: {
       domains: 5, mailboxes: 25, aliases: 200, storagePerMailboxMb: 10 * GB, storageMb: 250 * GB, dailySends: 2000, seats: 10,
-      aiActionsMonthly: 500, agentInboxes: 10, agentMessagesMonthly: 10_000, agentDailySends: 500,
+      agentInboxes: 10, agentMessagesMonthly: 10_000, agentDailySends: 500,
     },
-    features: ["5 custom domains", "25 mailboxes", "10 GB per mailbox", "2,000 sends a day", "10 people", "AI assistant included"],
+    features: ["5 custom domains", "25 mailboxes", "10 GB per mailbox", "2,000 sends a day", "10 people", "Bring your own AI"],
   },
   business: {
     id: "business",
@@ -92,9 +93,9 @@ export const PLANS: Record<PlanId, Plan> = {
     legacy: true,
     limits: {
       domains: 50, mailboxes: 250, aliases: 5000, storagePerMailboxMb: 50 * GB, storageMb: 2500 * GB, dailySends: 20_000, seats: 100,
-      aiActionsMonthly: 2000, agentInboxes: 50, agentMessagesMonthly: 50_000, agentDailySends: 2000,
+      agentInboxes: 50, agentMessagesMonthly: 50_000, agentDailySends: 2000,
     },
-    features: ["50 custom domains", "250 mailboxes", "50 GB per mailbox", "20,000 sends a day", "100 people", "AI assistant included"],
+    features: ["50 custom domains", "250 mailboxes", "50 GB per mailbox", "20,000 sends a day", "100 people", "Bring your own AI"],
   },
 };
 
@@ -108,7 +109,7 @@ export function isPlanId(v: unknown): v is PlanId {
 
 // ---------------------------------------------------------------- add-ons
 
-export type AddonId = "domain" | "storage" | "mailboxes" | "send_boost" | "ai" | "agent_inbox";
+export type AddonId = "domain" | "storage" | "mailboxes" | "send_boost" | "agent_inbox";
 
 export interface Addon {
   id: AddonId;
@@ -144,11 +145,6 @@ export const ADDONS: Record<AddonId, Addon> = {
     description: "1,000 more recipients a day to addresses outside MyMail.",
     grants: { dailySends: 1000 }, maxQuantity: 20,
   },
-  ai: {
-    id: "ai", name: "AI assistant", priceMonthly: 5, unit: "business",
-    description: "500 AI actions a month for the whole team: triage, summaries, drafted replies and invoice chasing.",
-    grants: { aiActionsMonthly: 500 }, maxQuantity: 1,
-  },
   agent_inbox: {
     id: "agent_inbox", name: "Agent inbox", priceMonthly: 1, unit: "inbox",
     description: "One more inbox for an AI agent, with 1,000 more agent messages a month.",
@@ -156,7 +152,7 @@ export const ADDONS: Record<AddonId, Addon> = {
   },
 };
 
-export const ADDON_ORDER: AddonId[] = ["domain", "mailboxes", "storage", "send_boost", "ai", "agent_inbox"];
+export const ADDON_ORDER: AddonId[] = ["domain", "mailboxes", "storage", "send_boost", "agent_inbox"];
 
 export function isAddonId(v: unknown): v is AddonId {
   return typeof v === "string" && v in ADDONS;

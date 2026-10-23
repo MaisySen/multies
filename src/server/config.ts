@@ -64,11 +64,6 @@ export interface AppConfig {
    */
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
-  /**
-   * The AI assistant. `auto` uses Workers AI when the Worker has the AI binding, else the basic
-   * rules; `basic` forces the rules (AI_PROVIDER). `model` is the Workers AI model (AI_MODEL).
-   */
-  ai: { provider: "auto" | "workers-ai" | "basic"; model: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
   bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
@@ -146,8 +141,6 @@ const EnvSchema = z.object({
   IMPORT_RUNNER_TOKEN: z.string().min(24).optional(),
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
-  AI_PROVIDER: z.enum(["auto", "workers-ai", "basic"]).optional(),
-  AI_MODEL: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
 });
 
@@ -238,7 +231,6 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,
     xero: env.XERO_CLIENT_ID && env.XERO_CLIENT_SECRET ? { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET } : undefined,
-    ai: { provider: env.AI_PROVIDER ?? "auto", model: env.AI_MODEL ?? "@cf/meta/llama-3.1-8b-instruct-fast" },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
     mailServer: (() => {
       const missing = (["STALWART_URL", "STALWART_ADMIN_USER", "STALWART_ADMIN_SECRET"] as const).filter((k) => !env[k]);

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImportSection, XeroSection } from "./import-section";
+import { AiSection } from "./ai-section";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
@@ -49,6 +50,7 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       <WorkspaceSection />
+      <AiSection />
       <XeroSection />
       <WorkspaceExport />
       <DangerZone />

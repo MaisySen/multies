@@ -23,11 +23,12 @@ const E = LEGAL_ENTITY;
 
 export const SUBPROCESSORS: string[][] = [
   ["Provider", "What they do for us", "Data", "Where"],
-  ["Cloudflare", "Hosting, database (D1), edge network, DDoS protection, AI assistant (Workers AI)", "All service data", "Primary database placed in Cloudflare's Oceania region (a location hint; Cloudflare does not commit to a country); edge worldwide"],
+  ["Cloudflare", "Hosting, database (D1), edge network, DDoS protection", "All service data", "Primary database placed in Cloudflare's Oceania region (a location hint; Cloudflare does not commit to a country); edge worldwide"],
   ["Resend", "Delivery of outbound email to other providers", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices", "Billing contact, card details (held by Stripe, never by us)", "Australia and United States"],
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["Google, GitHub, Auth0", "Optional sign in, only if you choose it", "Name, email, provider account id", "United States"],
+  ["Your AI provider (OpenAI, Anthropic, OpenRouter or Groq)", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose (mostly United States)"],
 ];
 
 export const PRIVACY: LegalDoc = {

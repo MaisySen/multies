@@ -1,16 +1,32 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
-import { parseBody, requireAuth } from "../middleware";
-import { aiUsage, draftReply, invoiceChase, summariseThread, triageMessage } from "../services/ai";
+import { parseBody, requireAdmin, requireAuth } from "../middleware";
+import { AI_PROVIDERS, AI_PROVIDER_INFO, BYO_AI_MESSAGE, aiKeyStatus, deleteAiKey, draftReply, invoiceChase, saveAiKey, summariseThread, triageMessage } from "../services/ai";
 
 const MessageRef = z.object({ messageId: z.string().min(1) });
 
-/** The AI assistant in the app. Each call that reads mail uses one AI action. */
+const KeyInput = z.object({
+  provider: z.enum(AI_PROVIDERS),
+  apiKey: z.string().min(16).max(400),
+  model: z.string().trim().max(120).optional(),
+});
+
+/**
+ * The AI assistant in the app. It runs on the workspace's own AI key (bring your own AI);
+ * MyMail never pays for model calls. Admins add, change or remove the key.
+ */
 export function aiRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/usage", async (c) => c.json(await aiUsage(c.var.deps, c.var.auth.orgId)))
+    .get("/status", async (c) => c.json({
+      ...(await aiKeyStatus(c.var.deps, c.var.auth.orgId)),
+      providers: AI_PROVIDERS.map((id) => AI_PROVIDER_INFO[id]),
+      mcp: { url: new URL("/api/v1/mcp", c.var.deps.config.appUrl).toString(), docs: "/agents" },
+      message: BYO_AI_MESSAGE,
+    }))
+    .put("/key", requireAdmin, async (c) => c.json(await saveAiKey(c.var.deps, c.var.auth, await parseBody(c, KeyInput))))
+    .delete("/key", requireAdmin, async (c) => c.json(await deleteAiKey(c.var.deps, c.var.auth)))
     .post("/triage", async (c) => c.json(await triageMessage(c.var.deps, c.var.auth, (await parseBody(c, MessageRef)).messageId)))
     .post("/summary", async (c) => c.json(await summariseThread(c.var.deps, c.var.auth, (await parseBody(c, MessageRef)).messageId)))
     .post("/draft", async (c) => {

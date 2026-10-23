@@ -9,13 +9,14 @@ const features = [
   { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail, plus Outlook, Apple Mail and Thunderbird over IMAP." },
   { title: "Inboxes for your AI agents", body: "Give an agent its own address with one API call. It reads mail as clean JSON, with one-time codes and links pulled out, and replies in the thread." },
   { title: "You approve what agents send", body: "By default every message an agent writes waits for a person. Set daily caps and allowed recipients, and see every action in the audit log." },
-  { title: "Works with Claude, ChatGPT and Cursor", body: "A built-in MCP server lets any MCP client read, search and reply, scoped to one agent's key." },
-  { title: "An assistant that knows the inbox", body: "Summaries, drafted replies, sorting, and invoice reminders that get firmer the longer a bill goes unpaid. 25 AI actions a month free." },
+  { title: "Bring your own AI", body: "Connect Claude, ChatGPT or any agent through MCP, free. The built-in MCP server reads, searches and replies, scoped to one agent's key." },
+  { title: "An assistant on your own key", body: "Summaries, drafted replies and sorting with your own OpenAI, Anthropic, OpenRouter or Groq key, billed by them, never by us. Invoice reminders that get firmer the longer a bill goes unpaid need no key." },
   { title: "Your domain, signed properly", body: "Every domain gets its own DKIM key, live DNS checks, bounce handling and DMARC reports, so your mail lands in inboxes." },
 ];
 
 const faqs = [
-  { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes and 25 AI actions a month, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person." },
+  { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person." },
+  { q: "What does the AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. MyMail never resells AI or meters it." },
   { q: "Can an agent send email without me?", a: "Only if you let it. New agents need a person to approve every message. You can relax that to only mail leaving MyMail, or turn it off, and set a daily cap and a list of who it may write to." },
   { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records. We show you each one, check them live, and tell you when everything's right." },
   { q: "How does inbound mail reach MyMail?", a: "Your MX records point at Cloudflare Email Routing. A small Email Worker (we give you the code) signs each message and hands it to MyMail, which files it in the right mailbox, alias or catch-all." },
@@ -49,6 +50,7 @@ export function Landing() {
             )}
           </div>
           <p className="mt-4 text-xs text-subtle">Free forever for 1 domain, 3 mailboxes and 3 agent inboxes. No card.</p>
+          <p className="mt-1 text-xs text-subtle">Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.</p>
         </div>
         <div className="relative mt-16 px-5 pb-16 sm:mt-20">
           <HeroVisual />

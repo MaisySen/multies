@@ -285,29 +285,31 @@ describe("add-ons on one subscription", () => {
     await postWebhook(ctx.app, { id: "evt_a1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
     expect((await a.get("/api/billing")).body).toMatchObject({ addons: { domain: 1 }, interval: "year", limits: { domains: 2 } });
 
-    // Adding the AI assistant (A$5) takes the total to A$6: every item moves to monthly prices.
-    const res = await a.post("/api/billing/addons", { addons: { domain: 1, ai: 1 } });
+    // Two mailbox packs (A$6) take the total to A$7: every item moves to monthly prices.
+    const res = await a.post("/api/billing/addons", { addons: { domain: 1, mailboxes: 2 } });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ applied: true, interval: "month" });
     const update = new URLSearchParams(stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1").at(-1)!.body);
     expect(update.get("proration_behavior")).toBe("always_invoice");
     expect(update.get("items[0][id]")).toBe("si_mymail_addon_domain_yearly");
     expect(update.get("items[0][price]")).toBe("price_auto_mymail_addon_domain_monthly");
-    expect(update.get("items[1][price]")).toBe("price_auto_mymail_addon_ai_monthly");
+    expect(update.get("items[1][price]")).toBe("price_auto_mymail_addon_mailboxes_monthly");
+    expect(update.get("items[1][quantity]")).toBe("2");
     const b = (await a.get("/api/billing")).body;
-    expect(b).toMatchObject({ addons: { domain: 1, ai: 1 }, interval: "month", limits: { domains: 2, aiActionsMonthly: 525 } });
+    expect(b).toMatchObject({ addons: { domain: 1, mailboxes: 2 }, interval: "month", limits: { domains: 2, mailboxes: 13 } });
 
     // Two domains in use: the extra domain can't be removed until one goes.
     await a.post("/api/domains", { name: "acme.io" });
     await a.post("/api/domains", { name: "acme.com.au" });
-    const refused = await a.post("/api/billing/addons", { addons: { ai: 1 } });
+    const refused = await a.post("/api/billing/addons", { addons: { mailboxes: 2 } });
     expect(refused.status).toBe(400);
     expect(refused.body.error.message).toContain("domains");
 
     // A webhook from Stripe (say, the portal) is the source of truth for quantities.
-    stripe.subs.sub_1 = { ...sub("active"), items: { data: [monthly("mymail_addon_domain_monthly", 3), monthly("mymail_addon_ai_monthly", 1)] } };
+    // An item on the retired AI assistant price (bring your own AI) is ignored, so it grants nothing.
+    stripe.subs.sub_1 = { ...sub("active"), items: { data: [monthly("mymail_addon_domain_monthly", 3), monthly("mymail_addon_mailboxes_monthly", 2), monthly("mymail_addon_ai_monthly", 1)] } };
     await postWebhook(ctx.app, { id: "evt_a2", type: "customer.subscription.updated", data: { object: stripe.subs.sub_1 } });
-    expect((await a.get("/api/billing")).body.addons).toEqual({ domain: 3, ai: 1 });
+    expect((await a.get("/api/billing")).body.addons).toEqual({ domain: 3, mailboxes: 2 });
     const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
     expect(audit).toEqual(expect.arrayContaining(["billing.addons_changed", "billing.addons_synced"]));
 
@@ -346,6 +348,7 @@ describe("add-ons on one subscription", () => {
     expect(res.body).toEqual({ applied: true, url: null });
     expect((await a.get("/api/billing")).body.limits).toMatchObject({ storageMb: 3072 + 40960, mailboxes: 8 });
     expect((await a.post("/api/billing/addons", { addons: { bogus: 1 } })).status).toBe(400);
-    expect((await a.post("/api/billing/addons", { addons: { ai: 2 } })).status).toBe(400);
+    // The AI assistant add-on is retired: MyMail never sells AI (bring your own AI).
+    expect((await a.post("/api/billing/addons", { addons: { ai: 1 } })).status).toBe(400);
   });
 });

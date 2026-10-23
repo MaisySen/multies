@@ -16,6 +16,7 @@ import { cn } from "@/web/lib/cn";
 import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
+import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 
 type View = Folder | "starred";
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -306,18 +307,27 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
   );
 }
 
-interface AiUsage { used: number; limit: number }
 const TRIAGE_LABEL: Record<string, string> = { needs_reply: "Needs a reply", invoice: "Invoice", receipt: "Receipt", update: "Update", newsletter: "Newsletter", suspicious: "Looks suspicious" };
 
-/** Summaries, triage and drafted replies. Each uses one AI action from the monthly allowance. */
+/** Summaries, triage and drafted replies, on the workspace's own AI key (bring your own AI). */
 function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: string) => void }) {
-  const qc = useQueryClient();
-  const usage = useQuery({ queryKey: ["ai-usage"], queryFn: () => api.get<AiUsage & { provider: string }>("/ai/usage"), staleTime: 60_000 });
-  const done = () => qc.invalidateQueries({ queryKey: ["ai-usage"] });
-  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] }>("/ai/summary", { messageId }), onSuccess: done, onError: (e) => showError(e) });
-  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onSuccess: done, onError: (e) => showError(e) });
-  const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => { done(); onDraft(r.text); }, onError: (e) => showError(e) });
-  const left = usage.data ? usage.data.limit - usage.data.used : null;
+  const status = useAiStatus();
+  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] }>("/ai/summary", { messageId }), onError: (e) => showError(e) });
+  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onError: (e) => showError(e) });
+  const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => onDraft(r.text), onError: (e) => showError(e) });
+  if (!status.data) return null;
+  if (!status.data.connected) {
+    return (
+      <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
+        <Sparkles className="h-4 w-4 text-brand-hover" aria-hidden />
+        <span>{BYO_AI_LINE}</span>
+        <span className="ml-auto flex gap-2">
+          <ButtonLink size="sm" variant="secondary" to="/agents#mcp">MCP setup</ButtonLink>
+          <ButtonLink size="sm" variant="ghost" to="/app/settings#ai">Use your own key</ButtonLink>
+        </span>
+      </section>
+    );
+  }
   return (
     <section aria-label="Assistant" className="mt-4 rounded-xl border border-line bg-elevated/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -325,7 +335,7 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
         <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>Summarise</Button>
         <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>Draft a reply</Button>
         <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>Sort it</Button>
-        {left !== null && <span className="ml-auto text-xs text-subtle tabular-nums">{left} of {usage.data!.limit} AI actions left this month</span>}
+        <span className="ml-auto text-xs text-subtle">On your {status.data.providerName} key</span>
       </div>
       {triage.data && (
         <p className="mt-3 text-sm"><span className={cn("mr-2 rounded border px-1.5 py-0.5 text-xs", triage.data.triage.category === "suspicious" ? "border-bad/50 text-bad" : "border-line text-muted")}>{TRIAGE_LABEL[triage.data.triage.category] ?? triage.data.triage.category}{triage.data.triage.priority === "high" ? ", urgent" : ""}</span>{triage.data.triage.reason}</p>

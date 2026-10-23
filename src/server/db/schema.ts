@@ -586,6 +586,22 @@ export const integrations = sqliteTable("integrations", {
 }, (t) => [uniqueIndex("integrations_org_provider_uq").on(t.orgId, t.provider)]);
 
 /**
+ * The workspace's own AI provider key ("bring your own AI"). MyMail never pays for model
+ * calls: the assistant runs only with this key. The key is encrypted with APP_SECRET.
+ */
+export const aiKeys = sqliteTable("ai_keys", {
+  orgId: text("org_id").primaryKey().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["openai", "anthropic", "openrouter", "groq"] }).notNull(),
+  model: text("model").notNull(),
+  keyEnc: text("key_enc").notNull(),
+  /** The last 4 characters, to show which key is saved. */
+  keyHint: text("key_hint").notNull(),
+  updatedByUserId: text("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+});
+
+/**
  * Mail imports from Gmail, Outlook or any IMAP server. A runner (deploy/import-runner,
  * imapsync in Docker) claims queued jobs with IMPORT_RUNNER_TOKEN and copies the mail into
  * the mailbox over IMAP. The source app password is encrypted and wiped when the job ends.

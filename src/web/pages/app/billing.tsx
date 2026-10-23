@@ -28,7 +28,7 @@ interface BillingInfo {
   subscription: { status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
   hasCustomer: boolean;
   dunning: { pastDueSince: string; graceEndsAt: string | null; sendingPaused: boolean } | null;
-  usage: { domains: number; mailboxes: number; agentInboxes: number; aliases: number; seats: number; sendsToday: number; storageMb: number; aiActions: number; agentMessages: number };
+  usage: { domains: number; mailboxes: number; agentInboxes: number; aliases: number; seats: number; sendsToday: number; storageMb: number; agentMessages: number };
   limits: Plan["limits"];
 }
 interface AddonPreview { dueNow: number; credit: number; currency: string; charge: BillingInfo["charge"] }
@@ -107,7 +107,6 @@ export function BillingSettings() {
     { label: "People", used: b.usage.seats, max: b.limits.seats },
     { label: "Storage", used: b.usage.storageMb, max: b.limits.storageMb, show: gb },
     { label: "Sent today", used: b.usage.sendsToday, max: b.limits.dailySends },
-    { label: "AI actions this month", used: b.usage.aiActions, max: b.limits.aiActionsMonthly },
     { label: "Agent inboxes", used: b.usage.agentInboxes, max: b.limits.agentInboxes },
     { label: "Agent messages this month", used: b.usage.agentMessages, max: b.limits.agentMessagesMonthly },
     { label: "Aliases", used: b.usage.aliases, max: b.limits.aliases },

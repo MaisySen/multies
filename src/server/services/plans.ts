@@ -49,26 +49,25 @@ export async function bumpCounter(db: DB, orgId: string, metric: string, now: Da
 }
 
 export async function usage(db: DB, orgId: string, now = new Date()) {
-  const [d, m, ag, a, s, st, ai, am] = await Promise.all([
+  const [d, m, ag, a, s, st, am] = await Promise.all([
     db.select({ n: count() }).from(domains).where(eq(domains.orgId, orgId)).get(),
     db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "person"))).get(),
     db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "agent"))).get(),
     db.select({ n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).get(),
     db.select({ n: count() }).from(members).where(eq(members.organizationId, orgId)).get(),
     db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),
-    readCounter(db, orgId, "ai_actions", now),
     readCounter(db, orgId, "agent_messages", now),
   ]);
   return {
     domains: d?.n ?? 0, mailboxes: m?.n ?? 0, agentInboxes: ag?.n ?? 0, aliases: a?.n ?? 0, seats: s?.n ?? 0,
-    storageMb: Math.ceil(Number(st?.n ?? 0) / (1024 * 1024)), aiActions: ai, agentMessages: am,
+    storageMb: Math.ceil(Number(st?.n ?? 0) / (1024 * 1024)), agentMessages: am,
   };
 }
 
 /** The add-on that raises a limit, for upgrade prompts. */
 export const ADDON_FOR: Partial<Record<string, AddonId>> = {
   domains: "domain", mailboxes: "mailboxes", seats: "mailboxes", aliases: "mailboxes", storageMb: "storage",
-  dailySends: "send_boost", aiActionsMonthly: "ai", agentInboxes: "agent_inbox", agentMessagesMonthly: "agent_inbox",
+  dailySends: "send_boost", agentInboxes: "agent_inbox", agentMessagesMonthly: "agent_inbox",
 };
 
 /** "Add an extra domain for A$1 a month." */
@@ -77,7 +76,7 @@ export function addonHint(limit: string) {
   if (!id) return "Add more from Billing.";
   const a = ADDONS[id];
   const price = `A$${a.priceMonthly} a month`;
-  return id === "ai" ? `Add the AI assistant for ${price} for your whole team.` : `Add ${a.unit === "domain" ? "an extra domain" : a.unit === "inbox" ? "an agent inbox" : `a ${a.name.toLowerCase()} (${a.unit})`} for ${price}.`;
+  return `Add ${a.unit === "domain" ? "an extra domain" : a.unit === "inbox" ? "an agent inbox" : `a ${a.name.toLowerCase()} (${a.unit})`} for ${price}.`;
 }
 
 const LABEL = { domains: "domains", mailboxes: "mailboxes", aliases: "aliases", agentInboxes: "agent inboxes" } as const;

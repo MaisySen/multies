@@ -251,5 +251,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "ALTER TABLE `attachments` ADD `storage_key` text;"
     ]
+  },
+  {
+    "name": "0016_byo_ai_keys",
+    "statements": [
+      "CREATE TABLE `ai_keys` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`provider` text NOT NULL,\n\t`model` text NOT NULL,\n\t`key_enc` text NOT NULL,\n\t`key_hint` text NOT NULL,\n\t`updated_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`updated_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);"
+    ]
   }
 ];
