@@ -30,6 +30,17 @@ function fakeStripe() {
     if (url.pathname === "/v1/products") return json({ id: "prod_1", object: "product" });
     if (url.pathname === "/v1/prices") { const p = new URLSearchParams(body); return json({ id: `price_auto_${p.get("lookup_key")}`, object: "price", lookup_key: p.get("lookup_key"), unit_amount: Number(p.get("unit_amount")) }); }
     if (url.pathname === "/v1/billing_portal/sessions") return json({ url: "https://billing.stripe.com/p/session/x" });
+    if (url.pathname === "/v1/invoices/create_preview") {
+      const p = new URLSearchParams(body);
+      const up = p.get("subscription_details[items][0][price]") === "price_biz";
+      return json({ object: "invoice", currency: "aud", lines: { data: up ? [{ amount: -600 }, { amount: 2400 }] : [{ amount: 1800 }, { amount: -900 }] } });
+    }
+    if (url.pathname.startsWith("/v1/subscriptions/") && init?.method === "POST") {
+      const p = new URLSearchParams(body);
+      const s = subs[url.pathname.split("/").pop()!] as { items: { data: { id?: string; price: { id: string } }[] } };
+      s.items.data[0]!.price = { id: p.get("items[0][price]")! };
+      return json(s);
+    }
     if (url.pathname.startsWith("/v1/subscriptions/")) return json(subs[url.pathname.split("/").pop()!] ?? { error: { message: "No such subscription" } }, subs[url.pathname.split("/").pop()!] ? 200 : 404);
     if (url.pathname === "/v1/invoices") return json({ data: [{ id: "in_1", number: "MM-0001", status: "paid", total: 1200, currency: "usd", created: 1760000000, hosted_invoice_url: "https://invoice.stripe.com/i/1", invoice_pdf: "https://pay.stripe.com/1.pdf", period_start: 1760000000, period_end: 1762600000 }] });
     return json({ error: { message: "unexpected" } }, 400);
@@ -154,6 +165,27 @@ describe("billing with Stripe", () => {
     expect((await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" })).body.error.code).not.toBe("payment_required");
     const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
     expect(audit).toEqual(expect.arrayContaining(["billing.payment_failed", "billing.grace_ended", "billing.recovered", "billing.invoice_paid"]));
+  });
+
+  it("changes plans in place with Stripe proration, previewed first", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    await a.post("/api/billing/checkout", { plan: "pro" });
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
+    stripe.subs.sub_1 = sub("active", "price_pro", { items: { data: [{ id: "si_1", price: { id: "price_pro" }, current_period_end: 1762600000 }] } });
+    await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
+
+    const preview = await a.get("/api/billing/change-preview?plan=business");
+    expect(preview.body).toMatchObject({ plan: "business", upgrade: true, dueNow: 1800, credit: 0, currency: "aud" });
+    const change = await a.post("/api/billing/change", { plan: "business" });
+    expect(change.status).toBe(200);
+    const update = stripe.calls.find((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1")!;
+    expect(new URLSearchParams(update.body).get("proration_behavior")).toBe("always_invoice");
+    expect((await a.get("/api/billing")).body.plan.id).toBe("business");
+
+    const down = await a.get("/api/billing/change-preview?plan=pro");
+    expect(down.body).toMatchObject({ upgrade: false, dueNow: 0, credit: 0 });
+    expect((await a.post("/api/billing/change", { plan: "business" })).status).toBe(400);
   });
 
   it("emails usage alerts once per threshold per day", async () => {

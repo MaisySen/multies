@@ -2,13 +2,13 @@ import { eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { billingEvents, organizations } from "../../db/schema";
 import { HttpError, badRequest, forbidden } from "../../lib/errors";
-import { PLANS, type PlanId } from "@/shared/plans";
+import { PLANS, PLAN_ORDER, type PlanId } from "@/shared/plans";
 import { audit } from "../audit";
 import { getOrg, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
 import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
 import { PRICE_CURRENCY } from "@/shared/plans";
-import { onInvoicePaid, onPaymentFailed } from "./dunning";
+import { onInvoicePaid, onPaymentFailed, sendingPausedForPayment } from "./dunning";
 
 /** The subscription fields MyMail mirrors. */
 export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "cancel_at_period_end" | "metadata"> & {
@@ -84,6 +84,7 @@ export async function billingOverview(deps: Deps, orgId: string) {
       status: org.subscriptionStatus, currentPeriodEnd: org.currentPeriodEnd, cancelAtPeriodEnd: org.cancelAtPeriodEnd,
     } : null,
     hasCustomer: !!org.stripeCustomerId,
+    dunning: org.pastDueSince ? { pastDueSince: org.pastDueSince, graceEndsAt: org.graceEndsAt, sendingPaused: sendingPausedForPayment(org, deps.now()) } : null,
     usage: { ...used, sendsToday: sends },
     limits: plan.limits,
   };
@@ -123,6 +124,53 @@ export async function startCheckout(deps: Deps, auth: AuthContext, plan: PlanId)
     success_url: `${base}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}?checkout=cancelled`,
   });
   return { id: session.id, url: session.url };
+}
+
+/** The live subscription and its single plan item, for in-app plan changes. */
+async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
+  if (auth.role !== "owner") throw forbidden("Only the workspace owner can change billing.");
+  if (!PAID.includes(plan as PaidPlan)) throw badRequest("Move to Starter by cancelling in the billing portal; you keep your paid plan until the period ends.");
+  const org = await getOrg(deps.db, auth.orgId);
+  if (!org.stripeSubscriptionId || !LIVE.has(org.subscriptionStatus ?? "")) throw new HttpError(409, "no_subscription", "There's no active subscription to change. Start one with checkout.");
+  if (org.plan === plan) throw badRequest("You're already on that plan.");
+  const stripe = client(deps);
+  const sub = await stripe.subscriptions.retrieve(org.stripeSubscriptionId);
+  const item = sub.items.data[0];
+  if (!item) throw new HttpError(409, "no_subscription", "The subscription has no plan item.");
+  const price = await resolvePrice(deps, stripe, plan as PaidPlan);
+  const upgrade = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan);
+  if (!upgrade) {
+    const used = await usage(deps.db, auth.orgId);
+    const over = (Object.keys(used) as (keyof typeof used)[]).filter((k) => used[k] > PLANS[plan].limits[k]);
+    if (over.length) throw badRequest(`Remove some ${over.join(" and ")} before moving to ${PLANS[plan].name}.`);
+  }
+  // Upgrades are charged now for the rest of the period; downgrades credit the next invoice.
+  const proration = upgrade ? ("always_invoice" as const) : ("create_prorations" as const);
+  return { stripe, org, sub, item, price, upgrade, proration };
+}
+
+/** What a plan change costs today, from Stripe's own proration maths. */
+export async function previewPlanChange(deps: Deps, auth: AuthContext, plan: PlanId) {
+  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, auth, plan);
+  const preview = await stripe.invoices.createPreview({
+    customer: org.stripeCustomerId!, subscription: sub.id,
+    subscription_details: { items: [{ id: item.id, price }], proration_behavior: proration, proration_date: Math.floor(deps.now().getTime() / 1000) },
+  });
+  const prorations = preview.lines.data.filter((l) => (l as unknown as { parent?: { subscription_item_details?: { proration?: boolean } } }).parent?.subscription_item_details?.proration ?? true);
+  const net = prorations.reduce((sum, l) => sum + l.amount, 0);
+  return { plan, upgrade, currency: preview.currency, dueNow: upgrade ? Math.max(0, net) : 0, credit: upgrade ? 0 : Math.max(0, -net) };
+}
+
+/** Changes the plan in place with proration. The webhook syncs the plan; we sync now too. */
+export async function changePlan(deps: Deps, auth: AuthContext, plan: PlanId) {
+  const { stripe, org, sub, item, price, upgrade, proration } = await liveItem(deps, auth, plan);
+  const updated = await stripe.subscriptions.update(sub.id, {
+    items: [{ id: item.id, price }], proration_behavior: proration, payment_behavior: "pending_if_incomplete",
+    metadata: { ...(sub.metadata ?? {}), orgId: org.id },
+  });
+  await syncSubscription(deps, updated as unknown as StripeSubscription);
+  await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: `plan.${upgrade ? "upgraded" : "downgraded"}`, metadata: { from: org.plan, to: plan, proration } });
+  return { plan: PLANS[plan], pending: !!updated.pending_update };
 }
 
 export async function openPortal(deps: Deps, auth: AuthContext) {

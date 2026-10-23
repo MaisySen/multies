@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
-import { parseBody, requireAuth } from "../middleware";
+import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { billingOverview, confirmCheckout, handleStripeWebhook, listInvoices, openPortal, startCheckout } from "../services/billing";
+import { billingOverview, changePlan, confirmCheckout, previewPlanChange, handleStripeWebhook, listInvoices, openPortal, startCheckout } from "../services/billing";
 import { Stripe } from "../services/billing/stripe";
 import { HttpError } from "../lib/errors";
 
@@ -28,6 +28,14 @@ export function billingRoutes() {
     .post("/checkout/confirm", async (c) => {
       const { sessionId } = await parseBody(c, z.object({ sessionId: z.string().min(1).max(255) }));
       return c.json(await wrapStripe(() => confirmCheckout(c.var.deps, c.var.auth, sessionId)));
+    })
+    .get("/change-preview", async (c) => {
+      const { plan } = parseQuery(c, z.object({ plan: z.enum(["pro", "business"]) }));
+      return c.json(await wrapStripe(() => previewPlanChange(c.var.deps, c.var.auth, plan)));
+    })
+    .post("/change", async (c) => {
+      const { plan } = await parseBody(c, z.object({ plan: z.enum(["pro", "business"]) }));
+      return c.json(await wrapStripe(() => changePlan(c.var.deps, c.var.auth, plan)));
     })
     .post("/portal", async (c) => c.json({ url: (await wrapStripe(() => openPortal(c.var.deps, c.var.auth))).url }))
     .get("/invoices", async (c) => c.json({ invoices: await wrapStripe(() => listInvoices(c.var.deps, c.var.auth.orgId)) }));

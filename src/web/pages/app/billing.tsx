@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CreditCard, ExternalLink, FileText, PlugZap, Receipt } from "lucide-react";
@@ -9,6 +9,7 @@ import { useMe } from "@/web/lib/queries";
 import { PLAN_ORDER, PLANS, type Plan, type PlanId, PRICE_LABEL, formatPlanPrice } from "@/shared/plans";
 import { Badge, Card, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
+import { Dialog } from "@/web/components/ui/dialog";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 import { LOCALE } from "@/shared/locale";
@@ -22,6 +23,7 @@ interface BillingInfo {
   plan: Plan;
   subscription: { status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
   hasCustomer: boolean;
+  dunning: { pastDueSince: string; graceEndsAt: string | null; sendingPaused: boolean } | null;
   usage: { domains: number; mailboxes: number; aliases: number; seats: number; sendsToday: number };
   limits: Plan["limits"];
 }
@@ -63,6 +65,16 @@ export function BillingSettings() {
 
   const checkout = useMutation({ mutationFn: (plan: PlanId) => api.post<{ url: string }>("/billing/checkout", { plan }), onSuccess: (r) => window.location.assign(r.url), onError: (e) => showError(e) });
   const portal = useMutation({ mutationFn: () => api.post<{ url: string }>("/billing/portal"), onSuccess: (r) => window.location.assign(r.url), onError: (e) => showError(e) });
+  const [changing, setChanging] = useState<PlanId | null>(null);
+  const preview = useQuery({
+    queryKey: ["billing-preview", changing], enabled: !!changing,
+    queryFn: () => api.get<{ upgrade: boolean; dueNow: number; credit: number; currency: string }>(`/billing/change-preview?plan=${changing}`),
+  });
+  const change = useMutation({
+    mutationFn: (plan: PlanId) => api.post("/billing/change", { plan }),
+    onSuccess: () => { setChanging(null); qc.invalidateQueries(); toast.success("Plan changed"); },
+    onError: (e) => showError(e),
+  });
   const switchFree = useMutation({ mutationFn: (plan: PlanId) => api.post("/org/plan", { plan }), onSuccess: () => { qc.invalidateQueries(); toast.success("Plan updated"); }, onError: (e) => showError(e) });
 
   if (billing.isPending) return <Card className="p-6"><Skeleton className="h-6 w-48" /><Skeleton className="mt-4 h-24" /></Card>;
@@ -105,7 +117,15 @@ export function BillingSettings() {
         {sub?.currentPeriodEnd && (
           <p className="mt-1 text-sm text-muted">{sub.cancelAtPeriodEnd ? "Ends" : "Renews"} on {new Date(sub.currentPeriodEnd).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}.</p>
         )}
-        {sub?.status === "past_due" && (
+        {b.dunning && (
+          <p className={cn("mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", b.dunning.sendingPaused ? "border-bad/25 bg-bad/5 text-bad" : "border-warn/25 bg-warn-soft text-warn")} role="alert">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            {b.dunning.sendingPaused
+              ? "Sending is paused because the last payment didn't go through. Receiving still works. Update your card to resume sending."
+              : `Your last payment didn't go through. Everything keeps working until ${new Date(b.dunning.graceEndsAt!).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}; update your card before then.`}
+          </p>
+        )}
+        {sub?.status === "past_due" && !b.dunning && (
           <p className="mt-3 flex items-center gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn"><AlertTriangle className="h-4 w-4" />Your last payment failed. Update your card to keep your plan.</p>
         )}
         <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,7 +158,9 @@ export function BillingSettings() {
                   <li>{p.limits.seats} seats · {p.limits.dailySends.toLocaleString(LOCALE)} sends / day</li>
                 </ul>
                 {!isCurrent && isOwner && (paidFlow ? (
-                  hasLiveSub || !higher
+                  hasLiveSub && id !== "starter"
+                    ? <Button size="sm" variant={higher ? "primary" : "secondary"} className="mt-4" onClick={() => setChanging(id)}>{higher ? "Upgrade" : "Downgrade"} to {p.name}</Button>
+                    : hasLiveSub || !higher
                     ? <Button size="sm" variant="secondary" className="mt-4" loading={portal.isPending} onClick={() => portal.mutate()}>{higher ? "Upgrade" : "Downgrade"} in portal</Button>
                     : <Button size="sm" className="mt-4" loading={checkout.isPending && checkout.variables === id} onClick={() => checkout.mutate(id)}>Upgrade to {p.name}</Button>
                 ) : (
@@ -177,6 +199,19 @@ export function BillingSettings() {
           </div>
         )}
       </Section>
+      <Dialog open={!!changing} onClose={() => setChanging(null)} title={changing ? `Move to ${PLANS[changing].name}?` : ""}
+        description="Stripe prorates the change to the day, so you only pay for what you use."
+        footer={<><Button variant="secondary" onClick={() => setChanging(null)}>Cancel</Button><Button loading={change.isPending} disabled={preview.isPending || !!preview.error} onClick={() => changing && change.mutate(changing)}>Confirm change</Button></>}>
+        {preview.isPending ? <Skeleton className="h-5 w-64" /> : preview.error ? <p className="text-sm text-bad">{preview.error.message}</p> : preview.data && (
+          <p className="text-sm text-muted">
+            {preview.data.upgrade
+              ? <>You'll be charged <strong className="text-fg">{money(preview.data.dueNow, preview.data.currency)}</strong> now for the rest of this billing period. New limits apply straight away.</>
+              : preview.data.credit > 0
+                ? <>You'll get a <strong className="text-fg">{money(preview.data.credit, preview.data.currency)}</strong> credit on your next invoice for the unused time.</>
+                : <>The lower price starts on your next invoice.</>}
+          </p>
+        )}
+      </Dialog>
     </div>
   );
 }
