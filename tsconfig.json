@@ -38,6 +38,8 @@
     "email-worker/src",
     "vite.config.ts",
     "vitest.config.ts",
-    "drizzle.config.ts"
+    "drizzle.config.ts",
+    "e2e",
+    "playwright.config.ts"
   ]
 }

@@ -10,3 +10,5 @@ dist/
 coverage/
 .wrangler/
 *.tsbuildinfo
+test-results/
+playwright-report/

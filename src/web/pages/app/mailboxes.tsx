@@ -31,7 +31,7 @@ export function MailboxesPage() {
         {(["mailboxes", "aliases"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "aliases" ? { tab: t } : {})}
             className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium capitalize transition-colors", tab === t ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>
-            {t}{usage && limits && <span className="ml-1.5 text-subtle tabular-nums">{usage[t]}/{limits[t].toLocaleString()}</span>}
+            {t}{" "}{usage && limits && <span className="ml-1 text-subtle tabular-nums">{usage[t]}/{limits[t].toLocaleString()}</span>}
           </button>
         ))}
       </div>
