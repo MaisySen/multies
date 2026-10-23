@@ -1,8 +1,8 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import type { Deps } from "../context";
-import { domains, memberships, organizations, users } from "../db/schema";
-import { randomToken } from "../lib/crypto";
-import { audit } from "./audit";
+import { auditLogs, domains, memberships, organizations, users } from "../db/schema";
+import { newId, randomToken } from "../lib/crypto";
+import { sql } from "drizzle-orm";
 import { createUserWithOrg } from "./auth";
 import { createAlias, createMailbox } from "./addresses";
 import { createDomain } from "./domains";
@@ -48,11 +48,12 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
 /** Creates a throwaway workspace full of realistic sample data. Only reachable when DEMO_MODE is on. */
 export async function createDemoWorkspace(deps: Deps) {
   const suffix = randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x").slice(0, 5);
-  const email = `demo-${suffix}@sandbox.mymail.invalid`;
+  const domainName = `northwind-${suffix}.test`;
+  const email = `alex@${domainName}`;
   const { userId, orgId } = await createUserWithOrg(deps.db, { name: "Alex Rivera", email, password: randomToken(24), organization: "Northwind Labs" }, { isDemo: true });
   await deps.db.update(organizations).set({ plan: "pro" }).where(eq(organizations.id, orgId));
 
-  const domain = await createDomain(deps, orgId, `northwind-${suffix}.test`);
+  const domain = await createDomain(deps, orgId, domainName);
   // Sample domains can't have real DNS; mark them verified and say so in the report.
   await deps.db.update(domains).set({
     status: "verified",
@@ -83,6 +84,26 @@ export async function createDemoWorkspace(deps: Deps) {
     await deliverInbound(deps, { envelopeFrom: m.from.address, rcptTo: `${m.to}@${domain.name}`, email, sizeBytes: m.text.length + 600, via: "demo" });
   }
 
+  const HISTORY = [
+    ["Uptime", "alerts@uptime.example", "support", "Weekly summary: 100% uptime"],
+    ["GitHub", "noreply@github.example", "founders", "[northwind/app] Release v1.4.0 published"],
+    ["Stripe-like Payments", "receipts@payments.example", "billing", "Your invoice is ready"],
+    ["Calendar", "calendar@notify.example", "founders", "Board meeting moved to Thursday"],
+    ["Linear-like Tracker", "notify@tracker.example", "founders", "3 issues assigned to you"],
+    ["Customer", "sam@acme-corp.example", "support", "Thanks for the quick fix!"],
+    ["Recruiting", "talent@hire.example", "hello", "Intro: senior engineer, ex-Fastmail"],
+  ] as const;
+  for (let i = 0; i < 18; i++) {
+    const [name, address, box, subject] = HISTORY[i % HISTORY.length];
+    const date = new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000);
+    const email: ParsedEmail = {
+      messageId: `<${randomToken(9)}@${address.split("@")[1]}>`, from: { address, name }, to: [{ address: `${box}@${domain.name}` }], cc: [],
+      subject, text: `${subject}.\n\nThis is an older message in your demo workspace's archive.`, date, attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
+    };
+    await deliverInbound(deps, { envelopeFrom: address, rcptTo: `${box}@${domain.name}`, email, sizeBytes: 900, via: "demo" });
+  }
+  await deps.db.run(sql`UPDATE messages SET folder = 'archive', is_read = 1 WHERE org_id = ${orgId} AND folder = 'inbox' AND date < ${now - 58 * 3600_000}`);
+
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
   await sendMessage(deps, auth, {
     mailboxId: founders.id, to: ["priya@seedround.vc"], subject: "Re: Following up from demo day",
@@ -93,7 +114,22 @@ export async function createDemoWorkspace(deps: Deps) {
     text: "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain ✅\n2. support@ and billing@ mailboxes live ✅\n3. sales@ alias forwarding to the founders ✅\n\nLet's ship it.\nAlex",
   });
 
-  await audit(deps.db, { orgId, actorUserId: userId, actorEmail: email, action: "demo.workspace_created" });
+  // Backdate the delivery log to each message's date so the activity chart has history.
+  await deps.db.run(sql`UPDATE deliveries SET created_at = (SELECT date FROM messages WHERE messages.id = deliveries.message_id) WHERE org_id = ${orgId} AND message_id IS NOT NULL`);
+
+  const at = (hoursAgo: number) => new Date(now - hoursAgo * 3600_000);
+  const trail: [string, number, Record<string, unknown>?][] = [
+    ["demo.workspace_created", 70],
+    ["domain.added", 69, { name: domain.name }],
+    ["domain.verified", 68, { name: domain.name }],
+    ["mailbox.created", 67, { address: founders.address }],
+    ["mailbox.created", 67, { address: `support@${domain.name}` }],
+    ["alias.created", 66, { address: `sales@${domain.name}` }],
+    ["plan.upgraded", 60, { from: "starter", to: "pro" }],
+  ];
+  for (const [action, h, metadata] of trail) {
+    await deps.db.insert(auditLogs).values({ id: newId("aud"), orgId, actorUserId: userId, actorEmail: email, action, metadata: metadata ? JSON.stringify(metadata) : null, createdAt: at(h) });
+  }
   return { userId, orgId };
 }
 

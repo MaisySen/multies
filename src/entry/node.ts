@@ -38,8 +38,8 @@ setTimeout(tick, 5_000).unref();
 const webRoot = path.resolve("dist/web");
 if (existsSync(webRoot)) {
   app.use("/*", serveStatic({ root: path.relative(process.cwd(), webRoot) }));
-  const indexHtml = readFileSync(path.join(webRoot, "index.html"), "utf8");
-  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(indexHtml)));
+  // Read per request so a rebuilt web app is picked up without a restart.
+  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, "index.html"), "utf8"))));
 }
 
 const port = Number(process.env.PORT ?? 8787);

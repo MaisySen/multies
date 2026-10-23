@@ -39,7 +39,7 @@ export class Client {
     }
     const text = await res.text();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let json: any = null;
+    let json: any;
     try { json = text ? JSON.parse(text) : null; } catch { json = text; }
     return { status: res.status, body: json };
   }
