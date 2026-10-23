@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { purgeDemoWorkspaces } from "@/server/services/demo";
+import { runDueJobs } from "@/server/services/jobs";
 
 describe("demo mode", () => {
   it("is off unless DEMO_MODE is set, so production never seeds", async () => {
@@ -52,6 +53,28 @@ describe("demo mode", () => {
     expect(keys).toHaveLength(2);
     expect(keys[0]).toMatch(/^MII/);
     expect(keys[1]).toBe(keys[0]);
+  });
+
+  it("seeds sample tasks, docs, contacts and deals in a background job", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    await runDueJobs(ctx.deps);
+    const projects = (await c.get("/api/projects")).body.projects;
+    expect(projects.map((p: { key: string }) => p.key).sort()).toEqual(["BHM", "TSK"]);
+    const tasks = (await c.get("/api/tasks")).body.tasks as { title: string; source: unknown; due: string | null }[];
+    expect(tasks.length).toBeGreaterThanOrEqual(10);
+    expect(tasks.filter((t) => t.source).length).toBe(3);
+    expect((await c.get("/api/contacts?q=maria")).body.contacts[0]).toMatchObject({ email: "maria@blueharbor.co", company: { name: "Blueharbor" } });
+    expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
+    expect((await c.get("/api/docs")).body.docs).toHaveLength(2);
+    expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
+    // A retry of the job does not seed twice.
+    const { enqueue } = await import("@/server/services/jobs");
+    const me = (await c.get("/api/account/me")).body;
+    await enqueue(ctx.deps, "demo.seed_suite", { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: "Alex Rivera" });
+    await runDueJobs(ctx.deps);
+    expect((await c.get("/api/projects")).body.projects).toHaveLength(2);
   });
 
   it("purges expired sandboxes", async () => {

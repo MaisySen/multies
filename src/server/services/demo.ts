@@ -13,6 +13,8 @@ import type { ParsedEmail } from "./mail/mime";
 import type { AuthContext } from "../context";
 import { listMailboxes } from "./addresses";
 import { setAddons } from "./plans";
+import "./suite/demo-seed";
+import { enqueue } from "./jobs";
 import { approveSend, createAgent, listThreads, replyInThread } from "./agents";
 
 const chunk = <T>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
@@ -155,6 +157,8 @@ export async function createDemoWorkspace(deps: Deps) {
 
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
   await seedDemoAgents(deps, auth, domain, now);
+  // Tasks, docs, contacts and deals are seeded by a background job so this request stays small.
+  await enqueue(deps, "demo.seed_suite", { orgId, userId, email, name: "Alex Rivera" }, { orgId, maxAttempts: 3 });
 
   // Backdate the delivery log to each message's date so the activity chart has history.
   await deps.db.run(sql`UPDATE deliveries SET created_at = (SELECT date FROM messages WHERE messages.id = deliveries.message_id) WHERE org_id = ${orgId} AND message_id IS NOT NULL`);

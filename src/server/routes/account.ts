@@ -9,6 +9,7 @@ import { notFound, tooMany } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { createDemoWorkspace } from "../services/demo";
+import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
 
 /**
@@ -28,6 +29,9 @@ export function accountRoutes() {
       if (!demoLimiter.take(c.var.ip)) throw tooMany();
       const { headers } = await createDemoWorkspace(c.var.deps);
       for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
+      // Seed the sample tasks, docs and deals straight after the response rather than at the next cron.
+      const seed = new Promise((r) => setTimeout(r, 1000)).then(() => runDueJobs(c.var.deps, 5)).catch(() => undefined);
+      try { c.executionCtx.waitUntil(seed); } catch { /* Node and tests have no execution context; the promise runs anyway. */ }
       return c.json({ ok: true }, 201);
     })
     .use("*", requireAuth)
