@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { Bot, Calendar, CheckCircle2, Circle, FileText, Mail, MoreHorizontal, Trash2, User, X } from "lucide-react";
+import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
+import { TaskTime } from "./time";
+import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -9,7 +11,7 @@ import { Avatar, Badge, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, type ActivityEntry, type Priority, type Task } from "./data";
+import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task } from "./data";
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -74,6 +76,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           {t && (
             <Menu trigger={<button className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
               <MenuItem icon={<FileText />} onSelect={newDoc}>New doc for this task</MenuItem>
+              <MenuItem icon={<Video />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
               <MenuItem icon={<Trash2 />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
@@ -139,6 +142,10 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               </ol>
             </section>
           )}
+
+          <TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
+
+          <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
           <section className="mt-6" aria-label="Subtasks">
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>
@@ -206,5 +213,43 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         </div>
       )}
     </aside>
+  );
+}
+
+/** Blocked by and blocking: the same links the timeline draws as arrows. */
+function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blockedBy: Task[]; blocking: Task[]; onChange: () => void }) {
+  const [adding, setAdding] = useState(false);
+  const candidates = useTasks({ projectId: task.projectId }, { enabled: adding });
+  const add = async (other: string) => {
+    if (!other) return;
+    try { await api.post(`/tasks/${task.id}/dependencies`, { blockedBy: other }); setAdding(false); onChange(); } catch (e) { showError(e as Error); }
+  };
+  const remove = async (blocker: string, blocked: string) => { try { await api.del(`/tasks/${blocked}/dependencies/${blocker}`); onChange(); } catch (e) { showError(e as Error); } };
+  const taken = new Set([task.id, ...blockedBy.map((b) => b.id)]);
+  const open = blockedBy.filter((b) => b.status !== "done").length;
+  const row = (x: Task, onRemove: () => void) => (
+    <li key={x.id} className="group flex items-center gap-2 text-[13px]">
+      {x.status === "done" ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-ok" /> : <Circle className="h-3.5 w-3.5 shrink-0 text-muted" />}
+      <span className="font-mono text-[12px] text-subtle">{x.ref}</span>
+      <span className={cn("truncate", x.status === "done" && "text-subtle line-through")}>{x.title}</span>
+      <button className="ml-auto text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label={`Remove dependency on ${x.ref}`} onClick={onRemove}><X className="h-3.5 w-3.5" /></button>
+    </li>
+  );
+  return (
+    <section className="mt-6" aria-label="Dependencies" data-testid="dependencies">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><Link2 className="h-3.5 w-3.5" />Dependencies {open > 0 && <span className="rounded bg-warn/15 px-1.5 py-px text-[11px] font-medium normal-case text-warn">Blocked</span>}</h3>
+        <button className="text-[12.5px] text-brand-hover hover:underline" onClick={() => setAdding((v) => !v)}>Add blocker</button>
+      </div>
+      {adding && (
+        <Select aria-label="Blocked by" className="mt-2 h-8 text-[13px]" defaultValue="" onChange={(e) => void add(e.target.value)}>
+          <option value="">This task is blocked by...</option>
+          {candidates.data?.filter((c) => !taken.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.ref} {c.title}</option>)}
+        </Select>
+      )}
+      {blockedBy.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocked by</p><ul className="mt-1 space-y-1">{blockedBy.map((b) => row(b, () => void remove(b.id, task.id)))}</ul></>}
+      {blocking.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocking</p><ul className="mt-1 space-y-1">{blocking.map((b) => row(b, () => void remove(task.id, b.id)))}</ul></>}
+      {!blockedBy.length && !blocking.length && !adding && <p className="mt-1 text-[12.5px] text-subtle">Nothing blocks this task.</p>}
+    </section>
   );
 }

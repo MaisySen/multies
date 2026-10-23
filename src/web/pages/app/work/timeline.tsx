@@ -9,9 +9,10 @@ const fmtDay = (d: Date) => String(d.getDate());
 
 /**
  * Timeline (SVAR React Gantt core, MIT). A bar runs from start to due; a task with only a
- * due date shows as one day. Dragging or resizing a bar saves the new dates.
+ * due date shows as one day. Dragging or resizing a bar saves the new dates. Arrows show
+ * dependencies (blocked by); dragging from the end of one bar to another adds one.
  */
-export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void }) {
+export function TaskTimeline({ tasks, links = [], onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
   const dated = tasks.filter((t) => t.due || t.start).sort((a, b) => (a.start ?? a.due ?? "").localeCompare(b.start ?? b.due ?? ""));
   const narrow = typeof window !== "undefined" && window.innerWidth < 640;
   const rows = useMemo(() => dated.map((t) => {
@@ -19,6 +20,9 @@ export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen
     const start = new Date(t.start ?? t.due!);
     return { id: t.id, text: `${t.ref} ${t.title}`, start, end: new Date(Math.max(end.getTime(), start.getTime()) + DAY), progress: t.status === "done" ? 100 : t.subtasks.total ? Math.round((t.subtasks.done / t.subtasks.total) * 100) : 0, type: "task" };
   }), [dated]);
+  // "Blocked by" drawn as finish-to-start arrows: the blocker ends, then the blocked task starts.
+  const shown = new Set(rows.map((r) => r.id));
+  const arrows = useMemo(() => links.filter((l) => shown.has(l.from) && shown.has(l.to)).map((l, i) => ({ id: i + 1, source: l.from, target: l.to, type: "e2s" })), [links, rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const min = rows.length ? new Date(Math.min(...rows.map((r) => r.start.getTime())) - (narrow ? 1 : 7) * DAY) : new Date(Date.now() - 7 * DAY);
   const max = rows.length ? new Date(Math.max(...rows.map((r) => r.end.getTime())) + 14 * DAY) : new Date(Date.now() + 30 * DAY);
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
@@ -26,7 +30,7 @@ export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen
     <div className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
       <WillowDark fonts={false}>
         <Gantt
-          tasks={rows} links={[]} start={min} end={max} cellWidth={36} cellHeight={36} scaleHeight={30}
+          tasks={rows} links={arrows as never} start={min} end={max} cellWidth={36} cellHeight={36} scaleHeight={30}
           scales={[{ unit: "month", step: 1, format: fmtMonth }, { unit: "day", step: 1, format: fmtDay }]}
           columns={[{ id: "text", header: "Task", width: 300 }] as never} {...({ displayMode: narrow ? "chart" : "all" } as object)}
           init={(api) => {
@@ -36,6 +40,7 @@ export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen
               const due = new Date(ev.task.end.getTime() - DAY).toISOString().slice(0, 10);
               onDates(String(ev.id), start, due < start ? start : due);
             });
+            api.on("add-link", (ev) => { const l = ev.link as { source?: string | number; target?: string | number }; if (l?.source && l?.target && onLink) onLink(String(l.source), String(l.target)); });
             api.intercept("show-editor", (ev: { id?: string | number }) => { if (ev.id) onOpen(String(ev.id)); return false; });
           }}
         />

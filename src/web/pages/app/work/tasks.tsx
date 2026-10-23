@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, Trash2, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -42,6 +42,11 @@ export function TasksPage() {
   const openId = params.get("task");
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as Record<(typeof FILTER_KEYS)[number], string | undefined>;
   const tasks = useTasks({ projectId: projectId || undefined, ...filters }, { enabled: !projects.isPending });
+  const deps = useQuery({ queryKey: ["task-deps", projectId], enabled: view === "timeline", queryFn: async () => (await api.get<{ links: { from: string; to: string }[] }>(`/tasks/dependencies${projectId ? `?projectId=${projectId}` : ""}`)).links });
+  const addLink = useCallback(async (blocker: string, blocked: string) => {
+    try { await api.post(`/tasks/${blocked}/dependencies`, { blockedBy: blocker }); } catch (e) { showError(e as Error); }
+    void deps.refetch();
+  }, [deps]);
   const [newTask, setNewTask] = useState<{ statusId?: string } | null>(null);
   const [editing, setEditing] = useState<Project | "new" | null>(null);
   const [saving, setSaving] = useState(false);
@@ -125,7 +130,7 @@ export function TasksPage() {
           <Suspense fallback={<Skeleton className="h-96" />}>
             {view === "calendar"
               ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
-              : <TaskTimeline tasks={tasks.data ?? []} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
+              : <TaskTimeline tasks={tasks.data ?? []} links={deps.data ?? []} onLink={(a, b) => void addLink(a, b)} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
           </Suspense>
         )}
       </div>
