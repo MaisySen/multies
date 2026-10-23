@@ -14,6 +14,7 @@ import { openSqlite } from "../server/db/node";
 import { DohResolver } from "../server/services/dns/resolver";
 import { NodeResolver } from "../server/services/dns/node-resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
+import { runMaintenance } from "../server/services/maintenance";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -26,7 +27,13 @@ const outbound = config.outbound.driver === "resend"
   : new LogOutbound((line) => console.log(line));
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
-const app = createApp({ db, config, dns, outbound, now: () => new Date() });
+const deps = { db, config, dns, outbound, now: () => new Date() };
+const app = createApp(deps);
+
+// Housekeeping: DNS re-checks, session expiry, sandbox purge.
+const tick = () => runMaintenance(deps).catch((err) => console.error("[maintenance]", err));
+setInterval(tick, 10 * 60_000).unref();
+setTimeout(tick, 5_000).unref();
 
 const webRoot = path.resolve("dist/web");
 if (existsSync(webRoot)) {

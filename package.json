@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MyMail — email hosting on your own domain.",
+  "description": "MyMail \u2014 email hosting on your own domain.",
   "engines": {
     "node": ">=20"
   },
@@ -20,7 +20,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:worker": "tsx scripts/build-worker.ts",
+    "build:preview": "npm run build:web && tsx scripts/build-worker.ts --profile preview"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
