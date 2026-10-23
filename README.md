@@ -122,6 +122,12 @@ with the [Standard Webhooks](https://www.standardwebhooks.com) spec. Verify them
 Webhooks library and the endpoint's `whsec_` secret. Failed deliveries retry with backoff for about
 nine hours.
 
+**Around the app**: a six-step setup checklist on the dashboard, a command palette (Cmd+K or Ctrl+K),
+a public status page at `/status` backed by `GET /api/status`, and Australian defaults (en-AU
+formatting, `Australia/Sydney` and AU per workspace, prices in AUD). `npm run design:audit` runs the
+impeccable detector over every page and `npm run a11y:audit` runs axe-core (WCAG 2.2 AA); both take
+a base URL, an output file and `--cookies` for signed-in pages.
+
 **Deliverability**: Resend delivery events (`/api/webhooks/resend`, verified with the Standard
 Webhooks library because Resend signs with Svix) mark bounces and complaints in the delivery log.
 Hard bounces and complaints go on a per-workspace suppression list that sending skips. DMARC
