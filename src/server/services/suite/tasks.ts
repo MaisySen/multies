@@ -508,12 +508,18 @@ export async function taskDetail(deps: Deps, actor: SuiteActor, idOrRef: string)
     linked(deps, actor.orgId, "task", task.id, "doc"),
     linked(deps, actor.orgId, "task", task.id, "contact"),
   ]);
+  const [dependencies, time] = await Promise.all([
+    dependenciesOf(deps, actor.orgId, task.id),
+    import("./time").then(({ taskTime }) => taskTime(deps, actor, task.id)),
+  ]);
   const docRows = linkedDocs.length ? await deps.db.select({ id: docs.id, title: docs.title, updatedAt: docs.updatedAt }).from(docs).where(and(inArray(docs.id, linkedDocs), isNull(docs.deletedAt))) : [];
   const { contactsByIds } = await import("./contacts");
   return {
     task, subtasks, comments, thread, activity: history,
     docs: docRows.map((d) => ({ id: d.id, title: d.title, updatedAt: d.updatedAt.toISOString() })),
     contacts: await contactsByIds(deps, actor.orgId, linkedContacts),
+    blockedBy: dependencies.blockedBy, blocking: dependencies.blocking,
+    time: { totalSeconds: time.totalSeconds, entries: time.entries.slice(0, 50) },
   };
 }
 
@@ -534,6 +540,74 @@ export async function linked(deps: Deps, orgId: string, type: string, id: string
     deps.db.select({ id: entityLinks.fromId }).from(entityLinks).where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.toType, type), eq(entityLinks.toId, id), eq(entityLinks.fromType, otherType))),
   ]);
   return [...new Set([...out, ...inc].map((r) => r.id))];
+}
+
+// ---------------------------------------------------------------- dependencies (blocked by, blocking)
+
+async function tasksByIds(deps: Deps, orgId: string, ids: string[]) {
+  if (!ids.length) return [];
+  const rows = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, ids.slice(0, 500)), isNull(tasks.deletedAt)));
+  const l = await lookups(deps, orgId, rows);
+  return rows.map((r) => presentTask(r, l));
+}
+
+/** Every "blocks" link in the workspace (or one project): { from: blocker, to: blocked }. */
+export async function dependencyLinks(deps: Deps, orgId: string, projectId?: string) {
+  const rows = await deps.db.select({ from: entityLinks.fromId, to: entityLinks.toId }).from(entityLinks)
+    .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "task"), eq(entityLinks.toType, "task"), eq(entityLinks.relation, "blocks"))).limit(5000);
+  if (!projectId || !rows.length) return rows;
+  const ids = [...new Set(rows.flatMap((r) => [r.from, r.to]))];
+  const inProject = new Set((await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.projectId, projectId), inArray(tasks.id, ids.slice(0, 900))))).map((t) => t.id));
+  return rows.filter((r) => inProject.has(r.from) || inProject.has(r.to));
+}
+
+export async function dependenciesOf(deps: Deps, orgId: string, taskId: string) {
+  const all = await dependencyLinks(deps, orgId);
+  const [blockedBy, blocking] = await Promise.all([
+    tasksByIds(deps, orgId, all.filter((l) => l.to === taskId).map((l) => l.from)),
+    tasksByIds(deps, orgId, all.filter((l) => l.from === taskId).map((l) => l.to)),
+  ]);
+  return { blockedBy, blocking, blocked: blockedBy.some((t) => t.status !== "done") };
+}
+
+/** True when `start` can already reach `target` by following "blocks" links: adding target -> start would loop. */
+export function wouldLoop(links: { from: string; to: string }[], blocker: string, blocked: string) {
+  if (blocker === blocked) return true;
+  const next = new Map<string, string[]>();
+  for (const l of links) next.set(l.from, [...(next.get(l.from) ?? []), l.to]);
+  const seen = new Set<string>();
+  const stack = [blocked];
+  while (stack.length) {
+    const n = stack.pop()!;
+    if (n === blocker) return true;
+    if (seen.has(n)) continue;
+    seen.add(n);
+    stack.push(...(next.get(n) ?? []));
+  }
+  return false;
+}
+
+/** `taskId` is blocked by `blockedById` (which is then "blocking" it). */
+export async function addDependency(deps: Deps, actor: SuiteActor, taskIdOrRef: string, blockedByIdOrRef: string) {
+  assertWritable(actor);
+  const blocked = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, taskIdOrRef));
+  const blocker = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, blockedByIdOrRef));
+  if (wouldLoop(await dependencyLinks(deps, actor.orgId), blocker.id, blocked.id)) throw new HttpError(422, "dependency_loop", "That would make the tasks wait on each other in a loop.");
+  await link(deps, actor.orgId, { type: "task", id: blocker.id }, { type: "task", id: blocked.id }, "blocks");
+  await recordWrite(deps, actor, { entityType: "task", entityId: blocked.id, op: "update", version: blocked.version, verb: "task.blocked_by", data: { taskId: blocker.id, title: blocker.title },
+    event: "task.updated", eventData: { id: blocked.id, change: "dependency_added", blockedBy: blocker.id } });
+  return dependenciesOf(deps, actor.orgId, blocked.id);
+}
+
+export async function removeDependency(deps: Deps, actor: SuiteActor, taskIdOrRef: string, blockedByIdOrRef: string) {
+  assertWritable(actor);
+  const blocked = await resolveTaskId(deps, actor.orgId, taskIdOrRef);
+  const blocker = await resolveTaskId(deps, actor.orgId, blockedByIdOrRef);
+  await taskRow(deps, actor.orgId, blocked);
+  await unlink(deps, actor.orgId, { type: "task", id: blocker }, { type: "task", id: blocked });
+  await recordWrite(deps, actor, { entityType: "task", entityId: blocked, op: "update", verb: "task.unblocked", data: { taskId: blocker },
+    event: "task.updated", eventData: { id: blocked, change: "dependency_removed", blockedBy: blocker } });
+  return dependenciesOf(deps, actor.orgId, blocked);
 }
 
 // ---------------------------------------------------------------- saved views and people
