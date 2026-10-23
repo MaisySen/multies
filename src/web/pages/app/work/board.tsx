@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
@@ -8,7 +8,7 @@ import { Bot, CheckSquare, Flag, Mail, MessageSquare, Plus } from "lucide-react"
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type Project, type Task } from "./data";
+import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task } from "./data";
 
 export function TaskCard({ t, onOpen, dragging }: { t: Task; onOpen?: () => void; dragging?: boolean }) {
   return (
@@ -60,25 +60,40 @@ function Column({ id, title, color, count, children, onAdd }: { id: string; titl
 }
 
 /** Kanban: columns are the project's statuses. Drag a card to move or reorder it. */
-export function Board({ project, tasks, onOpen, onMove, onAdd }: {
+export const NO_VALUE = "__none";
+
+/**
+ * Kanban: columns are the project's statuses, or the options of a single select field when
+ * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
+ */
+export function Board({ project, tasks, onOpen, onMove, onAdd, groupBy }: {
   project: Project; tasks: Task[]; onOpen: (id: string) => void;
-  onMove: (id: string, statusId: string, position: number) => void; onAdd: (statusId: string) => void;
+  onMove: (id: string, columnId: string, position: number) => void; onAdd: (columnId: string) => void;
+  groupBy?: CustomField;
 }) {
+  const cols = useMemo(() => groupBy
+    ? [...groupBy.options.map((o) => ({ id: o.id, name: o.label, color: o.color })), { id: NO_VALUE, name: `No ${groupBy.name.toLowerCase()}`, color: "#8a8f98" }]
+    : project.statuses.map((s) => ({ id: s.id, name: s.name, color: s.color })), [groupBy, project.statuses]);
+  const keyOf = useCallback((t: Task) => {
+    if (!groupBy) return t.statusId;
+    const v = t.fields?.[groupBy.id];
+    return typeof v === "string" && groupBy.options.some((o) => o.id === v) ? v : NO_VALUE;
+  }, [groupBy]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const [activeId, setActiveId] = useState<string | null>(null);
   // Local column assignment while dragging, so the card shows in the column it hovers.
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const columns = useMemo(() => {
-    const by: Record<string, Task[]> = Object.fromEntries(project.statuses.map((s) => [s.id, []]));
-    for (const t of tasks) { const sid = overrides[t.id] ?? t.statusId; (by[sid] ??= []).push(t); }
+    const by: Record<string, Task[]> = Object.fromEntries(cols.map((s) => [s.id, []]));
+    for (const t of tasks) { const sid = overrides[t.id] ?? keyOf(t); (by[sid] ??= []).push(t); }
     for (const list of Object.values(by)) list.sort((a, b) => a.position - b.position);
     return by;
-  }, [project.statuses, tasks, overrides]);
+  }, [cols, tasks, overrides, keyOf]);
   const statusOf = (id: string | number) => {
     const s = String(id);
     if (s.startsWith("col:")) return s.slice(4);
     const t = tasks.find((x) => x.id === s);
-    return t ? overrides[t.id] ?? t.statusId : undefined;
+    return t ? overrides[t.id] ?? keyOf(t) : undefined;
   };
   const active = tasks.find((t) => t.id === activeId);
 
@@ -101,20 +116,20 @@ export function Board({ project, tasks, onOpen, onMove, onAdd }: {
       const overIndex = list.findIndex((t) => t.id === String(e.over!.id));
       if (overIndex >= 0) {
         const original = tasks.find((t) => t.id === id);
-        const sameCol = original?.statusId === to;
+        const sameCol = original ? keyOf(original) === to : false;
         const oldIndex = sameCol ? (columns[to] ?? []).findIndex((t) => t.id === id) : -1;
         index = sameCol && oldIndex >= 0 && oldIndex <= overIndex ? overIndex + 1 : overIndex;
       }
     }
     const position = positionBetween(list[index - 1]?.position, list[index]?.position);
     const t = tasks.find((x) => x.id === id);
-    if (t && (t.statusId !== to || Math.abs(t.position - position) > 1e-9)) onMove(id, to, position);
+    if (t && (keyOf(t) !== to || Math.abs(t.position - position) > 1e-9)) onMove(id, to, position);
   };
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverrides({}); }}>
       <div className="flex h-full gap-3 overflow-x-auto pb-4" data-testid="board">
-        {project.statuses.map((s) => (
+        {cols.map((s) => (
           <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}>
             <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} onOpen={() => onOpen(t.id)} />)}

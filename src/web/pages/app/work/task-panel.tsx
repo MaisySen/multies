@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { FieldInput } from "./fields";
+import { TaskFiles } from "./task-files";
 import { Link, useNavigate } from "react-router";
 import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
@@ -119,6 +121,19 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px]" /></dd>
           </dl>
 
+          {(q.data!.customFields?.length ?? 0) > 0 && (
+            <section className="mt-4" aria-label="Custom fields">
+              <dl className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
+                {q.data!.customFields!.map((f) => (
+                  <Fragment key={f.id}>
+                    <dt className="truncate text-subtle" title={f.name}>{f.name}</dt>
+                    <dd><FieldInput field={f} value={t.fields?.[f.id]} people={people.data ?? []} onSave={(v) => save({ fields: { [f.id]: v } })} /></dd>
+                  </Fragment>
+                ))}
+              </dl>
+            </section>
+          )}
+
           <Textarea aria-label="Notes" placeholder="Add notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && save({ notes })} className="mt-4 min-h-24 text-[13.5px]" />
 
           {t.source && (
@@ -164,6 +179,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               <Input aria-label="New subtask" placeholder="Add a subtask and press Enter" value={sub} onChange={(e) => setSub(e.target.value)} className="h-8 text-[13px]" />
             </form>
           </section>
+
+          <TaskFiles taskId={t.id} />
 
           {q.data!.docs.length > 0 && (
             <section className="mt-6" aria-label="Docs">

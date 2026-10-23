@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, Trash2, X } from "lucide-react";
+import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -10,10 +10,12 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
-import { Board } from "./board";
+import { Board, NO_VALUE } from "./board";
+import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
+import { GuestsDialog } from "./guests";
 import { TaskList } from "./list";
 import { TaskPanel } from "./task-panel";
-import { PRIORITY_LABEL, sk, useAssignees, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
@@ -41,7 +43,13 @@ export function TasksPage() {
   const project = list.find((p) => p.id === projectId);
   const openId = params.get("task");
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as Record<(typeof FILTER_KEYS)[number], string | undefined>;
-  const tasks = useTasks({ projectId: projectId || undefined, ...filters }, { enabled: !projects.isPending });
+  const fieldDefs = useFields(projectId || undefined);
+  const fields = fieldDefs.data ?? [];
+  const fieldFilters = [...params.entries()].filter(([k]) => k.startsWith("field."));
+  const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
+  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [guestsOpen, setGuestsOpen] = useState(false);
+  const tasks = useTasks({ projectId: projectId || undefined, ...filters, ...Object.fromEntries(fieldFilters) }, { enabled: !projects.isPending });
   const deps = useQuery({ queryKey: ["task-deps", projectId], enabled: view === "timeline", queryFn: async () => (await api.get<{ links: { from: string; to: string }[] }>(`/tasks/dependencies${projectId ? `?projectId=${projectId}` : ""}`)).links });
   const addLink = useCallback(async (blocker: string, blocked: string) => {
     try { await api.post(`/tasks/${blocked}/dependencies`, { blockedBy: blocker }); } catch (e) { showError(e as Error); }
@@ -79,6 +87,8 @@ export function TasksPage() {
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" />Fields</Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" />Guests</Button>}
         <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Project</Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg border border-line bg-surface p-0.5">
@@ -106,7 +116,20 @@ export function TasksPage() {
         <Select aria-label="Status filter" value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Any status</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
         </Select>
-        {activeFilters.length > 0 && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries(FILTER_KEYS.map((k) => [k, null])))}><X className="h-3.5 w-3.5" />Clear</Button>}
+        {fieldFilters.map(([k, v]) => (
+          <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
+            {describeFilter(fields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
+            <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><X className="h-3 w-3" /></button>
+          </span>
+        ))}
+        {project && <FieldFilterPicker fields={fields} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
+        {view === "board" && project && fields.some((f) => f.type === "select") && (
+          <Select aria-label="Group board by" value={groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
+            <option value="">Group by status</option>
+            {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>Group by {f.name}</option>)}
+          </Select>
+        )}
+        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><X className="h-3.5 w-3.5" />Clear</Button>}
         <Menu align="end" trigger={<Button variant="secondary" size="sm"><Bookmark className="h-3.5 w-3.5" />Saved views<ChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
           {(views.data ?? []).map((v) => (
@@ -118,14 +141,18 @@ export function TasksPage() {
         </Menu>
       </div>
 
+      {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={fields} open onClose={() => setFieldsOpen(false)} />}
+      {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
       <div className="min-h-0 flex-1">
         {!list.length ? (
           <EmptyState icon={<KanbanSquare />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
         ) : tasks.isPending ? <Skeleton className="h-64" /> : view === "board" && project ? (
-          <Board project={project} tasks={tasks.data ?? []} onOpen={open} onAdd={(statusId) => setNewTask({ statusId })}
-            onMove={(id, statusId, position) => update.mutate({ id, patch: { statusId, position, status: project.statuses.find((s) => s.id === statusId)?.category, statusName: project.statuses.find((s) => s.id === statusId)?.name } })} />
+          <Board project={project} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} onAdd={(col) => setNewTask(groupField ? {} : { statusId: col })}
+            onMove={(id, col, position) => groupField
+              ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
+              : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
         ) : view === "list" || (view === "board" && !project) ? (
-          <TaskList tasks={tasks.data ?? []} projects={list} onOpen={open} onToggle={toggle} />
+          <TaskList tasks={tasks.data ?? []} projects={list} onOpen={open} onToggle={toggle} fields={project ? fields : []} people={people.data ?? []} />
         ) : (
           <Suspense fallback={<Skeleton className="h-96" />}>
             {view === "calendar"

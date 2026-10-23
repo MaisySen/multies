@@ -16,7 +16,13 @@ export interface Task {
   source: { threadId: string | null; messageId: string | null; from: string; subject: string } | null;
   subtasks: { total: number; done: number }; commentCount: number; completedAt: string | null;
   createdBy: { type: string; id: string | null }; createdAt: string; updatedAt: string; version: number;
+  fields?: Record<string, FieldValue>;
 }
+export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url";
+export type FieldValue = string | number | boolean | string[] | null;
+export interface FieldOption { id: string; label: string; color: string }
+export interface CustomField { id: string; projectId: string; name: string; type: FieldType; options: FieldOption[]; position: number }
+export interface TaskFile { id: string; filename: string; contentType: string; sizeBytes: number; uploadedBy: { type: string; name: string }; createdAt: string }
 export interface Comment { id: string; body: string; author: { type: string; id: string | null; name: string }; createdAt: string }
 export interface ActivityEntry { id: string; actor: { type: string; id: string | null; name: string | null }; verb: string; data: Record<string, unknown>; at: string }
 export interface ThreadMessage { id: string; mailboxId: string; direction: "inbound" | "outbound"; from: { address: string; name: string }; subject: string; date: string; latestText: string; byAgent: boolean }
@@ -27,6 +33,7 @@ export interface Contact {
 export interface TaskDetail {
   task: Task; subtasks: Task[]; comments: Comment[]; thread: ThreadMessage[]; activity: ActivityEntry[]; docs: { id: string; title: string; updatedAt: string }[]; contacts: Contact[];
   blockedBy?: Task[]; blocking?: Task[]; time?: { totalSeconds: number; entries: import("./time").TimeEntry[] };
+  customFields?: CustomField[];
 }
 export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null }
 export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
@@ -45,6 +52,8 @@ export const sk = {
 
 export const useProjects = () => useQuery({ queryKey: sk.projects, queryFn: async () => (await api.get<{ projects: Project[] }>("/projects")).projects, staleTime: 30_000 });
 export const useAssignees = () => useQuery({ queryKey: sk.assignees, queryFn: async () => (await api.get<{ assignees: AssigneeOption[] }>("/tasks/assignees")).assignees, staleTime: 120_000 });
+export const useFields = (projectId: string | undefined) =>
+  useQuery({ queryKey: ["fields", projectId ?? ""], enabled: !!projectId, staleTime: 30_000, queryFn: async () => (await api.get<{ fields: CustomField[] }>(`/fields?projectId=${projectId}`)).fields });
 export const useViews = () => useQuery({ queryKey: sk.views, queryFn: async () => (await api.get<{ views: SavedView[] }>("/tasks/views")).views });
 
 export function useTasks(f: Record<string, string | undefined>, opts: { enabled?: boolean } = {}) {
@@ -65,7 +74,8 @@ export function useTaskMutations() {
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
       const snapshots = qc.getQueriesData<Task[]>({ queryKey: ["tasks"] });
-      for (const [key, list] of snapshots) if (list) qc.setQueryData<Task[]>(key, list.map((t) => (t.id === id ? { ...t, ...(patch as Partial<Task>) } : t)));
+      const merge = (t: Task) => ({ ...t, ...(patch as Partial<Task>), ...(patch.fields ? { fields: { ...t.fields, ...(patch.fields as Record<string, FieldValue>) } } : {}) });
+      for (const [key, list] of snapshots) if (list) qc.setQueryData<Task[]>(key, list.map((t) => (t.id === id ? merge(t) : t)));
       return { snapshots };
     },
     onError: (e, _v, ctx) => { for (const [key, list] of ctx?.snapshots ?? []) qc.setQueryData(key, list); showError(e as Error); },

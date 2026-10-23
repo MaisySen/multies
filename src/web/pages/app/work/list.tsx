@@ -3,12 +3,23 @@ import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Col
 import { ArrowDown, ArrowUp, Bot, CheckCircle2, Circle, Mail } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
-import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type Priority, type Project, type Task } from "./data";
+import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task } from "./data";
+import { FieldCell, formatValue } from "./fields";
+
+/** A sort key for a custom field value: numbers as numbers, select by option order, empty last. */
+function fieldSortKey(f: CustomField, t: Task, people: AssigneeOption[]): string | number {
+  const v = t.fields?.[f.id];
+  if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length)) return f.type === "number" || f.type === "currency" ? Number.MAX_SAFE_INTEGER : "\uffff";
+  if (f.type === "number" || f.type === "currency") return Number(v);
+  if (f.type === "checkbox") return v ? 0 : 1;
+  if (f.type === "select") return String(f.options.findIndex((o) => o.id === v)).padStart(3, "0");
+  return formatValue(f, v, people).toLowerCase();
+}
 
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
 
 /** The list view: a sortable table (TanStack Table). */
-export function TaskList({ tasks, projects, onOpen, onToggle }: { tasks: Task[]; projects: Project[]; onOpen: (id: string) => void; onToggle: (t: Task) => void }) {
+export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], people = [] }: { tasks: Task[]; projects: Project[]; onOpen: (id: string) => void; onToggle: (t: Task) => void; fields?: CustomField[]; people?: AssigneeOption[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const pname = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
   const columns = useMemo<ColumnDef<Task>[]>(() => [
@@ -41,10 +52,14 @@ export function TaskList({ tasks, projects, onOpen, onToggle }: { tasks: Task[];
     { id: "priority", header: "Priority", accessorFn: (t) => PRIORITY_RANK[t.priority], cell: ({ row }) => <span className={PRIORITY_COLOR[row.original.priority]}>{row.original.priority === "none" ? "" : PRIORITY_LABEL[row.original.priority]}</span> },
     { id: "due", header: "Due", accessorFn: (t) => t.due ?? "9999", cell: ({ row }) => <span className={cn("whitespace-nowrap", isOverdue(row.original) && "text-bad")}>{dueLabel(row.original.due) ?? ""}</span> },
     { id: "project", header: "Project", accessorFn: (t) => pname.get(t.projectId)?.name ?? "", cell: ({ getValue }) => <span className="whitespace-nowrap text-muted">{String(getValue())}</span> },
+    ...fields.map<ColumnDef<Task>>((f) => ({
+      id: `field:${f.id}`, header: f.name, sortUndefined: "last", accessorFn: (t) => fieldSortKey(f, t, people),
+      cell: ({ row }) => <FieldCell field={f} value={row.original.fields?.[f.id]} people={people} />,
+    })),
     { id: "updated", header: "Updated", accessorFn: (t) => t.updatedAt, cell: ({ row }) => <span className="whitespace-nowrap text-subtle">{timeAgo(row.original.updatedAt)}</span> },
-  ], [pname, onToggle]);
+  ], [pname, onToggle, fields, people]);
   const table = useReactTable({ data: tasks, columns, state: { sorting }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() });
-  const hideOnPhone = new Set(["project", "updated", "assignee", "priority"]);
+  const hideOnPhone = new Set(["project", "updated", "assignee", "priority", ...fields.slice(2).map((f) => `field:${f.id}`)]);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-line" data-testid="task-list">
@@ -72,7 +87,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle }: { tasks: Task[];
               {r.getVisibleCells().map((c) => <td key={c.id} className={cn("px-3 py-2.5", hideOnPhone.has(c.column.id) && "hidden md:table-cell", c.column.id === "title" && "max-w-[420px]")}>{flexRender(c.column.columnDef.cell, c.getContext())}</td>)}
             </tr>
           ))}
-          {tasks.length === 0 && <tr><td colSpan={8} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
+          {tasks.length === 0 && <tr><td colSpan={8 + fields.length} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
         </tbody>
       </table>
     </div>
