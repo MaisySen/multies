@@ -6,12 +6,13 @@ import { hasSession, type Jar } from "./cookies";
 import { secureStorage } from "./storage";
 import { kv } from "./kv";
 import type { Me } from "@/api/types";
+import { JAR_KEY, MODE_KEY } from "./session-keys";
+import { registerPush, unregisterPush } from "./push";
+import { LEGACY_KEY } from "./tasks";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
 
-const JAR_KEY = "mymail.cookies";
-const MODE_KEY = "mymail.mode";
 
 interface SessionValue {
   status: Status;
@@ -48,8 +49,8 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     jarRef.current = {};
     await secureStorage.remove(JAR_KEY).catch(() => {});
     await secureStorage.remove(MODE_KEY).catch(() => {});
-    await kv().clear("list:").catch(() => {});
-    await kv().clear("thread:").catch(() => {});
+    // Nothing from one account stays on the phone for the next one.
+    for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:", LEGACY_KEY]) await kv().clear(prefix).catch(() => {});
     setMe(null);
   }, []);
 
@@ -81,6 +82,13 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     return () => { cancelled = true; };
   }, [initialMode, live, sample, transportOverride]);
 
+  // Once signed in (and at each launch, as tokens can change), register this phone for push if
+  // notifications are already allowed. Never prompts here: the Settings button does that.
+  useEffect(() => {
+    if (status !== "signedIn" || mode !== "live" || transportOverride) return;
+    registerPush(endpoints(live)).catch(() => {});
+  }, [status, mode, live, transportOverride]);
+
   const value = useMemo<SessionValue>(() => ({
     status, mode, api, transport, me,
     async signIn(email, password) {
@@ -109,7 +117,11 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
       setStatus("signedIn");
     },
     async signOut() {
-      if (mode === "live") await endpoints(live).signOut().catch(() => {});
+      if (mode === "live") {
+        // Remove this phone's push token while the session still works, then end the session.
+        await unregisterPush(endpoints(live)).catch(() => {});
+        await endpoints(live).signOut().catch(() => {});
+      }
       await clearLocal();
       setMode("live");
       setStatus("signedOut");

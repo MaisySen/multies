@@ -9,6 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SessionProvider, useSession } from "@/lib/session";
 import { configureNotifications } from "@/lib/push";
+import { extractPushData, routeForPush } from "@/lib/push-events";
+import "@/lib/push-task";
 import { SAMPLE_ONLY } from "@/config";
 import { colors } from "@/theme";
 
@@ -38,15 +40,21 @@ function Navigator({ client }: { client: QueryClient }) {
   // Never show one account's mail to another session.
   useEffect(() => { client.clear(); }, [mode, status === "signedOut", client]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tapping a notification opens the screen it is about.
+  // Tapping a notification opens the screen it is about: a local one carries its url, a server
+  // push carries { type, id }. A tap that launched the app is read once sign in is restored.
   useEffect(() => {
-    if (Platform.OS === "web") return;
-    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
-      const url = r.notification.request.content.data?.url;
-      if (typeof url === "string" && url.startsWith("/")) router.push(url as never);
-    });
+    if (Platform.OS === "web" || status !== "signedIn") return;
+    const open = (r: Notifications.NotificationResponse | null) => {
+      if (!r) return;
+      const data = r.notification.request.content.data as Record<string, unknown> | undefined;
+      const push = extractPushData(data) ?? extractPushData(r.notification.request.trigger);
+      const url = typeof data?.url === "string" ? data.url : push ? routeForPush(push) : null;
+      if (url && url.startsWith("/")) router.push(url as never);
+    };
+    Notifications.getLastNotificationResponseAsync().then((r) => { open(r); Notifications.clearLastNotificationResponseAsync?.().catch(() => {}); }).catch(() => {});
+    const sub = Notifications.addNotificationResponseReceivedListener(open);
     return () => sub.remove();
-  }, []);
+  }, [status]);
 
   if (status === "loading") return null;
   const signedIn = status === "signedIn";

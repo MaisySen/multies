@@ -15,8 +15,13 @@ jest.mock("expo-notifications", () => ({
   getExpoPushTokenAsync: jest.fn(async () => ({ data: "ExponentPushToken[test]" })),
   scheduleNotificationAsync: jest.fn(async () => "id"),
   addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  registerTaskAsync: jest.fn(async () => null),
   AndroidImportance: { DEFAULT: 3, HIGH: 4 },
+  BackgroundNotificationTaskResult: { NewData: 0, NoData: 1, Failed: 2 },
 }));
+jest.mock("expo-task-manager", () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => false) }));
+jest.mock("expo-device", () => ({ isDevice: true }));
 jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(async () => {}), notificationAsync: jest.fn(async () => {}),
   ImpactFeedbackStyle: { Medium: "medium" }, NotificationFeedbackType: { Success: "success" },

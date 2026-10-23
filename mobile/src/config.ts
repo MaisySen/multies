@@ -19,13 +19,15 @@ function flag(name: string, fallback: boolean) {
 
 /**
  * Feature flags.
- * tasks: the web API has no tasks endpoints yet, so tasks live on this device until it does.
- * pushServer: registers the device's push token with the API. Off until the API has
- * POST /api/push/devices (see docs/push.md).
+ * tasks: the Tasks tab and "Make task" on a thread, backed by /api/tasks.
+ * pushServer: registers this phone's push token with POST /api/push/devices after sign in. On by
+ * default. Harmless when the server has push switched off (it keeps the token and sends nothing)
+ * or when the build has no EAS project id (no token is fetched at all). EXPO_PUBLIC_FEATURE_PUSH_SERVER=0
+ * turns it off for a build.
  */
 export const FEATURES = {
   tasks: flag("EXPO_PUBLIC_FEATURE_TASKS", true),
-  pushServer: flag("EXPO_PUBLIC_FEATURE_PUSH_SERVER", false),
+  pushServer: flag("EXPO_PUBLIC_FEATURE_PUSH_SERVER", true),
 };
 
 export const LINKS = {

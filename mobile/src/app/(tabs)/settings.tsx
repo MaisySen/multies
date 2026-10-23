@@ -7,7 +7,7 @@ import * as Localization from "expo-localization";
 import { Avatar, Badge, Card, Row, SectionTitle } from "@/components/ui";
 import { useSession } from "@/lib/session";
 import { useOverview } from "@/lib/queries";
-import { enablePush, permissionGranted, type PushState } from "@/lib/push";
+import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
 import { API_BASE, LINKS } from "@/config";
@@ -23,15 +23,18 @@ export default function Settings() {
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
 
   const turnOnPush = async () => {
-    const r = await enablePush(mode === "live" ? api : null);
+    const r = await registerPush(mode === "live" ? api : null, { prompt: true });
     setPush(r);
     setAllowed(r.kind === "allowed");
     if (r.kind === "denied") Alert.alert("Notifications are off", "Turn them on for MyMail in your phone's Settings app.");
   };
-  const clearCache = async () => { await kv().clear("list:"); await kv().clear("thread:"); await kv().clear("meta:"); Alert.alert("Done", "Saved mail is cleared from this phone."); };
+  const clearCache = async () => {
+    for (const p of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(p);
+    Alert.alert("Done", "Saved mail and tasks are cleared from this phone.");
+  };
   const confirmSignOut = () => {
     if (Platform.OS === "web") return signOut();
-    Alert.alert("Sign out?", "Mail saved on this phone is removed when you sign out.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => signOut() }]);
+    Alert.alert("Sign out?", "Mail and tasks saved on this phone are removed when you sign out.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => signOut() }]);
   };
   const open = (url: string) => WebBrowser.openBrowserAsync(url);
   const locale = Localization.getLocales()[0];

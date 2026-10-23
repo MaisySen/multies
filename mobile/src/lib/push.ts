@@ -3,15 +3,22 @@ import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { EAS_PROJECT_ID, FEATURES } from "@/config";
 import type { Api } from "@/api/endpoints";
+import type { PushData } from "@/api/types";
+import { secureStorage } from "./storage";
+import { describePush, routeForPush } from "./push-events";
 
 /**
- * Notifications for new mail and approval requests.
- * Push from the server needs three things the owner supplies (docs/push.md): an EAS project id,
- * Firebase credentials for Android and an APNs key for iOS, plus the small API endpoint behind
- * FEATURES.pushServer. Until then the app checks for new approvals while open and raises a local
- * notification, which needs none of those.
+ * Notifications for new mail, approval requests and tasks.
+ *
+ * Server push needs things only the owner can supply (docs/push.md): an EAS project id, Firebase
+ * credentials for Android and an APNs key for iOS. Without them, or while the server has push
+ * switched off, nothing here fails: the phone token step is skipped or the server stores the token
+ * and sends nothing, and the app still checks for new approvals every 30 s while open.
  */
-export const CHANNELS = { mail: "mail", approvals: "approvals" } as const;
+export const CHANNELS = { mail: "mail", approvals: "approvals", tasks: "tasks" } as const;
+
+/** Where the token this phone registered is kept, so sign out can remove it from the server. */
+export const PUSH_TOKEN_KEY = "mymail.pushToken";
 
 export function configureNotifications() {
   Notifications.setNotificationHandler({
@@ -20,13 +27,14 @@ export function configureNotifications() {
   if (Platform.OS === "android") {
     Notifications.setNotificationChannelAsync(CHANNELS.mail, { name: "New mail", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#ff6a3d" }).catch(() => {});
     Notifications.setNotificationChannelAsync(CHANNELS.approvals, { name: "Agent approvals", description: "When an agent asks to send a message", importance: Notifications.AndroidImportance.HIGH, lightColor: "#ff6a3d" }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.tasks, { name: "Tasks", description: "Assigned tasks, comments, replies and due dates", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#ff6a3d" }).catch(() => {});
   }
 }
 
 export type PushState =
   | { kind: "unsupported"; reason: string }
   | { kind: "denied" }
-  | { kind: "allowed"; token: string | null; registered: boolean; note: string };
+  | { kind: "allowed"; token: string | null; registered: boolean; serverSends: boolean; note: string };
 
 export async function permissionGranted(): Promise<boolean> {
   if (Platform.OS === "web") return false;
@@ -34,29 +42,57 @@ export async function permissionGranted(): Promise<boolean> {
   return p.granted;
 }
 
-export async function enablePush(api: Api | null): Promise<PushState> {
+/**
+ * Registers this phone with the server for push. With `prompt` it asks for permission first (the
+ * Settings button); without it, it only goes ahead when permission was already given (after sign in).
+ */
+export async function registerPush(api: Api | null, opts: { prompt?: boolean } = {}): Promise<PushState> {
   if (Platform.OS === "web") return { kind: "unsupported", reason: "Notifications work in the iPhone and Android app." };
   const current = await Notifications.getPermissionsAsync();
-  const granted = current.granted || (await Notifications.requestPermissionsAsync()).granted;
+  const granted = current.granted || (opts.prompt ? (await Notifications.requestPermissionsAsync()).granted : false);
   if (!granted) return { kind: "denied" };
-  if (!Device.isDevice) return { kind: "allowed", token: null, registered: false, note: "Alerts on, while the app is open. Push needs a real phone." };
-  if (!EAS_PROJECT_ID) return { kind: "allowed", token: null, registered: false, note: "Alerts on, while the app is open. Push from the server is not set up yet." };
+  const local = (note: string): PushState => ({ kind: "allowed", token: null, registered: false, serverSends: false, note });
+  if (!Device.isDevice) return local("Alerts on, while the app is open. Push needs a real phone.");
+  if (!EAS_PROJECT_ID) return local("Alerts on, while the app is open. Push from the server is not set up yet.");
+  let token: string;
   try {
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
-    let registered = false;
-    if (FEATURES.pushServer && api) {
-      registered = await registerDevice(api, token).then(() => true, () => false);
-    }
-    return { kind: "allowed", token, registered, note: registered ? "Push is on for new mail and approvals." : "Alerts on, while the app is open. The server doesn't send push yet." };
+    token = (await Notifications.getExpoPushTokenAsync({ projectId: EAS_PROJECT_ID })).data;
   } catch {
-    return { kind: "allowed", token: null, registered: false, note: "Alerts on, while the app is open. Push credentials are not set up yet." };
+    return local("Alerts on, while the app is open. Push credentials are not set up yet.");
+  }
+  if (!FEATURES.pushServer || !api) return { kind: "allowed", token, registered: false, serverSends: false, note: "Alerts on, while the app is open." };
+  try {
+    const r = await api.registerPushDevice(token, Platform.OS === "ios" ? "ios" : "android");
+    await secureStorage.set(PUSH_TOKEN_KEY, token).catch(() => {});
+    return {
+      kind: "allowed", token, registered: true, serverSends: r.enabled,
+      note: r.enabled ? "Push is on for new mail, approvals and tasks." : "This phone is registered. Push starts when MyMail switches it on.",
+    };
+  } catch {
+    return { kind: "allowed", token, registered: false, serverSends: false, note: "Alerts on, while the app is open. Couldn't reach MyMail to register this phone." };
   }
 }
 
-/** Calls the endpoint described in docs/push.md. Only used when FEATURES.pushServer is on. */
-async function registerDevice(api: Api, token: string) {
-  await api.registerPushDevice(token, Platform.OS);
+/** Removes this phone's token from the server. Called at sign out, before the session ends. */
+export async function unregisterPush(api: Api | null): Promise<boolean> {
+  if (Platform.OS === "web") return false;
+  const token = await secureStorage.get(PUSH_TOKEN_KEY).catch(() => null);
+  if (!token) return false;
+  await secureStorage.remove(PUSH_TOKEN_KEY).catch(() => {});
+  if (!api) return false;
+  return api.unregisterPushDevice(token).then(() => true, () => false);
 }
+
+/** Shows a notification for a server push, worded from the item the app fetched. */
+export async function presentPush(api: Api | null, d: PushData) {
+  if (Platform.OS === "web") return;
+  const text = await describePush(api, d);
+  await Notifications.scheduleNotificationAsync({
+    content: { title: text.title, body: text.body, data: { url: routeForPush(d), type: d.type, id: d.id } },
+    trigger: Platform.OS === "android" ? { channelId: text.channel } : null,
+  });
+}
+
 export async function notifyApprovals(count: number, firstSubject?: string) {
   if (Platform.OS === "web" || !(await permissionGranted())) return;
   await Notifications.scheduleNotificationAsync({
