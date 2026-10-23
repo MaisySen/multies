@@ -24,6 +24,12 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 upload_source_maps = true
 
+# Smart Placement: requests that make several database calls run next to the D1 primary
+# (Oceania) instead of next to each visitor. Measured from the US before this: 1.4 s for an
+# API read with 7 round trips to Sydney. Free on every plan; inherited by staging.
+[placement]
+mode = "smart"
+
 [assets]
 directory = "dist/worker"
 binding = "ASSETS"
