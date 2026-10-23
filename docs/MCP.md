@@ -3,6 +3,10 @@
 MyMail runs a Model Context Protocol server, so Claude, ChatGPT (through the OpenAI API), Cursor
 and any MCP client can work an inbox directly.
 
+Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. MyMail never pays for
+or resells AI model calls. People who want the assistant inside webmail add their own OpenAI,
+Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at rest.
+
 - URL: `https://mymail.mymail-app.workers.dev/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
 - Auth: `Authorization: Bearer <key>`.
