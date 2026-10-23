@@ -4,6 +4,7 @@
  * field, so lists can filter and sort on them in SQL.
  */
 import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
+import { hasScheme, isHexColour, isIsoDate, isSafeToken } from "../../lib/input-checks";
 import type { Deps } from "../../context";
 import { agents, customFields, members, projects, taskFieldValues, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -36,7 +37,7 @@ function mergeOptions(type: FieldType, input: { id?: string; label: string; colo
     if (!label || seen.has(label.toLowerCase())) return;
     seen.add(label.toLowerCase());
     const prev = existing.find((e) => (o.id && e.id === o.id)) ?? existing.find((e) => e.label.toLowerCase() === label.toLowerCase());
-    out.push({ id: prev?.id ?? optionId(), label, color: /^#[0-9a-fA-F]{6}$/.test(o.color ?? "") ? o.color! : prev?.color ?? OPTION_COLOURS[i % OPTION_COLOURS.length] });
+    out.push({ id: prev?.id ?? optionId(), label, color: isHexColour(o.color) ? o.color : prev?.color ?? OPTION_COLOURS[i % OPTION_COLOURS.length] });
   });
   if (out.length > 50) throw new HttpError(422, "validation_failed", "A field can have up to 50 options.");
   return out;
@@ -127,7 +128,7 @@ export async function deleteField(deps: Deps, actor: SuiteActor, id: string) {
 
 // ---------------------------------------------------------------- values
 
-const isDate = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
+const isDate = isIsoDate;
 const bad = (field: Field, msg: string) => new HttpError(422, "invalid_field_value", `${field.name}: ${msg}`);
 
 /** Checks and converts one value for storage. Null, "" and [] clear the value. */
@@ -140,7 +141,7 @@ export async function encodeValue(deps: Deps, orgId: string, field: Field, value
     }
     case "url": {
       if (typeof value !== "string") throw bad(field, "expected a link.");
-      const v = /^[a-z][a-z0-9+.-]*:/i.test(value.trim()) ? value.trim() : `https://${value.trim()}`;
+      const v = hasScheme(value.trim()) ? value.trim() : `https://${value.trim()}`;
       let u: URL;
       try { u = new URL(v); } catch { throw bad(field, "that link doesn't look right."); }
       if (u.protocol !== "https:" && u.protocol !== "http:" && u.protocol !== "mailto:") throw bad(field, "links must start with https, http or mailto.");
@@ -175,7 +176,9 @@ export async function encodeValue(deps: Deps, orgId: string, field: Field, value
       return { valueText: JSON.stringify([...new Set(ids as string[])]), valueNum: null };
     }
     case "person": {
-      const m = String(value).match(/^(member|agent):([A-Za-z0-9_-]+)$/);
+      const raw = String(value);
+      const kind = raw.slice(0, raw.indexOf(":"));
+      const m = (kind === "member" || kind === "agent") && isSafeToken(raw.slice(kind.length + 1)) ? [raw, kind, raw.slice(kind.length + 1)] as const : null;
       if (!m) throw bad(field, "expected member:<id> or agent:<id>.");
       const ok = m[1] === "member"
         ? await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, m[2]))).get()
@@ -255,7 +258,7 @@ export function parseFieldFilters(query: Record<string, string | undefined>): Fi
   for (const [k, raw] of Object.entries(query)) {
     if (!k.startsWith("field.") || raw === undefined) continue;
     const fieldId = k.slice(6);
-    if (!/^[A-Za-z0-9_-]{1,64}$/.test(fieldId)) continue;
+    if (!isSafeToken(fieldId)) continue;
     const i = raw.indexOf(":");
     const head = i > 0 ? raw.slice(0, i) : raw;
     if ((FILTER_OPS as readonly string[]).includes(head)) out.push({ fieldId, op: head as FilterOp, value: i > 0 ? raw.slice(i + 1) : undefined });

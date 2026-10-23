@@ -8,6 +8,7 @@
  * session cookie; only SHA-256 hashes of both secrets are stored.
  */
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { isMimeType, isSafeToken, looksLikeEmail } from "../../lib/input-checks";
 import type { AuthContext, Deps } from "../../context";
 import { docs, organizations, projectGuests, taskFiles, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -49,7 +50,7 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   assertWritable(actor);
   const project = await getProject(deps, actor.orgId, projectId);
   const email = input.email.trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(422, "validation_failed", "That email address doesn't look right.");
+  if (!looksLikeEmail(email)) throw new HttpError(422, "validation_failed", "That email address doesn't look right.");
   const existing = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.projectId, project.id), eq(projectGuests.email, email))).get();
   if (!existing) {
     const count = (await listGuests(deps, actor.orgId, project.id)).length;
@@ -107,7 +108,7 @@ export async function revokeGuest(deps: Deps, actor: SuiteActor, guestId: string
 
 /** Trades an invite token for a session. Returns the cookie value. */
 export async function acceptInvite(deps: Deps, token: string) {
-  if (!/^[A-Za-z0-9_-]{20,100}$/.test(token)) throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
+  if (!isSafeToken(token, 20, 100)) throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   const g = await deps.db.select().from(projectGuests).where(eq(projectGuests.inviteHash, await sha256Hex(token))).get();
   const now = deps.now();
   if (!g || g.status === "revoked") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
@@ -127,7 +128,7 @@ export interface GuestContext { guest: GuestRow; actor: SuiteActor }
 export async function resolveGuest(deps: Deps, cookie: string | undefined): Promise<GuestContext | null> {
   if (!cookie) return null;
   const [id, secret] = cookie.split(".");
-  if (!id || !secret || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
+  if (!id || !secret || !isSafeToken(id)) return null;
   const g = await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get();
   if (!g || g.status !== "active" || !g.sessionHash || g.sessionHash !== await sha256Hex(secret)) return null;
   const now = deps.now();
@@ -214,7 +215,7 @@ export async function addFile(deps: Deps, actor: SuiteActor, taskIdOrRef: string
   if (file.bytes.length > limit) throw new HttpError(413, "file_too_large", `Files can be up to ${Math.round(limit / 1_000_000)} MB here.`);
   const now = deps.now();
   const fileId = sortableId("fil", now.getTime());
-  const contentType = /^[\w.+-]+\/[\w.+-]+$/.test(file.type) ? file.type.slice(0, 100) : "application/octet-stream";
+  const contentType = isMimeType(file.type) ? file.type.slice(0, 100) : "application/octet-stream";
   let contentB64: string | null = null, storageKey: string | null = null;
   if (file.bytes.length > INLINE_FILE_LIMIT && store) {
     storageKey = `task-files/${actor.orgId}/${fileId}`;
