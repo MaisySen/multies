@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 
+
+
 /**
  * Round 8 end to end: a custom field set on a task and used as a filter, a guest invited to a
  * project who sees only that project, and the portfolio table. Co-editing is in collab.spec.ts.
@@ -106,4 +108,52 @@ test("the portfolio shows every project with progress and health", async ({ page
   await expect(row.getByRole("progressbar")).toBeVisible();
   await row.getByRole("combobox", { name: "Health of Blue Harbor move" }).selectOption("on_track");
   await expect.poll(async () => ((await (await page.request.get("/api/portfolio")).json()).projects as { name: string; health: string }[]).find((p) => p.name === "Blue Harbor move")?.health).toBe("on_track");
+});
+
+test("an agent's guest invite waits in the approval queue until a person approves it", async ({ page, request, browser }) => {
+  const project = await demo(page);
+  await page.goto("/app/settings/developers");
+  await page.getByRole("button", { name: "Create API key" }).click();
+  await page.getByRole("dialog").getByLabel("Name").fill("Agents");
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  const workspaceKey = (await page.getByRole("dialog", { name: "Copy your API key" }).locator("code").first().textContent())!.trim();
+  const made = await request.post("/api/v1/agents", { headers: { authorization: `Bearer ${workspaceKey}` }, data: { name: "Client bot", localPart: `clients${Date.now() % 100000}` } });
+  expect(made.status()).toBe(201);
+  const { apiKey } = await made.json();
+
+  const email = `kai.${Date.now()}@example.com`;
+  const res = await request.post("/api/v1/mcp", {
+    headers: { authorization: `Bearer ${apiKey.secret}`, accept: "application/json, text/event-stream" },
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "invite_guest", arguments: { projectId: project.id, email, name: "Kai" } } },
+  });
+  expect(res.status()).toBe(200);
+  const out = JSON.parse((await res.json()).result.content[0].text);
+  expect(out.delivery.status).toBe("pending_approval");
+  expect(out.inviteUrl).toBeUndefined();
+
+  await page.goto(`/app/tasks?project=${project.id}&view=list`);
+  await page.getByRole("button", { name: "Guests" }).click();
+  const dialog = page.getByRole("dialog", { name: /Guests on/ });
+  await expect(dialog.getByRole("listitem").filter({ hasText: email })).toContainText("Waiting for approval");
+  await page.keyboard.press("Escape");
+
+  await page.goto("/app/approvals");
+  const card = page.getByRole("article", { name: /You're invited to Blue Harbor move/ }).filter({ hasText: email });
+  await expect(card).toBeVisible();
+  // The link is in the email the agent wrote. Before a person approves it, it opens nothing.
+  const link = (await card.textContent())!.match(/\/g\/[A-Za-z0-9_-]{20,100}/)![0];
+  const guestCtx = await browser.newContext();
+  const guest = await guestCtx.newPage();
+  expect((await guest.request.post("/api/guest/accept", { data: { token: link.slice(3) } })).status()).toBe(404);
+
+  await card.getByRole("button", { name: "Approve and send" }).click();
+  await expect(page.getByText("Approved and sent").first()).toBeVisible();
+
+  await page.goto(`/app/tasks?project=${project.id}&view=list`);
+  await page.getByRole("button", { name: "Guests" }).click();
+  await expect(page.getByRole("dialog", { name: /Guests on/ }).getByRole("listitem").filter({ hasText: email })).toContainText("Invited");
+
+  await guest.goto(link);
+  await expect(guest.getByTestId("guest-project")).toHaveText("Blue Harbor move");
+  await guestCtx.close();
 });
