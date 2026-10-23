@@ -24,8 +24,9 @@ export class SampleTransport implements Transport {
     const d = this.data;
     const parts = path.split("/").filter(Boolean);
 
-    const route = `${method} /${parts.map((p, i) => (i > 0 && /^(msg|apr|agt|thr)_/.test(p) ? ":id" : p)).join("/")}`;
-    const id = parts.find((p, i) => i > 0 && /^(msg|apr|agt|thr)_/.test(p)) ?? "";
+    const isId = (p: string) => ["msg_", "apr_", "agt_", "thr_"].some((prefix) => p.startsWith(prefix));
+    const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
+    const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
     const work = taskRoute(d.work, d.messages, method, parts, params, body);
