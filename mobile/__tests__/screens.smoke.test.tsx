@@ -1,7 +1,7 @@
 /**
  * Smoke test: every main screen renders against the sample workspace, and the key actions work
  * (open a thread, approve an agent's message, make a task from an email, compose and send, run a
- * timer on a task, start and join a meeting).
+ * timer on a task, start and join a meeting, set custom fields, read the portfolio).
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -210,11 +210,67 @@ it("meetings list joins and copies the guest link", async () => {
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining("/m/")));
 });
 
+it("task screen shows custom fields and sets a checkbox, a select and a number", async () => {
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string }[] }>("GET", "/tasks");
+  const order = tasks.find((t) => t.title.startsWith("Confirm Saturday"))!;
+  mockParams = { id: order.id };
+  const Detail = require("@/app/task/[id]").default;
+  await wrap(<Detail />);
+  expect(await screen.findByText("Fields")).toBeTruthy();
+  expect(screen.getByText("A$1,250.00")).toBeTruthy();
+  expect(screen.getAllByText("Bondi Bakehouse").length).toBeGreaterThan(0);
+  expect(screen.getByLabelText("Reviewer: Josh Tran")).toBeTruthy();
+  expect(screen.getByLabelText("Channels: Email, Phone")).toBeTruthy();
+  expect(screen.getByLabelText("Supplier page: not set")).toBeTruthy();
+  const get = async () => (await transport.request<{ task: { fields: Record<string, unknown> } }>("GET", `/tasks/${order.id}`)).task.fields;
+  // Checkbox: one tap.
+  await fireEvent.press(screen.getByTestId("field-fld_approved"));
+  await waitFor(async () => expect((await get()).fld_approved).toBe(false));
+  // Select: open, pick another client.
+  await fireEvent.press(screen.getByTestId("field-fld_client"));
+  await fireEvent.press(screen.getByText("Green Roof Cafe"));
+  await waitFor(async () => expect((await get()).fld_client).toBe("opt_greenroof"));
+  // Number: open, type, save. A bad entry is refused first.
+  await fireEvent.press(screen.getByTestId("field-fld_hours"));
+  await fireEvent.changeText(screen.getByTestId("field-input-fld_hours"), "lots");
+  await fireEvent.press(screen.getByTestId("field-save-fld_hours"));
+  expect(await screen.findByText("Enter a number.")).toBeTruthy();
+  await fireEvent.changeText(screen.getByTestId("field-input-fld_hours"), "2.5");
+  await fireEvent.press(screen.getByTestId("field-save-fld_hours"));
+  await waitFor(async () => expect((await get()).fld_hours).toBe(2.5));
+  // Date: typed the Australian way.
+  await fireEvent.press(screen.getByTestId("field-fld_signoff"));
+  await fireEvent.changeText(screen.getByTestId("field-input-fld_signoff"), "24/10/2026");
+  await fireEvent.press(screen.getByTestId("field-save-fld_signoff"));
+  await waitFor(async () => expect((await get()).fld_signoff).toBe("2026-10-24"));
+  expect(await screen.findByText("24 Oct 2026")).toBeTruthy();
+});
+
+it("portfolio lists projects with health, progress, overdue, time and next due", async () => {
+  const Portfolio = require("@/app/portfolio").default;
+  await wrap(<Portfolio />);
+  expect(await screen.findByText("Operations")).toBeTruthy();
+  expect(screen.getByText("At risk")).toBeTruthy();
+  expect(screen.getByText("On track")).toBeTruthy();
+  // The third project has no health and no owner.
+  expect(screen.getAllByText("Not set")).toHaveLength(2);
+  expect(screen.getByText("20%")).toBeTruthy();
+  expect(screen.getByText("1 of 5 done")).toBeTruthy();
+  expect(screen.getByText("2:30")).toBeTruthy();
+  expect(screen.getByText("14:20")).toBeTruthy();
+  expect(screen.getAllByText("1 overdue")).toHaveLength(2);
+  expect(screen.getByLabelText("Owner: Josh Tran")).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText(/^Next due .*Confirm Saturday/));
+  expect(mockPush).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/task/[id]" }));
+});
+
 it("settings render", async () => {
   const Settings = require("@/app/(tabs)/settings").default;
   await wrap(<Settings />);
   expect(await screen.findByText("Delete account")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("meetings"));
   expect(mockPush).toHaveBeenCalledWith("/meetings");
+  await fireEvent.press(screen.getByTestId("portfolio-link"));
+  expect(mockPush).toHaveBeenCalledWith("/portfolio");
   expect(screen.getByText("English (Australia)", { exact: false })).toBeTruthy();
 });
