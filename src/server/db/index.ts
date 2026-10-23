@@ -60,6 +60,16 @@ export function migrationDriver(client: unknown): MigrationDriver {
 const fileName = (name: string) => `${name}.sql`;
 
 export async function pendingMigrations(driver: MigrationDriver): Promise<string[]> {
+  // The usual case is one query: the tracking table exists and the legacy one is long gone.
+  // Only when it is missing do we look further (sqlite_master, the legacy table).
+  try {
+    const rows = await driver.all(`SELECT name FROM ${TRACKING_TABLE}`);
+    const done = new Set(rows.map((r) => String(r.name)));
+    const pending = MIGRATIONS.map((m) => fileName(m.name)).filter((n) => !done.has(n));
+    if (!pending.length) return pending;
+  } catch {
+    // No tracking table yet: fall through to the full check.
+  }
   const tables = await driver.all(`SELECT name FROM sqlite_master WHERE type='table' AND name IN ('${TRACKING_TABLE}','${LEGACY_TABLE}')`);
   const names = new Set(tables.map((t) => String(t.name)));
   const done = new Set<string>();

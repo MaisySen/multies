@@ -94,8 +94,12 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 15 * 60_000, lim
   const rows = await deps.db.select().from(domains)
     .where(or(isNull(domains.lastCheckedAt), lt(domains.lastCheckedAt, cutoff)))
     .orderBy(asc(domains.lastCheckedAt)).limit(limit);
-  const results = [];
-  for (const d of rows) results.push({ id: d.id, ...(await verifyDomain(deps, d)) });
+  // A few at a time: each check is several DNS lookups and one update, and in a row they
+  // were a long chain of round trips (Sentry MYMAIL-API-5).
+  const results: ({ id: string } & Awaited<ReturnType<typeof verifyDomain>>)[] = [];
+  for (let i = 0; i < rows.length; i += 5) {
+    results.push(...(await Promise.all(rows.slice(i, i + 5).map(async (d) => ({ id: d.id, ...(await verifyDomain(deps, d)) })))));
+  }
   return results;
 }
 

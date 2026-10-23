@@ -34,12 +34,16 @@ export async function runMaintenance(deps: Deps) {
   // limit on calls per invocation, so it runs in its own request (POST /api/account/demo/seed).
   // Each run takes at most 20 jobs and about 10 seconds of them; the rest wait five minutes.
   const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
-  const uptime = await step("uptime", () => recordUptimeCheck(deps));
-  const crossChecks = await step("cross_check", () => crossCheck(deps));
-  const legacy = await step("legacy", () => legacyMaintenance(deps));
-  const dunning = await step("dunning", () => enforceGracePeriods(deps));
-  const approvalsExpired = await step("approvals", () => expireApprovals(deps));
-  const reminders = await step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps));
+  // The remaining steps touch different tables and don't depend on each other, so they run
+  // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
+  const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders] = await Promise.all([
+    step("uptime", () => recordUptimeCheck(deps)),
+    step("cross_check", () => crossCheck(deps)),
+    step("legacy", () => legacyMaintenance(deps)),
+    step("dunning", () => enforceGracePeriods(deps)),
+    step("approvals", () => expireApprovals(deps)),
+    step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
+  ]);
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([
@@ -51,6 +55,8 @@ export async function runMaintenance(deps: Deps) {
 }
 
 const migratedClients = new WeakSet<object>();
+/** Set once this isolate has seen a fully migrated database; the binding object can differ per invocation. */
+let migratedInIsolate = false;
 
 /**
  * Runs maintenance only once the database has every migration this release ships.
@@ -62,24 +68,27 @@ const migratedClients = new WeakSet<object>();
  */
 export async function runMaintenanceIfMigrated(deps: Deps) {
   const client = (deps.db as unknown as { $client: object }).$client;
-  if (!migratedClients.has(client)) {
+  if (!migratedInIsolate && !migratedClients.has(client)) {
     const pending = await pendingMigrations(migrationDriver(client));
     if (pending.length) {
       deps.log?.warn("maintenance.skipped", { reason: "migrations_pending", pending });
       return { skipped: "migrations_pending" as const, pending };
     }
     migratedClients.add(client);
+    migratedInIsolate = true;
   }
   return runMaintenance(deps);
 }
 
 async function legacyMaintenance(deps: Deps) {
-  const rechecked = await recheckStaleDomains(deps);
-  await deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now()));
-  await deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now()));
-  const purged = deps.config.demoEnabled ? await purgeDemoWorkspaces(deps) : 0;
-  const webhooksRetried = await retryDueDeliveries(deps);
-  await pruneDeliveries(deps);
+  const [rechecked, , , purged, webhooksRetried] = await Promise.all([
+    recheckStaleDomains(deps),
+    deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now())),
+    deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now())),
+    deps.config.demoEnabled ? purgeDemoWorkspaces(deps) : Promise.resolve(0),
+    retryDueDeliveries(deps),
+    pruneDeliveries(deps),
+  ]);
   return { rechecked: rechecked.length, purged, webhooksRetried };
 }
 
