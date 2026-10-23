@@ -4,6 +4,7 @@ import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { PricingPage } from "./pages/pricing";
+import { AgentsDevPage } from "./pages/agents";
 import { EmailVerifiedPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "./pages/auth";
 import { NotFound } from "./pages/not-found";
 import { AppSkeleton } from "./layouts/app-skeleton";
@@ -45,6 +46,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: <PricingPage /> },
+      { path: "/agents", element: <AgentsDevPage /> },
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },

@@ -8,8 +8,8 @@ const [base, out] = process.argv.slice(2);
 const ci = process.argv.indexOf("--cookies");
 const cookies = ci > 0 ? JSON.parse(readFileSync(process.argv[ci + 1], "utf8")) : [];
 const pages = process.env.PAGES?.split(",") ?? [
-  "/", "/pricing", "/login", "/signup", "/forgot-password", "/status", "/nope",
-  "/app", "/app/mail", "/app/domains", "/app/mailboxes", "/app/deliverability", "/app/activity",
+  "/", "/pricing", "/agents", "/login", "/signup", "/forgot-password", "/status", "/nope",
+  "/app", "/app/mail", "/app/inbox", "/app/agents", "/app/approvals", "/app/domains", "/app/mailboxes", "/app/deliverability", "/app/activity",
   "/app/settings", "/app/settings/team", "/app/settings/billing", "/app/settings/account", "/app/settings/mail",
   "/app/settings/mail-apps", "/app/settings/developers",
 ];

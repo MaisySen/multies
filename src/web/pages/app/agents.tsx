@@ -134,7 +134,7 @@ function Snippet({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-xs text-subtle"><span>{label}</span><CopyButton value={value} /></div>
-      <pre className="max-h-48 overflow-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/90">{value}</pre>
+      <pre tabIndex={0} className="max-h-48 overflow-auto rounded-lg border border-line bg-bg/60 p-3 font-mono text-[12px] leading-relaxed text-fg/90">{value}</pre>
     </div>
   );
 }

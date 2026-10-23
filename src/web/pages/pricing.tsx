@@ -32,7 +32,7 @@ export function PricingPage() {
           {FAQ.map((f) => (
             <div key={f.q} className="py-5">
               <dt className="font-medium">{f.q}</dt>
-              <dd className="mt-2 text-sm leading-relaxed text-muted">{f.a}</dd>
+              <dd className="mt-2 max-w-[30rem] text-sm leading-relaxed text-muted">{f.a}</dd>
             </div>
           ))}
         </dl>

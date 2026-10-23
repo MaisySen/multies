@@ -1,8 +1,9 @@
 # MyMail
 
-**Email on your own domain, verified in minutes.** Add a domain, publish DNS records that
-check themselves live, create mailboxes and aliases, and read and send mail in a fast webmail,
-from Outlook, Apple Mail or your phone, or through a REST API.
+**Email for your team and your AI agents, on your own domain. Free for startups and small
+businesses.** Add a domain, publish DNS records that check themselves live, create mailboxes for
+people and inboxes for agents, and work the same threads in webmail, mail apps, the REST API or
+MCP, with a person approving what agents send.
 
 Live preview: **https://mymail.sites.tab.bot**. Staging: https://mymail-staging.mymail-app.workers.dev.
 Tap *Try the live demo* for a private sample workspace, or sign up and add a real domain.
@@ -14,11 +15,15 @@ Tap *Try the live demo* for a private sample workspace, or sign up and add a rea
 | Area | What it does |
 | --- | --- |
 | **Accounts** | Better Auth: email and password (PBKDF2-SHA256), Google, GitHub and Auth0 SSO, TOTP two factor with backup codes, email verification, password reset, breached password check, lockout after repeated failures, per device sessions. |
+| **Agent inboxes** | One API call creates an agent, its address and a scoped key. Threads as JSON (new text, one-time codes, links), send and reply with daily caps, allow lists and an approval queue, events by webhook, poll or SSE, a shared team inbox with agent replies labelled, and an audit trail. See `/agents` and [`docs/MCP.md`](docs/MCP.md). |
+| **MCP** | `/api/v1/mcp` on the official SDK (Streamable HTTP, stateless), authenticated with scoped API keys: list inboxes, threads, search, send, reply, wait for mail, create agent inboxes. |
+| **AI assistant** | Summaries, drafted replies, sorting and invoice reminders. Workers AI (free allocation) on Cloudflare, basic rules elsewhere; metered against the plan's AI actions. Xero (behind config) for unpaid invoices. |
+| **Import** | Gmail, Outlook and IMAP import through a runner you host ([`deploy/import-runner`](deploy/import-runner/README.md)), behind `IMPORT_RUNNER_TOKEN`. |
 | **Workspaces** | Isolated tenants with owner, admin and member roles, invitations, per mailbox access, SSO enforcement (Business), audit log with CSV export. |
 | **Domains** | Per domain DKIM keys (encrypted at rest), generated MX, SPF, DKIM and DMARC records, live DNS verification over DNS over HTTPS with specific fixes. |
 | **Mail** | Webmail with threads, search, drafts and attachments; IMAP and SMTP through Stalwart; inbound through Cloudflare Email Routing; outbound through Resend with retries, a circuit breaker and a non delivery report when a message finally fails. |
 | **Developers** | REST API with OpenAPI 3.1 and a Scalar reference, API keys, Idempotency-Key support, Standard Webhooks with retries, dead letters, replay and auto disable. |
-| **Billing** | Stripe checkout, in place plan changes with proration, dunning with a 7 day grace period, receipts, usage alerts at 80 and 100 percent, plan limit upgrade prompts. |
+| **Billing** | Free forever (1 domain, 3 mailboxes, 3 GB, 25 AI actions, 3 agent inboxes) plus A$1 to A$5 add-ons per business on one Stripe subscription, yearly when the total is under A$5 a month; proration, dunning with a 7 day grace period, usage alerts, legacy Pro and Business kept for existing customers. |
 | **Privacy** | Self serve data export (JSON) and workspace export (ZIP with all mail), account deletion that never orphans a shared workspace, legal pages for Australian law (drafts for lawyer review). |
 | **Abuse** | Outbound spam scoring, held messages, automatic suspension of new workspaces, per workspace send caps, operator console. |
 | **Operations** | Strict CSP and security headers, rate limits on every scope, JSON logs with request ids, Sentry errors, tracing and releases, uptime history on `/status`, nightly encrypted backups, staging and production. |
@@ -189,6 +194,11 @@ See [`.env.example`](.env.example) for every variable with comments. The importa
 | `MAIL_DKIM_SELECTOR` | `mymail` | |
 | `OUTBOUND_DRIVER` | `log` (or `resend` when a key is set) | |
 | `RESEND_API_KEY` | (none) | enables real external sending |
+| `AI_PROVIDER`, `AI_MODEL` | `auto`, Llama 3.1 8B | `auto` uses the Workers AI binding when present; `basic` forces rules |
+| `IMPORT_RUNNER_TOKEN` | (none) | turns on mail import; the runner uses the same token |
+| `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET` | (none) | turns on the Xero connection |
+| `BODY_STORE_*` | (none) | S3 compatible bucket for attachments over 1 MB ([`deploy/au`](deploy/au/README.md)) |
+| `AGENT_MAIL_DOMAIN` | (none) | shared domain for agent inboxes in workspaces without one |
 
 ## Security
 
@@ -201,4 +211,6 @@ untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/secu
 - Production needs a custom domain; it runs on its workers.dev address today.
 - R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then.
 - Legal pages are drafts for review by an Australian lawyer.
+- Mail is not hosted in Australia yet: D1 is placed in Cloudflare's Oceania region by a hint. `deploy/au` is the groundwork for a Sydney VPS.
+- ChatGPT and Claude Desktop custom connectors need OAuth, which MyMail doesn't offer yet; the docs use API key headers (Claude Code, Cursor, OpenAI API) and the mcp-remote bridge.
 - A domain can belong to one workspace; claiming a squatted domain is manual.

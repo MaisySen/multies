@@ -48,7 +48,7 @@ export function ImportSection() {
             <Button type="submit" size="sm" loading={start.isPending} disabled={!f.sourceUser || !f.appPassword || !mailboxes.data?.length}>Start import</Button>
           </form>
           {!!info.data?.imports.length && (
-            <ul className="divide-y divide-line rounded-lg border border-line text-sm">
+            <ul className="divide-y divide-line border-y border-line text-sm">
               {info.data.imports.map((j) => (
                 <li key={j.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
                   <span className="min-w-0 flex-1 truncate">{j.sourceUser} <span className="text-subtle">into {mailboxes.data?.find((m) => m.id === j.mailboxId)?.address ?? "a mailbox"}</span></span>

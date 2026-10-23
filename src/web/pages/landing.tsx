@@ -6,19 +6,22 @@ import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 
 const features = [
-  { title: "Mailboxes and aliases", body: "Real inboxes for people, forwarding aliases for roles. sales@ can reach three founders and a Gmail." },
-  { title: "A signing key per domain", body: "Every domain gets its own 2048-bit DKIM key, encrypted at rest. Nobody else signs as you." },
-  { title: "Webmail, plus your own apps", body: "Threads, search and keyboard shortcuts in the browser. App passwords for Outlook, Apple Mail and Thunderbird over IMAP." },
-  { title: "Bounces handled for you", body: "Hard bounces and spam complaints go on a suppression list, so one bad address can't drag down your reputation." },
-  { title: "DMARC reports, read", body: "Gmail, Yahoo and Microsoft send daily reports. We parse them and show every server sending as your domain." },
-  { title: "An API and webhooks", body: "A REST API with an OpenAPI spec, and signed webhooks for received, sent and bounced mail." },
+  { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail, plus Outlook, Apple Mail and Thunderbird over IMAP." },
+  { title: "Inboxes for your AI agents", body: "Give an agent its own address with one API call. It reads mail as clean JSON, with one-time codes and links pulled out, and replies in the thread." },
+  { title: "You approve what agents send", body: "By default every message an agent writes waits for a person. Set daily caps and allowed recipients, and see every action in the audit log." },
+  { title: "Works with Claude, ChatGPT and Cursor", body: "A built-in MCP server lets any MCP client read, search and reply, scoped to one agent's key." },
+  { title: "An assistant that knows the inbox", body: "Summaries, drafted replies, sorting, and invoice reminders that get firmer the longer a bill goes unpaid. 25 AI actions a month free." },
+  { title: "Your domain, signed properly", body: "Every domain gets its own DKIM key, live DNS checks, bounce handling and DMARC reports, so your mail lands in inboxes." },
 ];
 
 const faqs = [
+  { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes and 25 AI actions a month, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person." },
+  { q: "Can an agent send email without me?", a: "Only if you let it. New agents need a person to approve every message. You can relax that to only mail leaving MyMail, or turn it off, and set a daily cap and a list of who it may write to." },
   { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records. We show you each one, check them live, and tell you when everything's right." },
   { q: "How does inbound mail reach MyMail?", a: "Your MX records point at Cloudflare Email Routing. A small Email Worker (we give you the code) signs each message and hands it to MyMail, which files it in the right mailbox, alias or catch-all." },
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
+  { q: "Is my mail stored in Australia?", a: "Not yet. Our database sits in Cloudflare's Oceania region, which is a placement hint rather than a promise of a country, and some providers we use are in the United States. We're preparing Sydney hosting and will only say so once it's true." },
   { q: "Is my mail private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
 ];
 
@@ -31,11 +34,11 @@ export function Landing() {
     <>
       <section className="relative overflow-hidden pt-32 sm:pt-40">
         <div className="relative mx-auto max-w-6xl px-5 text-center">
-          <h1 className="mx-auto text-fg max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-6xl md:text-7xl">
-            Email on your own domain. Verified in minutes.
+          <h1 className="mx-auto max-w-4xl text-[40px] font-semibold leading-[1.05] tracking-[-0.035em] text-fg sm:text-5xl md:text-6xl">
+            Email for your team and your AI agents.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-muted">
-            Add your domain, follow DNS steps that check themselves, and create mailboxes for your team. Professional email without the enterprise suite.
+            Free for startups and small businesses, on your own domain. Your people and your agents work the same threads, and a person approves what agents send.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto">Start free <ArrowRight className="h-4 w-4" /></ButtonLink>
@@ -45,7 +48,7 @@ export function Landing() {
               </Button>
             )}
           </div>
-          <p className="mt-4 text-xs text-subtle">Free for one domain. No credit card.</p>
+          <p className="mt-4 text-xs text-subtle">Free forever for 1 domain, 3 mailboxes and 3 agent inboxes. No card.</p>
         </div>
         <div className="relative mt-16 px-5 pb-16 sm:mt-20">
           <HeroVisual />
@@ -79,6 +82,31 @@ export function Landing() {
         </div>
       </section>
 
+      <section id="agents" className="scroll-mt-20 border-t border-line">
+        <div className="mx-auto grid max-w-6xl gap-12 px-5 py-20 sm:py-24 md:grid-cols-2 md:items-center">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">An inbox your agent can use, on your domain.</h2>
+            <p className="mt-4 leading-relaxed text-muted">One call creates the address and a key that only works for it. Mail arrives as JSON by webhook or stream. Replies wait in your approval queue until someone says yes.</p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <ButtonLink to="/agents" variant="secondary">Read the quickstart <ArrowRight className="h-4 w-4" /></ButtonLink>
+            </div>
+          </div>
+          <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 font-mono text-[12px] leading-relaxed text-fg/85" aria-label="Example: create an agent inbox">{`curl https://mymail.mymail-app.workers.dev/api/v1/agents \\
+  -H "Authorization: Bearer $MYMAIL_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name": "Invoice bot", "localPart": "invoices"}'
+
+{
+  "agent": {
+    "address": "invoices@yourbusiness.com.au",
+    "approvalMode": "always",
+    "sendCapDaily": 100
+  },
+  "apiKey": { "secret": "mm_live_..." }
+}`}</pre>
+        </div>
+      </section>
+
       <section id="how" className="scroll-mt-20 border-y border-line bg-surface/40">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Set up in about five minutes</h2>
@@ -102,8 +130,8 @@ export function Landing() {
 
       <section className="mx-auto max-w-6xl px-5 py-24 sm:py-32">
         <div className="mb-12 text-center">
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Simple plans that grow with you.</h2>
-          <p className="mt-4 text-muted">Start free on one domain. Upgrade when your team does.</p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Free, then only what you need.</h2>
+          <p className="mt-4 text-muted">Add-ons from A$1 a month, priced per business. A team of ten pays the same as a team of two.</p>
         </div>
         <PlanCards />
       </section>
@@ -130,8 +158,8 @@ export function Landing() {
 
       <section className="px-5 pb-24">
         <div className="mx-auto max-w-6xl border-t border-line pt-20 text-center">
-          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Your domain deserves better than a forwarding hack.</h2>
-          <p className="mx-auto mt-4 max-w-lg text-muted">Set up real email on it today. It's free for your first domain.</p>
+          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Bring your team and your agents into one inbox.</h2>
+          <p className="mx-auto mt-4 max-w-lg text-muted">Set it up on your domain today. Free, with no card.</p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg">Create your account</ButtonLink>
             {demoEnabled && <Button size="lg" variant="secondary" onClick={demo.start} loading={demo.loading}>Explore the demo</Button>}

@@ -8,7 +8,7 @@ import { cn } from "@/web/lib/cn";
 
 const links = [
   { to: "/#features", label: "Product" },
-  { to: "/#how", label: "How it works" },
+  { to: "/agents", label: "For agents" },
   { to: "/pricing", label: "Pricing" },
   { to: "/#faq", label: "FAQ" },
 ];
@@ -85,6 +85,7 @@ export function MarketingLayout() {
               <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
               <li><Link to="/#faq" className="hover:text-fg">FAQ</Link></li>
               <li><Link to="/status" className="hover:text-fg">System status</Link></li>
+              <li><Link to="/agents" className="hover:text-fg">Agent inboxes</Link></li>
               <li><a href="/api/v1/docs" className="hover:text-fg">API reference</a></li>
             </ul>
           </div>

@@ -166,7 +166,7 @@ export function BillingSettings() {
       </Section>
 
       <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. When your add-ons come to less than A$${YEARLY_BELOW_MONTHLY} a month, they bill once a year instead, so card fees don't eat a A$1 charge.`}>
-        <ul className="divide-y divide-line rounded-lg border border-line">
+        <ul className="divide-y divide-line border-y border-line">
           {ADDON_ORDER.map((id) => {
             const a = ADDONS[id];
             const qty = chosen[id] ?? 0;

@@ -225,7 +225,7 @@ function DevicesSection() {
     <Section title="Devices" description="Where you're signed in. Sessions end after 30 days without activity.">
       {sessions.isPending ? <Skeleton className="h-24" /> : (
         <>
-          <ul className="divide-y divide-line rounded-lg border border-line" aria-label="Signed-in devices">
+          <ul className="divide-y divide-line border-y border-line" aria-label="Signed-in devices">
             {rows.map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3.5 py-3">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted">{s.device.mobile ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}</div>

@@ -1,10 +1,10 @@
-import { Check, Inbox, Globe, Users, Send, Star, Search, Shield } from "lucide-react";
+import { Bot, Check, Inbox, Globe, Users, Send, Star, Search, Shield } from "lucide-react";
 
 const rows = [
   { from: "Priya Raman", subject: "Following up from demo day", snippet: "Loved the demo yesterday. Could we find 30 minutes…", time: "9:41", unread: true },
-  { from: "Maria Gonzalez", subject: "Can we move our team over this week?", snippet: "We have 14 people on Workspace today. If we point…", time: "8:12", unread: true },
+  { from: "Maria Gonzalez", subject: "Can we move our team over this week?", snippet: "Hi Maria, nothing gets lost. Mail keeps arriving…", time: "8:12", unread: true, agent: "Support triage replied" },
+  { from: "Tom Nguyen", subject: "Re: Invoice INV-1042", snippet: "Reply ready: Here is INV-1042 again, A$1,850…", time: "8:05", agent: "Invoice chaser: waiting for approval" },
   { from: "Payments", subject: "Receipt for your payment: $1,280.00", snippet: "Thanks for your payment. Amount paid: $1,280.00…", time: "Tue" },
-  { from: "Jordan Lee", subject: "Partnership idea", snippet: "We build onboarding tooling for B2B SaaS and a lot…", time: "Mon" },
   { from: "DMARC Reports", subject: "Aggregate report: 100% aligned", snippet: "SPF aligned 1,204 / 1,204 · DKIM aligned 1,204…", time: "Sun" },
 ];
 
@@ -47,6 +47,7 @@ export function HeroVisual() {
                   </div>
                   <div className={`truncate text-[12.5px] ${r.unread ? "text-fg/90" : "text-muted"}`}>{r.subject}</div>
                   <div className="truncate text-[12px] text-subtle">{r.snippet}</div>
+                  {"agent" in r && r.agent && <span className="mt-1 inline-flex items-center gap-1 rounded border border-brand/40 px-1.5 py-px text-[10.5px] text-brand-hover"><Bot className="h-3 w-3" aria-hidden />{r.agent}</span>}
                 </div>
               </div>
             ))}

@@ -87,7 +87,7 @@ export function ApprovalCard({ a, compact }: { a: Approval; compact?: boolean })
       ) : (
         <div className="mt-3">
           <div className="font-medium">{a.subject || "(no subject)"}</div>
-          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-fg/85">{a.text}</p>
+          <p className="mt-1.5 max-w-[32rem] whitespace-pre-wrap text-sm leading-relaxed text-fg/85">{a.text}</p>
         </div>
       )}
       {a.status !== "pending" && (a.decidedBy || a.error || a.note) && (
