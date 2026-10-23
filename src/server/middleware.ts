@@ -17,16 +17,22 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
   const s = await authFor(deps).api.getSession({ headers });
   if (!s) return null;
   const { db } = deps;
-  let member = s.session.activeOrganizationId
-    ? await db.select().from(members).where(and(eq(members.userId, s.user.id), eq(members.organizationId, s.session.activeOrganizationId))).get()
+  // The membership and the workspace's SSO rule in one query: on D1 each query is a round trip.
+  const memberWithOrg = (where: ReturnType<typeof and>) => db.select({ member: members, requireSso: organizations.requireSso })
+    .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId)).where(where).get();
+  let found = s.session.activeOrganizationId
+    ? await memberWithOrg(and(eq(members.userId, s.user.id), eq(members.organizationId, s.session.activeOrganizationId)))
     : undefined;
-  member ??= await db.select().from(members).where(eq(members.userId, s.user.id)).get();
+  found ??= await memberWithOrg(eq(members.userId, s.user.id));
+  let member = found?.member;
+  let requireSso = found?.requireSso ?? false;
   if (!member) {
     const orgId = newId("org");
     await db.insert(organizations).values({ id: orgId, name: `${s.user.name.split("@")[0].split(" ")[0] || "My"}'s workspace`, slug: orgId });
     const memberId = newId("mem");
     await db.insert(members).values({ id: memberId, organizationId: orgId, userId: s.user.id, role: "owner" });
     member = (await db.select().from(members).where(eq(members.id, memberId)).get())!;
+    requireSso = false;
     await audit(db, { orgId, actorUserId: s.user.id, actorEmail: s.user.email, action: "account.created" });
   }
   if (member.organizationId !== s.session.activeOrganizationId) {
@@ -43,9 +49,8 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
   }
   // Workspaces that require SSO: everyone but the owner (the break glass account) must
   // have signed in this session through an SSO provider.
-  const org = await db.select({ requireSso: organizations.requireSso }).from(organizations).where(eq(organizations.id, member.organizationId)).get();
   const loginMethod = (s.session as { loginMethod?: string | null }).loginMethod ?? "email";
-  const ssoBlocked = !!org?.requireSso && member.role !== "owner" && !SSO_METHODS.has(loginMethod);
+  const ssoBlocked = requireSso && member.role !== "owner" && !SSO_METHODS.has(loginMethod);
   return {
     ssoBlocked, loginMethod,
     userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
