@@ -267,6 +267,9 @@ export function SignupPage() {
         <Field label="Password" error={fields.password} hint="At least 10 characters.">{(p) => <PasswordInput {...p} name="password" autoComplete="new-password" required minLength={10} />}</Field>
         {!params.get("invited") && <Field label="Company" hint="Optional. Names your workspace." error={fields.organization}>{(p) => <Input {...p} name="organization" autoComplete="organization" placeholder="Analytical Engines Ltd." />}</Field>}
         <Button type="submit" className="w-full" size="lg" loading={loading}>Create account</Button>
+        <p className="text-center text-xs text-subtle">
+          By creating an account you agree to the <Link to="/terms" className="underline hover:text-fg">Terms</Link>, <Link to="/acceptable-use" className="underline hover:text-fg">Acceptable use policy</Link> and <Link to="/privacy" className="underline hover:text-fg">Privacy policy</Link>.
+        </p>
       </form>
       <DemoLink />
       <p className="mt-6 text-center text-sm text-muted">Already have an account? <Link to={`/login${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Sign in</Link></p>

@@ -8,7 +8,7 @@ module.exports = {
     collect: {
       startServerCommand: "rm -f .data/lhci.db && PORT=8790 DATABASE_PATH=.data/lhci.db APP_URL=http://localhost:8790 node dist/server/node.js",
       startServerReadyPattern: "mymail",
-      url: ["http://localhost:8790/", "http://localhost:8790/pricing", "http://localhost:8790/login", "http://localhost:8790/status"],
+      url: ["http://localhost:8790/", "http://localhost:8790/pricing", "http://localhost:8790/login", "http://localhost:8790/status", "http://localhost:8790/privacy"],
       numberOfRuns: 3,
       settings: { preset: "desktop", chromeFlags: "--no-sandbox --headless=new" },
     },

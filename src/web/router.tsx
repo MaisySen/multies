@@ -27,6 +27,7 @@ const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => 
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
+const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
@@ -40,6 +41,10 @@ export const router = createBrowserRouter([
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: <PricingPage /> },
       { path: "/status", element: publicPage(<StatusPage />) },
+      { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
+      { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },
+      { path: "/acceptable-use", element: publicPage(<LegalPage slug="acceptable-use" />) },
+      { path: "/dpa", element: publicPage(<LegalPage slug="dpa" />) },
     ],
   },
   {

@@ -73,7 +73,7 @@ export function MarketingLayout() {
       </header>
       <main id="main"><Outlet /></main>
       <footer className="border-t border-line">
-        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-5">
           <div className="space-y-3 md:col-span-2">
             <Logo />
             <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own. Verified, private, and yours.</p>
@@ -94,6 +94,16 @@ export function MarketingLayout() {
               <li><Link to="/signup" className="hover:text-fg">Create account</Link></li>
               <li><Link to="/login" className="hover:text-fg">Sign in</Link></li>
               <li><Link to="/app" className="hover:text-fg">Dashboard</Link></li>
+            </ul>
+          </div>
+          <div>
+            <h2 className="text-[13px] font-medium text-fg">Legal</h2>
+            <ul className="mt-3 space-y-2 text-sm text-muted">
+              <li><Link to="/privacy" className="hover:text-fg">Privacy</Link></li>
+              <li><Link to="/terms" className="hover:text-fg">Terms</Link></li>
+              <li><Link to="/acceptable-use" className="hover:text-fg">Acceptable use</Link></li>
+              <li><Link to="/dpa" className="hover:text-fg">Data processing</Link></li>
+              <li><a href="/.well-known/security.txt" className="hover:text-fg">Security</a></li>
             </ul>
           </div>
         </div>
