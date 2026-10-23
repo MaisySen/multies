@@ -8,7 +8,12 @@ const rows = [
   { from: "DMARC Reports", subject: "Aggregate report: 100% aligned", snippet: "SPF aligned 1,204 / 1,204 · DKIM aligned 1,204…", time: "Sun" },
 ];
 
-const checks = ["Ownership", "MX → Cloudflare", "SPF", "DKIM (2048-bit)", "DMARC quarantine"];
+const checks = [
+  { k: "MX", v: "Cloudflare" },
+  { k: "SPF", v: "~all, 1 include" },
+  { k: "DKIM", v: "2048-bit RSA" },
+  { k: "DMARC", v: "p=quarantine" },
+];
 
 /** An illustration of the product UI for the landing page (not a screenshot). */
 export function HeroVisual() {
@@ -54,9 +59,11 @@ export function HeroVisual() {
           <span className="rounded-full border border-ok/20 bg-ok-soft px-2 py-0.5 text-[10.5px] font-medium text-ok">Verified</span>
         </div>
         <ul className="space-y-2">
-          {checks.map((c, i) => (
-            <li key={c} className="flex items-center gap-2 text-[12.5px] text-fg/85" style={{ animation: `mm-check-in 400ms ${300 + i * 160}ms both` }}>
-              <span className="grid h-4 w-4 place-items-center rounded-full bg-ok/15"><Check className="h-3 w-3 text-ok" /></span>{c}
+          {checks.map((c) => (
+            <li key={c.k} className="flex items-center gap-2 text-[12.5px]">
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok/15"><Check className="h-3 w-3 text-ok" aria-hidden /></span>
+              <span className="w-12 shrink-0 font-medium text-fg">{c.k}</span>
+              <span className="truncate font-mono text-[11px] text-muted">{c.v}</span>
             </li>
           ))}
         </ul>
