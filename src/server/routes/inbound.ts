@@ -40,7 +40,7 @@ export function inboundWebhookRoutes() {
     } catch {
       return c.json({ action: "reject", code: 550, reason: "Unparseable message." }, 422);
     }
-    const result = await deliverInbound(deps, { envelopeFrom: from, rcptTo: to, email, sizeBytes: body.byteLength, via: "cloudflare", requireOrgId: verified.orgId });
+    const result = await deliverInbound(deps, { envelopeFrom: from, rcptTo: to, email, sizeBytes: body.byteLength, via: "cloudflare", requireOrgId: verified.orgId, raw: body });
     const action = result.accepted ? "accept" : result.code === 450 ? "retry" : "reject";
     return c.json({ action, code: result.code, reason: result.reason }, result.accepted ? 200 : result.code === 450 ? 503 : 200);
   });

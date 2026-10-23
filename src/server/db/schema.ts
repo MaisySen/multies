@@ -275,3 +275,28 @@ export const billingEvents = sqliteTable("billing_events", {
   orgId: text("org_id"),
   createdAt: createdAt(),
 });
+
+/**
+ * A mailbox's account on the mail server (Stalwart) that serves IMAP and SMTP for
+ * desktop and phone mail apps. The account's own password is random, encrypted with
+ * APP_SECRET and never shown: people sign in to mail apps with app passwords.
+ */
+export const mailServerAccounts = sqliteTable("mail_server_accounts", {
+  mailboxId: text("mailbox_id").primaryKey().references(() => mailboxes.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  serverAccountId: text("server_account_id").notNull(),
+  secretEnc: text("secret_enc").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("mail_server_accounts_org_idx").on(t.orgId)]);
+
+/** App passwords for mail apps. The secret lives only on the mail server (hashed); we keep a label and a hint. */
+export const appPasswords = sqliteTable("app_passwords", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  serverCredentialId: text("server_credential_id").notNull(),
+  hint: text("hint").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("app_passwords_mailbox_idx").on(t.mailboxId), index("app_passwords_org_idx").on(t.orgId)]);

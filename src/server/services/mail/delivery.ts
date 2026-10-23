@@ -1,3 +1,4 @@
+import { mirrorInbound } from "../mailserver";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
@@ -53,6 +54,8 @@ export interface InboundDelivery {
   via: string;
   /** If set, the recipient domain must belong to this org (signed webhooks). */
   requireOrgId?: string;
+  /** The raw message, when the provider handed it over; copied to mail app accounts. */
+  raw?: Uint8Array;
 }
 
 export interface InboundResult {
@@ -122,6 +125,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       sizeBytes: d.sizeBytes,
     });
     await logDelivery(db, { orgId: mb.orgId, messageId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "delivered", provider: d.via, detail: spam ? "Filed as spam (DMARC fail)" : `Delivered to ${mb.address}` });
+    if (d.raw) await mirrorInbound(deps, mb.id, d.raw, { spam });
     return { accepted: true, code: 250, reason: "Delivered.", storedIn: [mb.id], forwardedTo: [] };
   }
 

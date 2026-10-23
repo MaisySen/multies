@@ -43,6 +43,13 @@
       "when": 1792726653258,
       "tag": "0005_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792730357510,
+      "tag": "0006_mail_server",
+      "breakpoints": true
     }
   ]
 }

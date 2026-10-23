@@ -6,6 +6,7 @@ import { audit } from "../services/audit";
 import {
   createAlias, createMailbox, deleteAlias, deleteMailbox, listAliases, listMailboxes, updateAlias, updateMailbox,
 } from "../services/addresses";
+import { deprovisionMailbox, syncQuota } from "../services/mailserver";
 
 export function mailboxRoutes() {
   return new Hono<AppEnv>()
@@ -22,11 +23,14 @@ export function mailboxRoutes() {
       const patch = await parseBody(c, updateMailboxSchema);
       const { auth, deps } = c.var;
       const m = await updateMailbox(deps.db, auth.orgId, c.req.param("id"), patch);
+      if (patch.quotaMb !== undefined) await syncQuota(deps, auth.orgId, m.id, m.quotaMb);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch }, ip: c.var.ip });
       return c.json({ mailbox: m });
     })
     .delete("/:id", requireAdmin, async (c) => {
       const { auth, deps } = c.var;
+      // Remove the mail server account first, so a failure there leaves nothing orphaned.
+      await deprovisionMailbox(deps, auth.orgId, c.req.param("id"));
       const m = await deleteMailbox(deps.db, auth.orgId, c.req.param("id"));
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.deleted", targetType: "mailbox", targetId: m.id, metadata: { address: m.address }, ip: c.var.ip });
       return c.json({ ok: true });

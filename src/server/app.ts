@@ -18,6 +18,7 @@ import { PLANS } from "@/shared/plans";
 import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
+import { mailAccessRoutes } from "./routes/mail-access";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -80,6 +81,7 @@ export function createApp(deps: Deps) {
   app.route("/api/team", teamRoutes());
   app.route("/api/invites", inviteRoutes());
   app.route("/api/billing", billingRoutes());
+  app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());

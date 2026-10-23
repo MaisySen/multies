@@ -49,6 +49,22 @@ export interface AppConfig {
   systemFrom: { address: string; name: string };
   /** Largest raw message accepted inbound, in bytes. */
   maxMessageBytes: number;
+  /**
+   * The mail server (Stalwart) that gives mail apps IMAP and SMTP access. `enabled`
+   * when STALWART_URL and its provisioner login are set.
+   */
+  mailServer: {
+    enabled: boolean;
+    url?: string;
+    adminUser?: string;
+    adminSecret?: string;
+    /** What people type into their mail app as the server name. */
+    clientHost: string;
+    imapPort: number;
+    smtpPort: number;
+    smtpSecurity: "ssl" | "starttls";
+    missing: string[];
+  };
 }
 
 const csv = (v: string | undefined) => (v ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -87,6 +103,12 @@ const EnvSchema = z.object({
   STRIPE_PRICE_PRO: z.string().optional(),
   STRIPE_PRICE_BUSINESS: z.string().optional(),
   SYSTEM_FROM_NAME: z.string().optional(),
+  STALWART_URL: z.string().url().optional(),
+  STALWART_ADMIN_USER: z.string().optional(),
+  STALWART_ADMIN_SECRET: z.string().optional(),
+  MAIL_CLIENT_HOST: z.string().optional(),
+  MAIL_IMAP_PORT: z.string().optional(),
+  MAIL_SMTP_PORT: z.string().optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -164,5 +186,20 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
     },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
+    mailServer: (() => {
+      const missing = (["STALWART_URL", "STALWART_ADMIN_USER", "STALWART_ADMIN_SECRET"] as const).filter((k) => !env[k]);
+      const smtpPort = env.MAIL_SMTP_PORT ? Number(env.MAIL_SMTP_PORT) : 465;
+      return {
+        enabled: missing.length === 0,
+        url: env.STALWART_URL?.replace(/\/$/, ""),
+        adminUser: env.STALWART_ADMIN_USER,
+        adminSecret: env.STALWART_ADMIN_SECRET,
+        clientHost: env.MAIL_CLIENT_HOST ?? (env.STALWART_URL ? hostOf(env.STALWART_URL) : `mail.${hostOf(env.APP_URL ?? "http://localhost")}`),
+        imapPort: env.MAIL_IMAP_PORT ? Number(env.MAIL_IMAP_PORT) : 993,
+        smtpPort,
+        smtpSecurity: smtpPort === 465 ? "ssl" as const : "starttls" as const,
+        missing,
+      };
+    })(),
   };
 }

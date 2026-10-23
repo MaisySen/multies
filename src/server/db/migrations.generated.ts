@@ -127,5 +127,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "DROP TABLE `auth_tokens`;",
       "DROP TABLE `recovery_codes`;"
     ]
+  },
+  {
+    "name": "0006_mail_server",
+    "statements": [
+      "CREATE TABLE `app_passwords` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`created_by_user_id` text,\n\t`name` text NOT NULL,\n\t`server_credential_id` text NOT NULL,\n\t`hint` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE INDEX `app_passwords_mailbox_idx` ON `app_passwords` (`mailbox_id`);",
+      "CREATE INDEX `app_passwords_org_idx` ON `app_passwords` (`org_id`);",
+      "CREATE TABLE `mail_server_accounts` (\n\t`mailbox_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`server_account_id` text NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_server_accounts_org_idx` ON `mail_server_accounts` (`org_id`);"
+    ]
   }
 ];
