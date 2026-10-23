@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { TextSelection } from "@tiptap/pm/state";
+import type { EditorView } from "@tiptap/pm/view";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
@@ -75,6 +77,49 @@ export function DocPage() {
   return <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
 }
 
+/** Another person's caret with their name above it (styled in code, so no stylesheet is needed). */
+function renderCaret(user: Record<string, unknown>) {
+  const colour = typeof user.color === "string" ? user.color : "#e8590c";
+  const caret = document.createElement("span");
+  caret.className = "collaboration-carets__caret";
+  Object.assign(caret.style, { position: "relative", marginLeft: "-1px", marginRight: "-1px", borderLeft: `2px solid ${colour}`, wordBreak: "normal", pointerEvents: "none" });
+  const label = document.createElement("span");
+  label.className = "collaboration-carets__label";
+  Object.assign(label.style, {
+    position: "absolute", top: "-1.45em", left: "-2px", padding: "1px 6px", borderRadius: "4px 4px 4px 0", background: colour, color: "#fff",
+    fontSize: "11px", fontWeight: "600", lineHeight: "1.4", whiteSpace: "nowrap", userSelect: "none",
+  });
+  label.textContent = typeof user.name === "string" ? user.name : "Someone";
+  caret.append(label);
+  return caret;
+}
+
+const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none", "aria-label": "Doc body", role: "textbox", "aria-multiline": "true" } };
+
+/**
+ * A remote edit that lands in the same instant as a click can leave the editor's own
+ * selection behind the caret the browser shows, and the next keystroke then goes to the
+ * old place. Before each key and after each click, take the browser's caret if they differ.
+ */
+function syncSelectionFromDom(view: EditorView) {
+  const sel = view.dom.ownerDocument.getSelection();
+  if (!sel?.anchorNode || !sel.focusNode || !view.dom.contains(sel.anchorNode) || !(view.state.selection instanceof TextSelection)) return;
+  try {
+    const anchor = view.posAtDOM(sel.anchorNode, sel.anchorOffset);
+    const head = view.posAtDOM(sel.focusNode, sel.focusOffset);
+    const cur = view.state.selection;
+    if (cur.anchor !== anchor || cur.head !== head) view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, anchor, head)));
+  } catch {
+    // A caret the editor cannot map (inside a widget) stays as it is.
+  }
+}
+
+const LIVE_EDITOR_PROPS = {
+  ...EDITOR_PROPS,
+  handleKeyDown: (view: EditorView, event: KeyboardEvent) => { if (!event.isComposing) syncSelectionFromDom(view); return false; },
+  handleDOMEvents: { mouseup: (view: EditorView) => { setTimeout(() => { if (!view.isDestroyed) syncSelectionFromDom(view); }, 0); return false; } },
+};
+
 type SaveState = "saved" | "saving" | "unsaved" | "conflict";
 
 function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }) {
@@ -92,16 +137,21 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const onUpdate = useRef(() => {});
   const userName = me.data?.user.name || me.data?.user.email || "Someone";
   const userColour = colourFor(me.data?.user.id ?? userName);
+  // Stable options: a new extensions array or editorProps object on a render makes Tiptap
+  // reconfigure the view, which redraws the shared document and drops the cursor.
+  const extensions = useMemo(() => (session
+    ? [
+        StarterKit.configure({ undoRedo: false }),
+        Collaboration.configure({ document: session.ydoc, field: FIELD }),
+        CollaborationCaret.configure({ provider: session.provider, user: { name: "Someone", color: "#e8590c" }, render: renderCaret }),
+      ]
+    : [StarterKit]), [session]);
   const editor = useEditor({
-    extensions: session
-      ? [
-          StarterKit.configure({ undoRedo: false }),
-          Collaboration.configure({ document: session.ydoc, field: FIELD }),
-          CollaborationCaret.configure({ provider: session.provider, user: { name: userName, color: userColour } }),
-        ]
-      : [StarterKit],
-    content: session ? undefined : (doc.content as never),
-    editorProps: { attributes: { class: "mm-prose min-h-[50vh] outline-none", "aria-label": "Doc body", role: "textbox", "aria-multiline": "true" } },
+    extensions,
+    // No content key at all in a live session: the room is the content, and an option
+    // that differs from the editor's own makes Tiptap reconfigure on every render.
+    ...(session ? {} : { content: doc.content as never }),
+    editorProps: session ? LIVE_EDITOR_PROPS : EDITOR_PROPS,
     onUpdate: () => onUpdate.current(),
     immediatelyRender: true,
   });
@@ -213,8 +263,8 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           <div className="ml-auto flex items-center gap-1.5" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
             <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>
             {peers.map((p) => (
-              <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
-                <span className="h-2 w-2 rounded-full" style={{ background: p.color }} aria-hidden />{p.name}
+              <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex max-w-[10rem] items-center gap-1 whitespace-nowrap rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden /><span className="truncate">{p.name.split(" ")[0]}</span>
               </span>
             ))}
           </div>
