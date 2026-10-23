@@ -1,0 +1,86 @@
+{
+  "name": "mymail-mobile",
+  "version": "1.1.0",
+  "main": "expo-router/entry",
+  "dependencies": {
+    "@expo/metro-runtime": "~58.0.15",
+    "@expo/vector-icons": "^15.0.2",
+    "@tanstack/react-query": "^5.104.5",
+    "expo": "~58.0.17",
+    "expo-application": "~58.1.2",
+    "expo-asset": "~58.0.18",
+    "expo-constants": "~58.0.13",
+    "expo-crypto": "~58.0.7",
+    "expo-device": "~58.0.5",
+    "expo-font": "~58.0.9",
+    "expo-haptics": "~58.0.7",
+    "expo-linking": "~58.0.14",
+    "expo-localization": "~58.0.5",
+    "expo-notifications": "~58.1.6",
+    "expo-router": "~58.0.25",
+    "expo-secure-store": "~58.0.2",
+    "expo-splash-screen": "~58.0.11",
+    "expo-sqlite": "~58.0.13",
+    "expo-status-bar": "~58.0.4",
+    "expo-system-ui": "~58.0.6",
+    "expo-task-manager": "~58.0.12",
+    "expo-web-browser": "~58.0.6",
+    "openapi-fetch": "^0.17.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.0",
+    "react-native-safe-area-context": "~5.10.1",
+    "react-native-screens": "~4.30.0",
+    "react-native-web": "^0.21.4"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@react-native/jest-preset": "^0.88.0",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-expo": "~58.0.4",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.12",
+    "openapi-typescript": "^7.13.0",
+    "playwright": "^1.64.1",
+    "serve": "^14.2.6",
+    "typescript": "~6.0.3",
+    "undici": "^7.30.1"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "lint:copy": "node scripts/check-copy.mjs",
+    "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test",
+    "gen:api": "openapi-typescript openapi/mymail-v1.json -o src/api/v1.d.ts",
+    "fetch:spec": "curl -fsS https://mymail.mymail-app.workers.dev/api/v1/openapi.json -o openapi/mymail-v1.json",
+    "export:web": "EXPO_PUBLIC_SAMPLE_ONLY=1 expo export --platform web",
+    "build:apk": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleRelease",
+    "lint": "eslint ."
+  },
+  "private": true,
+  "jest": {
+    "preset": "jest-expo",
+    "setupFiles": [
+      "./jest.setup.js"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|@tanstack/.*|openapi-fetch)"
+    ],
+    "moduleNameMapper": {
+      "^@/(.*)$": "<rootDir>/src/$1"
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/",
+      "/ios/",
+      "/dist/"
+    ]
+  }
+}

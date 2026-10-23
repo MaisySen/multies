@@ -1,0 +1,106 @@
+import type { Method, RequestOptions, Transport } from "@/api/transport";
+import { ApiError } from "@/api/errors";
+import type { Approval, Message, SendInput } from "@/api/types";
+import { sampleData } from "./fixtures";
+import { taskRoute } from "./tasks";
+
+/**
+ * The sample workspace runs entirely on the device with no server. It answers the same paths the
+ * live API does, so every screen works the same way in the browser preview, tests and screenshots.
+ */
+export class SampleTransport implements Transport {
+  readonly kind = "sample" as const;
+  private data = sampleData();
+  private seq = 100;
+
+  constructor(private latencyMs = 0) {}
+
+  reset() { this.data = sampleData(); }
+
+  async request<T>(method: Method, rawPath: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
+    if (this.latencyMs) await new Promise((r) => setTimeout(r, this.latencyMs));
+    const [path, qs = ""] = rawPath.split("?");
+    const params = Object.fromEntries(qs.split("&").filter(Boolean).map((p) => p.split("=").map(decodeURIComponent)));
+    const d = this.data;
+    const parts = path.split("/").filter(Boolean);
+
+    const isId = (p: string) => ["msg_", "apr_", "agt_", "thr_"].some((prefix) => p.startsWith(prefix));
+    const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
+    const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
+    const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
+
+    const work = taskRoute(d.work, d.messages, method, parts, params, body);
+    if (work !== undefined) return json(work);
+
+    switch (route) {
+      case "POST /auth/sign-out": return json({ success: true });
+      case "POST /auth/delete-user": return json({ success: true });
+      case "GET /account/me": return json(d.me);
+      case "GET /mail/overview": return json({ mailboxes: d.mailboxes });
+      case "GET /agents": return json({ agents: d.agents });
+      case "GET /mail/messages": {
+        const folder = params.folder || "inbox";
+        const search = (params.q || "").toLowerCase();
+        let list = d.messages.filter((m) => (folder === "starred" ? m.isStarred : m.folder === folder));
+        if (search) {
+          list = d.messages.filter((m) => [m.subject, m.text, m.from.address, m.from.name ?? ""].join(" ").toLowerCase().includes(search));
+        }
+        list = [...list].sort((a, b) => b.date.localeCompare(a.date));
+        return json({ messages: list.map(({ text: _t, cc: _c, bcc: _b, html: _h, attachments: _a, replyTo: _r, ...rest }) => rest), nextCursor: null });
+      }
+      case "GET /mail/messages/:id": {
+        const m = d.messages.find((x) => x.id === id);
+        if (!m) throw new ApiError(404, "not_found", "Message not found.");
+        d.messages.filter((x) => x.threadId === m.threadId).forEach((x) => { x.isRead = true; });
+        const thread = d.messages.filter((x) => x.threadId === m.threadId).sort((a, b) => a.date.localeCompare(b.date));
+        return json({ message: m, thread });
+      }
+      case "PATCH /mail/messages/:id": {
+        const m = d.messages.find((x) => x.id === id);
+        if (!m) throw new ApiError(404, "not_found", "Message not found.");
+        Object.assign(m, body as Partial<Message>);
+        return json({ ok: true });
+      }
+      case "DELETE /mail/messages/:id": {
+        const m = d.messages.find((x) => x.id === id);
+        if (m) m.folder = "trash";
+        return json({ ok: true });
+      }
+      case "POST /mail/send": {
+        const input = body as SendInput;
+        if (!input.to?.length) throw new ApiError(400, "bad_request", "Add a recipient.");
+        const mb = d.mailboxes.find((x) => x.id === input.mailboxId) ?? d.mailboxes[0];
+        const parent = input.inReplyToId ? d.messages.find((x) => x.id === input.inReplyToId) : undefined;
+        const messageId = `msg_s${this.seq++}`;
+        d.messages.push({
+          id: messageId, threadId: parent?.threadId ?? `thr_s${this.seq}`, mailboxId: mb.id, folder: "sent",
+          from: { address: mb.address, name: mb.displayName }, to: input.to.map((address) => ({ address })), cc: (input.cc ?? []).map((address) => ({ address })), bcc: [],
+          subject: input.subject, text: input.text, snippet: input.text.slice(0, 120), html: null, replyTo: null, attachments: [],
+          date: new Date().toISOString(), isRead: true, isStarred: false, hasAttachments: false, sentByAgentId: null,
+        });
+        return json({ messageId, status: "sent" });
+      }
+      case "GET /approvals": {
+        const list = params.status ? d.approvals.filter((a) => a.status === params.status) : d.approvals;
+        return json({ approvals: [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) });
+      }
+      case "POST /approvals/:id/approve":
+      case "POST /approvals/:id/reject": {
+        const a = d.approvals.find((x) => x.id === id);
+        if (!a) throw new ApiError(404, "not_found", "Approval not found.");
+        if (a.status !== "pending") throw new ApiError(409, "conflict", "Someone already decided this one.");
+        const approve = route.endsWith("approve");
+        const edits = (body ?? {}) as { subject?: string; text?: string; note?: string };
+        Object.assign(a, approve ? { status: "sent", subject: edits.subject ?? a.subject, text: edits.text ?? a.text, messageId: `msg_s${this.seq++}` } : { status: "rejected", note: edits.note ?? null },
+          { decidedBy: d.me.user.email, decidedAt: new Date().toISOString() } satisfies Partial<Approval>);
+        const agent = d.agents.find((x) => x.id === a.agentId);
+        if (agent) agent.pendingApprovals = Math.max(0, agent.pendingApprovals - 1);
+        return json({ approval: a });
+      }
+      default:
+        throw new ApiError(404, "not_found", `The sample workspace doesn't cover ${method} ${path}.`);
+    }
+  }
+}
+
+function structuredCloneSafe<V>(v: V): V { return JSON.parse(JSON.stringify(v)) as V; }
