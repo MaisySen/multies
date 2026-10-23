@@ -35,6 +35,8 @@ const PROFILES: Record<string, Record<string, string>> = {
     APP_URL: process.env.PREVIEW_URL ?? "https://mymail.sites.tab.bot",
     ALLOW_GENERATED_SECRET: "true",
     SENTRY_ENVIRONMENT: "preview",
+    // The preview host has no cron trigger, so maintenance runs from requests there.
+    MAINTENANCE_ON_REQUEST: "true",
     SECURITY_CONTACT: process.env.SECURITY_CONTACT ?? "mailto:mymail.builder@mail.tab.bot",
     RELEASE: release,
   },

@@ -119,7 +119,10 @@ const handler = {
     if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
     if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
       const { app, deps } = await getReady(env);
-      if (Date.now() - lastMaintenance > 10 * 60_000) {
+      // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
+      // Production and staging have cron triggers and must not: every new isolate used to
+      // start a 20 second maintenance pass whose queries queued ahead of the request's own.
+      if (envVar(env, "MAINTENANCE_ON_REQUEST") === "true" && Date.now() - lastMaintenance > 10 * 60_000) {
         lastMaintenance = Date.now();
         ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
       }
