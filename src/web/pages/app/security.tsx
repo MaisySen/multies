@@ -14,6 +14,20 @@ import { QrCode } from "@/web/components/qr";
 import { timeAgo } from "@/web/lib/format";
 import { AccountSection, Section } from "./settings";
 
+/** Privacy rights (APP 12, GDPR Articles 15 and 20): a copy of everything held about you. */
+function YourDataSection() {
+  return (
+    <Section title="Your data" description="Download a copy of what MyMail holds about you: profile, sign-in methods, devices, workspaces and your activity, as JSON. To delete your account, use Delete account above.">
+      <div className="flex flex-wrap items-center gap-3">
+        <a href="/api/account/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
+          <Download className="h-4 w-4" aria-hidden />Download my data
+        </a>
+        <a href="/privacy" className="text-sm text-muted hover:text-fg hover:underline">Privacy policy</a>
+      </div>
+    </Section>
+  );
+}
+
 /** Security state comes from the session (Better Auth): verified email and 2FA. */
 const useSecurity = () => {
   const me = useMe();
@@ -27,6 +41,7 @@ export function AccountSettings() {
       <AccountSection />
       <TwoFactorSection />
       <DevicesSection />
+      <YourDataSection />
     </div>
   );
 }

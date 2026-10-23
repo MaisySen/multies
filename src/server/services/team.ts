@@ -3,6 +3,7 @@
  * the records and the core rules (invitations, roles, membership); this module adds
  * MyMail's stricter role policy, plan seats and per-mailbox access for members.
  */
+import { cancelForDeletion } from "./billing";
 import { and, count, desc, eq, inArray, max, ne } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
@@ -245,6 +246,8 @@ export async function createWorkspace(deps: Deps, auth: AuthContext, headers: He
 export async function deleteWorkspace(deps: Deps, auth: AuthContext, headers: Headers, password: string | undefined) {
   if (auth.role !== "owner") throw forbidden("Only the workspace owner can delete it.");
   await confirmPassword(deps, auth, password);
+  const org = await deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get();
+  if (org) await cancelForDeletion(deps, org);
   await authFor(deps).api.deleteOrganization({ headers, body: { organizationId: auth.orgId } });
   // Better Auth removes the organization row; make sure the cascade ran on every runtime.
   await deps.db.delete(organizations).where(eq(organizations.id, auth.orgId));

@@ -1,3 +1,4 @@
+import { auditRows, toCsv } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -7,7 +8,7 @@ import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
 import { getOrg, usage } from "../services/plans";
 import { PLANS, isPlanId, PLAN_ORDER } from "@/shared/plans";
-import { badRequest, HttpError } from "../lib/errors";
+import { badRequest, forbidden, HttpError } from "../lib/errors";
 import { COUNTRIES, isTimeZone } from "@/shared/locale";
 
 export function orgRoutes() {
@@ -55,6 +56,21 @@ export function orgRoutes() {
       const direction = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan) ? "upgraded" : "downgraded";
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: `plan.${direction}`, metadata: { from: org.plan, to: plan }, ip: c.var.ip });
       return c.json({ ok: true, plan: target });
+    })
+    // Audit log export for compliance reviews: CSV (default) or JSON, optional date range.
+    .get("/audit/export", async (c) => {
+      const { auth, deps } = c.var;
+      if (auth.role !== "owner" && auth.role !== "admin") throw forbidden("Only workspace owners and admins can export the audit log.");
+      const q = parseQuery(c, z.object({ format: z.enum(["csv", "json"]).default("csv"), from: z.coerce.date().optional(), to: z.coerce.date().optional() }));
+      const rows = await auditRows(deps, auth.orgId, q.from, q.to);
+      const day = deps.now().toISOString().slice(0, 10);
+      const body = q.format === "csv" ? toCsv(rows) : JSON.stringify(rows, null, 2);
+      return new Response(body, {
+        headers: {
+          "content-type": q.format === "csv" ? "text/csv; charset=utf-8" : "application/json; charset=utf-8",
+          "content-disposition": `attachment; filename="mymail-audit-${day}.${q.format}"`, "cache-control": "no-store",
+        },
+      });
     })
     .get("/audit", async (c) => {
       const { limit, before } = parseQuery(c, pageQuery);

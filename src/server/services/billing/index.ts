@@ -171,6 +171,23 @@ async function findOrg(deps: Deps, customerId?: string, orgId?: string) {
 }
 
 /** Mirrors a subscription onto the workspace: plan, status, renewal date. */
+/**
+ * Cancels a workspace's subscription immediately when the workspace is deleted, with a
+ * prorated credit for the unused time. Never blocks the deletion: a failure is reported.
+ */
+export async function cancelForDeletion(deps: Deps, org: typeof organizations.$inferSelect) {
+  if (!org.stripeSubscriptionId || org.subscriptionStatus === "canceled") return false;
+  const b = deps.config.billing;
+  if (!b.enabled || !b.stripeSecretKey) return false;
+  try {
+    await stripeClient(b.stripeSecretKey, deps.fetch).subscriptions.cancel(org.stripeSubscriptionId, { prorate: true, invoice_now: true });
+    return true;
+  } catch (err) {
+    deps.reportError?.(err, { where: "cancelForDeletion", org: org.id });
+    return false;
+  }
+}
+
 export async function syncSubscription(deps: Deps, sub: StripeSubscription, deleted = false) {
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const org = await findOrg(deps, customer, sub.metadata?.orgId);

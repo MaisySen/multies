@@ -1,3 +1,4 @@
+import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
@@ -51,6 +52,21 @@ export function accountRoutes() {
     .post("/workspaces/:id/switch", async (c) => {
       await switchWorkspace(c.var.deps, c.var.auth, c.req.raw.headers, c.req.param("id"));
       return c.json({ ok: true });
+    })
+    // Privacy: a copy of everything held about the signed-in person (JSON download).
+    .get("/export", async (c) => {
+      const data = await personalData(c.var.deps, c.var.auth.userId);
+      return new Response(JSON.stringify(data, null, 2), {
+        headers: { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="mymail-account-${data.exportedAt.slice(0, 10)}.json"`, "cache-control": "no-store" },
+      });
+    })
+    // Privacy: the whole workspace as a streamed ZIP (owners and admins).
+    .get("/workspace/export", async (c) => {
+      const stream = exportWorkspace(c.var.deps, c.var.auth);
+      const day = c.var.deps.now().toISOString().slice(0, 10);
+      return new Response(stream, {
+        headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="mymail-workspace-${day}.zip"`, "cache-control": "no-store" },
+      });
     })
     .delete("/workspace", async (c) => {
       const { auth, deps } = c.var;

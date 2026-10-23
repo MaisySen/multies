@@ -25,6 +25,8 @@ import type { Deps } from "./context";
 import * as schema from "./db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "./lib/crypto";
 import { sendSystemEmail } from "./services/system-mail";
+import { beforeUserDelete } from "./services/privacy";
+import { HttpError } from "./lib/errors";
 import { getPlan } from "./services/plans";
 
 const ID_PREFIX: Record<string, string> = {
@@ -168,14 +170,22 @@ export function authOptions(deps: Deps) {
     user: {
       deleteUser: {
         enabled: true,
-        // Workspaces where the person is the only member go with them, mail included.
+        // Workspaces where the person is the only member go with them (subscription
+        // cancelled, mail included); a sole owner of a shared workspace must hand it over first.
         beforeDelete: async (user) => {
-          const mine = await db.select().from(schema.members).where(eq(schema.members.userId, user.id));
-          for (const m of mine) {
-            const others = await db.select({ n: count() }).from(schema.members)
-              .where(and(eq(schema.members.organizationId, m.organizationId), ne(schema.members.userId, user.id))).get();
-            if (!others?.n) await db.delete(schema.organizations).where(eq(schema.organizations.id, m.organizationId));
+          try {
+            await beforeUserDelete(deps, user.id);
+          } catch (err) {
+            if (err instanceof HttpError) throw new APIError("CONFLICT", { message: err.message, code: err.code });
+            throw err;
           }
+        },
+        afterDelete: async (user) => {
+          deps.log?.info("account.deleted", { user: user.id });
+          await sendSystemEmail(deps, {
+            to: user.email, template: "account-deleted", subject: `Your ${deps.config.appName} account is deleted`,
+            text: `Your ${deps.config.appName} account and the workspaces only you belonged to are deleted, including their mail. Backups that still hold this data expire within 30 days.\n\nIf you did not do this, reply to this email straight away.`,
+          }).catch(() => undefined);
         },
       },
     },

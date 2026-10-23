@@ -1,10 +1,11 @@
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowDownLeft, ArrowUpRight, FileClock, Mail } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Download, FileClock, Mail } from "lucide-react";
 import { api } from "@/web/lib/api";
 import type { AuditEntry, Delivery } from "@/web/lib/types";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
+import { useMe } from "@/web/lib/queries";
 import { describeAudit } from "@/web/components/app-bits";
 import { fullDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -18,6 +19,8 @@ export function ActivityPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "audit" ? "audit" : "deliveries";
   const direction = params.get("direction") ?? "";
+  const role = useMe().data?.organization?.role;
+  const canExport = role === "owner" || role === "admin";
   return (
     <>
       <PageHeader title="Activity" description="Every message that moved through your domains, and every change anyone made." />
@@ -33,6 +36,14 @@ export function ActivityPage() {
             {[["", "All"], ["inbound", "Inbound"], ["outbound", "Outbound"]].map(([d, l]) => (
               <button key={d} onClick={() => setParams(d ? { direction: d } : {})} className={cn("rounded-md px-2.5 py-1", direction === d ? "bg-white/[0.07] text-fg" : "text-muted hover:text-fg")}>{l}</button>
             ))}
+          </div>
+        )}
+        {tab === "audit" && canExport && (
+          <div className="ml-auto flex gap-2 text-[12.5px]">
+            <a href="/api/org/audit/export?format=csv" download className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">
+              <Download className="h-3.5 w-3.5" aria-hidden />Export CSV
+            </a>
+            <a href="/api/org/audit/export?format=json" download className="inline-flex items-center rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">JSON</a>
           </div>
         )}
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
@@ -47,6 +47,7 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       <WorkspaceSection />
+      <WorkspaceExport />
       <DangerZone />
     </div>
   );
@@ -58,6 +59,20 @@ export function MailSettings() {
       <InboundSection />
       <OutboundSection />
     </div>
+  );
+}
+
+/** Owners and admins can take everything with them: settings, members, audit log and mail. */
+function WorkspaceExport() {
+  const me = useMe();
+  const role = me.data?.organization?.role;
+  if (role !== "owner" && role !== "admin") return null;
+  return (
+    <Section title="Export workspace data" description="A ZIP with your settings, members, domains, mailboxes, audit log and every message with its attachments, in JSON and CSV. Large workspaces take a minute.">
+      <a href="/api/account/workspace/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
+        <Download className="h-4 w-4" aria-hidden />Download ZIP
+      </a>
+    </Section>
   );
 }
 
@@ -269,7 +284,7 @@ export function AccountSection() {
         <div><h3 className="text-sm font-medium">Delete account</h3><p className="text-xs text-subtle">Removes you and any workspace where you're the only member, with all its mail.</p></div>
         <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>Delete account</Button>
       </div>
-      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, including its domains, mailboxes and mail included."
+      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, with its domains, mailboxes and mail. Download your data first if you want a copy."
         footer={<><Button variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button><Button variant="danger" disabled={!confirmPw} loading={del.isPending} onClick={() => del.mutate()}>Delete forever</Button></>}>
         <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
       </Dialog>
