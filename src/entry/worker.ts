@@ -15,6 +15,7 @@ import { getOrCreateStoredSecret, runMaintenance } from "../server/services/main
 import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
+import { WorkersAiProvider } from "../server/services/ai";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -47,6 +48,7 @@ async function boot(env: WorkerEnv) {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
+    ai: aiProvider(env, config),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -67,6 +69,13 @@ function peerAwareFetch(env: WorkerEnv): typeof fetch {
     if (peer && typeof peer.fetch === "function" && host && new URL(req.url).hostname === host) return peer.fetch(req);
     return fetch(req);
   }) as typeof fetch;
+}
+
+/** Workers AI through the AI binding (free daily allocation, no card), unless turned off. */
+function aiProvider(env: WorkerEnv, config: ReturnType<typeof loadConfig>) {
+  const ai = env.AI as { run?: unknown } | undefined;
+  if (config.ai.provider === "basic" || !ai || typeof ai.run !== "function") return undefined;
+  return new WorkersAiProvider(ai as ConstructorParameters<typeof WorkersAiProvider>[0], config.ai.model);
 }
 
 /** A Cloudflare rate limiting binding, when wrangler.toml declares one. */

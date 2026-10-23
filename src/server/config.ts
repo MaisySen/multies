@@ -64,6 +64,11 @@ export interface AppConfig {
    */
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
+  /**
+   * The AI assistant. `auto` uses Workers AI when the Worker has the AI binding, else the basic
+   * rules; `basic` forces the rules (AI_PROVIDER). `model` is the Workers AI model (AI_MODEL).
+   */
+  ai: { provider: "auto" | "workers-ai" | "basic"; model: string };
   mailServer: {
     enabled: boolean;
     url?: string;
@@ -127,6 +132,8 @@ const EnvSchema = z.object({
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
   MONITOR_URLS: z.string().optional(),
+  AI_PROVIDER: z.enum(["auto", "workers-ai", "basic"]).optional(),
+  AI_MODEL: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
 });
 
@@ -212,6 +219,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
     },
     agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
+    ai: { provider: env.AI_PROVIDER ?? "auto", model: env.AI_MODEL ?? "@cf/meta/llama-3.1-8b-instruct-fast" },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
     mailServer: (() => {
       const missing = (["STALWART_URL", "STALWART_ADMIN_USER", "STALWART_ADMIN_SECRET"] as const).filter((k) => !env[k]);

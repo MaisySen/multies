@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Archive, ArrowLeft, Ban, Bot, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
+  Archive, ArrowLeft, Ban, Bot, Sparkles, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -15,6 +15,7 @@ import { formatBytes, fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
+import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 
 type View = Folder | "starred";
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -39,6 +40,7 @@ export function WebmailPage() {
   const selected = params.get("m");
   const [search, setSearch] = useState(q);
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   useEffect(() => setSearch(q), [q]);
 
@@ -130,6 +132,7 @@ export function WebmailPage() {
       <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
         <div className="p-3">
           <Button className="w-full" onClick={() => startCompose()}><PenSquare className="h-4 w-4" />Compose</Button>
+          <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">Chase an unpaid invoice</button>
         </div>
         <div className="px-3">
           <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
@@ -206,6 +209,7 @@ export function WebmailPage() {
         )}
       </section>
 
+      <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={() => setCompose(null)} />}
     </div>
   );
@@ -254,14 +258,14 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
   const last = thread[thread.length - 1] ?? m;
   const own = new Set(mailboxes.map((b) => b.address));
 
-  const reply = (all: boolean) => {
+  const reply = (all: boolean, draft = "") => {
     const target = last;
     const to = own.has(target.from.address) ? target.to.map((t) => t.address) : [target.replyTo || target.from.address];
     const cc = all ? [...target.to, ...target.cc].map((a) => a.address).filter((a) => !own.has(a) && !to.includes(a)) : [];
     onCompose({
       mailboxId: target.mailboxId, to: to.join(", "), cc: cc.join(", "), inReplyToId: target.id,
       subject: /^re:/i.test(target.subject) ? target.subject : `Re: ${target.subject}`,
-      text: `\n\nOn ${fullDate(target.date)}, ${target.from.name || target.from.address} wrote:\n${target.text.split("\n").map((l) => `> ${l}`).join("\n")}`,
+      text: `${draft}\n\nOn ${fullDate(target.date)}, ${target.from.name || target.from.address} wrote:\n${target.text.split("\n").map((l) => `> ${l}`).join("\n")}`,
     });
   };
   const forward = () => onCompose({
@@ -287,6 +291,7 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8">
           <h1 className="text-xl font-semibold leading-snug tracking-tight">{m.subject || "(no subject)"}</h1>
+          <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}
           </div>
@@ -298,6 +303,40 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
         </div>
       </div>
     </div>
+  );
+}
+
+interface AiUsage { used: number; limit: number }
+const TRIAGE_LABEL: Record<string, string> = { needs_reply: "Needs a reply", invoice: "Invoice", receipt: "Receipt", update: "Update", newsletter: "Newsletter", suspicious: "Looks suspicious" };
+
+/** Summaries, triage and drafted replies. Each uses one AI action from the monthly allowance. */
+function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: string) => void }) {
+  const qc = useQueryClient();
+  const usage = useQuery({ queryKey: ["ai-usage"], queryFn: () => api.get<AiUsage & { provider: string }>("/ai/usage"), staleTime: 60_000 });
+  const done = () => qc.invalidateQueries({ queryKey: ["ai-usage"] });
+  const summary = useMutation({ mutationFn: () => api.post<{ summary: string; actionItems: string[] }>("/ai/summary", { messageId }), onSuccess: done, onError: (e) => showError(e) });
+  const triage = useMutation({ mutationFn: () => api.post<{ triage: { category: string; priority: string; reason: string } }>("/ai/triage", { messageId }), onSuccess: done, onError: (e) => showError(e) });
+  const draft = useMutation({ mutationFn: () => api.post<{ text: string }>("/ai/draft", { messageId }), onSuccess: (r) => { done(); onDraft(r.text); }, onError: (e) => showError(e) });
+  const left = usage.data ? usage.data.limit - usage.data.used : null;
+  return (
+    <section aria-label="Assistant" className="mt-4 rounded-xl border border-line bg-elevated/60 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Sparkles className="h-4 w-4 text-brand-hover" aria-hidden />
+        <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>Summarise</Button>
+        <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>Draft a reply</Button>
+        <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>Sort it</Button>
+        {left !== null && <span className="ml-auto text-xs text-subtle tabular-nums">{left} of {usage.data!.limit} AI actions left this month</span>}
+      </div>
+      {triage.data && (
+        <p className="mt-3 text-sm"><span className={cn("mr-2 rounded border px-1.5 py-0.5 text-xs", triage.data.triage.category === "suspicious" ? "border-bad/50 text-bad" : "border-line text-muted")}>{TRIAGE_LABEL[triage.data.triage.category] ?? triage.data.triage.category}{triage.data.triage.priority === "high" ? ", urgent" : ""}</span>{triage.data.triage.reason}</p>
+      )}
+      {summary.data && (
+        <div className="mt-3 text-sm">
+          <p className="leading-relaxed">{summary.data.summary}</p>
+          {summary.data.actionItems.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">{summary.data.actionItems.map((a) => <li key={a}>{a}</li>)}</ul>}
+        </div>
+      )}
+    </section>
   );
 }
 

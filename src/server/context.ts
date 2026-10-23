@@ -25,6 +25,8 @@ export interface Deps {
   rateLimiters?: Partial<Record<RateLimitScope, RateLimitBinding | undefined>>;
   /** Structured logger (JSON lines). Defaults to console. */
   log?: Logger;
+  /** The AI assistant's model. Without one, assistant features answer with simple rules. */
+  ai?: import("./services/ai").AiProvider;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 

@@ -25,6 +25,7 @@ import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
 import { agentRoutes, approvalRoutes } from "./routes/agents";
+import { aiRoutes } from "./routes/ai";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
@@ -149,6 +150,7 @@ export function createApp(deps: Deps) {
   app.route("/api/developer", developerRoutes());
   app.route("/api/agents", agentRoutes());
   app.route("/api/approvals", approvalRoutes());
+  app.route("/api/ai", aiRoutes());
   app.route("/api/v1", v1Routes());
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());
