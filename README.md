@@ -1,10 +1,11 @@
 # MyMail
 
 **Email on your own domain, verified in minutes.** Add a domain, publish DNS records that
-check themselves live, create mailboxes and aliases, and read and send mail in a fast webmail.
+check themselves live, create mailboxes and aliases, and read and send mail in a fast webmail,
+from Outlook, Apple Mail or your phone, or through a REST API.
 
-Live preview: **https://mymail.sites.tab.bot**. Tap *Try the live demo* for a private sample
-workspace, or sign up and add a real domain to watch the DNS checks run.
+Live preview: **https://mymail.sites.tab.bot**. Staging: https://mymail-staging.mymail-app.workers.dev.
+Tap *Try the live demo* for a private sample workspace, or sign up and add a real domain.
 
 ---
 
@@ -12,64 +13,85 @@ workspace, or sign up and add a real domain to watch the DNS checks run.
 
 | Area | What it does |
 | --- | --- |
-| **Accounts** | Email + password signup/login. PBKDF2-SHA256 hashing, server-side sessions (only a SHA-256 of the cookie token is stored), sliding 30-day expiry, CSRF guard, per-IP rate limits. |
-| **Workspaces** | Every signup gets an isolated workspace (tenant). All queries are scoped by workspace; roles: owner / admin / member. |
-| **Domains** | Per-domain RSA-2048 DKIM keypair (private key AES-GCM encrypted at rest). Generated records for ownership, MX, SPF, DKIM and DMARC with plain-language reasons. **Live DNS verification** over DNS-over-HTTPS, with specific fixes: missing/extra MX hosts, duplicate SPF (with a merged record to paste), `+all`, mismatched or revoked DKIM, missing or monitor-only DMARC. Re-checked automatically. |
-| **Mailboxes & aliases** | CRUD with storage quotas, suspension, aliases with up to 20 internal or external destinations, catch-all per domain, plus-addressing (`you+tag@`). |
-| **Plans** | Starter / Pro / Business limits (domains, mailboxes, aliases, storage, daily sends) enforced on the server. |
-| **Inbound mail** | Cloudflare Email Routing → the Email Worker in `email-worker/` → signed webhook (`POST /api/inbound/cloudflare`). MIME parsed with postal-mime; routed to mailbox, alias fan-out or catch-all; DMARC failures filed as spam; 550/552 bounces. |
-| **Outbound mail** | Provider interface with a **Resend** adapter and a **log** dev driver. Mail between MyMail addresses is delivered internally; external recipients go through the provider. Sending requires a verified domain. |
-| **Webmail** | Folders, threads, search, star/archive/spam/trash, drafts, reply/reply-all/forward, attachments, sandboxed HTML rendering with remote images blocked by default, keyboard shortcuts. |
-| **Logs** | Delivery log for every inbound/outbound/forwarded message, and an audit log of every change. |
-| **Demo mode** | `DEMO_MODE=true` enables throwaway sandbox workspaces with sample mail delivered through the real pipeline. Off by default; production never seeds data. |
+| **Accounts** | Better Auth: email and password (PBKDF2-SHA256), Google, GitHub and Auth0 SSO, TOTP two factor with backup codes, email verification, password reset, breached password check, lockout after repeated failures, per device sessions. |
+| **Workspaces** | Isolated tenants with owner, admin and member roles, invitations, per mailbox access, SSO enforcement (Business), audit log with CSV export. |
+| **Domains** | Per domain DKIM keys (encrypted at rest), generated MX, SPF, DKIM and DMARC records, live DNS verification over DNS over HTTPS with specific fixes. |
+| **Mail** | Webmail with threads, search, drafts and attachments; IMAP and SMTP through Stalwart; inbound through Cloudflare Email Routing; outbound through Resend with retries, a circuit breaker and a non delivery report when a message finally fails. |
+| **Developers** | REST API with OpenAPI 3.1 and a Scalar reference, API keys, Idempotency-Key support, Standard Webhooks with retries, dead letters, replay and auto disable. |
+| **Billing** | Stripe checkout, in place plan changes with proration, dunning with a 7 day grace period, receipts, usage alerts at 80 and 100 percent, plan limit upgrade prompts. |
+| **Privacy** | Self serve data export (JSON) and workspace export (ZIP with all mail), account deletion that never orphans a shared workspace, legal pages for Australian law (drafts for lawyer review). |
+| **Abuse** | Outbound spam scoring, held messages, automatic suspension of new workspaces, per workspace send caps, operator console. |
+| **Operations** | Strict CSP and security headers, rate limits on every scope, JSON logs with request ids, Sentry errors, tracing and releases, uptime history on `/status`, nightly encrypted backups, staging and production. |
 
 ## Architecture
 
-```
-┌────────────┐   MX    ┌──────────────────────┐  signed POST  ┌──────────────────────────────┐
-│  Senders   │ ──────▶ │ Cloudflare Email     │ ────────────▶ │  MyMail API (Hono)            │
-└────────────┘         │ Routing + Email Worker│              │  /api/inbound/cloudflare      │
-                       └──────────────────────┘               │  auth · domains · mailboxes   │
-                                                              │  aliases · mail · logs        │
-┌────────────┐  HTTPS (cookie session)                        │                               │
-│  Browser   │ ─────────────────────────────────────────────▶ │  services/ ── db (Drizzle)    │──▶ SQLite (Node) / D1 (Workers)
-│  React SPA │                                                │       │                       │
-└────────────┘                                                │       ├─ dns: DoH resolver ───┼──▶ cloudflare-dns.com / dns.google
-                                                              │       └─ outbound provider ───┼──▶ Resend (or log driver)
-                                                              └──────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Clients
+    B[Browser: React SPA]
+    MC[Mail apps: IMAP and SMTP]
+    API[API clients and webhooks]
+  end
+  subgraph Cloudflare
+    W[Worker: Hono API and SPA shell]
+    D1[(D1: SQLite)]
+    RL[Rate limit bindings]
+    ER[Email Routing and Email Worker]
+    CRON[Cron every 5 to 15 min: jobs, uptime, dunning, pruning]
+  end
+  S[Stalwart mail server]
+  R[Resend: outbound]
+  ST[Stripe: billing]
+  SE[Sentry: errors, traces, releases]
+  GH[GitHub Actions: CI, deploys, scans, backups]
+
+  B -->|HTTPS, cookie session| W
+  API -->|Bearer key| W
+  MC --> S
+  S <-->|admin API| W
+  ER -->|signed webhook| W
+  W --> D1
+  W --> RL
+  CRON --> W
+  W -->|send| R
+  R -->|delivery events| W
+  W <-->|checkout, webhooks| ST
+  W --> SE
+  B --> SE
+  GH -->|wrangler deploy, migrations| W
+  GH -->|nightly encrypted export| D1
 ```
 
-- **One codebase, two runtimes.** The API is a Hono app built by `createApp(deps)`; `src/entry/node.ts`
-  runs it on Node with SQLite (better-sqlite3), `src/entry/worker.ts` runs it on Cloudflare Workers
-  with D1. Everything outside the process (database, DNS, outbound mail, clock) is injected via
-  `Deps`, which is also how tests swap in in-memory fakes.
-- **WebCrypto only** for hashing, encryption, HMAC and DKIM key generation, so it behaves the same on both runtimes.
-- **Migrations** are generated by drizzle-kit into `drizzle/` and run once per deploy, never on a
-  request. On Cloudflare that is `wrangler d1 migrations apply` (CI does it before `wrangler deploy`).
-  The same files are also bundled into TypeScript (`src/server/db/migrations.generated.ts`) for the
-  Node server, tests, and hosts wrangler cannot reach. Both paths record runs in `d1_migrations`,
-  apply each file atomically, and skip what already ran. `/api/health` answers 503 while any are pending.
+Requests flow through one Hono app (`createApp(deps)`) on both runtimes: `src/entry/worker.ts` on
+Cloudflare Workers with D1, and `src/entry/node.ts` on Node with SQLite. Everything outside the
+process (database, DNS, mail provider, clock, fetch) is injected through `Deps`, which is also how
+the tests swap in fakes. Slow or unreliable work goes through a durable job queue in D1
+(`services/jobs.ts`) with leases, exponential backoff with jitter and dead letters; see
+[`docs/architecture/queues.md`](docs/architecture/queues.md).
 
 ```
 src/
-  shared/          plans, zod schemas and types shared by API and UI
+  shared/          plans, schemas, legal documents shared by API and UI
   server/
-    app.ts         routes + middleware wiring
-    config.ts      env → typed config (refuses insecure production config)
-    db/            schema, migration runner, Node driver
-    lib/           crypto, errors, rate limiter
-    routes/        HTTP handlers (thin)
-    services/      auth, domains, dns checks, addresses, plans, audit, demo, mail/*
+    app.ts         middleware and routes
+    auth.ts        Better Auth configuration and hooks
+    emails/        React Email templates
+    lib/           crypto, errors, logger, rate limits, idempotency, security headers
+    routes/        HTTP handlers (thin, zod validated)
+    services/      domains, mail, billing, privacy, abuse, jobs, status, webhooks
   entry/           node.ts, worker.ts
-  web/             React 19 SPA (router, TanStack Query, Tailwind v4)
-email-worker/      Cloudflare Email Worker for inbound mail (+ its own README)
-tests/             unit + API integration tests (Vitest)
-e2e/               browser smoke tests (Playwright)
+  web/             React 19 SPA (React Router, TanStack Query, Tailwind v4)
+email-worker/      Cloudflare Email Worker for inbound mail
+drizzle/           SQL migrations
+tests/             Vitest unit and API integration tests
+e2e/               Playwright end to end tests
+load/              k6 load test
+docs/              runbooks, security, legal, architecture
 ```
 
 ## Run it locally
 
-Requires Node 20+.
+Requires Node 22.
 
 ```bash
 npm install
@@ -77,42 +99,41 @@ cp .env.example .env            # defaults work for local dev
 npm run dev                     # API on :8787, web on http://localhost:5173
 ```
 
-Want sample data? Set `DEMO_MODE=true` in `.env` and click **Try the live demo**.
-
-Production-style single process:
-
-```bash
-npm run build                   # web → dist/web, server → dist/server
-APP_MODE=production APP_SECRET=$(openssl rand -base64 48) npm start   # http://localhost:8787
-```
+Set `DEMO_MODE=true` in `.env` for sample data.
 
 ### Checks
 
 ```bash
-npm run typecheck    # tsc, strict
-npm run lint         # eslint
-npm test             # 50+ unit and API integration tests (LIVE_DNS=1 adds a real-DNS test)
-npm run test:e2e     # Playwright browser smoke tests (first: npx playwright install chromium)
+npm run typecheck      # tsc, strict
+npm run lint           # eslint
+npm run lint:copy      # no dashes or filler words in product copy
+npm run test:coverage  # Vitest with coverage thresholds
+npm run test:e2e       # Playwright (first: npx playwright install chromium)
+npm run lhci           # Lighthouse budgets
+k6 run load/smoke.js   # load test, see load/README.md
 ```
 
-CI runs all of the above on every push (`.github/workflows/ci.yml`).
+CI (`.github/workflows/ci.yml`) runs all of these, plus a dependency audit gate and Vale on the docs.
+`security.yml` runs Semgrep and gitleaks, `zap.yml` runs a weekly OWASP ZAP baseline, Dependabot
+keeps dependencies current, and `backup.yml` takes nightly encrypted database backups.
 
-## Deploy
+## Environments and deploys
 
-**Cloudflare Workers + D1**: every push to `main` deploys from CI (`.github/workflows/ci.yml`)
-after the checks pass: build, `wrangler d1 migrations apply mymail --remote`, `wrangler deploy`,
-then a health check. It needs the repository secrets `CLOUDFLARE_API_TOKEN` and
-`CLOUDFLARE_ACCOUNT_ID`. App secrets live in Cloudflare (`wrangler secret put`, listed at the top
-of `wrangler.toml`): `APP_SECRET` is required, the provider keys switch features on.
+| Environment | URL | Database | Deploys |
+| --- | --- | --- | --- |
+| Preview | https://mymail.sites.tab.bot | preview D1 | by hand, `publish_preview` |
+| Staging | https://mymail-staging.mymail-app.workers.dev | `mymail-staging` | every push to `main` after checks pass |
+| Production | https://mymail.mymail-app.workers.dev | `mymail` | the same build as staging, after staging smoke tests and the `production` environment gate |
 
-Manual deploy: `npm run build:web && npm run build:worker && npx wrangler d1 migrations apply mymail --remote && npx wrangler deploy`.
+Each deploy applies D1 migrations first, deploys with the commit as the Sentry release, runs
+`scripts/smoke.sh`, and uploads source maps. See [`docs/runbooks/release.md`](docs/runbooks/release.md)
+for the checklist and [`docs/runbooks/incident.md`](docs/runbooks/incident.md) when something breaks.
+Restores: [`docs/runbooks/restore.md`](docs/runbooks/restore.md). Service levels: [`docs/slo.md`](docs/slo.md).
 
-On a host where wrangler cannot reach the database, set `DEPLOY_TOKEN` (32+ chars) and call
-`POST /api/internal/migrate` with `Authorization: Bearer <DEPLOY_TOKEN>` once after each upload.
-Without the token that endpoint does not exist.
+Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SENTRY_AUTH_TOKEN`. App secrets
+live in Cloudflare (`wrangler secret put`, listed at the top of `wrangler.toml`).
 
-**Any Node host** (Fly, Render, a VPS): `npm run build && npm start` with `DATABASE_PATH` on a
-persistent volume.
+## More detail
 
 **Developer platform**: API keys (Settings, Developers), a REST API at `/api/v1` whose OpenAPI 3.1
 document (`/api/v1/openapi.json`) is generated from the request schemas by `@hono/zod-openapi`, an
@@ -120,7 +141,8 @@ interactive reference at `/api/v1/docs` (Scalar), and outbound webhooks (`messag
 `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`) signed
 with the [Standard Webhooks](https://www.standardwebhooks.com) spec. Verify them with any Standard
 Webhooks library and the endpoint's `whsec_` secret. Failed deliveries retry with backoff for about
-nine hours.
+nine hours, then wait as dead letters you can replay. An endpoint that fails five deliveries in a
+row is switched off and its owners are emailed.
 
 **Around the app**: a six-step setup checklist on the dashboard, a command palette (Cmd+K or Ctrl+K),
 a public status page at `/status` backed by `GET /api/status`, and Australian defaults (en-AU
@@ -168,20 +190,15 @@ See [`.env.example`](.env.example) for every variable with comments. The importa
 | `OUTBOUND_DRIVER` | `log` (or `resend` when a key is set) | |
 | `RESEND_API_KEY` | (none) | enables real external sending |
 
-## Security notes
+## Security
 
-- Passwords: PBKDF2-SHA256, 100k iterations (the Workers ceiling), per-user salt, constant-time compare.
-- Sessions: 256-bit random tokens, HttpOnly + SameSite=Lax (+ Secure in production); only hashes stored.
-- CSRF: state-changing requests must be JSON and same-origin.
-- Secrets at rest (DKIM private keys, inbound webhook secrets): AES-256-GCM, key derived from `APP_SECRET` via HKDF.
-- Inbound webhook: HMAC-SHA256 over timestamp, envelope and body hash; 5-minute replay window; a key can only deliver to its own workspace's domains.
-- Untrusted HTML mail: DOMPurify + sandboxed iframe (no scripts) + CSP; remote images off until the reader opts in.
+See [`SECURITY.md`](SECURITY.md) to report a vulnerability and [`docs/security.md`](docs/security.md)
+for the controls: CSP and headers, rate limits, lockout, CSRF, input validation, secrets at rest,
+untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/security/secrets-rotation.md`](docs/security/secrets-rotation.md).
 
-## Known gaps / next steps
+## Known gaps
 
-- **Billing** isn't wired: plan changes switch limits only (Stripe would slot in behind `/api/org/plan`).
-- **IMAP/SMTP access** for desktop clients isn't offered; webmail and the API are the clients today.
-- **Team invites** and per-mailbox permissions: the data model has memberships and roles, the UI doesn't invite yet.
-- **Outbound DKIM** is signed by the provider (Resend publishes its own DKIM record); the per-domain key MyMail generates is ready for providers that accept your own key (e.g. Amazon SES BYODKIM).
-- Rate limits are per process; use a shared store when running many instances.
-- A domain can belong to one workspace; claim/transfer of a squatted domain is manual.
+- Production needs a custom domain; it runs on its workers.dev address today.
+- R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then.
+- Legal pages are drafts for review by an Australian lawyer.
+- A domain can belong to one workspace; claiming a squatted domain is manual.
