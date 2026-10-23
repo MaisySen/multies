@@ -3,9 +3,9 @@
  * result is cached for 30 seconds per instance, so the page cannot be used to hammer
  * dependencies. Only aggregate, tenant-free numbers are exposed.
  */
-import { gte, lt, sql } from "drizzle-orm";
+import { eq, gte, lt, sql } from "drizzle-orm";
 import type { Deps } from "../context";
-import { deliveries, uptimeChecks } from "../db/schema";
+import { appSettings, deliveries, uptimeChecks } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { queueStats } from "./jobs";
 import { breakerState } from "./resilience";
@@ -165,6 +165,14 @@ export async function uptimeHistory(deps: Deps): Promise<{ days: DayUptime[]; up
  * failure is reported to Sentry, which emails the team. One environment going down
  * is caught by another, not by itself.
  */
+/** Consecutive failures before a cross check alerts; one blip during a deploy stays quiet. */
+export const CROSS_CHECK_ALERT_AFTER = 2;
+
+/**
+ * Probes the other environments' health endpoints (MONITOR_URLS). Alerts once, after
+ * CROSS_CHECK_ALERT_AFTER failures in a row, and logs the recovery; the per URL state
+ * lives in app_settings so it survives across cron runs and isolates.
+ */
 export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean; status?: number; ms: number }[]> {
   const out: { url: string; ok: boolean; status?: number; ms: number }[] = [];
   for (const base of deps.config.monitorUrls) {
@@ -172,10 +180,22 @@ export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean
     const r = await timed(async () => (await deps.fetch(url, { headers: { "user-agent": "MyMail-uptime/1" } })).status, 10_000);
     const ok = r.value === 200;
     out.push({ url, ok, status: r.value, ms: r.latencyMs });
-    if (!ok) {
-      deps.log?.error("uptime.cross_check_failed", { url, status: r.value ?? null, ms: r.latencyMs });
-      deps.reportError?.(new Error(`Uptime check failed: ${url} answered ${r.value ?? "nothing"}`), { url, status: r.value, ms: r.latencyMs });
+    const key = `crosscheck:${url}`;
+    const prev = await deps.db.select().from(appSettings).where(eq(appSettings.key, key)).get();
+    const state = prev ? (JSON.parse(prev.value) as { fails: number; alerted: boolean }) : { fails: 0, alerted: false };
+    if (ok) {
+      if (state.alerted) deps.log?.info("uptime.cross_check_recovered", { url, ms: r.latencyMs });
+      if (state.fails) await deps.db.delete(appSettings).where(eq(appSettings.key, key));
+      continue;
     }
+    state.fails += 1;
+    deps.log?.warn("uptime.cross_check_failed", { url, status: r.value ?? null, ms: r.latencyMs, consecutive: state.fails });
+    if (state.fails >= CROSS_CHECK_ALERT_AFTER && !state.alerted) {
+      state.alerted = true;
+      deps.reportError?.(new Error(`Uptime check failed: ${url} answered ${r.value ?? "nothing"} ${state.fails} times in a row`), { url, status: r.value, ms: r.latencyMs });
+    }
+    const value = JSON.stringify(state);
+    await deps.db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });
   }
   return out;
 }

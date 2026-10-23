@@ -138,16 +138,28 @@ describe("uptime history", () => {
     expect((await res.json()).history.days).toHaveLength(90);
   });
 
-  it("cross checks other deployments and reports a failure", async () => {
+  it("cross checks other deployments and alerts once, only after repeated failures", async () => {
     const reported: unknown[] = [];
+    let downStatus = 503;
     const { deps } = await makeTestApp({ MONITOR_URLS: "https://up.example,https://down.example" }, {
-      fetch: (async (url: string) => new Response("{}", { status: String(url).includes("down") ? 503 : 200 })) as unknown as typeof fetch,
+      fetch: (async (url: string) => new Response("{}", { status: String(url).includes("down") ? downStatus : 200 })) as unknown as typeof fetch,
     });
     deps.reportError = (e) => (reported.push(e), "evt");
     const { crossCheck } = await import("@/server/services/status");
     const out = await crossCheck(deps);
     expect(out.map((o) => o.ok)).toEqual([true, false]);
+    expect(reported).toHaveLength(0); // one blip, for example mid deploy, stays quiet
+    await crossCheck(deps);
+    expect(reported).toHaveLength(1);
     expect(String(reported[0])).toContain("down.example");
+    await crossCheck(deps);
+    expect(reported).toHaveLength(1); // no repeat alert for the same outage
+    downStatus = 200;
+    await crossCheck(deps);
+    downStatus = 404;
+    await crossCheck(deps);
+    await crossCheck(deps);
+    expect(reported).toHaveLength(2); // a new outage after recovery alerts again
   });
 
   it("runs maintenance steps independently", async () => {

@@ -44,7 +44,7 @@ async function boot(env: WorkerEnv) {
   const config = loadConfig(vars);
   const outbound = config.outbound.driver === "resend" ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!)) : new LogOutbound();
   const deps: Deps = {
-    db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init),
+    db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
     rateLimiters: {
@@ -52,6 +52,21 @@ async function boot(env: WorkerEnv) {
     },
   };
   return { app: createApp(deps), deps };
+}
+
+/**
+ * Workers on one account cannot fetch each other's workers.dev address (Cloudflare
+ * answers 404, error 1042), so requests to the peer environment (production to staging
+ * and back, for the uptime cross check) go through a service binding instead.
+ */
+function peerAwareFetch(env: WorkerEnv): typeof fetch {
+  const peer = env.PEER as Fetcher | undefined;
+  const host = typeof env.PEER_HOST === "string" ? env.PEER_HOST : "";
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    const req = new Request(input, init);
+    if (peer && typeof peer.fetch === "function" && host && new URL(req.url).hostname === host) return peer.fetch(req);
+    return fetch(req);
+  }) as typeof fetch;
 }
 
 /** A Cloudflare rate limiting binding, when wrangler.toml declares one. */
