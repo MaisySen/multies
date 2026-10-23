@@ -319,5 +319,25 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `time_entries_org_project_idx` ON `time_entries` (`org_id`,`project_id`,`started_at`);",
       "CREATE INDEX `time_entries_task_idx` ON `time_entries` (`task_id`);"
     ]
+  },
+  {
+    "name": "0019_suite_fields_guests_portfolio",
+    "statements": [
+      "CREATE TABLE `custom_fields` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`project_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`type` text NOT NULL,\n\t`options` text DEFAULT '[]' NOT NULL,\n\t`position` integer DEFAULT 0 NOT NULL,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `custom_fields_project_idx` ON `custom_fields` (`project_id`,`position`);",
+      "CREATE TABLE `project_guests` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`project_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`invite_hash` text,\n\t`invite_expires_at` integer,\n\t`session_hash` text,\n\t`last_seen_at` integer,\n\t`invited_by_type` text DEFAULT 'member' NOT NULL,\n\t`invited_by_id` text,\n\t`approval_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `project_guests_project_email_uq` ON `project_guests` (`project_id`,`email`);",
+      "CREATE INDEX `project_guests_org_idx` ON `project_guests` (`org_id`);",
+      "CREATE INDEX `project_guests_invite_idx` ON `project_guests` (`invite_hash`);",
+      "CREATE INDEX `project_guests_session_idx` ON `project_guests` (`session_hash`);",
+      "CREATE TABLE `task_field_values` (\n\t`task_id` text NOT NULL,\n\t`field_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`value_text` text,\n\t`value_num` real,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`task_id`, `field_id`),\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`field_id`) REFERENCES `custom_fields`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `task_field_values_field_text_idx` ON `task_field_values` (`field_id`,`value_text`);",
+      "CREATE INDEX `task_field_values_field_num_idx` ON `task_field_values` (`field_id`,`value_num`);",
+      "CREATE TABLE `task_files` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`filename` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`size_bytes` integer NOT NULL,\n\t`content_b64` text,\n\t`storage_key` text,\n\t`uploaded_by_type` text NOT NULL,\n\t`uploaded_by_id` text,\n\t`uploaded_by_name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `task_files_task_idx` ON `task_files` (`task_id`,`created_at`);",
+      "ALTER TABLE `projects` ADD `health` text;",
+      "ALTER TABLE `projects` ADD `health_note` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `projects` ADD `owner_user_id` text;"
+    ]
   }
 ];

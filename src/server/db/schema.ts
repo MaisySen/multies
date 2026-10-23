@@ -653,6 +653,11 @@ export const projects = sqliteTable("projects", {
   /** Next task number in this project. */
   nextNumber: integer("next_number").notNull().default(1),
   archivedAt: ts("archived_at"),
+  /** Health set by hand on the portfolio: on track, at risk or off track. */
+  health: text("health", { enum: ["on_track", "at_risk", "off_track"] }),
+  healthNote: text("health_note").notNull().default(""),
+  /** The person who owns the project (a user id), shown on the portfolio. */
+  ownerUserId: text("owner_user_id"),
   ...suiteCols(),
 }, (t) => [index("projects_org_idx").on(t.orgId)]);
 
@@ -940,3 +945,82 @@ export const meetings = sqliteTable("meetings", {
   endedAt: ts("ended_at"),
   ...suiteCols(),
 }, (t) => [index("meetings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("meetings_guest_token_uq").on(t.guestToken), index("meetings_source_idx").on(t.orgId, t.sourceType, t.sourceId)]);
+
+/**
+ * Custom fields per project. `options` holds the choices for single and multi select
+ * fields as JSON [{ id, label, color }].
+ */
+export const customFields = sqliteTable("custom_fields", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] }).notNull(),
+  options: text("options").notNull().default("[]"),
+  position: integer("position").notNull().default(0),
+  ...suiteCols(),
+}, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);
+
+/**
+ * One value per task and field. Numbers, currency (AUD) and checkboxes use `value_num`;
+ * text, URLs, dates (YYYY-MM-DD), people ("member:<id>") and select option ids use
+ * `value_text`; multi select keeps a JSON array of option ids in `value_text`.
+ */
+export const taskFieldValues = sqliteTable("task_field_values", {
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  fieldId: text("field_id").notNull().references(() => customFields.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  valueText: text("value_text"),
+  valueNum: real("value_num"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.taskId, t.fieldId] }),
+  index("task_field_values_field_text_idx").on(t.fieldId, t.valueText),
+  index("task_field_values_field_num_idx").on(t.fieldId, t.valueNum),
+]);
+
+/**
+ * Guests: an outside person (a client) invited to one project by email. A guest is not a
+ * workspace member and takes no paid seat. They see that project's tasks, comments and
+ * docs, and can comment and upload files, nothing else. The invite link is exchanged once
+ * for a guest session; only hashes of both secrets are stored.
+ */
+export const projectGuests = sqliteTable("project_guests", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  name: text("name").notNull().default(""),
+  status: text("status", { enum: ["pending", "active", "revoked"] }).notNull().default("pending"),
+  inviteHash: text("invite_hash"),
+  inviteExpiresAt: ts("invite_expires_at"),
+  sessionHash: text("session_hash"),
+  lastSeenAt: ts("last_seen_at"),
+  invitedByType: text("invited_by_type", { enum: ["member", "agent"] }).notNull().default("member"),
+  invitedById: text("invited_by_id"),
+  /** When an agent invited the guest: the send approval that holds the invite email. */
+  approvalId: text("approval_id"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex("project_guests_project_email_uq").on(t.projectId, t.email),
+  index("project_guests_org_idx").on(t.orgId),
+  index("project_guests_invite_idx").on(t.inviteHash),
+  index("project_guests_session_idx").on(t.sessionHash),
+]);
+
+/** Files on a task, uploaded by members or guests. Small files stay in the database. */
+export const taskFiles = sqliteTable("task_files", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  filename: text("filename").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  contentB64: text("content_b64"),
+  storageKey: text("storage_key"),
+  uploadedByType: text("uploaded_by_type", { enum: ["member", "agent", "guest"] }).notNull(),
+  uploadedById: text("uploaded_by_id"),
+  uploadedByName: text("uploaded_by_name").notNull().default(""),
+  createdAt: createdAt(),
+}, (t) => [index("task_files_task_idx").on(t.taskId, t.createdAt)]);
