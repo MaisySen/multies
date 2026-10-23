@@ -1,8 +1,11 @@
 import { Hono } from "hono";
-import { secureHeaders } from "hono/secure-headers";
+import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
+import { jsonLogger, requestIdFrom } from "./lib/logger";
+import { rateLimit } from "./lib/rate-limit";
+import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
 import { adminRoutes } from "./routes/admin";
 import { authFor } from "./auth";
@@ -28,15 +31,50 @@ import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverabili
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
 
+  const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
+    const started = Date.now();
+    const requestId = requestIdFrom(c.req.raw.headers);
+    const log = "child" in rootLog ? (rootLog as ReturnType<typeof jsonLogger>).child({ requestId }) : rootLog;
     c.set("deps", deps);
     c.set("ip", clientIp(c));
+    c.set("requestId", requestId);
+    c.set("log", log);
     await next();
+    c.res.headers.set("x-request-id", requestId);
+    // One access line per API request. No query strings (they can carry tokens) and no bodies.
+    if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
+      const status = c.res.status;
+      const fields = { method: c.req.method, path: c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path, status, ms: Date.now() - started, user: c.var.auth?.userId, org: c.var.auth?.orgId };
+      if (status >= 500) log.error("request", fields); else if (status >= 400) log.warn("request", fields); else log.info("request", fields);
+    }
   });
-  app.use("/api/*", secureHeaders({ crossOriginResourcePolicy: "same-origin" }));
+  const hsts = isHttps(deps.config.appUrl);
+  const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
+  const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
+  // Pages served by this app (the Node server serves the SPA too) get the page policy.
+  const pageHeaders = securityHeaders({ csp: appCsp(), hsts });
+  app.use("*", async (c, next) => {
+    await next();
+    const p = c.req.path;
+    const set = p === "/api/v1/docs" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : pageHeaders;
+    for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
+  });
   app.use("/api/*", async (c, next) => {
     await next();
     if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
+  });
+  // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
+  const ipKey = (c: { var: { ip: string } }) => c.var.ip;
+  app.use("/api/auth/*", rateLimit("auth", ipKey));
+  app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));
+  app.use("/api/inbound/*", rateLimit("webhooks", ipKey));
+  app.use("/api/v1/*", rateLimit("api", (c) => createHash(c.req.header("authorization") ?? c.var.ip), { countReads: true }));
+  const appLimiter = rateLimit("app", (c) => c.req.header("cookie")?.match(/mymail\.session_token=([^;.]+)/)?.[1]?.slice(0, 24) ?? c.var.ip);
+  app.use("/api/*", async (c, next) => {
+    const p = c.req.path;
+    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/")) return next();
+    return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
     // Signed webhooks and the API-key REST API never use cookies, so CSRF does not apply.
@@ -57,6 +95,19 @@ export function createApp(deps: Deps) {
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }
+  });
+  // RFC 9116: where to report a vulnerability.
+  app.get("/.well-known/security.txt", (c) => {
+    const expires = new Date(Date.UTC(new Date().getUTCFullYear() + 1, 0, 1)).toISOString();
+    c.header("cache-control", "public, max-age=86400");
+    return c.text([
+      `Contact: ${deps.config.securityContact}`,
+      `Expires: ${expires}`,
+      "Preferred-Languages: en",
+      `Canonical: ${deps.config.appUrl}/.well-known/security.txt`,
+      `Policy: ${deps.config.appUrl}/security`,
+      "",
+    ].join("\n"));
   });
   app.get("/api/status", async (c) => {
     const body = await systemStatus(deps);

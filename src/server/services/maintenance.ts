@@ -8,6 +8,9 @@ import { sessions, verifications } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { randomToken } from "../lib/crypto";
+import { pruneRateLimits } from "../lib/rate-limit";
+import { pruneIdempotencyKeys } from "../lib/idempotency";
+import { pruneLockouts } from "./lockout";
 
 /** Periodic housekeeping: re-check DNS, expire sessions, purge old sandboxes. */
 export async function runMaintenance(deps: Deps) {
@@ -17,6 +20,9 @@ export async function runMaintenance(deps: Deps) {
   const purged = deps.config.demoEnabled ? await purgeDemoWorkspaces(deps) : 0;
   const webhooksRetried = await retryDueDeliveries(deps);
   await pruneDeliveries(deps);
+  await pruneRateLimits(deps.db, deps.now().getTime());
+  await pruneIdempotencyKeys(deps.db, deps.now());
+  await pruneLockouts(deps.db, deps.now());
   return { rechecked: rechecked.length, purged, webhooksRetried };
 }
 

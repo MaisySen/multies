@@ -5,6 +5,7 @@ import { loadConfig } from "@/server/config";
 import { StaticResolver } from "@/server/services/dns/resolver";
 import { LogOutbound } from "@/server/services/mail/outbound";
 import type { Deps } from "@/server/context";
+import { nullLogger } from "@/server/lib/logger";
 
 export async function makeTestApp(env: Record<string, string> = {}, opts: { fetch?: typeof fetch } = {}) {
   const db = openSqlite(":memory:");
@@ -12,7 +13,7 @@ export async function makeTestApp(env: Record<string, string> = {}, opts: { fetc
   const dns = new StaticResolver();
   const outbound = new LogOutbound();
   const fetchImpl = opts.fetch ?? (async () => { throw new Error("network disabled in tests"); });
-  const deps: Deps = { db, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch };
+  const deps: Deps = { db, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
   const app = createApp(deps);
   return { app, deps, db, dns, outbound };
 }
