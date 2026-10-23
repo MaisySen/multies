@@ -14,6 +14,7 @@ import { createDemoWorkspace } from "../services/demo";
 import { notFound } from "../lib/errors";
 import { z } from "zod";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
+import { issueMfaTicket, redeemMfaTicket, sendVerificationEmail } from "../services/security";
 
 
 function setSessionCookie(c: Context<AppEnv>, token: string) {
@@ -24,6 +25,14 @@ function setSessionCookie(c: Context<AppEnv>, token: string) {
     path: "/",
     maxAge: Math.floor(SESSION_TTL_MS / 1000),
   });
+}
+
+async function startSession(c: Context<AppEnv>, userId: string, email: string, action: string) {
+  const { db, now } = c.var.deps;
+  const { token } = await createSession(db, userId, { ip: c.var.ip, userAgent: c.req.header("user-agent"), now: now() });
+  const m = await db.query.memberships.findFirst({ where: (t, { eq }) => eq(t.userId, userId) });
+  if (m) await audit(db, { orgId: m.orgId, actorUserId: userId, actorEmail: email, action, ip: c.var.ip });
+  setSessionCookie(c, token);
 }
 
 export function authRoutes() {
@@ -38,6 +47,8 @@ export function authRoutes() {
     const { token } = await createSession(db, userId, { ip: c.var.ip, userAgent: c.req.header("user-agent"), now: now() });
     await audit(db, { orgId, actorUserId: userId, actorEmail: input.email, action: "account.created", ip: c.var.ip });
     setSessionCookie(c, token);
+    // Best effort: a failed verification email must never fail the signup.
+    await sendVerificationEmail(c.var.deps, userId).catch((e) => console.error("[signup] verification email", e));
     return c.json({ ok: true }, 201);
   })
   .post("/login", async (c) => {
@@ -46,11 +57,20 @@ export function authRoutes() {
     const { db, now } = c.var.deps;
     const user = await authenticate(db, input.email, input.password);
     if (!user) throw new HttpError(401, "invalid_credentials", "That email and password don't match.");
-    const { token } = await createSession(db, user.id, { ip: c.var.ip, userAgent: c.req.header("user-agent"), now: now() });
-    const auth = await db.query.memberships.findFirst({ where: (m, { eq }) => eq(m.userId, user.id) });
-    if (auth) await audit(db, { orgId: auth.orgId, actorUserId: user.id, actorEmail: user.email, action: "auth.login", ip: c.var.ip });
-    setSessionCookie(c, token);
+    if (user.totpEnabledAt) {
+      // Password was right; a second factor is still owed before any session exists.
+      return c.json({ ok: false, mfaRequired: true, ticket: await issueMfaTicket(db, user.id, now()) });
+    }
+    await startSession(c, user.id, user.email, "auth.login");
     return c.json({ ok: true });
+  })
+  .post("/login/2fa", async (c) => {
+    const { ticket, code } = await parseBody(c, z.object({ ticket: z.string().min(10), code: z.string().trim().min(6).max(20) }));
+    if (!loginLimiter.take(`mfa:${c.var.ip}`)) throw tooMany();
+    const { userId, usedRecoveryCode } = await redeemMfaTicket(c.var.deps, ticket, code);
+    const user = (await c.var.deps.db.query.users.findFirst({ where: (u, { eq }) => eq(u.id, userId) }))!;
+    await startSession(c, user.id, user.email, usedRecoveryCode ? "auth.login_recovery_code" : "auth.login");
+    return c.json({ ok: true, usedRecoveryCode });
   })
   /** Opens a sandbox workspace with sample data. Only when DEMO_MODE is on. */
   .post("/demo", async (c) => {
@@ -116,8 +136,9 @@ export function authRoutes() {
   .get("/me", requireAuth, async (c) => {
     const { auth } = c.var;
     const org = await c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get();
+    const u = await c.var.deps.db.query.users.findFirst({ where: (t, { eq }) => eq(t.id, auth.userId) });
     return c.json({
-      user: { id: auth.userId, email: auth.email, name: auth.name },
+      user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!u?.emailVerifiedAt, twoFactor: !!u?.totpEnabledAt },
       organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role } : null,
     });
   });

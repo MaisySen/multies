@@ -44,5 +44,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `mailbox_access` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `mailbox_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `mailbox_access_org_idx` ON `mailbox_access` (`org_id`);"
     ]
+  },
+  {
+    "name": "0002_account_security",
+    "statements": [
+      "CREATE TABLE `auth_tokens` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`user_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`data` text,\n\t`expires_at` integer NOT NULL,\n\t`used_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `auth_tokens_hash_uq` ON `auth_tokens` (`token_hash`);",
+      "CREATE INDEX `auth_tokens_user_idx` ON `auth_tokens` (`user_id`,`kind`);",
+      "CREATE TABLE `recovery_codes` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`user_id` text NOT NULL,\n\t`code_hash` text NOT NULL,\n\t`used_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `recovery_codes_user_idx` ON `recovery_codes` (`user_id`);",
+      "ALTER TABLE `users` ADD `email_verified_at` integer;",
+      "ALTER TABLE `users` ADD `totp_secret_enc` text;",
+      "ALTER TABLE `users` ADD `totp_pending_enc` text;",
+      "ALTER TABLE `users` ADD `totp_enabled_at` integer;",
+      "ALTER TABLE `users` ADD `totp_last_step` integer;",
+      "ALTER TABLE `users` ADD `password_changed_at` integer;"
+    ]
   }
 ];

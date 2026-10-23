@@ -9,6 +9,15 @@ export const users = sqliteTable("users", {
   email: text("email").notNull(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  emailVerifiedAt: ts("email_verified_at"),
+  /** TOTP secret (base32), AES-GCM encrypted. Set while 2FA is on. */
+  totpSecretEnc: text("totp_secret_enc"),
+  /** A secret being set up but not yet confirmed with a code. */
+  totpPendingEnc: text("totp_pending_enc"),
+  totpEnabledAt: ts("totp_enabled_at"),
+  /** Last accepted TOTP time step, so a code can't be replayed. */
+  totpLastStep: integer("totp_last_step"),
+  passwordChangedAt: ts("password_changed_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("users_email_uq").on(t.email)]);
 
@@ -202,3 +211,25 @@ export const mailboxAccess = sqliteTable("mailbox_access", {
   mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.userId, t.mailboxId] }), index("mailbox_access_org_idx").on(t.orgId)]);
+
+/** Single-use, expiring tokens: password resets, email verification, 2FA login tickets. Only hashes are stored. */
+export const authTokens = sqliteTable("auth_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["password_reset", "email_verify", "mfa_ticket"] }).notNull(),
+  tokenHash: text("token_hash").notNull(),
+  /** For email_verify: the address being verified. For mfa_ticket: failed attempts. */
+  data: text("data"),
+  expiresAt: ts("expires_at").notNull(),
+  usedAt: ts("used_at"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("auth_tokens_hash_uq").on(t.tokenHash), index("auth_tokens_user_idx").on(t.userId, t.kind)]);
+
+/** 2FA recovery codes (SHA-256 of the normalized code). */
+export const recoveryCodes = sqliteTable("recovery_codes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  usedAt: ts("used_at"),
+  createdAt: createdAt(),
+}, (t) => [index("recovery_codes_user_idx").on(t.userId)]);

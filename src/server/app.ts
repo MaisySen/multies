@@ -13,6 +13,7 @@ import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
 import { PLANS } from "@/shared/plans";
 import { inviteRoutes, teamRoutes } from "./routes/team";
+import { securityRoutes } from "./routes/security";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -46,6 +47,7 @@ export function createApp(deps: Deps) {
   );
 
   app.route("/api/auth", authRoutes());
+  app.route("/api/auth", securityRoutes());
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/aliases", aliasRoutes());

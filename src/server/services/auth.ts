@@ -9,6 +9,8 @@ import type { SignupInput } from "@/shared/schemas";
 export const SESSION_COOKIE = "mm_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const SESSION_REFRESH_MS = 24 * 60 * 60 * 1000;
+/** How often "last active" on the devices list moves forward. */
+const LAST_SEEN_GRANULARITY_MS = 5 * 60 * 1000;
 
 // A real hash of a random password, used to keep login timing constant for unknown emails.
 let dummyHash: Promise<string> | null = null;
@@ -67,10 +69,13 @@ export async function resolveSession(db: DB, token: string, now: Date): Promise<
     .where(and(eq(sessions.tokenHash, tokenHash), gt(sessions.expiresAt, now)))
     .get();
   if (!row) return null;
-  if (now.getTime() - row.s.lastSeenAt.getTime() > SESSION_REFRESH_MS) {
+  const idle = now.getTime() - row.s.lastSeenAt.getTime();
+  if (idle > SESSION_REFRESH_MS) {
     await db.update(sessions)
       .set({ lastSeenAt: now, expiresAt: new Date(now.getTime() + SESSION_TTL_MS) })
       .where(eq(sessions.id, row.s.id));
+  } else if (idle > LAST_SEEN_GRANULARITY_MS) {
+    await db.update(sessions).set({ lastSeenAt: now }).where(eq(sessions.id, row.s.id));
   }
   return { userId: row.u.id, email: row.u.email, name: row.u.name, orgId: row.s.orgId, role: row.m.role, sessionId: row.s.id };
 }
@@ -88,7 +93,7 @@ export async function changePassword(db: DB, userId: string, keepSessionId: stri
   if (!user || !(await verifyPassword(current, user.passwordHash))) {
     throw new HttpError(422, "validation_failed", "Your current password is incorrect.", { fields: { currentPassword: "Your current password is incorrect." } });
   }
-  await db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash: await hashPassword(next), passwordChangedAt: new Date() }).where(eq(users.id, userId));
   await db.delete(sessions).where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)));
 }
 
