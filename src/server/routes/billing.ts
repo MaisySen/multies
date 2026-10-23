@@ -3,13 +3,13 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { billingOverview, handleStripeWebhook, listInvoices, openPortal, startCheckout } from "../services/billing";
-import { StripeError } from "../services/billing/stripe";
+import { billingOverview, confirmCheckout, handleStripeWebhook, listInvoices, openPortal, startCheckout } from "../services/billing";
+import { Stripe } from "../services/billing/stripe";
 import { HttpError } from "../lib/errors";
 
 const wrapStripe = async <T>(fn: () => Promise<T>): Promise<T> => {
   try { return await fn(); } catch (e) {
-    if (e instanceof StripeError) throw new HttpError(502, "billing_provider_error", `The payment provider said: ${e.message}`);
+    if (e instanceof Stripe.errors.StripeError) throw new HttpError(502, "billing_provider_error", `The payment provider said: ${e.message}`);
     throw e;
   }
 };
@@ -24,6 +24,10 @@ export function billingRoutes() {
       const { auth, deps } = c.var;
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.checkout_started", metadata: { plan }, ip: c.var.ip });
       return c.json({ url: session.url });
+    })
+    .post("/checkout/confirm", async (c) => {
+      const { sessionId } = await parseBody(c, z.object({ sessionId: z.string().min(1).max(255) }));
+      return c.json(await wrapStripe(() => confirmCheckout(c.var.deps, c.var.auth, sessionId)));
     })
     .post("/portal", async (c) => c.json({ url: (await wrapStripe(() => openPortal(c.var.deps, c.var.auth))).url }))
     .get("/invoices", async (c) => c.json({ invoices: await wrapStripe(() => listInvoices(c.var.deps, c.var.auth.orgId)) }));

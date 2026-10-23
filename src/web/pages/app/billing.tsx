@@ -14,6 +14,8 @@ import { Section } from "./settings";
 interface BillingInfo {
   enabled: boolean;
   missing: string[];
+  testMode: boolean;
+  webhooks: boolean;
   plan: Plan;
   subscription: { status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
   hasCustomer: boolean;
@@ -40,9 +42,19 @@ export function BillingSettings() {
   useEffect(() => {
     const r = params.get("checkout");
     if (!r) return;
+    const sessionId = params.get("session_id");
+    setParams({}, { replace: true });
+    if (r === "success" && sessionId) {
+      api.post<{ plan: PlanId; complete: boolean }>("/billing/checkout/confirm", { sessionId })
+        .then((res) => res.complete
+          ? toast.success("Subscription started", { description: `You're on the ${res.plan[0].toUpperCase()}${res.plan.slice(1)} plan.` })
+          : toast("Payment is still processing", { description: "Your plan updates as soon as it confirms." }))
+        .catch((e: Error) => toast.error(e.message))
+        .finally(() => qc.invalidateQueries());
+      return;
+    }
     if (r === "success") toast.success("Subscription started", { description: "Your plan updates as soon as payment confirms." });
     else toast("Checkout cancelled", { description: "Nothing was charged." });
-    setParams({}, { replace: true });
     qc.invalidateQueries();
   }, [params, setParams, qc]);
 
@@ -77,6 +89,9 @@ export function BillingSettings() {
         </div>
       )}
       {isDemo && b.enabled && <p className="text-sm text-muted">Demo workspaces switch plans freely; nothing is charged.</p>}
+      {paidFlow && b.testMode && (
+        <p className="rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn" role="status">Stripe test mode. Checkout takes test cards only (4242 4242 4242 4242, any future date, any CVC). Nothing is charged.</p>
+      )}
 
       <Section title="Current plan" description="Limits are enforced on the server and follow your plan the moment it changes.">
         <div className="flex flex-wrap items-center gap-3">

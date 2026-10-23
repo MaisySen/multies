@@ -33,6 +33,8 @@ export interface AppConfig {
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
+    testMode: boolean;
+    publishableKey?: string;
     stripeSecretKey?: string;
     stripeWebhookSecret?: string;
     prices: { pro?: string; business?: string };
@@ -72,6 +74,7 @@ const EnvSchema = z.object({
   AUTH0_CLIENT_SECRET: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
   STRIPE_PRICE_BUSINESS: z.string().optional(),
@@ -135,16 +138,17 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET } } : {}),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },
-    billing: (() => {
-      const req = { STRIPE_SECRET_KEY: env.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: env.STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_PRO: env.STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS: env.STRIPE_PRICE_BUSINESS };
-      const missing = Object.entries(req).filter(([, v]) => !v).map(([k]) => k);
-      return {
-        enabled: missing.length === 0,
-        stripeSecretKey: env.STRIPE_SECRET_KEY, stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
-        prices: { pro: env.STRIPE_PRICE_PRO, business: env.STRIPE_PRICE_BUSINESS },
-        missing,
-      };
-    })(),
+    billing: {
+      // Only the secret key is required. Prices are found by lookup key (and created in
+      // test mode); the webhook secret adds server-to-server sync on top of the
+      // checkout return.
+      enabled: !!env.STRIPE_SECRET_KEY,
+      testMode: !!env.STRIPE_SECRET_KEY?.startsWith("sk_test_"),
+      stripeSecretKey: env.STRIPE_SECRET_KEY, stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
+      publishableKey: env.STRIPE_PUBLISHABLE_KEY,
+      prices: { pro: env.STRIPE_PRICE_PRO, business: env.STRIPE_PRICE_BUSINESS },
+      missing: env.STRIPE_SECRET_KEY ? [] : ["STRIPE_SECRET_KEY"],
+    },
     systemFrom: {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
