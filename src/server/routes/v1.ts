@@ -8,8 +8,8 @@ import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "../context";
-import { HttpError, tooMany, unauthorized } from "../lib/errors";
-import { RateLimiter } from "../lib/rate-limit";
+import { HttpError, unauthorized } from "../lib/errors";
+import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes } from "../services/addresses";
 import { resolveApiKey } from "../services/developer/api-keys";
@@ -105,12 +105,9 @@ const secured = [{ bearerAuth: [] }];
 
 // ---------------------------------------------------------------- auth
 
-const limiter = new RateLimiter(600, 60_000);
-
 const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = await resolveApiKey(c.var.deps, c.req.header("authorization"));
   if (!auth) throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
-  if (!limiter.take(auth.apiKeyId)) throw tooMany("Rate limit: 600 requests a minute per key.");
   if (auth.scope === "read" && c.req.method !== "GET") throw new HttpError(403, "read_only_key", "This API key can only read.");
   c.set("auth", auth);
   await next();
@@ -147,6 +144,11 @@ export function v1Routes() {
   api.use("/aliases/*", apiKeyAuth); api.use("/aliases", apiKeyAuth);
   api.use("/messages/*", apiKeyAuth); api.use("/messages", apiKeyAuth);
   api.use("/webhooks/*", apiKeyAuth); api.use("/webhooks", apiKeyAuth);
+  // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
+  api.use("*", idempotency((c) => {
+    const a = c.var.auth as { apiKeyId?: string } | undefined;
+    return a?.apiKeyId ? `key:${a.apiKeyId}` : undefined;
+  }));
 
   const domainOut = (d: Parameters<typeof presentDomain>[0], deps: Parameters<typeof presentDomain>[1]) => {
     const p = presentDomain(d, deps);

@@ -18,6 +18,13 @@ export interface Deps {
    * Verifies SPF, DKIM and DMARC on inbound mail (mailauth, Node only). Without it the
    * verdicts the receiving MTA wrote into the message are used.
    */
+  /**
+   * Cloudflare rate limiting bindings, when the deployment declares them. Without one
+   * the limiter falls back to a counter in the database, shared by every instance.
+   */
+  rateLimiters?: Partial<Record<RateLimitScope, RateLimitBinding | undefined>>;
+  /** Structured logger (JSON lines). Defaults to console. */
+  log?: Logger;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 
@@ -35,5 +42,18 @@ export interface AuthContext {
 }
 
 export interface AppEnv {
-  Variables: { deps: Deps; auth: AuthContext; ip: string };
+  Variables: { deps: Deps; auth: AuthContext; ip: string; requestId: string; log: Logger; apiKeyOrg?: string };
+}
+
+export type RateLimitScope = "auth" | "api" | "webhooks" | "app";
+
+/** The shape of a Cloudflare Workers rate limiting binding. */
+export interface RateLimitBinding {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
+}
+
+export interface Logger {
+  info(msg: string, fields?: Record<string, unknown>): void;
+  warn(msg: string, fields?: Record<string, unknown>): void;
+  error(msg: string, fields?: Record<string, unknown>): void;
 }
