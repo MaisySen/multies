@@ -1,3 +1,4 @@
+import { assertNotPaymentPaused, maybeUsageAlert } from "../billing/dunning";
 import { emitEvent } from "../developer/webhooks";
 import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq } from "drizzle-orm";
@@ -38,6 +39,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (mb.status !== "active") throw badRequest("This mailbox is suspended.");
   const domain = (await db.select().from(domains).where(eq(domains.id, mb.domainId)).get())!;
   const org = await getOrg(db, auth.orgId);
+  assertNotPaymentPaused(org, deps.now());
   if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", `This workspace is suspended, so it can't send mail. ${org.suspendedReason ?? ""} Contact support to review it.`.trim());
   if (domain.status !== "verified" && !org.isDemo) {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
@@ -158,6 +160,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       }
     }
   }
+  await maybeUsageAlert(deps, org, used + recipients.length, cap).catch((err) => deps.reportError?.(err, { where: "usageAlert" }));
   await emitEvent(deps, auth.orgId, "message.sent", {
     id: sentId, mailboxId: mb.id, from: mb.address, to: input.to, cc: input.cc ?? [], subject: input.subject,
     recipients: [...result.internal.map((address) => ({ address, status: "delivered" })), ...result.external],

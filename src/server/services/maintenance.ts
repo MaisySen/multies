@@ -1,3 +1,4 @@
+import { enforceGracePeriods } from "./billing/dunning";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
 import { sql } from "drizzle-orm";
 import type { Deps } from "../context";
@@ -29,13 +30,14 @@ export async function runMaintenance(deps: Deps) {
   const uptime = await step("uptime", () => recordUptimeCheck(deps));
   const crossChecks = await step("cross_check", () => crossCheck(deps));
   const legacy = await step("legacy", () => legacyMaintenance(deps));
+  const dunning = await step("dunning", () => enforceGracePeriods(deps));
   await step("prune", async () => {
     await pruneRateLimits(deps.db, deps.now().getTime());
     await pruneIdempotencyKeys(deps.db, deps.now());
     await pruneLockouts(deps.db, deps.now());
     await pruneJobs(deps);
   });
-  return { ...legacy, jobs: jobsRun, uptime, crossChecks };
+  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning };
 }
 
 async function legacyMaintenance(deps: Deps) {

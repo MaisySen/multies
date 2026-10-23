@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { constructWebhookEvent, signStripePayload, stripeClient } from "@/server/services/billing/stripe";
+import { enforceGracePeriods, maybeUsageAlert } from "@/server/services/billing/dunning";
+import { organizations } from "@/server/db/schema";
 
 const STRIPE_ENV = {
   STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_WEBHOOK_SECRET: "whsec_test", STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_BUSINESS: "price_biz",
@@ -109,6 +111,63 @@ describe("billing with Stripe", () => {
 
     const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
     expect(audit).toContain("billing.plan_changed");
+  });
+
+  it("runs dunning: grace period, paused sending, one final notice, receipt on recovery", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    await a.post("/api/billing/checkout", { plan: "pro" });
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
+    stripe.subs.sub_1 = sub("active");
+    await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
+    const domainId = (await a.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const box = (await a.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" })).body.mailbox;
+
+    let now = Date.now();
+    ctx.deps.now = () => new Date(now);
+    const failed = { id: "in_9", number: "MM-0009", customer: "cus_123", amount_due: 1200, currency: "aud" };
+    await postWebhook(ctx.app, { id: "evt_f1", type: "invoice.payment_failed", data: { object: failed } }, "whsec_test", new Date(now));
+    await postWebhook(ctx.app, { id: "evt_f2", type: "invoice.payment_failed", data: { object: failed } }, "whsec_test", new Date(now));
+    const notices = () => ctx.outbound.sent.filter((m) => /didn't go through|Sending is paused/.test(m.subject));
+    expect(notices()).toHaveLength(1); // a retry failing again sends nothing new
+    expect(notices()[0]!.html).toContain("Update payment method");
+    const org = await ctx.db.query.organizations.findFirst();
+    expect(org!.graceEndsAt!.getTime() - org!.pastDueSince!.getTime()).toBe(7 * 86400_000);
+
+    // During grace sending works (it fails later for the unverified domain, not for payment).
+    expect((await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" })).body.error.code).not.toBe("payment_required");
+    now += 8 * 86400_000;
+    const paused = await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" });
+    expect(paused.status).toBe(402);
+    expect(paused.body.error.code).toBe("payment_required");
+    expect((await enforceGracePeriods(ctx.deps)).notified).toBe(1);
+    expect((await enforceGracePeriods(ctx.deps)).notified).toBe(0);
+    expect(notices()).toHaveLength(2);
+
+    const paid = { id: "in_9", number: "MM-0009", customer: "cus_123", amount_paid: 1200, tax: 109, currency: "aud", hosted_invoice_url: "https://invoice.stripe.com/i/9", lines: { data: [{ description: "MyMail Pro", amount: 1200 }] } };
+    await postWebhook(ctx.app, { id: "evt_p1", type: "invoice.paid", data: { object: paid } }, "whsec_test", new Date(now));
+    expect((await ctx.db.query.organizations.findFirst())!.pastDueSince).toBeNull();
+    const receipt = ctx.outbound.sent.find((m) => m.subject.startsWith("Receipt MM-0009"))!;
+    expect(receipt.html).toContain("Payment received: $12.00");
+    expect(receipt.html).toContain("Includes GST");
+    expect(receipt.html).toContain("MyMail Pro");
+    expect((await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" })).body.error.code).not.toBe("payment_required");
+    const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
+    expect(audit).toEqual(expect.arrayContaining(["billing.payment_failed", "billing.grace_ended", "billing.recovered", "billing.invoice_paid"]));
+  });
+
+  it("emails usage alerts once per threshold per day", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    const org = (await ctx.db.query.organizations.findFirst())!;
+    expect(await maybeUsageAlert(ctx.deps, org, 50, 100)).toBeNull();
+    expect(await maybeUsageAlert(ctx.deps, org, 80, 100)).toBe(80);
+    const fresh = async () => (await ctx.db.select().from(organizations).get())!;
+    expect(await maybeUsageAlert(ctx.deps, await fresh(), 90, 100)).toBeNull();
+    expect(await maybeUsageAlert(ctx.deps, await fresh(), 100, 100)).toBe(100);
+    const alerts = ctx.outbound.sent.filter((m) => /daily sends|daily sending limit/.test(m.subject));
+    expect(alerts.map((m) => m.subject)).toEqual(["Acme has used 80% of its daily sends", "Acme reached its daily sending limit"]);
+    expect(alerts[1]!.html).toContain("Upgrade to Pro");
   });
 
   it("refuses unsigned webhooks and non-owners", async () => {

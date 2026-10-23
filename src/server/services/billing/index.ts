@@ -8,6 +8,7 @@ import { getOrg, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
 import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
 import { PRICE_CURRENCY } from "@/shared/plans";
+import { onInvoicePaid, onPaymentFailed } from "./dunning";
 
 /** The subscription fields MyMail mirrors. */
 export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "cancel_at_period_end" | "metadata"> & {
@@ -254,6 +255,8 @@ export async function handleStripeWebhook(deps: Deps, rawBody: string, signature
           orgId: org.id, action: event.type === "invoice.paid" ? "billing.invoice_paid" : "billing.payment_failed",
           metadata: { amount: obj.amount_paid ?? obj.amount_due, currency: obj.currency, number: obj.number },
         });
+        if (event.type === "invoice.paid") await onInvoicePaid(deps, org, obj);
+        else await onPaymentFailed(deps, org, obj);
       }
       break;
     }
