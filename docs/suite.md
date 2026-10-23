@@ -141,3 +141,30 @@ Self-hosting instead of LiveKit Cloud: run the open source `livekit-server` (Doc
 50000 to 60000 UDP open, put TLS in front of 7880 (Caddy works), create a key pair in its config and
 set `LIVEKIT_URL=wss://your-host`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on the Worker. The app
 and the browser code don't change. The page's content security policy allows any `wss:` host.
+
+## Custom fields
+
+Each project can have custom fields: text, number, currency (AUD, stored in cents), date, select, multi select, person, checkbox and url. Fields show on the task panel and as list columns, sort by clicking the column, and a board can be grouped by any single select field (with a "No value" column; dragging a card sets the field).
+
+- REST: `GET/POST /api/v1/projects/{id}/fields`, `PATCH/DELETE /api/v1/fields/{id}`. Set values with `PATCH /api/v1/tasks/{id}` and `{"fields": {"<fieldId>": value}}`; `null` clears one.
+- Filters: `GET /api/v1/tasks?field.<fieldId>=<op>:<value>` with ops `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `empty`, `notempty`. Sort with `sort=field.<fieldId>&dir=asc|desc`.
+- MCP: `list_custom_fields`, `create_custom_field`, `set_task_fields`, `find_tasks_by_field`.
+- Webhooks: `custom_field.created`, `custom_field.updated`, `custom_field.deleted`; value changes arrive on `task.updated`.
+
+## Guests
+
+Invite an outside person to one project by email. Guests are free on every plan and never count as people on the plan. A guest sees only that project's tasks, comments, files and docs, and can comment and upload files (10 MB each). Nothing else: the guest session cookie only works under `/api/guest`, and every member endpoint answers 401 to it.
+
+- The invite goes out through MyMail's own system mail with a link to `/g/<token>`. With no mail provider configured the API returns the link so a person can share it by hand.
+- An agent's invite (`invite_guest` over MCP, or `POST /api/v1/projects/{id}/guests` with an agent key) goes through the approval queue like any other agent mail, and the guest stays pending until a person approves it.
+- REST: `GET/POST /api/v1/projects/{id}/guests`, `DELETE /api/v1/guests/{id}` (revokes at once).
+- MCP: `list_guests`, `invite_guest`.
+- Webhooks: `guest.invited`, `guest.joined`, `guest.revoked`, `task.file_added`.
+
+## Portfolio
+
+`/app/portfolio` shows every project with its owner, progress (done top level tasks over all of them), overdue count, time logged, next due date and a health flag (on track, at risk, off track) that people set by hand. Health and owner are set from the table.
+
+- REST: `GET /api/v1/portfolio`, and `PATCH /api/v1/projects/{id}` with `health`, `healthNote`, `ownerId`.
+- MCP: `get_portfolio`, `set_project_health`.
+- Webhooks: `project.updated`.
