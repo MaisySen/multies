@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { PLAN_ORDER, PLANS } from "@/shared/plans";
+import { PLAN_ORDER, PLANS, PRICE_LABEL, formatPlanPrice } from "@/shared/plans";
 import { ButtonLink } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
 
@@ -15,8 +15,8 @@ export function PlanCards({ ctaTo = "/signup", headingLevel = 3 }: { ctaTo?: str
             <H className="text-[15px] font-semibold">{p.name}</H>
             <p className="mt-1 text-sm text-muted">{p.tagline}</p>
             <p className="mt-6 flex items-baseline gap-1">
-              <span className="text-4xl font-semibold tracking-tight">${p.priceMonthly}</span>
-              <span className="text-sm text-subtle">/ month</span>
+              <span className="text-4xl font-semibold tracking-tight">{formatPlanPrice(p.priceMonthly)}</span>
+              <span className="text-sm text-subtle">{PRICE_LABEL} / month</span>
             </p>
             <ul className="mt-6 flex-1 space-y-2.5 text-sm">
               {p.features.map((f) => (

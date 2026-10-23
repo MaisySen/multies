@@ -7,6 +7,7 @@ import { audit } from "../audit";
 import { getOrg, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
 import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
+import { PRICE_CURRENCY } from "@/shared/plans";
 
 /** The subscription fields MyMail mirrors. */
 export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "cancel_at_period_end" | "metadata"> & {
@@ -57,7 +58,7 @@ export async function resolvePrice(deps: Deps, stripe: Stripe, plan: PaidPlan): 
     const def = PLANS[plan];
     const product = await stripe.products.create({ name: `${deps.config.appName} ${def.name}`, metadata: { plan } });
     const price = await stripe.prices.create({
-      product: product.id, currency: "usd", unit_amount: def.priceMonthly * 100, recurring: { interval: "month" }, lookup_key: lookupKey(plan),
+      product: product.id, currency: PRICE_CURRENCY, unit_amount: def.priceMonthly * 100, recurring: { interval: "month" }, lookup_key: lookupKey(plan),
     });
     id = price.id;
   }

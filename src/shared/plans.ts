@@ -1,3 +1,10 @@
+/** Plan prices are in Australian dollars (the Stripe account is Australian). */
+export const PRICE_CURRENCY = "aud";
+
+/** "$12" in en-AU; pair it with PRICE_LABEL so the currency is never ambiguous. */
+export const formatPlanPrice = (amount: number) => new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(amount);
+export const PRICE_LABEL = "AUD";
+
 export type PlanId = "starter" | "pro" | "business";
 
 export interface Plan {

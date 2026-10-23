@@ -5,7 +5,7 @@ import { AlertTriangle, CreditCard, ExternalLink, FileText, PlugZap, Receipt } f
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
-import { PLAN_ORDER, PLANS, type Plan, type PlanId } from "@/shared/plans";
+import { PLAN_ORDER, PLANS, type Plan, type PlanId, PRICE_LABEL, formatPlanPrice } from "@/shared/plans";
 import { Badge, Card, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
@@ -98,7 +98,7 @@ export function BillingSettings() {
       <Section title="Current plan" description="Limits are enforced on the server and follow your plan the moment it changes.">
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-2xl font-semibold tracking-tight">{b.plan.name}</span>
-          <span className="text-sm text-muted">${b.plan.priceMonthly}/month</span>
+          <span className="text-sm text-muted">{formatPlanPrice(b.plan.priceMonthly)} {PRICE_LABEL} a month</span>
           {status && <Badge tone={status.tone} dot>{status.label}</Badge>}
         </div>
         {sub?.currentPeriodEnd && (
@@ -130,7 +130,7 @@ export function BillingSettings() {
             return (
               <div key={id} className={cn("flex flex-col border-line py-4 lg:px-5 lg:first:pl-0 lg:last:pr-0 [&:not(:first-child)]:border-t lg:[&:not(:first-child)]:border-l lg:[&:not(:first-child)]:border-t-0", isCurrent && "text-fg")}>
                 <div className="flex items-center justify-between"><span className="font-semibold">{p.name}</span>{isCurrent && <Badge tone="brand">Current</Badge>}</div>
-                <div className="mt-1 text-sm"><span className="text-lg font-semibold">${p.priceMonthly}</span><span className="text-muted">/mo</span></div>
+                <div className="mt-1 text-sm"><span className="text-lg font-semibold">{formatPlanPrice(p.priceMonthly)}</span><span className="text-muted"> {PRICE_LABEL}/mo</span></div>
                 <ul className="mt-3 flex-1 space-y-1 text-xs text-muted">
                   <li>{p.limits.domains} domain{p.limits.domains === 1 ? "" : "s"} · {p.limits.mailboxes} mailboxes</li>
                   <li>{p.limits.aliases.toLocaleString(LOCALE)} aliases · {p.limits.storagePerMailboxMb / 1024} GB each</li>
