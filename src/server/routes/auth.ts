@@ -10,6 +10,8 @@ import { audit } from "../services/audit";
 import { RateLimiter } from "../lib/rate-limit";
 import { HttpError, tooMany } from "../lib/errors";
 import { organizations } from "../db/schema";
+import { createDemoWorkspace } from "../services/demo";
+import { notFound } from "../lib/errors";
 
 
 function setSessionCookie(c: Context<AppEnv>, token: string) {
@@ -47,6 +49,16 @@ export function authRoutes() {
     if (auth) await audit(db, { orgId: auth.orgId, actorUserId: user.id, actorEmail: user.email, action: "auth.login", ip: c.var.ip });
     setSessionCookie(c, token);
     return c.json({ ok: true });
+  })
+  /** Opens a sandbox workspace with sample data. Only when DEMO_MODE is on. */
+  .post("/demo", async (c) => {
+    const { db, now, config } = c.var.deps;
+    if (!config.demoEnabled) throw notFound("Demo");
+    if (!signupLimiter.take(c.var.ip)) throw tooMany();
+    const { userId } = await createDemoWorkspace(c.var.deps);
+    const { token } = await createSession(db, userId, { ip: c.var.ip, userAgent: c.req.header("user-agent"), now: now() });
+    setSessionCookie(c, token);
+    return c.json({ ok: true }, 201);
   })
   .post("/logout", requireAuth, async (c) => {
     const { auth } = c.var;
