@@ -35,6 +35,8 @@ export function browse() {
     const r = http.get(`${BASE}/api/health`, { tags: { name: "health" } });
     check(r, { "health ok": (x) => x.status === 200 && x.json("ok") === true });
   });
+  // Think time jitter between page views; nothing security related depends on it.
+  // nosemgrep: ajinabraham.njsscan.crypto.crypto_node.node_insecure_random_generator
   sleep(2 + Math.random() * 2);
 }
 

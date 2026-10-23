@@ -279,6 +279,8 @@ export function v1Routes() {
 
   api.openapi(createRoute({ method: "post", path: "/webhooks", tags: ["Webhooks"], summary: "Add a webhook endpoint", description: `Events: ${WEBHOOK_EVENTS.join(", ")}, or "*" for all. The response carries the signing secret once.`, security: secured,
     request: body(z.object({ url: z.string().url().openapi({ example: "https://example.com/webhooks/mymail" }), events: z.array(z.enum([...WEBHOOK_EVENTS, "*"])).min(1), description: z.string().max(200).optional() })),
+    // An illustrative value for the docs page, not a real secret.
+    // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret
     responses: { 201: json(WebhookEndpoint.extend({ secret: z.string().openapi({ example: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" }) }), "The endpoint and its signing secret."), 401: errors[401], 422: errors[422] } }),
   async (c) => {
     const { auth, deps } = c.var;

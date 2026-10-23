@@ -1,0 +1,13 @@
+# gitleaks reads this file automatically. The default rules stay on.
+[extend]
+useDefault = true
+
+# The DKIM key generator (src/server/lib/crypto.ts) wraps a freshly generated key in PEM
+# armour with a template string. The line holds no key material, so it is allowed by
+# path and pattern, which keeps working whatever commit id the line has.
+[[allowlists]]
+description = "PEM armour template in the DKIM key generator"
+condition = "AND"
+paths = ['src/server/lib/crypto\.ts']
+regexTarget = "line"
+regexes = ['-----BEGIN PRIVATE KEY-----\\n\$\{toB64']
