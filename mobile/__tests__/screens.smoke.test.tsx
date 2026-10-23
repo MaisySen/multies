@@ -52,6 +52,9 @@ it("thread shows the conversation, labels agent messages and makes a task", asyn
   expect(screen.getByText(/remittance attached/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId("make-task"));
   await waitFor(() => expect(mockPush).toHaveBeenCalledWith(expect.objectContaining({ pathname: "/task/[id]" })));
+  // One call to POST /tasks/from-email: title from the subject, linked to the thread.
+  const { tasks } = await transport.request<{ tasks: { title: string; source: { threadId: string } | null }[] }>("GET", "/tasks?threadId=thr_3");
+  expect(tasks.map((t) => t.title)).toContain("Invoice INV-1042 overdue");
 });
 
 it("approvals: approve sends and removes it from the waiting list", async () => {
@@ -87,13 +90,49 @@ it("compose checks recipients, then sends", async () => {
   expect(screen.getByTestId("body")).toBeTruthy();
 });
 
-it("tasks and settings render", async () => {
+it("tasks list and board come from the API and move a task to done", async () => {
   const Tasks = require("@/app/(tabs)/tasks").default;
+  await wrap(<Tasks />);
+  expect(await screen.findByText("To do (2)")).toBeTruthy();
+  expect(screen.getByText("Lodge the September quarter BAS")).toBeTruthy();
+  expect(screen.getByText("Urgent")).toBeTruthy();
+  expect(screen.getAllByText("Invoice chaser").length).toBeGreaterThan(0);
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string }[] }>("GET", "/tasks");
+  const bas = tasks.find((t) => t.title.startsWith("Lodge"))!;
+  await fireEvent.press(screen.getByTestId(`toggle-${bas.id}`));
+  await waitFor(async () => {
+    const after = await transport.request<{ tasks: { id: string; status: string }[] }>("GET", "/tasks?status=done");
+    expect(after.tasks.map((t) => t.id)).toContain(bas.id);
+  });
+  expect(await screen.findByText("Done (2)")).toBeTruthy();
+  await fireEvent.press(screen.getByLabelText("Board"));
+  expect(await screen.findByTestId("column-doing")).toBeTruthy();
+});
+
+it("task screen shows status, due date, priority, assignee, replies and comments", async () => {
+  const { tasks } = await transport.request<{ tasks: { id: string; title: string; ref: string }[] }>("GET", "/tasks");
+  const chase = tasks.find((t) => t.title.startsWith("Chase"))!;
+  mockParams = { id: chase.id };
+  const Detail = require("@/app/task/[id]").default;
+  await wrap(<Detail />);
+  expect(await screen.findByText("Overdue 1 day")).toBeTruthy();
+  expect(screen.getByText("Invoice chaser (agent)")).toBeTruthy();
+  expect(screen.getByText("Email thread (2)")).toBeTruthy();
+  expect(screen.getByText(/remittance attached/)).toBeTruthy();
+  expect(screen.getByText(/Check it against the bank feed/)).toBeTruthy();
+  await fireEvent.changeText(screen.getByTestId("comment-input"), "Paid in full, closing.");
+  await fireEvent.press(screen.getByTestId("post-comment"));
+  expect(await screen.findByText("Paid in full, closing.")).toBeTruthy();
+  await fireEvent.press(screen.getByText("Done"));
+  await waitFor(async () => {
+    const d = await transport.request<{ task: { status: string } }>("GET", `/tasks/${chase.id}`);
+    expect(d.task.status).toBe("done");
+  });
+});
+
+it("settings render", async () => {
   const Settings = require("@/app/(tabs)/settings").default;
-  await wrap(<><Tasks /><Settings /></>);
-  // The thread test above made a task from an email, and it shows in the list.
-  expect(await screen.findByText("To do (1)")).toBeTruthy();
-  expect(screen.getByText("Re: Invoice INV-1042 overdue")).toBeTruthy();
+  await wrap(<Settings />);
   expect(await screen.findByText("Delete account")).toBeTruthy();
   expect(screen.getByText("English (Australia)", { exact: false })).toBeTruthy();
 });
