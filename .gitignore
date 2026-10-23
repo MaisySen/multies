@@ -12,3 +12,6 @@ coverage/
 *.tsbuildinfo
 test-results/
 playwright-report/
+coverage/
+.lighthouseci/
+playwright-report/

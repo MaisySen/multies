@@ -1,0 +1,31 @@
+# OWASP ZAP baseline scan (passive) against the live preview and production, weekly
+# and on demand. Findings that are accepted on purpose are listed, with the reason,
+# in .zap/rules.tsv; anything else fails the run.
+name: ZAP baseline
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 20 * * 0" # Mondays 07:41 in Sydney
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - https://mymail.sites.tab.bot
+          - https://mymail.mymail-app.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: ${{ matrix.target }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a -j"
+          allow_issue_writing: false
+          fail_action: true

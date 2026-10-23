@@ -1,0 +1,33 @@
+# Static analysis and secret scanning on every push and pull request, plus weekly.
+# Semgrep community edition and gitleaks need no account and run on private repos.
+name: Security scans
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 19 * * 0" # Mondays 06:17 in Sydney
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep (OWASP Top 10, TypeScript, React, Node, secrets)
+        run: semgrep scan --metrics=off --error --config p/owasp-top-ten --config p/typescript --config p/react --config p/nodejsscan --config p/secrets
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (committed secrets, whole history)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git --redact --verbose --exit-code 1 .
