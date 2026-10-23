@@ -36,6 +36,7 @@ export function CustomFields({ fields, values, people, onSet, readOnly }: {
             <Pressable onPress={press} disabled={!editable} testID={`field-${f.id}`}
               accessibilityRole={f.type === "checkbox" ? "checkbox" : editable ? "button" : "text"}
               accessibilityState={f.type === "checkbox" ? { checked: value === true, disabled: !editable } : isOpen ? { expanded: true } : undefined}
+              aria-checked={f.type === "checkbox" ? value === true : undefined}
               accessibilityLabel={`${f.name}: ${shown.empty ? "not set" : shown.text}`}
               accessibilityHint={editable && f.type !== "checkbox" ? "Change this field" : undefined}
               style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.md, minHeight: 48, paddingVertical: 10 }}>
