@@ -11,7 +11,7 @@ import type { AuthContext, Deps } from "../../context";
 import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, domains, mailboxes, messages, organizations, sendApprovals,
 } from "../../db/schema";
-import { newId, randomToken } from "../../lib/crypto";
+import { fromB64, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
@@ -388,6 +388,8 @@ export interface AgentSendInput {
   text: string;
   html?: string;
   inReplyToId?: string;
+  /** Files sent with the message, e.g. a meeting's calendar invite. */
+  attachments?: { filename: string; contentType: string; contentBase64: string }[];
 }
 
 function recipientAllowed(allow: string[] | null, address: string) {
@@ -414,7 +416,7 @@ const asAgent = (orgId: string, a: Agent, mb: Mailbox): AuthContext => ({
 async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, from: Mailbox, input: AgentSendInput, approvedBy?: Actor) {
   const res = await sendMessage(deps, approvedBy ? { ...asAgent(orgId, a, mb), userId: approvedBy.userId } : asAgent(orgId, a, mb), {
     mailboxId: from.id, to: input.to, cc: input.cc, bcc: input.bcc, subject: input.subject, text: input.text, html: input.html, inReplyToId: input.inReplyToId,
-  }, { agentId: a.id });
+  }, { agentId: a.id, attachments: input.attachments?.map((x) => ({ filename: x.filename, contentType: x.contentType, content: fromB64(x.contentBase64) })) });
   await bumpCounter(deps.db, orgId, "agent_messages", deps.now());
   return res;
 }

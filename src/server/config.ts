@@ -72,6 +72,10 @@ export interface AppConfig {
   importRunnerToken?: string;
   /** Xero, for invoice reminders (XERO_CLIENT_ID, XERO_CLIENT_SECRET). Off without both. */
   xero?: { clientId: string; clientSecret: string };
+  /** Video meetings through LiveKit (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET). Off without all three. */
+  meetings?: { url: string; apiKey: string; apiSecret: string };
+  /** Cloudflare Turnstile on public forms (TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY). Without it, forms use a honeypot and rate limits. */
+  turnstile?: { siteKey: string; secretKey: string };
   mailServer: {
     enabled: boolean;
     url?: string;
@@ -146,6 +150,11 @@ const EnvSchema = z.object({
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
+  LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
+  LIVEKIT_API_KEY: z.string().optional(),
+  LIVEKIT_API_SECRET: z.string().optional(),
+  TURNSTILE_SITE_KEY: z.string().optional(),
+  TURNSTILE_SECRET_KEY: z.string().optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -235,6 +244,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,
+    meetings: env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET } : undefined,
+    turnstile: env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY ? { siteKey: env.TURNSTILE_SITE_KEY, secretKey: env.TURNSTILE_SECRET_KEY } : undefined,
     xero: env.XERO_CLIENT_ID && env.XERO_CLIENT_SECRET ? { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET } : undefined,
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
     mailServer: (() => {
