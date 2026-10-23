@@ -103,7 +103,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
   }
 
   const [docsList, dealsList, autoList] = await Promise.all([listDocs(deps, orgId), listDeals(deps, orgId), listAutomations(deps, orgId)]);
-  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now)]);
+  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now), seedRound8(deps, actor, client.id, tasksProject.id)]);
 
   async function seedDocs() {
   if (!docsList.length) {
@@ -204,4 +204,26 @@ async function seedRound7(deps: Deps, actor: SuiteActor, client: { id: string },
     work.push(createMeeting(deps, actor, { title: "Cutover check-in with Maria", startsAt, durationMin: 30, ...(maria ? { source: { type: "contact" as const, id: maria } } : { invitees: ["maria@blueharbor.co"] }) }));
   }
   await Promise.all(work);
+}
+
+/** Round 8 samples: custom fields with values on the client project, and health on the portfolio. */
+async function seedRound8(deps: Deps, actor: SuiteActor, clientId: string, otherId: string) {
+  const { createField, listFields, setTaskFieldValues } = await import("./fields");
+  const { updateProject } = await import("./tasks");
+  if ((await listFields(deps, actor.orgId, clientId)).length) return;
+  const [budget, stage, approved] = await Promise.all([
+    createField(deps, actor, clientId, { name: "Budget", type: "currency", position: 0 }),
+    createField(deps, actor, clientId, { name: "Stage", type: "select", position: 1, options: [{ label: "Plan", color: "#3b82f6" }, { label: "Migrate", color: "#f59e0b" }, { label: "Verify", color: "#22c55e" }] }),
+    createField(deps, actor, clientId, { name: "Client approved", type: "checkbox", position: 2 }),
+  ]);
+  const rows = await deps.db.select({ id: tasks.id, title: tasks.title }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.projectId, clientId), isNull(tasks.parentId))).all();
+  const plan: [string, number, number, boolean][] = [["Move Blue Harbor", 4200, 0, true], ["Export Blue Harbor", 1800, 1, true], ["Check SPF", 350, 2, false], ["Set up sales@", 120, 1, false], ["Confirm cutover", 600, 2, false]];
+  await Promise.all(plan.map(([start, amount, s, ok]) => {
+    const t = rows.find((r) => r.title.startsWith(start));
+    return t ? setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId: clientId }, { [budget.id]: amount, [stage.id]: stage.options[s].id, [approved.id]: ok }) : null;
+  }));
+  await Promise.all([
+    updateProject(deps, actor, clientId, { health: "at_risk", healthNote: "Waiting on Maria to confirm the cutover date", ownerId: actor.userId }),
+    otherId !== clientId ? updateProject(deps, actor, otherId, { health: "on_track", ownerId: actor.userId }) : null,
+  ]);
 }
