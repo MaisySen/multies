@@ -30,6 +30,8 @@ const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
+/** Public pages hold a full screen while their code loads, so the footer never jumps. */
+const publicPage = (node: ReactNode) => <Suspense fallback={<div className="min-h-dvh" aria-busy="true" />}>{node}</Suspense>;
 
 export const router = createBrowserRouter([
   {
@@ -37,7 +39,7 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: <PricingPage /> },
-      { path: "/status", element: page(<StatusPage />) },
+      { path: "/status", element: publicPage(<StatusPage />) },
     ],
   },
   {

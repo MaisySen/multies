@@ -54,6 +54,7 @@ export function StatusPage() {
           ))}
         </ul>
       )}
+      {!s && <div className="mt-10 h-[148px] rounded bg-white/[0.03]" aria-hidden />}
       {s && (
         <>
           <ul className="divide-y divide-line">
