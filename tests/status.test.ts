@@ -11,7 +11,7 @@ describe("public status", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.overall).toBe("operational");
-    expect(body.components.map((c: { id: string }) => c.id)).toEqual(["app", "database", "inbound", "outbound", "dns", "mail_apps"]);
+    expect(body.components.map((c: { id: string }) => c.id)).toEqual(["app", "database", "inbound", "outbound", "queue", "dns", "mail_apps"]);
     expect(body.components.find((c: { id: string }) => c.id === "outbound").state).toBe("not_configured");
     expect(res.headers.get("cache-control")).toContain("max-age=30");
   });

@@ -3,9 +3,12 @@
  * result is cached for 30 seconds per instance, so the page cannot be used to hammer
  * dependencies. Only aggregate, tenant-free numbers are exposed.
  */
-import { gte, sql } from "drizzle-orm";
+import { gte, lt, sql } from "drizzle-orm";
 import type { Deps } from "../context";
-import { deliveries } from "../db/schema";
+import { deliveries, uptimeChecks } from "../db/schema";
+import { newId } from "../lib/crypto";
+import { queueStats } from "./jobs";
+import { breakerState } from "./resilience";
 
 export type ComponentState = "operational" | "degraded" | "down" | "not_configured";
 export interface ComponentStatus { id: string; name: string; state: ComponentState; detail: string; latencyMs?: number }
@@ -63,11 +66,23 @@ async function computeStatus(deps: Deps) {
     const probe = await timed(async () => (await deps.fetch("https://api.resend.com/domains", { headers: { authorization: `Bearer ${deps.config.outbound.resendApiKey}` } })).status);
     const reachable = probe.value !== undefined && probe.value < 500;
     const outboundRate = rate(stats.outboundFailed, stats.outbound);
+    const circuit = breakerState("outbound");
+    // Mail is never lost while the provider is down: it waits in the retry queue.
     components.push({
       id: "outbound", name: "Sending mail",
-      state: !reachable ? "down" : outboundRate > 0.25 ? "degraded" : "operational",
-      detail: !reachable ? "The sending provider is not responding." : Number(stats.outbound) ? `${Number(stats.outbound).toLocaleString("en-AU")} messages sent to other providers in the last 24 hours.` : "Ready.",
+      state: !reachable || circuit === "open" ? "degraded" : outboundRate > 0.25 ? "degraded" : "operational",
+      detail: !reachable || circuit === "open" ? "The sending provider is not responding. Outgoing mail is queued and retried automatically." : Number(stats.outbound) ? `${Number(stats.outbound).toLocaleString("en-AU")} messages sent to other providers in the last 24 hours.` : "Ready.",
       latencyMs: probe.latencyMs,
+    });
+  }
+
+  const q = await timed(() => queueStats(deps));
+  if (q.value) {
+    const backlog = q.value.oldestPendingAgeMs > 30 * 60_000;
+    components.push({
+      id: "queue", name: "Retries and background work", state: backlog ? "degraded" : "operational",
+      detail: backlog ? "Some queued work is waiting longer than usual." : q.value.pending ? `${q.value.pending} item${q.value.pending === 1 ? "" : "s"} queued.` : "Nothing waiting.",
+      latencyMs: q.latencyMs,
     });
   }
 
@@ -91,4 +106,76 @@ async function computeStatus(deps: Deps) {
   const live = components.filter((c) => c.state !== "not_configured");
   const overall: Exclude<ComponentState, "not_configured"> = live.some((c) => c.state === "down") ? "down" : live.some((c) => c.state === "degraded") ? "degraded" : "operational";
   return { overall, checkedAt: deps.now().toISOString(), components };
+}
+
+/** Days of history the status page shows. */
+export const HISTORY_DAYS = 90;
+
+/**
+ * The scheduled self check (cron, every 5 minutes in production): probes every
+ * component the same way the status page does and records the result, so the page can
+ * show uptime over time and not only "right now". An outside monitor (the uptime
+ * workflow in GitHub Actions) watches /api/health independently of this.
+ */
+export async function recordUptimeCheck(deps: Deps) {
+  const t0 = Date.now();
+  const body = await computeStatus(deps);
+  cache = { at: deps.now().getTime(), body };
+  const ok = body.overall !== "down";
+  await deps.db.insert(uptimeChecks).values({
+    id: newId("upc"), at: deps.now(), ok, latencyMs: Date.now() - t0,
+    components: JSON.stringify(Object.fromEntries(body.components.map((c) => [c.id, c.state]))),
+  });
+  await deps.db.delete(uptimeChecks).where(lt(uptimeChecks.at, new Date(deps.now().getTime() - (HISTORY_DAYS + 1) * 86_400_000)));
+  return { ok };
+}
+
+export interface DayUptime { date: string; checks: number; uptime: number | null; worst: ComponentState | null }
+
+/** Daily uptime for the last HISTORY_DAYS days (UTC days), oldest first. */
+export async function uptimeHistory(deps: Deps): Promise<{ days: DayUptime[]; uptime30d: number | null; uptime90d: number | null }> {
+  const now = deps.now().getTime();
+  const since = new Date(now - HISTORY_DAYS * 86_400_000);
+  const rows = (await deps.db.select({
+    day: sql<string>`strftime('%Y-%m-%d', ${uptimeChecks.at} / 1000, 'unixepoch')`,
+    checks: sql<number>`count(*)`,
+    up: sql<number>`sum(case when ${uptimeChecks.ok} then 1 else 0 end)`,
+    degraded: sql<number>`sum(case when ${uptimeChecks.components} like '%"degraded"%' then 1 else 0 end)`,
+  }).from(uptimeChecks).where(gte(uptimeChecks.at, since)).groupBy(sql`1`)) as { day: string; checks: number; up: number; degraded: number }[];
+  const byDay = new Map(rows.map((r) => [r.day, r]));
+  const days: DayUptime[] = [];
+  for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
+    const date = new Date(now - i * 86_400_000).toISOString().slice(0, 10);
+    const r = byDay.get(date);
+    if (!r || !Number(r.checks)) { days.push({ date, checks: 0, uptime: null, worst: null }); continue; }
+    const uptime = Number(r.up) / Number(r.checks);
+    days.push({ date, checks: Number(r.checks), uptime, worst: uptime < 1 ? "down" : Number(r.degraded) ? "degraded" : "operational" });
+  }
+  const pct = (list: DayUptime[]) => {
+    const total = list.reduce((a, d) => a + d.checks, 0);
+    if (!total) return null;
+    return list.reduce((a, d) => a + (d.uptime ?? 0) * d.checks, 0) / total;
+  };
+  return { days, uptime30d: pct(days.slice(-30)), uptime90d: pct(days) };
+}
+
+/**
+ * Cross checks: each environment probes the others' /api/health on its own schedule
+ * (production watches staging and the preview, staging watches production), and a
+ * failure is reported to Sentry, which emails the team. One environment going down
+ * is caught by another, not by itself.
+ */
+export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean; status?: number; ms: number }[]> {
+  const out: { url: string; ok: boolean; status?: number; ms: number }[] = [];
+  for (const base of deps.config.monitorUrls) {
+    const url = `${base.replace(/\/$/, "")}/api/health`;
+    const r = await timed(async () => (await deps.fetch(url, { headers: { "user-agent": "MyMail-uptime/1" } })).status, 10_000);
+    const ok = r.value === 200;
+    out.push({ url, ok, status: r.value, ms: r.latencyMs });
+    if (!ok) {
+      deps.log?.error("uptime.cross_check_failed", { url, status: r.value ?? null, ms: r.latencyMs });
+      deps.reportError?.(new Error(`Uptime check failed: ${url} answered ${r.value ?? "nothing"}`), { url, status: r.value, ms: r.latencyMs });
+    }
+  }
+  return out;
 }

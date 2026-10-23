@@ -37,6 +37,8 @@ export interface AppConfig {
   release: string;
   /** RFC 9116 contact for vulnerability reports (a mailto: or https: URI). */
   securityContact: string;
+  /** Other deployments this one probes on its schedule (base URLs). */
+  monitorUrls: string[];
   /** Days a workspace keeps its paid plan after a failed payment before it is restricted. */
   billingGraceDays: number;
   /** User ids or verified emails that get platform admin (operator console) on sign-in. */
@@ -122,6 +124,7 @@ const EnvSchema = z.object({
   SENTRY_RELEASE: z.string().optional(),
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
+  MONITOR_URLS: z.string().optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -187,6 +190,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     },
     release: env.RELEASE ?? env.SENTRY_RELEASE ?? "dev",
     securityContact: env.SECURITY_CONTACT ?? `mailto:security@${hostOf(env.APP_URL ?? "http://localhost")}`,
+    monitorUrls: csv(env.MONITOR_URLS).filter((u) => /^https?:\/\//.test(u)),
     billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     billing: {

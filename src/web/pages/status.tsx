@@ -5,7 +5,15 @@ import { LOCALE } from "@/shared/locale";
 import { cn } from "@/web/lib/cn";
 
 type State = "operational" | "degraded" | "down" | "not_configured";
-interface Status { overall: Exclude<State, "not_configured">; checkedAt: string; components: { id: string; name: string; state: State; detail: string; latencyMs?: number }[] }
+interface Day { date: string; checks: number; uptime: number | null; worst: State | null }
+interface Status {
+  overall: Exclude<State, "not_configured">;
+  checkedAt: string;
+  components: { id: string; name: string; state: State; detail: string; latencyMs?: number }[];
+  history: { days: Day[]; uptime30d: number | null; uptime90d: number | null } | null;
+}
+
+const pct = (v: number | null | undefined) => (v === null || v === undefined ? "No data yet" : `${(Math.floor(v * 10000) / 100).toFixed(2)}%`);
 
 const label: Record<State, string> = { operational: "Operational", degraded: "Degraded", down: "Down", not_configured: "Not offered" };
 const dot: Record<State, string> = { operational: "bg-ok", degraded: "bg-warn", down: "bg-bad", not_configured: "bg-subtle/40" };
@@ -35,6 +43,17 @@ export function StatusPage() {
         ) : <span className="text-muted">{q.error ? "Couldn't reach the status check." : "Checking..."}</span>}
         <Button size="sm" variant="ghost" onClick={() => q.refetch()} loading={q.isFetching}><RefreshCw className="h-3.5 w-3.5" />Check again</Button>
       </div>
+      {!s && (
+        // Placeholder rows hold the layout while the first check runs (no layout shift).
+        <ul className="divide-y divide-line" aria-hidden>
+          {Array.from({ length: 7 }, (_, i) => (
+            <li key={i} className="flex h-[73px] items-center justify-between gap-4 py-4">
+              <div className="h-4 w-40 rounded bg-white/[0.06]" />
+              <div className="h-4 w-24 rounded bg-white/[0.06]" />
+            </li>
+          ))}
+        </ul>
+      )}
       {s && (
         <>
           <ul className="divide-y divide-line">
@@ -52,11 +71,35 @@ export function StatusPage() {
               </li>
             ))}
           </ul>
+          {s.history && <UptimeHistory history={s.history} />}
           <p className="mt-6 text-xs text-subtle">
             Checked {new Date(s.checkedAt).toLocaleString(LOCALE, { dateStyle: "medium", timeStyle: "medium", timeZone: "Australia/Sydney" })} Sydney time. Refreshes every minute.
           </p>
         </>
       )}
+    </section>
+  );
+}
+
+function UptimeHistory({ history }: { history: NonNullable<Status["history"]> }) {
+  const color = (d: Day) => (d.worst === null ? "bg-white/[0.07]" : d.worst === "down" ? "bg-bad" : d.worst === "degraded" ? "bg-warn" : "bg-ok");
+  return (
+    <section className="mt-10" aria-labelledby="uptime-heading">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="uptime-heading" className="text-lg font-semibold">Uptime, last 90 days</h2>
+        <p className="text-sm text-muted">
+          <span className="font-mono tabular-nums text-fg">{pct(history.uptime30d)}</span> over 30 days, <span className="font-mono tabular-nums text-fg">{pct(history.uptime90d)}</span> over 90
+        </p>
+      </div>
+      <ol className="mt-4 flex h-9 items-stretch gap-[2px]" aria-label="Daily uptime">
+        {history.days.map((d) => (
+          <li key={d.date} className={cn("min-w-0 flex-1 rounded-[2px]", color(d))} title={`${d.date}: ${d.checks ? pct(d.uptime) : "no checks"}`}>
+            <span className="sr-only">{d.date}: {d.checks ? pct(d.uptime) : "no checks"}</span>
+          </li>
+        ))}
+      </ol>
+      <div className="mt-2 flex justify-between text-xs text-subtle"><span>90 days ago</span><span>Today</span></div>
+      <p className="mt-3 text-xs text-subtle">A self check runs every 5 minutes and an outside monitor checks the API every 10 minutes. Targets are in the service level objectives.</p>
     </section>
   );
 }

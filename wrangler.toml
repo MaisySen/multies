@@ -1,26 +1,34 @@
-# MyMail on Cloudflare Workers + D1. CI deploys this on every push to main
-# (.github/workflows/ci.yml) with the CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID
-# repository secrets. Manual deploy:
+# MyMail on Cloudflare Workers + D1, in two environments:
+#
+#   production  (top level)      https://mymail.mymail-app.workers.dev
+#   staging     ([env.staging])  https://mymail-staging.mymail-app.workers.dev
+#
+# CI (.github/workflows/ci.yml) deploys every push to main to staging first, runs the
+# smoke checks there, and only then promotes the same build to production.
+# Manual deploy (see docs/runbooks/release.md):
 #   npm run build:web && npm run build:worker
+#   npx wrangler d1 migrations apply mymail-staging --remote --env staging && npx wrangler deploy --env staging
 #   npx wrangler d1 migrations apply mymail --remote && npx wrangler deploy
-# Secrets live in Cloudflare, never in this file:
+# Secrets live in Cloudflare, never in this file (per environment: add --env staging):
 #   npx wrangler secret put APP_SECRET        # 32+ random chars (required)
 #   npx wrangler secret put RESEND_API_KEY    # outbound mail
 #   npx wrangler secret put SENTRY_DSN_API    # error tracking (API)
 #   npx wrangler secret put SENTRY_DSN_WEB    # error tracking (browser)
 #   npx wrangler secret put STRIPE_SECRET_KEY # billing
 #   npx wrangler secret put AUTH0_CLIENT_SECRET (plus AUTH0_DOMAIN and AUTH0_CLIENT_ID)
+# docs/security/secrets-rotation.md lists every secret and how to rotate it.
 name = "mymail"
 main = "dist/worker/_worker.js"
 compatibility_date = "2026-08-01"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
+upload_source_maps = true
 
 [assets]
 directory = "dist/worker"
 binding = "ASSETS"
 not_found_handling = "none"
-run_worker_first = ["/api/*"]
+run_worker_first = ["/api/*", "/.well-known/*"]
 
 [[d1_databases]]
 binding = "DB"
@@ -31,16 +39,94 @@ database_id = "8509ce19-9fcd-4272-91de-58a7095d6a4d"
 migrations_dir = "drizzle"
 migrations_table = "d1_migrations"
 
+# Edge rate limits (Workers rate limiting API). Without these bindings the app
+# falls back to a shared counter in D1. Limits match src/server/lib/rate-limit.ts.
+[[ratelimits]]
+name = "RL_AUTH"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "RL_API"
+namespace_id = "1002"
+simple = { limit = 600, period = 60 }
+
+[[ratelimits]]
+name = "RL_WEBHOOKS"
+namespace_id = "1003"
+simple = { limit = 600, period = 60 }
+
+[[ratelimits]]
+name = "RL_APP"
+namespace_id = "1004"
+simple = { limit = 300, period = 60 }
+
 [vars]
 APP_MODE = "production"
 # Until a custom domain is attached, the app lives on its workers.dev address.
 APP_URL = "https://mymail.mymail-app.workers.dev"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
+SENTRY_TRACES_SAMPLE_RATE = "0.1"
+SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
+BILLING_GRACE_DAYS = "7"
+# Cross checks: production watches staging and the preview (src/server/services/status.ts).
+MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev,https://mymail.sites.tab.bot"
 
+# Workers Logs: the JSON log lines are indexed and searchable in the dashboard.
 [observability]
 enabled = true
+head_sampling_rate = 1
 
-# Re-check DNS, expire sessions and purge demo sandboxes every 15 minutes.
+# Housekeeping, job queue, uptime self check: every 5 minutes.
 [triggers]
+crons = ["*/5 * * * *"]
+
+# ------------------------------------------------------------------ staging
+[env.staging]
+name = "mymail-staging"
+workers_dev = true
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "mymail-staging"
+database_id = "72494627-4880-4fb9-9586-e2175f16e8d3"
+migrations_dir = "drizzle"
+migrations_table = "d1_migrations"
+
+[[env.staging.ratelimits]]
+name = "RL_AUTH"
+namespace_id = "2001"
+simple = { limit = 30, period = 60 }
+
+[[env.staging.ratelimits]]
+name = "RL_API"
+namespace_id = "2002"
+simple = { limit = 600, period = 60 }
+
+[[env.staging.ratelimits]]
+name = "RL_WEBHOOKS"
+namespace_id = "2003"
+simple = { limit = 600, period = 60 }
+
+[[env.staging.ratelimits]]
+name = "RL_APP"
+namespace_id = "2004"
+simple = { limit = 300, period = 60 }
+
+[env.staging.vars]
+APP_MODE = "production"
+APP_URL = "https://mymail-staging.mymail-app.workers.dev"
+DEMO_MODE = "true"
+SENTRY_ENVIRONMENT = "staging"
+SENTRY_TRACES_SAMPLE_RATE = "1"
+SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
+BILLING_GRACE_DAYS = "7"
+# Staging watches production.
+MONITOR_URLS = "https://mymail.mymail-app.workers.dev"
+
+[env.staging.observability]
+enabled = true
+
+[env.staging.triggers]
 crons = ["*/15 * * * *"]

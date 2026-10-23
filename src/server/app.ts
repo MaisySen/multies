@@ -24,7 +24,7 @@ import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
-import { systemStatus } from "./services/status";
+import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -91,7 +91,7 @@ export function createApp(deps: Deps) {
         if (pending.length) return c.json({ ok: false, mode: deps.config.mode, db: "migrations_pending", pending }, 503);
         schemaCurrent = true;
       }
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok" });
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }
@@ -110,9 +110,9 @@ export function createApp(deps: Deps) {
     ].join("\n"));
   });
   app.get("/api/status", async (c) => {
-    const body = await systemStatus(deps);
+    const [body, history] = await Promise.all([systemStatus(deps), uptimeHistory(deps).catch(() => null)]);
     c.header("cache-control", "public, max-age=30");
-    return c.json(body, body.overall === "down" ? 503 : 200);
+    return c.json({ ...body, history }, body.overall === "down" ? 503 : 200);
   });
   app.get("/api/config", (c) =>
     c.json({
@@ -124,7 +124,9 @@ export function createApp(deps: Deps) {
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
       // A browser DSN is public by design (it can only submit events).
-      sentry: deps.config.sentry.dsnWeb ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment } : null,
+      sentry: deps.config.sentry.dsnWeb
+        ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
+        : null,
     }),
   );
 
