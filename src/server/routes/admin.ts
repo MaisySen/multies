@@ -25,8 +25,9 @@ export function adminRoutes() {
         id: organizations.id, name: organizations.name, plan: organizations.plan, isDemo: organizations.isDemo, createdAt: organizations.createdAt,
         suspendedAt: organizations.suspendedAt, suspendedReason: organizations.suspendedReason, sendCapDaily: organizations.sendCapDaily,
         pastDueSince: organizations.pastDueSince,
-        members: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${organizations.id})`,
-        domains: sql<number>`(select count(*) from ${domains} where ${domains.orgId} = ${organizations.id})`,
+        // Qualified by hand: Drizzle renders columns unqualified in a one-table select, which bound "id" to the inner table.
+        members: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id")`,
+        domains: sql<number>`(select count(*) from "domains" d where d."org_id" = "organizations"."id")`,
       }).from(organizations).orderBy(desc(organizations.createdAt)).limit(100);
       return c.json({
         totals: { users: u?.n ?? 0, workspaces: o?.n ?? 0, domains: d?.n ?? 0, mailboxes: m?.n ?? 0, deliveries24h: sent?.n ?? 0 },

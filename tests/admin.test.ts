@@ -65,7 +65,7 @@ describe("operator console", () => {
     expect((await ops.post(`/api/admin/workspaces/${orgId}/suspend`, { reason: "Phishing reports" })).status).toBe(200);
     expect((await ops.put(`/api/admin/workspaces/${orgId}/send-cap`, { cap: 10 })).body.sendCapDaily).toBe(10);
     const tenant = (await ops.get("/api/admin/overview")).body.tenants.find((t: { id: string }) => t.id === orgId);
-    expect(tenant).toMatchObject({ suspendedReason: "Phishing reports", sendCapDaily: 10 });
+    expect(tenant).toMatchObject({ suspendedReason: "Phishing reports", sendCapDaily: 10, members: 1 });
 
     expect((await ops.post(`/api/admin/workspaces/${orgId}/unsuspend`)).status).toBe(200);
     expect((await ops.get("/api/admin/abuse")).body.events).toHaveLength(0);
