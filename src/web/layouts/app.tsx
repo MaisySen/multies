@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
@@ -32,6 +32,7 @@ const nav = [
   { to: "/app/meetings", label: "Meetings", icon: Video },
   { to: "/app/forms", label: "Forms", icon: ClipboardList },
   { to: "/app/reports", label: "Reports", icon: BarChart3 },
+  { to: "/app/portfolio", label: "Portfolio", icon: Briefcase },
   { to: "/app/automations", label: "Automations", icon: Zap },
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },

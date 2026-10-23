@@ -40,6 +40,10 @@ const meetingPages = () => import("./pages/app/work/meetings");
 const MeetingsPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingsPage })));
 const MeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingPage })));
 const GuestMeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.GuestMeetingPage })));
+const PortfolioPage = lazy(() => import("./pages/app/work/portfolio").then((m) => ({ default: m.PortfolioPage })));
+const guestPages = () => import("./pages/app/work/guest");
+const GuestAcceptPage = lazy(() => guestPages().then((m) => ({ default: m.GuestAcceptPage })));
+const GuestProjectPage = lazy(() => guestPages().then((m) => ({ default: m.GuestProjectPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
@@ -108,6 +112,7 @@ export const router = createBrowserRouter([
       { path: "time", element: page(<TimesheetPage />) },
       { path: "forms", element: page(<FormsPage />) },
       { path: "reports", element: page(<ReportsPage />) },
+      { path: "portfolio", element: page(<PortfolioPage />) },
       { path: "meetings", element: page(<MeetingsPage />) },
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
@@ -130,5 +135,8 @@ export const router = createBrowserRouter([
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
   { path: "/f/:slug", element: publicPage(<PublicFormPage />) },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />) },
+  // A project guest (a client): the invite link, then the one project they can see.
+  { path: "/g/:token", element: publicPage(<GuestAcceptPage />) },
+  { path: "/guest", element: publicPage(<GuestProjectPage />) },
   { path: "*", element: <NotFound /> },
 ]);
