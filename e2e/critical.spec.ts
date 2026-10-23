@@ -123,7 +123,7 @@ test("create an API key and call the REST API with it", async ({ page, request }
   expect((await request.get("/api/v1/domains", { headers: { authorization: "Bearer mm_live_wrongwrongwrongwrongwrong" } })).status()).toBe(401);
 });
 
-test("create an agent inbox with one API call, then read and reply as the agent", async ({ page, request }) => {
+test("create an agent inbox with one API call, then act as the agent by API and MCP", async ({ page, request }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
   await expect(page).toHaveURL(/\/app/);
@@ -143,6 +143,15 @@ test("create an agent inbox with one API call, then read and reply as the agent"
   const sent = await request.post(`/api/v1/agents/${agent.id}/send`, { headers: auth, data: { to: ["buyer@example.com"], subject: "Your quote", text: "A$420 for the job." } });
   expect(sent.status()).toBe(202);
   expect((await sent.json()).status).toBe("pending_approval");
+
+  // The same agent over MCP: a JSON-RPC tool call with the agent key.
+  const mcp = await request.post("/api/v1/mcp", {
+    headers: { ...auth, accept: "application/json, text/event-stream" },
+    data: { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_inboxes", arguments: {} } },
+  });
+  expect(mcp.status()).toBe(200);
+  const listed = JSON.parse((await mcp.json()).result.content[0].text);
+  expect(listed.agents).toEqual([expect.objectContaining({ name: "Quote bot", sentToday: 1 })]);
 
   await page.goto("/app/agents");
   await expect(page.getByRole("link", { name: /Quote bot/ })).toBeVisible();

@@ -19,6 +19,7 @@ import { getMessage, getThread, listMessages } from "../services/mail/mailbox-vi
 import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
 import { registerAgentRoutes } from "./v1-agents";
+import { registerMcpRoute } from "./mcp";
 
 // ---------------------------------------------------------------- schemas
 
@@ -300,5 +301,6 @@ export function v1Routes() {
   });
 
   registerAgentRoutes(api);
+  registerMcpRoute(api);
   return api;
 }

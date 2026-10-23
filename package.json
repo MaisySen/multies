@@ -35,6 +35,7 @@
     "lhci": "lhci autorun --config=lighthouserc.cjs"
   },
   "dependencies": {
+    "@cfworker/json-schema": "^4.1.1",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@hono/mcp": "^0.3.2",

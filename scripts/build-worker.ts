@@ -82,7 +82,7 @@ await build({
   minify: true,
   // Production builds keep an external map for Sentry and wrangler (never served).
   sourcemap: profile === "preview" ? false : "external",
-  alias: { "@": path.join(root, "src") },
+  alias: { "@": path.join(root, "src"), module: path.join(root, "src/server/shims/module.ts") },
   define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml) },
   logLevel: "warning",
 });
