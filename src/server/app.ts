@@ -15,6 +15,7 @@ import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
 import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
 import { PLANS } from "@/shared/plans";
+import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 
@@ -37,7 +38,20 @@ export function createApp(deps: Deps) {
     return csrfGuard(c, next);
   });
 
-  app.get("/api/health", (c) => c.json({ ok: true, mode: deps.config.mode }));
+  // Health: the database must be reachable and fully migrated (migrations run at deploy time).
+  let schemaCurrent = false;
+  app.get("/api/health", async (c) => {
+    try {
+      if (!schemaCurrent) {
+        const pending = await pendingMigrations(migrationDriver((deps.db as unknown as { $client: unknown }).$client));
+        if (pending.length) return c.json({ ok: false, mode: deps.config.mode, db: "migrations_pending", pending }, 503);
+        schemaCurrent = true;
+      }
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok" });
+    } catch {
+      return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
+    }
+  });
   app.get("/api/config", (c) =>
     c.json({
       appName: deps.config.appName,

@@ -7,7 +7,7 @@ import * as Sentry from "@sentry/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
 import { loadConfig } from "../server/config";
-import { migrate, schema, type DB } from "../server/db";
+import { applyMigrations, migrationDriver, schema, type DB } from "../server/db";
 import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { getOrCreateStoredSecret, runMaintenance } from "../server/services/maintenance";
@@ -30,8 +30,9 @@ let ready: Promise<{ app: ReturnType<typeof createApp>; deps: Deps }> | null = n
 let lastMaintenance = 0;
 
 async function boot(env: WorkerEnv) {
+  // No migrations here: they run once per deploy (wrangler d1 migrations apply, or the
+  // deploy hook below on hosts where wrangler cannot reach the database).
   const db = drizzle(env.DB as never, { schema }) as unknown as DB;
-  await migrate(db);
   const vars: Record<string, string | undefined> = { ...(typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) };
   for (const [k, v] of Object.entries(env)) if (typeof v === "string") vars[k] = v;
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
@@ -49,9 +50,40 @@ function getReady(env: WorkerEnv) {
   return ready;
 }
 
+function envVar(env: WorkerEnv, key: string): string | undefined {
+  const v = env[key];
+  if (typeof v === "string") return v;
+  return typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__[key] : undefined;
+}
+
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([crypto.subtle.digest("SHA-256", enc.encode(a)), crypto.subtle.digest("SHA-256", enc.encode(b))]);
+  const x = new Uint8Array(ha), y = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x[i] ^ y[i];
+  return diff === 0;
+}
+
+/**
+ * Deploy hook for hosts where `wrangler d1 migrations apply` cannot reach the database
+ * (the hosted preview). Called once by the deploy script right after upload, with the
+ * DEPLOY_TOKEN; it is off when no token is configured.
+ */
+async function deployMigrate(request: Request, env: WorkerEnv): Promise<Response> {
+  const token = envVar(env, "DEPLOY_TOKEN");
+  const given = (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!token || token.length < 32 || request.method !== "POST" || !(await safeEqual(given, token))) {
+    return Response.json({ error: { code: "not_found", message: "No such endpoint." } }, { status: 404 });
+  }
+  const applied = await applyMigrations(migrationDriver(env.DB));
+  return Response.json({ ok: true, applied }, { headers: { "cache-control": "no-store" } });
+}
+
 const handler = {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
     if (url.pathname.startsWith("/api/")) {
       const { app, deps } = await getReady(env);
       if (Date.now() - lastMaintenance > 10 * 60_000) {
