@@ -26,6 +26,26 @@ describe("security headers", () => {
     expect(csp).toContain("object-src 'none'");
   });
 
+  it("pins every directive of the app policy, so a loosened CSP fails here", () => {
+    const directives = Object.fromEntries(appCsp().split(";").map((d) => d.trim()).filter(Boolean).map((d) => { const [k, ...v] = d.split(/\s+/); return [k, v.join(" ")]; }));
+    expect(directives).toEqual({
+      "default-src": "'self'",
+      "script-src": "'self'",
+      "style-src": "'self' 'unsafe-inline'",
+      "img-src": "'self' data: blob: https:",
+      "font-src": "'self' data:",
+      "connect-src": "'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
+      "frame-src": "'self' blob:",
+      "worker-src": "'self' blob:",
+      "object-src": "'none'",
+      "base-uri": "'self'",
+      "form-action": "'self'",
+      "frame-ancestors": "'none'",
+      "manifest-src": "'self'",
+      "upgrade-insecure-requests": "",
+    });
+  });
+
   it("applies the page policy to static responses", () => {
     const res = withSecurityHeaders(new Response("<html>", { headers: { "content-type": "text/html" } }), { csp: appCsp(), hsts: true });
     expect(res.headers.get("content-type")).toBe("text/html");
