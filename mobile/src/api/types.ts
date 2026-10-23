@@ -59,3 +59,119 @@ export interface SendInput {
 }
 
 export interface SendResult { messageId: string; status?: string; [k: string]: unknown }
+
+// ---------------------------------------------------------------- work management
+
+export type TaskStatus = "todo" | "doing" | "done";
+export type Priority = "none" | "low" | "medium" | "high" | "urgent";
+export type AssigneeId = `member:${string}` | `agent:${string}`;
+
+export interface Assignee { id: AssigneeId; type: "member" | "agent"; name: string; email: string | null }
+
+/** A task as GET /api/tasks returns it. */
+export interface Task {
+  id: string;
+  ref: string;
+  projectId: string | null;
+  number: number;
+  title: string;
+  notes: string;
+  statusId: string | null;
+  statusName: string;
+  statusColor: string | null;
+  status: TaskStatus;
+  assignee: { type: "member" | "agent"; id: string; name: string; email: string | null } | null;
+  assigneeId: AssigneeId | null;
+  priority: Priority;
+  labels: string[];
+  start: string | null;
+  due: string | null;
+  parentId: string | null;
+  position: number;
+  source: { threadId: string | null; messageId: string | null; from: string | null; subject: string | null } | null;
+  subtasks: { total: number; done: number };
+  commentCount: number;
+  completedAt: string | null;
+  createdBy: { type: string; id: string };
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface TaskComment { id: string; taskId: string; body: string; author: { type: string; id: string; name: string | null }; createdAt: string }
+
+export interface TaskThreadItem {
+  id: string;
+  mailboxId?: string;
+  direction: "inbound" | "outbound";
+  from: { address: string; name: string | null };
+  subject: string;
+  date: string;
+  latestText: string;
+  byAgent: boolean;
+}
+
+export interface TaskActivity { id: string; actor: { type: string; id: string; name: string | null }; verb: string; data: Record<string, unknown>; at: string }
+
+export interface TaskDetail {
+  task: Task;
+  subtasks: Task[];
+  comments: TaskComment[];
+  thread: TaskThreadItem[];
+  activity: TaskActivity[];
+  docs: { id: string; title: string; updatedAt: string }[];
+  contacts: { id: string; name: string | null; email: string | null }[];
+}
+
+export interface TaskQuery {
+  status?: TaskStatus;
+  threadId?: string;
+  projectId?: string;
+  assignee?: "me" | "none" | AssigneeId;
+  q?: string;
+  includeSubtasks?: boolean;
+}
+
+export interface TaskCreate {
+  title: string;
+  notes?: string;
+  status?: TaskStatus;
+  due?: string | null;
+  priority?: Priority;
+  labels?: string[];
+  projectId?: string;
+  assigneeId?: AssigneeId | null;
+  parentId?: string;
+  source?: { messageId?: string; threadId?: string };
+}
+
+export interface TaskPatch {
+  title?: string;
+  notes?: string;
+  status?: TaskStatus;
+  statusId?: string;
+  due?: string | null;
+  priority?: Priority;
+  labels?: string[];
+  assigneeId?: AssigneeId | null;
+  position?: number;
+  version?: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  key: string;
+  color: string | null;
+  statuses: { id: string; name: string; category: TaskStatus; color: string | null; position: number }[];
+  counts?: Record<string, number>;
+}
+
+export interface Change { seq: number; entity: string; id: string; op: string; version: number; at: string }
+export interface ChangePage { changes: Change[]; cursor: number; more: boolean }
+
+export interface AppNotification { id: string; type: string; entityType: string | null; entityId: string | null; title: string; read: boolean; createdAt: string }
+
+/** What a push from the server carries: an event type and an id, nothing else. */
+export type PushType = "message.received" | "approval.requested" | "task.assigned" | "task.commented" | "task.email_reply" | "task.due_soon" | "automation.status" | "automation.email";
+export interface PushData { type: PushType | string; id: string }

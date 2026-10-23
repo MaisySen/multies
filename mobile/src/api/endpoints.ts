@@ -1,11 +1,14 @@
 import type { Transport } from "./transport";
-import type { Agent, Approval, ListFolder, MailboxOverview, Me, MessagePage, SendInput, SendResult, ThreadView } from "./types";
+import type {
+  Agent, Approval, AppNotification, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
+  Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskQuery, ThreadView,
+} from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
 
 /** The API calls the app makes. Paths are the web app's own session routes under /api. */
 export function endpoints(t: Transport) {
-  const q = (params: Record<string, string | number | undefined>) => {
+  const q = (params: Record<string, string | number | boolean | undefined>) => {
     const s = Object.entries(params).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`).join("&");
     return s ? `?${s}` : "";
   };
@@ -17,6 +20,8 @@ export function endpoints(t: Transport) {
     signOut: () => t.request<unknown>("POST", "/auth/sign-out", {}),
     deleteAccount: (password: string) => t.request<{ success?: boolean }>("POST", "/auth/delete-user", { password }),
 
+    /** A private sample workspace on the server, signed in. Only where the server has demo mode on. */
+    startDemo: () => t.request<{ ok: true }>("POST", "/account/demo", {}),
     me: () => t.request<Me>("GET", "/account/me"),
     overview: () => t.request<{ mailboxes: MailboxOverview[] }>("GET", "/mail/overview"),
     messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number }) =>
@@ -33,8 +38,25 @@ export function endpoints(t: Transport) {
     reject: (id: string, note?: string) => t.request<{ approval: Approval }>("POST", `/approvals/${encodeURIComponent(id)}/reject`, note ? { note } : {}),
     agents: () => t.request<{ agents: Agent[] }>("GET", "/agents"),
 
-    /** Not on the API yet: see docs/push.md. Only called when FEATURES.pushServer is on. */
-    registerPushDevice: (token: string, platform: string) => t.request<{ ok: true }>("POST", "/push/devices", { token, platform }),
+    // Work management: the same session routes the web app's boards use.
+    tasks: (p: TaskQuery = {}) => t.request<{ tasks: Task[] }>("GET", `/tasks${q({ ...p, includeSubtasks: p.includeSubtasks ? "true" : undefined })}`),
+    task: (id: string) => t.request<TaskDetail>("GET", `/tasks/${encodeURIComponent(id)}`),
+    createTask: (input: TaskCreate) => t.request<{ task: Task }>("POST", "/tasks", input),
+    taskFromEmail: (input: { messageId?: string; threadId?: string; title?: string; notes?: string; due?: string; priority?: Task["priority"] }) =>
+      t.request<{ task: Task }>("POST", "/tasks/from-email", input),
+    updateTask: (id: string, patch: TaskPatch) => t.request<{ task: Task }>("PATCH", `/tasks/${encodeURIComponent(id)}`, patch),
+    deleteTask: (id: string) => t.request<{ ok: true }>("DELETE", `/tasks/${encodeURIComponent(id)}`),
+    addComment: (id: string, body: string) => t.request<{ comment: TaskComment }>("POST", `/tasks/${encodeURIComponent(id)}/comments`, { body }),
+    assignees: () => t.request<{ assignees: Assignee[] }>("GET", "/tasks/assignees"),
+    projects: () => t.request<{ projects: Project[] }>("GET", "/projects"),
+    changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
+    notifications: (unread = false) => t.request<{ notifications: AppNotification[] }>("GET", `/notifications${q({ unread: unread ? 1 : undefined })}`),
+    readNotifications: (ids?: string[]) => t.request<{ marked: number }>("POST", "/notifications/read", ids ? { ids } : {}),
+
+    // Push devices. The server only sends when push is switched on there; `enabled` says which.
+    registerPushDevice: (token: string, platform: "ios" | "android") => t.request<{ ok: true; enabled: boolean }>("POST", "/push/devices", { token, platform }),
+    unregisterPushDevice: (token: string) => t.request<{ ok: true }>("DELETE", `/push/devices/${encodeURIComponent(token)}`),
+    pushDevices: () => t.request<{ enabled: boolean; devices: { token: string; platform: string; lastSeenAt: string }[] }>("GET", "/push/devices"),
   };
 }
 
