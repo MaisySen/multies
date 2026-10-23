@@ -23,6 +23,7 @@ const MailSettings = lazy(() => settings().then((m) => ({ default: m.MailSetting
 const AccountSettings = lazy(() => import("./pages/app/security").then((m) => ({ default: m.AccountSettings })));
 const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
 const BillingSettings = lazy(() => import("./pages/app/billing").then((m) => ({ default: m.BillingSettings })));
+const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },
           { path: "mail", element: page(<MailSettings />) },
+          { path: "mail-apps", element: page(<MailAppsSettings />) },
         ],
       },
     ],
