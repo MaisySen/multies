@@ -34,7 +34,10 @@ describe("MCP server", () => {
   it("lists tools and creates an agent inbox with a workspace key", async () => {
     const mcp = await connect(wsKey);
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
-    expect(tools).toEqual(["create_agent_inbox", "list_inboxes", "list_threads", "read_thread", "reply", "search", "send_email", "wait_for_email"]);
+    expect(tools).toEqual([
+      "append_to_doc", "comment_on_task", "contact_timeline", "create_agent_inbox", "create_doc", "create_task", "get_task", "list_inboxes", "list_projects", "list_tasks", "list_threads",
+      "next_task", "read_doc", "read_thread", "reply", "search", "search_contacts", "search_docs", "send_email", "update_task", "upsert_contact", "wait_for_email",
+    ]);
     const made = data(await mcp.callTool({ name: "create_agent_inbox", arguments: { name: "Research bot", localPart: "research" } }));
     expect(made.agent.address).toBe("research@acme.io");
     expect(made.apiKey.secret).toMatch(/^mm_live_/);
