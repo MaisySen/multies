@@ -1,0 +1,122 @@
+import { useEffect, useState } from "react";
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Activity, ChevronsUpDown, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Sparkles, Users, X } from "lucide-react";
+import { Logo } from "@/web/components/logo";
+import { Avatar } from "@/web/components/ui/misc";
+import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
+import { useMe } from "@/web/lib/queries";
+import { api, ApiError } from "@/web/lib/api";
+import { initials } from "@/web/lib/format";
+import { cn } from "@/web/lib/cn";
+import { AppSkeleton } from "./app-skeleton";
+import { PLANS } from "@/shared/plans";
+
+const nav = [
+  { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/app/mail", label: "Mail", icon: Inbox },
+  { to: "/app/domains", label: "Domains", icon: Globe },
+  { to: "/app/mailboxes", label: "Mailboxes", icon: Users },
+  { to: "/app/activity", label: "Activity", icon: Activity },
+  { to: "/app/settings", label: "Settings", icon: Settings },
+];
+
+export function AppLayout() {
+  const me = useMe();
+  const loc = useLocation();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [drawer, setDrawer] = useState(false);
+  useEffect(() => setDrawer(false), [loc.pathname]);
+
+  if (me.isPending) return <AppSkeleton />;
+  if (me.error) {
+    if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+    return (
+      <div className="grid min-h-dvh place-items-center p-6 text-center">
+        <div><p className="font-medium">Couldn't load your workspace.</p><p className="mt-1 text-sm text-muted">{me.error.message}</p>
+          <button className="mt-4 text-sm text-brand-hover hover:underline" onClick={() => me.refetch()}>Try again</button></div>
+      </div>
+    );
+  }
+  const { user, organization } = me.data;
+  const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
+
+  const signOut = async () => {
+    try { await api.post("/auth/logout"); } catch { /* already signed out */ }
+    qc.clear();
+    navigate("/login");
+  };
+
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      <div className="flex h-14 items-center justify-between px-4">
+        <Link to="/app" aria-label="MyMail overview"><Logo /></Link>
+        <button className="rounded-md p-1.5 text-muted hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><X className="h-5 w-5" /></button>
+      </div>
+      <div className="px-3">
+        <div className="flex items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-gradient-to-br from-brand to-indigo-700 text-[11px] font-bold text-white">{organization?.name[0]?.toUpperCase()}</span>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-medium">{organization?.name}</div>
+            <div className="text-[11px] text-subtle">{organization ? PLANS[organization.plan].name : ""} plan</div>
+          </div>
+        </div>
+      </div>
+      <nav className="mt-4 flex-1 space-y-0.5 px-3" aria-label="App">
+        {nav.map(({ to, label, icon: Icon, end }) => (
+          <NavLink key={to} to={to} end={end} className={({ isActive }) => cn(
+            "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors",
+            isActive ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg",
+          )}>
+            <Icon className="h-4 w-4" />{label}
+          </NavLink>
+        ))}
+      </nav>
+      {organization?.isDemo && (
+        <div className="mx-3 mb-3 rounded-lg border border-brand/25 bg-brand-soft p-3 text-[12.5px]">
+          <div className="flex items-center gap-1.5 font-medium text-brand-hover"><Sparkles className="h-3.5 w-3.5" />Demo workspace</div>
+          <p className="mt-1 text-muted">Sample data, private to you, deleted after 24 hours.</p>
+          <Link to="/signup" onClick={signOut} className="mt-2 inline-block font-medium text-fg hover:underline">Create a real account →</Link>
+        </div>
+      )}
+      <div className="border-t border-line p-3">
+        <Menu label="Account menu" align="start" trigger={
+          <button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-white/[0.04]">
+            <Avatar label={initials(user.name)} className="h-7 w-7" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[13px] font-medium">{user.name}</div>
+              <div className="truncate text-[11.5px] text-subtle">{user.email}</div>
+            </div>
+            <ChevronsUpDown className="h-4 w-4 text-subtle" />
+          </button>
+        }>
+          <MenuLabel>{user.email}</MenuLabel>
+          <MenuItem icon={<Settings />} onSelect={() => navigate("/app/settings")}>Settings</MenuItem>
+          <MenuItem icon={<LogOut />} onSelect={signOut} danger>Sign out</MenuItem>
+        </Menu>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex h-dvh overflow-hidden">
+      <aside className="hidden w-60 shrink-0 border-r border-line bg-surface lg:block">{sidebar}</aside>
+      {drawer && (
+        <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
+          <div className="absolute inset-0 animate-fade-in bg-black/60" onClick={() => setDrawer(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 animate-pop-in border-r border-line bg-surface">{sidebar}</aside>
+        </div>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-4 lg:hidden">
+          <button className="rounded-md p-1.5 text-muted hover:text-fg" onClick={() => setDrawer(true)} aria-label="Open navigation"><MenuIcon className="h-5 w-5" /></button>
+          <Logo />
+        </header>
+        <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
+          {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
+        </main>
+      </div>
+    </div>
+  );
+}
