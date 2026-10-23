@@ -26,6 +26,7 @@ import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
 import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
+import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
@@ -75,12 +76,13 @@ export function createApp(deps: Deps) {
   const appLimiter = rateLimit("app", (c) => c.req.header("cookie")?.match(/mymail\.session_token=([^;.]+)/)?.[1]?.slice(0, 24) ?? c.var.ip);
   app.use("/api/*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/")) return next();
+    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
-    // Signed webhooks and the API-key REST API never use cookies, so CSRF does not apply.
-    if (c.req.path.startsWith("/api/inbound/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/v1/")) return next();
+    // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
+    const p = c.req.path;
+    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
     return csrfGuard(c, next);
   });
 
@@ -151,6 +153,9 @@ export function createApp(deps: Deps) {
   app.route("/api/agents", agentRoutes());
   app.route("/api/approvals", approvalRoutes());
   app.route("/api/ai", aiRoutes());
+  app.route("/api/imports", importRoutes());
+  app.route("/api/import-runner", importRunnerRoutes());
+  app.route("/api/integrations", integrationRoutes());
   app.route("/api/v1", v1Routes());
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());

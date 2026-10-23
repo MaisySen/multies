@@ -235,5 +235,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `messages` ADD `sent_by_agent_id` text;",
       "ALTER TABLE `messages` ADD `sent_by_user_id` text;"
     ]
+  },
+  {
+    "name": "0014_integrations_imports",
+    "statements": [
+      "CREATE TABLE `import_jobs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`source_host` text NOT NULL,\n\t`source_port` integer DEFAULT 993 NOT NULL,\n\t`source_user` text NOT NULL,\n\t`secret_enc` text,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`messages_done` integer DEFAULT 0 NOT NULL,\n\t`messages_total` integer,\n\t`error` text,\n\t`created_by_user_id` text,\n\t`claimed_at` integer,\n\t`heartbeat_at` integer,\n\t`finished_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE INDEX `import_jobs_org_idx` ON `import_jobs` (`org_id`);",
+      "CREATE INDEX `import_jobs_status_idx` ON `import_jobs` (`status`);",
+      "CREATE TABLE `integrations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`tenant_id` text,\n\t`tenant_name` text,\n\t`tokens_enc` text NOT NULL,\n\t`expires_at` integer,\n\t`connected_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`connected_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE UNIQUE INDEX `integrations_org_provider_uq` ON `integrations` (`org_id`,`provider`);"
+    ]
   }
 ];

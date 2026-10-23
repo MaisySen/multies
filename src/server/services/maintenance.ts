@@ -1,5 +1,6 @@
 import { enforceGracePeriods } from "./billing/dunning";
 import { expireApprovals, pruneAgentEvents } from "./agents";
+import { pruneImports } from "./import";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
 import { sql } from "drizzle-orm";
 import type { Deps } from "../context";
@@ -39,6 +40,7 @@ export async function runMaintenance(deps: Deps) {
     await pruneLockouts(deps.db, deps.now());
     await pruneJobs(deps);
     await pruneAgentEvents(deps);
+    await pruneImports(deps);
   });
   return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired };
 }

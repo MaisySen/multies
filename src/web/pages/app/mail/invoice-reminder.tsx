@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
@@ -19,11 +19,26 @@ export function InvoiceReminderDialog({ open, onClose, onCompose }: { open: bool
     }),
     onSuccess: (r) => { onCompose({ to: f.email, subject: r.subject, text: r.text }); onClose(); },
   });
+  const xero = useQuery({ queryKey: ["integrations"], queryFn: async () => (await api.get<{ xero: { connected: boolean } }>("/integrations")).xero, enabled: open });
+  const invoices = useQuery({
+    queryKey: ["xero-invoices"], enabled: open && !!xero.data?.connected,
+    queryFn: async () => (await api.get<{ invoices: { invoiceNumber: string; customerName: string; email: string | null; amount: number; dueDate: string }[] }>("/integrations/xero/invoices")).invoices,
+  });
+  const pick = (n: string) => {
+    const i = invoices.data?.find((x) => x.invoiceNumber === n);
+    if (i) setF({ ...f, customerName: i.customerName, email: i.email ?? "", invoiceNumber: i.invoiceNumber, amount: String(i.amount), dueDate: i.dueDate });
+  };
   const ready = f.customerName && f.invoiceNumber && Number(f.amount.replace(/[^0-9.]/g, "")) > 0 && f.dueDate;
   return (
     <Dialog open={open} onClose={onClose} title="Chase an unpaid invoice" description="We write the reminder; you check it and send. It gets firmer the longer the invoice is overdue."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={!ready} loading={make.isPending} onClick={() => make.mutate()}>Write reminder</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (ready) make.mutate(); }}>
+        {!!invoices.data?.length && (
+          <Field label="Unpaid in Xero">{(p) => <Select {...p} defaultValue="" onChange={(e) => pick(e.target.value)}>
+            <option value="" disabled>Pick an invoice</option>
+            {invoices.data.map((i) => <option key={i.invoiceNumber} value={i.invoiceNumber}>{i.invoiceNumber}, {i.customerName}, A${i.amount.toFixed(2)}, due {i.dueDate}</option>)}
+          </Select>}</Field>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Customer name">{(p) => <Input {...p} autoFocus value={f.customerName} onChange={set("customerName")} placeholder="Tom Nguyen" />}</Field>
           <Field label="Their email">{(p) => <Input {...p} type="email" value={f.email} onChange={set("email")} placeholder="tom@example.com.au" />}</Field>

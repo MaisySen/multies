@@ -569,3 +569,41 @@ export const agentEvents = sqliteTable("agent_events", {
   data: text("data").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("agent_events_org_seq_idx").on(t.orgId, t.seq), index("agent_events_agent_seq_idx").on(t.agentId, t.seq)]);
+
+/** Connected business apps (Xero today). Tokens are encrypted with APP_SECRET. */
+export const integrations = sqliteTable("integrations", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["xero"] }).notNull(),
+  tenantId: text("tenant_id"),
+  tenantName: text("tenant_name"),
+  tokensEnc: text("tokens_enc").notNull(),
+  expiresAt: ts("expires_at"),
+  connectedByUserId: text("connected_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("integrations_org_provider_uq").on(t.orgId, t.provider)]);
+
+/**
+ * Mail imports from Gmail, Outlook or any IMAP server. A runner (deploy/import-runner,
+ * imapsync in Docker) claims queued jobs with IMPORT_RUNNER_TOKEN and copies the mail into
+ * the mailbox over IMAP. The source app password is encrypted and wiped when the job ends.
+ */
+export const importJobs = sqliteTable("import_jobs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["gmail", "outlook", "imap"] }).notNull(),
+  sourceHost: text("source_host").notNull(),
+  sourcePort: integer("source_port").notNull().default(993),
+  sourceUser: text("source_user").notNull(),
+  secretEnc: text("secret_enc"),
+  status: text("status", { enum: ["queued", "running", "done", "failed", "cancelled"] }).notNull().default("queued"),
+  messagesDone: integer("messages_done").notNull().default(0),
+  messagesTotal: integer("messages_total"),
+  error: text("error"),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  claimedAt: ts("claimed_at"),
+  heartbeatAt: ts("heartbeat_at"),
+  finishedAt: ts("finished_at"),
+  createdAt: createdAt(),
+}, (t) => [index("import_jobs_org_idx").on(t.orgId), index("import_jobs_status_idx").on(t.status)]);
