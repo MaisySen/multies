@@ -45,7 +45,8 @@ export async function getDomain(db: DB, orgId: string, id: string) {
   return d;
 }
 
-export async function createDomain(deps: Deps, orgId: string, name: string) {
+/** `dkimKey` reuses an existing key pair (sandbox domains share one, skipping RSA key generation). */
+export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string } } = {}) {
   const { db, config } = deps;
   await assertCanCreate(db, orgId, "domains");
   const existing = await db.select().from(domains).where(eq(domains.name, name)).get();
@@ -54,7 +55,7 @@ export async function createDomain(deps: Deps, orgId: string, name: string) {
       ? `${name} is already in this workspace.`
       : `${name} is connected to another workspace. If you own it, contact support to claim it.`);
   }
-  const { publicKeyB64, privateKeyPem } = await generateDkimKeyPair();
+  const { publicKeyB64, privateKeyPem } = opts.dkimKey ?? await generateDkimKeyPair();
   const row: typeof domains.$inferInsert = {
     id: newId("dom"),
     orgId,

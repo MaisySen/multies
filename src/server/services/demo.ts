@@ -1,12 +1,13 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import type { Deps } from "../context";
-import { auditLogs, domains, members, organizations, users } from "../db/schema";
-import { newId, randomToken } from "../lib/crypto";
+import { appSettings, auditLogs, deliveries, domains, members, organizations, users } from "../db/schema";
+import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { sql } from "drizzle-orm";
 import { authFor } from "../auth";
 import { createAlias, createMailbox } from "./addresses";
 import { createDomain } from "./domains";
 import { deliverInbound } from "./mail/delivery";
+import { storeMessage } from "./mail/store";
 import { sendMessage } from "./mail/send";
 import type { ParsedEmail } from "./mail/mime";
 import type { AuthContext } from "../context";
@@ -64,7 +65,7 @@ export async function createDemoWorkspace(deps: Deps) {
   await deps.db.insert(members).values({ id: newId("mem"), organizationId: orgId, userId, role: "owner" });
   await deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
 
-  const domain = await createDomain(deps, orgId, domainName);
+  const domain = await createDomain(deps, orgId, domainName, { dkimKey: await sampleDkimKey(deps) });
   // Sample domains can't have real DNS; mark them verified and say so in the report.
   await deps.db.update(domains).set({
     status: "verified",
@@ -77,23 +78,30 @@ export async function createDemoWorkspace(deps: Deps) {
   }).where(eq(domains.id, domain.id));
 
   const mk = (localPart: string, displayName: string) => createMailbox(deps.db, orgId, { domainId: domain.id, localPart, displayName });
-  const [founders] = await Promise.all([mk("founders", "Alex Rivera"), mk("support", "Northwind Support"), mk("billing", "Northwind Billing"), mk("hello", "Northwind")]);
+  const boxes = await Promise.all([mk("founders", "Alex Rivera"), mk("support", "Northwind Support"), mk("billing", "Northwind Billing"), mk("hello", "Northwind")]);
+  const [founders] = boxes;
+  const boxFor = (localPart: string) => boxes.find((b) => b.localPart === localPart)!;
   await Promise.all([
     createAlias(deps.db, orgId, { domainId: domain.id, localPart: "sales", destinations: [founders.address, "alex.rivera@gmail.example"] }),
     createAlias(deps.db, orgId, { domainId: domain.id, localPart: "team", destinations: [founders.address, `support@${domain.name}`] }),
   ]);
 
   const now = deps.now().getTime();
-  // Independent deliveries run together: on D1 each one is several round trips.
-  await Promise.all([...SAMPLE_INBOUND].reverse().map(async (m) => {
-    const date = new Date(now - m.hoursAgo * 3600_000);
-    const email: ParsedEmail = {
-      messageId: `<${randomToken(9)}@${m.from.address.split("@")[1]}>`,
-      from: m.from, to: [{ address: `${m.to}@${domain.name}` }], cc: [], subject: m.subject, text: m.text, date,
-      attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
-    };
-    await deliverInbound(deps, { envelopeFrom: m.from.address, rcptTo: `${m.to}@${domain.name}`, email, sizeBytes: m.text.length + 600, via: "demo" });
-  }));
+  // Sample mail is written straight into the mailboxes rather than through full inbound
+  // delivery: delivery re-checks routing, plan, storage, webhooks and agents for every
+  // message, which made a demo about 640 database queries and ran past the Worker's CPU
+  // limit on production. These messages need none of that, so it is now about a sixth.
+  const delivered: (typeof deliveries.$inferInsert)[] = [];
+  const seed = async (from: { address: string; name: string }, localPart: string, subject: string, text: string, date: Date, archived = false) => {
+    const mb = boxFor(localPart);
+    const messageId = await storeMessage(deps.db, {
+      orgId, mailboxId: mb.id, folder: archived ? "archive" : "inbox", isRead: archived,
+      messageIdHeader: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: mb.address }], cc: [], subject, text, date,
+      authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, sizeBytes: text.length + 600,
+    });
+    delivered.push({ id: newId("dlv"), orgId, messageId, direction: "inbound", fromAddress: from.address, toAddress: mb.address, subject, status: "delivered", provider: "demo", detail: `Delivered to ${mb.address}`, createdAt: date });
+  };
+  for (const m of [...SAMPLE_INBOUND].reverse()) await seed(m.from, m.to, m.subject, m.text, new Date(now - m.hoursAgo * 3600_000));
 
   const HISTORY = [
     ["Uptime", "alerts@uptime.example", "support", "Weekly summary: 100% uptime"],
@@ -104,15 +112,12 @@ export async function createDemoWorkspace(deps: Deps) {
     ["Customer", "sam@acme-corp.example", "support", "Thanks for the quick fix!"],
     ["Recruiting", "talent@hire.example", "hello", "Intro: senior engineer, ex-Fastmail"],
   ] as const;
-  await Promise.all(Array.from({ length: 18 }, async (_, i) => {
+  for (let i = 0; i < 18; i++) {
     const [name, address, box, subject] = HISTORY[i % HISTORY.length];
-    const date = new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000);
-    const email: ParsedEmail = {
-      messageId: `<${randomToken(9)}@${address.split("@")[1]}>`, from: { address, name }, to: [{ address: `${box}@${domain.name}` }], cc: [],
-      subject, text: `${subject}.\n\nThis is an older message in your demo workspace's archive.`, date, attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
-    };
-    await deliverInbound(deps, { envelopeFrom: address, rcptTo: `${box}@${domain.name}`, email, sizeBytes: 900, via: "demo" });
-  }));
+    await seed({ address, name }, box, subject, `${subject}.\n\nThis is an older message in your demo workspace's archive.`, new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000), true);
+  }
+  // D1 allows 100 bound values per statement: 12 columns a row, so 8 rows at a time.
+  for (let i = 0; i < delivered.length; i += 8) await deps.db.insert(deliveries).values(delivered.slice(i, i + 8));
   await deps.db.run(sql`UPDATE messages SET folder = 'archive', is_read = 1 WHERE org_id = ${orgId} AND folder = 'inbox' AND date < ${now - 58 * 3600_000}`);
 
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
@@ -180,6 +185,20 @@ async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: strin
     text: "Hi Kai,\n\nSorry about that. Reset emails can land in spam, so please check there first. I've also asked the team to look at your account, and someone will reply today.\n\nNorthwind Support",
   }),
   ]);
+}
+
+/**
+ * One DKIM key pair shared by every sandbox domain (they can't publish DNS or send outside
+ * MyMail anyway), made once and kept encrypted in app_settings. Generating an RSA key per
+ * demo cost a large share of the Worker's CPU budget.
+ */
+async function sampleDkimKey(deps: Deps): Promise<{ publicKeyB64: string; privateKeyPem: string }> {
+  const KEY = "demo_dkim_key";
+  const row = await deps.db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, KEY)).get();
+  if (row) return JSON.parse(await decryptSecret(deps.config.appSecret, row.value)) as { publicKeyB64: string; privateKeyPem: string };
+  const pair = await generateDkimKeyPair();
+  await deps.db.insert(appSettings).values({ key: KEY, value: await encryptSecret(deps.config.appSecret, JSON.stringify(pair)) }).onConflictDoNothing();
+  return pair;
 }
 
 /** Removes sandbox workspaces (and their users) older than the TTL. */

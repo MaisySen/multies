@@ -130,6 +130,15 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   }
   external.splice(0, external.length, ...external.filter((a) => !blocked.has(a)));
 
+  // Sandbox workspaces never send outside MyMail: the sample data would otherwise mail
+  // real-looking addresses and wait on the provider for every demo.
+  if (external.length && org.isDemo) {
+    for (const address of external) {
+      await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: "sent", provider: "demo", detail: "Sandbox workspace: shown as sent, not delivered outside MyMail." });
+      result.external.push({ address, status: "sent", detail: "Sandbox workspace: not delivered outside MyMail." });
+    }
+    external.length = 0;
+  }
   if (external.length) {
     const ext = new Set(external);
     const only = (list: string[] | undefined) => (list ?? []).map((a) => a.toLowerCase()).filter((a) => ext.has(a));

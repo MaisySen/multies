@@ -31,6 +31,29 @@ describe("demo mode", () => {
     expect((await other.get("/api/domains")).body.domains[0].name).not.toBe((await c.get("/api/domains")).body.domains[0].name);
   });
 
+  it("stays small enough for a Worker request and never sends outside MyMail", async () => {
+    // Production timed out at more than 100 s: about 640 D1 queries, an RSA key per demo
+    // and real provider calls for the sample's outside recipients ran past the CPU limit.
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const client = (ctx.db as unknown as { $client: { prepare: (q: string) => unknown } }).$client;
+    const prepare = client.prepare.bind(client);
+    const first = new Client(ctx.app);
+    expect((await first.post("/api/account/demo")).status).toBe(201);
+    let queries = 0;
+    client.prepare = (q: string) => { queries++; return prepare(q); };
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    expect(queries).toBeLessThan(450);
+    expect(ctx.outbound.sent).toHaveLength(0);
+    const sent = (await c.get("/api/mail/messages?folder=sent")).body.messages;
+    expect(sent.length).toBeGreaterThan(0);
+    // Sandbox domains share one stored DKIM key instead of generating one each time.
+    const keys = (await ctx.db.query.domains.findMany()).map((d) => d.dkimPublicKey);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(/^MII/);
+    expect(keys[1]).toBe(keys[0]);
+  });
+
   it("purges expired sandboxes", async () => {
     const ctx = await makeTestApp({ DEMO_MODE: "true" });
     await new Client(ctx.app).post("/api/account/demo");
