@@ -30,6 +30,7 @@ import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoute
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
+import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -58,10 +59,11 @@ export function createApp(deps: Deps) {
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
   const pageHeaders = securityHeaders({ csp: appCsp(), hsts });
+  const formPageHeaders = securityHeaders({ csp: appCsp({ turnstile: true }), hsts });
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
-    const set = p === "/api/v1/docs" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : pageHeaders;
+    const set = p === "/api/v1/docs" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
   });
   app.use("/api/*", async (c, next) => {
@@ -128,6 +130,7 @@ export function createApp(deps: Deps) {
       billingEnabled: deps.config.billing.enabled,
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
+      meetings: !!deps.config.meetings,
       // A browser DSN is public by design (it can only submit events).
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
@@ -164,6 +167,11 @@ export function createApp(deps: Deps) {
   app.route("/api/notifications", notificationRoutes());
   app.route("/api/push", pushRoutes());
   app.route("/api/changes", changeRoutes());
+  app.route("/api/time", timeRoutes());
+  app.route("/api/forms", formRoutes());
+  app.route("/api/reports", reportRoutes());
+  app.route("/api/meetings", meetingRoutes());
+  app.route("/api/public", publicRoutes());
   app.route("/api/imports", importRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());

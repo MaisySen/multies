@@ -21,6 +21,7 @@ import { deprovisionMailbox } from "../services/mailserver";
 import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
 import { registerSuiteRoutes } from "./v1-suite";
+import { registerSuiteR7Routes } from "./v1-suite-r7";
 
 // ---------------------------------------------------------------- schemas
 
@@ -152,7 +153,7 @@ export function v1Routes() {
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
-  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings"]) api.use(`/${r}/*`, apiKeyAuth);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
     const a = c.var.auth as { apiKeyId?: string } | undefined;
@@ -303,6 +304,7 @@ export function v1Routes() {
 
   registerAgentRoutes(api);
   registerSuiteRoutes(api);
+  registerSuiteR7Routes(api);
   registerMcpRoute(api);
   return api;
 }

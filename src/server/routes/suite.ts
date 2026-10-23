@@ -10,7 +10,7 @@ import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware"
 import { changesSince } from "../services/suite/common";
 import {
   addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
-  parseAssignee, taskDetail, updateProject, updateTask,
+  parseAssignee, taskDetail, updateProject, updateTask, addDependency, removeDependency, dependencyLinks,
 } from "../services/suite/tasks";
 import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
 import {
@@ -72,7 +72,10 @@ export function taskRoutes() {
     .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
     .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
     .delete("/views/:id", async (c) => c.json(await deleteView(c.var.deps, c.var.auth, c.req.param("id"))))
+    .get("/dependencies", async (c) => c.json({ links: await dependencyLinks(c.var.deps, c.var.auth.orgId, c.req.query("projectId")) }))
     .get("/:id", async (c) => c.json(await taskDetail(c.var.deps, c.var.auth, c.req.param("id"))))
+    .post("/:id/dependencies", async (c) => c.json(await addDependency(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ blockedBy: z.string().min(1) }))).blockedBy), 201))
+    .delete("/:id/dependencies/:blockedBy", async (c) => c.json(await removeDependency(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("blockedBy"))))
     .patch("/:id", async (c) => {
       const b = await parseBody(c, TaskPatch);
       return c.json({ task: await updateTask(c.var.deps, c.var.auth, c.req.param("id"), { ...b, assignee: assigneeOf(b) }) });

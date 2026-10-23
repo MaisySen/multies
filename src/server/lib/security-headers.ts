@@ -16,19 +16,25 @@ export interface CspOptions {
   connectSrc?: string[];
   /** Report endpoint for CSP violations (Sentry's security endpoint works). */
   reportUri?: string;
+  /** The public form page: allow the Cloudflare Turnstile widget. */
+  turnstile?: boolean;
 }
 
+const TURNSTILE = "https://challenges.cloudflare.com";
 const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"];
 
 export function appCsp(opts: CspOptions = {}): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
-    "script-src": ["'self'"],
+    // Public form pages (/f/...) load Cloudflare Turnstile; every other page runs only our own scripts.
+    "script-src": ["'self'", ...(opts.turnstile ? [TURNSTILE] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
-    "connect-src": ["'self'", ...SENTRY_INGEST, ...(opts.connectSrc ?? [])],
-    "frame-src": ["'self'", "blob:"],
+    // Video meetings: LiveKit Cloud or a self-hosted LiveKit server, over secure WebSockets.
+    "connect-src": ["'self'", ...SENTRY_INGEST, "https://*.livekit.cloud", "wss:", ...(opts.connectSrc ?? [])],
+    "media-src": ["'self'", "blob:"],
+    "frame-src": ["'self'", "blob:", ...(opts.turnstile ? [TURNSTILE] : [])],
     "worker-src": ["'self'", "blob:"],
     "object-src": ["'none'"],
     "base-uri": ["'self'"],
@@ -80,7 +86,7 @@ export function securityHeaders(o: HeaderOptions): Record<string, string> {
     "x-content-type-options": "nosniff",
     "x-frame-options": "DENY",
     "referrer-policy": "strict-origin-when-cross-origin",
-    "permissions-policy": "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()",
+    "permissions-policy": "accelerometer=(), camera=(self), display-capture=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(self), payment=(), usb=(), interest-cohort=()",
     "cross-origin-opener-policy": "same-origin",
     "cross-origin-resource-policy": "same-origin",
     "x-dns-prefetch-control": "off",

@@ -77,6 +77,7 @@ function binding(v: unknown): RateLimitBinding | undefined {
 }
 
 let pageHeaders: { csp: string; hsts: boolean } | null = null;
+let formPageHeaders: { csp: string; hsts: boolean } | null = null;
 
 function getReady(env: WorkerEnv) {
   ready ??= boot(env).catch((err) => { ready = null; throw err; });
@@ -130,9 +131,12 @@ const handler = {
       return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
     }
     pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
+    // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
+    formPageHeaders ??= { csp: appCsp({ turnstile: true }), hsts: isHttps(url.origin) };
+    const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
     const asset = await env.ASSETS.fetch(request);
     if (asset.status !== 404) {
-      const res = withSecurityHeaders(asset, pageHeaders);
+      const res = withSecurityHeaders(asset, headers);
       // Hashed build files never change; everything else revalidates.
       if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
       return res;
@@ -141,7 +145,7 @@ const handler = {
     const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
       ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
       : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
-    const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), pageHeaders);
+    const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), headers);
     res.headers.set("cache-control", "no-cache");
     return res;
   },
