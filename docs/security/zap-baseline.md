@@ -9,7 +9,8 @@ for the preview host) fails the run.
 
 ```bash
 # ZAP 2.17 needs Java 17
-zap.sh -cmd -autorun zap-plan.yaml   # spider, spiderAjax, passiveScan-wait, report
+TARGET=https://mymail-staging.mymail-app.workers.dev REPORT_DIR=/tmp/zap \
+  zap.sh -cmd -autorun .zap/plan.yaml   # spider, AJAX spider, passive rules, JSON and Markdown reports
 ```
 
 ## Results, 23 October 2026 (ZAP 2.17.0)
