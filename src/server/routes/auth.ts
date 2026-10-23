@@ -9,7 +9,7 @@ import { authenticate, changePassword, createSession, createUserWithOrg, deleteA
 import { audit } from "../services/audit";
 import { RateLimiter } from "../lib/rate-limit";
 import { HttpError, tooMany } from "../lib/errors";
-import { organizations } from "../db/schema";
+import { organizations, users } from "../db/schema";
 import { createDemoWorkspace } from "../services/demo";
 import { notFound } from "../lib/errors";
 import { z } from "zod";
@@ -109,6 +109,11 @@ export function authRoutes() {
     const { password } = await parseBody(c, deleteAccountSchema);
     await deleteAccount(deps.db, auth.userId, password);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ ok: true });
+  })
+  .patch("/profile", requireAuth, async (c) => {
+    const { name } = await parseBody(c, z.object({ name: z.string().trim().min(1, "Enter your name").max(100) }));
+    await c.var.deps.db.update(users).set({ name }).where(eq(users.id, c.var.auth.userId));
     return c.json({ ok: true });
   })
   .get("/workspaces", requireAuth, async (c) => {

@@ -4,7 +4,7 @@ import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { PricingPage } from "./pages/pricing";
-import { LoginPage, SignupPage } from "./pages/auth";
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage, VerifyEmailPage } from "./pages/auth";
 import { NotFound } from "./pages/not-found";
 import { AppSkeleton } from "./layouts/app-skeleton";
 
@@ -19,7 +19,7 @@ const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
 const GeneralSettings = lazy(() => settings().then((m) => ({ default: m.GeneralSettings })));
 const MailSettings = lazy(() => settings().then((m) => ({ default: m.MailSettings })));
-const AccountSettings = lazy(() => settings().then((m) => ({ default: m.AccountSettings })));
+const AccountSettings = lazy(() => import("./pages/app/security").then((m) => ({ default: m.AccountSettings })));
 const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
@@ -39,6 +39,9 @@ export const router = createBrowserRouter([
       { path: "/login", element: <LoginPage /> },
       { path: "/signup", element: <SignupPage /> },
       { path: "/invite/:token", element: page(<InvitePage />) },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/reset-password/:token", element: <ResetPasswordPage /> },
+      { path: "/verify-email/:token", element: <VerifyEmailPage /> },
     ],
   },
   {

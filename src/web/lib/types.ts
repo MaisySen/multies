@@ -5,7 +5,7 @@ import type { Address, AuthResults, Folder } from "@/shared/mail";
 export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
 export interface Me {
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean };
   organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member" } | null;
 }
 

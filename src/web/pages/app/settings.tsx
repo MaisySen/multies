@@ -58,14 +58,6 @@ export function MailSettings() {
   );
 }
 
-export function AccountSettings() {
-  return (
-    <div className="space-y-6">
-      <AccountSection />
-    </div>
-  );
-}
-
 function DangerZone() {
   const me = useMe();
   const qc = useQueryClient();
@@ -252,8 +244,7 @@ function OutboundSection() {
   );
 }
 
-function AccountSection() {
-  const me = useMe();
+export function AccountSection() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [current, setCurrent] = useState("");
@@ -266,30 +257,18 @@ function AccountSection() {
     onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
     onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else toast.error(e.message); },
   });
-  const revoke = useMutation({
-    mutationFn: () => api.post("/auth/sessions/revoke-others"),
-    onSuccess: () => toast.success("Signed out everywhere else"),
-    onError: (e) => toast.error(e.message),
-  });
   const del = useMutation({
     mutationFn: () => api.del("/auth/account", { password: confirmPw }),
     onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
     onError: (e) => toast.error(e.message),
   });
   return (
-    <Section title="Account" description="You sign in with your email and password. Sessions are stored server-side and expire after 30 days of inactivity.">
-      <dl className="grid max-w-md gap-3 text-sm">
-        <div className="flex justify-between gap-4"><dt className="text-muted">Name</dt><dd>{me.data?.user.name}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-muted">Email</dt><dd className="truncate">{me.data?.user.email}</dd></div>
-        <div className="flex justify-between gap-4"><dt className="text-muted">Role</dt><dd className="capitalize">{me.data?.organization?.role}</dd></div>
-      </dl>
-      <form className="mt-6 max-w-md space-y-3 border-t border-line pt-6" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
-        <h3 className="text-sm font-medium">Change password</h3>
+    <Section title="Password" description="Changing it signs you out on every other device.">
+      <form className="max-w-md space-y-3" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
         <Field label="Current password" error={fields.currentPassword}>{(p) => <Input {...p} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />}</Field>
         <Field label="New password" hint="At least 10 characters." error={fields.newPassword}>{(p) => <Input {...p} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />}</Field>
         <div className="flex flex-wrap gap-2">
           <Button type="submit" variant="secondary" loading={change.isPending} disabled={!current || next.length < 10}>Update password</Button>
-          <Button type="button" variant="ghost" loading={revoke.isPending} onClick={() => revoke.mutate()}>Sign out other devices</Button>
         </div>
       </form>
       <div className="mt-6 flex max-w-md flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
