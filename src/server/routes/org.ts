@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
-import { parseBody, requireAdmin, requireAuth } from "../middleware";
+import { pageQuery, parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
 import { getOrg, usage } from "../services/plans";
@@ -57,8 +57,8 @@ export function orgRoutes() {
       return c.json({ ok: true, plan: target });
     })
     .get("/audit", async (c) => {
-      const before = c.req.query("before");
-      const entries = await listAudit(c.var.deps.db, c.var.auth.orgId, { limit: Number(c.req.query("limit") ?? 50), before: before ? new Date(before) : undefined });
+      const { limit, before } = parseQuery(c, pageQuery);
+      const entries = await listAudit(c.var.deps.db, c.var.auth.orgId, { limit, before });
       return c.json({ entries });
     });
 }

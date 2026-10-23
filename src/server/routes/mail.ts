@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import type { AppEnv } from "../context";
-import { parseBody, requireAuth } from "../middleware";
+import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/shared/schemas";
 import type { Folder } from "@/shared/mail";
 import { attachments, mailboxes, messages } from "../db/schema";
@@ -26,14 +26,19 @@ export function mailRoutes() {
     .use("*", idempotency((c) => `user:${c.var.auth.userId}`))
     .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .get("/messages", async (c) => {
-      const folder = folderParam.safeParse(c.req.query("folder") || undefined);
-      if (!folder.success) throw badRequest("Unknown folder.");
+      const q = parseQuery(c, z.object({
+        folder: z.preprocess((v) => v || undefined, folderParam),
+        mailboxId: z.string().max(64).optional().transform((v) => v || undefined),
+        q: z.string().max(200).optional().transform((v) => v || undefined),
+        cursor: z.string().max(200).optional().transform((v) => v || undefined),
+        limit: z.coerce.number().int().min(1).max(200).optional(),
+      }));
       const result = await listMessages(c.var.deps.db, c.var.auth.orgId, {
-        mailboxId: c.req.query("mailboxId") || undefined,
-        folder: folder.data as Folder | "starred" | undefined,
-        search: c.req.query("q") || undefined,
-        cursor: c.req.query("cursor") || undefined,
-        limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        mailboxId: q.mailboxId,
+        folder: q.folder as Folder | "starred" | undefined,
+        search: q.q,
+        cursor: q.cursor,
+        limit: q.limit,
         scope: await mailboxScope(c.var.deps.db, c.var.auth),
       });
       return c.json(result);

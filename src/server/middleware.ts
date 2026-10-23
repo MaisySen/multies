@@ -1,5 +1,5 @@
 import type { Context, MiddlewareHandler } from "hono";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "./context";
 import { forbidden, HttpError, unauthorized, zodToHttp } from "./lib/errors";
@@ -99,6 +99,19 @@ export async function parseBody<T>(c: Context, schema: ZodType<T>): Promise<T> {
   if (!parsed.success) throw zodToHttp(parsed.error);
   return parsed.data;
 }
+
+/** Validates the query string with zod (all values arrive as strings; use z.coerce). */
+export function parseQuery<T>(c: Context, schema: ZodType<T>): T {
+  const parsed = schema.safeParse(c.req.query());
+  if (!parsed.success) throw zodToHttp(parsed.error);
+  return parsed.data;
+}
+
+/** Common list query: page size and a created-before cursor. */
+export const pageQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  before: z.iso.datetime({ offset: true }).optional().transform((v) => (v ? new Date(v) : undefined)),
+});
 
 export function clientIp(c: Context): string {
   return c.req.header("cf-connecting-ip") ?? c.req.header("x-real-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
