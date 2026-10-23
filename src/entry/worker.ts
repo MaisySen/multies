@@ -126,7 +126,8 @@ const handler = {
         lastMaintenance = Date.now();
         ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
       }
-      return app.fetch(request);
+      // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
+      return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
     }
     pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
     const asset = await env.ASSETS.fetch(request);
