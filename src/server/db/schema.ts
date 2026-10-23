@@ -16,6 +16,8 @@ export const users = sqliteTable("users", {
   banned: integer("banned", { mode: "boolean" }).default(false),
   banReason: text("ban_reason"),
   banExpires: ts("ban_expires"),
+  /** How the person last signed in ("email", "auth0", "google", ...), from Better Auth's lastLoginMethod plugin. */
+  lastLoginMethod: text("last_login_method"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().default(new Date(0)).$defaultFn(() => new Date()).$onUpdate(() => new Date()),
 }, (t) => [uniqueIndex("users_email_uq").on(t.email)]);
@@ -39,6 +41,18 @@ export const organizations = sqliteTable("organizations", {
   subscriptionStatus: text("subscription_status"),
   currentPeriodEnd: ts("current_period_end"),
   cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
+  /** Dunning: when the first failed payment of the current run happened, and when the grace period ends. */
+  pastDueSince: ts("past_due_since"),
+  graceEndsAt: ts("grace_ends_at"),
+  /** Usage alert thresholds already emailed this day, e.g. "2026-10-23:sends:80". */
+  usageAlerts: text("usage_alerts"),
+  /** Members must sign in with single sign-on (SSO) to open this workspace. */
+  requireSso: integer("require_sso", { mode: "boolean" }).notNull().default(false),
+  /** Abuse controls (operator console). A suspended workspace cannot send or use the API. */
+  suspendedAt: ts("suspended_at"),
+  suspendedReason: text("suspended_reason"),
+  /** Operator override for outbound sends per day; null means the plan's limit. */
+  sendCapDaily: integer("send_cap_daily"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug)]);
 
@@ -331,6 +345,9 @@ export const webhookEndpoints = sqliteTable("webhook_endpoints", {
   /** `whsec_...`, encrypted with APP_SECRET. */
   secretEnc: text("secret_enc").notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  /** Deliveries in a row that ran out of retries. At the threshold the endpoint is disabled. */
+  consecutiveDead: integer("consecutive_dead").notNull().default(0),
+  disabledReason: text("disabled_reason"),
   createdAt: createdAt(),
 }, (t) => [index("webhook_endpoints_org_idx").on(t.orgId)]);
 
@@ -341,6 +358,7 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
   endpointId: text("endpoint_id").notNull().references(() => webhookEndpoints.id, { onDelete: "cascade" }),
   eventType: text("event_type").notNull(),
   payload: text("payload").notNull(),
+  /** `failed` means retries ran out (the dead-letter state); it can be replayed. */
   status: text("status", { enum: ["pending", "delivered", "failed"] }).notNull().default("pending"),
   attempts: integer("attempts").notNull().default(0),
   responseStatus: integer("response_status"),
@@ -386,3 +404,75 @@ export const dmarcRecords = sqliteTable("dmarc_records", {
   dkim: text("dkim").notNull(),
   spf: text("spf").notNull(),
 }, (t) => [index("dmarc_records_report_idx").on(t.reportId)]);
+
+/** Fixed-window request counters for the API rate limiter (when no edge binding exists). */
+export const apiRateLimits = sqliteTable("api_rate_limits", {
+  key: text("key").primaryKey(),
+  hits: integer("hits").notNull(),
+  resetAt: integer("reset_at").notNull(),
+}, (t) => [index("api_rate_limits_reset_idx").on(t.resetAt)]);
+
+/** Failed sign-ins per account, for lockout across IPs (credential stuffing). */
+export const loginThrottle = sqliteTable("login_throttle", {
+  email: text("email").primaryKey(),
+  failures: integer("failures").notNull().default(0),
+  windowStart: ts("window_start").notNull(),
+  lockedUntil: ts("locked_until"),
+});
+
+/**
+ * Idempotency keys for mutating API calls (Stripe semantics): the first response is
+ * stored for 24 hours and replayed for retries with the same key and body.
+ */
+export const idempotencyKeys = sqliteTable("idempotency_keys", {
+  id: text("id").primaryKey(),
+  scope: text("scope").notNull(),
+  key: text("key").notNull(),
+  method: text("method").notNull(),
+  path: text("path").notNull(),
+  requestHash: text("request_hash").notNull(),
+  state: text("state", { enum: ["running", "done"] }).notNull().default("running"),
+  responseStatus: integer("response_status"),
+  responseBody: text("response_body"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("idempotency_scope_key_uq").on(t.scope, t.key), index("idempotency_created_idx").on(t.createdAt)]);
+
+/**
+ * Durable background jobs: outbound mail retries and other work that must survive a
+ * provider outage. Retries with exponential backoff, then a dead-letter state an
+ * operator can replay.
+ */
+export const jobs = sqliteTable("jobs", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  orgId: text("org_id"),
+  payload: text("payload").notNull(),
+  status: text("status", { enum: ["pending", "running", "done", "dead"] }).notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(8),
+  runAt: ts("run_at").notNull(),
+  lockedUntil: ts("locked_until"),
+  lastError: text("last_error"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at"),
+}, (t) => [index("jobs_due_idx").on(t.status, t.runAt), index("jobs_org_idx").on(t.orgId)]);
+
+/** Results of the scheduled self check, for the status page's uptime history. */
+export const uptimeChecks = sqliteTable("uptime_checks", {
+  id: text("id").primaryKey(),
+  at: ts("at").notNull(),
+  ok: integer("ok", { mode: "boolean" }).notNull(),
+  latencyMs: integer("latency_ms").notNull(),
+  components: text("components").notNull(),
+}, (t) => [index("uptime_checks_at_idx").on(t.at)]);
+
+/** Signals from outbound spam heuristics and operator actions, for the abuse queue. */
+export const abuseEvents = sqliteTable("abuse_events", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  score: integer("score").notNull().default(0),
+  detail: text("detail"),
+  resolvedAt: ts("resolved_at"),
+  createdAt: createdAt(),
+}, (t) => [index("abuse_events_org_idx").on(t.orgId, t.createdAt), index("abuse_events_open_idx").on(t.resolvedAt)]);

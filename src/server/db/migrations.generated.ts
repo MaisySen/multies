@@ -170,5 +170,34 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `organizations` ADD `timezone` text DEFAULT 'Australia/Sydney' NOT NULL;",
       "ALTER TABLE `organizations` ADD `country` text DEFAULT 'AU' NOT NULL;"
     ]
+  },
+  {
+    "name": "0010_round4_production",
+    "statements": [
+      "CREATE TABLE `abuse_events` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`score` integer DEFAULT 0 NOT NULL,\n\t`detail` text,\n\t`resolved_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `abuse_events_org_idx` ON `abuse_events` (`org_id`,`created_at`);",
+      "CREATE INDEX `abuse_events_open_idx` ON `abuse_events` (`resolved_at`);",
+      "CREATE TABLE `api_rate_limits` (\n\t`key` text PRIMARY KEY NOT NULL,\n\t`hits` integer NOT NULL,\n\t`reset_at` integer NOT NULL\n);",
+      "CREATE INDEX `api_rate_limits_reset_idx` ON `api_rate_limits` (`reset_at`);",
+      "CREATE TABLE `idempotency_keys` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`scope` text NOT NULL,\n\t`key` text NOT NULL,\n\t`method` text NOT NULL,\n\t`path` text NOT NULL,\n\t`request_hash` text NOT NULL,\n\t`state` text DEFAULT 'running' NOT NULL,\n\t`response_status` integer,\n\t`response_body` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `idempotency_scope_key_uq` ON `idempotency_keys` (`scope`,`key`);",
+      "CREATE INDEX `idempotency_created_idx` ON `idempotency_keys` (`created_at`);",
+      "CREATE TABLE `jobs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`type` text NOT NULL,\n\t`org_id` text,\n\t`payload` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`max_attempts` integer DEFAULT 8 NOT NULL,\n\t`run_at` integer NOT NULL,\n\t`locked_until` integer,\n\t`last_error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer\n);",
+      "CREATE INDEX `jobs_due_idx` ON `jobs` (`status`,`run_at`);",
+      "CREATE INDEX `jobs_org_idx` ON `jobs` (`org_id`);",
+      "CREATE TABLE `login_throttle` (\n\t`email` text PRIMARY KEY NOT NULL,\n\t`failures` integer DEFAULT 0 NOT NULL,\n\t`window_start` integer NOT NULL,\n\t`locked_until` integer\n);",
+      "CREATE TABLE `uptime_checks` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`at` integer NOT NULL,\n\t`ok` integer NOT NULL,\n\t`latency_ms` integer NOT NULL,\n\t`components` text NOT NULL\n);",
+      "CREATE INDEX `uptime_checks_at_idx` ON `uptime_checks` (`at`);",
+      "ALTER TABLE `organizations` ADD `past_due_since` integer;",
+      "ALTER TABLE `organizations` ADD `grace_ends_at` integer;",
+      "ALTER TABLE `organizations` ADD `usage_alerts` text;",
+      "ALTER TABLE `organizations` ADD `require_sso` integer DEFAULT false NOT NULL;",
+      "ALTER TABLE `organizations` ADD `suspended_at` integer;",
+      "ALTER TABLE `organizations` ADD `suspended_reason` text;",
+      "ALTER TABLE `organizations` ADD `send_cap_daily` integer;",
+      "ALTER TABLE `users` ADD `last_login_method` text;",
+      "ALTER TABLE `webhook_endpoints` ADD `consecutive_dead` integer DEFAULT 0 NOT NULL;",
+      "ALTER TABLE `webhook_endpoints` ADD `disabled_reason` text;"
+    ]
   }
 ];
