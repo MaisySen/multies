@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
   Agent, Approval, AppNotification, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskQuery, ThreadView,
+  Meeting, MeetingCreate, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
@@ -40,7 +40,7 @@ export function endpoints(t: Transport) {
 
     // Work management: the same session routes the web app's boards use.
     tasks: (p: TaskQuery = {}) => t.request<{ tasks: Task[] }>("GET", `/tasks${q({ ...p, includeSubtasks: p.includeSubtasks ? "true" : undefined })}`),
-    task: (id: string) => t.request<TaskDetail>("GET", `/tasks/${encodeURIComponent(id)}`),
+    task: (id: string) => t.request<TaskView>("GET", `/tasks/${encodeURIComponent(id)}`),
     createTask: (input: TaskCreate) => t.request<{ task: Task }>("POST", "/tasks", input),
     taskFromEmail: (input: { messageId?: string; threadId?: string; title?: string; notes?: string; due?: string; priority?: Task["priority"] }) =>
       t.request<{ task: Task }>("POST", "/tasks/from-email", input),
@@ -52,6 +52,17 @@ export function endpoints(t: Transport) {
     changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
     notifications: (unread = false) => t.request<{ notifications: AppNotification[] }>("GET", `/notifications${q({ unread: unread ? 1 : undefined })}`),
     readNotifications: (ids?: string[]) => t.request<{ marked: number }>("POST", "/notifications/read", ids ? { ids } : {}),
+
+    // Time tracking. One timer runs per person; starting a new one stops the old one first.
+    runningTimer: () => t.request<{ entry: TimeEntry | null }>("GET", "/time/running"),
+    startTimer: (taskId: string, note?: string) => t.request<{ entry: TimeEntry }>("POST", "/time/start", note ? { taskId, note } : { taskId }),
+    stopTimer: () => t.request<{ entry: TimeEntry | null }>("POST", "/time/stop", {}),
+    logTime: (input: TimeLog) => t.request<{ entry: TimeEntry }>("POST", "/time", input),
+    timeEntries: (taskId: string) => t.request<{ entries: TimeEntry[] }>("GET", `/time${q({ taskId })}`),
+
+    // Meetings. Video runs in the browser: the app opens joinUrl, guests use guestUrl.
+    meetings: (upcoming = true) => t.request<{ meetings: Meeting[]; videoEnabled: boolean }>("GET", `/meetings${q({ upcoming: upcoming ? 1 : undefined })}`),
+    createMeeting: (input: MeetingCreate) => t.request<{ meeting: Meeting; invites?: unknown }>("POST", "/meetings", input),
 
     // Push devices. The server only sends when push is switched on there; `enabled` says which.
     registerPushDevice: (token: string, platform: "ios" | "android") => t.request<{ ok: true; enabled: boolean }>("POST", "/push/devices", { token, platform }),

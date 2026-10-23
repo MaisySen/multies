@@ -123,6 +123,59 @@ export interface TaskDetail {
   contacts: { id: string; name: string | null; email: string | null }[];
 }
 
+/** One stretch of time on a task: a running or stopped timer, or a manual entry. */
+export interface TimeEntry {
+  id: string;
+  taskId: string | null;
+  task: { id: string; ref: string; title: string } | null;
+  projectId: string | null;
+  person: { type: "member" | "agent"; id: string; name: string };
+  startedAt: string;
+  endedAt: string | null;
+  running: boolean;
+  seconds: number;
+  note: string;
+  billable: boolean;
+  source: "timer" | "manual";
+}
+
+export interface TimeLog { taskId: string; minutes: number; date?: string; note?: string }
+
+/** Fields GET /api/tasks/:id adds on top of the v1 TaskDetail shape. Optional so older servers still work. */
+export interface TaskExtras {
+  time?: { totalSeconds: number; entries: TimeEntry[] };
+  blockedBy?: Task[];
+  blocking?: Task[];
+}
+export type TaskView = TaskDetail & TaskExtras;
+
+export interface MeetingSource { type: "thread" | "task" | "contact"; id: string }
+
+export interface Meeting {
+  id: string;
+  title: string;
+  startsAt: string;
+  durationMin: number;
+  endsAt: string;
+  status: string;
+  source: MeetingSource | null;
+  invitees: string[];
+  /** The meeting page in the web app (needs a MyMail sign in). */
+  joinUrl: string;
+  /** The guest page: works in any browser with no account. */
+  guestUrl: string;
+  videoEnabled: boolean;
+}
+
+export interface MeetingCreate {
+  title?: string;
+  startsAt?: string;
+  durationMin?: number;
+  source?: MeetingSource;
+  invitees?: string[];
+  sendInvites?: boolean;
+}
+
 export interface TaskQuery {
   status?: TaskStatus;
   threadId?: string;
@@ -194,4 +247,5 @@ export type SpecChecks = [
   Assert<Within<keyof TaskPatch, keyof S["TaskPatch"]>>,
   Assert<Within<S["Task"]["status"], TaskStatus>>,
   Assert<Within<S["Task"]["priority"], Priority>>,
+  Assert<Within<Pick<S["TimeEntry"], keyof TimeEntry>, TimeEntry>>,
 ];
