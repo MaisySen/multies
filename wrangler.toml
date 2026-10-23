@@ -8,7 +8,7 @@
 # Manual deploy (see docs/runbooks/release.md):
 #   npm run build:web && npm run build:worker
 #   npx wrangler d1 migrations apply mymail-staging --remote --env staging && npx wrangler deploy --env staging
-#   npx wrangler d1 migrations apply mymail --remote && npx wrangler deploy
+#   npx wrangler d1 migrations apply mymail-au --remote && npx wrangler deploy
 # Secrets live in Cloudflare, never in this file (per environment: add --env staging):
 #   npx wrangler secret put APP_SECRET        # 32+ random chars (required)
 #   npx wrangler secret put RESEND_API_KEY    # outbound mail
@@ -41,10 +41,13 @@ run_worker_first = ["/api/*", "/.well-known/*"]
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mymail"
-database_id = "8509ce19-9fcd-4272-91de-58a7095d6a4d"
+# Created in Oceania (location hint "oc") on 2026-10-23 and filled from an export of the
+# first production database, which sat in western North America so every query from an
+# Australian visitor crossed the Pacific. The old one ("mymail") is kept until 2026-10-30.
+database_name = "mymail-au"
+database_id = "e467919b-f7d8-4961-86b9-9cd861708efc"
 # Migrations run once per deploy, before the new code goes live:
-#   npx wrangler d1 migrations apply mymail --remote
+#   npx wrangler d1 migrations apply mymail-au --remote
 migrations_dir = "drizzle"
 migrations_table = "d1_migrations"
 

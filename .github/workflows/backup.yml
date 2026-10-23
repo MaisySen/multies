@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - db: mymail
+          - db: mymail-au
             env_flag: ""
           - db: mymail-staging
             env_flag: "--env staging"

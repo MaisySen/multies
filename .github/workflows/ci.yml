@@ -127,7 +127,7 @@ jobs:
           path: dist/
       - run: echo "RELEASE=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
       - name: Apply database migrations (idempotent, before the new code goes live)
-        run: npx wrangler d1 migrations apply mymail --remote
+        run: npx wrangler d1 migrations apply mymail-au --remote
       - name: Deploy the app (Workers + D1)
         run: |
           test -f dist/worker/.assetsignore || { echo "dist/worker/.assetsignore is missing from the promoted build"; exit 1; }

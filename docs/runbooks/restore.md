@@ -24,10 +24,10 @@ R2 needs a payment method on the Cloudflare account even for the free tier, so i
 
 ```bash
 # See the current bookmark (note it down: it lets you undo the restore).
-npx wrangler d1 time-travel info mymail
+npx wrangler d1 time-travel info mymail-au
 
 # Restore to a moment (UTC, RFC 3339) or a bookmark.
-npx wrangler d1 time-travel restore mymail --timestamp=2026-10-23T05:40:00Z
+npx wrangler d1 time-travel restore mymail-au --timestamp=2026-10-23T05:40:00Z
 ```
 
 The restore is in place and takes effect immediately. To undo it, restore to the bookmark you noted. Then run `scripts/smoke.sh https://mymail.mymail-app.workers.dev`.
@@ -54,11 +54,11 @@ The restore is in place and takes effect immediately. To undo it, restore to the
 
 ## Option C: A few rows
 
-Restore into a scratch database (option A with `--timestamp` into a copy is not supported, so use option B's steps 1 to 3, or Time Travel on staging), select the rows you need, and write them back with targeted `INSERT` or `UPDATE` statements through `wrangler d1 execute mymail --remote`. Record each statement in the incident notes.
+Restore into a scratch database (option A with `--timestamp` into a copy is not supported, so use option B's steps 1 to 3, or Time Travel on staging), select the rows you need, and write them back with targeted `INSERT` or `UPDATE` statements through `wrangler d1 execute mymail-au --remote`. Record each statement in the incident notes.
 
 ## After any restore
 
-- Run `npx wrangler d1 migrations list mymail --remote`: no migration should be pending. If one is, apply it.
+- Run `npx wrangler d1 migrations list mymail-au --remote`: no migration should be pending. If one is, apply it.
 - Run the smoke test and check `/status`.
 - Tell affected customers what happened and what, if anything, they need to redo (writes after the restore point are gone).
 - Write the postmortem.
@@ -70,3 +70,4 @@ Restore the latest dump into a scratch database once a quarter and record the re
 | Date | Source | Result |
 | --- | --- | --- |
 | 2026-10-23 | `wrangler d1 export` of staging, imported into a new D1 database in Oceania | 37 tables and 11 applied migrations restored, then the scratch database was deleted. |
+| 2026-10-23 | Production moved from `mymail` (western North America) to `mymail-au` (Oceania) with `wrangler d1 export` | `d1 execute --file` refused the dump twice (rows for a table came before the table it references), so the tables were created first and the rows loaded parent tables first in batches through the D1 query API. Row counts matched for all 46 tables except one new uptime check, and `PRAGMA foreign_key_check` was clean. Old database kept until 2026-10-30. |
