@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import Collaboration from "@tiptap/extension-collaboration";
+import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -11,6 +13,8 @@ import { Input } from "@/web/components/ui/input";
 import { EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { useMe } from "@/web/lib/queries";
+import { colourFor, connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -51,57 +55,180 @@ function ToolButton({ on, label, active, children }: { on: () => void; label: st
 export function DocPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const q = useQuery({ queryKey: ["doc", id], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc, refetchOnWindowFocus: false });
-  const [title, setTitle] = useState("");
-  const [state, setState] = useState<"saved" | "saving" | "unsaved" | "conflict">("saved");
-  const version = useRef(0);
+  // Co-editing when the room answers; otherwise the single person editor.
+  const [collab, setCollab] = useState<{ id: string; session: CollabSession | null } | null>(null);
+  useEffect(() => {
+    let live = true;
+    let opened: CollabSession | null = null;
+    setCollab(null);
+    void connectCollab(id).then((session) => {
+      opened = session;
+      if (live) setCollab({ id, session });
+      else if (session) { session.provider.destroy(); session.ydoc.destroy(); }
+    });
+    return () => { live = false; if (opened) { opened.provider.destroy(); opened.ydoc.destroy(); } };
+  }, [id]);
+
+  if (q.isPending || !collab || collab.id !== id) return <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>;
+  if (q.error) return <EmptyState icon={<FileText />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />;
+  return <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
+}
+
+type SaveState = "saved" | "saving" | "unsaved" | "conflict";
+
+function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }) {
+  const id = doc.id;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const me = useMe();
+  const [title, setTitle] = useState(doc.title);
+  const [state, setState] = useState<SaveState>("saved");
+  const [peers, setPeers] = useState<Peer[]>([]);
+  const version = useRef(doc.version);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The editor can report an update while it is being created (the room's content
+  // arriving), before schedule() below exists, so updates go through a ref.
+  const onUpdate = useRef(() => {});
+  const userName = me.data?.user.name || me.data?.user.email || "Someone";
+  const userColour = colourFor(me.data?.user.id ?? userName);
   const editor = useEditor({
-    extensions: [StarterKit],
-    content: "",
+    extensions: session
+      ? [
+          StarterKit.configure({ undoRedo: false }),
+          Collaboration.configure({ document: session.ydoc, field: FIELD }),
+          CollaborationCaret.configure({ provider: session.provider, user: { name: userName, color: userColour } }),
+        ]
+      : [StarterKit],
+    content: session ? undefined : (doc.content as never),
     editorProps: { attributes: { class: "mm-prose min-h-[50vh] outline-none", "aria-label": "Doc body", role: "textbox", "aria-multiline": "true" } },
-    onUpdate: () => schedule(),
+    onUpdate: () => onUpdate.current(),
     immediatelyRender: true,
   });
-  useEffect(() => {
-    if (q.data && editor && version.current === 0) {
-      editor.commands.setContent(q.data.content as never, { emitUpdate: false });
-      setTitle(q.data.title);
-      version.current = q.data.version;
-    }
-  }, [q.data, editor]);
 
-  const save = async (patch: Record<string, unknown> = {}) => {
+  const saved = (d: Doc) => {
+    version.current = d.version;
+    if (session) session.ydoc.transact(() => { const m = meta(session.ydoc); m.set("version", d.version); m.set("rowText", hashText(d.text)); });
+    setState("saved");
+    void qc.invalidateQueries({ queryKey: ["docs"] });
+  };
+
+  /** Leader only: brings the room in line with the doc row when someone changed it elsewhere. */
+  const reconcile = async (): Promise<"same" | "adopted" | "loaded"> => {
+    if (!session || !editor) return "same";
+    const row = (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc;
+    const m = meta(session.ydoc);
+    if (row.version === m.get("version")) return "same";
+    if (hashText(row.text) === m.get("rowText")) {
+      session.ydoc.transact(() => { m.set("version", row.version); if (row.title !== m.get("title")) m.set("title", row.title); });
+      version.current = row.version;
+      return "adopted";
+    }
+    editor.commands.setContent(row.content as never, { emitUpdate: false });
+    session.ydoc.transact(() => {
+      m.set("version", row.version); m.set("rowText", hashText(row.text));
+      m.set("json", hashText(JSON.stringify(editor.getJSON()))); m.set("title", row.title);
+    });
+    version.current = row.version;
+    setState("saved");
+    return "loaded";
+  };
+
+  const save = async (patch: Record<string, unknown> = {}, retried = false): Promise<void> => {
     if (!editor) return;
+    if (session) {
+      if (!isLeader(session)) { setState("saved"); return; }
+      const m = meta(session.ydoc);
+      const json = editor.getJSON();
+      const h = hashText(JSON.stringify(json));
+      if (h === m.get("json") && !patch.title) { setState("saved"); return; }
+      setState("saving");
+      try {
+        const r = await api.patch<{ doc: Doc }>(`/docs/${id}`, { content: json, version: (m.get("version") as number | undefined) ?? version.current, ...patch });
+        m.set("json", h);
+        saved(r.doc);
+      } catch (e) {
+        if (e instanceof ApiError && e.code === "version_conflict" && !retried) {
+          // Someone else wrote the row: keep our text if only the version moved, else load theirs.
+          if ((await reconcile()) === "adopted") return save(patch, true);
+          return;
+        }
+        setState("unsaved");
+        showError(e as Error);
+      }
+      return;
+    }
     setState("saving");
     try {
       const r = await api.patch<{ doc: Doc }>(`/docs/${id}`, { content: editor.getJSON(), title, version: version.current, ...patch });
-      version.current = r.doc.version;
-      setState("saved");
-      void qc.invalidateQueries({ queryKey: ["docs"] });
+      saved(r.doc);
     } catch (e) {
       if (e instanceof ApiError && e.code === "version_conflict") setState("conflict"); else { setState("unsaved"); showError(e as Error); }
     }
   };
-  const schedule = () => { setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 900); };
+  const schedule = () => {
+    if (session && !isLeader(session)) return;
+    setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 900);
+  };
+  onUpdate.current = schedule;
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  if (q.isPending) return <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>;
-  if (q.error) return <EmptyState icon={<FileText />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />;
+  const saveTitle = async () => {
+    if (!session) { if (title !== doc.title) void save({ title }); return; }
+    const m = meta(session.ydoc);
+    if (title === doc.title && title === (m.get("title") ?? doc.title)) return;
+    try { saved((await api.patch<{ doc: Doc }>(`/docs/${id}`, { title })).doc); } catch (e) { showError(e as Error); }
+  };
+
+  // Live session: seed an empty room, follow presence and the shared title, and keep
+  // the row in step while this client is the leader.
+  useEffect(() => {
+    if (!session || !editor) return;
+    if (seedIfEmpty(session.ydoc, editor.schema, doc)) meta(session.ydoc).set("json", hashText(JSON.stringify(editor.getJSON())));
+    else if (isLeader(session)) void reconcile().catch(() => undefined);
+    const m = meta(session.ydoc);
+    const onMeta = () => { const t = m.get("title"); if (typeof t === "string") setTitle(t); };
+    m.observe(onMeta);
+    onMeta();
+    const onPresence = () => setPeers(peersOf(session));
+    session.provider.awareness.on("change", onPresence);
+    onPresence();
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible" && isLeader(session)) void reconcile().catch(() => undefined);
+    }, 15_000);
+    return () => { m.unobserve(onMeta); session.provider.awareness.off("change", onPresence); clearInterval(poll); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, editor]);
+  useEffect(() => {
+    if (session && editor) editor.commands.updateUser({ name: userName, color: userColour });
+  }, [session, editor, userName, userColour]);
+
   const e = editor;
+  const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle">
         <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Docs</Link>
-        <span className="ml-auto" role="status">{state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved"}</span>
+        {session && (
+          <div className="ml-auto flex items-center gap-1.5" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
+            <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>
+            {peers.map((p) => (
+              <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
+                <span className="h-2 w-2 rounded-full" style={{ background: p.color }} aria-hidden />{p.name}
+              </span>
+            ))}
+          </div>
+        )}
+        <span className={cn(!session && "ml-auto")} role="status">{status}</span>
         <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm("Delete this doc?")) return; await api.del(`/docs/${id}`); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
-      <input aria-label="Doc title" value={title} onChange={(ev) => setTitle(ev.target.value)} onBlur={() => title !== q.data.title && void save({ title })}
+      <input aria-label="Doc title" value={title}
+        onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
+        onBlur={() => void saveTitle()}
         className="w-full bg-transparent text-[26px] font-semibold tracking-tight outline-none" placeholder="Untitled" />
-      {q.data.links.length > 0 && (
+      {doc.links.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {q.data.links.map((l) => (
+          {doc.links.map((l) => (
             <Link key={`${l.type}:${l.id}`} to={l.type === "task" ? `/app/tasks?view=list&task=${l.id}` : l.type === "contact" ? `/app/contacts/${l.id}` : l.type === "project" ? `/app/tasks?project=${l.id}` : "#"}
               className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[12px] text-muted hover:text-fg">
               {l.type === "task" ? <CheckSquare className="h-3 w-3" /> : l.type === "contact" ? <User className="h-3 w-3" /> : <FileText className="h-3 w-3" />}Linked {l.type}

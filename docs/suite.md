@@ -62,6 +62,32 @@ Rules run inside MyMail and never call an AI model.
 Runs are counted per calendar month (Free 1,000, Pro 10,000, Business 50,000). A rule never sends
 email outside the business; notifications are in the app and, when push is on, on the phone.
 
+## Co-editing
+
+Several people can edit one doc at the same time, with live carets and names.
+
+- The browser opens a WebSocket at `GET /api/docs/{id}/collab` (same session cookie and the
+  same workspace check as `GET /api/docs/{id}`; other sites are refused by Origin). Anyone who
+  can read the doc but not edit it joins read-only: the room ignores their changes.
+- Production and staging host each doc's room in a Durable Object (`DOC_ROOMS` binding, class
+  `DocRoom`, SQLite storage, migration tag `v1-doc-rooms`), on the Workers Free plan. Rooms use
+  WebSocket hibernation, so a quiet room costs nothing. The Yjs state is stored as a short log
+  of updates folded into one merged update every 100 writes, and is cleared after 30 days
+  with nobody connected. The Node entry keeps rooms in memory (`src/server/collab/node.ts`).
+  Both use the one room module, `src/server/collab/room.ts` (y-websocket protocol from
+  y-protocols).
+- The doc row stays the record. One open window (the one with the lowest Yjs client id) saves
+  Tiptap JSON and plain text to the row, about a second after the last change, so search,
+  agents, the REST API and MCP keep reading the latest text.
+- API and MCP writes win. The room remembers which row version its content matches. When the
+  row moves on with different text (an agent appended, someone used the API), the saving
+  window loads the row into the room on its next save or within 15 seconds, and everyone sees
+  it. A title change only moves the version. Typing in the second before an API write can be
+  replaced by that write.
+- An empty room is filled once from the saved JSON. When the socket cannot connect (for
+  example a host without the binding answers 503), the editor works as before, for one person,
+  with versioned saves.
+
 ## Push
 
 The mobile app registers its Expo push token with `POST /api/push/devices` and removes it on sign
