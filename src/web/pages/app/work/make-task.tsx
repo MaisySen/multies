@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckSquare, ListPlus } from "lucide-react";
@@ -9,7 +9,7 @@ import { cn } from "@/web/lib/cn";
 import type { Task } from "./data";
 
 /** "Make task" on any thread: one click, and chips for the tasks already made from it. */
-export function MakeTask({ messageId, threadId, compact }: { messageId: string; threadId: string; compact?: boolean }) {
+export function MakeTask({ messageId, threadId, compact, shortcut }: { messageId: string; threadId: string; compact?: boolean; shortcut?: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -23,6 +23,20 @@ export function MakeTask({ messageId, threadId, compact }: { messageId: string; 
       toast.success(`${r.task.ref} created`, { action: { label: "Open", onClick: () => navigate(`/app/tasks?view=list&task=${r.task.id}`) } });
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
+  // "t" makes a task from the open message, next to the reader's other shortcuts.
+  const makeRef = useRef(make);
+  makeRef.current = make;
+  useEffect(() => {
+    if (!shortcut) return;
+    const on = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (e.key !== "t" || e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName) || el.isContentEditable || document.querySelector("[role=dialog]")) return;
+      e.preventDefault();
+      void makeRef.current();
+    };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [shortcut]);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {linked.data?.map((t) => (
@@ -31,7 +45,7 @@ export function MakeTask({ messageId, threadId, compact }: { messageId: string; 
           <CheckSquare className="h-3 w-3" />{t.ref} {t.statusName}
         </button>
       ))}
-      <button onClick={make} disabled={busy} aria-label="Make task from this email" title="Make task (t)"
+      <button onClick={make} disabled={busy} aria-label="Make task from this email" title={shortcut ? "Make task (t)" : "Make task"}
         className={cn("inline-flex items-center gap-1.5 rounded-md text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-50", compact ? "p-2" : "border border-line px-2.5 py-1.5")}>
         <ListPlus className="h-4 w-4" />{!compact && "Make task"}
       </button>
