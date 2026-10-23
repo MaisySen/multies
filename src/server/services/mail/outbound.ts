@@ -1,3 +1,4 @@
+import { toB64 } from "../../lib/crypto";
 export interface OutboundAddress { address: string; name?: string }
 
 export interface OutboundMessage {
@@ -12,6 +13,7 @@ export interface OutboundMessage {
   messageId: string;
   inReplyTo?: string;
   references?: string;
+  attachments?: { filename: string; contentType: string; content: Uint8Array }[];
 }
 
 export interface OutboundResult {
@@ -80,6 +82,7 @@ export class ResendOutbound implements OutboundProvider {
         text: msg.text,
         html: msg.html,
         headers,
+        attachments: msg.attachments?.length ? msg.attachments.map((a) => ({ filename: a.filename, content: toB64(a.content), content_type: a.contentType })) : undefined,
       }),
     });
     const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; name?: string };

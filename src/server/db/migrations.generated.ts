@@ -71,5 +71,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `organizations` ADD `current_period_end` integer;",
       "ALTER TABLE `organizations` ADD `cancel_at_period_end` integer DEFAULT false NOT NULL;"
     ]
+  },
+  {
+    "name": "0004_message_answered",
+    "statements": [
+      "ALTER TABLE `messages` ADD `is_answered` integer DEFAULT false NOT NULL;"
+    ]
   }
 ];

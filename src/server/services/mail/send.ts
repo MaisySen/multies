@@ -8,6 +8,7 @@ import { getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
 import { storeMessage } from "./store";
+import type { ParsedAttachment } from "./mime";
 
 export interface SendResult {
   messageId: string;
@@ -15,8 +16,16 @@ export interface SendResult {
   external: { address: string; status: "sent" | "queued" | "failed"; detail?: string }[];
 }
 
+/** Extras for messages that arrive pre-built (SMTP submission, the REST API). */
+export interface SendExtras {
+  messageIdHeader?: string;
+  inReplyTo?: string;
+  references?: string;
+  attachments?: ParsedAttachment[];
+}
+
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
-export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMessageInput): Promise<SendResult> {
+export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMessageInput, extra: SendExtras = {}): Promise<SendResult> {
   const { db } = deps;
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
@@ -34,8 +43,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     throw planLimit(`Daily sending limit reached (${plan.limits.dailySends} recipients on ${plan.name}). It resets at midnight UTC.`);
   }
 
-  let inReplyTo: string | undefined;
-  let references: string | undefined;
+  let inReplyTo: string | undefined = extra.inReplyTo;
+  let references: string | undefined = extra.references ?? extra.inReplyTo;
   if (input.inReplyToId) {
     const parent = await db.select().from(messages).where(and(eq(messages.id, input.inReplyToId), eq(messages.orgId, auth.orgId))).get();
     if (parent?.messageIdHeader) {
@@ -45,7 +54,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   }
 
   const now = deps.now();
-  const messageIdHeader = `<${newId("m").slice(2)}.${now.getTime().toString(36)}@${domain.name}>`;
+  const messageIdHeader = extra.messageIdHeader ?? `<${newId("m").slice(2)}.${now.getTime().toString(36)}@${domain.name}>`;
+  const atts = extra.attachments ?? [];
   const from = { address: mb.address, name: mb.displayName };
   const toList = input.to.map((address) => ({ address }));
   const ccList = (input.cc ?? []).map((address) => ({ address }));
@@ -53,8 +63,11 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
 
   const sentId = await storeMessage(db, {
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
-    from, to: toList, cc: ccList, bcc: bccList, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true,
+    from, to: toList, cc: ccList, bcc: bccList, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
   });
+  if (inReplyTo) {
+    await db.update(messages).set({ isAnswered: true }).where(and(eq(messages.mailboxId, mb.id), eq(messages.messageIdHeader, inReplyTo)));
+  }
   if (input.draftId) {
     await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
   }
@@ -72,7 +85,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       via: "internal",
       email: {
         messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, subject: input.subject,
-        text: input.text, html: input.html, date: now, attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
+        text: input.text, html: input.html, date: now, attachments: atts, authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
       },
     });
     await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: rcpt, subject: input.subject, status: r.accepted ? "delivered" : "failed", provider: "internal", detail: r.reason });
@@ -87,6 +100,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       const sent = await deps.outbound.send({
         from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc),
         subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
+        attachments: atts,
       });
       for (const address of external) {
         await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: sent.status, provider: sent.provider, providerMessageId: sent.providerMessageId ?? null, detail: sent.detail ?? null });

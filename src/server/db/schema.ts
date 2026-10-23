@@ -123,6 +123,7 @@ export const messages = sqliteTable("messages", {
   sizeBytes: integer("size_bytes").notNull().default(0),
   isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),
   isStarred: integer("is_starred", { mode: "boolean" }).notNull().default(false),
+  isAnswered: integer("is_answered", { mode: "boolean" }).notNull().default(false),
   hasAttachments: integer("has_attachments", { mode: "boolean" }).notNull().default(false),
   /** JSON: { spf, dkim, dmarc } as reported upstream. */
   authResults: text("auth_results"),
