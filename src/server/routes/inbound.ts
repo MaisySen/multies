@@ -40,6 +40,15 @@ export function inboundWebhookRoutes() {
     } catch {
       return c.json({ action: "reject", code: 550, reason: "Unparseable message." }, 422);
     }
+    if (deps.authenticate) {
+      try {
+        const verdict = await deps.authenticate(body, { sender: from });
+        // Keep the MTA's SPF verdict: only it saw the connecting IP.
+        email.authResults = { ...email.authResults, ...verdict.results, spf: verdict.results.spf ?? email.authResults.spf };
+      } catch (err) {
+        deps.reportError?.(err, { where: "inbound.authenticate" });
+      }
+    }
     const result = await deliverInbound(deps, { envelopeFrom: from, rcptTo: to, email, sizeBytes: body.byteLength, via: "cloudflare", requireOrgId: verified.orgId, raw: body });
     const action = result.accepted ? "accept" : result.code === 450 ? "retry" : "reject";
     return c.json({ action, code: result.code, reason: result.reason }, result.accepted ? 200 : result.code === 450 ? 503 : 200);

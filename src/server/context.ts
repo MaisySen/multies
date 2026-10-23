@@ -14,6 +14,11 @@ export interface Deps {
   fetch: typeof fetch;
   /** Sends an unexpected error to error tracking (Sentry when a DSN is set). Returns the event id. */
   reportError?: (err: unknown, context?: Record<string, unknown>) => string | undefined;
+  /**
+   * Verifies SPF, DKIM and DMARC on inbound mail (mailauth, Node only). Without it the
+   * verdicts the receiving MTA wrote into the message are used.
+   */
+  authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 
 export interface AuthContext {

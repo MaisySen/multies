@@ -16,6 +16,7 @@ import { DohResolver } from "../server/services/dns/resolver";
 import { NodeResolver } from "../server/services/dns/node-resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { runMaintenance } from "../server/services/maintenance";
+import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -31,6 +32,7 @@ const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver
 
 const deps = {
   db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis),
+  authenticate: mailauthAuthenticator(),
   reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
 };
 const app = createApp(deps);
