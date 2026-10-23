@@ -107,6 +107,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
       createKey: z.boolean().default(true),
     })),
     responses: {
+      // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_api_key, ajinabraham.njsscan.generic.hardcoded_secrets.node_secret (OpenAPI schema with a truncated example, no key material)
       201: json(z.object({ agent: Agent, apiKey: z.object({ id: z.string(), prefix: z.string(), secret: z.string().openapi({ example: "mm_live_7Yq2..." }) }).nullable() }), "The agent and, once, its key."),
       401: errors[401], 403: errors[403], 409: err("No domain yet, or the address is taken."), 422: errors[422],
     } }),
@@ -143,6 +144,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "post", path: "/agents/{id}/keys", tags: ["Agents"], summary: "Create another agent key", security: secured,
     request: { params: Id, ...body(z.object({ name: z.string().min(1).max(80).optional() })) },
+    // nosemgrep: ajinabraham.njsscan.generic.hardcoded_secrets.node_secret (an OpenAPI schema field name, no key material)
     responses: { 201: json(z.object({ id: z.string(), prefix: z.string(), secret: z.string() }), "The key, shown once."), 401: errors[401], 403: errors[403], 404: errors[404] } }),
   async (c) => {
     const k = await createAgentKey(c.var.deps, actorOf(c), c.req.valid("param").id, c.req.valid("json").name);
