@@ -321,14 +321,17 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
   const names = await agentNames(deps, orgId);
   return {
     data: rows.map((r) => {
-      const m = latest.find((x) => x.threadId === r.threadId)!;
-      const lastAgent = latest.find((x) => x.threadId === r.threadId && x.sentByAgentId);
+      const inThread = latest.filter((x) => x.threadId === r.threadId);
+      const m = inThread[0];
+      const first = inThread[inThread.length - 1];
+      const other = inThread.find((x) => x.folder !== "sent") ?? m;
+      const agentIds = [...new Set(inThread.map((x) => x.sentByAgentId).filter((x): x is string => !!x))];
       return {
-        id: r.threadId, mailboxId: m.mailboxId, subject: m.subject, snippet: m.snippet,
+        id: r.threadId, mailboxId: m.mailboxId, subject: first.subject, snippet: m.snippet,
         lastMessageAt: new Date(Number(r.last)).toISOString(), messageCount: Number(r.total), unreadCount: Number(r.unread ?? 0),
-        from: { address: m.fromAddress, name: m.fromName || undefined },
+        from: { address: other.fromAddress, name: other.fromName || undefined },
         lastSentBy: m.sentByAgentId ? { type: "agent" as const, agentId: m.sentByAgentId, name: names.agents.get(m.sentByAgentId) ?? null } : m.folder === "sent" ? { type: "person" as const } : { type: "external" as const },
-        agentsInvolved: lastAgent ? [{ agentId: lastAgent.sentByAgentId!, name: names.agents.get(lastAgent.sentByAgentId!) ?? null }] : [],
+        agentsInvolved: agentIds.map((agentId) => ({ agentId, name: names.agents.get(agentId) ?? null })),
         pendingApprovals: Number(pending.find((p) => p.threadId === r.threadId)?.n ?? 0),
       };
     }),

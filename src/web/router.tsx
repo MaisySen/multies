@@ -15,6 +15,11 @@ const DomainsPage = lazy(() => import("./pages/app/domains").then((m) => ({ defa
 const DomainDetailPage = lazy(() => import("./pages/app/domain-detail").then((m) => ({ default: m.DomainDetailPage })));
 const MailboxesPage = lazy(() => import("./pages/app/mailboxes").then((m) => ({ default: m.MailboxesPage })));
 const WebmailPage = lazy(() => import("./pages/app/webmail").then((m) => ({ default: m.WebmailPage })));
+const agentPages = () => import("./pages/app/agents");
+const AgentsPage = lazy(() => agentPages().then((m) => ({ default: m.AgentsPage })));
+const AgentDetailPage = lazy(() => agentPages().then((m) => ({ default: m.AgentDetailPage })));
+const ApprovalsPage = lazy(() => import("./pages/app/approvals").then((m) => ({ default: m.ApprovalsPage })));
+const TeamInboxPage = lazy(() => import("./pages/app/inbox").then((m) => ({ default: m.TeamInboxPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
@@ -67,6 +72,10 @@ export const router = createBrowserRouter([
       { path: "domains/:id", element: page(<DomainDetailPage />) },
       { path: "mailboxes", element: page(<MailboxesPage />) },
       { path: "mail", element: page(<WebmailPage />) },
+      { path: "inbox", element: page(<TeamInboxPage />) },
+      { path: "agents", element: page(<AgentsPage />) },
+      { path: "agents/:id", element: page(<AgentDetailPage />) },
+      { path: "approvals", element: page(<ApprovalsPage />) },
       { path: "activity", element: page(<ActivityPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },

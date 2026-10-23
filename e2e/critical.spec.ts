@@ -123,6 +123,53 @@ test("create an API key and call the REST API with it", async ({ page, request }
   expect((await request.get("/api/v1/domains", { headers: { authorization: "Bearer mm_live_wrongwrongwrongwrongwrong" } })).status()).toBe(401);
 });
 
+test("create an agent inbox with one API call, then read and reply as the agent", async ({ page, request }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/);
+  await page.goto("/app/settings/developers");
+  await page.getByRole("button", { name: "Create API key" }).click();
+  await page.getByRole("dialog").getByLabel("Name").fill("Agents");
+  await page.getByRole("dialog").getByRole("button", { name: "Create" }).click();
+  const workspaceKey = (await page.getByRole("dialog", { name: "Copy your API key" }).locator("code").first().textContent())!.trim();
+
+  const made = await request.post("/api/v1/agents", { headers: { authorization: `Bearer ${workspaceKey}` }, data: { name: "Quote bot", localPart: "quotes" } });
+  expect(made.status()).toBe(201);
+  const { agent, apiKey } = await made.json();
+  expect(agent.address).toMatch(/^quotes@/);
+  const auth = { authorization: `Bearer ${apiKey.secret}` };
+  // The agent key works for the agent and nothing else.
+  expect((await request.get("/api/v1/domains", { headers: auth })).status()).toBe(403);
+  const sent = await request.post(`/api/v1/agents/${agent.id}/send`, { headers: auth, data: { to: ["buyer@example.com"], subject: "Your quote", text: "A$420 for the job." } });
+  expect(sent.status()).toBe(202);
+  expect((await sent.json()).status).toBe("pending_approval");
+
+  await page.goto("/app/agents");
+  await expect(page.getByRole("link", { name: /Quote bot/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Quote bot/ }).getByText("1 to approve")).toBeVisible();
+});
+
+test("approve an agent's message from the approval queue", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/);
+  await page.getByRole("navigation", { name: "App" }).getByRole("link", { name: /Approvals/ }).click();
+  await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Waiting (2)" })).toBeVisible();
+  const card = page.getByRole("article", { name: /Re: Password reset not arriving/ });
+  await card.getByRole("button", { name: "Edit" }).click();
+  await card.getByLabel("Message").fill("Hi Kai,\n\nFixed on our side. Try the reset again now.\n\nNorthwind Support");
+  await card.getByRole("button", { name: "Approve edited" }).click();
+  await expect(page.getByText("Approved and sent").first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Waiting (1)" })).toBeVisible();
+  await page.getByRole("tab", { name: "Decided" }).click();
+  await expect(page.getByText("Fixed on our side. Try the reset again now.")).toBeVisible();
+  // The team inbox shows the reply labelled as the agent's.
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /Password reset not arriving/ }).click();
+  await expect(page.getByText("Fixed on our side. Try the reset again now.")).toBeVisible();
+});
+
 test("download a copy of my data", async ({ page }) => {
   await signUp(page, "Dana Data", `data-${Date.now()}@example.com`);
   await page.goto("/app/settings/account");

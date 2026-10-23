@@ -75,6 +75,11 @@ const ACTIONS: Record<string, string> = {
   "suppression.removed": "unblocked an address",
 };
 
+/** "approved an agent's message", for one audit action. */
+export function auditLabel(action: string) {
+  return ACTIONS[action] ?? action.replace(/[._]/g, " ");
+}
+
 export function describeAudit(e: AuditEntry): { verb: string; object?: string } {
   const m = e.metadata ?? {};
   const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;

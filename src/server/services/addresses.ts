@@ -23,8 +23,9 @@ async function assertAddressFree(db: DB, address: string) {
 
 // ---------------------------------------------------------------- mailboxes
 
-export async function listMailboxes(db: DB, orgId: string) {
-  return db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(asc(mailboxes.address));
+/** People's mailboxes by default; agent inboxes are listed with their agents. */
+export async function listMailboxes(db: DB, orgId: string, kind: "person" | "agent" | "all" = "person") {
+  return db.select().from(mailboxes).where(and(eq(mailboxes.orgId, orgId), kind === "all" ? undefined : eq(mailboxes.kind, kind))).orderBy(asc(mailboxes.address));
 }
 
 export async function getMailbox(db: DB, orgId: string, id: string) {
@@ -61,6 +62,7 @@ export async function updateMailbox(db: DB, orgId: string, id: string, patch: { 
 
 export async function deleteMailbox(db: DB, orgId: string, id: string) {
   const m = await getMailbox(db, orgId, id);
+  if (m.kind === "agent") throw conflict("This is an agent inbox. Delete the agent instead, from Agents or DELETE /api/v1/agents/{id}.");
   await db.update(domains).set({ catchAllMailboxId: null }).where(eq(domains.catchAllMailboxId, m.id));
   await db.delete(mailboxes).where(eq(mailboxes.id, m.id));
   return m;

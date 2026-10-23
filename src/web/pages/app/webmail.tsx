@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Archive, ArrowLeft, Ban, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
+  Archive, ArrowLeft, Ban, Bot, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -134,7 +134,7 @@ export function WebmailPage() {
         <div className="px-3">
           <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
           <select id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60">
-            {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
+            {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
           </select>
         </div>
         <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Folders">
@@ -227,6 +227,7 @@ function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; ac
           <time className="shrink-0 text-[11.5px] text-subtle" dateTime={m.date}>{mailDate(m.date)}</time>
         </div>
         <div className={cn("mt-0.5 flex items-center gap-1.5 truncate text-[13px]", m.isRead ? "text-muted" : "text-fg/90")}>
+          {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><Bot className="h-3 w-3" aria-hidden />Agent</span>}
           {m.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>

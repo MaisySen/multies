@@ -14,7 +14,11 @@ describe("demo mode", () => {
     const c = new Client(app);
     expect((await c.post("/api/account/demo")).status).toBe(201);
     const me = await c.get("/api/account/me");
-    expect(me.body.organization).toMatchObject({ isDemo: true, plan: "pro" });
+    expect(me.body.organization).toMatchObject({ isDemo: true, plan: "starter" });
+    // Two sample agents, one reply sent with approval and two waiting.
+    expect((await c.get("/api/agents")).body.agents.map((a: { name: string }) => a.name).sort()).toEqual(["Invoice chaser", "Support triage"]);
+    expect((await c.get("/api/approvals?status=pending")).body.approvals).toHaveLength(2);
+    expect((await c.get("/api/agents/threads")).body.data.some((t: { lastSentBy: { type: string } }) => t.lastSentBy.type === "agent")).toBe(true);
     const inbox = await c.get("/api/mail/messages?folder=inbox");
     expect(inbox.body.messages.length).toBeGreaterThanOrEqual(6);
     const dash = await c.get("/api/dashboard");

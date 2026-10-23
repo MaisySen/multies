@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
@@ -23,6 +23,9 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigat
 const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/app/mail", label: "Mail", icon: Inbox },
+  { to: "/app/inbox", label: "Team inbox", icon: MessagesSquare },
+  { to: "/app/agents", label: "Agents", icon: Bot },
+  { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
   { to: "/app/domains", label: "Domains", icon: Globe },
   { to: "/app/mailboxes", label: "Mailboxes", icon: Users },
   { to: "/app/deliverability", label: "Deliverability", icon: ShieldCheck },
@@ -37,6 +40,11 @@ export function AppLayout() {
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
   const [palette, setPalette] = useState(false);
+  const approvals = useQuery({
+    queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,
+    queryFn: async () => (await api.get<{ approvals: unknown[] }>("/approvals?status=pending")).approvals,
+  });
+  const pendingCount = approvals.data?.length ?? 0;
   useEffect(() => setDrawer(false), [loc.pathname]);
   // Assigned during render so the first paint already uses the workspace's zone.
   setDisplayTimeZone(me.data?.organization?.timezone);
@@ -95,6 +103,7 @@ export function AppLayout() {
             isActive ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg",
           )}>
             <Icon className="h-4 w-4" />{label}
+            {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
           </NavLink>
         ))}
       </nav>

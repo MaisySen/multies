@@ -9,6 +9,10 @@ import { createDomain } from "./domains";
 import { deliverInbound } from "./mail/delivery";
 import { sendMessage } from "./mail/send";
 import type { ParsedEmail } from "./mail/mime";
+import type { AuthContext } from "../context";
+import { listMailboxes } from "./addresses";
+import { setAddons } from "./plans";
+import { approveSend, createAgent, listThreads, replyInThread } from "./agents";
 
 export const DEMO_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -54,7 +58,9 @@ export async function createDemoWorkspace(deps: Deps) {
   const signup = await authFor(deps).api.signUpEmail({ body: { name: "Alex Rivera", email, password: randomToken(24) }, returnHeaders: true });
   const userId = signup.response.user.id;
   const orgId = newId("org");
-  await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "pro" });
+  await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "starter" });
+  // Free plus the A$3 mailbox pack, so the sample's four mailboxes fit.
+  await setAddons(deps.db, orgId, { mailboxes: 1 });
   await deps.db.insert(members).values({ id: newId("mem"), organizationId: orgId, userId, role: "owner" });
   await deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
 
@@ -119,6 +125,8 @@ export async function createDemoWorkspace(deps: Deps) {
     text: "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain ✅\n2. support@ and billing@ mailboxes live ✅\n3. sales@ alias forwarding to the founders ✅\n\nLet's ship it.\nAlex",
   });
 
+  await seedDemoAgents(deps, auth, domain, now);
+
   // Backdate the delivery log to each message's date so the activity chart has history.
   await deps.db.run(sql`UPDATE deliveries SET created_at = (SELECT date FROM messages WHERE messages.id = deliveries.message_id) WHERE org_id = ${orgId} AND message_id IS NOT NULL`);
 
@@ -130,12 +138,47 @@ export async function createDemoWorkspace(deps: Deps) {
     ["mailbox.created", 67, { address: founders.address }],
     ["mailbox.created", 67, { address: `support@${domain.name}` }],
     ["alias.created", 66, { address: `sales@${domain.name}` }],
-    ["plan.upgraded", 60, { from: "starter", to: "pro" }],
+    ["billing.addons_updated", 60, { addons: { mailboxes: 1 } }],
   ];
   for (const [action, h, metadata] of trail) {
     await deps.db.insert(auditLogs).values({ id: newId("aud"), orgId, actorUserId: userId, actorEmail: email, action, metadata: metadata ? JSON.stringify(metadata) : null, createdAt: at(h) });
   }
   return { userId, orgId, headers: signup.headers };
+}
+
+/** Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. */
+async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
+  const support = (await listMailboxes(deps.db, auth.orgId)).find((m) => m.localPart === "support")!;
+  const invoices = await createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null });
+  const triage = await createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] });
+  const inbound = async (to: string, from: { address: string; name: string }, subject: string, text: string, hoursAgo: number) => {
+    const email: ParsedEmail = {
+      messageId: `<${randomToken(9)}@${from.address.split("@")[1]}>`, from, to: [{ address: to }], cc: [], subject, text, date: new Date(now - hoursAgo * 3600_000),
+      attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
+    };
+    await deliverInbound(deps, { envelopeFrom: from.address, rcptTo: to, email, sizeBytes: text.length + 600, via: "demo" });
+  };
+  await inbound(invoices.agent.address, { address: "tom@bondiplumbing.example", name: "Tom Nguyen" }, "Re: Invoice INV-1042",
+    "Hi,\n\nSorry, this one slipped. Can you resend the invoice? I can't find the PDF.\n\nCheers,\nTom", 2);
+  await inbound(`support@${domain.name}`, { address: "kai@flatwhite.example", name: "Kai Morgan" }, "Password reset not arriving",
+    "Hi,\n\nI've asked for a password reset three times and nothing has come through. Is something broken?\n\nKai", 0.5);
+
+  const as = (a: { id: string }) => ({ ...auth, agentId: a.id, sessionId: `agent:${a.id}` });
+  const threadOf = async (mailboxId: string, subject: string) => (await listThreads(deps, auth.orgId, [mailboxId], { limit: 20 })).data.find((t) => t.subject === subject)!.id;
+
+  // The invoice chaser's reply waits for a person, as every send does by default.
+  await replyInThread(deps, as(invoices.agent), invoices.agent.id, await threadOf(invoices.agent.inboxId, "Re: Invoice INV-1042"), {
+    text: "Hi Tom,\n\nNo worries. Here is INV-1042 again: A$1,850.00 for the bathroom refit, due 14 October.\n\nYou can pay by bank transfer to BSB 062-000, account 1234 5678, with INV-1042 as the reference.\n\nThanks,\nNorthwind accounts",
+  });
+  // Support triage answered Maria, a person approved it, and it went out labelled as the agent's.
+  const maria = await replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Can we move our team over this week?"), {
+    text: "Hi Maria,\n\nNothing gets lost. Mail keeps arriving at Google until your MX change spreads, then it arrives here, so check both for a day.\n\nAnd yes: an alias can reach as many people as you like, so sales@ can go to all three of you.\n\nNorthwind Support",
+  });
+  if (maria.status === "pending_approval") await approveSend(deps, auth, maria.approval.id);
+  // And one more waiting for a decision.
+  await replyInThread(deps, as(triage.agent), triage.agent.id, await threadOf(support.id, "Password reset not arriving"), {
+    text: "Hi Kai,\n\nSorry about that. Reset emails can land in spam, so please check there first. I've also asked the team to look at your account, and someone will reply today.\n\nNorthwind Support",
+  });
 }
 
 /** Removes sandbox workspaces (and their users) older than the TTL. */

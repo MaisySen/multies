@@ -70,6 +70,8 @@ export interface MessageListItem {
   isRead: boolean;
   isStarred: boolean;
   hasAttachments: boolean;
+  /** Set when one of your agents wrote it. */
+  sentByAgentId?: string | null;
 }
 
 export interface Message extends MessageListItem {
@@ -90,6 +92,7 @@ export interface MailboxOverview {
   displayName: string;
   usedBytes: number;
   quotaMb: number;
+  kind?: "person" | "agent";
   folders: Partial<Record<Folder, { total: number; unread: number }>>;
 }
 
