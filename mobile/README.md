@@ -76,3 +76,9 @@ src/
 Every control has a role and a label, touch targets are at least 44 points, text uses the web
 app's contrast-checked colours, and status changes are announced. `scripts/screens.mjs` runs axe
 on each screen of the web build and saves phone sized screenshots.
+
+## Builds and preview
+
+- Web preview (sample data only): https://mymail-mobile.sites.tab.bot/
+- Android debug-signed APKs come from `npx expo prebuild --platform android` and `cd android && ./gradlew assembleRelease`. Add `-PreactNativeArchitectures=arm64-v8a` for a smaller APK (about 31 MB) that runs on modern phones.
+- Live API check (never commit the values): `MYMAIL_LIVE_EMAIL=... MYMAIL_LIVE_PASSWORD=... npx jest live`
