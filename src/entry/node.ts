@@ -16,7 +16,19 @@ import { migrate } from "../server/db";
 import { openSqlite } from "../server/db/node";
 import { DohResolver } from "../server/services/dns/resolver";
 import { NodeResolver } from "../server/services/dns/node-resolver";
-import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
+import { LogOutbound, ResendOutbound, type OutboundMessage } from "../server/services/mail/outbound";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+/** Development outbox: every email the log driver records is written as JSON to `dir`. */
+function writeOutbox(dir: string) {
+  mkdirSync(dir, { recursive: true });
+  let n = 0;
+  return (msg: OutboundMessage) => {
+    const { attachments: _a, ...rest } = msg;
+    writeFileSync(join(dir, `${Date.now()}-${++n}.json`), JSON.stringify(rest, null, 2));
+  };
+}
 import { ResilientOutbound } from "../server/services/resilience";
 import { runMaintenance } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
@@ -30,7 +42,7 @@ if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`
 
 const outbound = config.outbound.driver === "resend"
   ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!))
-  : new LogOutbound((line) => console.log(line));
+  : new LogOutbound((line) => console.log(line), process.env.OUTBOX_DIR ? writeOutbox(process.env.OUTBOX_DIR) : undefined);
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
 const deps = {

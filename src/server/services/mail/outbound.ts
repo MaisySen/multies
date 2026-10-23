@@ -48,9 +48,11 @@ export function formatAddress(a: OutboundAddress): string {
 export class LogOutbound implements OutboundProvider {
   readonly name = "log";
   sent: OutboundMessage[] = [];
-  constructor(private logger: (line: string) => void = () => {}) {}
+  /** `onSend` lets the Node server keep a local outbox (OUTBOX_DIR) for development and E2E tests. */
+  constructor(private logger: (line: string) => void = () => {}, private onSend?: (msg: OutboundMessage) => void) {}
   async send(msg: OutboundMessage): Promise<OutboundResult> {
     this.sent.push(msg);
+    this.onSend?.(msg);
     this.logger(`[outbound:log] ${msg.from.address} -> ${[...msg.to, ...(msg.cc ?? [])].join(", ")} "${msg.subject}"`);
     return {
       provider: this.name,
