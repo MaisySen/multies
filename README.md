@@ -114,6 +114,9 @@ Without the token that endpoint does not exist.
 **Any Node host** (Fly, Render, a VPS): `npm run build && npm start` with `DATABASE_PATH` on a
 persistent volume.
 
+**Mail apps (IMAP and SMTP)**: MyMail drives a Stalwart mail server for Outlook, Apple Mail and
+phones. `docker compose up` runs both; see [`docs/mail-server.md`](docs/mail-server.md).
+
 ## Making real mail flow
 
 1. **A domain** you control, added in MyMail.

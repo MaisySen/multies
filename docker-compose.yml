@@ -1,0 +1,56 @@
+# MyMail with mail app access (IMAP and SMTP) on one host.
+#
+#   cp .env.example .env            # fill APP_SECRET, APP_URL, MAIL_OPS_DOMAIN, STALWART_* (see docs/mail-server.md)
+#   docker compose up -d stalwart   # first start runs in recovery mode, see STALWART_RECOVERY_MODE below
+#   docker compose run --rm setup   # listeners and the provisioner account (safe to re-run)
+#   # remove STALWART_RECOVERY_MODE from .env, then:
+#   docker compose up -d
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:v0.16
+    restart: unless-stopped
+    command: ["--config", "/etc/stalwart/config.json"]
+    environment:
+      STALWART_HOSTNAME: ${MAIL_CLIENT_HOST:?set MAIL_CLIENT_HOST}
+      STALWART_RECOVERY_MODE: ${STALWART_RECOVERY_MODE:-}
+      STALWART_RECOVERY_ADMIN: ${STALWART_RECOVERY_ADMIN:-}
+    volumes:
+      - ./deploy/stalwart/config.json:/etc/stalwart/config.json:ro
+      - stalwart-data:/var/lib/stalwart
+    ports:
+      - "25:25"     # inbound SMTP (only if this server receives mail directly)
+      - "465:465"   # SMTP submission, TLS
+      - "587:587"   # SMTP submission, STARTTLS
+      - "993:993"   # IMAP, TLS
+      - "443:443"   # Stalwart's own HTTPS (ACME certificates, autoconfig)
+    # Port 8080 (management API) stays on the internal network; MyMail reaches it as http://stalwart:8080.
+
+  setup:
+    image: node:22-alpine
+    profiles: ["setup"]
+    working_dir: /app
+    volumes: [".:/app"]
+    environment:
+      STALWART_URL: http://stalwart:8080
+      STALWART_RECOVERY_ADMIN: ${STALWART_RECOVERY_ADMIN:?set STALWART_RECOVERY_ADMIN for setup}
+      MAIL_OPS_DOMAIN: ${MAIL_OPS_DOMAIN:?set MAIL_OPS_DOMAIN}
+      STALWART_ADMIN_SECRET: ${STALWART_ADMIN_SECRET:?set STALWART_ADMIN_SECRET}
+    command: ["sh", "-c", "npm ci --ignore-scripts && npx tsx scripts/stalwart-setup.ts"]
+    depends_on: [stalwart]
+
+  mymail:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      STALWART_URL: http://stalwart:8080
+      DATABASE_PATH: /data/mymail.db
+    volumes:
+      - mymail-data:/data
+    ports:
+      - "8787:8787"
+    depends_on: [stalwart]
+
+volumes:
+  stalwart-data:
+  mymail-data:
