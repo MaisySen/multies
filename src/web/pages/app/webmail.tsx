@@ -17,6 +17,7 @@ import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
+import { MakeTask } from "./work/make-task";
 
 type View = Folder | "starred";
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -90,12 +91,14 @@ export function WebmailPage() {
   };
   const startCompose = (d?: Partial<ComposeDraft>) => setCompose({ mailboxId: mailboxId || mailboxes[0]?.id || "", to: "", subject: "", text: "", ...d });
   // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
-  const wantsCompose = params.get("compose") === "1";
+  // ?compose=name@example.com (from a contact page) opens it addressed to that person.
+  const composeParam = params.get("compose");
+  const wantsCompose = composeParam === "1" || !!composeParam?.includes("@");
   useEffect(() => {
     if (!wantsCompose || !mailboxes.length) return;
-    setCompose({ mailboxId: mailboxId || mailboxes[0].id, to: "", subject: "", text: "" });
+    setCompose({ mailboxId: mailboxId || mailboxes[0].id, to: composeParam?.includes("@") ? composeParam : "", subject: "", text: "" });
     setParams((p) => { const n = new URLSearchParams(p); n.delete("compose"); return n; }, { replace: true });
-  }, [wantsCompose, mailboxes, mailboxId, setParams]);
+  }, [wantsCompose, composeParam, mailboxes, mailboxId, setParams]);
 
   // Keyboard shortcuts, Gmail-style.
   useEffect(() => {
@@ -292,6 +295,7 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8">
           <h1 className="text-xl font-semibold leading-snug tracking-tight">{m.subject || "(no subject)"}</h1>
+          <div className="mt-2"><MakeTask messageId={last.id} threadId={last.threadId} /></div>
           <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}
