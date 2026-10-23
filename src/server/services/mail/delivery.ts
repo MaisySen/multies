@@ -1,5 +1,6 @@
 import { mirrorInbound } from "../mailserver";
 import { emitEvent } from "../developer/webhooks";
+import { ingestDmarcAttachments } from "../deliverability/dmarc";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
@@ -127,6 +128,9 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     });
     await logDelivery(db, { orgId: mb.orgId, messageId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "delivered", provider: d.via, detail: spam ? "Filed as spam (DMARC fail)" : `Delivered to ${mb.address}` });
     if (d.raw) await mirrorInbound(deps, mb.id, d.raw, { spam });
+    if (d.email.attachments.length && /dmarc|report/i.test(`${d.email.subject ?? ""} ${mb.localPart}`)) {
+      await ingestDmarcAttachments(deps, mb.orgId, d.email.attachments);
+    }
     await emitEvent(deps, mb.orgId, "message.received", {
       id: messageId, mailboxId: mb.id, to: mb.address, from: d.email.from, subject: d.email.subject ?? "", folder: spam ? "spam" : "inbox", sizeBytes: d.sizeBytes,
     });

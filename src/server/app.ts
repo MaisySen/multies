@@ -21,6 +21,7 @@ import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
+import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -87,7 +88,9 @@ export function createApp(deps: Deps) {
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/developer", developerRoutes());
   app.route("/api/v1", v1Routes());
+  app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());
+  app.route("/api/deliverability", deliverabilityRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());
 

@@ -1,4 +1,5 @@
 import { emitEvent } from "../developer/webhooks";
+import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, messages } from "../../db/schema";
@@ -93,6 +94,15 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     if (r.accepted) result.internal.push(rcpt);
     else result.external.push({ address: rcpt, status: "failed", detail: r.reason });
   }
+
+  // Never send to addresses that hard bounced, complained, or were blocked by hand.
+  const blocked = await suppressedAmong(db, auth.orgId, external);
+  for (const address of blocked.keys()) {
+    const detail = blocked.get(address) === "complaint" ? "Not sent: this address marked your mail as spam." : blocked.get(address) === "hard_bounce" ? "Not sent: this address bounced before." : "Not sent: this address is on your suppression list.";
+    await logDelivery(db, { orgId: auth.orgId, messageId: sentId, direction: "outbound", fromAddress: mb.address, toAddress: address, subject: input.subject, status: "suppressed", provider: "mymail", detail });
+    result.external.push({ address, status: "failed", detail });
+  }
+  external.splice(0, external.length, ...external.filter((a) => !blocked.has(a)));
 
   if (external.length) {
     const ext = new Set(external);

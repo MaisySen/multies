@@ -150,5 +150,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `webhook_endpoints` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`url` text NOT NULL,\n\t`description` text,\n\t`events` text NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `webhook_endpoints_org_idx` ON `webhook_endpoints` (`org_id`);"
     ]
+  },
+  {
+    "name": "0008_deliverability",
+    "statements": [
+      "CREATE TABLE `dmarc_records` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`report_id` text NOT NULL,\n\t`source_ip` text NOT NULL,\n\t`count` integer NOT NULL,\n\t`disposition` text NOT NULL,\n\t`header_from` text,\n\t`dkim` text NOT NULL,\n\t`spf` text NOT NULL,\n\tFOREIGN KEY (`report_id`) REFERENCES `dmarc_reports`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `dmarc_records_report_idx` ON `dmarc_records` (`report_id`);",
+      "CREATE TABLE `dmarc_reports` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`domain_id` text NOT NULL,\n\t`reporter` text NOT NULL,\n\t`report_id` text NOT NULL,\n\t`begin_at` integer NOT NULL,\n\t`end_at` integer NOT NULL,\n\t`policy` text NOT NULL,\n\t`messages` integer NOT NULL,\n\t`passed` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`domain_id`) REFERENCES `domains`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `dmarc_reports_uq` ON `dmarc_reports` (`org_id`,`reporter`,`report_id`);",
+      "CREATE INDEX `dmarc_reports_domain_idx` ON `dmarc_reports` (`domain_id`,`end_at`);",
+      "CREATE TABLE `suppressions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`address` text NOT NULL,\n\t`reason` text NOT NULL,\n\t`detail` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `suppressions_org_address_uq` ON `suppressions` (`org_id`,`address`);",
+      "CREATE INDEX `deliveries_provider_msg_idx` ON `deliveries` (`provider_message_id`);"
+    ]
   }
 ];

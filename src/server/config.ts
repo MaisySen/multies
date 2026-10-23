@@ -22,7 +22,8 @@ export interface AppConfig {
     /** Optional mailbox for DMARC aggregate reports; defaults to dmarc@<domain>. */
     dmarcRua?: string;
   };
-  outbound: { driver: "log" | "resend"; resendApiKey?: string };
+  /** `resendWebhookSecret` verifies delivery, bounce and complaint events from Resend. */
+  outbound: { driver: "log" | "resend"; resendApiKey?: string; resendWebhookSecret?: string };
   /** Sign-in options beyond email + password. Each turns on when its keys are set. */
   auth: {
     social: { google?: { clientId: string; clientSecret: string }; github?: { clientId: string; clientSecret: string } };
@@ -83,6 +84,7 @@ const EnvSchema = z.object({
   MAIL_DMARC_RUA: z.string().optional(),
   OUTBOUND_DRIVER: z.enum(["log", "resend"]).optional(),
   RESEND_API_KEY: z.string().optional(),
+  RESEND_WEBHOOK_SECRET: z.string().optional(),
   MAX_MESSAGE_BYTES: z.string().optional(),
   SYSTEM_FROM: z.string().optional(),
   GOOGLE_CLIENT_ID: z.string().optional(),
@@ -158,7 +160,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dkimSelector: env.MAIL_DKIM_SELECTOR ?? "mymail",
       dmarcRua: env.MAIL_DMARC_RUA,
     },
-    outbound: { driver: outboundDriver, resendApiKey: env.RESEND_API_KEY },
+    outbound: { driver: outboundDriver, resendApiKey: env.RESEND_API_KEY, resendWebhookSecret: env.RESEND_WEBHOOK_SECRET },
     auth: {
       social: {
         ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),

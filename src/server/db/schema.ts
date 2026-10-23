@@ -207,12 +207,12 @@ export const deliveries = sqliteTable("deliveries", {
   fromAddress: text("from_address").notNull(),
   toAddress: text("to_address").notNull(),
   subject: text("subject").notNull().default(""),
-  status: text("status", { enum: ["received", "delivered", "forwarded", "queued", "sent", "failed", "rejected"] }).notNull(),
+  status: text("status", { enum: ["received", "delivered", "forwarded", "queued", "sent", "failed", "rejected", "bounced", "complained", "delayed", "suppressed"] }).notNull(),
   provider: text("provider").notNull(),
   providerMessageId: text("provider_message_id"),
   detail: text("detail"),
   createdAt: createdAt(),
-}, (t) => [index("deliveries_org_idx").on(t.orgId, t.createdAt)]);
+}, (t) => [index("deliveries_org_idx").on(t.orgId, t.createdAt), index("deliveries_provider_msg_idx").on(t.providerMessageId)]);
 
 /** Signing keys the Cloudflare Email Worker uses to deliver inbound mail. */
 export const inboundKeys = sqliteTable("inbound_keys", {
@@ -345,3 +345,40 @@ export const webhookDeliveries = sqliteTable("webhook_deliveries", {
   deliveredAt: ts("delivered_at"),
   createdAt: createdAt(),
 }, (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt), index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt)]);
+
+/** Addresses we will not send to again: hard bounces, spam complaints and manual blocks. */
+export const suppressions = sqliteTable("suppressions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  address: text("address").notNull(),
+  reason: text("reason", { enum: ["hard_bounce", "complaint", "manual"] }).notNull(),
+  detail: text("detail"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("suppressions_org_address_uq").on(t.orgId, t.address)]);
+
+/** DMARC aggregate (RUA) reports received for a workspace's domains (RFC 7489, appendix C). */
+export const dmarcReports = sqliteTable("dmarc_reports", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  domainId: text("domain_id").notNull().references(() => domains.id, { onDelete: "cascade" }),
+  reporter: text("reporter").notNull(),
+  reportId: text("report_id").notNull(),
+  beginAt: ts("begin_at").notNull(),
+  endAt: ts("end_at").notNull(),
+  /** JSON of policy_published (p, sp, pct, adkim, aspf). */
+  policy: text("policy").notNull(),
+  messages: integer("messages").notNull(),
+  passed: integer("passed").notNull(),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("dmarc_reports_uq").on(t.orgId, t.reporter, t.reportId), index("dmarc_reports_domain_idx").on(t.domainId, t.endAt)]);
+
+export const dmarcRecords = sqliteTable("dmarc_records", {
+  id: text("id").primaryKey(),
+  reportId: text("report_id").notNull().references(() => dmarcReports.id, { onDelete: "cascade" }),
+  sourceIp: text("source_ip").notNull(),
+  count: integer("count").notNull(),
+  disposition: text("disposition").notNull(),
+  headerFrom: text("header_from"),
+  dkim: text("dkim").notNull(),
+  spf: text("spf").notNull(),
+}, (t) => [index("dmarc_records_report_idx").on(t.reportId)]);
