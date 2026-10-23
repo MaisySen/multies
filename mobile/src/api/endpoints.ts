@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
   Agent, Approval, AppNotification, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  Meeting, MeetingCreate, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
+  CustomField, Meeting, MeetingCreate, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
@@ -62,6 +62,7 @@ export function endpoints(t: Transport) {
 
     // Meetings. Video runs in the browser: the app opens joinUrl, guests use guestUrl.
     meetings: (upcoming = true) => t.request<{ meetings: Meeting[]; videoEnabled: boolean }>("GET", `/meetings${q({ upcoming: upcoming ? 1 : undefined })}`),
+    fields: (projectId: string) => t.request<{ fields: CustomField[] }>("GET", `/fields${q({ projectId })}`),
     portfolio: () => t.request<{ projects: PortfolioProject[] }>("GET", "/portfolio"),
     createMeeting: (input: MeetingCreate) => t.request<{ meeting: Meeting; invites?: unknown }>("POST", "/meetings", input),
 

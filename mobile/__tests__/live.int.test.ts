@@ -134,3 +134,40 @@ runDemo("demo workspace: times a task, reads the running timer, stops it and sta
   console.log(JSON.stringify({ task: task.ref, timerSeconds: stopped?.seconds, totalSeconds: detail.time!.totalSeconds, meeting: meeting.id, joinUrl: meeting.joinUrl, guestHost: new URL(meeting.guestUrl).host, videoEnabled: upcoming.videoEnabled }));
   await api.signOut();
 }, 180_000);
+
+runDemo("demo workspace: reads a task's custom fields, sets a checkbox field and reads the portfolio", async () => {
+  let jar: Jar = {};
+  const transport = new HttpTransport({ get: () => jar, set: (j) => { jar = j; } }, () => {}, base, nodeFetch as unknown as typeof fetch);
+  const api = endpoints(transport);
+  await api.startDemo();
+  const { tasks } = await api.tasks();
+  const task = tasks.find((t) => t.status !== "done" && t.projectId) ?? tasks[0];
+  expect(task.projectId).toBeTruthy();
+  let detail = await api.task(task.id);
+  expect(Array.isArray(detail.customFields)).toBe(true);
+  expect(typeof detail.task.fields).toBe("object");
+  let box = detail.customFields!.find((f) => f.type === "checkbox");
+  // A demo project may have no checkbox field: add one through the same session route the web app uses.
+  if (!box) {
+    ({ field: box } = await transport.request<{ field: NonNullable<typeof box> }>("POST", "/fields", { projectId: task.projectId, name: "Approved", type: "checkbox" }));
+    detail = await api.task(task.id);
+  }
+  expect(detail.customFields!.map((f) => f.id)).toContain(box.id);
+  expect((await api.fields(task.projectId!)).fields.map((f) => f.id)).toContain(box.id);
+  const want = detail.task.fields?.[box.id] !== true;
+  const { task: updated } = await api.updateTask(task.id, { fields: { [box.id]: want } });
+  expect(updated.fields?.[box.id]).toBe(want);
+  expect((await api.task(task.id)).task.fields?.[box.id]).toBe(want);
+
+  const { projects } = await api.portfolio();
+  expect(projects.length).toBeGreaterThan(0);
+  const p = projects.find((x) => x.id === task.projectId)!;
+  expect(p).toBeTruthy();
+  expect(p.progress).toBeGreaterThanOrEqual(0);
+  expect(p.progress).toBeLessThanOrEqual(100);
+  for (const k of ["health", "owner", "overdue", "timeLoggedSeconds", "nextDue", "total", "done"]) expect(p).toHaveProperty(k);
+
+  console.log(JSON.stringify({ task: task.ref, fieldTypes: detail.customFields!.map((f) => f.type), checkbox: box.name, set: want,
+    portfolio: projects.map((x) => ({ key: x.key, health: x.health, progress: x.progress, overdue: x.overdue, time: x.timeLoggedSeconds, nextDue: x.nextDue })) }));
+  await api.signOut();
+}, 180_000);
