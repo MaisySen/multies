@@ -9,6 +9,7 @@ import { newId } from "../../lib/crypto";
 import type { ParsedEmail } from "./mime";
 import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
+import { getPlan } from "../plans";
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -105,6 +106,15 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     if (mb.usedBytes + d.sizeBytes > mb.quotaMb * 1024 * 1024) {
       await logDelivery(db, { orgId: mb.orgId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "rejected", provider: d.via, detail: "Mailbox over quota" });
       return { accepted: false, code: 552, reason: "Mailbox is full.", storedIn: [], forwardedTo: [] };
+    }
+    // Storage is pooled across the workspace (plan storage plus storage packs).
+    const [plan, pooled] = await Promise.all([
+      getPlan(db, mb.orgId),
+      db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, mb.orgId)).get(),
+    ]);
+    if (Number(pooled?.n ?? 0) + d.sizeBytes > plan.limits.storageMb * 1024 * 1024) {
+      await logDelivery(db, { orgId: mb.orgId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "rejected", provider: d.via, detail: "Workspace storage is full" });
+      return { accepted: false, code: 552, reason: "The workspace's storage is full.", storedIn: [], forwardedTo: [] };
     }
     const spam = d.email.authResults.dmarc === "fail";
     const messageId = await storeMessage(db, {

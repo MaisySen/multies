@@ -116,17 +116,17 @@ export function Receipt(p: { brand: Brand; workspace: string; number: string; da
   );
 }
 
-export function UsageAlert(p: { brand: Brand; workspace: string; metric: string; used: number; limit: number; plan: string; nextPlan?: string }) {
+export function UsageAlert(p: { brand: Brand; workspace: string; metric: string; used: number; limit: number; plan: string; nextPlan?: string; addon?: string }) {
   const pct = Math.min(100, Math.round((p.used / Math.max(1, p.limit)) * 100));
   const full = pct >= 100;
   return (
     <Layout brand={p.brand} preview={`${p.workspace} has used ${pct}% of its ${p.metric}`} title={full ? `You've reached your ${p.metric} limit` : `You've used ${pct}% of your ${p.metric}`}
-      action={p.nextPlan ? { label: `Upgrade to ${p.nextPlan}`, url: `${p.brand.appUrl}/app/settings/billing` } : undefined} reason="You received this because you manage a workspace on">
+      action={p.addon ? { label: `Add ${p.addon}`, url: `${p.brand.appUrl}/app/settings/billing` } : p.nextPlan ? { label: `Upgrade to ${p.nextPlan}`, url: `${p.brand.appUrl}/app/settings/billing` } : undefined} reason="You received this because you manage a workspace on">
       <Text style={s.p}>{p.workspace} is on the {p.plan} plan and has used {p.used.toLocaleString("en-AU")} of {p.limit.toLocaleString("en-AU")} {p.metric}.</Text>
       <Section style={{ backgroundColor: "#f4f4f5", borderRadius: "999px", height: "8px", margin: "0 0 16px" }}>
         <div style={{ backgroundColor: full ? "#dc2626" : pct >= 80 ? "#d97706" : brand, borderRadius: "999px", height: "8px", width: `${pct}%` }} />
       </Section>
-      <Text style={s.p}>{full ? "New items over the limit are refused until it resets or you upgrade." : "Nothing stops yet. We'll email again if you reach the limit."}</Text>
+      <Text style={s.p}>{full ? "New items over the limit are refused until it resets or you add more." : "Nothing stops yet. We'll email again if you reach the limit."}</Text>
     </Layout>
   );
 }

@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { billingOverview, changePlan, confirmCheckout, previewPlanChange, handleStripeWebhook, listInvoices, openPortal, startCheckout } from "../services/billing";
+import { billingOverview, changePlan, confirmCheckout, previewAddons, previewPlanChange, handleStripeWebhook, listInvoices, openPortal, startAddonCheckout, startCheckout, updateAddons } from "../services/billing";
+import { getOrg } from "../services/plans";
 import { Stripe } from "../services/billing/stripe";
 import { HttpError } from "../lib/errors";
 
@@ -13,6 +14,11 @@ const wrapStripe = async <T>(fn: () => Promise<T>): Promise<T> => {
     throw e;
   }
 };
+
+const AddonsBody = z.object({
+  addons: z.record(z.string(), z.number().int().min(0).max(100)),
+  dropLegacyPlan: z.boolean().optional(),
+});
 
 export function billingRoutes() {
   return new Hono<AppEnv>()
@@ -24,6 +30,23 @@ export function billingRoutes() {
       const { auth, deps } = c.var;
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.checkout_started", metadata: { plan }, ip: c.var.ip });
       return c.json({ url: session.url });
+    })
+    /**
+     * Sets the workspace's add-ons to exactly these quantities. With no subscription yet
+     * this returns a Stripe Checkout URL; with one, the subscription changes in place.
+     */
+    .post("/addons", async (c) => {
+      const { addons, dropLegacyPlan } = await parseBody(c, AddonsBody);
+      const { auth, deps } = c.var;
+      const org = await getOrg(deps.db, auth.orgId);
+      const live = !!org.stripeSubscriptionId && ["active", "trialing", "past_due"].includes(org.subscriptionStatus ?? "");
+      const res = await wrapStripe(() => (live ? updateAddons(deps, auth, addons, { dropLegacyPlan }) : startAddonCheckout(deps, auth, addons)));
+      if (res.url) await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.checkout_started", metadata: { addons }, ip: c.var.ip });
+      return c.json(res);
+    })
+    .post("/addons/preview", async (c) => {
+      const { addons, dropLegacyPlan } = await parseBody(c, AddonsBody);
+      return c.json(await wrapStripe(() => previewAddons(c.var.deps, c.var.auth, addons, { dropLegacyPlan })));
     })
     .post("/checkout/confirm", async (c) => {
       const { sessionId } = await parseBody(c, z.object({ sessionId: z.string().min(1).max(255) }));

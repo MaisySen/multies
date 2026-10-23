@@ -85,6 +85,13 @@
       "when": 1792738363548,
       "tag": "0011_session_login_method",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792760085308,
+      "tag": "0012_pricing_addons",
+      "breakpoints": true
     }
   ]
 }

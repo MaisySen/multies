@@ -37,8 +37,18 @@ function fakeStripe() {
     }
     if (url.pathname.startsWith("/v1/subscriptions/") && init?.method === "POST") {
       const p = new URLSearchParams(body);
-      const s = subs[url.pathname.split("/").pop()!] as { items: { data: { id?: string; price: { id: string } }[] } };
-      s.items.data[0]!.price = { id: p.get("items[0][price]")! };
+      const s = subs[url.pathname.split("/").pop()!] as { items: { data: { id?: string; quantity?: number; price: { id: string; lookup_key?: string; recurring?: { interval: string } } }[] } };
+      // Apply items[n][id|price|quantity|deleted] the way Stripe does.
+      for (let n = 0; p.has(`items[${n}][id]`) || p.has(`items[${n}][price]`); n++) {
+        const id = p.get(`items[${n}][id]`);
+        const price = p.get(`items[${n}][price]`);
+        const qty = p.get(`items[${n}][quantity]`);
+        const asPrice = (pid: string) => ({ id: pid, lookup_key: pid.replace(/^price_auto_/, ""), recurring: { interval: pid.endsWith("_yearly") ? "year" : "month" } });
+        const existing = s.items.data.find((i) => i.id === id);
+        if (p.get(`items[${n}][deleted]`) === "true") { s.items.data = s.items.data.filter((i) => i !== existing); continue; }
+        if (existing) { if (price) existing.price = price.startsWith("price_auto_") ? asPrice(price) : { id: price }; if (qty) existing.quantity = Number(qty); }
+        else if (price) s.items.data.push({ id: `si_${n}_${price}`, quantity: Number(qty ?? 1), price: asPrice(price) });
+      }
       return json(s);
     }
     if (url.pathname.startsWith("/v1/subscriptions/")) return json(subs[url.pathname.split("/").pop()!] ?? { error: { message: "No such subscription" } }, subs[url.pathname.split("/").pop()!] ? 200 : 404);
@@ -79,7 +89,7 @@ describe("billing when not connected", () => {
     const b = await a.get("/api/billing");
     expect(b.body.enabled).toBe(false);
     expect(b.body.missing).toContain("STRIPE_SECRET_KEY");
-    expect((await a.post("/api/billing/checkout", { plan: "pro" })).body.error.code).toBe("billing_not_connected");
+    expect((await a.post("/api/billing/checkout", { plan: "pro" })).body.error.code).toBe("plan_retired");
     expect((await a.post("/api/org/plan", { plan: "pro" })).status).toBe(200);
     expect((await a.get("/api/billing/invoices")).body.invoices).toEqual([]);
   });
@@ -90,14 +100,13 @@ describe("billing with Stripe", () => {
   let ctx: Awaited<ReturnType<typeof makeTestApp>>;
   beforeEach(async () => { stripe = fakeStripe(); ctx = await makeTestApp(STRIPE_ENV, { fetch: stripe.fetch }); });
 
-  it("starts checkout for the owner and syncs the plan from webhooks", async () => {
+  it("keeps legacy Pro and Business subscriptions syncing from webhooks, and no longer sells them", async () => {
     const a = new Client(ctx.app);
     await a.signup("owner@acme.io");
     expect((await a.post("/api/org/plan", { plan: "pro" })).body.error.code).toBe("use_billing");
     const co = await a.post("/api/billing/checkout", { plan: "pro" });
-    expect(co.body.url).toContain("checkout.stripe.com");
-    const checkoutCall = stripe.calls.find((c) => c.path === "/v1/checkout/sessions")!;
-    expect(new URLSearchParams(checkoutCall.body).get("line_items[0][price]")).toBe("price_pro");
+    expect(co.status).toBe(410);
+    expect(co.body.error.code).toBe("plan_retired");
     const orgId = (await a.get("/api/account/me")).body.organization.id;
 
     stripe.subs.sub_1 = sub("active");
@@ -114,7 +123,7 @@ describe("billing with Stripe", () => {
     expect((await postWebhook(ctx.app, { id: "evt_2", type: "customer.subscription.updated", data: { object: sub("active", "price_pro") } })).body.duplicate).toBe(true);
     expect((await a.get("/api/billing")).body.plan.id).toBe("business");
 
-    // Past due keeps the plan; deletion drops to Starter.
+    // Past due keeps the plan; deletion drops to Free.
     await postWebhook(ctx.app, { id: "evt_3", type: "customer.subscription.updated", data: { object: sub("past_due", "price_biz") } });
     expect((await a.get("/api/billing")).body.plan.id).toBe("business");
     await postWebhook(ctx.app, { id: "evt_4", type: "customer.subscription.deleted", data: { object: sub("canceled", "price_biz") } });
@@ -127,7 +136,6 @@ describe("billing with Stripe", () => {
   it("runs dunning: grace period, paused sending, one final notice, receipt on recovery", async () => {
     const a = new Client(ctx.app);
     await a.signup("owner@acme.io");
-    await a.post("/api/billing/checkout", { plan: "pro" });
     const orgId = (await a.get("/api/account/me")).body.organization.id;
     stripe.subs.sub_1 = sub("active");
     await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
@@ -170,7 +178,6 @@ describe("billing with Stripe", () => {
   it("changes plans in place with Stripe proration, previewed first", async () => {
     const a = new Client(ctx.app);
     await a.signup("owner@acme.io");
-    await a.post("/api/billing/checkout", { plan: "pro" });
     const orgId = (await a.get("/api/account/me")).body.organization.id;
     stripe.subs.sub_1 = sub("active", "price_pro", { items: { data: [{ id: "si_1", price: { id: "price_pro" }, current_period_end: 1762600000 }] } });
     await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
@@ -199,7 +206,8 @@ describe("billing with Stripe", () => {
     expect(await maybeUsageAlert(ctx.deps, await fresh(), 100, 100)).toBe(100);
     const alerts = ctx.outbound.sent.filter((m) => /daily sends|daily sending limit/.test(m.subject));
     expect(alerts.map((m) => m.subject)).toEqual(["Acme has used 80% of its daily sends", "Acme reached its daily sending limit"]);
-    expect(alerts[1]!.html).toContain("Upgrade to Pro");
+    expect(alerts[1]!.html).toContain("Add a send boost");
+    expect(alerts[1]!.text).toContain("A$2 a month");
   });
 
   it("refuses unsigned webhooks and non-owners", async () => {
@@ -212,7 +220,6 @@ describe("billing with Stripe", () => {
     await owner.post("/api/org/plan", { plan: "pro" }).catch(() => {});
     // Give the workspace a second seat by subscribing, then invite an admin.
     const orgId = (await owner.get("/api/account/me")).body.organization.id;
-    await owner.post("/api/billing/checkout", { plan: "pro" });
     stripe.subs.sub_1 = sub("active");
     await postWebhook(ctx.app, { id: "evt_5", type: "checkout.session.completed", data: { object: { subscription: "sub_1", metadata: { orgId } } } });
     const inv = await owner.post("/api/team/invites", { email: "adm@acme.io", role: "admin" });
@@ -227,29 +234,118 @@ describe("billing with Stripe", () => {
 });
 
 describe("billing with only a test secret key", () => {
-  it("creates the plan prices by lookup key and confirms checkout without a webhook", async () => {
+  it("creates add-on prices by lookup key, bills small totals yearly and confirms checkout without a webhook", async () => {
     const stripe = fakeStripe();
     const ctx = await makeTestApp({ STRIPE_SECRET_KEY: "sk_test_only" }, { fetch: stripe.fetch });
     const a = new Client(ctx.app);
     await a.signup("solo@acme.io");
-    expect((await a.get("/api/billing")).body).toMatchObject({ enabled: true, testMode: true, webhooks: false });
-    const co = await a.post("/api/billing/checkout", { plan: "business" });
+    expect((await a.get("/api/billing")).body).toMatchObject({ enabled: true, testMode: true, webhooks: false, plan: { id: "starter", name: "Free" } });
+    // A$1 domain + 2 x A$1 agent inboxes = A$3 a month, under A$5, so it bills A$36 a year.
+    const co = await a.post("/api/billing/addons", { addons: { domain: 1, agent_inbox: 2 } });
     expect(co.status).toBe(200);
-    const created = stripe.calls.find((c) => c.method === "POST" && c.path === "/v1/prices")!;
-    const params = new URLSearchParams(created.body);
-    expect(params.get("lookup_key")).toBe("mymail_business_monthly");
-    expect(params.get("unit_amount")).toBe("4900");
+    expect(co.body).toMatchObject({ applied: false, interval: "year" });
+    const created = stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/prices").map((c) => new URLSearchParams(c.body));
+    expect(created.map((p) => [p.get("lookup_key"), p.get("unit_amount"), p.get("recurring[interval]"), p.get("currency")])).toEqual([
+      ["mymail_addon_domain_yearly", "1200", "year", "aud"],
+      ["mymail_addon_agent_inbox_yearly", "1200", "year", "aud"],
+    ]);
     const checkout = new URLSearchParams(stripe.calls.find((c) => c.path === "/v1/checkout/sessions")!.body);
-    expect(checkout.get("line_items[0][price]")).toBe("price_auto_mymail_business_monthly");
+    expect(checkout.get("line_items[0][price]")).toBe("price_auto_mymail_addon_domain_yearly");
+    expect(checkout.get("line_items[1][quantity]")).toBe("2");
     expect(checkout.get("success_url")).toContain("session_id={CHECKOUT_SESSION_ID}");
 
-    stripe.subs.sub_1 = { ...sub("active", "price_auto_mymail_business_monthly"), items: { data: [{ price: { id: "price_auto_mymail_business_monthly", lookup_key: "mymail_business_monthly" }, current_period_end: 1762600000 }] } };
+    const yearly = (key: string, quantity: number) => ({ id: `si_${key}`, quantity, price: { id: `price_auto_${key}`, lookup_key: key, recurring: { interval: "year" } }, current_period_end: 1792600000 });
+    stripe.subs.sub_1 = { ...sub("active"), items: { data: [yearly("mymail_addon_domain_yearly", 1), yearly("mymail_addon_agent_inbox_yearly", 2)] } };
     const confirmed = await a.post("/api/billing/checkout/confirm", { sessionId: "cs_1" });
-    expect(confirmed.body).toEqual({ plan: "business", complete: true });
-    expect((await a.get("/api/account/me")).body.organization.plan).toBe("business");
+    expect(confirmed.body).toEqual({ plan: "starter", complete: true });
+    const b = (await a.get("/api/billing")).body;
+    expect(b.addons).toEqual({ domain: 1, agent_inbox: 2 });
+    expect(b.interval).toBe("year");
+    expect(b.limits).toMatchObject({ domains: 2, agentInboxes: 5, agentMessagesMonthly: 5000, mailboxes: 3 });
+    expect(b.charge).toEqual({ interval: "year", amount: 36, monthly: 3 });
 
     const other = new Client(ctx.app);
     await other.signup("other@else.io");
     expect((await other.post("/api/billing/checkout/confirm", { sessionId: "cs_1" })).status).toBe(403);
+  });
+});
+
+describe("add-ons on one subscription", () => {
+  let stripe: ReturnType<typeof fakeStripe>;
+  let ctx: Awaited<ReturnType<typeof makeTestApp>>;
+  beforeEach(async () => { stripe = fakeStripe(); ctx = await makeTestApp(STRIPE_ENV, { fetch: stripe.fetch }); });
+
+  const monthly = (key: string, quantity: number) => ({ id: `si_${key}`, quantity, price: { id: `price_auto_${key}`, lookup_key: key, recurring: { interval: "month" } }, current_period_end: 1792600000 });
+
+  it("changes quantities in place, switches to monthly at A$5 and refuses removals the workspace still uses", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
+    stripe.subs.sub_1 = { ...sub("active"), items: { data: [{ ...monthly("mymail_addon_domain_yearly", 1), price: { id: "price_auto_mymail_addon_domain_yearly", lookup_key: "mymail_addon_domain_yearly", recurring: { interval: "year" } } }] } };
+    await postWebhook(ctx.app, { id: "evt_a1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
+    expect((await a.get("/api/billing")).body).toMatchObject({ addons: { domain: 1 }, interval: "year", limits: { domains: 2 } });
+
+    // Adding the AI assistant (A$5) takes the total to A$6: every item moves to monthly prices.
+    const res = await a.post("/api/billing/addons", { addons: { domain: 1, ai: 1 } });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ applied: true, interval: "month" });
+    const update = new URLSearchParams(stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1").at(-1)!.body);
+    expect(update.get("proration_behavior")).toBe("always_invoice");
+    expect(update.get("items[0][id]")).toBe("si_mymail_addon_domain_yearly");
+    expect(update.get("items[0][price]")).toBe("price_auto_mymail_addon_domain_monthly");
+    expect(update.get("items[1][price]")).toBe("price_auto_mymail_addon_ai_monthly");
+    const b = (await a.get("/api/billing")).body;
+    expect(b).toMatchObject({ addons: { domain: 1, ai: 1 }, interval: "month", limits: { domains: 2, aiActionsMonthly: 525 } });
+
+    // Two domains in use: the extra domain can't be removed until one goes.
+    await a.post("/api/domains", { name: "acme.io" });
+    await a.post("/api/domains", { name: "acme.com.au" });
+    const refused = await a.post("/api/billing/addons", { addons: { ai: 1 } });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error.message).toContain("domains");
+
+    // A webhook from Stripe (say, the portal) is the source of truth for quantities.
+    stripe.subs.sub_1 = { ...sub("active"), items: { data: [monthly("mymail_addon_domain_monthly", 3), monthly("mymail_addon_ai_monthly", 1)] } };
+    await postWebhook(ctx.app, { id: "evt_a2", type: "customer.subscription.updated", data: { object: stripe.subs.sub_1 } });
+    expect((await a.get("/api/billing")).body.addons).toEqual({ domain: 3, ai: 1 });
+    const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
+    expect(audit).toEqual(expect.arrayContaining(["billing.addons_changed", "billing.addons_synced"]));
+
+    // Cancelling drops every add-on.
+    await postWebhook(ctx.app, { id: "evt_a3", type: "customer.subscription.deleted", data: { object: stripe.subs.sub_1 } });
+    expect((await a.get("/api/billing")).body).toMatchObject({ addons: {}, limits: { domains: 1 } });
+  });
+
+  it("lets a legacy Pro customer add add-ons on the same subscription, or move to Free with add-ons", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
+    stripe.subs.sub_1 = sub("active", "price_pro", { items: { data: [{ id: "si_pro", quantity: 1, price: { id: "price_pro", recurring: { interval: "month" } }, current_period_end: 1792600000 }] } });
+    await postWebhook(ctx.app, { id: "evt_l1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
+    expect((await a.get("/api/billing")).body).toMatchObject({ plan: { id: "pro", legacy: true }, limits: { domains: 5 } });
+
+    const add = await a.post("/api/billing/addons", { addons: { agent_inbox: 1 } });
+    expect(add.body).toMatchObject({ applied: true, interval: "month" });
+    expect((await a.get("/api/billing")).body).toMatchObject({ plan: { id: "pro" }, addons: { agent_inbox: 1 }, limits: { agentInboxes: 11 } });
+
+    const preview = await a.post("/api/billing/addons/preview", { addons: { domain: 4, mailboxes: 1 }, dropLegacyPlan: true });
+    expect(preview.status).toBe(200);
+    expect(preview.body.charge).toEqual({ interval: "month", amount: 7, monthly: 7 });
+    const moved = await a.post("/api/billing/addons", { addons: { domain: 4, mailboxes: 1 }, dropLegacyPlan: true });
+    expect(moved.status).toBe(200);
+    const last = new URLSearchParams(stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1").at(-1)!.body);
+    expect([...last.entries()].filter(([k]) => k.endsWith("[deleted]")).length).toBe(2);
+    expect((await a.get("/api/billing")).body).toMatchObject({ plan: { id: "starter" }, addons: { domain: 4, mailboxes: 1 }, limits: { domains: 5, mailboxes: 8, seats: 8 } });
+  });
+
+  it("applies add-ons instantly when billing isn't connected", async () => {
+    const local = await makeTestApp();
+    const a = new Client(local.app);
+    await a.signup("owner@acme.io");
+    const res = await a.post("/api/billing/addons", { addons: { storage: 2, mailboxes: 1 } });
+    expect(res.body).toEqual({ applied: true, url: null });
+    expect((await a.get("/api/billing")).body.limits).toMatchObject({ storageMb: 3072 + 40960, mailboxes: 8 });
+    expect((await a.post("/api/billing/addons", { addons: { bogus: 1 } })).status).toBe(400);
+    expect((await a.post("/api/billing/addons", { addons: { ai: 2 } })).status).toBe(400);
   });
 });

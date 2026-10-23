@@ -53,8 +53,29 @@ export const organizations = sqliteTable("organizations", {
   suspendedReason: text("suspended_reason"),
   /** Operator override for outbound sends per day; null means the plan's limit. */
   sendCapDaily: integer("send_cap_daily"),
+  /** How the Stripe subscription bills: "month", or "year" when add-ons total under A$5 a month. */
+  billingInterval: text("billing_interval", { enum: ["month", "year"] }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug)]);
+
+/**
+ * Paid add-ons on a workspace (extra domains, storage, mailbox packs, the AI assistant,
+ * agent inboxes). Mirrored from the items on the workspace's one Stripe subscription.
+ */
+export const orgAddons = sqliteTable("org_addons", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  addonId: text("addon_id").notNull(),
+  quantity: integer("quantity").notNull(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.addonId] })]);
+
+/** Metered usage per workspace per period, e.g. AI actions in "2026-10". */
+export const usageCounters = sqliteTable("usage_counters", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  period: text("period").notNull(),
+  metric: text("metric").notNull(),
+  count: integer("count").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.orgId, t.period, t.metric] })]);
 
 /** Workspace membership (Better Auth organization plugin, model "member"). */
 export const members = sqliteTable("members", {
@@ -156,6 +177,8 @@ export const mailboxes = sqliteTable("mailboxes", {
   quotaMb: integer("quota_mb").notNull(),
   usedBytes: integer("used_bytes").notNull().default(0),
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
+  /** `agent` inboxes belong to an AI agent (see `agents`) and count against the agent inbox allowance, not mailboxes. */
+  kind: text("kind", { enum: ["person", "agent"] }).notNull().default("person"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("mailboxes_address_uq").on(t.address), index("mailboxes_org_idx").on(t.orgId)]);
 

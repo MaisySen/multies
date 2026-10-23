@@ -9,7 +9,7 @@ import { createElement } from "react";
 import type { Deps } from "../../context";
 import { auditLogs, members, organizations, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
-import { PLANS, PLAN_ORDER } from "@/shared/plans";
+import { ADDONS, PLANS } from "@/shared/plans";
 import { PaymentFailed, Receipt, UsageAlert } from "../../emails";
 import { audit } from "../audit";
 import { emailBrand, sendSystemEmail } from "../system-mail";
@@ -128,14 +128,14 @@ export async function maybeUsageAlert(deps: Deps, org: Org, used: number, limit:
   if (sent.includes(key)) return null;
   await deps.db.update(organizations).set({ usageAlerts: [...sent, key].join(",") }).where(eq(organizations.id, org.id));
   const plan = PLANS[org.plan];
-  const next = PLAN_ORDER[PLAN_ORDER.indexOf(org.plan) + 1];
+  const boost = ADDONS.send_boost;
   for (const to of await billingContacts(deps, org.id)) {
     await sendSystemEmail(deps, {
       to, orgId: org.id, template: "usage-alert",
       subject: crossed >= 100 ? `${org.name} reached its daily sending limit` : `${org.name} has used ${crossed}% of its daily sends`,
-      text: `${org.name} has sent to ${used} of ${limit} recipients today on the ${plan.name} plan. The limit resets at midnight UTC.${next ? ` The ${PLANS[next].name} plan allows ${PLANS[next].limits.dailySends.toLocaleString("en-AU")} a day.` : ""}`,
-      action: next ? { label: `Upgrade to ${PLANS[next].name}`, url: `${deps.config.appUrl}/app/settings/billing` } : undefined,
-      element: createElement(UsageAlert, { brand: emailBrand(deps), workspace: org.name, metric: "daily sends", used, limit, plan: plan.name, nextPlan: next ? PLANS[next].name : undefined }),
+      text: `${org.name} has sent to ${used} of ${limit} recipients today on the ${plan.name} plan. The limit resets at midnight UTC. A send boost adds ${boost.grants.dailySends!.toLocaleString("en-AU")} a day for A$${boost.priceMonthly} a month.`,
+      action: { label: "Add a send boost", url: `${deps.config.appUrl}/app/settings/billing` },
+      element: createElement(UsageAlert, { brand: emailBrand(deps), workspace: org.name, metric: "daily sends", used, limit, plan: plan.name, addon: "a send boost" }),
     }).catch(() => undefined);
   }
   return crossed;

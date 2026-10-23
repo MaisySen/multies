@@ -11,7 +11,7 @@ import { accounts, invitations, mailboxAccess, mailboxes, members, organizations
 import { verifyPassword } from "../lib/crypto";
 import { badRequest, conflict, forbidden, HttpError, notFound, planLimit } from "../lib/errors";
 import { authFor } from "../auth";
-import { getPlan } from "./plans";
+import { addonHint, getPlan } from "./plans";
 import { isHosted } from "./mail/delivery";
 
 export type Role = "owner" | "admin" | "member";
@@ -109,7 +109,7 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
   const reinvite = await db.select({ id: invitations.id }).from(invitations)
     .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), eq(invitations.status, "pending"))).get();
   if (used.members + used.pendingInvites - (reinvite ? 1 : 0) >= plan.limits.seats) {
-    throw planLimit(`Your ${plan.name} plan includes ${plan.limits.seats} seats, and they're all taken or invited. Upgrade to add more people.`);
+    throw planLimit(`Your workspace includes ${plan.limits.seats} seats, and they're all taken or invited. ${addonHint("seats")}`);
   }
   const inv = await authFor(deps).api.createInvitation({
     headers,

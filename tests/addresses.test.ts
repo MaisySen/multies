@@ -15,7 +15,7 @@ describe("mailboxes", () => {
   it("creates, updates and deletes a mailbox", async () => {
     const r = await c.post("/api/mailboxes", { domainId, localPart: "Hello", displayName: "Hello Acme" });
     expect(r.status).toBe(201);
-    expect(r.body.mailbox).toMatchObject({ address: "hello@acme.io", quotaMb: 1024, status: "active" });
+    expect(r.body.mailbox).toMatchObject({ address: "hello@acme.io", quotaMb: 3072, status: "active" });
     const id = r.body.mailbox.id;
     expect((await c.patch(`/api/mailboxes/${id}`, { displayName: "Support" })).body.mailbox.displayName).toBe("Support");
     expect((await c.patch(`/api/mailboxes/${id}`, { quotaMb: 999999 })).status).toBe(400);

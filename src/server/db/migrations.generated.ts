@@ -205,5 +205,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "ALTER TABLE `sessions` ADD `login_method` text;"
     ]
+  },
+  {
+    "name": "0012_pricing_addons",
+    "statements": [
+      "CREATE TABLE `org_addons` (\n\t`org_id` text NOT NULL,\n\t`addon_id` text NOT NULL,\n\t`quantity` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `addon_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE TABLE `usage_counters` (\n\t`org_id` text NOT NULL,\n\t`period` text NOT NULL,\n\t`metric` text NOT NULL,\n\t`count` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `period`, `metric`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "ALTER TABLE `mailboxes` ADD `kind` text DEFAULT 'person' NOT NULL;",
+      "ALTER TABLE `organizations` ADD `billing_interval` text;"
+    ]
   }
 ];

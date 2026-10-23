@@ -32,7 +32,7 @@ describe("mail app access (Stalwart)", () => {
     expect(first.body.appPassword).toMatchObject({ name: "MacBook", hint: first.body.secret.slice(-4) });
     expect(server.accounts.size).toBe(1);
     const acct = [...server.accounts.values()][0];
-    expect(acct.quota).toBe(1024 * 1024 * 1024);
+    expect(acct.quota).toBe(3 * 1024 * 1024 * 1024);
     await c.post(`/api/mail-access/mailboxes/${mailboxId}/app-passwords`, { name: "iPhone" });
     expect(server.accounts.size).toBe(1);
     expect(acct.appPasswords.size).toBe(2);

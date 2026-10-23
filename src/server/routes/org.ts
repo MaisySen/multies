@@ -6,9 +6,9 @@ import type { AppEnv } from "../context";
 import { pageQuery, parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
-import { getOrg, usage } from "../services/plans";
-import { PLANS, isPlanId, PLAN_ORDER } from "@/shared/plans";
-import { badRequest, forbidden, HttpError, planLimit } from "../lib/errors";
+import { getAddons, getOrg, getPlan, overLimits, usage } from "../services/plans";
+import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
+import { badRequest, forbidden, HttpError } from "../lib/errors";
 import { COUNTRIES, isTimeZone } from "@/shared/locale";
 
 export function orgRoutes() {
@@ -17,7 +17,8 @@ export function orgRoutes() {
     .get("/", async (c) => {
       const { db } = c.var.deps;
       const org = await getOrg(db, c.var.auth.orgId);
-      return c.json({ organization: { ...org, role: c.var.auth.role }, plan: PLANS[org.plan], usage: await usage(db, org.id) });
+      const plan = await getPlan(db, org.id);
+      return c.json({ organization: { ...org, role: c.var.auth.role }, plan, usage: await usage(db, org.id, c.var.deps.now()) });
     })
     .patch("/", requireAdmin, async (c) => {
       const input = await parseBody(c, z.object({
@@ -36,13 +37,11 @@ export function orgRoutes() {
       }
       return c.json({ ok: true });
     })
-    // Team SSO enforcement (Business plan): members must sign in through SSO; the owner is exempt as break glass.
+    // Team SSO enforcement (every plan): members must sign in through SSO; the owner is exempt as break glass.
     .put("/sso", async (c) => {
       const { required } = await parseBody(c, z.object({ required: z.boolean() }));
       const { auth, deps } = c.var;
       if (auth.role !== "owner") throw forbidden("Only the workspace owner can change single sign on enforcement.");
-      const org = await getOrg(deps.db, auth.orgId);
-      if (required && org.plan !== "business" && !org.isDemo) throw planLimit("Requiring single sign on is part of the Business plan. Upgrade to turn it on.");
       if (required && !deps.config.auth.auth0 && !deps.config.auth.social.google) throw badRequest("No SSO provider is connected on this deployment yet.");
       await deps.db.update(organizations).set({ requireSso: required }).where(eq(organizations.id, auth.orgId));
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: required ? "workspace.sso_required" : "workspace.sso_optional", ip: c.var.ip });
@@ -60,9 +59,9 @@ export function orgRoutes() {
       if (deps.config.billing.enabled && !org.isDemo) {
         throw new HttpError(409, "use_billing", "Plans are changed through billing. Open Settings → Billing.");
       }
-      const used = await usage(deps.db, auth.orgId);
+      const used = await usage(deps.db, auth.orgId, deps.now());
       const target = PLANS[plan];
-      const over = (Object.keys(used) as (keyof typeof used)[]).filter((k) => used[k] > target.limits[k]);
+      const over = overLimits(used, effectiveLimits(target, await getAddons(deps.db, auth.orgId)));
       if (over.length) throw badRequest(`Remove some ${over.join(" and ")} before moving to ${target.name}.`);
       await deps.db.update(organizations).set({ plan }).where(eq(organizations.id, auth.orgId));
       const direction = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan) ? "upgraded" : "downgraded";

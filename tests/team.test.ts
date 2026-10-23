@@ -62,11 +62,14 @@ describe("team invitations", () => {
   it("enforces seats, and revoking frees a seat", async () => {
     const owner = new Client(ctx.app);
     await owner.signup("solo@acme.io");
+    // Free includes 3 people: the owner and two more.
     const a = await owner.post("/api/team/invites", { email: "a@acme.io" });
     expect(a.status).toBe(201);
+    expect((await owner.post("/api/team/invites", { email: "a2@acme.io" })).status).toBe(201);
     const b = await owner.post("/api/team/invites", { email: "b@acme.io" });
     expect(b.status).toBe(403);
     expect(b.body.error.code).toBe("plan_limit");
+    expect(b.body.error.message).toContain("mailbox pack");
     expect((await owner.del(`/api/team/invites/${a.body.id}`)).status).toBe(200);
     expect((await owner.post("/api/team/invites", { email: "b@acme.io" })).status).toBe(201);
     // revoked link is dead

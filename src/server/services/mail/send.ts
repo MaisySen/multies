@@ -7,7 +7,7 @@ import { domains, mailboxes, messages } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound, planLimit } from "../../lib/errors";
 import type { SendMessageInput } from "@/shared/schemas";
-import { getOrg, getPlan } from "../plans";
+import { addonHint, getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
 import { storeMessage } from "./store";
@@ -52,7 +52,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (used + recipients.length > cap) {
     throw planLimit(org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends
       ? `This workspace can send to ${cap} recipients a day while its sending is under review. It resets at midnight UTC.`
-      : `Daily sending limit reached (${cap} recipients on ${plan.name}). It resets at midnight UTC. Upgrade for a higher limit.`);
+      : `Daily sending limit reached (${cap} recipients a day). It resets at midnight UTC. ${addonHint("dailySends")}`);
   }
 
   let inReplyTo: string | undefined = extra.inReplyTo;

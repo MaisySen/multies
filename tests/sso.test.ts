@@ -18,8 +18,7 @@ describe("team SSO enforcement", () => {
     const ctx = await makeTestApp(AUTH0);
     const owner = new Client(ctx.app);
     await owner.signup("owner@acme.io");
-    expect((await owner.put("/api/org/sso", { required: true })).body.error.code).toBe("plan_limit");
-    await owner.post("/api/org/plan", { plan: "business" });
+    // Enforcing SSO is available on every plan, Free included.
 
     const invite = await owner.post("/api/team/invites", { email: "mem@acme.io", role: "member" });
     const member = new Client(ctx.app);
