@@ -69,12 +69,16 @@ describe("demo mode", () => {
     expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
     expect((await c.get("/api/docs")).body.docs).toHaveLength(2);
     expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
-    // A retry of the job does not seed twice.
+    // A retry of the job does not seed twice, and finishes a seed that stopped part way.
+    await ctx.db.delete((await import("@/server/db/schema")).automations);
     const { enqueue } = await import("@/server/services/jobs");
     const me = (await c.get("/api/account/me")).body;
     await enqueue(ctx.deps, "demo.seed_suite", { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: "Alex Rivera" });
     await runDueJobs(ctx.deps);
     expect((await c.get("/api/projects")).body.projects).toHaveLength(2);
+    expect((await c.get("/api/tasks")).body.tasks).toHaveLength(tasks.length);
+    expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
+    expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
   });
 
   it("purges expired sandboxes", async () => {
