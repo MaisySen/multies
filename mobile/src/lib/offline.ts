@@ -4,7 +4,7 @@ import type { MessagePage, MessageSummary, ThreadView } from "@/api/types";
 import { ApiError } from "@/api/errors";
 
 /** How many list pages and threads to keep for reading offline. */
-export const CACHE_LIMITS = { lists: 12, threads: 60 };
+export const CACHE_LIMITS = { lists: 12, threads: 60, tasks: 60 };
 
 let offline = false;
 const listeners = new Set<() => void>();
@@ -34,9 +34,9 @@ export async function cached<T>(store: KV, key: string, fetcher: () => Promise<T
 }
 
 async function prune(store: KV, key: string) {
-  const prefix = key.startsWith("thread:") ? "thread:" : key.startsWith("list:") ? "list:" : null;
+  const prefix = (["thread:", "list:", "task:", "worklist:"] as const).find((p) => key.startsWith(p));
   if (!prefix) return;
-  const limit = prefix === "thread:" ? CACHE_LIMITS.threads : CACHE_LIMITS.lists;
+  const limit = prefix === "thread:" ? CACHE_LIMITS.threads : prefix === "task:" ? CACHE_LIMITS.tasks : CACHE_LIMITS.lists;
   const keys = await store.keys(prefix);
   for (const k of keys.slice(limit)) await store.remove(k);
 }

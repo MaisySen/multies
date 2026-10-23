@@ -1,4 +1,5 @@
 import type { Agent, Approval, MailboxOverview, Me, Message } from "@/api/types";
+import { sampleWork } from "./tasks";
 
 /** A believable Sydney small business, for the browser preview, screenshots and tests. */
 export function sampleData(now = Date.now()) {
@@ -58,5 +59,5 @@ export function sampleData(now = Date.now()) {
       subject: "Invoice INV-1042 overdue", text: "Hi Li,\n\nA friendly reminder that invoice INV-1042 for A$1,240.00 was due on 14 October.", html: null, inReplyToId: null,
       decidedBy: "mia@harbourcoffee.com.au", decidedAt: ago(60 * 26), note: null, messageId: "msg_3a", error: null, expiresAt: ago(60), createdAt: ago(60 * 27) },
   ];
-  return { me, mailboxes, agents, messages, approvals };
+  return { me, mailboxes, agents, messages, approvals, work: sampleWork(now, messages) };
 }

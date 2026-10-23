@@ -1,55 +1,65 @@
-import type { KV } from "./kv";
+import type { Priority, Task, TaskStatus } from "@/api/types";
 
-/**
- * Tasks made from email. The web API has no tasks endpoints yet (see docs/api-gaps.md), so for
- * now they are saved on this device. The shape matches what the suite plan proposes for the API.
- */
-export type TaskStatus = "todo" | "doing" | "done";
-export interface Task {
-  id: string;
-  title: string;
-  notes: string;
-  status: TaskStatus;
-  due: string | null;
-  source: { messageId: string; threadId: string; from: string; subject: string } | null;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { Task, TaskStatus, Priority } from "@/api/types";
 
+/** The three status groups every project's custom statuses fall into. Boards use them as columns. */
 export const STATUSES: { id: TaskStatus; label: string }[] = [
   { id: "todo", label: "To do" },
   { id: "doing", label: "Doing" },
   { id: "done", label: "Done" },
 ];
 
-const KEY = "tasks:v1";
-
-export function taskStore(store: KV) {
-  const read = async (): Promise<Task[]> => {
-    const raw = await store.get(KEY);
-    return raw ? (JSON.parse(raw) as Task[]) : [];
-  };
-  const write = (tasks: Task[]) => store.set(KEY, JSON.stringify(tasks));
-  return {
-    list: read,
-    async create(input: Pick<Task, "title"> & Partial<Pick<Task, "notes" | "due" | "source" | "status">>): Promise<Task> {
-      const title = input.title.trim();
-      if (!title) throw new Error("Give the task a title.");
-      const now = new Date().toISOString();
-      const t: Task = { id: `tsk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, title, notes: input.notes ?? "", status: input.status ?? "todo", due: input.due ?? null, source: input.source ?? null, createdAt: now, updatedAt: now };
-      await write([t, ...(await read())]);
-      return t;
-    },
-    async update(id: string, patch: Partial<Omit<Task, "id" | "createdAt">>): Promise<Task> {
-      const all = await read();
-      const i = all.findIndex((t) => t.id === id);
-      if (i < 0) throw new Error("That task no longer exists.");
-      all[i] = { ...all[i], ...patch, updatedAt: new Date().toISOString() };
-      await write(all);
-      return all[i];
-    },
-    async remove(id: string) { await write((await read()).filter((t) => t.id !== id)); },
-  };
-}
+export const PRIORITIES: { id: Priority; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "low", label: "Low" },
+  { id: "medium", label: "Medium" },
+  { id: "high", label: "High" },
+  { id: "urgent", label: "Urgent" },
+];
 
 export function nextStatus(s: TaskStatus): TaskStatus { return s === "todo" ? "doing" : s === "doing" ? "done" : "todo"; }
+export function statusLabel(s: TaskStatus) { return STATUSES.find((x) => x.id === s)!.label; }
+export function priorityLabel(p: Priority) { return PRIORITIES.find((x) => x.id === p)?.label ?? "None"; }
+
+/** Orders a column: urgent first, then by due date, then by the board position. */
+export function sortTasks(list: Task[]): Task[] {
+  const rank: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
+  return [...list].sort((a, b) =>
+    rank[a.priority] - rank[b.priority] || (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.position - b.position);
+}
+
+/** A calendar day (YYYY-MM-DD) in local time, `days` from `from`. */
+export function dayFrom(days: number, from = new Date()): string {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** The next Monday after `from`, for "Next week". */
+export function nextMonday(from = new Date()): string {
+  const add = ((8 - from.getDay()) % 7) || 7;
+  return dayFrom(add, from);
+}
+
+/** "Due today", "Overdue 2 days", "Due Fri 30 Oct" and so on, in en-AU. */
+export function dueLabel(due: string | null, now = new Date()): { text: string; tone: "bad" | "warn" | "plain" } | null {
+  if (!due) return null;
+  const day = due.slice(0, 10);
+  const today = dayFrom(0, now);
+  const diff = Math.round((Date.parse(`${day}T00:00:00`) - Date.parse(`${today}T00:00:00`)) / 86_400_000);
+  if (diff < 0) return { text: diff === -1 ? "Overdue 1 day" : `Overdue ${-diff} days`, tone: "bad" };
+  if (diff === 0) return { text: "Due today", tone: "warn" };
+  if (diff === 1) return { text: "Due tomorrow", tone: "plain" };
+  const d = new Date(`${day}T00:00:00`);
+  return { text: `Due ${d.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}`, tone: "plain" };
+}
+
+/** "Fri 30 Oct" for a due date. */
+export function dayLabel(due: string): string {
+  return new Date(`${due.slice(0, 10)}T00:00:00`).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+}
+
+/** A sensible next action for a task on the board, by its status group. */
+export function moveLabel(s: TaskStatus) { return `Move to ${statusLabel(nextStatus(s))}`; }
+
+/** Version 1.0.0 kept tasks on the phone under this key, before the tasks API existed. Sign out clears it. */
+export const LEGACY_KEY = "tasks:v1";

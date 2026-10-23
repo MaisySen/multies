@@ -2,6 +2,7 @@ import type { Method, RequestOptions, Transport } from "@/api/transport";
 import { ApiError } from "@/api/errors";
 import type { Approval, Message, SendInput } from "@/api/types";
 import { sampleData } from "./fixtures";
+import { taskRoute } from "./tasks";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -26,6 +27,9 @@ export class SampleTransport implements Transport {
     const route = `${method} /${parts.map((p, i) => (i > 0 && /^(msg|apr|agt|thr)_/.test(p) ? ":id" : p)).join("/")}`;
     const id = parts.find((p, i) => i > 0 && /^(msg|apr|agt|thr)_/.test(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
+
+    const work = taskRoute(d.work, d.messages, method, parts, params, body);
+    if (work !== undefined) return json(work);
 
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });
