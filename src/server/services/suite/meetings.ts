@@ -73,7 +73,10 @@ async function fromSource(deps: Deps, actor: SuiteActor, s: MeetingSource) {
     const id = await resolveTaskId(deps, actor.orgId, s.id);
     const t = await deps.db.select({ id: tasks.id, title: tasks.title, sourceFrom: tasks.sourceFrom }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.id, id), isNull(tasks.deletedAt))).get();
     if (!t) throw notFound("Task");
-    const addr = t.sourceFrom?.match(/<([^>]+)>/)?.[1] ?? (t.sourceFrom && EMAIL.test(t.sourceFrom) ? t.sourceFrom : null);
+    const from = t.sourceFrom ?? "";
+    const lt = from.indexOf("<"), gt = from.indexOf(">", lt + 1);
+    const candidate = (lt >= 0 && gt > lt ? from.slice(lt + 1, gt) : from).trim();
+    const addr = candidate.length <= 254 && EMAIL.test(candidate) ? candidate : null; // nosemgrep: regex_dos (a linear pattern on a stored sender address of at most 254 characters)
     return { title: t.title, invitees: addr ? [addr.toLowerCase()] : [], mailboxId: undefined, sourceId: t.id };
   }
   const c = await deps.db.select({ id: contacts.id, name: contacts.name, email: contacts.email }).from(contacts).where(and(eq(contacts.orgId, actor.orgId), eq(contacts.id, s.id), isNull(contacts.deletedAt))).get();

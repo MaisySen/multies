@@ -205,7 +205,7 @@ export async function deleteEntry(deps: Deps, actor: SuiteActor, id: string) {
 export interface EntryFilters { from?: string; to?: string; person?: string; projectId?: string; taskId?: string; limit?: number }
 
 function rangeOf(f: { from?: string; to?: string }, now: Date) {
-  const to = f.to ? new Date(parseDate(f.to)!.getTime() + (/^\d{4}-\d{2}-\d{2}$/.test(f.to) ? DAY : 0)) : new Date(now.getTime() + DAY);
+  const to = f.to ? new Date(parseDate(f.to)!.getTime() + (f.to.length === 10 ? DAY : 0)) : new Date(now.getTime() + DAY);
   const from = f.from ? parseDate(f.from)! : new Date(to.getTime() - 8 * DAY);
   if (to.getTime() - from.getTime() > 400 * DAY) throw new HttpError(422, "validation_failed", "Pick a range of up to 400 days.");
   return { from, to };
