@@ -858,3 +858,85 @@ export const pushDevices = sqliteTable("push_devices", {
   createdAt: createdAt(),
   lastSeenAt: ts("last_seen_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("push_devices_org_idx").on(t.orgId), index("push_devices_user_idx").on(t.userId)]);
+
+
+// ---------------------------------------------------------------- suite round 7: time, forms, meetings
+
+/** Time on tasks: a running timer (endedAt null) or a manual entry. Seconds are stored when it stops. */
+export const timeEntries = sqliteTable("time_entries", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  taskId: text("task_id").references(() => tasks.id, { onDelete: "set null" }),
+  projectId: text("project_id"),
+  /** Who the time belongs to: a member (user id) or an agent. */
+  personType: text("person_type", { enum: ["member", "agent"] }).notNull().default("member"),
+  personId: text("person_id").notNull(),
+  startedAt: ts("started_at").notNull(),
+  endedAt: ts("ended_at"),
+  seconds: integer("seconds").notNull().default(0),
+  note: text("note").notNull().default(""),
+  billable: integer("billable", { mode: "boolean" }).notNull().default(true),
+  source: text("source", { enum: ["timer", "manual"] }).notNull().default("timer"),
+  ...suiteCols(),
+}, (t) => [
+  index("time_entries_org_person_idx").on(t.orgId, t.personId, t.startedAt),
+  index("time_entries_org_project_idx").on(t.orgId, t.projectId, t.startedAt),
+  index("time_entries_task_idx").on(t.taskId),
+]);
+
+/** A public form: each submission makes a task or a contact. */
+export const forms = sqliteTable("forms", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  /** The public address: /f/<slug>. Random, so forms can't be guessed. */
+  slug: text("slug").notNull(),
+  target: text("target", { enum: ["task", "contact"] }).notNull().default("task"),
+  projectId: text("project_id"),
+  assigneeType: text("assignee_type", { enum: ["member", "agent"] }),
+  assigneeId: text("assignee_id"),
+  /** JSON: [{ id, label, type: text|email|textarea|phone|select, required, options? }] */
+  fields: text("fields").notNull().default("[]"),
+  successMessage: text("success_message").notNull().default("Thanks, we got it."),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  submitCount: integer("submit_count").notNull().default(0),
+  lastSubmitAt: ts("last_submit_at"),
+  ...suiteCols(),
+}, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
+
+export const formSubmissions = sqliteTable("form_submissions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  formId: text("form_id").notNull().references(() => forms.id, { onDelete: "cascade" }),
+  /** JSON: { fieldId: value } */
+  data: text("data").notNull().default("{}"),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  /** A salted hash of the sender's IP, for rate limits. Never the IP itself. */
+  ipHash: text("ip_hash"),
+  createdAt: createdAt(),
+}, (t) => [index("form_submissions_form_idx").on(t.formId, t.createdAt)]);
+
+/** A video meeting (LiveKit room) with a guest link, started from a thread, task or contact. */
+export const meetings = sqliteTable("meetings", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  /** The LiveKit room name. */
+  room: text("room").notNull(),
+  /** The guest link: /m/<guestToken>. */
+  guestToken: text("guest_token").notNull(),
+  startsAt: ts("starts_at").notNull(),
+  durationMin: integer("duration_min").notNull().default(30),
+  status: text("status", { enum: ["scheduled", "ended", "cancelled"] }).notNull().default("scheduled"),
+  sourceType: text("source_type", { enum: ["thread", "task", "contact"] }),
+  sourceId: text("source_id"),
+  /** JSON string[] of guest email addresses. */
+  invitees: text("invitees").notNull().default("[]"),
+  /** The mailbox the invites went from. */
+  mailboxId: text("mailbox_id"),
+  invitesSentAt: ts("invites_sent_at"),
+  endedAt: ts("ended_at"),
+  ...suiteCols(),
+}, (t) => [index("meetings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("meetings_guest_token_uq").on(t.guestToken), index("meetings_source_idx").on(t.orgId, t.sourceType, t.sourceId)]);

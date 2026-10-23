@@ -301,5 +301,23 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `tasks_parent_idx` ON `tasks` (`parent_id`);",
       "CREATE UNIQUE INDEX `tasks_project_number_uq` ON `tasks` (`project_id`,`number`);"
     ]
+  },
+  {
+    "name": "0018_suite_time_forms_meetings",
+    "statements": [
+      "CREATE TABLE `form_submissions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`form_id` text NOT NULL,\n\t`data` text DEFAULT '{}' NOT NULL,\n\t`entity_type` text,\n\t`entity_id` text,\n\t`ip_hash` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`form_id`) REFERENCES `forms`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `form_submissions_form_idx` ON `form_submissions` (`form_id`,`created_at`);",
+      "CREATE TABLE `forms` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`slug` text NOT NULL,\n\t`target` text DEFAULT 'task' NOT NULL,\n\t`project_id` text,\n\t`assignee_type` text,\n\t`assignee_id` text,\n\t`fields` text DEFAULT '[]' NOT NULL,\n\t`success_message` text DEFAULT 'Thanks, we got it.' NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`submit_count` integer DEFAULT 0 NOT NULL,\n\t`last_submit_at` integer,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `forms_org_idx` ON `forms` (`org_id`);",
+      "CREATE UNIQUE INDEX `forms_slug_uq` ON `forms` (`slug`);",
+      "CREATE TABLE `meetings` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`room` text NOT NULL,\n\t`guest_token` text NOT NULL,\n\t`starts_at` integer NOT NULL,\n\t`duration_min` integer DEFAULT 30 NOT NULL,\n\t`status` text DEFAULT 'scheduled' NOT NULL,\n\t`source_type` text,\n\t`source_id` text,\n\t`invitees` text DEFAULT '[]' NOT NULL,\n\t`mailbox_id` text,\n\t`invites_sent_at` integer,\n\t`ended_at` integer,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `meetings_org_idx` ON `meetings` (`org_id`,`starts_at`);",
+      "CREATE UNIQUE INDEX `meetings_guest_token_uq` ON `meetings` (`guest_token`);",
+      "CREATE INDEX `meetings_source_idx` ON `meetings` (`org_id`,`source_type`,`source_id`);",
+      "CREATE TABLE `time_entries` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`task_id` text,\n\t`project_id` text,\n\t`person_type` text DEFAULT 'member' NOT NULL,\n\t`person_id` text NOT NULL,\n\t`started_at` integer NOT NULL,\n\t`ended_at` integer,\n\t`seconds` integer DEFAULT 0 NOT NULL,\n\t`note` text DEFAULT '' NOT NULL,\n\t`billable` integer DEFAULT true NOT NULL,\n\t`source` text DEFAULT 'timer' NOT NULL,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE INDEX `time_entries_org_person_idx` ON `time_entries` (`org_id`,`person_id`,`started_at`);",
+      "CREATE INDEX `time_entries_org_project_idx` ON `time_entries` (`org_id`,`project_id`,`started_at`);",
+      "CREATE INDEX `time_entries_task_idx` ON `time_entries` (`task_id`);"
+    ]
   }
 ];
