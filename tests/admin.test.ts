@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { users } from "@/server/db/schema";
+import { enqueue, runDueJobs } from "@/server/services/jobs";
+import { recordAbuse } from "@/server/services/abuse";
 
 describe("operator console", () => {
   it("is for platform admins only, and lists every workspace", async () => {
@@ -43,5 +45,44 @@ describe("operator console", () => {
     await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "ops@acme.io"));
     expect((await a.post("/api/admin/sentry-test")).body).toEqual({ configured: true, eventId: "evt_123" });
     expect(String(reported[0])).toContain("MyMail API test event");
+  });
+
+  it("suspends, caps and restores a workspace, with every action audited", async () => {
+    const ctx = await makeTestApp();
+    const ops = new Client(ctx.app);
+    await ops.signup("ops@acme.io");
+    await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "ops@acme.io"));
+    const cus = new Client(ctx.app);
+    await cus.signup("customer@else.io", "Cus Tomer", "Else Inc");
+    const orgId = (await cus.get("/api/account/me")).body.organization.id;
+    await recordAbuse(ctx.deps, orgId, "message_held", 12, "Spam score 12");
+
+    const abuse = await ops.get("/api/admin/abuse");
+    expect(abuse.body.events[0]).toMatchObject({ workspace: "Else Inc", kind: "message_held", score: 12 });
+    expect((await cus.get("/api/admin/abuse")).status).toBe(403);
+
+    expect((await ops.post(`/api/admin/workspaces/${orgId}/suspend`, { reason: "" })).status).toBe(422);
+    expect((await ops.post(`/api/admin/workspaces/${orgId}/suspend`, { reason: "Phishing reports" })).status).toBe(200);
+    expect((await ops.put(`/api/admin/workspaces/${orgId}/send-cap`, { cap: 10 })).body.sendCapDaily).toBe(10);
+    const tenant = (await ops.get("/api/admin/overview")).body.tenants.find((t: { id: string }) => t.id === orgId);
+    expect(tenant).toMatchObject({ suspendedReason: "Phishing reports", sendCapDaily: 10 });
+
+    expect((await ops.post(`/api/admin/workspaces/${orgId}/unsuspend`)).status).toBe(200);
+    expect((await ops.get("/api/admin/abuse")).body.events).toHaveLength(0);
+    const audit = (await cus.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
+    expect(audit).toEqual(expect.arrayContaining(["workspace.suspended", "workspace.send_cap_changed", "workspace.unsuspended"]));
+  });
+
+  it("shows dead jobs and replays them", async () => {
+    const ctx = await makeTestApp();
+    const ops = new Client(ctx.app);
+    await ops.signup("ops@acme.io");
+    await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "ops@acme.io"));
+    await enqueue(ctx.deps, "test.unknown" as never, {}, { maxAttempts: 1 });
+    await runDueJobs(ctx.deps, 10);
+    const jobs = await ops.get("/api/admin/jobs");
+    expect(jobs.body.dead).toHaveLength(1);
+    expect((await ops.post("/api/admin/jobs/replay", { ids: [jobs.body.dead[0].id] })).body.replayed).toBe(1);
+    expect((await ops.get("/api/admin/jobs")).body.dead).toHaveLength(0);
   });
 });
