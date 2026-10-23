@@ -51,6 +51,10 @@ export async function sha256Hex(input: string): Promise<string> {
   return toHex(await subtle.digest("SHA-256", enc.encode(input)));
 }
 
+export async function sha256HexBytes(input: Uint8Array<ArrayBuffer> | ArrayBuffer): Promise<string> {
+  return toHex(await subtle.digest("SHA-256", input));
+}
+
 export async function hmacSha256Hex(secret: string, message: string): Promise<string> {
   const key = await subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   return toHex(await subtle.sign("HMAC", key, enc.encode(message)));

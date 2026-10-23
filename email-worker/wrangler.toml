@@ -1,0 +1,12 @@
+# Deploy with:  npx wrangler deploy   (from this folder)
+# Then in the Cloudflare dashboard: Email → Email Routing → Routes → Catch-all → "Send to a Worker" → mymail-inbound
+name = "mymail-inbound"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+MYMAIL_WEBHOOK_URL = "https://YOUR-MYMAIL-HOST/api/inbound/cloudflare"
+MYMAIL_KEY_ID = "ink_REPLACE_ME"
+# FALLBACK_FORWARD = "you@example.com"   # optional, must be a verified destination in Email Routing
+
+# Secret, never commit it:  npx wrangler secret put MYMAIL_KEY_SECRET
