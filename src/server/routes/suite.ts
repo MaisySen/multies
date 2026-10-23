@@ -9,7 +9,7 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { changesSince } from "../services/suite/common";
 import {
-  addComment, assignees, createProject, createTask, createTaskFromThread, createView, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
+  addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
   parseAssignee, taskDetail, updateProject, updateTask,
 } from "../services/suite/tasks";
 import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
@@ -31,7 +31,13 @@ export const assigneeOf = (b: TaskBody) => parseAssignee(b.assignee !== undefine
 export function projectRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/", async (c) => c.json({ projects: await listProjects(c.var.deps, c.var.auth.orgId, { includeArchived: c.req.query("archived") === "1" }) }))
+    .get("/", async (c) => {
+      const archived = c.req.query("archived") === "1";
+      let list = await listProjects(c.var.deps, c.var.auth.orgId, { includeArchived: archived });
+      // A workspace always has somewhere to put a task: the first visit makes the default project.
+      if (!list.length && !archived) { await defaultProject(c.var.deps, c.var.auth); list = await listProjects(c.var.deps, c.var.auth.orgId); }
+      return c.json({ projects: list });
+    })
     .post("/", async (c) => c.json({ project: await createProject(c.var.deps, c.var.auth, await parseBody(c, ProjectCreate)) }, 201))
     .get("/:id", async (c) => c.json({ project: await getProject(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .patch("/:id", async (c) => c.json({ project: await updateProject(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ProjectPatch)) }))

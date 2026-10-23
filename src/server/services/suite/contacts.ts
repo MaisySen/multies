@@ -14,7 +14,7 @@ const FREE_MAIL = new Set([
   "icloud.com", "me.com", "mac.com", "aol.com", "proton.me", "protonmail.com", "pm.me", "gmx.com", "zoho.com", "fastmail.com", "bigpond.com", "bigpond.net.au",
   "optusnet.com.au", "iinet.net.au", "tpg.com.au", "westnet.com.au", "internode.on.net", "dodo.com.au", "outlook.com.au", "mail.com", "hey.com",
 ]);
-const ROBOT = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notifications?|alerts?)([+._-].*)?@/i;
+const ROBOT = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounces?|notif(y|ications?)|alerts?|receipts?|calendar|dmarc(-?reports?)?|reports?|digest|updates|newsletters?|news)([+._-].*)?@/i;
 
 export const isFreeMail = (domain: string) => FREE_MAIL.has(domain.toLowerCase());
 
@@ -123,9 +123,13 @@ export async function backfillContacts(deps: Deps, orgId: string, opts: { force?
   }
   let created = 0;
   const a = system(orgId);
-  const existing = new Set((await deps.db.select({ email: contacts.email }).from(contacts).where(eq(contacts.orgId, orgId))).map((r) => r.email));
+  const existing = new Map((await deps.db.select({ id: contacts.id, email: contacts.email, name: contacts.name }).from(contacts).where(eq(contacts.orgId, orgId))).map((r) => [r.email, r]));
   for (const [email, v] of agg) {
-    if (existing.has(email)) continue;
+    const had = existing.get(email);
+    if (had) {
+      if (!had.name && v.name) await deps.db.update(contacts).set({ name: v.name, updatedAt: deps.now() }).where(eq(contacts.id, had.id));
+      continue;
+    }
     if (await isOwnAddress(deps, orgId, email, own)) continue;
     const companyId = await ensureCompany(deps, a, email.split("@")[1] ?? "");
     const now = deps.now();

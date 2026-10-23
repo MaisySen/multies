@@ -41,6 +41,13 @@ beforeEach(async () => {
 });
 
 describe("suite over the REST API", () => {
+  it("gives a new workspace its default project on the first visit", async () => {
+    const r = await c.get("/api/projects");
+    expect(r.status).toBe(200);
+    expect(r.body.projects).toEqual([expect.objectContaining({ key: "TSK", name: "Tasks" })]);
+    expect((await c.get("/api/projects")).body.projects).toHaveLength(1);
+  });
+
   it("makes a task from an email, updates it, and lists the change feed", async () => {
     await deliverInbound(ctx.deps, {
       envelopeFrom: "ravi@bondisurf.com.au", rcptTo: "hello@acme.io", sizeBytes: 300, via: "test",
