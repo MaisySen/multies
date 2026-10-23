@@ -1,0 +1,30 @@
+# Deploy MyMail itself to Cloudflare Workers + D1 (free tier is enough to start).
+#   npm run build:web && npm run build:worker
+#   npx wrangler d1 create mymail            # paste the id below
+#   npx wrangler deploy
+#   npx wrangler secret put APP_SECRET       # 32+ random chars
+#   npx wrangler secret put RESEND_API_KEY   # optional, enables external sending
+name = "mymail"
+main = "dist/worker/_worker.js"
+compatibility_date = "2026-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "dist/worker"
+binding = "ASSETS"
+not_found_handling = "none"
+run_worker_first = ["/api/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mymail"
+database_id = "REPLACE_WITH_YOUR_D1_ID"
+
+[vars]
+APP_MODE = "production"
+APP_URL = "https://mail.yourdomain.com"
+DEMO_MODE = "false"
+
+# Re-check DNS, expire sessions and purge demo sandboxes every 15 minutes.
+[triggers]
+crons = ["*/15 * * * *"]
