@@ -123,6 +123,10 @@ export interface Dashboard {
   sentToday: number;
   series: { day: string; inbound: number; outbound: number }[];
   recent: AuditEntry[];
+  onboarding: {
+    dismissed: boolean;
+    steps: { domainAdded: boolean; domainVerified: boolean; mailboxCreated: boolean; inboundConnected: boolean; firstSend: boolean; teamInvited: boolean };
+  };
 }
 
 export interface OrgInfo {

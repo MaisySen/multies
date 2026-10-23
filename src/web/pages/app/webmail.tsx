@@ -85,6 +85,13 @@ export function WebmailPage() {
     open(next?.id ?? null);
   };
   const startCompose = (d?: Partial<ComposeDraft>) => setCompose({ mailboxId: mailboxId || mailboxes[0]?.id || "", to: "", subject: "", text: "", ...d });
+  // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
+  const wantsCompose = params.get("compose") === "1";
+  useEffect(() => {
+    if (!wantsCompose || !mailboxes.length) return;
+    setCompose({ mailboxId: mailboxId || mailboxes[0].id, to: "", subject: "", text: "" });
+    setParams((p) => { const n = new URLSearchParams(p); n.delete("compose"); return n; }, { replace: true });
+  }, [wantsCompose, mailboxes, mailboxId, setParams]);
 
   // Keyboard shortcuts, Gmail-style.
   useEffect(() => {

@@ -1,10 +1,12 @@
 import { Link } from "react-router";
 import { ArrowRight, AtSign, Check, Globe, Inbox, Send, Users } from "lucide-react";
-import { useDashboard, useMe } from "@/web/lib/queries";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { qk, useDashboard, useMe } from "@/web/lib/queries";
+import { api } from "@/web/lib/api";
 import { Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { ButtonLink } from "@/web/components/ui/button";
 import { DomainStatusBadge, describeAudit } from "@/web/components/app-bits";
-import { formatBytes, timeAgo } from "@/web/lib/format";
+import { formatBytes, timeAgo, tz } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
 import { LOCALE } from "@/shared/locale";
@@ -19,9 +21,9 @@ export function DashboardPage() {
       {error && <Card className="p-6 text-sm text-bad">Couldn't load the overview: {error.message}</Card>}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
-          {data.usage.domains === 0 || data.usage.mailboxes === 0 ? <GettingStarted data={data} /> : null}
+          {!data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
           <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
-            <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub="verified" used={data.usage.domains} max={data.plan.limits.domains} />
+            <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
             <Stat icon={<Users />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
             <Stat icon={<AtSign />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
             <Stat icon={<Send />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
@@ -76,7 +78,7 @@ export function DashboardPage() {
 }
 
 function greeting() {
-  const h = new Date().getHours();
+  const h = Number(new Date().toLocaleString("en-AU", { hour: "numeric", hourCycle: "h23", timeZone: tz() }));
   return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }
 
@@ -116,25 +118,39 @@ function FlowChart({ series }: { series: Dashboard["series"] }) {
 }
 
 function GettingStarted({ data }: { data: Dashboard }) {
+  const qc = useQueryClient();
+  const st = data.onboarding.steps;
+  const firstDomain = data.domains[0];
   const steps = [
-    { done: data.usage.domains > 0, title: "Add your domain", body: "We'll generate its DKIM key and DNS records.", to: "/app/domains" },
-    { done: data.domains.some((d) => d.status === "verified"), title: "Verify DNS", body: "Publish the records; we check them live.", to: data.domains[0] ? `/app/domains/${data.domains[0].id}` : "/app/domains" },
-    { done: data.usage.mailboxes > 0, title: "Create a mailbox", body: "An inbox for you or your team.", to: "/app/mailboxes" },
-    { done: false, title: "Connect inbound mail", body: "Route your MX through Cloudflare to MyMail.", to: "/app/settings/mail#inbound" },
+    { done: st.domainAdded, title: "Add your domain", body: "We generate its DKIM key and DNS records.", to: "/app/domains" },
+    { done: st.domainVerified, title: "Publish DNS records", body: "Each record turns green as it propagates.", to: firstDomain ? `/app/domains/${firstDomain.id}` : "/app/domains" },
+    { done: st.mailboxCreated, title: "Create a mailbox", body: "An inbox for you or someone on your team.", to: "/app/mailboxes" },
+    { done: st.inboundConnected, title: "Receive your first email", body: "Route MX through Cloudflare, then send yourself a test.", to: "/app/settings/mail#inbound" },
+    { done: st.firstSend, title: "Send an email", body: "Write from your new address in Mail.", to: "/app/mail?compose=1" },
+    { done: st.teamInvited, title: "Invite your team", body: "Give people their own login and mailboxes.", to: "/app/settings/team" },
   ];
+  const doneCount = steps.filter((s) => s.done).length;
   const next = steps.findIndex((s) => !s.done);
+  const dismiss = useMutation({
+    mutationFn: () => api.post("/dashboard/onboarding/dismiss", {}),
+    onSuccess: () => qc.invalidateQueries({ queryKey: qk.dashboard }),
+  });
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-line px-5 py-4">
-        <h2 className="text-sm font-semibold">Get set up</h2>
-        <p className="text-xs text-muted">{steps.filter((s) => s.done).length} of {steps.length} done</p>
+      <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
+        <div>
+          <h2 className="text-sm font-semibold">Get set up</h2>
+          <p className="text-xs text-muted">{doneCount} of {steps.length} done</p>
+        </div>
+        <button onClick={() => dismiss.mutate()} className="rounded-md px-2 py-1 text-xs text-subtle hover:bg-hover hover:text-fg">Hide</button>
       </div>
-      <ol className="grid divide-line md:grid-cols-4 md:divide-x">
+      <div className="h-0.5 bg-line" aria-hidden><div className="h-full bg-brand transition-[width] duration-500" style={{ width: `${(doneCount / steps.length) * 100}%` }} /></div>
+      <ol className="grid sm:grid-cols-2 lg:grid-cols-3">
         {steps.map((s, i) => (
-          <li key={s.title}>
-            <Link to={s.to} className={cn("flex h-full gap-3 p-5 transition-colors hover:bg-white/[0.03]", i === next && "bg-white/[0.02]")}>
+          <li key={s.title} className="border-line [&:not(:last-child)]:border-b sm:[&:nth-child(odd)]:border-r lg:[&:nth-child(odd)]:border-r-0 lg:[&:not(:nth-child(3n))]:border-r lg:[&:nth-child(-n+3)]:border-b lg:[&:nth-child(n+4)]:border-b-0">
+            <Link to={s.to} className={cn("flex h-full gap-3 p-4 transition-colors hover:bg-white/[0.03]", i === next && "bg-white/[0.02]")} aria-current={i === next ? "step" : undefined}>
               <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold", s.done ? "border-ok/30 bg-ok-soft text-ok" : i === next ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-subtle")}>
-                {s.done ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                {s.done ? <Check className="h-3.5 w-3.5" aria-label="Done" /> : i + 1}
               </span>
               <span>
                 <span className={cn("block text-sm font-medium", s.done && "text-muted line-through decoration-subtle")}>{s.title}</span>
