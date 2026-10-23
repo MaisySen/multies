@@ -114,6 +114,14 @@ Without the token that endpoint does not exist.
 **Any Node host** (Fly, Render, a VPS): `npm run build && npm start` with `DATABASE_PATH` on a
 persistent volume.
 
+**Developer platform**: API keys (Settings, Developers), a REST API at `/api/v1` whose OpenAPI 3.1
+document (`/api/v1/openapi.json`) is generated from the request schemas by `@hono/zod-openapi`, an
+interactive reference at `/api/v1/docs` (Scalar), and outbound webhooks (`message.received`,
+`message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`) signed
+with the [Standard Webhooks](https://www.standardwebhooks.com) spec. Verify them with any Standard
+Webhooks library and the endpoint's `whsec_` secret. Failed deliveries retry with backoff for about
+nine hours.
+
 **Mail apps (IMAP and SMTP)**: MyMail drives a Stalwart mail server for Outlook, Apple Mail and
 phones. `docker compose up` runs both; see [`docs/mail-server.md`](docs/mail-server.md).
 

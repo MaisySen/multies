@@ -1,4 +1,5 @@
 import { mirrorInbound } from "../mailserver";
+import { emitEvent } from "../developer/webhooks";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
@@ -126,6 +127,9 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     });
     await logDelivery(db, { orgId: mb.orgId, messageId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "delivered", provider: d.via, detail: spam ? "Filed as spam (DMARC fail)" : `Delivered to ${mb.address}` });
     if (d.raw) await mirrorInbound(deps, mb.id, d.raw, { spam });
+    await emitEvent(deps, mb.orgId, "message.received", {
+      id: messageId, mailboxId: mb.id, to: mb.address, from: d.email.from, subject: d.email.subject ?? "", folder: spam ? "spam" : "inbox", sizeBytes: d.sizeBytes,
+    });
     return { accepted: true, code: 250, reason: "Delivered.", storedIn: [mb.id], forwardedTo: [] };
   }
 

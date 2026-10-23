@@ -19,6 +19,8 @@ import { migrationDriver, pendingMigrations } from "./db";
 import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
+import { developerRoutes } from "./routes/developer";
+import { v1Routes } from "./routes/v1";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -35,7 +37,8 @@ export function createApp(deps: Deps) {
     c.header("cache-control", "no-store");
   });
   app.use("/api/*", async (c, next) => {
-    if (c.req.path.startsWith("/api/inbound/") || c.req.path.startsWith("/api/webhooks/")) return next(); // signed webhooks, not cookie auth
+    // Signed webhooks and the API-key REST API never use cookies, so CSRF does not apply.
+    if (c.req.path.startsWith("/api/inbound/") || c.req.path.startsWith("/api/webhooks/") || c.req.path.startsWith("/api/v1/")) return next();
     return csrfGuard(c, next);
   });
 
@@ -82,6 +85,8 @@ export function createApp(deps: Deps) {
   app.route("/api/invites", inviteRoutes());
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
+  app.route("/api/developer", developerRoutes());
+  app.route("/api/v1", v1Routes());
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());

@@ -300,3 +300,48 @@ export const appPasswords = sqliteTable("app_passwords", {
   hint: text("hint").notNull(),
   createdAt: createdAt(),
 }, (t) => [index("app_passwords_mailbox_idx").on(t.mailboxId), index("app_passwords_org_idx").on(t.orgId)]);
+
+/** API keys for the public REST API (/api/v1). Only a SHA-256 hash of the key is stored. */
+export const apiKeys = sqliteTable("api_keys", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  /** Shown in lists so people can tell keys apart, e.g. `mm_live_3kf9`. */
+  prefix: text("prefix").notNull(),
+  keyHash: text("key_hash").notNull(),
+  /** `full` or `read`. */
+  scope: text("scope", { enum: ["full", "read"] }).notNull().default("full"),
+  lastUsedAt: ts("last_used_at"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("api_keys_hash_uq").on(t.keyHash), index("api_keys_org_idx").on(t.orgId)]);
+
+/** Outbound webhook endpoints, signed per the Standard Webhooks spec. */
+export const webhookEndpoints = sqliteTable("webhook_endpoints", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  description: text("description"),
+  /** JSON string[] of event types, or ["*"]. */
+  events: text("events").notNull(),
+  /** `whsec_...`, encrypted with APP_SECRET. */
+  secretEnc: text("secret_enc").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [index("webhook_endpoints_org_idx").on(t.orgId)]);
+
+/** One attempt series per event per endpoint. Failed deliveries retry with backoff. */
+export const webhookDeliveries = sqliteTable("webhook_deliveries", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  endpointId: text("endpoint_id").notNull().references(() => webhookEndpoints.id, { onDelete: "cascade" }),
+  eventType: text("event_type").notNull(),
+  payload: text("payload").notNull(),
+  status: text("status", { enum: ["pending", "delivered", "failed"] }).notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  responseStatus: integer("response_status"),
+  lastError: text("last_error"),
+  nextAttemptAt: ts("next_attempt_at"),
+  deliveredAt: ts("delivered_at"),
+  createdAt: createdAt(),
+}, (t) => [index("webhook_deliveries_endpoint_idx").on(t.endpointId, t.createdAt), index("webhook_deliveries_due_idx").on(t.status, t.nextAttemptAt)]);

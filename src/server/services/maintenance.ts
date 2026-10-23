@@ -1,3 +1,4 @@
+import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
 import { sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
@@ -14,7 +15,9 @@ export async function runMaintenance(deps: Deps) {
   await deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now()));
   await deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now()));
   const purged = deps.config.demoEnabled ? await purgeDemoWorkspaces(deps) : 0;
-  return { rechecked: rechecked.length, purged };
+  const webhooksRetried = await retryDueDeliveries(deps);
+  await pruneDeliveries(deps);
+  return { rechecked: rechecked.length, purged, webhooksRetried };
 }
 
 /**

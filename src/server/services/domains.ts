@@ -1,3 +1,4 @@
+import { emitEvent } from "./developer/webhooks";
 import { and, asc, count, eq, lt, or, isNull } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
@@ -76,7 +77,11 @@ export async function verifyDomain(deps: Deps, d: DomainRow) {
   await deps.db.update(domains)
     .set({ lastCheck: JSON.stringify(report), lastCheckedAt: now, status, verifiedAt })
     .where(eq(domains.id, d.id));
-  return { report, status, changed: status !== d.status };
+  const changed = status !== d.status;
+  if (changed && (status === "verified" || status === "failed")) {
+    await emitEvent(deps, d.orgId, status === "verified" ? "domain.verified" : "domain.failed", { id: d.id, name: d.name, status });
+  }
+  return { report, status, changed };
 }
 
 /** Re-checks domains not checked in `staleMs`. Called on an interval / cron. */

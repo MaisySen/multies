@@ -1,3 +1,4 @@
+import { emitEvent } from "../developer/webhooks";
 import { and, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, messages } from "../../db/schema";
@@ -114,5 +115,9 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       }
     }
   }
+  await emitEvent(deps, auth.orgId, "message.sent", {
+    id: sentId, mailboxId: mb.id, from: mb.address, to: input.to, cc: input.cc ?? [], subject: input.subject,
+    recipients: [...result.internal.map((address) => ({ address, status: "delivered" })), ...result.external],
+  });
   return result;
 }

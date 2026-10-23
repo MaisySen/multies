@@ -137,5 +137,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `mail_server_accounts` (\n\t`mailbox_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`server_account_id` text NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `mail_server_accounts_org_idx` ON `mail_server_accounts` (`org_id`);"
     ]
+  },
+  {
+    "name": "0007_developer_platform",
+    "statements": [
+      "CREATE TABLE `api_keys` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by_user_id` text,\n\t`name` text NOT NULL,\n\t`prefix` text NOT NULL,\n\t`key_hash` text NOT NULL,\n\t`scope` text DEFAULT 'full' NOT NULL,\n\t`last_used_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE UNIQUE INDEX `api_keys_hash_uq` ON `api_keys` (`key_hash`);",
+      "CREATE INDEX `api_keys_org_idx` ON `api_keys` (`org_id`);",
+      "CREATE TABLE `webhook_deliveries` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`endpoint_id` text NOT NULL,\n\t`event_type` text NOT NULL,\n\t`payload` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`attempts` integer DEFAULT 0 NOT NULL,\n\t`response_status` integer,\n\t`last_error` text,\n\t`next_attempt_at` integer,\n\t`delivered_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`endpoint_id`) REFERENCES `webhook_endpoints`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `webhook_deliveries_endpoint_idx` ON `webhook_deliveries` (`endpoint_id`,`created_at`);",
+      "CREATE INDEX `webhook_deliveries_due_idx` ON `webhook_deliveries` (`status`,`next_attempt_at`);",
+      "CREATE TABLE `webhook_endpoints` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`url` text NOT NULL,\n\t`description` text,\n\t`events` text NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `webhook_endpoints_org_idx` ON `webhook_endpoints` (`org_id`);"
+    ]
   }
 ];
