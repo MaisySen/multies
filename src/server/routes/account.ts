@@ -29,10 +29,18 @@ export function accountRoutes() {
       if (!demoLimiter.take(c.var.ip)) throw tooMany();
       const { headers } = await createDemoWorkspace(c.var.deps);
       for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
-      // Seed the sample tasks, docs and deals straight after the response rather than at the next cron.
-      const seed = new Promise((r) => setTimeout(r, 1000)).then(() => runDueJobs(c.var.deps, 5)).catch(() => undefined);
-      try { c.executionCtx.waitUntil(seed); } catch { /* Node and tests have no execution context; the promise runs anyway. */ }
       return c.json({ ok: true }, 201);
+    })
+    /**
+     * Seeds the demo's sample tasks, docs and deals. The app calls it straight after opening a
+     * demo. It runs in its own request because the seed and the workspace together make more
+     * queries than one Workers invocation may.
+     */
+    .post("/demo/seed", requireAuth, async (c) => {
+      const org = await c.var.deps.db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, c.var.auth.orgId)).get();
+      if (!org?.isDemo) throw notFound("Demo");
+      const r = await runDueJobs(c.var.deps, 1, { types: ["demo.seed_suite"], orgId: c.var.auth.orgId });
+      return c.json({ ok: true, ran: r.ran });
     })
     .use("*", requireAuth)
     .get("/me", async (c) => {

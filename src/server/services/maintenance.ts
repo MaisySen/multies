@@ -30,20 +30,22 @@ export async function runMaintenance(deps: Deps) {
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); } catch (err) { deps.log?.error("maintenance.step_failed", { step: name, error: err }); deps.reportError?.(err, { maintenance: name }); return undefined; }
   };
-  const jobsRun = await step("jobs", () => runDueJobs(deps, 50));
+  // The demo seed makes hundreds of queries, enough with the other steps to pass the Workers
+  // limit on calls per invocation, so it runs in its own request (POST /api/account/demo/seed).
+  // Each run takes at most 20 jobs and about 10 seconds of them; the rest wait five minutes.
+  const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   const uptime = await step("uptime", () => recordUptimeCheck(deps));
   const crossChecks = await step("cross_check", () => crossCheck(deps));
   const legacy = await step("legacy", () => legacyMaintenance(deps));
   const dunning = await step("dunning", () => enforceGracePeriods(deps));
   const approvalsExpired = await step("approvals", () => expireApprovals(deps));
   const reminders = await step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps));
+  // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
-    await pruneRateLimits(deps.db, deps.now().getTime());
-    await pruneIdempotencyKeys(deps.db, deps.now());
-    await pruneLockouts(deps.db, deps.now());
-    await pruneJobs(deps);
-    await pruneAgentEvents(deps);
-    await pruneImports(deps);
+    await Promise.all([
+      pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),
+      pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
+    ]);
   });
   return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders };
 }

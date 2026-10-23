@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { purgeDemoWorkspaces } from "@/server/services/demo";
 import { runDueJobs } from "@/server/services/jobs";
+import { runMaintenance } from "@/server/services/maintenance";
 
 describe("demo mode", () => {
   it("is off unless DEMO_MODE is set, so production never seeds", async () => {
@@ -59,7 +60,11 @@ describe("demo mode", () => {
     const ctx = await makeTestApp({ DEMO_MODE: "true" });
     const c = new Client(ctx.app);
     expect((await c.post("/api/account/demo")).status).toBe(201);
-    await runDueJobs(ctx.deps);
+    // Housekeeping leaves the seed alone: it is too big to share an invocation with other work.
+    await runMaintenance(ctx.deps);
+    expect((await c.get("/api/docs")).body.docs).toHaveLength(0);
+    expect((await c.post("/api/account/demo/seed")).body).toMatchObject({ ok: true, ran: 1 });
+    expect((await c.post("/api/account/demo/seed")).body).toMatchObject({ ok: true, ran: 0 });
     const projects = (await c.get("/api/projects")).body.projects;
     expect(projects.map((p: { key: string }) => p.key).sort()).toEqual(["BHM", "TSK"]);
     const tasks = (await c.get("/api/tasks")).body.tasks as { title: string; source: unknown; due: string | null }[];
@@ -79,6 +84,13 @@ describe("demo mode", () => {
     expect((await c.get("/api/tasks")).body.tasks).toHaveLength(tasks.length);
     expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
     expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
+  });
+
+  it("seeds a demo opened from the mobile app the first time it lists tasks", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    expect((await c.get("/api/tasks")).body.tasks.length).toBeGreaterThanOrEqual(10);
   });
 
   it("purges expired sandboxes", async () => {

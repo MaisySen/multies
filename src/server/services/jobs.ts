@@ -9,7 +9,7 @@
  * minutes plus a drain after each request), on Node (a timer) and on the hosted
  * preview, which cannot bind a queue. docs/architecture/queues.md covers the swap.
  */
-import { and, asc, desc, eq, inArray, lt, lte, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import { jobs } from "../db/schema";
 import { newId } from "../lib/crypto";
@@ -55,14 +55,22 @@ const LEASE_MS = 2 * 60_000;
  * workers running at once never take the same job; a crashed worker's lease expires
  * and the job runs again.
  */
-export async function runDueJobs(deps: Deps, limit = 25): Promise<{ ran: number; failed: number; dead: number }> {
+export async function runDueJobs(deps: Deps, limit = 25, only: { types?: JobType[]; excludeTypes?: JobType[]; orgId?: string; budgetMs?: number } = {}): Promise<{ ran: number; failed: number; dead: number }> {
   const now = deps.now();
-  const due = await deps.db.select().from(jobs).where(or(
-    and(eq(jobs.status, "pending"), lte(jobs.runAt, now)),
-    and(eq(jobs.status, "running"), lt(jobs.lockedUntil, now)),
+  const started = Date.now();
+  const due = await deps.db.select().from(jobs).where(and(
+    or(
+      and(eq(jobs.status, "pending"), lte(jobs.runAt, now)),
+      and(eq(jobs.status, "running"), lt(jobs.lockedUntil, now)),
+    ),
+    only.types ? inArray(jobs.type, only.types) : undefined,
+    only.excludeTypes ? notInArray(jobs.type, only.excludeTypes) : undefined,
+    only.orgId ? eq(jobs.orgId, only.orgId) : undefined,
   )).orderBy(asc(jobs.runAt)).limit(limit);
   let ran = 0, failed = 0, dead = 0;
   for (const job of due) {
+    // Leave the rest for the next run rather than run past this invocation's budget.
+    if (only.budgetMs !== undefined && Date.now() - started > only.budgetMs) break;
     const lease = new Date(now.getTime() + LEASE_MS);
     const claimed = await deps.db.update(jobs).set({ status: "running", lockedUntil: lease, updatedAt: now })
       .where(and(eq(jobs.id, job.id), eq(jobs.status, job.status), job.lockedUntil ? eq(jobs.lockedUntil, job.lockedUntil) : sql`${jobs.lockedUntil} IS NULL`))

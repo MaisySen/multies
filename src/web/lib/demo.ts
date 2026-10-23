@@ -15,6 +15,8 @@ export function useStartDemo() {
       await api.post("/account/demo");
       qc.clear();
       navigate("/app");
+      // Sample tasks, docs and deals are seeded in a second request, while the dashboard loads.
+      void api.post("/account/demo/seed").then(() => qc.invalidateQueries()).catch(() => undefined);
     } catch (err) {
       toast.error(err instanceof ApiError && err.status === 404 ? "The live demo isn't enabled on this server." : err instanceof Error ? err.message : "Couldn't open the demo.");
     } finally {
