@@ -118,7 +118,7 @@ describe("sending", () => {
     expect(sent.status).toBe(201);
     expect(sent.body.internal).toEqual(["team@acme.io"]);
     expect(sent.body.external).toEqual([{ address: "partner@example.com", status: "queued", detail: expect.stringContaining("No outbound provider") }]);
-    expect(ctx.outbound.sent[0].to).toEqual(["partner@example.com"]);
+    expect(ctx.outbound.sent.find((m) => m.subject === "Kickoff")!.to).toEqual(["partner@example.com"]);
 
     const received = (await c.get(`/api/mail/messages?mailboxId=${team.id}&folder=inbox`)).body.messages[0];
     expect(received.subject).toBe("Kickoff");

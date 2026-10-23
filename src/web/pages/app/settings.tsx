@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
+import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
 import { Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -64,8 +65,8 @@ function DangerZone() {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState("");
   const del = useMutation({
-    mutationFn: () => api.del<{ signedOut: boolean }>("/auth/workspace", { password }),
-    onSuccess: (r) => { qc.clear(); toast.success("Workspace deleted"); navigate(r.signedOut ? "/" : "/app"); },
+    mutationFn: () => api.del<{ remaining: boolean }>("/account/workspace", { password }),
+    onSuccess: () => { qc.clear(); toast.success("Workspace deleted"); navigate("/app"); },
   });
   if (me.data?.organization?.role !== "owner") return null;
   return (
@@ -216,12 +217,12 @@ export function AccountSection() {
   const [deleting, setDeleting] = useState(false);
   const [confirmPw, setConfirmPw] = useState("");
   const change = useMutation({
-    mutationFn: () => api.post("/auth/password", { currentPassword: current, newPassword: next }),
+    mutationFn: () => unwrap(authClient.changePassword({ currentPassword: current, newPassword: next, revokeOtherSessions: true })),
     onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
     onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else toast.error(e.message); },
   });
   const del = useMutation({
-    mutationFn: () => api.del("/auth/account", { password: confirmPw }),
+    mutationFn: () => unwrap(authClient.deleteUser({ password: confirmPw })),
     onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
     onError: (e) => toast.error(e.message),
   });

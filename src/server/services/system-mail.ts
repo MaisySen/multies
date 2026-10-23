@@ -64,6 +64,8 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
   }
 
   if (deps.outbound.name === "log") {
+    // Recorded by the log transport (development and tests); nothing leaves the platform.
+    await deps.outbound.send({ from: config.systemFrom, to: [to], subject: e.subject, text, html, messageId }).catch(() => undefined);
     return { delivered: false, via: "none", detail: "Email delivery isn't connected on this deployment." };
   }
   try {

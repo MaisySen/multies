@@ -10,6 +10,7 @@ import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
+import { authClient } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -47,7 +48,7 @@ export function AppLayout() {
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {
-    try { await api.post("/auth/logout"); } catch { /* already signed out */ }
+    try { await authClient.signOut(); } catch { /* already signed out */ }
     qc.clear();
     navigate("/login");
   };
@@ -130,13 +131,13 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
   const [error, setError] = useState<string | null>(null);
   const go = async (id: string) => {
     if (id === current?.id) return;
-    await api.post(`/auth/workspaces/${id}/switch`);
+    await api.post(`/account/workspaces/${id}/switch`);
     qc.clear();
     navigate("/app");
   };
   const create = async () => {
     setBusy(true); setError(null);
-    try { await api.post("/auth/workspaces", { name }); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
+    try { await api.post("/account/workspaces", { name }); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
     catch (e) { setError(e instanceof Error ? e.message : "Couldn't create it."); }
     finally { setBusy(false); }
   };

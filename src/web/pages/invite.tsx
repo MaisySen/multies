@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Users } from "lucide-react";
+import { authClient } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { Button, ButtonLink } from "@/web/components/ui/button";
@@ -58,7 +59,7 @@ export function InvitePage() {
       ) : signedInAs ? (
         <>
           <p className="mt-6 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">You're signed in as {signedInAs}. This invitation is for {inv.email}.</p>
-          <Button size="lg" variant="secondary" className="mt-3 w-full" onClick={async () => { await api.post("/auth/logout").catch(() => {}); qc.clear(); navigate(`/login?email=${encodeURIComponent(inv.email)}&next=${next}`); }}>Sign in as {inv.email}</Button>
+          <Button size="lg" variant="secondary" className="mt-3 w-full" onClick={async () => { await authClient.signOut().catch(() => {}); qc.clear(); navigate(`/login?email=${encodeURIComponent(inv.email)}&next=${next}`); }}>Sign in as {inv.email}</Button>
         </>
       ) : inv.hasAccount ? (
         <ButtonLink size="lg" className="mt-6 w-full" to={`/login?email=${encodeURIComponent(inv.email)}&next=${next}`}>Sign in to accept</ButtonLink>

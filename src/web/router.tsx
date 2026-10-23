@@ -4,7 +4,7 @@ import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { PricingPage } from "./pages/pricing";
-import { ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage, VerifyEmailPage } from "./pages/auth";
+import { EmailVerifiedPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "./pages/auth";
 import { NotFound } from "./pages/not-found";
 import { AppSkeleton } from "./layouts/app-skeleton";
 
@@ -41,8 +41,8 @@ export const router = createBrowserRouter([
       { path: "/signup", element: <SignupPage /> },
       { path: "/invite/:token", element: page(<InvitePage />) },
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
-      { path: "/reset-password/:token", element: <ResetPasswordPage /> },
-      { path: "/verify-email/:token", element: <VerifyEmailPage /> },
+      { path: "/reset-password", element: <ResetPasswordPage /> },
+      { path: "/email-verified", element: <EmailVerifiedPage /> },
     ],
   },
   {

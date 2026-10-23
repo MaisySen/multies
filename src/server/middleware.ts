@@ -1,16 +1,48 @@
 import type { Context, MiddlewareHandler } from "hono";
-import { getCookie } from "hono/cookie";
 import type { ZodType } from "zod";
-import type { AppEnv } from "./context";
+import { and, eq } from "drizzle-orm";
+import type { AppEnv, AuthContext, Deps } from "./context";
 import { forbidden, HttpError, unauthorized, zodToHttp } from "./lib/errors";
-import { resolveSession, SESSION_COOKIE } from "./services/auth";
+import { authFor } from "./auth";
+import { members, organizations, sessions } from "./db/schema";
+import { newId } from "./lib/crypto";
+import { audit } from "./services/audit";
+
+/**
+ * Resolves the Better Auth session and the workspace it points at. Someone with no
+ * workspace yet (a brand-new or social sign-in) gets a personal one here, so every
+ * sign-in path ends in the same place.
+ */
+export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthContext | null> {
+  const s = await authFor(deps).api.getSession({ headers });
+  if (!s) return null;
+  const { db } = deps;
+  let member = s.session.activeOrganizationId
+    ? await db.select().from(members).where(and(eq(members.userId, s.user.id), eq(members.organizationId, s.session.activeOrganizationId))).get()
+    : undefined;
+  member ??= await db.select().from(members).where(eq(members.userId, s.user.id)).get();
+  if (!member) {
+    const orgId = newId("org");
+    await db.insert(organizations).values({ id: orgId, name: `${s.user.name.split(" ")[0] || "My"}'s workspace`, slug: orgId });
+    const memberId = newId("mem");
+    await db.insert(members).values({ id: memberId, organizationId: orgId, userId: s.user.id, role: "owner" });
+    member = (await db.select().from(members).where(eq(members.id, memberId)).get())!;
+    await audit(db, { orgId, actorUserId: s.user.id, actorEmail: s.user.email, action: "account.created" });
+  }
+  if (member.organizationId !== s.session.activeOrganizationId) {
+    await db.update(sessions).set({ activeOrganizationId: member.organizationId }).where(eq(sessions.id, s.session.id));
+  }
+  return {
+    userId: s.user.id, email: s.user.email, name: s.user.name, orgId: member.organizationId, role: member.role,
+    sessionId: s.session.id, emailVerified: s.user.emailVerified, twoFactor: !!s.user.twoFactorEnabled,
+    platformRole: s.user.role ?? "user",
+  };
+}
 
 /** Requires a valid session; populates `c.var.auth`. */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const token = getCookie(c, SESSION_COOKIE);
-  if (!token) throw unauthorized();
-  const auth = await resolveSession(c.var.deps.db, token, c.var.deps.now());
-  if (!auth) throw unauthorized("Your session has expired. Sign in again.");
+  const auth = await resolveAuth(c.var.deps, c.req.raw.headers);
+  if (!auth) throw unauthorized();
   c.set("auth", auth);
   await next();
 };

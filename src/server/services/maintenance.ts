@@ -2,7 +2,8 @@ import { sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { appSettings } from "../db/schema";
-import { purgeExpiredSessions } from "./auth";
+import { lt } from "drizzle-orm";
+import { sessions, verifications } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { randomToken } from "../lib/crypto";
@@ -10,7 +11,8 @@ import { randomToken } from "../lib/crypto";
 /** Periodic housekeeping: re-check DNS, expire sessions, purge old sandboxes. */
 export async function runMaintenance(deps: Deps) {
   const rechecked = await recheckStaleDomains(deps);
-  await purgeExpiredSessions(deps.db, deps.now());
+  await deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now()));
+  await deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now()));
   const purged = deps.config.demoEnabled ? await purgeDemoWorkspaces(deps) : 0;
   return { rechecked: rechecked.length, purged };
 }

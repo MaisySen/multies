@@ -1,138 +1,140 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import * as OTPAuth from "otpauth";
 import { makeTestApp, Client } from "./helpers";
-import { stepAt, totpCode, base32Decode, base32Encode, verifyTotp } from "@/server/lib/totp";
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 beforeEach(async () => { ctx = await makeTestApp(); });
 
-const tokenOf = (link: string) => link.split("/").pop()!;
-
-describe("TOTP primitives", () => {
-  it("matches the RFC 6238 SHA-1 test vectors", async () => {
-    const secret = base32Encode(new TextEncoder().encode("12345678901234567890"));
-    // RFC 6238 Appendix B: T=59 -> 94287082, T=1111111109 -> 07081804 (8 digits; we use the last 6)
-    expect(await totpCode(secret, Math.floor(59 / 30))).toBe("287082");
-    expect(await totpCode(secret, Math.floor(1111111109 / 30))).toBe("081804");
-    expect(await totpCode(secret, Math.floor(2000000000 / 30))).toBe("279037");
-  });
-  it("round-trips base32 and refuses replays", async () => {
-    const bytes = new Uint8Array([0, 1, 2, 250, 255, 7]);
-    expect([...base32Decode(base32Encode(bytes))]).toEqual([...bytes]);
-    const secret = base32Encode(new Uint8Array(20).fill(7));
-    const now = new Date();
-    const code = await totpCode(secret, stepAt(now));
-    const step = await verifyTotp(secret, code, now);
-    expect(step).toBe(stepAt(now));
-    expect(await verifyTotp(secret, code, now, step)).toBeNull();
-  });
-});
+/** The newest link the app emailed to `to` (the log transport records every account email). */
+function linkSentTo(to: string, contains: string) {
+  const msg = [...ctx.outbound.sent].reverse().find((m) => m.to.includes(to) && m.text.includes(contains));
+  if (!msg) throw new Error(`no email to ${to} containing ${contains}`);
+  return msg.text.match(/https?:\/\/\S+/g)!.find((u) => u.includes(contains))!;
+}
 
 describe("password reset", () => {
   it("resets with an emailed link, signs out every session and refuses reuse", async () => {
     const a = new Client(ctx.app);
     await a.signup("reset@example.com");
     const anon = new Client(ctx.app);
-    const r = await anon.post("/api/auth/password/forgot", { email: "reset@example.com" });
+    const r = await anon.post("/api/auth/request-password-reset", { email: "reset@example.com", redirectTo: "/reset-password" });
     expect(r.status).toBe(200);
-    expect(r.body.devLink).toContain("/reset-password/");
-    const token = tokenOf(r.body.devLink);
-    expect((await anon.get(`/api/auth/password/reset/${token}`)).body.email).toMatch(/^re•+@example\.com$/);
-    expect((await anon.post("/api/auth/password/reset", { token, password: "short" })).status).toBe(422);
-    expect((await anon.post("/api/auth/password/reset", { token, password: "brand-new-password" })).status).toBe(200);
-    expect((await a.get("/api/auth/me")).status).toBe(401);
-    expect((await anon.post("/api/auth/password/reset", { token, password: "another-new-password" })).status).toBe(410);
-    expect((await new Client(ctx.app).post("/api/auth/login", { email: "reset@example.com", password: "brand-new-password" })).status).toBe(200);
+    const link = linkSentTo("reset@example.com", "/api/auth/reset-password/");
+    // The emailed link checks the token, then hands it to the reset page.
+    const res = await ctx.app.request(new URL(link).pathname + new URL(link).search, { headers: { host: "localhost" } });
+    expect(res.status).toBe(302);
+    const token = new URL(res.headers.get("location")!, "http://x").searchParams.get("token")!;
+    expect(token).toBeTruthy();
+    expect((await anon.post("/api/auth/reset-password", { token, newPassword: "short" })).status).toBe(400);
+    expect((await anon.post("/api/auth/reset-password", { token, newPassword: "brand-new-password" })).status).toBe(200);
+    expect((await a.get("/api/account/me")).status).toBe(401);
+    expect((await anon.post("/api/auth/reset-password", { token, newPassword: "another-new-password" })).status).toBe(400);
+    expect((await new Client(ctx.app).login("reset@example.com", "brand-new-password")).status).toBe(200);
   });
 
-  it("answers the same for unknown emails and never returns the link in production", async () => {
-    const prod = await makeTestApp({ APP_MODE: "production" });
-    const c = new Client(prod.app);
-    await c.signup("prod@example.com");
-    const known = await c.post("/api/auth/password/forgot", { email: "prod@example.com" });
-    const unknown = await c.post("/api/auth/password/forgot", { email: "nobody@example.com" });
+  it("answers the same for unknown emails", async () => {
+    const c = new Client(ctx.app);
+    await c.signup("known@example.com");
+    const known = await c.post("/api/auth/request-password-reset", { email: "known@example.com", redirectTo: "/reset-password" });
+    const unknown = await c.post("/api/auth/request-password-reset", { email: "nobody@example.com", redirectTo: "/reset-password" });
+    expect(known.status).toBe(unknown.status);
     expect(known.body).toEqual(unknown.body);
-    expect(known.body.devLink).toBeUndefined();
   });
 });
 
 describe("email verification", () => {
-  it("verifies with the link from the signup email", async () => {
+  it("emails a link on signup that marks the address verified", async () => {
     const a = new Client(ctx.app);
     await a.signup("verify@example.com");
-    expect((await a.get("/api/auth/me")).body.user.emailVerified).toBe(false);
-    const sent = await a.post("/api/auth/security/verify-email/send");
-    expect(sent.body.devLink).toContain("/verify-email/");
-    expect((await new Client(ctx.app).post("/api/auth/verify-email", { token: tokenOf(sent.body.devLink) })).status).toBe(200);
-    expect((await a.get("/api/auth/me")).body.user.emailVerified).toBe(true);
-    expect((await a.post("/api/auth/security/verify-email/send")).body.alreadyVerified).toBe(true);
+    expect((await a.get("/api/account/me")).body.user.emailVerified).toBe(false);
+    const link = new URL(linkSentTo("verify@example.com", "/api/auth/verify-email"));
+    const res = await ctx.app.request(link.pathname + link.search, { headers: { host: "localhost" } });
+    expect([200, 302]).toContain(res.status);
+    expect((await a.get("/api/account/me")).body.user.emailVerified).toBe(true);
   });
 });
 
 describe("two-factor authentication", () => {
   async function enable(c: Client) {
-    const setup = await c.post("/api/auth/security/2fa/setup");
-    expect(setup.body.uri).toMatch(/^otpauth:\/\/totp\//);
-    const secret = setup.body.secret as string;
-    expect((await c.post("/api/auth/security/2fa/enable", { code: "000000" })).status).toBe(422);
-    const ok = await c.post("/api/auth/security/2fa/enable", { code: await totpCode(secret, stepAt(new Date())) });
-    expect(ok.body.recoveryCodes).toHaveLength(10);
-    return { secret, codes: ok.body.recoveryCodes as string[] };
+    const r = await c.post("/api/auth/two-factor/enable", { password: "a-strong-password" });
+    expect(r.status).toBe(200);
+    expect(r.body.totpURI).toMatch(/^otpauth:\/\/totp\//);
+    expect(r.body.backupCodes).toHaveLength(10);
+    const totp = OTPAuth.URI.parse(r.body.totpURI) as OTPAuth.TOTP;
+    expect((await c.post("/api/auth/two-factor/verify-totp", { code: "000000" })).status).toBe(401);
+    expect((await c.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+    return { totp, codes: r.body.backupCodes as string[] };
   }
 
-  it("requires a code after the password, and accepts each recovery code once", async () => {
+  it("asks for a code after the password, and accepts each backup code once", async () => {
     const a = new Client(ctx.app);
     await a.signup("mfa@example.com");
-    const { secret, codes } = await enable(a);
-    expect((await a.get("/api/auth/security")).body.twoFactor).toMatchObject({ enabled: true, recoveryCodesLeft: 10 });
+    const { totp, codes } = await enable(a);
+    expect((await a.get("/api/account/me")).body.user.twoFactor).toBe(true);
 
     const b = new Client(ctx.app);
-    const first = await b.post("/api/auth/login", { email: "mfa@example.com", password: "a-strong-password" });
-    expect(first.body).toMatchObject({ mfaRequired: true });
-    expect(b.cookie).toBe("");
-    expect((await b.get("/api/auth/me")).status).toBe(401);
-    // The code used to enable 2FA can't be replayed, so use the next step's code.
-    const next = await totpCode(secret, stepAt(new Date()) + 1);
-    expect((await b.post("/api/auth/login/2fa", { ticket: first.body.ticket, code: next })).status).toBe(200);
-    expect((await b.get("/api/auth/me")).status).toBe(200);
+    const first = await b.login("mfa@example.com");
+    expect(first.body).toMatchObject({ twoFactorRedirect: true });
+    expect(b.jar.has("mymail.session_token")).toBe(false);
+    expect((await b.get("/api/account/me")).status).toBe(401);
+    expect((await b.post("/api/auth/two-factor/verify-totp", { code: totp.generate() })).status).toBe(200);
+    expect((await b.get("/api/account/me")).status).toBe(200);
 
     const c = new Client(ctx.app);
-    const t2 = (await c.post("/api/auth/login", { email: "mfa@example.com", password: "a-strong-password" })).body.ticket;
-    const rc = await c.post("/api/auth/login/2fa", { ticket: t2, code: codes[0].toUpperCase() });
-    expect(rc.body).toMatchObject({ ok: true, usedRecoveryCode: true });
+    await c.login("mfa@example.com");
+    expect((await c.post("/api/auth/two-factor/verify-backup-code", { code: codes[0] })).status).toBe(200);
+    expect((await c.get("/api/account/me")).status).toBe(200);
     const d = new Client(ctx.app);
-    const t3 = (await d.post("/api/auth/login", { email: "mfa@example.com", password: "a-strong-password" })).body.ticket;
-    expect((await d.post("/api/auth/login/2fa", { ticket: t3, code: codes[0] })).status).toBe(422);
-    expect((await a.get("/api/auth/security")).body.twoFactor.recoveryCodesLeft).toBe(9);
+    await d.login("mfa@example.com");
+    expect((await d.post("/api/auth/two-factor/verify-backup-code", { code: codes[0] })).status).toBe(401);
   });
 
-  it("locks a ticket after five wrong codes and can be turned off with the password", async () => {
+  it("turns off only with the password", async () => {
     const a = new Client(ctx.app);
-    await a.signup("lock@example.com");
+    await a.signup("off@example.com");
     await enable(a);
+    expect((await a.post("/api/auth/two-factor/disable", { password: "wrong-password" })).status).toBe(400);
+    expect((await a.post("/api/auth/two-factor/disable", { password: "a-strong-password" })).status).toBe(200);
     const b = new Client(ctx.app);
-    const t = (await b.post("/api/auth/login", { email: "lock@example.com", password: "a-strong-password" })).body.ticket;
-    for (let i = 0; i < 4; i++) expect((await b.post("/api/auth/login/2fa", { ticket: t, code: "123456" })).status).toBe(422);
-    expect((await b.post("/api/auth/login/2fa", { ticket: t, code: "123456" })).status).toBe(401);
-    expect((await b.post("/api/auth/login/2fa", { ticket: t, code: "123456" })).status).toBe(401);
-    expect((await a.post("/api/auth/security/2fa/disable", { password: "wrong" })).status).toBe(422);
-    expect((await a.post("/api/auth/security/2fa/disable", { password: "a-strong-password" })).status).toBe(200);
-    expect((await new Client(ctx.app).post("/api/auth/login", { email: "lock@example.com", password: "a-strong-password" })).body.ok).toBe(true);
+    expect((await b.login("off@example.com")).body.twoFactorRedirect).toBeUndefined();
   });
 });
 
-describe("sessions and devices", () => {
-  it("lists devices and signs one out", async () => {
+describe("sessions", () => {
+  it("lists sessions with device details and revokes the others", async () => {
     const a = new Client(ctx.app);
-    await a.signup("dev@example.com");
+    await a.signup("multi@example.com");
     const b = new Client(ctx.app);
-    await b.call("POST", "/api/auth/login", { email: "dev@example.com", password: "a-strong-password" }, { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1" });
-    const list = await a.get("/api/auth/sessions");
-    expect(list.body.sessions).toHaveLength(2);
-    const phone = list.body.sessions.find((s: { current: boolean }) => !s.current);
-    expect(phone.device).toMatchObject({ browser: "Safari", os: "iOS", mobile: true });
-    const cur = list.body.sessions.find((s: { current: boolean }) => s.current);
-    expect((await a.del(`/api/auth/sessions/${cur.id}`)).status).toBe(400);
-    expect((await a.del(`/api/auth/sessions/${phone.id}`)).status).toBe(200);
-    expect((await b.get("/api/auth/me")).status).toBe(401);
+    await b.call("POST", "/api/auth/sign-in/email", { email: "multi@example.com", password: "a-strong-password" }, { "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Safari/604.1" });
+    const list = await a.get("/api/auth/list-sessions");
+    expect(list.body).toHaveLength(2);
+    expect(list.body.some((s: { userAgent: string }) => s.userAgent.includes("iPhone"))).toBe(true);
+    expect((await a.post("/api/auth/revoke-other-sessions")).status).toBe(200);
+    expect((await b.get("/api/account/me")).status).toBe(401);
+    expect((await a.get("/api/account/me")).status).toBe(200);
+  });
+
+  it("changes the password and signs out other sessions", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("pw@example.com");
+    const b = new Client(ctx.app);
+    await b.login("pw@example.com");
+    const wrong = await a.post("/api/auth/change-password", { currentPassword: "nope-nope-nope", newPassword: "another-strong-one", revokeOtherSessions: true });
+    expect(wrong.status).toBe(400);
+    expect((await a.post("/api/auth/change-password", { currentPassword: "a-strong-password", newPassword: "another-strong-one", revokeOtherSessions: true })).status).toBe(200);
+    expect((await a.get("/api/account/me")).status).toBe(200);
+    expect((await b.get("/api/account/me")).status).toBe(401);
+    expect((await new Client(ctx.app).login("pw@example.com", "another-strong-one")).status).toBe(200);
+  });
+
+  it("deletes the account and its private workspace", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("bye@example.com");
+    await a.post("/api/domains", { name: "bye.io" });
+    expect((await a.post("/api/auth/delete-user", { password: "wrong-password" })).status).toBe(400);
+    expect((await a.post("/api/auth/delete-user", { password: "a-strong-password" })).status).toBe(200);
+    expect(await ctx.db.query.users.findMany()).toHaveLength(0);
+    expect(await ctx.db.query.domains.findMany()).toHaveLength(0);
+    expect((await a.get("/api/account/me")).status).toBe(401);
   });
 });

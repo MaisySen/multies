@@ -21,6 +21,10 @@ export interface AuthContext {
   orgId: string;
   role: "owner" | "admin" | "member";
   sessionId: string;
+  emailVerified?: boolean;
+  twoFactor?: boolean;
+  /** Platform-level role (Better Auth admin plugin): "admin" for operators. */
+  platformRole?: string;
 }
 
 export interface AppEnv {

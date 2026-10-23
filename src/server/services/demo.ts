@@ -1,9 +1,9 @@
 import { and, eq, inArray, lt } from "drizzle-orm";
 import type { Deps } from "../context";
-import { auditLogs, domains, memberships, organizations, users } from "../db/schema";
+import { auditLogs, domains, members, organizations, users } from "../db/schema";
 import { newId, randomToken } from "../lib/crypto";
 import { sql } from "drizzle-orm";
-import { createUserWithOrg } from "./auth";
+import { authFor } from "../auth";
 import { createAlias, createMailbox } from "./addresses";
 import { createDomain } from "./domains";
 import { deliverInbound } from "./mail/delivery";
@@ -50,8 +50,13 @@ export async function createDemoWorkspace(deps: Deps) {
   const suffix = randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x").slice(0, 5);
   const domainName = `northwind-${suffix}.test`;
   const email = `alex@${domainName}`;
-  const { userId, orgId } = await createUserWithOrg(deps.db, { name: "Alex Rivera", email, password: randomToken(24), organization: "Northwind Labs" }, { isDemo: true });
-  await deps.db.update(organizations).set({ plan: "pro" }).where(eq(organizations.id, orgId));
+  // A real Better Auth account and session, so the sandbox behaves exactly like a signup.
+  const signup = await authFor(deps).api.signUpEmail({ body: { name: "Alex Rivera", email, password: randomToken(24) }, returnHeaders: true });
+  const userId = signup.response.user.id;
+  const orgId = newId("org");
+  await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "pro" });
+  await deps.db.insert(members).values({ id: newId("mem"), organizationId: orgId, userId, role: "owner" });
+  await deps.db.update(users).set({ emailVerified: true }).where(eq(users.id, userId));
 
   const domain = await createDomain(deps, orgId, domainName);
   // Sample domains can't have real DNS; mark them verified and say so in the report.
@@ -61,7 +66,7 @@ export async function createDemoWorkspace(deps: Deps) {
     lastCheckedAt: deps.now(),
     lastCheck: JSON.stringify({
       checkedAt: deps.now().toISOString(), verified: true,
-      records: ["ownership", "mx", "spf", "dkim", "dmarc"].map((id) => ({ id, status: "pass", found: [], message: "Sample domain in a sandbox workspace — add your own domain to run a live DNS check." })),
+      records: ["ownership", "mx", "spf", "dkim", "dmarc"].map((id) => ({ id, status: "pass", found: [], message: "Sample domain in a sandbox workspace. Add your own domain to run a live DNS check." })),
     }),
   }).where(eq(domains.id, domain.id));
 
@@ -130,7 +135,7 @@ export async function createDemoWorkspace(deps: Deps) {
   for (const [action, h, metadata] of trail) {
     await deps.db.insert(auditLogs).values({ id: newId("aud"), orgId, actorUserId: userId, actorEmail: email, action, metadata: metadata ? JSON.stringify(metadata) : null, createdAt: at(h) });
   }
-  return { userId, orgId };
+  return { userId, orgId, headers: signup.headers };
 }
 
 /** Removes sandbox workspaces (and their users) older than the TTL. */
@@ -139,8 +144,8 @@ export async function purgeDemoWorkspaces(deps: Deps) {
   const old = await deps.db.select({ id: organizations.id }).from(organizations).where(and(eq(organizations.isDemo, true), lt(organizations.createdAt, cutoff)));
   if (!old.length) return 0;
   const ids = old.map((o) => o.id);
-  const members = await deps.db.select({ userId: memberships.userId }).from(memberships).where(inArray(memberships.orgId, ids));
+  const demoMembers = await deps.db.select({ userId: members.userId }).from(members).where(inArray(members.organizationId, ids));
   await deps.db.delete(organizations).where(inArray(organizations.id, ids));
-  if (members.length) await deps.db.delete(users).where(inArray(users.id, members.map((m) => m.userId)));
+  if (demoMembers.length) await deps.db.delete(users).where(inArray(users.id, demoMembers.map((m) => m.userId)));
   return ids.length;
 }

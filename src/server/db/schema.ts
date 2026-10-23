@@ -3,28 +3,30 @@ import { sqliteTable, text, integer, index, uniqueIndex, primaryKey } from "driz
 const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
 const createdAt = () => ts("created_at").notNull().$defaultFn(() => new Date());
 
-/** People who can sign in. */
+/** People who can sign in. Managed by Better Auth (model "user"). */
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull(),
   name: text("name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  emailVerifiedAt: ts("email_verified_at"),
-  /** TOTP secret (base32), AES-GCM encrypted. Set while 2FA is on. */
-  totpSecretEnc: text("totp_secret_enc"),
-  /** A secret being set up but not yet confirmed with a code. */
-  totpPendingEnc: text("totp_pending_enc"),
-  totpEnabledAt: ts("totp_enabled_at"),
-  /** Last accepted TOTP time step, so a code can't be replayed. */
-  totpLastStep: integer("totp_last_step"),
-  passwordChangedAt: ts("password_changed_at"),
+  emailVerified: integer("email_verified", { mode: "boolean" }).notNull().default(false),
+  image: text("image"),
+  twoFactorEnabled: integer("two_factor_enabled", { mode: "boolean" }).default(false),
+  /** Platform role from Better Auth's admin plugin: "admin" for operators, else "user". */
+  role: text("role"),
+  banned: integer("banned", { mode: "boolean" }).default(false),
+  banReason: text("ban_reason"),
+  banExpires: ts("ban_expires"),
   createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().default(new Date(0)).$defaultFn(() => new Date()).$onUpdate(() => new Date()),
 }, (t) => [uniqueIndex("users_email_uq").on(t.email)]);
 
 /** A tenant. Every resource below belongs to exactly one organization. */
 export const organizations = sqliteTable("organizations", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  slug: text("slug"),
+  logo: text("logo"),
+  metadata: text("metadata"),
   plan: text("plan", { enum: ["starter", "pro", "business"] }).notNull().default("starter"),
   isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
@@ -34,27 +36,77 @@ export const organizations = sqliteTable("organizations", {
   currentPeriodEnd: ts("current_period_end"),
   cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug)]);
 
-export const memberships = sqliteTable("memberships", {
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+/** Workspace membership (Better Auth organization plugin, model "member"). */
+export const members = sqliteTable("members", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("owner"),
+  role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("member"),
   createdAt: createdAt(),
-}, (t) => [primaryKey({ columns: [t.orgId, t.userId] }), index("memberships_user_idx").on(t.userId)]);
+}, (t) => [uniqueIndex("members_org_user_uq").on(t.organizationId, t.userId), index("members_user_idx").on(t.userId)]);
 
-/** Server-side sessions. Only a SHA-256 of the cookie token is stored. */
+/** Better Auth sessions. The cookie carries the token, signed with the app secret. */
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
-  tokenHash: text("token_hash").notNull(),
+  token: text("token").notNull(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userAgent: text("user_agent"),
-  ip: text("ip"),
   expiresAt: ts("expires_at").notNull(),
-  lastSeenAt: ts("last_seen_at").notNull().$defaultFn(() => new Date()),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  activeOrganizationId: text("active_organization_id"),
+  impersonatedBy: text("impersonated_by"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("sessions_token_uq").on(t.tokenHash), index("sessions_user_idx").on(t.userId)]);
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("sessions_token_uq").on(t.token), index("sessions_user_idx").on(t.userId)]);
+
+/** Sign-in methods: a password ("credential") or a linked OAuth/OIDC identity. */
+export const accounts = sqliteTable("accounts", {
+  id: text("id").primaryKey(),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: ts("access_token_expires_at"),
+  refreshTokenExpiresAt: ts("refresh_token_expires_at"),
+  scope: text("scope"),
+  /** PBKDF2-SHA256 hash for the credential provider. */
+  password: text("password"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("accounts_user_idx").on(t.userId)]);
+
+/** Email verification and password reset tokens (Better Auth). */
+export const verifications = sqliteTable("verifications", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: ts("expires_at").notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("verifications_identifier_idx").on(t.identifier)]);
+
+/** TOTP secrets and backup codes (Better Auth two-factor plugin), encrypted by Better Auth. */
+export const twoFactors = sqliteTable("two_factors", {
+  id: text("id").primaryKey(),
+  secret: text("secret").notNull(),
+  backupCodes: text("backup_codes").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  verified: integer("verified", { mode: "boolean" }).default(true),
+  failedVerificationCount: integer("failed_verification_count").default(0),
+  lockedUntil: ts("locked_until"),
+}, (t) => [index("two_factors_user_idx").on(t.userId)]);
+
+/** Rate limit counters shared by every instance (Better Auth). */
+export const rateLimits = sqliteTable("rate_limits", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull(),
+  count: integer("count").notNull(),
+  lastRequest: integer("last_request").notNull(),
+}, (t) => [uniqueIndex("rate_limits_key_uq").on(t.key)]);
 
 export const domains = sqliteTable("domains", {
   id: text("id").primaryKey(),
@@ -191,22 +243,19 @@ export const appSettings = sqliteTable("app_settings", {
   value: text("value").notNull(),
 });
 
-/** Pending invitations to join a workspace. Only a SHA-256 of the link token is stored. */
+/** Workspace invitations (Better Auth organization plugin, model "invitation"). */
 export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   email: text("email").notNull(),
-  role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
-  /** JSON string[] of mailbox ids a member will be able to open. */
-  mailboxIds: text("mailbox_ids").notNull().default("[]"),
-  tokenHash: text("token_hash").notNull(),
-  invitedByUserId: text("invited_by_user_id"),
-  invitedByName: text("invited_by_name"),
+  role: text("role"),
+  status: text("status").notNull().default("pending"),
   expiresAt: ts("expires_at").notNull(),
-  acceptedAt: ts("accepted_at"),
-  revokedAt: ts("revoked_at"),
+  inviterId: text("inviter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** JSON string[] of mailbox ids a member will be able to open once they join. */
+  mailboxIds: text("mailbox_ids"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("invitations_token_uq").on(t.tokenHash), index("invitations_org_idx").on(t.orgId)]);
+}, (t) => [index("invitations_org_idx").on(t.organizationId), index("invitations_email_idx").on(t.email)]);
 
 /**
  * Which mailboxes a `member` can open. Owners and admins can open every mailbox
@@ -218,28 +267,6 @@ export const mailboxAccess = sqliteTable("mailbox_access", {
   mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.userId, t.mailboxId] }), index("mailbox_access_org_idx").on(t.orgId)]);
-
-/** Single-use, expiring tokens: password resets, email verification, 2FA login tickets. Only hashes are stored. */
-export const authTokens = sqliteTable("auth_tokens", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["password_reset", "email_verify", "mfa_ticket"] }).notNull(),
-  tokenHash: text("token_hash").notNull(),
-  /** For email_verify: the address being verified. For mfa_ticket: failed attempts. */
-  data: text("data"),
-  expiresAt: ts("expires_at").notNull(),
-  usedAt: ts("used_at"),
-  createdAt: createdAt(),
-}, (t) => [uniqueIndex("auth_tokens_hash_uq").on(t.tokenHash), index("auth_tokens_user_idx").on(t.userId, t.kind)]);
-
-/** 2FA recovery codes (SHA-256 of the normalized code). */
-export const recoveryCodes = sqliteTable("recovery_codes", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  codeHash: text("code_hash").notNull(),
-  usedAt: ts("used_at"),
-  createdAt: createdAt(),
-}, (t) => [index("recovery_codes_user_idx").on(t.userId)]);
 
 /** Processed billing webhooks, keyed by the provider's event id so retries are no-ops. */
 export const billingEvents = sqliteTable("billing_events", {

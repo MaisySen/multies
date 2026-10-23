@@ -16,7 +16,7 @@ export const qk = {
   workspaces: ["workspaces"] as const,
 };
 
-export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<Me>("/auth/me"), retry: false, staleTime: 60_000 });
+export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<Me>("/account/me"), retry: false, staleTime: 60_000 });
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
 export const useDashboard = () => useQuery({ queryKey: qk.dashboard, queryFn: () => api.get<Dashboard>("/dashboard") });
 export const useDomains = () => useQuery({ queryKey: qk.domains, queryFn: async () => (await api.get<{ domains: Domain[] }>("/domains")).domains });
@@ -25,4 +25,4 @@ export const useMailboxes = () => useQuery({ queryKey: qk.mailboxes, queryFn: as
 export const useAliases = () => useQuery({ queryKey: qk.aliases, queryFn: async () => (await api.get<{ aliases: Alias[] }>("/aliases")).aliases });
 export const useOrg = () => useQuery({ queryKey: qk.org, queryFn: () => api.get<OrgInfo>("/org") });
 export const useTeam = () => useQuery({ queryKey: qk.team, queryFn: () => api.get<TeamInfo>("/team") });
-export const useWorkspaces = () => useQuery({ queryKey: qk.workspaces, queryFn: () => api.get<{ workspaces: Workspace[]; currentId: string }>("/auth/workspaces") });
+export const useWorkspaces = () => useQuery({ queryKey: qk.workspaces, queryFn: () => api.get<{ workspaces: Workspace[]; currentId: string }>("/account/workspaces") });

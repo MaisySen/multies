@@ -12,7 +12,7 @@ export function useStartDemo() {
   const start = async () => {
     setLoading(true);
     try {
-      await api.post("/auth/demo");
+      await api.post("/account/demo");
       qc.clear();
       navigate("/app");
     } catch (err) {

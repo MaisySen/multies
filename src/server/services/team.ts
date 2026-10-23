@@ -1,14 +1,19 @@
-import { and, count, eq, gt, inArray, isNull, ne } from "drizzle-orm";
+/**
+ * Workspace membership on top of Better Auth's organization plugin. Better Auth owns
+ * the records and the core rules (invitations, roles, membership); this module adds
+ * MyMail's stricter role policy, plan seats and per-mailbox access for members.
+ */
+import { and, count, desc, eq, inArray, max, ne } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
-import { invitations, mailboxAccess, mailboxes, memberships, organizations, sessions, users } from "../db/schema";
-import { newId, randomToken, sha256Hex, verifyPassword } from "../lib/crypto";
+import { accounts, invitations, mailboxAccess, mailboxes, members, organizations, sessions, users } from "../db/schema";
+import { verifyPassword } from "../lib/crypto";
 import { badRequest, conflict, forbidden, HttpError, notFound, planLimit } from "../lib/errors";
+import { authFor } from "../auth";
 import { getPlan } from "./plans";
-import { sendSystemEmail } from "./system-mail";
+import { isHosted } from "./mail/delivery";
 
 export type Role = "owner" | "admin" | "member";
-export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Mailboxes this user may open: `null` means every mailbox in the workspace
@@ -33,147 +38,146 @@ async function validMailboxIds(db: DB, orgId: string, ids: string[]): Promise<st
   return rows.map((r) => r.id);
 }
 
+/** Re-checks the password for sensitive actions. People who only use social sign-in confirm with a fresh session instead. */
+export async function confirmPassword(deps: Deps, auth: AuthContext, password: string | undefined) {
+  const cred = await deps.db.select().from(accounts).where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get();
+  if (cred?.password) {
+    if (!password || !(await verifyPassword(password, cred.password))) {
+      throw new HttpError(422, "validation_failed", "That password is incorrect.", { fields: { password: "That password is incorrect." } });
+    }
+    return;
+  }
+  const s = await deps.db.select().from(sessions).where(eq(sessions.id, auth.sessionId)).get();
+  if (!s || deps.now().getTime() - s.createdAt.getTime() > 15 * 60_000) {
+    throw new HttpError(403, "reauth_required", "Sign in again to confirm it's you, then retry.");
+  }
+}
+
 export async function seatsUsed(db: DB, orgId: string, now: Date) {
-  const [m, i] = await Promise.all([
-    db.select({ n: count() }).from(memberships).where(eq(memberships.orgId, orgId)).get(),
-    db.select({ n: count() }).from(invitations)
-      .where(and(eq(invitations.orgId, orgId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt), gt(invitations.expiresAt, now))).get(),
-  ]);
-  return { members: m?.n ?? 0, pendingInvites: i?.n ?? 0 };
+  const pending = await db.select({ expiresAt: invitations.expiresAt }).from(invitations)
+    .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, "pending")));
+  const m = await db.select({ n: count() }).from(members).where(eq(members.organizationId, orgId)).get();
+  return { members: m?.n ?? 0, pendingInvites: pending.filter((p) => p.expiresAt > now).length };
 }
 
 export async function listMembers(db: DB, orgId: string) {
-  const rows = await db.select({ userId: users.id, email: users.email, name: users.name, role: memberships.role, joinedAt: memberships.createdAt })
-    .from(memberships).innerJoin(users, eq(users.id, memberships.userId)).where(eq(memberships.orgId, orgId));
+  const rows = await db.select({ memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, joinedAt: members.createdAt })
+    .from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
+  const ids = rows.map((r) => r.userId);
   const access = await db.select().from(mailboxAccess).where(eq(mailboxAccess.orgId, orgId));
-  const lastSeen = await db.select({ userId: sessions.userId, at: sessions.lastSeenAt }).from(sessions).where(eq(sessions.orgId, orgId));
+  const seen = ids.length
+    ? await db.select({ userId: sessions.userId, at: max(sessions.updatedAt) }).from(sessions).where(inArray(sessions.userId, ids)).groupBy(sessions.userId)
+    : [];
   const order: Record<Role, number> = { owner: 0, admin: 1, member: 2 };
   return rows
     .map((r) => ({
       ...r,
       mailboxIds: r.role === "member" ? access.filter((a) => a.userId === r.userId).map((a) => a.mailboxId) : null,
-      lastActiveAt: lastSeen.filter((s) => s.userId === r.userId).reduce<Date | null>((acc, s) => (!acc || s.at > acc ? s.at : acc), null),
+      lastActiveAt: seen.find((s) => s.userId === r.userId)?.at ?? null,
     }))
     .sort((a, b) => order[a.role] - order[b.role] || a.joinedAt.getTime() - b.joinedAt.getTime());
 }
 
 export async function listInvites(db: DB, orgId: string, now: Date) {
-  const rows = await db.select().from(invitations)
-    .where(and(eq(invitations.orgId, orgId), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
-  return rows
-    .map(({ tokenHash: _t, ...r }) => ({ ...r, mailboxIds: JSON.parse(r.mailboxIds) as string[], expired: r.expiresAt <= now }))
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const rows = await db.select({ inv: invitations, inviter: users.name }).from(invitations)
+    .innerJoin(users, eq(users.id, invitations.inviterId))
+    .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, "pending")))
+    .orderBy(desc(invitations.createdAt));
+  return rows.map(({ inv, inviter }) => ({
+    id: inv.id, email: inv.email, role: (inv.role ?? "member") as "admin" | "member",
+    mailboxIds: JSON.parse(inv.mailboxIds ?? "[]") as string[], invitedByName: inviter,
+    createdAt: inv.createdAt, expiresAt: inv.expiresAt, expired: inv.expiresAt <= now,
+  }));
 }
 
-export function inviteLink(deps: Deps, token: string) {
-  return `${deps.config.appUrl}/invite/${token}`;
+export function inviteLink(deps: Deps, id: string) {
+  return `${deps.config.appUrl}/invite/${id}`;
 }
 
-/** Creates (or re-issues) an invitation and tries to email it. The link is always returned to the inviter. */
-export async function createInvite(deps: Deps, auth: AuthContext, input: { email: string; role: "admin" | "member"; mailboxIds: string[] }) {
+/** Creates (or re-issues) an invitation through Better Auth. The link is always returned to the inviter. */
+export async function createInvite(deps: Deps, auth: AuthContext, headers: Headers, input: { email: string; role: "admin" | "member"; mailboxIds: string[] }) {
   const { db } = deps;
-  const now = deps.now();
   const email = input.email.trim().toLowerCase();
   if (input.role === "admin" && auth.role !== "owner") throw forbidden("Only the workspace owner can invite admins.");
-  const existing = await db.select({ id: users.id }).from(memberships).innerJoin(users, eq(users.id, memberships.userId))
-    .where(and(eq(memberships.orgId, auth.orgId), eq(users.email, email))).get();
+  const existing = await db.select({ id: users.id }).from(members).innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, auth.orgId), eq(users.email, email))).get();
   if (existing) throw conflict(`${email} is already in this workspace.`);
-
-  // Re-inviting the same address replaces the earlier pending invite.
-  await db.update(invitations).set({ revokedAt: now })
-    .where(and(eq(invitations.orgId, auth.orgId), eq(invitations.email, email), isNull(invitations.acceptedAt), isNull(invitations.revokedAt)));
-
+  if (input.role === "member") await validMailboxIds(db, auth.orgId, input.mailboxIds);
   const plan = await getPlan(db, auth.orgId);
-  const used = await seatsUsed(db, auth.orgId, now);
-  if (used.members + used.pendingInvites >= plan.limits.seats) {
+  const used = await seatsUsed(db, auth.orgId, deps.now());
+  const reinvite = await db.select({ id: invitations.id }).from(invitations)
+    .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), eq(invitations.status, "pending"))).get();
+  if (used.members + used.pendingInvites - (reinvite ? 1 : 0) >= plan.limits.seats) {
     throw planLimit(`Your ${plan.name} plan includes ${plan.limits.seats} seats, and they're all taken or invited. Upgrade to add more people.`);
   }
-  const mailboxIds = input.role === "member" ? await validMailboxIds(db, auth.orgId, input.mailboxIds) : [];
-  const token = randomToken(32);
-  const id = newId("inv");
-  await db.insert(invitations).values({
-    id, orgId: auth.orgId, email, role: input.role, mailboxIds: JSON.stringify(mailboxIds),
-    tokenHash: await sha256Hex(token), invitedByUserId: auth.userId, invitedByName: auth.name,
-    expiresAt: new Date(now.getTime() + INVITE_TTL_MS),
+  const inv = await authFor(deps).api.createInvitation({
+    headers,
+    body: { email, role: input.role, organizationId: auth.orgId, resend: true, mailboxIds: JSON.stringify(input.role === "member" ? input.mailboxIds : []) },
   });
-  const org = (await db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get())!;
-  const link = inviteLink(deps, token);
-  const mail = await sendSystemEmail(deps, {
-    to: email, orgId: auth.orgId,
-    subject: `${auth.name} invited you to ${org.name} on ${deps.config.appName}`,
-    text: `${auth.name} (${auth.email}) invited you to join the ${org.name} workspace on ${deps.config.appName} as ${input.role === "admin" ? "an admin" : "a member"}.\n\nThis invitation expires in 7 days.`,
-    action: { label: "Accept invitation", url: link },
-  });
-  return { id, link, emailed: mail.delivered, emailDetail: mail.detail };
+  const emailed = deps.outbound.name !== "log" || (await isHosted(db, email));
+  return { id: inv.id, link: inviteLink(deps, inv.id), emailed, emailDetail: emailed ? undefined : "Email delivery isn't connected on this deployment." };
 }
 
-async function findInvite(db: DB, token: string) {
-  const row = await db.select({ inv: invitations, org: organizations }).from(invitations)
-    .innerJoin(organizations, eq(organizations.id, invitations.orgId))
-    .where(eq(invitations.tokenHash, await sha256Hex(token))).get();
-  return row ?? null;
-}
-
-/** Public view of an invite link, so the accept page can explain itself before sign-in. */
-export async function describeInvite(db: DB, token: string, now: Date) {
-  const row = await findInvite(db, token);
-  if (!row) throw notFound("Invitation");
-  const state = row.inv.revokedAt ? "revoked" : row.inv.acceptedAt ? "accepted" : row.inv.expiresAt <= now ? "expired" : "pending";
-  const hasAccount = !!(await db.select({ id: users.id }).from(users).where(eq(users.email, row.inv.email)).get());
-  return {
-    email: row.inv.email, role: row.inv.role, state, hasAccount,
-    organization: { name: row.org.name }, invitedBy: row.inv.invitedByName,
-    expiresAt: row.inv.expiresAt,
-  };
-}
-
-/** Accepts an invite for the signed-in user and switches their session into the workspace. */
-export async function acceptInvite(deps: Deps, auth: Pick<AuthContext, "userId" | "email" | "sessionId">, token: string) {
-  const { db } = deps;
-  const now = deps.now();
-  const row = await findInvite(db, token);
-  if (!row || row.inv.revokedAt) throw notFound("Invitation");
-  if (row.inv.acceptedAt) throw new HttpError(410, "invite_used", "This invitation has already been used.");
-  if (row.inv.expiresAt <= now) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
-  if (row.inv.email !== auth.email.toLowerCase()) {
-    throw forbidden(`This invitation is for ${row.inv.email}. Sign in with that address to accept it.`);
-  }
-  const already = await db.select().from(memberships).where(and(eq(memberships.orgId, row.inv.orgId), eq(memberships.userId, auth.userId))).get();
-  if (!already) {
-    await db.insert(memberships).values({ orgId: row.inv.orgId, userId: auth.userId, role: row.inv.role });
-    const ids = (JSON.parse(row.inv.mailboxIds) as string[]);
-    const live = ids.length ? await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, row.inv.orgId), inArray(mailboxes.id, ids))) : [];
-    for (const m of live) await db.insert(mailboxAccess).values({ orgId: row.inv.orgId, userId: auth.userId, mailboxId: m.id }).onConflictDoNothing();
-  }
-  await db.update(invitations).set({ acceptedAt: now }).where(eq(invitations.id, row.inv.id));
-  await db.update(sessions).set({ orgId: row.inv.orgId }).where(eq(sessions.id, auth.sessionId));
-  return { orgId: row.inv.orgId, orgName: row.org.name, role: row.inv.role };
-}
-
-export async function revokeInvite(db: DB, orgId: string, id: string, now: Date) {
-  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.orgId, orgId))).get();
-  if (!inv || inv.acceptedAt || inv.revokedAt) throw notFound("Invitation");
-  await db.update(invitations).set({ revokedAt: now }).where(eq(invitations.id, id));
+export async function getInvite(db: DB, orgId: string, id: string) {
+  const inv = await db.select().from(invitations).where(and(eq(invitations.id, id), eq(invitations.organizationId, orgId), eq(invitations.status, "pending"))).get();
+  if (!inv) throw notFound("Invitation");
   return inv;
 }
 
+export async function revokeInvite(deps: Deps, auth: AuthContext, headers: Headers, id: string) {
+  const inv = await getInvite(deps.db, auth.orgId, id);
+  await authFor(deps).api.cancelInvitation({ headers, body: { invitationId: id } });
+  return inv;
+}
+
+/** Public view of an invite link, so the accept page can explain itself before sign-in. */
+export async function describeInvite(db: DB, id: string, now: Date) {
+  const row = await db.select({ inv: invitations, org: organizations, inviter: users.name }).from(invitations)
+    .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+    .innerJoin(users, eq(users.id, invitations.inviterId))
+    .where(eq(invitations.id, id)).get();
+  if (!row) throw notFound("Invitation");
+  const s = row.inv.status;
+  const state = s === "canceled" || s === "rejected" ? "revoked" : s === "accepted" ? "accepted" : row.inv.expiresAt <= now ? "expired" : "pending";
+  const hasAccount = !!(await db.select({ id: users.id }).from(users).where(eq(users.email, row.inv.email)).get());
+  return {
+    email: row.inv.email, role: row.inv.role ?? "member", state, hasAccount,
+    organization: { name: row.org.name }, invitedBy: row.inviter, expiresAt: row.inv.expiresAt,
+  };
+}
+
+/** Accepts an invite for the signed-in user and opens the workspace in their session. */
+export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Headers, id: string) {
+  const { db } = deps;
+  const inv = await db.select().from(invitations).where(eq(invitations.id, id)).get();
+  if (!inv || inv.status === "canceled" || inv.status === "rejected") throw notFound("Invitation");
+  if (inv.status === "accepted") throw new HttpError(410, "invite_used", "This invitation has already been used.");
+  if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
+  if (inv.email !== auth.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
+  await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: id } });
+  await db.update(sessions).set({ activeOrganizationId: inv.organizationId }).where(eq(sessions.id, auth.sessionId));
+  const org = (await db.select().from(organizations).where(eq(organizations.id, inv.organizationId)).get())!;
+  return { orgId: org.id, orgName: org.name, role: inv.role ?? "member" };
+}
+
 async function getMember(db: DB, orgId: string, userId: string) {
-  const m = await db.select({ role: memberships.role, email: users.email, name: users.name }).from(memberships)
-    .innerJoin(users, eq(users.id, memberships.userId))
-    .where(and(eq(memberships.orgId, orgId), eq(memberships.userId, userId))).get();
+  const m = await db.select({ id: members.id, role: members.role, email: users.email, name: users.name }).from(members)
+    .innerJoin(users, eq(users.id, members.userId))
+    .where(and(eq(members.organizationId, orgId), eq(members.userId, userId))).get();
   if (!m) throw notFound("Member");
   return m;
 }
 
 /** Role and mailbox-access changes. Owners manage everyone; admins manage members only. */
-export async function updateMember(db: DB, auth: AuthContext, userId: string, input: { role?: "admin" | "member"; mailboxIds?: string[] }) {
+export async function updateMember(deps: Deps, auth: AuthContext, headers: Headers, userId: string, input: { role?: "admin" | "member"; mailboxIds?: string[] }) {
+  const { db } = deps;
   const target = await getMember(db, auth.orgId, userId);
   if (target.role === "owner") throw forbidden("The owner's role can't be changed. Transfer ownership instead.");
   if (userId === auth.userId) throw forbidden("You can't change your own role.");
   if (auth.role === "admin" && (target.role === "admin" || input.role === "admin")) throw forbidden("Only the owner can manage admins.");
   const role = input.role ?? target.role;
   if (input.role && input.role !== target.role) {
-    await db.update(memberships).set({ role }).where(and(eq(memberships.orgId, auth.orgId), eq(memberships.userId, userId)));
+    await authFor(deps).api.updateMemberRole({ headers, body: { memberId: target.id, role: input.role, organizationId: auth.orgId } });
   }
   if (role === "admin") {
     await db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, userId)));
@@ -185,8 +189,9 @@ export async function updateMember(db: DB, auth: AuthContext, userId: string, in
   return { ...target, role, previousRole: target.role };
 }
 
-/** Removes someone from the workspace (or lets a non-owner leave). Their sessions there end. */
-export async function removeMember(db: DB, auth: AuthContext, userId: string) {
+/** Removes someone from the workspace, or lets a non-owner leave. */
+export async function removeMember(deps: Deps, auth: AuthContext, headers: Headers, userId: string) {
+  const { db } = deps;
   const target = await getMember(db, auth.orgId, userId);
   const self = userId === auth.userId;
   if (target.role === "owner") throw forbidden(self ? "Transfer ownership before leaving the workspace." : "The owner can't be removed.");
@@ -194,64 +199,55 @@ export async function removeMember(db: DB, auth: AuthContext, userId: string) {
     if (auth.role === "member") throw forbidden("Only workspace admins can do that.");
     if (auth.role === "admin" && target.role === "admin") throw forbidden("Only the owner can remove admins.");
   }
+  const api = authFor(deps).api;
+  if (self) await api.leaveOrganization({ headers, body: { organizationId: auth.orgId } });
+  else await api.removeMember({ headers, body: { memberIdOrEmail: target.id, organizationId: auth.orgId } });
   await db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, userId)));
-  await db.delete(memberships).where(and(eq(memberships.orgId, auth.orgId), eq(memberships.userId, userId)));
-  // Sessions pointed at this workspace move to another workspace the person belongs to, or end.
-  const other = await db.select().from(memberships).where(eq(memberships.userId, userId)).get();
-  if (other) await db.update(sessions).set({ orgId: other.orgId }).where(and(eq(sessions.userId, userId), eq(sessions.orgId, auth.orgId)));
-  else await db.delete(sessions).where(and(eq(sessions.userId, userId), eq(sessions.orgId, auth.orgId)));
   return target;
 }
 
-export async function transferOwnership(db: DB, auth: AuthContext, toUserId: string, password: string) {
+export async function transferOwnership(deps: Deps, auth: AuthContext, headers: Headers, toUserId: string, password: string | undefined) {
   if (auth.role !== "owner") throw forbidden("Only the owner can transfer ownership.");
   if (toUserId === auth.userId) throw badRequest("You already own this workspace.");
-  const me = await db.select().from(users).where(eq(users.id, auth.userId)).get();
-  if (!me || !(await verifyPassword(password, me.passwordHash))) {
-    throw new HttpError(422, "validation_failed", "That password is incorrect.", { fields: { password: "That password is incorrect." } });
-  }
-  const target = await getMember(db, auth.orgId, toUserId);
-  await db.update(memberships).set({ role: "owner" }).where(and(eq(memberships.orgId, auth.orgId), eq(memberships.userId, toUserId)));
-  await db.update(memberships).set({ role: "admin" }).where(and(eq(memberships.orgId, auth.orgId), eq(memberships.userId, auth.userId)));
-  await db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, toUserId)));
+  await confirmPassword(deps, auth, password);
+  const target = await getMember(deps.db, auth.orgId, toUserId);
+  const me = await getMember(deps.db, auth.orgId, auth.userId);
+  const api = authFor(deps).api;
+  await api.updateMemberRole({ headers, body: { memberId: target.id, role: "owner", organizationId: auth.orgId } });
+  await api.updateMemberRole({ headers, body: { memberId: me.id, role: "admin", organizationId: auth.orgId } });
+  await deps.db.delete(mailboxAccess).where(and(eq(mailboxAccess.orgId, auth.orgId), eq(mailboxAccess.userId, toUserId)));
   return target;
 }
 
 /** Workspaces the user belongs to, for the switcher. */
 export async function listWorkspaces(db: DB, userId: string) {
-  return db.select({ id: organizations.id, name: organizations.name, plan: organizations.plan, role: memberships.role, isDemo: organizations.isDemo })
-    .from(memberships).innerJoin(organizations, eq(organizations.id, memberships.orgId)).where(eq(memberships.userId, userId));
+  return db.select({ id: organizations.id, name: organizations.name, plan: organizations.plan, role: members.role, isDemo: organizations.isDemo })
+    .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId)).where(eq(members.userId, userId));
 }
 
-export async function switchWorkspace(db: DB, auth: AuthContext, orgId: string) {
-  const m = await db.select().from(memberships).where(and(eq(memberships.userId, auth.userId), eq(memberships.orgId, orgId))).get();
+export async function switchWorkspace(deps: Deps, auth: AuthContext, headers: Headers, orgId: string) {
+  const m = await deps.db.select().from(members).where(and(eq(members.userId, auth.userId), eq(members.organizationId, orgId))).get();
   if (!m) throw notFound("Workspace");
-  await db.update(sessions).set({ orgId }).where(eq(sessions.id, auth.sessionId));
+  await authFor(deps).api.setActiveOrganization({ headers, body: { organizationId: orgId } });
 }
 
-export async function createWorkspace(db: DB, auth: AuthContext, name: string) {
-  const owned = await db.select({ n: count() }).from(memberships).where(and(eq(memberships.userId, auth.userId), eq(memberships.role, "owner"))).get();
+export async function createWorkspace(deps: Deps, auth: AuthContext, headers: Headers, name: string) {
+  const owned = await deps.db.select({ n: count() }).from(members).where(and(eq(members.userId, auth.userId), eq(members.role, "owner"))).get();
   if ((owned?.n ?? 0) >= 10) throw planLimit("You can own up to 10 workspaces.");
-  const id = newId("org");
-  await db.insert(organizations).values({ id, name });
-  await db.insert(memberships).values({ orgId: id, userId: auth.userId, role: "owner" });
-  await db.update(sessions).set({ orgId: id }).where(eq(sessions.id, auth.sessionId));
-  return id;
+  const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "workspace"}-${crypto.randomUUID().slice(0, 8)}`;
+  const org = await authFor(deps).api.createOrganization({ headers, body: { name, slug } });
+  if (!org) throw new HttpError(500, "internal", "The workspace could not be created.");
+  await deps.db.update(sessions).set({ activeOrganizationId: org.id }).where(eq(sessions.id, auth.sessionId));
+  return org.id;
 }
 
 /** Deletes a workspace and everything in it. Owner only, password confirmed. */
-export async function deleteWorkspace(db: DB, auth: AuthContext, password: string) {
-  if (auth.role !== "owner") throw forbidden("Only the owner can delete the workspace.");
-  const me = await db.select().from(users).where(eq(users.id, auth.userId)).get();
-  if (!me || !(await verifyPassword(password, me.passwordHash))) {
-    throw new HttpError(422, "validation_failed", "That password is incorrect.", { fields: { password: "That password is incorrect." } });
-  }
-  const others = await db.select({ userId: memberships.userId }).from(memberships)
-    .where(and(eq(memberships.orgId, auth.orgId), ne(memberships.userId, auth.userId)));
-  // Move sessions that point at this workspace somewhere else first; the delete cascades.
-  for (const uid of [auth.userId, ...others.map((o) => o.userId)]) {
-    const next = await db.select().from(memberships).where(and(eq(memberships.userId, uid), ne(memberships.orgId, auth.orgId))).get();
-    if (next) await db.update(sessions).set({ orgId: next.orgId }).where(and(eq(sessions.userId, uid), eq(sessions.orgId, auth.orgId)));
-  }
-  await db.delete(organizations).where(eq(organizations.id, auth.orgId));
+export async function deleteWorkspace(deps: Deps, auth: AuthContext, headers: Headers, password: string | undefined) {
+  if (auth.role !== "owner") throw forbidden("Only the workspace owner can delete it.");
+  await confirmPassword(deps, auth, password);
+  await authFor(deps).api.deleteOrganization({ headers, body: { organizationId: auth.orgId } });
+  // Better Auth removes the organization row; make sure the cascade ran on every runtime.
+  await deps.db.delete(organizations).where(eq(organizations.id, auth.orgId));
+  const left = await deps.db.select().from(members).where(and(eq(members.userId, auth.userId), ne(members.organizationId, auth.orgId))).get();
+  return { remaining: !!left };
 }

@@ -23,6 +23,13 @@ export interface AppConfig {
     dmarcRua?: string;
   };
   outbound: { driver: "log" | "resend"; resendApiKey?: string };
+  /** Sign-in options beyond email + password. Each turns on when its keys are set. */
+  auth: {
+    social: { google?: { clientId: string; clientSecret: string }; github?: { clientId: string; clientSecret: string } };
+    auth0?: { domain: string; clientId: string; clientSecret: string };
+    /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
+    breachCheck: boolean;
+  };
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -56,6 +63,14 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   MAX_MESSAGE_BYTES: z.string().optional(),
   SYSTEM_FROM: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  AUTH0_DOMAIN: z.string().optional(),
+  AUTH0_CLIENT_ID: z.string().optional(),
+  AUTH0_CLIENT_SECRET: z.string().optional(),
+  PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
@@ -111,6 +126,15 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dmarcRua: env.MAIL_DMARC_RUA,
     },
     outbound: { driver: outboundDriver, resendApiKey: env.RESEND_API_KEY },
+    auth: {
+      social: {
+        ...(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? { google: { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET } } : {}),
+        ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),
+      },
+      ...(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET
+        ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET } } : {}),
+      breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
+    },
     billing: (() => {
       const req = { STRIPE_SECRET_KEY: env.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: env.STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_PRO: env.STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS: env.STRIPE_PRICE_BUSINESS };
       const missing = Object.entries(req).filter(([, v]) => !v).map(([k]) => k);

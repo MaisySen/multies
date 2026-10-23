@@ -78,7 +78,7 @@ describe("billing with Stripe", () => {
     expect(co.body.url).toContain("checkout.stripe.com");
     const checkoutCall = stripe.calls.find((c) => c.path === "/v1/checkout/sessions")!;
     expect(checkoutCall.body).toContain("line_items%5B0%5D%5Bprice%5D=price_pro");
-    const orgId = (await a.get("/api/auth/me")).body.organization.id;
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
 
     stripe.subs.sub_1 = sub("active");
     const done = await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
@@ -113,7 +113,7 @@ describe("billing with Stripe", () => {
     await owner.signup("o@acme.io");
     await owner.post("/api/org/plan", { plan: "pro" }).catch(() => {});
     // Give the workspace a second seat by subscribing, then invite an admin.
-    const orgId = (await owner.get("/api/auth/me")).body.organization.id;
+    const orgId = (await owner.get("/api/account/me")).body.organization.id;
     await owner.post("/api/billing/checkout", { plan: "pro" });
     stripe.subs.sub_1 = sub("active");
     await postWebhook(ctx.app, { id: "evt_5", type: "checkout.session.completed", data: { object: { subscription: "sub_1", metadata: { orgId } } } });

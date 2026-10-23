@@ -1,6 +1,6 @@
 import { count, eq } from "drizzle-orm";
 import type { DB } from "../db";
-import { aliases, domains, mailboxes, memberships, organizations } from "../db/schema";
+import { aliases, domains, mailboxes, members, organizations } from "../db/schema";
 import { PLANS, type Plan } from "@/shared/plans";
 import { notFound, planLimit } from "../lib/errors";
 
@@ -19,7 +19,7 @@ export async function usage(db: DB, orgId: string) {
     db.select({ n: count() }).from(domains).where(eq(domains.orgId, orgId)).get(),
     db.select({ n: count() }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),
     db.select({ n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).get(),
-    db.select({ n: count() }).from(memberships).where(eq(memberships.orgId, orgId)).get(),
+    db.select({ n: count() }).from(members).where(eq(members.organizationId, orgId)).get(),
   ]);
   return { domains: d?.n ?? 0, mailboxes: m?.n ?? 0, aliases: a?.n ?? 0, seats: s?.n ?? 0 };
 }

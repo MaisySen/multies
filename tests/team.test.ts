@@ -32,7 +32,7 @@ describe("team invitations", () => {
     await max.signup("max@acme.io", "Max Member");
     const acc = await max.post(`/api/invites/${tokenOf(inv.body.link)}/accept`);
     expect(acc.status).toBe(200);
-    const me = await max.get("/api/auth/me");
+    const me = await max.get("/api/account/me");
     expect(me.body.organization).toMatchObject({ name: "Acme", role: "member" });
 
     const overview = await max.get("/api/mail/overview");
@@ -80,7 +80,7 @@ describe("team invitations", () => {
       const c = new Client(ctx.app);
       await c.signup(email);
       await c.post(`/api/invites/${tokenOf(inv.body.link)}/accept`);
-      const me = await c.get("/api/auth/me");
+      const me = await c.get("/api/account/me");
       return { c, id: me.body.user.id as string };
     };
     const admin = await join("admin@acme.io", "admin");
@@ -96,8 +96,8 @@ describe("team invitations", () => {
     expect((await admin.c.del(`/api/team/members/${member.id}`)).status).toBe(403);
     expect((await admin.c.del(`/api/team/members/${other.id}`)).status).toBe(200);
     // removed member is signed out of the workspace
-    const acmeId = (await owner.get("/api/auth/me")).body.organization.id;
-    expect((await other.c.get("/api/auth/me")).body.organization.id).not.toBe(acmeId);
+    const acmeId = (await owner.get("/api/account/me")).body.organization.id;
+    expect((await other.c.get("/api/account/me")).body.organization.id).not.toBe(acmeId);
     // a member can leave by themselves
     expect((await member.c.del(`/api/team/members/${member.id}`)).status).toBe(200);
   });
@@ -108,11 +108,11 @@ describe("team invitations", () => {
     const next = new Client(ctx.app);
     await next.signup("next@acme.io");
     await next.post(`/api/invites/${tokenOf(inv.body.link)}/accept`);
-    const nextId = (await next.get("/api/auth/me")).body.user.id;
+    const nextId = (await next.get("/api/account/me")).body.user.id;
     expect((await owner.post("/api/team/transfer", { userId: nextId, password: "nope" })).status).toBe(422);
     expect((await owner.post("/api/team/transfer", { userId: nextId, password: "a-strong-password" })).status).toBe(200);
-    expect((await next.get("/api/auth/me")).body.organization.role).toBe("owner");
-    expect((await owner.get("/api/auth/me")).body.organization.role).toBe("admin");
+    expect((await next.get("/api/account/me")).body.organization.role).toBe("owner");
+    expect((await owner.get("/api/account/me")).body.organization.role).toBe("admin");
   });
 
   it("delivers the invite into the inbox when the invitee is hosted here", async () => {
@@ -128,15 +128,17 @@ describe("workspaces", () => {
   it("creates, switches between and deletes workspaces", async () => {
     const a = new Client(ctx.app);
     await a.signup("multi@acme.io");
-    const created = await a.post("/api/auth/workspaces", { name: "Side project" });
+    const created = await a.post("/api/account/workspaces", { name: "Side project" });
     expect(created.status).toBe(201);
-    expect((await a.get("/api/auth/me")).body.organization.name).toBe("Side project");
-    const list = await a.get("/api/auth/workspaces");
+    expect((await a.get("/api/account/me")).body.organization.name).toBe("Side project");
+    const list = await a.get("/api/account/workspaces");
     expect(list.body.workspaces).toHaveLength(2);
     const acme = list.body.workspaces.find((w: { name: string }) => w.name === "Acme");
-    await a.post(`/api/auth/workspaces/${acme.id}/switch`);
-    expect((await a.get("/api/auth/me")).body.organization.name).toBe("Acme");
-    expect((await a.call("DELETE", "/api/auth/workspace", { password: "a-strong-password" })).body).toMatchObject({ ok: true, signedOut: false });
-    expect((await a.get("/api/auth/me")).body.organization.name).toBe("Side project");
+    await a.post(`/api/account/workspaces/${acme.id}/switch`);
+    expect((await a.get("/api/account/me")).body.organization.name).toBe("Acme");
+    expect((await a.call("DELETE", "/api/account/workspace", { password: "a-strong-password" })).body).toMatchObject({ ok: true, remaining: true });
+    expect((await a.get("/api/account/me")).body.organization.name).toBe("Side project");
+    expect((await a.call("DELETE", "/api/account/workspace", { password: "wrong-password" })).status).toBe(422);
+    expect((await a.call("DELETE", "/api/account/workspace", { password: "a-strong-password" })).body).toMatchObject({ ok: true, remaining: false });
   });
 });

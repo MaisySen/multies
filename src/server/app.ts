@@ -3,7 +3,9 @@ import { secureHeaders } from "hono/secure-headers";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
-import { authRoutes } from "./routes/auth";
+import { accountRoutes } from "./routes/account";
+import { authFor } from "./auth";
+import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
 import { orgRoutes } from "./routes/org";
@@ -13,7 +15,6 @@ import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
 import { PLANS } from "@/shared/plans";
 import { inviteRoutes, teamRoutes } from "./routes/team";
-import { securityRoutes } from "./routes/security";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -48,8 +49,9 @@ export function createApp(deps: Deps) {
     }),
   );
 
-  app.route("/api/auth", authRoutes());
-  app.route("/api/auth", securityRoutes());
+  app.route("/api/account", accountRoutes());
+  // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
+  app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/aliases", aliasRoutes());
@@ -68,6 +70,12 @@ export function createApp(deps: Deps) {
   app.onError((err, c) => {
     if (err instanceof HttpError) {
       return c.json({ error: { code: err.code, message: err.message, details: err.details } }, err.status);
+    }
+    if (err instanceof APIError) {
+      // Better Auth errors raised from server-side calls (team routes and similar).
+      const body = (err.body ?? {}) as { code?: string; message?: string };
+      const code = body.code === "PLAN_LIMIT" ? "plan_limit" : (body.code ?? "error").toLowerCase();
+      return c.json({ error: { code, message: body.message ?? err.message } }, err.statusCode as 400);
     }
     console.error("[api] unhandled", err);
     return c.json({ error: { code: "internal", message: "Something went wrong on our side." } }, 500);
