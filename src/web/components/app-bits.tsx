@@ -47,6 +47,14 @@ const ACTIONS: Record<string, string> = {
   "member.left": "left the workspace",
   "workspace.created": "created the workspace",
   "workspace.ownership_transferred": "transferred ownership to",
+  "app_password.created": "created an app password for",
+  "app_password.revoked": "revoked an app password for",
+  "api_key.created": "created API key",
+  "api_key.deleted": "deleted API key",
+  "webhook.created": "added a webhook endpoint",
+  "webhook.deleted": "removed a webhook endpoint",
+  "suppression.added": "blocked an address",
+  "suppression.removed": "unblocked an address",
 };
 
 export function describeAudit(e: AuditEntry): { verb: string; object?: string } {

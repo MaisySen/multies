@@ -11,6 +11,7 @@ import { cn } from "@/web/lib/cn";
 
 const statusTone: Record<Delivery["status"], "ok" | "warn" | "bad" | "brand" | "neutral"> = {
   delivered: "ok", received: "ok", sent: "ok", forwarded: "brand", queued: "warn", failed: "bad", rejected: "bad",
+  bounced: "bad", complained: "bad", delayed: "warn", suppressed: "neutral",
 };
 
 export function ActivityPage() {

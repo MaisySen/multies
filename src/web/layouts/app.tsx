@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { Activity, Check, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
@@ -22,6 +22,7 @@ const nav = [
   { to: "/app/mail", label: "Mail", icon: Inbox },
   { to: "/app/domains", label: "Domains", icon: Globe },
   { to: "/app/mailboxes", label: "Mailboxes", icon: Users },
+  { to: "/app/deliverability", label: "Deliverability", icon: ShieldCheck },
   { to: "/app/activity", label: "Activity", icon: Activity },
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];

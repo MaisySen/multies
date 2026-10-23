@@ -98,7 +98,7 @@ export interface Delivery {
   fromAddress: string;
   toAddress: string;
   subject: string;
-  status: "received" | "delivered" | "forwarded" | "queued" | "sent" | "failed" | "rejected";
+  status: "received" | "delivered" | "forwarded" | "queued" | "sent" | "failed" | "rejected" | "bounced" | "complained" | "delayed" | "suppressed";
   provider: string;
   detail: string | null;
   createdAt: string;

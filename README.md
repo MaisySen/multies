@@ -122,6 +122,16 @@ with the [Standard Webhooks](https://www.standardwebhooks.com) spec. Verify them
 Webhooks library and the endpoint's `whsec_` secret. Failed deliveries retry with backoff for about
 nine hours.
 
+**Deliverability**: Resend delivery events (`/api/webhooks/resend`, verified with the Standard
+Webhooks library because Resend signs with Svix) mark bounces and complaints in the delivery log.
+Hard bounces and complaints go on a per-workspace suppression list that sending skips. DMARC
+aggregate reports (.xml, .xml.gz or .zip) are read from mail to any mailbox whose name or subject
+mentions DMARC or a report, or uploaded by hand, and parsed with fast-xml-parser and fflate. Each
+domain gets a 0 to 100 health score from its DNS records, DMARC policy, DMARC pass rate, bounce rate
+and complaint rate. On the Node server, inbound mail is checked with mailauth (DKIM, DMARC, ARC);
+the Workers build keeps the verdicts Cloudflare Email Routing writes. Set `RESEND_WEBHOOK_SECRET` to
+the endpoint's signing secret from Resend.
+
 **Mail apps (IMAP and SMTP)**: MyMail drives a Stalwart mail server for Outlook, Apple Mail and
 phones. `docker compose up` runs both; see [`docs/mail-server.md`](docs/mail-server.md).
 
