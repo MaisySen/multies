@@ -20,7 +20,8 @@ export function MailboxesPage() {
   const tab = params.get("tab") === "aliases" ? "aliases" : "mailboxes";
   const domains = useDomains();
   const org = useOrg();
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreatingState] = useState(params.get("add") === "1");
+  const setCreating = (v: boolean) => { setCreatingState(v); if (!v && params.has("add")) setParams((p) => { const n = new URLSearchParams(p); n.delete("add"); return n; }, { replace: true }); };
   const noDomains = domains.data?.length === 0;
   const usage = org.data?.usage;
   const limits = org.data?.plan.limits;

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { Activity, Check, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
-import { Avatar } from "@/web/components/ui/misc";
+import { Avatar, Kbd } from "@/web/components/ui/misc";
+import { CommandPalette } from "@/web/components/command-palette";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useMe, useWorkspaces } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
@@ -16,6 +17,8 @@ import { initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
@@ -33,6 +36,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
+  const [palette, setPalette] = useState(false);
   useEffect(() => setDrawer(false), [loc.pathname]);
   // Assigned during render so the first paint already uses the workspace's zone.
   setDisplayTimeZone(me.data?.organization?.timezone);
@@ -65,7 +69,12 @@ export function AppLayout() {
       <div className="px-3">
         <WorkspaceSwitcher current={organization} />
       </div>
-      <nav className="mt-4 flex-1 space-y-0.5 px-3" aria-label="App">
+      <div className="mt-3 px-3">
+        <button onClick={() => { setDrawer(false); setPalette(true); }} className="flex w-full items-center gap-2.5 rounded-lg border border-line px-2.5 py-[6px] text-[13px] text-subtle transition-colors hover:border-line-strong hover:text-muted">
+          <Search className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd>
+        </button>
+      </div>
+      <nav className="mt-3 flex-1 space-y-0.5 px-3" aria-label="App">
         {[...nav, ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false }] : [])].map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cn(
             "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors",
@@ -119,6 +128,7 @@ export function AppLayout() {
         <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
+        <CommandPalette open={palette} onOpenChange={setPalette} onSignOut={signOut} />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Globe, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -15,7 +15,9 @@ import { timeAgo } from "@/web/lib/format";
 
 export function DomainsPage() {
   const { data, isPending, error } = useDomains();
-  const [open, setOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
+  const [open, setOpenState] = useState(params.get("add") === "1");
+  const setOpen = (v: boolean) => { setOpenState(v); if (!v && params.has("add")) setParams({}, { replace: true }); };
   return (
     <>
       <PageHeader title="Domains" description="Domains you send and receive mail on. Each one is verified live against DNS." actions={<Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>} />
