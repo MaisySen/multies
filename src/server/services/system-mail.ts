@@ -1,3 +1,5 @@
+import { createElement, type ReactElement } from "react";
+import { Notice, renderEmail, type Brand } from "../emails";
 import type { Deps } from "../context";
 import { newId } from "../lib/crypto";
 import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
@@ -12,6 +14,8 @@ export interface SystemEmail {
   action?: { label: string; url: string };
   /** Which React Email template renders the HTML part (defaults to the plain notice). */
   template?: string;
+  /** A React Email template (src/server/emails) for the HTML part; `text` stays the plain part. */
+  element?: ReactElement;
   /** Org the email is about, for the delivery log. */
   orgId?: string;
 }
@@ -23,18 +27,14 @@ export interface SystemEmailResult {
   detail?: string;
 }
 
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-export function renderSystemHtml(appName: string, e: SystemEmail): string {
-  const paras = e.text.split(/\n{2,}/).map((p) => `<p style="margin:0 0 16px;line-height:1.6">${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
-  const button = e.action
-    ? `<p style="margin:24px 0"><a href="${esc(e.action.url)}" style="background:#6366f1;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600;display:inline-block">${esc(e.action.label)}</a></p>
-       <p style="margin:0 0 16px;font-size:12px;color:#71717a">Or paste this link into your browser:<br><span style="word-break:break-all">${esc(e.action.url)}</span></p>`
-    : "";
-  return `<!doctype html><html><body style="margin:0;background:#f4f4f5;padding:32px 16px;font-family:-apple-system,Segoe UI,Inter,sans-serif;color:#18181b">
-<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;border:1px solid #e4e4e7">
-<div style="font-weight:700;font-size:16px;margin-bottom:24px">${esc(appName)}</div>${paras}${button}
-</div></body></html>`;
+/** The brand block every React Email template shares. */
+export const emailBrand = (deps: Deps): Brand => ({ appName: deps.config.appName, appUrl: deps.config.appUrl });
+
+/** HTML part: the template element when the caller built one, else the generic notice. */
+export async function renderSystemHtml(deps: Deps, e: SystemEmail): Promise<string> {
+  const el = e.element ?? createElement(Notice, { brand: emailBrand(deps), title: e.subject, text: e.text, action: e.action });
+  return (await renderEmail(el)).html;
 }
 
 /**
@@ -46,7 +46,7 @@ export function renderSystemHtml(appName: string, e: SystemEmail): string {
 export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<SystemEmailResult> {
   const { config } = deps;
   const text = e.action ? `${e.text}\n\n${e.action.label}: ${e.action.url}\n` : e.text;
-  const html = renderSystemHtml(config.appName, e);
+  const html = await renderSystemHtml(deps, e);
   const messageId = `<${newId("sys")}@${config.systemFrom.address.split("@")[1] ?? "localhost"}>`;
   const to = e.to.toLowerCase();
 

@@ -24,7 +24,9 @@ import { and, count, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "./context";
 import * as schema from "./db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "./lib/crypto";
-import { sendSystemEmail } from "./services/system-mail";
+import { createElement } from "react";
+import { emailBrand, sendSystemEmail } from "./services/system-mail";
+import { Invite as InviteEmail, Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "./emails";
 import { beforeUserDelete } from "./services/privacy";
 import { HttpError } from "./lib/errors";
 import { getPlan } from "./services/plans";
@@ -33,6 +35,17 @@ const ID_PREFIX: Record<string, string> = {
   user: "usr", session: "ses", account: "acc", verification: "vrf", organization: "org",
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
 };
+
+async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
+  if (user.email.endsWith(".test")) return;
+  const first = user.name.split(" ")[0] || user.name;
+  await sendSystemEmail(deps, {
+    to: user.email, template: "welcome", subject: `Welcome to ${deps.config.appName}`,
+    text: `Hi ${first}, your workspace is ready.\n\n1. Add your domain. We show the exact DNS records and check them for you.\n2. Create mailboxes, one per person or role, plus aliases like hello@.\n3. Use webmail, or add the account to Apple Mail, Outlook or your phone.\n\nReply to this email if you get stuck.`,
+    action: { label: "Open your dashboard", url: `${deps.config.appUrl}/app` },
+    element: createElement(WelcomeEmail, { brand: emailBrand(deps), name: first }),
+  }).catch((err) => deps.reportError?.(err, { where: "sendWelcome" }));
+}
 
 export function authOptions(deps: Deps) {
   const { config, db } = deps;
@@ -87,6 +100,7 @@ export function authOptions(deps: Deps) {
         await sendSystemEmail(deps, {
           to: user.email,
           subject: `Reset your ${config.appName} password`,
+          template: "reset", element: createElement(ResetEmail, { brand: emailBrand(deps), email: user.email, url }),
           text: `Someone (hopefully you) asked to reset the password for ${user.email}.\n\nThe link works for one hour. If you didn't ask for this, ignore this email; your password stays the same.`,
           action: { label: "Choose a new password", url },
         });
@@ -94,6 +108,8 @@ export function authOptions(deps: Deps) {
     },
     emailVerification: {
       sendOnSignUp: true,
+      // The welcome email goes out once the address is proven, so it never lands on a typo.
+      afterEmailVerification: async (user) => { await sendWelcome(deps, user); },
       autoSignInAfterVerification: true,
       expiresIn: 3 * 24 * 60 * 60,
       sendVerificationEmail: async ({ user, url }) => {
@@ -101,6 +117,7 @@ export function authOptions(deps: Deps) {
         await sendSystemEmail(deps, {
           to: user.email,
           subject: `Confirm your email for ${config.appName}`,
+          template: "verify", element: createElement(VerifyEmail, { brand: emailBrand(deps), name: user.name.split(" ")[0] ?? user.name, email: user.email, url }),
           text: `Hi ${user.name.split(" ")[0]}, confirm that ${user.email} is your address so we can reach you about your account.`,
           action: { label: "Confirm email", url },
         });
@@ -195,6 +212,12 @@ export function authOptions(deps: Deps) {
     },
     account: { accountLinking: { enabled: true, trustedProviders: ["google", "github", "auth0"] } },
     databaseHooks: {
+      user: {
+        create: {
+          // Social sign ups arrive verified, so they get the welcome straight away.
+          after: async (user) => { if (user.emailVerified) await sendWelcome(deps, user); },
+        },
+      },
       session: {
         create: {
           // New sessions open the person's first workspace.
@@ -221,6 +244,10 @@ export function authOptions(deps: Deps) {
           await sendSystemEmail(deps, {
             to: data.email, orgId: data.organization.id,
             subject: `${data.inviter.user.name} invited you to ${data.organization.name} on ${config.appName}`,
+            template: "invite", element: createElement(InviteEmail, {
+              brand: emailBrand(deps), inviter: data.inviter.user.name, inviterEmail: data.inviter.user.email,
+              workspace: data.organization.name, role: data.role, url: `${config.appUrl}/invite/${data.id}`,
+            }),
             text: `${data.inviter.user.name} (${data.inviter.user.email}) invited you to join the ${data.organization.name} workspace on ${config.appName} as ${data.role === "admin" ? "an admin" : "a member"}.\n\nThis invitation expires in 7 days.`,
             action: { label: "Accept invitation", url: `${config.appUrl}/invite/${data.id}` },
           });
