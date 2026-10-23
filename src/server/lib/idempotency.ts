@@ -40,6 +40,7 @@ export function idempotency(scopeOf: (c: Parameters<MiddlewareHandler<AppEnv>>[0
 
     const existing = await db.select().from(idempotencyKeys).where(and(eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key))).get();
     if (existing && now.getTime() - new Date(existing.createdAt).getTime() < IDEMPOTENCY_TTL_MS) {
+      // nosemgrep: node_timing_attack (compares request body hashes, not secrets)
       if (existing.requestHash !== hash) {
         throw new HttpError(422, "idempotency_key_reused", "This Idempotency-Key was already used with a different request.");
       }

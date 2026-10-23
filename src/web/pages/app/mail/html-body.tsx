@@ -51,6 +51,7 @@ export function HtmlBody({ html }: { html: string }) {
 export function TextBody({ text }: { text: string }) {
   const [showQuoted, setShowQuoted] = useState(false);
   const lines = text.split(/\r?\n/);
+  // nosemgrep: regex_dos (runs on one trimmed line of a message the reader opened, anchored at both ends)
   const firstQuote = lines.findIndex((l, i) => l.startsWith(">") || (/^On .+wrote:$/.test(l.trim()) && lines[i + 1]?.startsWith(">")));
   const main = firstQuote > 0 ? lines.slice(0, firstQuote).join("\n").trimEnd() : text;
   const quoted = firstQuote > 0 ? lines.slice(firstQuote).join("\n") : "";

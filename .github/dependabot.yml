@@ -17,23 +17,31 @@ updates:
       development-minor:
         dependency-type: development
         update-types: [minor, patch]
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: deps
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: deps
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ci
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: deps

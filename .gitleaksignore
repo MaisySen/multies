@@ -1,0 +1,2 @@
+# PEM armour in the DKIM key generator (src/server/lib/crypto.ts), a template string, not a key.
+a8cdb60404f21bf1837e8e6d0ef3b0da7840bbc2:src/server/lib/crypto.ts:private-key:136

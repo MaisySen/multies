@@ -32,6 +32,7 @@ export function findIssues(file: string, text: string): Issue[] {
   const out: Issue[] = [];
   const facing = isUserFacing(file);
   text.split("\n").forEach((line, i) => {
+    // nosemgrep: regex_dos (a fixed two-character class, linear time)
     if (DASHES.test(line)) out.push({ file, line: i + 1, rule: "dash", text: line.trim() });
     const m = facing ? line.match(SLOP_RE) : null;
     if (m) out.push({ file, line: i + 1, rule: "slop", text: m[0] });
