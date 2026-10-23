@@ -7,7 +7,7 @@ import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
 import { getOrg, usage } from "../services/plans";
 import { PLANS, isPlanId, PLAN_ORDER } from "@/shared/plans";
-import { badRequest } from "../lib/errors";
+import { badRequest, HttpError } from "../lib/errors";
 
 export function orgRoutes() {
   return new Hono<AppEnv>()
@@ -33,6 +33,9 @@ export function orgRoutes() {
       if (!isPlanId(plan)) throw badRequest("Unknown plan.");
       const { auth, deps } = c.var;
       const org = await getOrg(deps.db, auth.orgId);
+      if (deps.config.billing.enabled && !org.isDemo) {
+        throw new HttpError(409, "use_billing", "Plans are changed through billing. Open Settings → Billing.");
+      }
       const used = await usage(deps.db, auth.orgId);
       const target = PLANS[plan];
       const over = (Object.keys(used) as (keyof typeof used)[]).filter((k) => used[k] > target.limits[k]);

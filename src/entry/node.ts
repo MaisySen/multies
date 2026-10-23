@@ -27,7 +27,7 @@ const outbound = config.outbound.driver === "resend"
   : new LogOutbound((line) => console.log(line));
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
-const deps = { db, config, dns, outbound, now: () => new Date() };
+const deps = { db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis) };
 const app = createApp(deps);
 
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.

@@ -14,6 +14,7 @@ import { dashboardRoutes } from "./routes/dashboard";
 import { PLANS } from "@/shared/plans";
 import { inviteRoutes, teamRoutes } from "./routes/team";
 import { securityRoutes } from "./routes/security";
+import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -30,7 +31,7 @@ export function createApp(deps: Deps) {
     c.header("cache-control", "no-store");
   });
   app.use("/api/*", async (c, next) => {
-    if (c.req.path.startsWith("/api/inbound/")) return next(); // signed webhooks, not cookie auth
+    if (c.req.path.startsWith("/api/inbound/") || c.req.path.startsWith("/api/webhooks/")) return next(); // signed webhooks, not cookie auth
     return csrfGuard(c, next);
   });
 
@@ -41,6 +42,7 @@ export function createApp(deps: Deps) {
       mode: deps.config.mode,
       demoEnabled: deps.config.demoEnabled,
       outboundDriver: deps.outbound.name,
+      billingEnabled: deps.config.billing.enabled,
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
     }),
@@ -57,6 +59,8 @@ export function createApp(deps: Deps) {
   app.route("/api/dashboard", dashboardRoutes());
   app.route("/api/team", teamRoutes());
   app.route("/api/invites", inviteRoutes());
+  app.route("/api/billing", billingRoutes());
+  app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());
 

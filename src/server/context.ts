@@ -10,6 +10,8 @@ export interface Deps {
   dns: DnsResolver;
   outbound: OutboundProvider;
   now: () => Date;
+  /** Outbound HTTP (Stripe, webhooks). Swapped for a fake in tests. */
+  fetch: typeof fetch;
 }
 
 export interface AuthContext {

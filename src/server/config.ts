@@ -23,6 +23,15 @@ export interface AppConfig {
     dmarcRua?: string;
   };
   outbound: { driver: "log" | "resend"; resendApiKey?: string };
+  /** Stripe billing. `enabled` only when every key below is set. */
+  billing: {
+    enabled: boolean;
+    stripeSecretKey?: string;
+    stripeWebhookSecret?: string;
+    prices: { pro?: string; business?: string };
+    /** Which settings are missing, for the "billing not connected" screen. */
+    missing: string[];
+  };
   /** Sender of account emails (invites, password resets, verification). */
   systemFrom: { address: string; name: string };
   /** Largest raw message accepted inbound, in bytes. */
@@ -47,6 +56,10 @@ const EnvSchema = z.object({
   RESEND_API_KEY: z.string().optional(),
   MAX_MESSAGE_BYTES: z.string().optional(),
   SYSTEM_FROM: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
   SYSTEM_FROM_NAME: z.string().optional(),
 });
 
@@ -98,6 +111,16 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dmarcRua: env.MAIL_DMARC_RUA,
     },
     outbound: { driver: outboundDriver, resendApiKey: env.RESEND_API_KEY },
+    billing: (() => {
+      const req = { STRIPE_SECRET_KEY: env.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: env.STRIPE_WEBHOOK_SECRET, STRIPE_PRICE_PRO: env.STRIPE_PRICE_PRO, STRIPE_PRICE_BUSINESS: env.STRIPE_PRICE_BUSINESS };
+      const missing = Object.entries(req).filter(([, v]) => !v).map(([k]) => k);
+      return {
+        enabled: missing.length === 0,
+        stripeSecretKey: env.STRIPE_SECRET_KEY, stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET,
+        prices: { pro: env.STRIPE_PRICE_PRO, business: env.STRIPE_PRICE_BUSINESS },
+        missing,
+      };
+    })(),
     systemFrom: {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",

@@ -27,6 +27,12 @@ export const organizations = sqliteTable("organizations", {
   name: text("name").notNull(),
   plan: text("plan", { enum: ["starter", "pro", "business"] }).notNull().default("starter"),
   isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
+  stripeCustomerId: text("stripe_customer_id"),
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  /** Stripe's subscription status, mirrored by webhooks (active, trialing, past_due, canceled, ...). */
+  subscriptionStatus: text("subscription_status"),
+  currentPeriodEnd: ts("current_period_end"),
+  cancelAtPeriodEnd: integer("cancel_at_period_end", { mode: "boolean" }).notNull().default(false),
   createdAt: createdAt(),
 });
 
@@ -233,3 +239,11 @@ export const recoveryCodes = sqliteTable("recovery_codes", {
   usedAt: ts("used_at"),
   createdAt: createdAt(),
 }, (t) => [index("recovery_codes_user_idx").on(t.userId)]);
+
+/** Processed billing webhooks, keyed by the provider's event id so retries are no-ops. */
+export const billingEvents = sqliteTable("billing_events", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  orgId: text("org_id"),
+  createdAt: createdAt(),
+});

@@ -36,7 +36,7 @@ async function boot(env: WorkerEnv) {
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
   const config = loadConfig(vars);
   const outbound = config.outbound.driver === "resend" ? new ResendOutbound(config.outbound.resendApiKey!) : new LogOutbound();
-  const deps: Deps = { db, config, dns: new DohResolver(), outbound, now: () => new Date() };
+  const deps: Deps = { db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: (input, init) => fetch(input, init) };
   return { app: createApp(deps), deps };
 }
 
