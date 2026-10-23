@@ -83,9 +83,11 @@ export function fileRoutes() {
       return c.json({ files: await listFiles(c.var.deps, c.var.auth.orgId, await resolveTaskId(c.var.deps, c.var.auth.orgId, taskId)) });
     })
     .post("/", async (c) => {
-      const b = await parseBody(c, FileUpload.extend({ taskId: z.string().min(1) }));
+      const b = await parseBody(c, FileUpload.extend({ taskId: z.string().min(1).optional() }));
+      const taskId = b.taskId ?? c.req.query("taskId");
+      if (!taskId) throw new HttpError(422, "validation_failed", "Pass taskId.");
       const a = c.var.auth;
-      return c.json({ file: await addFile(c.var.deps, a, b.taskId, decodeUpload(b), { type: "member", id: a.userId, name: a.name || a.email }) }, 201);
+      return c.json({ file: await addFile(c.var.deps, a, taskId, decodeUpload(b), { type: "member", id: a.userId, name: a.name || a.email }) }, 201);
     })
     .get("/:id/download", async (c) => download(await readFile(c.var.deps, c.var.auth.orgId, c.req.param("id"))));
 }
