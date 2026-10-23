@@ -69,3 +69,49 @@ out. With `PUSH_ENABLED=1` the server sends a push for new mail, approvals waiti
 or commented on, a reply on a task's thread and a task nearly due. The payload is only
 `{ type, id }`; the app fetches the item through the API, so no mail content passes through the
 push provider.
+
+## Time tracking
+
+A timer belongs to one person or agent; starting a new one stops the old, and a timer left running
+counts at most 12 hours. Manual entries take minutes and a date. `GET /api/time/timesheet` (and
+`/api/v1/time/timesheet`) returns one row per person and project with seconds per day in the
+workspace's time zone. Agent keys log time under the agent's own name (`start_timer`, `stop_timer`,
+`log_time`, `get_timesheet` over MCP). Webhooks: `time_entry.created`, `time_entry.updated`.
+
+## Dependencies
+
+"Blocked by" is a link between two tasks (`entity_links`, relation `blocks`, from the blocker to the
+blocked task). `POST /api/v1/tasks/{id}/dependencies { blockedBy }` adds one and refuses loops; the
+task detail lists `blockedBy` and `blocking`; the timeline draws them as finish to start arrows, and
+dragging from one bar to another adds one. MCP: `set_task_blocked_by`.
+
+## Forms
+
+A form has a random public address (`/f/<slug>`) and makes a task (answers in the notes, label
+`form`, linked to the sender's contact) or a contact. Spam checks: Cloudflare Turnstile when
+`TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` are set; always a hidden trap field, a minimum fill
+time (1.5 s) and five submissions per sender per form in ten minutes (by a salted hash of the IP).
+A bot that trips the trap gets the normal thank-you and creates nothing. Only the form page loads
+the Turnstile script; the rest of the app keeps `script-src 'self'`. Webhook: `form.submitted`.
+
+## Reports
+
+`GET /api/reports/dashboard?days=30&projectId=` (and `/api/v1/reports/dashboard`, MCP `get_report`)
+counts in the database: tasks by status and assignee, overdue tasks, tasks done per day, time per
+project and the deals pipeline in AUD, ex GST. The page draws it with Recharts (MIT).
+
+## Meetings
+
+Video runs on LiveKit (Apache 2.0) and is off until `LIVEKIT_URL`, `LIVEKIT_API_KEY` and
+`LIVEKIT_API_SECRET` are set. A meeting can be started from a thread, task or contact (title and
+guests are filled in from it), and has a guest link (`/m/<token>`) that needs no account. Calendar
+invites are an `.ics` file sent through MyMail's own sending: a person sends from a mailbox they can
+use; an agent's invite (REST or MCP `schedule_meeting`) always goes out as an agent and follows its
+approval rules, so outside guests wait for a person to approve. Tokens last six hours; members are
+room admins, guests are not. No recording, notes or transcripts.
+
+Self-hosting instead of LiveKit Cloud: run the open source `livekit-server` (Docker image
+`livekit/livekit-server`, one binary) on a small VM with ports 7880 (WebSocket), 7881 (TCP) and
+50000 to 60000 UDP open, put TLS in front of 7880 (Caddy works), create a key pair in its config and
+set `LIVEKIT_URL=wss://your-host`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` on the Worker. The app
+and the browser code don't change. The page's content security policy allows any `wss:` host.

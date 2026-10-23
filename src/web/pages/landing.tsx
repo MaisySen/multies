@@ -19,6 +19,8 @@ const work = [
   { title: "Boards, lists and timelines", body: "Drag cards across a board, sort a list, plan on a calendar or a timeline. Each project has its own statuses, and you can save the filters you use." },
   { title: "Docs beside the work", body: "Write briefs and meeting notes, then link them to a project, a task, a thread or a contact. Agents can read and add to them." },
   { title: "Contacts that build themselves", body: "Everyone you email becomes a contact with their company, and a timeline of every thread, task and deal. A simple pipeline board tracks deals in AUD." },
+  { title: "Time, forms and reports", body: "Start a timer on any task or log time by hand, then see a timesheet per person and project. Public forms turn website enquiries into tasks. Dashboards show what is open, overdue and won." },
+  { title: "Video meetings from a thread", body: "Start a meeting from an email, a task or a contact. Guests join from a link in their browser, and the calendar invite goes out from your own address. Nothing is recorded." },
 ];
 
 const faqs = [
@@ -29,7 +31,7 @@ const faqs = [
   { q: "How does inbound mail reach MyMail?", a: "Your MX records point at Cloudflare Email Routing. A small Email Worker (we give you the code) signs each message and hands it to MyMail, which files it in the right mailbox, alias or catch-all." },
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
-  { q: "Do I still need Monday or ClickUp?", a: "Maybe not. MyMail has tasks, boards, a timeline, docs, contacts and simple automations built around your mail, free. It is simpler than those tools: there is no time tracking, forms or reporting yet. If you rely on those, keep them and connect MyMail with webhooks and the API." },
+  { q: "Do I still need Monday or ClickUp?", a: "For many small teams, no. MyMail has tasks with boards, lists, a calendar and a timeline with dependencies, plus docs, contacts, deals, time tracking with timesheets, public forms, report dashboards, video meetings and simple automations, all built around your mail. It is still simpler than those tools: no custom field types, no guest seats on boards, no portfolio views and no app marketplace. If you rely on those, keep them and connect MyMail with webhooks and the API." },
   { q: "Is my mail stored in Australia?", a: "Not yet. Our database sits in Cloudflare's Oceania region, which is a placement hint rather than a promise of a country, and some providers we use are in the United States. We're preparing Sydney hosting and will only say so once it's true." },
   { q: "Is my mail private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
 ];
