@@ -46,8 +46,10 @@ jobs:
           path: coverage/
           retention-days: 14
       - run: npm run build && npm run build:worker
-      - run: npx playwright install --with-deps chromium
-        timeout-minutes: 10
+      # The runner image already carries Chrome's system libraries, so only the browser is
+      # downloaded. --with-deps went through a slow apt mirror and timed out twice.
+      - run: npx playwright install chromium
+        timeout-minutes: 5
       - name: End to end tests (Playwright)
         run: npm run test:e2e
         timeout-minutes: 10
