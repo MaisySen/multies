@@ -10,6 +10,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # A hung runner step otherwise holds the deploy queue for GitHub's six hour default.
+    timeout-minutes: 30
     # A newer push supersedes an older check; deploys keep their own queue below.
     concurrency:
       group: check-${{ github.ref }}
@@ -45,8 +47,10 @@ jobs:
           retention-days: 14
       - run: npm run build && npm run build:worker
       - run: npx playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: End to end tests (Playwright)
         run: npm run test:e2e
+        timeout-minutes: 10
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
@@ -55,6 +59,7 @@ jobs:
           retention-days: 14
       - name: Lighthouse CI (performance, accessibility and best practice budgets)
         run: npm run lhci
+        timeout-minutes: 10
 
   deploy-staging:
     needs: check
