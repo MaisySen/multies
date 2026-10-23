@@ -1,79 +1,57 @@
 # Push notifications
 
-## What works now, with nothing from the owner
+## How it works
 
-- The app asks for permission from Settings and sets up two Android channels: New mail and
-  Agent approvals.
-- While the app is open or recently backgrounded it checks approvals every 30 seconds and raises a
-  local notification for each new request. Tapping it opens Approvals.
-- Expo push tokens are fetched as soon as an EAS project id exists (`extra.eas.projectId` in
-  app.json, written by `npx eas-cli init`).
+1. After sign in (and at each launch), if notifications are already allowed, the app gets this
+   phone's Expo push token and sends it to `POST /api/push/devices { token, platform }`. The
+   Settings button asks for permission first and then does the same. The app never prompts on its
+   own.
+2. At sign out the app calls `DELETE /api/push/devices/:token` while the session still works, then
+   ends the session.
+3. A push from the server carries only `{ type, id }`, never mail or task text, so nothing private
+   passes through Apple, Google or Expo. The app's background task (`src/lib/push-task.ts`,
+   expo-task-manager plus `Notifications.registerTaskAsync`) runs for every push, with the app
+   open, in the background or closed. It fetches the item with the saved session, words the
+   notification on the phone (`src/lib/push-events.ts`) and shows it on the right Android channel
+   (New mail, Agent approvals, Tasks).
+4. Tapping it opens the item:
 
-## What real push needs
+| type | opens |
+| --- | --- |
+| `message.received` | the thread |
+| `approval.requested` | the approval review screen |
+| `task.assigned`, `task.commented`, `task.email_reply`, `task.due_soon` | the task |
+| `automation.email` | the thread, when the id is a message |
+| `automation.status` | the app (the details are on the web) |
 
-| Piece | Who | Cost |
+If the item can't be fetched (offline, signed out, deleted since) the notification still shows,
+with general words for its type.
+
+5. The local fallback stays: while the app is open it checks approvals every 30 s and raises a local
+   notification for new ones. It needs nothing from the owner.
+
+## Flags
+
+- `EXPO_PUBLIC_FEATURE_PUSH_SERVER` (default on; set to 1 in every eas.json profile). `0` turns
+  off the token registration for a build.
+- Harmless before the owner has set anything up: with no EAS project id the app fetches no token
+  and registers nothing; with the server's `PUSH_ENABLED` off the server stores the token, answers
+  `enabled: false`, and sends nothing. Settings says which.
+
+## What real push needs from the owner
+
+| Piece | Where | Cost |
 | --- | --- | --- |
-| EAS project (free Expo account) | owner, or Tab with the owner's OK | free |
-| APNs key (.p8) for iOS | owner, from the Apple Developer account | part of A$149 a year membership |
-| Firebase project and `google-services.json` for Android (FCM) | owner's Google account | free |
-| API endpoint and sender (below) | builder | free: Expo's push service has no charge |
+| EAS project id (free Expo account) | `npx eas-cli init` writes `extra.eas.projectId` into app.json | free |
+| Firebase project and `google-services.json` (FCM v1 key uploaded with `eas credentials`) | owner's Google account | free |
+| APNs key (.p8) | Apple Developer account, uploaded with `eas credentials` | part of the Apple membership |
+| `PUSH_ENABLED=1` on the Worker, and optionally `EXPO_ACCESS_TOKEN` | Cloudflare | free |
 
-`eas credentials` uploads the APNs key and the FCM key once; after that Expo's push service
-delivers to both platforms from one HTTP call.
+Then rebuild the apps. For Android the build also needs `android.googleServicesFile` in app.json
+pointing at `google-services.json` (keep the file out of git; EAS can take it as a file secret).
 
-## Server side (small, isolated, behind config)
+## Server side
 
-Not merged into the API on purpose: it needs a D1 migration and the round 5 builder is changing
-the schema on main right now. Add it after that lands.
-
-Migration:
-
-```sql
-CREATE TABLE push_devices (
-  token TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  org_id TEXT NOT NULL,
-  platform TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
-  last_seen_at INTEGER NOT NULL
-);
-CREATE INDEX push_devices_org ON push_devices(org_id);
-```
-
-Routes (`src/server/routes/push.ts`, cookie session, enabled when `PUSH_ENABLED=1`):
-
-```ts
-export function pushRoutes() {
-  return new Hono<AppEnv>()
-    .use("*", requireAuth)
-    .post("/devices", async (c) => {
-      const { token, platform } = await parseBody(c, z.object({ token: z.string().startsWith("ExponentPushToken["), platform: z.enum(["ios", "android"]) }));
-      const now = c.var.deps.now();
-      await c.var.deps.db.insert(pushDevices).values({ token, userId: c.var.auth.userId, orgId: c.var.auth.orgId, platform, createdAt: now, lastSeenAt: now })
-        .onConflictDoUpdate({ target: pushDevices.token, set: { userId: c.var.auth.userId, orgId: c.var.auth.orgId, lastSeenAt: now } });
-      return c.json({ ok: true }, 201);
-    })
-    .delete("/devices/:token", async (c) => { /* delete where token and userId match */ return c.json({ ok: true }); });
-}
-```
-
-Sender (`services/push.ts`), called from the inbound mail handler and from `createApproval`, as a
-job on the existing D1 queue so a slow push never slows mail:
-
-```ts
-export async function sendPush(deps: Deps, orgId: string, msg: { title: string; body: string; url: string; channelId: "mail" | "approvals" }) {
-  const devices = await deps.db.select().from(pushDevices).where(eq(pushDevices.orgId, orgId));
-  if (!devices.length) return;
-  const res = await deps.fetch("https://exp.host/--/api/v2/push/send", {
-    method: "POST",
-    headers: { "content-type": "application/json", ...(deps.config.expoAccessToken ? { authorization: `Bearer ${deps.config.expoAccessToken}` } : {}) },
-    body: JSON.stringify(devices.map((d) => ({ to: d.token, title: msg.title, body: msg.body, data: { url: msg.url }, channelId: msg.channelId, sound: "default" }))),
-  });
-  // Remove tokens Expo reports as DeviceNotRegistered.
-}
-```
-
-Then turn on `EXPO_PUBLIC_FEATURE_PUSH_SERVER=1` in eas.json for the next build.
-
-Privacy: the push body carries the sender and subject only, never the message text, and members
-only get pushes for mailboxes they can open (filter devices by `mailboxScope`).
+Lives on main: `src/server/services/suite/push.ts`. It sends `{ to, data: { type, id }, channelId,
+priority: "high", _contentAvailable: true }` to Expo's push service, which is what the app's
+background task expects (data only, content-available for iOS).

@@ -9,8 +9,8 @@ Expo Router), talking to the same API as the web app.
 | Mail | Inbox, Starred, Sent and Archive, per mailbox filter, read a thread, reply, forward, compose with a From picker, archive, star, trash, search |
 | Offline | The first page of each folder and the last 60 threads are saved in SQLite on the phone. With no connection the app shows the saved copy and searches it |
 | Agent approvals | Waiting and Decided lists, approve or reject in one tap, review and edit the subject or body before approving, a note when rejecting, haptics, badge count on the tab |
-| Tasks | Make a task from any email, list and board (To do, Doing, Done) views. Saved on the phone behind a feature flag until the API has tasks (docs/api-gaps.md) |
-| Notifications | Permission prompt, Android channels for mail and approvals, a local alert when a new approval arrives while the app is in the background. Push from the server is documented in docs/push.md |
+| Tasks | Team tasks from `/api/tasks`: Make a task from any email in one call (`/api/tasks/from-email`), list and board (To do, Doing, Done), assigned to me, and a task screen with status, priority, due date, assignee (a person or an agent), subtasks, comments and the email thread's replies. The last copy is kept on the phone for offline use. The sample workspace answers the same routes on the phone |
+| Notifications | The phone registers for push after sign in and unregisters at sign out. Server pushes carry only a type and an id; the app fetches the item, writes the notification and opens the thread, approval or task when tapped. Android channels for mail, approvals and tasks. The 30 s approvals check stays as a fallback. See docs/push.md |
 | Settings | Account, workspace and plan, storage, notifications, clear saved mail, en-AU, privacy, terms, support, sign out and in-app account deletion (App Store and Google Play rule) |
 | Sample workspace | "Explore with sample data" runs every screen on made up data with no server. The browser preview uses it |
 
@@ -57,7 +57,7 @@ src/
   app/            screens (Expo Router): sign-in, two-factor, (tabs)/inbox|approvals|tasks|settings,
                   thread/[id], compose, search, approval/[id], task/[id], task/new, delete-account
   api/            v1.d.ts generated from the API's OpenAPI spec, types.ts, endpoints.ts, transport.ts
-  lib/            session (cookie jar in secure storage), offline cache (SQLite), tasks, push, format
+  lib/            session (cookie jar in secure storage), offline cache (SQLite), tasks, push (push-events, push-task), format
   sample/         the sample workspace: fixtures and an in-memory transport with the same routes
   components/     accessible UI pieces in the web app's vermilion dark theme
 ```
