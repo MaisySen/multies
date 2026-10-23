@@ -31,7 +31,7 @@ export function domainRoutes() {
     })
     .post("/:id/verify", async (c) => {
       const { auth, deps } = c.var;
-      if (!verifyLimiter.take(auth.orgId)) throw tooMany("Checking too often. DNS needs a moment — try again shortly.");
+      if (!verifyLimiter.take(auth.orgId)) throw tooMany("Checking too often. DNS needs a moment. Try again shortly.");
       const d = await getDomain(deps.db, auth.orgId, c.req.param("id"));
       const { report, status, changed } = await verifyDomain(deps, d);
       if (changed) {

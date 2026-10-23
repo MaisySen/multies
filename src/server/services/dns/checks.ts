@@ -41,7 +41,7 @@ export function expectedRecords(d: DomainDnsInput, config: AppConfig): ExpectedR
     {
       id: "spf", type: "TXT", host: "@", fqdn: d.name, value: spfValue(config), required: true,
       title: "Sender policy (SPF)",
-      why: "Lists the servers allowed to send as your domain. A domain can have only one SPF record — merge if you already have one.",
+      why: "Lists the servers allowed to send as your domain. A domain can have only one SPF record, so merge it if you already have one.",
     },
     {
       id: "dkim", type: "TXT", host: `${d.dkimSelector}._domainkey`, fqdn: `${d.dkimSelector}._domainkey.${d.name}`,
@@ -106,7 +106,7 @@ async function checkSpf(dns: DnsResolver, d: DomainDnsInput, config: AppConfig):
   if (spf.length > 1) {
     return {
       id: "spf", status: "fail", found: spf,
-      message: "More than one SPF record is published. Receivers treat that as a permanent error — merge them into one.",
+      message: "More than one SPF record is published. Receivers treat that as a permanent error. Merge them into one.",
       suggestion: mergeSpf(spf[0], config.mail.spfIncludes),
     };
   }
@@ -140,7 +140,7 @@ async function checkDkim(dns: DnsResolver, d: DomainDnsInput): Promise<RecordChe
   if (!keys.length) return { id: "dkim", status: "fail", found, message: "DKIM key not found yet." };
   if (keys.includes(d.dkimPublicKey)) return { id: "dkim", status: "pass", found, message: "Signing key matches." };
   if (keys.some((k) => k === "")) return { id: "dkim", status: "fail", found, message: "The DKIM record has an empty key (revoked)." };
-  return { id: "dkim", status: "fail", found, message: "A DKIM record exists but its key is different. Copy the value again — it is easy to truncate." };
+  return { id: "dkim", status: "fail", found, message: "A DKIM record exists but its key is different. Copy the value again; it is easy to truncate." };
 }
 
 async function checkDmarc(dns: DnsResolver, d: DomainDnsInput): Promise<RecordCheck> {

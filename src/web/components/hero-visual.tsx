@@ -1,9 +1,9 @@
 import { Check, Inbox, Globe, Users, Send, Star, Search, Shield } from "lucide-react";
 
 const rows = [
-  { from: "Priya Raman", subject: "Following up from demo day", snippet: "Loved the demo yesterday — could we find 30 minutes…", time: "9:41", unread: true },
+  { from: "Priya Raman", subject: "Following up from demo day", snippet: "Loved the demo yesterday. Could we find 30 minutes…", time: "9:41", unread: true },
   { from: "Maria Gonzalez", subject: "Can we move our team over this week?", snippet: "We have 14 people on Workspace today. If we point…", time: "8:12", unread: true },
-  { from: "Payments", subject: "Receipt for your payment — $1,280.00", snippet: "Thanks for your payment. Amount paid: $1,280.00…", time: "Tue" },
+  { from: "Payments", subject: "Receipt for your payment: $1,280.00", snippet: "Thanks for your payment. Amount paid: $1,280.00…", time: "Tue" },
   { from: "Jordan Lee", subject: "Partnership idea", snippet: "We build onboarding tooling for B2B SaaS and a lot…", time: "Mon" },
   { from: "DMARC Reports", subject: "Aggregate report: 100% aligned", snippet: "SPF aligned 1,204 / 1,204 · DKIM aligned 1,204…", time: "Sun" },
 ];

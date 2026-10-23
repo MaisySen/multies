@@ -8,18 +8,18 @@ import { useStartDemo } from "@/web/lib/demo";
 const features = [
   {
     icon: BadgeCheck, title: "DNS that explains itself",
-    body: "We check MX, SPF, DKIM and DMARC live against the internet and tell you exactly what to fix — down to merging the SPF record you already have.",
+    body: "We check MX, SPF, DKIM and DMARC live against the internet and tell you exactly what to fix, down to merging the SPF record you already have.",
     wide: true,
   },
   { icon: KeyRound, title: "A signing key per domain", body: "Every domain gets its own 2048-bit DKIM key, encrypted at rest. Nobody else signs as you." },
   { icon: AtSign, title: "Mailboxes and aliases", body: "Real inboxes for people, forwarding aliases for roles. sales@ can reach three founders and a Gmail." },
   { icon: Inbox, title: "Webmail that's fast", body: "Threads, search, folders, drafts and keyboard shortcuts. Opens instantly, works on your phone." },
   { icon: Cloud, title: "Built on Cloudflare Email Routing", body: "Inbound mail rides Cloudflare's global network into a signed webhook. No servers to babysit.", wide: true },
-  { icon: FileClock, title: "Every delivery, logged", body: "Inbound, outbound and forwarded mail with status and reason — plus an audit trail of every change." },
+  { icon: FileClock, title: "Every delivery, logged", body: "Inbound, outbound and forwarded mail with status and reason, plus an audit trail of every change." },
 ];
 
 const faqs = [
-  { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records — we show you each one, check them live, and tell you when everything's right." },
+  { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records. We show you each one, check them live, and tell you when everything's right." },
   { q: "How does inbound mail reach MyMail?", a: "Your MX records point at Cloudflare Email Routing. A small Email Worker (we give you the code) signs each message and hands it to MyMail, which files it in the right mailbox, alias or catch-all." },
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
@@ -74,7 +74,7 @@ export function Landing() {
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-brand-hover">Everything email needs</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">The boring parts, done right.</h2>
-          <p className="mt-4 text-muted">Deliverability lives and dies on DNS. MyMail makes it visible, verifiable and fixable — then gets out of your way.</p>
+          <p className="mt-4 text-muted">Deliverability lives and dies on DNS. MyMail makes it visible, verifiable and fixable, then gets out of your way.</p>
         </div>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {features.map(({ icon: Icon, title, body, wide }) => (
@@ -95,7 +95,7 @@ export function Landing() {
           <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Three steps. About five minutes.</h2>
           <ol className="mt-12 grid gap-4 md:grid-cols-3">
             {[
-              { n: "01", t: "Add your domain", b: "We generate its DKIM key and the exact records to publish — host, type and value, ready to copy." },
+              { n: "01", t: "Add your domain", b: "We generate its DKIM key and the exact records to publish: host, type and value, ready to copy." },
               { n: "02", t: "Publish and verify", b: "Paste the records at your DNS provider. MyMail checks them live and turns each one green as it propagates." },
               { n: "03", t: "Create mailboxes", b: "Add people and aliases, connect inbound routing, and start reading and sending from your own domain." },
             ].map((s) => (

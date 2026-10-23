@@ -7,7 +7,7 @@ import { deliverInbound } from "../services/mail/delivery";
 import { createInboundKey, deleteInboundKey, listInboundKeys, verifyInboundSignature } from "../services/mail/inbound-keys";
 
 /**
- * POST /api/inbound/cloudflare — called by the Cloudflare Email Worker in
+ * POST /api/inbound/cloudflare is called by the Cloudflare Email Worker in
  * email-worker/ for every message Email Routing hands it. The raw RFC 5322 message
  * is the body; envelope and HMAC signature travel in headers. The response's
  * `action` tells the worker whether to accept or reject (bounce) the message.

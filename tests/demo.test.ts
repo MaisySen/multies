@@ -3,7 +3,7 @@ import { makeTestApp, Client } from "./helpers";
 import { purgeDemoWorkspaces } from "@/server/services/demo";
 
 describe("demo mode", () => {
-  it("is off unless DEMO_MODE is set — production never seeds", async () => {
+  it("is off unless DEMO_MODE is set, so production never seeds", async () => {
     const { app, db } = await makeTestApp();
     expect((await new Client(app).post("/api/account/demo")).status).toBe(404);
     expect(await db.query.messages.findMany()).toHaveLength(0);

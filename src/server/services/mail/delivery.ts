@@ -176,7 +176,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
   return result;
 }
 
-/** Recipients sent today (UTC) by an org — what the plan's daily limit counts. */
+/** Recipients sent today (UTC) by an org. This is what the plan's daily limit counts. */
 export async function sentToday(db: DB, orgId: string, now: Date): Promise<number> {
   const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const row = await db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(

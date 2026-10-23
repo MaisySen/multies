@@ -3,7 +3,7 @@
 **Email on your own domain, verified in minutes.** Add a domain, publish DNS records that
 check themselves live, create mailboxes and aliases, and read and send mail in a fast webmail.
 
-Live preview: **https://mymail.sites.tab.bot** — tap *Try the live demo* for a private sample
+Live preview: **https://mymail.sites.tab.bot**. Tap *Try the live demo* for a private sample
 workspace, or sign up and add a real domain to watch the DNS checks run.
 
 ---
@@ -96,7 +96,7 @@ CI runs all of the above on every push (`.github/workflows/ci.yml`).
 
 ## Deploy
 
-**Cloudflare Workers + D1** (what the live preview runs on): see `wrangler.toml` — create a D1
+**Cloudflare Workers + D1** (what the live preview runs on): see `wrangler.toml`. Create a D1
 database, `npm run build:web && npm run build:worker`, `npx wrangler deploy`, then set
 `APP_SECRET` (and optionally `RESEND_API_KEY`) as secrets.
 
@@ -119,7 +119,7 @@ See [`.env.example`](.env.example) for every variable with comments. The importa
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `APP_MODE` | `development` | `production` requires `APP_SECRET` and sets Secure cookies |
-| `APP_SECRET` | — | 32+ random chars; encrypts DKIM keys and webhook secrets |
+| `APP_SECRET` | (none) | 32+ random chars; encrypts DKIM keys and webhook secrets |
 | `APP_URL` | `http://localhost:5173` | Public URL, used in the inbound setup screen |
 | `DATABASE_PATH` | `.data/mymail.db` | Node only; Workers use the `DB` D1 binding |
 | `DEMO_MODE` | `false` | Enables sandbox demo workspaces |
@@ -128,7 +128,7 @@ See [`.env.example`](.env.example) for every variable with comments. The importa
 | `MAIL_SPF_INCLUDES` | `_spf.mx.cloudflare.net` | comma separated |
 | `MAIL_DKIM_SELECTOR` | `mymail` | |
 | `OUTBOUND_DRIVER` | `log` (or `resend` when a key is set) | |
-| `RESEND_API_KEY` | — | enables real external sending |
+| `RESEND_API_KEY` | (none) | enables real external sending |
 
 ## Security notes
 

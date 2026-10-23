@@ -63,7 +63,7 @@ export function DomainDetailPage() {
         <Card className="mb-6 flex gap-3 border-brand/25 bg-brand-soft/40 p-4 text-sm">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />
           <div className="text-fg/85">
-            Add these records at your DNS provider, then come back — we'll pick them up within minutes.
+            Add these records at your DNS provider, then come back. We pick them up within minutes.
             <span className="text-muted"> On Cloudflare? Turn on <b className="font-medium text-fg">Email Routing</b> for the zone and it adds the MX and SPF records for you.</span>
           </div>
         </Card>
@@ -176,7 +176,7 @@ function CatchAll({ domain }: { domain: Domain }) {
       <p className="mt-1 text-sm text-muted">Deliver mail sent to any unknown address at {domain.name} to one mailbox, instead of bouncing it.</p>
       <div className="mt-4 max-w-sm">
         <Select aria-label="Catch-all mailbox" value={domain.catchAllMailboxId ?? ""} disabled={m.isPending || own.length === 0} onChange={(e) => m.mutate(e.target.value || null)}>
-          <option value="">{own.length ? "Off — bounce unknown addresses" : "Create a mailbox on this domain first"}</option>
+          <option value="">{own.length ? "Off: bounce unknown addresses" : "Create a mailbox on this domain first"}</option>
           {own.map((mb) => <option key={mb.id} value={mb.id}>{mb.address}</option>)}
         </Select>
       </div>

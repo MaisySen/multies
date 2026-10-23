@@ -198,7 +198,7 @@ function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => v
     onError: (e) => toast.error(e.message),
   });
   if (isPending) return <ListSkeleton />;
-  if (!data?.length) return <Card><EmptyState icon={<AtSign />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people — inside or outside your domain." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New alias</Button>} /></Card>;
+  if (!data?.length) return <Card><EmptyState icon={<AtSign />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people, inside or outside your domain." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New alias</Button>} /></Card>;
   void domains;
   return (
     <>

@@ -23,7 +23,7 @@ export function DomainsPage() {
       {isPending ? (
         <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-4 p-5"><Skeleton className="h-9 w-9 rounded-lg" /><Skeleton className="h-4 w-48" /><Skeleton className="ml-auto h-5 w-20 rounded-full" /></div>)}</Card>
       ) : data?.length === 0 ? (
-        <Card><EmptyState icon={<Globe />} title="Add your first domain" body="Bring a domain you own — we'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>} /></Card>
+        <Card><EmptyState icon={<Globe />} title="Add your first domain" body="Bring a domain you own. We'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>} /></Card>
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {data?.map((d) => <DomainRow key={d.id} d={d} />)}
@@ -73,7 +73,7 @@ export function AddDomainDialog({ open, onClose }: { open: boolean; onClose: () 
     <Dialog open={open} onClose={onClose} title="Add a domain" description="Use a domain you control. You'll add a few DNS records next."
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" form="add-domain" loading={m.isPending} disabled={!name.trim()}>Add domain</Button></>}>
       <form id="add-domain" onSubmit={submit}>
-        <Field label="Domain" error={err ?? undefined} hint="Like yourcompany.com — no https:// or www.">
+        <Field label="Domain" error={err ?? undefined} hint="Like yourcompany.com, without https:// or www.">
           {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} placeholder="yourcompany.com" autoFocus autoComplete="off" spellCheck={false} />}
         </Field>
       </form>

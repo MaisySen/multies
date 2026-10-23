@@ -158,7 +158,7 @@ npx wrangler deploy
 npx wrangler secret put MYMAIL_KEY_SECRET`}</pre>
         </Step>
       </ol>
-      <Dialog open={!!created} onClose={() => setCreated(null)} title="Your new signing key" description="Copy the secret now — for your security it won't be shown again."
+      <Dialog open={!!created} onClose={() => setCreated(null)} title="Your new signing key" description="Copy the secret now. It won't be shown again."
         footer={<Button onClick={() => setCreated(null)}><Check className="h-4 w-4" />I've saved it</Button>}>
         {created && (
           <div className="space-y-3 text-sm">
@@ -239,7 +239,7 @@ export function AccountSection() {
         <div><h3 className="text-sm font-medium">Delete account</h3><p className="text-xs text-subtle">Removes you and any workspace where you're the only member, with all its mail.</p></div>
         <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>Delete account</Button>
       </div>
-      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member — domains, mailboxes and mail included."
+      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, including its domains, mailboxes and mail included."
         footer={<><Button variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button><Button variant="danger" disabled={!confirmPw} loading={del.isPending} onClick={() => del.mutate()}>Delete forever</Button></>}>
         <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
       </Dialog>

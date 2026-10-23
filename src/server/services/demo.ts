@@ -16,16 +16,16 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
   {
     from: { address: "priya@seedround.vc", name: "Priya Raman" }, to: "founders", hoursAgo: 1,
     subject: "Following up from demo day",
-    text: "Hi both,\n\nLoved the demo yesterday — the DNS walkthrough was the clearest I've seen. Could we find 30 minutes next week to go deeper on retention numbers?\n\nTuesday or Wednesday afternoon works on my side.\n\nBest,\nPriya",
+    text: "Hi both,\n\nLoved the demo yesterday. The DNS walkthrough was the clearest I've seen. Could we find 30 minutes next week to go deeper on retention numbers?\n\nTuesday or Wednesday afternoon works on my side.\n\nBest,\nPriya",
   },
   {
     from: { address: "maria@blueharbor.co", name: "Maria Gonzalez" }, to: "support", hoursAgo: 3,
     subject: "Can we move our team over this week?",
-    text: "Hey team,\n\nWe have 14 people on Google Workspace today. If we point our MX records at you on Friday, will anything get lost over the weekend?\n\nAlso — do aliases support more than one destination? We want sales@ to reach three of us.\n\nThanks!\nMaria",
+    text: "Hey team,\n\nWe have 14 people on Google Workspace today. If we point our MX records at you on Friday, will anything get lost over the weekend?\n\nAlso, do aliases support more than one destination? We want sales@ to reach three of us.\n\nThanks!\nMaria",
   },
   {
     from: { address: "receipts@payments.example", name: "Payments" }, to: "billing", hoursAgo: 9,
-    subject: "Receipt for your payment — $1,280.00",
+    subject: "Receipt for your payment: $1,280.00",
     text: "Thanks for your payment.\n\nAmount paid: $1,280.00\nDate: today\nPayment method: Visa ending 4242\n\nQuestions? Reply to this email.",
   },
   {
@@ -40,7 +40,7 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
   },
   {
     from: { address: "alerts@uptime.example", name: "Uptime" }, to: "support", hoursAgo: 52,
-    subject: "All systems operational — weekly summary",
+    subject: "All systems operational: weekly summary",
     text: "Uptime this week: 100.00%\nAverage response time: 182 ms\nIncidents: 0",
   },
 ];
@@ -112,7 +112,7 @@ export async function createDemoWorkspace(deps: Deps) {
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
   await sendMessage(deps, auth, {
     mailboxId: founders.id, to: ["priya@seedround.vc"], subject: "Re: Following up from demo day",
-    text: "Hi Priya,\n\nThanks so much! Wednesday at 2pm works great — I'll send an invite.\n\nAlex",
+    text: "Hi Priya,\n\nThanks so much! Wednesday at 2pm works great. I'll send an invite.\n\nAlex",
   });
   await sendMessage(deps, auth, {
     mailboxId: founders.id, to: [`team@${domain.name}`], subject: "Launch checklist for Friday",
