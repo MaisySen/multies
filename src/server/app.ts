@@ -7,6 +7,9 @@ import { authRoutes } from "./routes/auth";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
 import { orgRoutes } from "./routes/org";
+import { mailRoutes } from "./routes/mail";
+import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
+import { deliveryRoutes } from "./routes/deliveries";
 import { PLANS } from "@/shared/plans";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -45,6 +48,10 @@ export function createApp(deps: Deps) {
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
+  app.route("/api/mail", mailRoutes());
+  app.route("/api/deliveries", deliveryRoutes());
+  app.route("/api/inbound-keys", inboundKeyRoutes());
+  app.route("/api/inbound", inboundWebhookRoutes());
 
   app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404)));
   app.onError((err, c) => {

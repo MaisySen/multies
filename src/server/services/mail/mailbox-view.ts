@@ -1,0 +1,96 @@
+import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import type { DB } from "../../db";
+import { attachments, mailboxes, messages } from "../../db/schema";
+import { notFound } from "../../lib/errors";
+import type { Address, Folder } from "@/shared/mail";
+
+type Row = typeof messages.$inferSelect;
+
+export function presentListItem(m: Row) {
+  return {
+    id: m.id, mailboxId: m.mailboxId, folder: m.folder, threadId: m.threadId,
+    from: { address: m.fromAddress, name: m.fromName || undefined },
+    to: JSON.parse(m.to) as Address[],
+    subject: m.subject, snippet: m.snippet, date: m.date, isRead: m.isRead, isStarred: m.isStarred, hasAttachments: m.hasAttachments,
+  };
+}
+
+export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[] = []) {
+  return {
+    ...presentListItem(m),
+    cc: JSON.parse(m.cc) as Address[],
+    bcc: JSON.parse(m.bcc) as Address[],
+    replyTo: m.replyTo,
+    text: m.text,
+    html: m.html,
+    messageIdHeader: m.messageIdHeader,
+    authResults: m.authResults ? JSON.parse(m.authResults) : null,
+    sizeBytes: m.sizeBytes,
+    attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, available: a.contentB64 !== null })),
+  };
+}
+
+export async function mailboxOverview(db: DB, orgId: string) {
+  const boxes = await db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(mailboxes.address);
+  const counts = await db
+    .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
+    .from(messages).where(eq(messages.orgId, orgId)).groupBy(messages.mailboxId, messages.folder);
+  return boxes.map((b) => {
+    const folders: Record<string, { total: number; unread: number }> = {};
+    for (const c of counts) if (c.mailboxId === b.id) folders[c.folder] = { total: Number(c.total), unread: Number(c.unread ?? 0) };
+    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, folders };
+  });
+}
+
+const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
+
+export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; search?: string; cursor?: string; limit?: number }) {
+  const limit = Math.min(q.limit ?? 50, 100);
+  const conds = [eq(messages.orgId, orgId)];
+  if (q.mailboxId) conds.push(eq(messages.mailboxId, q.mailboxId));
+  if (q.folder === "starred") conds.push(eq(messages.isStarred, true));
+  else if (q.folder) conds.push(eq(messages.folder, q.folder));
+  if (q.search?.trim()) {
+    const term = `%${escapeLike(q.search.trim().toLowerCase())}%`;
+    const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];
+    conds.push(or(...fields.map((f) => sql`lower(${f}) like ${term} escape '!'`))!);
+    if (!q.folder) conds.push(sql`${messages.folder} <> 'trash'`);
+  }
+  if (q.cursor) {
+    const dot = q.cursor.indexOf(".");
+    const t = new Date(Number(q.cursor.slice(0, dot)));
+    const id = q.cursor.slice(dot + 1);
+    conds.push(or(lt(messages.date, t), and(eq(messages.date, t), lt(messages.id, id)))!);
+  }
+  const rows = await db.select().from(messages).where(and(...conds)).orderBy(desc(messages.date), desc(messages.id)).limit(limit + 1);
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  return {
+    messages: page.map(presentListItem),
+    nextCursor: rows.length > limit && last ? `${last.date.getTime()}.${last.id}` : null,
+  };
+}
+
+export async function getMessage(db: DB, orgId: string, id: string) {
+  const m = await db.select().from(messages).where(and(eq(messages.id, id), eq(messages.orgId, orgId))).get();
+  if (!m) throw notFound("Message");
+  return m;
+}
+
+export async function getThread(db: DB, orgId: string, m: Row) {
+  const rows = await db.select().from(messages)
+    .where(and(eq(messages.orgId, orgId), eq(messages.mailboxId, m.mailboxId), eq(messages.threadId, m.threadId), sql`${messages.folder} <> 'drafts'`))
+    .orderBy(messages.date);
+  const atts = rows.length
+    ? await db.select().from(attachments).where(inArray(attachments.messageId, rows.map((r) => r.id)))
+    : [];
+  return rows.map((r) => presentMessage(r, atts.filter((a) => a.messageId === r.id)));
+}
+
+export async function deleteMessagesPermanently(db: DB, rows: Row[]) {
+  for (const r of rows) {
+    await db.delete(messages).where(eq(messages.id, r.id));
+    await db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${r.sizeBytes})` }).where(eq(mailboxes.id, r.mailboxId));
+  }
+}
+
