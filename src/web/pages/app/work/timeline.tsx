@@ -19,7 +19,7 @@ export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen
     const start = new Date(t.start ?? t.due!);
     return { id: t.id, text: `${t.ref} ${t.title}`, start, end: new Date(Math.max(end.getTime(), start.getTime()) + DAY), progress: t.status === "done" ? 100 : t.subtasks.total ? Math.round((t.subtasks.done / t.subtasks.total) * 100) : 0, type: "task" };
   }), [dated]);
-  const min = rows.length ? new Date(Math.min(...rows.map((r) => r.start.getTime())) - 7 * DAY) : new Date(Date.now() - 7 * DAY);
+  const min = rows.length ? new Date(Math.min(...rows.map((r) => r.start.getTime())) - (narrow ? 1 : 7) * DAY) : new Date(Date.now() - 7 * DAY);
   const max = rows.length ? new Date(Math.max(...rows.map((r) => r.end.getTime())) + 14 * DAY) : new Date(Date.now() + 30 * DAY);
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
@@ -28,7 +28,7 @@ export function TaskTimeline({ tasks, onOpen, onDates }: { tasks: Task[]; onOpen
         <Gantt
           tasks={rows} links={[]} start={min} end={max} cellWidth={36} cellHeight={36} scaleHeight={30}
           scales={[{ unit: "month", step: 1, format: fmtMonth }, { unit: "day", step: 1, format: fmtDay }]}
-          columns={[{ id: "text", header: "Task", width: narrow ? 150 : 300 }] as never}
+          columns={[{ id: "text", header: "Task", width: 300 }] as never} {...({ displayMode: narrow ? "chart" : "all" } as object)}
           init={(api) => {
             api.on("update-task", (ev: { id: string | number; task: { start?: Date; end?: Date }; inProgress?: boolean }) => {
               if (ev.inProgress || !ev.task.start || !ev.task.end) return;

@@ -88,7 +88,7 @@ export function TasksPage() {
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Filters">
+      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
         <Input aria-label="Search tasks" placeholder="Search tasks" defaultValue={filters.q ?? ""} onKeyDown={(e) => { if (e.key === "Enter") set({ q: (e.target as HTMLInputElement).value || null }); }} className="h-8 w-44! text-[13px]" />
         <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
