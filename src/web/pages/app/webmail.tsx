@@ -31,7 +31,7 @@ export function WebmailPage() {
   const [params, setParams] = useSearchParams();
   const qc = useQueryClient();
   const overview = useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes, refetchInterval: 30_000 });
-  const mailboxes = overview.data ?? [];
+  const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
   const busiest = [...mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0];
   const mailboxId = params.get("mailbox") ?? busiest?.id ?? "";
   const folder = (params.get("folder") ?? "inbox") as View;
