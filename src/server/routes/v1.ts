@@ -20,6 +20,7 @@ import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
 import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
+import { registerSuiteRoutes } from "./v1-suite";
 
 // ---------------------------------------------------------------- schemas
 
@@ -143,7 +144,7 @@ export function v1Routes() {
     info: {
       title: "MyMail API",
       version: "1.0.0",
-      description: "Manage domains, mailboxes and aliases, read mail and send it, and give AI agents their own inboxes. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
+      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
@@ -151,7 +152,7 @@ export function v1Routes() {
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
-  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes"]) api.use(`/${r}/*`, apiKeyAuth);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
     const a = c.var.auth as { apiKeyId?: string } | undefined;
@@ -301,6 +302,7 @@ export function v1Routes() {
   });
 
   registerAgentRoutes(api);
+  registerSuiteRoutes(api);
   registerMcpRoute(api);
   return api;
 }

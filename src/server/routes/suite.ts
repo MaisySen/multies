@@ -1,0 +1,143 @@
+/**
+ * The suite in the app (cookie session): projects, tasks, docs, contacts, deals,
+ * automations, notifications, phone push registration and the change feed.
+ * The same services back the REST API (v1-suite.ts) and the MCP tools.
+ */
+import { Hono } from "hono";
+import { z } from "zod";
+import type { AppEnv } from "../context";
+import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
+import { changesSince } from "../services/suite/common";
+import {
+  addComment, assignees, createProject, createTask, createTaskFromThread, createView, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
+  parseAssignee, taskDetail, updateProject, updateTask,
+} from "../services/suite/tasks";
+import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
+import {
+  contactDetail, createContact, createDeal, deleteContact, deleteDeal, getCompany, listCompanies, listContacts, listDeals, updateCompany, updateContact, updateDeal,
+} from "../services/suite/contacts";
+import { automationUsage, createAutomation, deleteAutomation, listAutomations, RECIPES, updateAutomation } from "../services/suite/automations";
+import { listNotifications, markNotificationsRead } from "../services/suite/notify";
+import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
+import {
+  AutomationCreate, AutomationPatch, CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, PushDevice,
+  TaskCreate, TaskFromEmail, TaskPatch, TaskQuery, ViewCreate,
+} from "./suite-schemas";
+
+type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
+/** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
+export const assigneeOf = (b: TaskBody) => parseAssignee(b.assignee !== undefined ? b.assignee : b.assigneeId);
+
+export function projectRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => c.json({ projects: await listProjects(c.var.deps, c.var.auth.orgId, { includeArchived: c.req.query("archived") === "1" }) }))
+    .post("/", async (c) => c.json({ project: await createProject(c.var.deps, c.var.auth, await parseBody(c, ProjectCreate)) }, 201))
+    .get("/:id", async (c) => c.json({ project: await getProject(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
+    .patch("/:id", async (c) => c.json({ project: await updateProject(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ProjectPatch)) }))
+    .delete("/:id", requireAdmin, async (c) => c.json(await deleteProject(c.var.deps, c.var.auth, c.req.param("id"))));
+}
+
+export function taskRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => {
+      const q = parseQuery(c, TaskQuery);
+      return c.json({ tasks: await listTasks(c.var.deps, c.var.auth, { ...q, includeSubtasks: q.includeSubtasks === "true" }) });
+    })
+    .post("/", async (c) => {
+      const b = await parseBody(c, TaskCreate);
+      return c.json({ task: await createTask(c.var.deps, c.var.auth, { ...b, assignee: assigneeOf(b) }) }, 201);
+    })
+    .post("/from-email", async (c) => {
+      const b = await parseBody(c, TaskFromEmail);
+      return c.json({ task: await createTaskFromThread(c.var.deps, c.var.auth, { ...b, assignee: parseAssignee(b.assignee) }) }, 201);
+    })
+    .get("/assignees", async (c) => c.json({ assignees: await assignees(c.var.deps, c.var.auth.orgId) }))
+    .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
+    .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
+    .delete("/views/:id", async (c) => c.json(await deleteView(c.var.deps, c.var.auth, c.req.param("id"))))
+    .get("/:id", async (c) => c.json(await taskDetail(c.var.deps, c.var.auth, c.req.param("id"))))
+    .patch("/:id", async (c) => {
+      const b = await parseBody(c, TaskPatch);
+      return c.json({ task: await updateTask(c.var.deps, c.var.auth, c.req.param("id"), { ...b, assignee: assigneeOf(b) }) });
+    })
+    .delete("/:id", async (c) => c.json(await deleteTask(c.var.deps, c.var.auth, c.req.param("id"))))
+    .post("/:id/comments", async (c) => c.json({ comment: await addComment(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, CommentCreate)).body) }, 201));
+}
+
+export function docRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => {
+      const q = parseQuery(c, z.object({ q: z.string().max(200).optional(), projectId: z.string().optional(), linkedType: z.enum(["project", "task", "thread", "contact", "deal"]).optional(), linkedId: z.string().optional() }));
+      return c.json({ docs: await listDocs(c.var.deps, c.var.auth.orgId, { q: q.q, projectId: q.projectId, linkedTo: q.linkedType && q.linkedId ? { type: q.linkedType, id: q.linkedId } : undefined }) });
+    })
+    .post("/", async (c) => c.json({ doc: await createDoc(c.var.deps, c.var.auth, await parseBody(c, DocCreate)) }, 201))
+    .get("/:id", async (c) => c.json({ doc: await getDoc(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
+    .patch("/:id", async (c) => c.json({ doc: await updateDoc(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, DocPatch)) }))
+    .delete("/:id", async (c) => c.json(await deleteDoc(c.var.deps, c.var.auth, c.req.param("id"))));
+}
+
+export function contactRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => {
+      const q = parseQuery(c, z.object({ q: z.string().max(200).optional(), companyId: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional(), offset: z.coerce.number().int().min(0).optional() }));
+      return c.json(await listContacts(c.var.deps, c.var.auth.orgId, q));
+    })
+    .post("/", async (c) => c.json({ contact: await createContact(c.var.deps, c.var.auth, await parseBody(c, ContactCreate)) }, 201))
+    .get("/:id", async (c) => c.json(await contactDetail(c.var.deps, c.var.auth, c.req.param("id"))))
+    .patch("/:id", async (c) => c.json({ contact: await updateContact(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ContactPatch)) }))
+    .delete("/:id", async (c) => c.json(await deleteContact(c.var.deps, c.var.auth, c.req.param("id"))));
+}
+
+export function companyRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => c.json({ companies: await listCompanies(c.var.deps, c.var.auth.orgId, { q: c.req.query("q") }) }))
+    .get("/:id", async (c) => c.json(await getCompany(c.var.deps, c.var.auth.orgId, c.req.param("id"))))
+    .patch("/:id", async (c) => c.json(await updateCompany(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, z.object({ name: z.string().trim().min(1).max(120).optional(), notes: z.string().max(20_000).optional() })))));
+}
+
+export function dealRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => c.json(await listDeals(c.var.deps, c.var.auth.orgId)))
+    .post("/", async (c) => c.json({ deal: await createDeal(c.var.deps, c.var.auth, await parseBody(c, DealCreate)) }, 201))
+    .patch("/:id", async (c) => c.json({ deal: await updateDeal(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, DealPatch)) }))
+    .delete("/:id", async (c) => c.json(await deleteDeal(c.var.deps, c.var.auth, c.req.param("id"))));
+}
+
+export function automationRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => c.json({ automations: await listAutomations(c.var.deps, c.var.auth.orgId), recipes: RECIPES, usage: await automationUsage(c.var.deps, c.var.auth.orgId) }))
+    .post("/", requireAdmin, async (c) => c.json({ automation: await createAutomation(c.var.deps, c.var.auth, await parseBody(c, AutomationCreate)) }, 201))
+    .patch("/:id", requireAdmin, async (c) => c.json({ automation: await updateAutomation(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, AutomationPatch)) }))
+    .delete("/:id", requireAdmin, async (c) => c.json(await deleteAutomation(c.var.deps, c.var.auth, c.req.param("id"))));
+}
+
+export function notificationRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => c.json({ notifications: await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: c.req.query("unread") === "1" }) }))
+    .post("/read", async (c) => c.json(await markNotificationsRead(c.var.deps, c.var.auth.orgId, c.var.auth.userId, (await parseBody(c, z.object({ ids: z.array(z.string()).max(500).optional() }))).ids)));
+}
+
+export function pushRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/devices", async (c) => c.json({ enabled: c.var.deps.config.push.enabled, devices: await listDevices(c.var.deps, c.var.auth) }))
+    .post("/devices", async (c) => c.json(await registerDevice(c.var.deps, c.var.auth, await parseBody(c, PushDevice)), 201))
+    .delete("/devices/:token", async (c) => c.json(await unregisterDevice(c.var.deps, c.var.auth, decodeURIComponent(c.req.param("token")))));
+}
+
+export function changeRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", requireAuth)
+    .get("/", async (c) => {
+      const q = parseQuery(c, z.object({ since: z.coerce.number().int().min(0).default(0), limit: z.coerce.number().int().min(1).max(1000).default(500) }));
+      return c.json(await changesSince(c.var.deps, c.var.auth.orgId, q.since, q.limit));
+    });
+}
