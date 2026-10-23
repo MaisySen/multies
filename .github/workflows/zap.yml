@@ -1,4 +1,4 @@
-# OWASP ZAP baseline scan (passive) against the live preview and production, weekly
+# OWASP ZAP baseline scan (passive) against the preview, staging and production, weekly
 # and on demand. Findings that are accepted on purpose are listed, with the reason,
 # in .zap/rules.tsv; anything else fails the run.
 name: ZAP baseline
@@ -17,15 +17,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - https://mymail.sites.tab.bot
-          - https://mymail.mymail-app.workers.dev
+        include:
+          - target: https://mymail.sites.tab.bot
+            rules: .zap/rules-preview.tsv
+          - target: https://mymail-staging.mymail-app.workers.dev
+            rules: .zap/rules.tsv
+          - target: https://mymail.mymail-app.workers.dev
+            rules: .zap/rules.tsv
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
           target: ${{ matrix.target }}
-          rules_file_name: .zap/rules.tsv
+          rules_file_name: ${{ matrix.rules }}
           cmd_options: "-a -j"
           allow_issue_writing: false
           fail_action: true
