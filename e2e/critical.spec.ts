@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 /**
  * Critical paths, end to end over the real UI and API: sign up and verify, send mail,
- * change plan, invite a teammate, create and use an API key, export data.
+ * buy an add-on, invite a teammate, create and use an API key, export data.
  * The local server writes every email to .data/e2e-outbox (OUTBOX_DIR); against a
  * deployed environment (E2E_BASE_URL) the email based steps are skipped.
  */
@@ -69,13 +69,19 @@ test("send a message from the demo workspace and find it in Sent", async ({ page
   await expect(page.getByText(subject).first()).toBeVisible();
 });
 
-test("upgrade the plan and see the new limits", async ({ page }) => {
+test("start on Free, then buy an add-on and see the new limits", async ({ page }) => {
   await signUp(page, "Paula Plan", `plan-${Date.now()}@example.com`);
   await page.goto("/app/settings/billing");
-  await expect(page.getByText("Starter").first()).toBeVisible();
-  await page.getByRole("button", { name: "Switch to Pro" }).click();
-  await expect(page.getByText("Plan updated")).toBeVisible();
-  await expect(page.getByText("0 / 5").first()).toBeVisible(); // Pro allows 5 domains
+  await expect(page.getByText("Free", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("A$0, nothing to pay")).toBeVisible();
+  await expect(page.getByText("0 / 1").first()).toBeVisible(); // Free includes 1 domain
+  // Two extra domains: A$2 a month in total, under A$5, so it bills A$24 a year.
+  await page.getByRole("button", { name: "One more extra domain" }).click();
+  await page.getByRole("button", { name: "One more extra domain" }).click();
+  await expect(page.getByText("A$24 AUD a year").first()).toBeVisible();
+  await page.getByRole("button", { name: "Apply add-ons" }).click();
+  await expect(page.getByText("Add-ons updated")).toBeVisible();
+  await expect(page.getByText("0 / 3").first()).toBeVisible();
 });
 
 test("invite a teammate who signs up and joins the workspace", async ({ page, browser }) => {

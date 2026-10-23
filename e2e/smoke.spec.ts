@@ -38,5 +38,5 @@ test("marketing pages render and link to sign up", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("Email on your own domain");
   await page.getByRole("link", { name: "Pricing" }).first().click();
-  await expect(page.getByRole("table", { name: "Plan comparison" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Work out your price" })).toBeVisible();
 });
