@@ -9,6 +9,8 @@ export interface SystemEmail {
   text: string;
   /** Primary call to action, rendered as a button in the HTML part. */
   action?: { label: string; url: string };
+  /** Which React Email template renders the HTML part (defaults to the plain notice). */
+  template?: string;
   /** Org the email is about, for the delivery log. */
   orgId?: string;
 }

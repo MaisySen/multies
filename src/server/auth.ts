@@ -16,7 +16,10 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { admin } from "better-auth/plugins/admin";
 import { genericOAuth, auth0 } from "better-auth/plugins/generic-oauth";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
-import { APIError } from "better-auth/api";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { lastLoginMethod } from "better-auth/plugins";
+import { clearFailures, lockedUntil, recordFailure } from "./services/lockout";
+import { audit } from "./services/audit";
 import { and, count, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "./context";
 import * as schema from "./db/schema";
@@ -120,6 +123,48 @@ export function authOptions(deps: Deps) {
         "/send-verification-email": { window: 60 * 60, max: 5 },
       },
     },
+    hooks: {
+      // Account lockout (services/lockout.ts): checked before a password sign-in.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email") return;
+        const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+        if (!email) return;
+        const until = await lockedUntil(db, email, deps.now());
+        if (until) {
+          const mins = Math.max(1, Math.ceil((until.getTime() - deps.now().getTime()) / 60_000));
+          throw new APIError("TOO_MANY_REQUESTS", {
+            code: "ACCOUNT_LOCKED",
+            message: `Too many failed sign-ins for this account. Try again in ${mins} minute${mins === 1 ? "" : "s"}, or reset your password.`,
+          });
+        }
+      }),
+      after: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== "/sign-in/email") return;
+        const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
+        if (!email) return;
+        const returned = ctx.context.returned;
+        const failed = returned instanceof APIError && (returned.statusCode === 401 || returned.status === "UNAUTHORIZED");
+        if (failed) {
+          const locked = await recordFailure(db, email, deps.now());
+          if (locked) {
+            deps.log?.warn("auth.account_locked", { email: email.toLowerCase() });
+            const user = await db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase())).get();
+            if (user) {
+              const m = await db.select().from(schema.members).where(eq(schema.members.userId, user.id)).get();
+              if (m) await audit(db, { orgId: m.organizationId, actorUserId: user.id, actorEmail: user.email, action: "account.locked", metadata: { reason: "failed_sign_ins" } });
+              await sendSystemEmail(deps, {
+                to: user.email, template: "security-alert",
+                subject: `Sign-in to ${config.appName} paused after failed attempts`,
+                text: `Someone tried to sign in to your ${config.appName} account with the wrong password several times, so password sign-in is paused for 15 minutes.\n\nIf that was you, wait and try again, or reset your password. If it wasn't, reset your password now and turn on two-factor authentication.`,
+                action: { label: "Reset password", url: `${config.appUrl}/forgot-password` },
+              }).catch(() => undefined);
+            }
+          }
+        } else if (!(returned instanceof Error)) {
+          await clearFailures(db, email);
+        }
+      }),
+    },
     user: {
       deleteUser: {
         enabled: true,
@@ -207,6 +252,12 @@ export function authOptions(deps: Deps) {
       }),
       twoFactor({ issuer: config.appName, backupCodeOptions: { amount: 10, length: 10 } }),
       admin({ defaultRole: "user", adminRoles: ["admin"] }),
+      // Records how each person last signed in, so a workspace can require SSO. No cookie.
+      lastLoginMethod({
+        storeInDatabase: true,
+        beforeStoreCookie: () => false,
+        customResolveMethod: (ctx) => (ctx.path?.startsWith("/oauth2/callback/") ? (ctx.params?.providerId ?? ctx.path.split("/").pop() ?? null) : null),
+      }),
       ...(config.auth.auth0 ? [genericOAuth({ config: [{
         ...auth0({ ...config.auth.auth0 }),
         // Auth0 database users have their email as "name"; use the nickname instead.
