@@ -9,10 +9,18 @@ const early: unknown[] = [];
 export async function startSentry() {
   try {
     const res = await fetch("/api/config", { credentials: "same-origin" });
-    const config = (await res.json()) as { sentry: { dsn: string; environment: string } | null };
+    const config = (await res.json()) as { sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null };
     if (!config.sentry || sdk) return;
     const mod = await import("@sentry/react");
-    mod.init({ dsn: config.sentry.dsn, environment: config.sentry.environment, tracesSampleRate: 0 });
+    mod.init({
+      dsn: config.sentry.dsn,
+      environment: config.sentry.environment,
+      release: config.sentry.release,
+      // Performance tracing: page loads, navigations and API calls (same origin only).
+      integrations: [mod.browserTracingIntegration()],
+      tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,
+      tracePropagationTargets: [/^\/api\//],
+    });
     sdk = mod;
     for (const err of early.splice(0)) mod.captureException(err);
   } catch {

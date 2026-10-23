@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Menu as MenuIcon, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { ButtonLink } from "@/web/components/ui/button";
-import { useMe } from "@/web/lib/queries";
+import { useSignedIn } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 
 const links = [
@@ -14,8 +14,7 @@ const links = [
 ];
 
 export function MarketingLayout() {
-  const me = useMe();
-  const signedIn = !!me.data;
+  const signedIn = useSignedIn();
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const loc = useLocation();

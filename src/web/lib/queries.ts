@@ -16,6 +16,23 @@ export const qk = {
   workspaces: ["workspaces"] as const,
 };
 
+/**
+ * Whether a session exists, without a 401 for signed-out visitors (public pages use
+ * this; Better Auth answers get-session with null when nobody is signed in).
+ */
+export const useSignedIn = () => {
+  const q = useQuery({
+    queryKey: ["session"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/get-session", { credentials: "same-origin" });
+      return res.ok ? ((await res.json()) as { user?: unknown } | null) : null;
+    },
+    retry: false,
+    staleTime: 60_000,
+  });
+  return !!q.data?.user;
+};
+
 export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<Me>("/account/me"), retry: false, staleTime: 60_000 });
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
 export const useDashboard = () => useQuery({ queryKey: qk.dashboard, queryFn: () => api.get<Dashboard>("/dashboard") });

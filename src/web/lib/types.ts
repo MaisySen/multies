@@ -17,7 +17,7 @@ export interface PublicConfig {
   billingEnabled: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
-  sentry: { dsn: string; environment: string } | null;
+  sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;
 }
 
 export interface Domain {

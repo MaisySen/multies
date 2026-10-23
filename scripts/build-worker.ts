@@ -11,15 +11,22 @@
  * Never point it at a file that is committed.
  */
 import { build } from "esbuild";
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
+import { appCsp, securityHeaders } from "../src/server/lib/security-headers";
 
 const root = path.resolve(import.meta.dirname, "..");
 const out = path.join(root, "dist/worker");
 const profile = process.argv.includes("--profile") ? process.argv[process.argv.indexOf("--profile") + 1] : "default";
 
+const release = process.env.RELEASE ?? process.env.GITHUB_SHA?.slice(0, 12) ?? gitSha();
+function gitSha(): string {
+  try { return execSync("git rev-parse --short=12 HEAD", { cwd: root }).toString().trim(); } catch { return "dev"; }
+}
+
 const PROFILES: Record<string, Record<string, string>> = {
-  default: {},
+  default: { RELEASE: release },
   // The public preview: real production mode (no fake data), sandbox demos enabled,
   // a secret generated and kept in D1 because the preview host has no secret store.
   preview: {
@@ -27,6 +34,9 @@ const PROFILES: Record<string, Record<string, string>> = {
     DEMO_MODE: "true",
     APP_URL: process.env.PREVIEW_URL ?? "https://mymail.sites.tab.bot",
     ALLOW_GENERATED_SECRET: "true",
+    SENTRY_ENVIRONMENT: "preview",
+    SECURITY_CONTACT: process.env.SECURITY_CONTACT ?? "mailto:mymail.builder@mail.tab.bot",
+    RELEASE: release,
   },
 };
 if (!PROFILES[profile]) throw new Error(`unknown profile ${profile}`);
@@ -52,6 +62,12 @@ if (!existsSync(path.join(root, "dist/web/index.html"))) throw new Error("Run `n
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(path.join(root, "dist/web"), out, { recursive: true });
+// The app shell is served by the Worker (with its security headers), not as a static
+// file: hosts that serve static files before the Worker would skip the headers.
+const shellHtml = readFileSync(path.join(out, "index.html"), "utf8");
+rmSync(path.join(out, "index.html"));
+// Browser source maps go to Sentry (CI uploads them from dist/web), not to the public.
+for (const f of readdirSync(path.join(out, "assets"))) if (f.endsWith(".map")) rmSync(path.join(out, "assets", f));
 
 await build({
   entryPoints: [path.join(root, "src/entry/worker.ts")],
@@ -64,14 +80,26 @@ await build({
   // Node built-ins come from the runtime (nodejs_compat), not the bundle.
   external: ["node:*"],
   minify: true,
-  sourcemap: false,
+  // Production builds keep an external map for Sentry and wrangler (never served).
+  sourcemap: profile === "preview" ? false : "external",
   alias: { "@": path.join(root, "src") },
-  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }) },
+  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml) },
   logLevel: "warning",
 });
 
-// Never serve the server bundle or the hosting declaration as static files.
-writeFileSync(path.join(out, ".assetsignore"), "_worker.js\ntab-site.json\n.assetsignore\n");
+// Never serve the server bundle, its source map or the hosting declaration as static files.
+writeFileSync(path.join(out, ".assetsignore"), "_worker.js\n_worker.js.map\ntab-site.json\n.assetsignore\n");
+
+// Static assets are served by Cloudflare before the Worker runs, so their security
+// headers come from a _headers file built from the same source as the API's.
+const pageHeaders = securityHeaders({ csp: appCsp(), hsts: true });
+writeFileSync(path.join(out, "_headers"), [
+  "/*",
+  ...Object.entries(pageHeaders).map(([k, v]) => `  ${k}: ${v}`),
+  "/assets/*",
+  "  cache-control: public, max-age=31536000, immutable",
+  "",
+].join("\n"));
 
 writeFileSync(path.join(out, "tab-site.json"), JSON.stringify({
   kind: "worker",

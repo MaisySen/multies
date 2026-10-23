@@ -6,7 +6,8 @@ import path from "node:path";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
-  build: { outDir: "dist/web", emptyOutDir: true, sourcemap: false },
+  // Hidden source maps: uploaded to Sentry by CI, never referenced or served.
+  build: { outDir: "dist/web", emptyOutDir: true, sourcemap: "hidden" },
   server: {
     port: 5173,
     proxy: { "/api": { target: "http://localhost:8787", changeOrigin: false } },
