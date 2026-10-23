@@ -24,11 +24,14 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 upload_source_maps = true
 
-# Smart Placement: requests that make several database calls run next to the D1 primary
-# (Oceania) instead of next to each visitor. Measured from the US before this: 1.4 s for an
-# API read with 7 round trips to Sydney. Free on every plan; inherited by staging.
+# Run the Worker in Sydney, next to the D1 primary (both databases are in Oceania), so a
+# request crosses the Pacific once instead of once per query. Smart Placement never moved
+# this Worker (responses kept saying local-SEA or local-PDX), so a demo from the US made
+# about 300 Pacific round trips. Targeted placement was checked on a throwaway Worker on
+# 2026-10-23: it answered from remote-SYD. Inherited by staging.
 [placement]
-mode = "smart"
+mode = "targeted"
+region = "aws:ap-southeast-2"
 
 [assets]
 directory = "dist/worker"
