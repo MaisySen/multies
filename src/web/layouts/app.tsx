@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { BarChart3, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
+import { TimerChip } from "@/web/pages/app/work/time";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useMe, useWorkspaces } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
@@ -27,6 +28,10 @@ const nav = [
   { to: "/app/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/app/docs", label: "Docs", icon: FileText },
   { to: "/app/contacts", label: "Contacts", icon: Contact },
+  { to: "/app/time", label: "Timesheet", icon: Timer },
+  { to: "/app/meetings", label: "Meetings", icon: Video },
+  { to: "/app/forms", label: "Forms", icon: ClipboardList },
+  { to: "/app/reports", label: "Reports", icon: BarChart3 },
   { to: "/app/automations", label: "Automations", icon: Zap },
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
@@ -156,6 +161,7 @@ export function AppLayout() {
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
         <CommandPalette open={palette} onOpenChange={setPalette} onSignOut={signOut} />
+        <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
       </div>
     </div>
   );

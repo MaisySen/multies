@@ -24,7 +24,10 @@ export interface Contact {
   id: string; name: string; email: string; phone: string | null; title: string | null; notes: string; source: string;
   company: { id: string; name: string; domain: string | null } | null; messageCount: number; firstContactAt: string | null; lastContactAt: string | null; version: number;
 }
-export interface TaskDetail { task: Task; subtasks: Task[]; comments: Comment[]; thread: ThreadMessage[]; activity: ActivityEntry[]; docs: { id: string; title: string; updatedAt: string }[]; contacts: Contact[] }
+export interface TaskDetail {
+  task: Task; subtasks: Task[]; comments: Comment[]; thread: ThreadMessage[]; activity: ActivityEntry[]; docs: { id: string; title: string; updatedAt: string }[]; contacts: Contact[];
+  blockedBy?: Task[]; blocking?: Task[]; time?: { totalSeconds: number; entries: import("./time").TimeEntry[] };
+}
 export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null }
 export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
 export type ViewKind = "board" | "list" | "calendar" | "timeline";
