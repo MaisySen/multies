@@ -13,6 +13,7 @@ import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailbox
 import { badRequest, notFound, tooMany } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
+import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
 
 const folderParam = z.enum(["inbox", "sent", "drafts", "archive", "spam", "trash", "starred"]).optional();
@@ -21,6 +22,8 @@ export function mailRoutes() {
   const sendLimiter = new RateLimiter(30, 60_000);
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    // The composer sends an Idempotency-Key, so a retried "Send" never sends twice.
+    .use("*", idempotency((c) => `user:${c.var.auth.userId}`))
     .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .get("/messages", async (c) => {
       const folder = folderParam.safeParse(c.req.query("folder") || undefined);

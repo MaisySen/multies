@@ -33,10 +33,12 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
+  // One key per message being written: a retried send can never deliver twice.
+  const sendKey = useRef(`send_${crypto.randomUUID()}`);
   const send = useMutation({
     mutationFn: () => api.post<{ internal: string[]; external: { address: string; status: string; detail?: string }[] }>("/mail/send", {
       mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId, draftId: d.draftId,
-    }),
+    }, { idempotencyKey: sendKey.current }),
     onSuccess: (r) => {
       refresh();
       qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -56,7 +58,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       else toast.success("Message sent");
       onClose();
     },
-    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't send."),
+    onError: (e) => {
+      sendKey.current = `send_${crypto.randomUUID()}`;
+      toast.error(e instanceof ApiError ? e.message : "Couldn't send.");
+    },
   });
   const saveDraft = useMutation({
     mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text }),

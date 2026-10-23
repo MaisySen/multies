@@ -5,18 +5,32 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api${path}`, {
-      method,
-      credentials: "same-origin",
-      headers: body !== undefined ? { "content-type": "application/json" } : undefined,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
+interface RequestOptions {
+  /** Makes a POST safe to retry: the server replays the first response for the same key. */
+  idempotencyKey?: string;
+}
+
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  let res: Response | undefined;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+  if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+  // With an idempotency key a dropped connection is retried once, without one it is not.
+  const tries = opts.idempotencyKey ? 2 : 1;
+  for (let i = 0; i < tries && !res; i++) {
+    try {
+      res = await fetch(`/api${path}`, {
+        method,
+        credentials: "same-origin",
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      if (i === tries - 1) throw new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
+      await new Promise((r) => setTimeout(r, 800));
+    }
   }
+  if (!res) throw new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
   const text = await res.text();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let json: any = null;
@@ -30,7 +44,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   get: <T>(p: string) => request<T>("GET", p),
-  post: <T>(p: string, b: unknown = {}) => request<T>("POST", p, b),
+  post: <T>(p: string, b: unknown = {}, o?: RequestOptions) => request<T>("POST", p, b, o),
   patch: <T>(p: string, b: unknown) => request<T>("PATCH", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
