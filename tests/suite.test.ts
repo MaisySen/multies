@@ -223,7 +223,7 @@ describe("automations", () => {
     expect(tasks[0]).toMatchObject({ title: "Invoice INV-204 overdue", priority: "high", createdBy: { type: "system" } });
     const list = (await c.get("/api/automations")).body;
     expect(list.automations[0].runCount).toBe(1);
-    expect(list.usage).toEqual({ used: 1, limit: 100 });
+    expect(list.usage).toEqual({ used: 1, limit: 1000 });
     expect(list.recipes.length).toBeGreaterThan(2);
     expect((await c.post("/api/automations", { name: "Bad", trigger: "email_received", conditions: {}, action: "create_task" })).status).toBe(422);
   });

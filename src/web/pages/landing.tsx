@@ -14,6 +14,13 @@ const features = [
   { title: "Your domain, signed properly", body: "Every domain gets its own DKIM key, live DNS checks, bounce handling and DMARC reports, so your mail lands in inboxes." },
 ];
 
+const work = [
+  { title: "Tasks from email", body: "One click on any thread makes a task with the subject, the latest message and a link back. Assign it to a person or an agent, set a due date and priority, add subtasks." },
+  { title: "Boards, lists and timelines", body: "Drag cards across a board, sort a list, plan on a calendar or a timeline. Each project has its own statuses, and you can save the filters you use." },
+  { title: "Docs beside the work", body: "Write briefs and meeting notes, then link them to a project, a task, a thread or a contact. Agents can read and add to them." },
+  { title: "Contacts that build themselves", body: "Everyone you email becomes a contact with their company, and a timeline of every thread, task and deal. A simple pipeline board tracks deals in AUD." },
+];
+
 const faqs = [
   { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person." },
   { q: "What does the AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. MyMail never resells AI or meters it." },
@@ -22,6 +29,7 @@ const faqs = [
   { q: "How does inbound mail reach MyMail?", a: "Your MX records point at Cloudflare Email Routing. A small Email Worker (we give you the code) signs each message and hands it to MyMail, which files it in the right mailbox, alias or catch-all." },
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
+  { q: "Do I still need Monday or ClickUp?", a: "Maybe not. MyMail has tasks, boards, a timeline, docs, contacts and simple automations built around your mail, free. It is simpler than those tools: there is no time tracking, forms or reporting yet. If you rely on those, keep them and connect MyMail with webhooks and the API." },
   { q: "Is my mail stored in Australia?", a: "Not yet. Our database sits in Cloudflare's Oceania region, which is a placement hint rather than a promise of a country, and some providers we use are in the United States. We're preparing Sydney hosting and will only say so once it's true." },
   { q: "Is my mail private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
 ];
@@ -39,7 +47,7 @@ export function Landing() {
             Email for your team and your AI agents.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-muted">
-            Free for startups and small businesses, on your own domain. Your people and your agents work the same threads, and a person approves what agents send.
+            Free for startups and small businesses, on your own domain. Turn any email into a task, run projects on boards, and see every thread with a client in one place. A person approves what agents send.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto">Start free <ArrowRight className="h-4 w-4" /></ButtonLink>
@@ -106,6 +114,23 @@ export function Landing() {
   },
   "apiKey": { "secret": "mm_live_..." }
 }`}</pre>
+        </div>
+      </section>
+
+      <section id="work" className="scroll-mt-20 border-t border-line">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Turn email into work, without another app.</h2>
+            <p className="mt-4 leading-relaxed text-muted">Tasks, boards, docs and contacts sit next to your inbox and are free in every plan, Free included. Replies on a thread show up on its task, so nobody has to copy and paste.</p>
+          </div>
+          <dl className="mt-10 grid gap-x-10 sm:grid-cols-2 lg:grid-cols-4">
+            {work.map(({ title, body }) => (
+              <div key={title} className="border-t border-line py-6">
+                <dt className="text-[15px] font-semibold">{title}</dt>
+                <dd className="mt-2 text-sm leading-relaxed text-muted">{body}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 

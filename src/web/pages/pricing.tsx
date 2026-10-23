@@ -10,6 +10,7 @@ const GOOGLE_STARTER_AUD = 9.9;
 
 const FAQ: { q: string; a: string }[] = [
   { q: "Is Free really free forever?", a: "Yes. One domain, three mailboxes for three people, 3 GB, mail apps and three agent inboxes, with no card and no trial clock. The limits are in our terms, and if they ever change, existing free workspaces keep what they have." },
+  { q: "What do tasks, boards, docs and contacts cost?", a: "Nothing. They come with every workspace, Free included: projects, tasks, docs, contacts and deals for everyone on your team, with no per person price. Automations run up to 1,000 times a month on Free." },
   { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace." },
   { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. If you want the assistant in the inbox, add your own OpenAI, Anthropic, OpenRouter or Groq key in Settings and your provider bills you directly. MyMail never resells AI." },
   { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
@@ -23,7 +24,7 @@ export function PricingPage() {
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-32 sm:pt-40">
       <div className="mx-auto mb-14 max-w-2xl text-center">
         <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Free for your business. A few dollars for what you add.</h1>
-        <p className="mt-4 text-[17px] text-muted">Email on your own domain for your team and your AI agents. No per person pricing, ever.</p>
+        <p className="mt-4 text-[17px] text-muted">Email on your own domain for your team and your AI agents, with tasks, boards, docs and contacts built in. No per person pricing, ever.</p>
       </div>
       <PlanCards headingLevel={2} />
       <Calculator />
