@@ -24,6 +24,8 @@ describe("security headers", () => {
     expect(csp).toContain("script-src 'self';");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
+    // Only the public form page may load Turnstile.
+    expect(appCsp({ turnstile: true })).toContain("script-src 'self' https://challenges.cloudflare.com;");
   });
 
   it("pins every directive of the app policy, so a loosened CSP fails here", () => {
@@ -34,7 +36,8 @@ describe("security headers", () => {
       "style-src": "'self' 'unsafe-inline'",
       "img-src": "'self' data: blob: https:",
       "font-src": "'self' data:",
-      "connect-src": "'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io",
+      "connect-src": "'self' https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://*.ingest.de.sentry.io https://*.livekit.cloud wss:",
+      "media-src": "'self' blob:",
       "frame-src": "'self' blob:",
       "worker-src": "'self' blob:",
       "object-src": "'none'",
