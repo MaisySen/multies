@@ -21,6 +21,16 @@ const AgentsPage = lazy(() => agentPages().then((m) => ({ default: m.AgentsPage 
 const AgentDetailPage = lazy(() => agentPages().then((m) => ({ default: m.AgentDetailPage })));
 const ApprovalsPage = lazy(() => import("./pages/app/approvals").then((m) => ({ default: m.ApprovalsPage })));
 const TeamInboxPage = lazy(() => import("./pages/app/inbox").then((m) => ({ default: m.TeamInboxPage })));
+const work = () => import("./pages/app/work/tasks");
+const TasksPage = lazy(() => work().then((m) => ({ default: m.TasksPage })));
+const docsPages = () => import("./pages/app/work/docs");
+const DocsPage = lazy(() => docsPages().then((m) => ({ default: m.DocsPage })));
+const DocPage = lazy(() => docsPages().then((m) => ({ default: m.DocPage })));
+const contactPages = () => import("./pages/app/work/contacts");
+const ContactsPage = lazy(() => contactPages().then((m) => ({ default: m.ContactsPage })));
+const ContactPage = lazy(() => contactPages().then((m) => ({ default: m.ContactPage })));
+const DealsPage = lazy(() => import("./pages/app/work/deals").then((m) => ({ default: m.DealsPage })));
+const AutomationsPage = lazy(() => import("./pages/app/work/automations").then((m) => ({ default: m.AutomationsPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
@@ -79,6 +89,13 @@ export const router = createBrowserRouter([
       { path: "agents/:id", element: page(<AgentDetailPage />) },
       { path: "approvals", element: page(<ApprovalsPage />) },
       { path: "activity", element: page(<ActivityPage />) },
+      { path: "tasks", element: page(<TasksPage />) },
+      { path: "docs", element: page(<DocsPage />) },
+      { path: "docs/:id", element: page(<DocPage />) },
+      { path: "contacts", element: page(<ContactsPage />) },
+      { path: "contacts/:id", element: page(<ContactPage />) },
+      { path: "deals", element: page(<DealsPage />) },
+      { path: "automations", element: page(<AutomationsPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
@@ -24,6 +24,10 @@ const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/app/mail", label: "Mail", icon: Inbox },
   { to: "/app/inbox", label: "Team inbox", icon: MessagesSquare },
+  { to: "/app/tasks", label: "Tasks", icon: CheckSquare },
+  { to: "/app/docs", label: "Docs", icon: FileText },
+  { to: "/app/contacts", label: "Contacts", icon: Contact },
+  { to: "/app/automations", label: "Automations", icon: Zap },
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
   { to: "/app/domains", label: "Domains", icon: Globe },
