@@ -91,7 +91,11 @@ export async function billingOverview(deps: Deps, orgId: string) {
 async function ensureCustomer(deps: Deps, auth: AuthContext) {
   const org = await getOrg(deps.db, auth.orgId);
   if (org.stripeCustomerId) return org.stripeCustomerId;
-  const c = await client(deps).customers.create({ email: auth.email, name: org.name, metadata: { orgId: org.id } });
+  const c = await client(deps).customers.create({
+    email: auth.email, name: org.name, metadata: { orgId: org.id },
+    // The workspace country pre-fills checkout; en-AU receipts and invoices.
+    address: { country: org.country }, preferred_locales: ["en-AU"],
+  });
   await deps.db.update(organizations).set({ stripeCustomerId: c.id }).where(eq(organizations.id, org.id));
   return c.id;
 }
@@ -113,6 +117,8 @@ export async function startCheckout(deps: Deps, auth: AuthContext, plan: PlanId)
     subscription_data: { metadata: { orgId: auth.orgId } },
     metadata: { orgId: auth.orgId },
     allow_promotion_codes: true,
+    // Charge exactly the AUD price everywhere instead of converting to the visitor's currency.
+    adaptive_pricing: { enabled: false },
     success_url: `${base}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}?checkout=cancelled`,
   });
   return { id: session.id, url: session.url };
