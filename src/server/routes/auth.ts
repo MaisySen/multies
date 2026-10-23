@@ -12,6 +12,8 @@ import { HttpError, tooMany } from "../lib/errors";
 import { organizations } from "../db/schema";
 import { createDemoWorkspace } from "../services/demo";
 import { notFound } from "../lib/errors";
+import { z } from "zod";
+import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
 
 
 function setSessionCookie(c: Context<AppEnv>, token: string) {
@@ -88,6 +90,28 @@ export function authRoutes() {
     await deleteAccount(deps.db, auth.userId, password);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.json({ ok: true });
+  })
+  .get("/workspaces", requireAuth, async (c) => {
+    return c.json({ workspaces: await listWorkspaces(c.var.deps.db, c.var.auth.userId), currentId: c.var.auth.orgId });
+  })
+  .post("/workspaces", requireAuth, async (c) => {
+    const { name } = await parseBody(c, z.object({ name: z.string().trim().min(1, "Give the workspace a name.").max(100) }));
+    const { auth, deps } = c.var;
+    const id = await createWorkspace(deps.db, auth, name);
+    await audit(deps.db, { orgId: id, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.created", metadata: { name }, ip: c.var.ip });
+    return c.json({ id }, 201);
+  })
+  .post("/workspaces/:id/switch", requireAuth, async (c) => {
+    await switchWorkspace(c.var.deps.db, c.var.auth, c.req.param("id"));
+    return c.json({ ok: true });
+  })
+  .delete("/workspace", requireAuth, async (c) => {
+    const { auth, deps } = c.var;
+    const { password } = await parseBody(c, deleteAccountSchema);
+    await deleteWorkspace(deps.db, auth, password);
+    const left = await deps.db.query.memberships.findFirst({ where: (m, { eq }) => eq(m.userId, auth.userId) });
+    if (!left) { await destroySession(deps.db, auth.sessionId); deleteCookie(c, SESSION_COOKIE, { path: "/" }); }
+    return c.json({ ok: true, signedOut: !left });
   })
   .get("/me", requireAuth, async (c) => {
     const { auth } = c.var;

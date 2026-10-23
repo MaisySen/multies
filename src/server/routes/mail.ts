@@ -13,6 +13,7 @@ import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailbox
 import { badRequest, notFound, tooMany } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
+import { assertMailboxAccess, mailboxScope } from "../services/team";
 
 const folderParam = z.enum(["inbox", "sent", "drafts", "archive", "spam", "trash", "starred"]).optional();
 
@@ -20,7 +21,7 @@ export function mailRoutes() {
   const sendLimiter = new RateLimiter(30, 60_000);
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId) }))
+    .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .get("/messages", async (c) => {
       const folder = folderParam.safeParse(c.req.query("folder") || undefined);
       if (!folder.success) throw badRequest("Unknown folder.");
@@ -30,12 +31,13 @@ export function mailRoutes() {
         search: c.req.query("q") || undefined,
         cursor: c.req.query("cursor") || undefined,
         limit: c.req.query("limit") ? Number(c.req.query("limit")) : undefined,
+        scope: await mailboxScope(c.var.deps.db, c.var.auth),
       });
       return c.json(result);
     })
     .get("/messages/:id", async (c) => {
       const { db } = c.var.deps;
-      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"));
+      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (!m.isRead) await db.update(messages).set({ isRead: true }).where(and(eq(messages.threadId, m.threadId), eq(messages.mailboxId, m.mailboxId)));
       if (m.folder === "drafts") {
         const draft = presentMessage(m);
@@ -47,7 +49,7 @@ export function mailRoutes() {
     .patch("/messages/:id", async (c) => {
       const patch = await parseBody(c, updateMessageSchema);
       const { db } = c.var.deps;
-      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"));
+      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (patch.folder && (m.folder === "sent" || m.folder === "drafts")) throw badRequest("Sent messages and drafts can only be deleted.");
       await db.update(messages).set(patch).where(eq(messages.id, m.id));
       return c.json({ ok: true });
@@ -58,7 +60,9 @@ export function mailRoutes() {
         action: z.enum(["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash", "delete"]),
       }));
       const { db } = c.var.deps;
-      const rows = await db.select().from(messages).where(and(eq(messages.orgId, c.var.auth.orgId), inArray(messages.id, ids)));
+      const scope = await mailboxScope(db, c.var.auth);
+      const rows = (await db.select().from(messages).where(and(eq(messages.orgId, c.var.auth.orgId), inArray(messages.id, ids))))
+        .filter((r) => !scope || scope.includes(r.mailboxId));
       const own = rows.map((r) => r.id);
       if (!own.length) return c.json({ updated: 0 });
       const set: Partial<typeof messages.$inferInsert> = {
@@ -71,17 +75,18 @@ export function mailRoutes() {
     })
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;
-      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"));
+      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (m.folder === "trash" || m.folder === "drafts") await deleteMessagesPermanently(db, [m]);
       else await db.update(messages).set({ folder: "trash" }).where(eq(messages.id, m.id));
       return c.json({ ok: true, permanent: m.folder === "trash" || m.folder === "drafts" });
     })
     .get("/attachments/:id", async (c) => {
       const { db } = c.var.deps;
-      const a = await db.select({ a: attachments, orgId: messages.orgId }).from(attachments)
+      const scope = await mailboxScope(db, c.var.auth);
+      const a = await db.select({ a: attachments, orgId: messages.orgId, mailboxId: messages.mailboxId }).from(attachments)
         .innerJoin(messages, eq(messages.id, attachments.messageId))
         .where(eq(attachments.id, c.req.param("id"))).get();
-      if (!a || a.orgId !== c.var.auth.orgId || a.a.contentB64 === null) throw notFound("Attachment");
+      if (!a || a.orgId !== c.var.auth.orgId || (scope && !scope.includes(a.mailboxId)) || a.a.contentB64 === null) throw notFound("Attachment");
       return new Response(fromB64(a.a.contentB64), {
         headers: {
           "content-type": "application/octet-stream",
@@ -95,6 +100,7 @@ export function mailRoutes() {
       const { auth, deps } = c.var;
       if (!sendLimiter.take(auth.userId)) throw tooMany("You're sending very fast. Wait a moment.");
       const input = await parseBody(c, sendMessageSchema);
+      await assertMailboxAccess(deps.db, auth, input.mailboxId);
       const result = await sendMessage(deps, auth, input);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "message.sent", targetType: "message", targetId: result.messageId, metadata: { recipients: [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].length }, ip: c.var.ip });
       return c.json(result, 201);
@@ -102,6 +108,7 @@ export function mailRoutes() {
     .post("/drafts", async (c) => {
       const input = await parseBody(c, saveDraftSchema);
       const { auth, deps } = c.var;
+      await assertMailboxAccess(deps.db, auth, input.mailboxId);
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
       if (input.id) await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));

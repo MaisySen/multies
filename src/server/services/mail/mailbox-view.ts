@@ -30,8 +30,13 @@ export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[]
   };
 }
 
-export async function mailboxOverview(db: DB, orgId: string) {
-  const boxes = await db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(mailboxes.address);
+/** `scope` limits results to these mailbox ids (a member's grants); null means all. */
+export type Scope = string[] | null;
+const inScope = (scope: Scope) => (scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined);
+
+export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null) {
+  const boxes = (await db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(mailboxes.address))
+    .filter((b) => !scope || scope.includes(b.id));
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
     .from(messages).where(eq(messages.orgId, orgId)).groupBy(messages.mailboxId, messages.folder);
@@ -44,9 +49,11 @@ export async function mailboxOverview(db: DB, orgId: string) {
 
 const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
 
-export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; search?: string; cursor?: string; limit?: number }) {
+export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; search?: string; cursor?: string; limit?: number; scope?: Scope }) {
   const limit = Math.min(q.limit ?? 50, 100);
   const conds = [eq(messages.orgId, orgId)];
+  const s = inScope(q.scope ?? null);
+  if (s) conds.push(s);
   if (q.mailboxId) conds.push(eq(messages.mailboxId, q.mailboxId));
   if (q.folder === "starred") conds.push(eq(messages.isStarred, true));
   else if (q.folder) conds.push(eq(messages.folder, q.folder));
@@ -71,9 +78,9 @@ export async function listMessages(db: DB, orgId: string, q: { mailboxId?: strin
   };
 }
 
-export async function getMessage(db: DB, orgId: string, id: string) {
+export async function getMessage(db: DB, orgId: string, id: string, scope: Scope = null) {
   const m = await db.select().from(messages).where(and(eq(messages.id, id), eq(messages.orgId, orgId))).get();
-  if (!m) throw notFound("Message");
+  if (!m || (scope && !scope.includes(m.mailboxId))) throw notFound("Message");
   return m;
 }
 

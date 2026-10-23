@@ -12,6 +12,7 @@ import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
 import { deliveryRoutes } from "./routes/deliveries";
 import { dashboardRoutes } from "./routes/dashboard";
 import { PLANS } from "@/shared/plans";
+import { inviteRoutes, teamRoutes } from "./routes/team";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
@@ -52,6 +53,8 @@ export function createApp(deps: Deps) {
   app.route("/api/mail", mailRoutes());
   app.route("/api/deliveries", deliveryRoutes());
   app.route("/api/dashboard", dashboardRoutes());
+  app.route("/api/team", teamRoutes());
+  app.route("/api/invites", inviteRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());
 

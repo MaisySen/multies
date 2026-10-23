@@ -174,3 +174,31 @@ export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/** Pending invitations to join a workspace. Only a SHA-256 of the link token is stored. */
+export const invitations = sqliteTable("invitations", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  email: text("email").notNull(),
+  role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+  /** JSON string[] of mailbox ids a member will be able to open. */
+  mailboxIds: text("mailbox_ids").notNull().default("[]"),
+  tokenHash: text("token_hash").notNull(),
+  invitedByUserId: text("invited_by_user_id"),
+  invitedByName: text("invited_by_name"),
+  expiresAt: ts("expires_at").notNull(),
+  acceptedAt: ts("accepted_at"),
+  revokedAt: ts("revoked_at"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("invitations_token_uq").on(t.tokenHash), index("invitations_org_idx").on(t.orgId)]);
+
+/**
+ * Which mailboxes a `member` can open. Owners and admins can open every mailbox
+ * in the workspace, so they have no rows here.
+ */
+export const mailboxAccess = sqliteTable("mailbox_access", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.userId, t.mailboxId] }), index("mailbox_access_org_idx").on(t.orgId)]);

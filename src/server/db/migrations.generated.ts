@@ -34,5 +34,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `users` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text NOT NULL,\n\t`password_hash` text NOT NULL,\n\t`created_at` integer NOT NULL\n);",
       "CREATE UNIQUE INDEX `users_email_uq` ON `users` (`email`);"
     ]
+  },
+  {
+    "name": "0001_teams",
+    "statements": [
+      "CREATE TABLE `invitations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`role` text DEFAULT 'member' NOT NULL,\n\t`mailbox_ids` text DEFAULT '[]' NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`invited_by_user_id` text,\n\t`invited_by_name` text,\n\t`expires_at` integer NOT NULL,\n\t`accepted_at` integer,\n\t`revoked_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `invitations_token_uq` ON `invitations` (`token_hash`);",
+      "CREATE INDEX `invitations_org_idx` ON `invitations` (`org_id`);",
+      "CREATE TABLE `mailbox_access` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `mailbox_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mailbox_access_org_idx` ON `mailbox_access` (`org_id`);"
+    ]
   }
 ];
