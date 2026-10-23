@@ -4,7 +4,8 @@ import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts"] },
+  // mobile/ is the Expo app, merged from the mobile branch, with its own lint and tests.
+  { ignores: ["dist", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
