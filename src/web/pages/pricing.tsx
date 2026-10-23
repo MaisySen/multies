@@ -1,13 +1,14 @@
 import { PlanCards } from "@/web/components/plan-cards";
 import { PLAN_ORDER, PLANS } from "@/shared/plans";
 import { Check, Minus } from "lucide-react";
+import { LOCALE } from "@/shared/locale";
 
 const rows: { label: string; get: (id: (typeof PLAN_ORDER)[number]) => string | boolean }[] = [
   { label: "Custom domains", get: (id) => String(PLANS[id].limits.domains) },
   { label: "Mailboxes", get: (id) => String(PLANS[id].limits.mailboxes) },
-  { label: "Aliases & forwards", get: (id) => PLANS[id].limits.aliases.toLocaleString() },
+  { label: "Aliases & forwards", get: (id) => PLANS[id].limits.aliases.toLocaleString(LOCALE) },
   { label: "Storage per mailbox", get: (id) => `${PLANS[id].limits.storagePerMailboxMb / 1024} GB` },
-  { label: "Recipients per day", get: (id) => PLANS[id].limits.dailySends.toLocaleString() },
+  { label: "Recipients per day", get: (id) => PLANS[id].limits.dailySends.toLocaleString(LOCALE) },
   { label: "Live DNS verification", get: () => true },
   { label: "Per-domain DKIM keys", get: () => true },
   { label: "Catch-all & plus addressing", get: () => true },

@@ -35,7 +35,7 @@ export function accountRoutes() {
       const org = await c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get();
       return c.json({
         user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin" },
-        organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role } : null,
+        organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country } : null,
       });
     })
     .get("/workspaces", async (c) => {

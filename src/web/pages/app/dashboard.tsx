@@ -7,6 +7,7 @@ import { DomainStatusBadge, describeAudit } from "@/web/components/app-bits";
 import { formatBytes, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
+import { LOCALE } from "@/shared/locale";
 
 export function DashboardPage() {
   const me = useMe();
@@ -22,8 +23,8 @@ export function DashboardPage() {
           <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
             <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub="verified" used={data.usage.domains} max={data.plan.limits.domains} />
             <Stat icon={<Users />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
-            <Stat icon={<AtSign />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString()}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
-            <Stat icon={<Send />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString()}`} used={data.sentToday} max={data.plan.limits.dailySends} />
+            <Stat icon={<AtSign />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
+            <Stat icon={<Send />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="p-5 lg:col-span-2">
@@ -100,13 +101,13 @@ function FlowChart({ series }: { series: Dashboard["series"] }) {
             <div className="w-full max-w-3 rounded-t bg-brand transition-opacity group-hover:opacity-80" style={{ height: `${(s.inbound / max) * 100}%`, minHeight: s.inbound ? 3 : 0 }} />
             <div className="w-full max-w-3 rounded-t bg-ok/80 transition-opacity group-hover:opacity-80" style={{ height: `${(s.outbound / max) * 100}%`, minHeight: s.outbound ? 3 : 0 }} />
             <div className="pointer-events-none absolute bottom-full mb-2 hidden whitespace-nowrap rounded-md border border-line-strong bg-elevated px-2 py-1 text-[11px] shadow-pop group-hover:block">
-              {new Date(s.day + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" })} · {s.inbound} in · {s.outbound} out
+              {new Date(s.day + "T12:00:00Z").toLocaleDateString(LOCALE, { month: "short", day: "numeric", timeZone: "UTC" })} · {s.inbound} in · {s.outbound} out
             </div>
           </div>
         ))}
       </div>
       <div className="mt-2 flex justify-between text-[11px] text-subtle">
-        <span>{new Date(series[0].day + "T12:00:00Z").toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+        <span>{new Date(series[0].day + "T12:00:00Z").toLocaleDateString(LOCALE, { month: "short", day: "numeric", timeZone: "UTC" })}</span>
         <span>Today</span>
       </div>
       {total === 0 && <p className="mt-3 text-center text-xs text-subtle">No mail yet. Deliveries will appear here as they happen.</p>}

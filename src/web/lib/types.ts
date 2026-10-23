@@ -6,7 +6,7 @@ export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
 export interface Me {
   user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean };
-  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member" } | null;
+  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string } | null;
 }
 
 export interface PublicConfig {
@@ -126,7 +126,7 @@ export interface Dashboard {
 }
 
 export interface OrgInfo {
-  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: string; createdAt: string };
+  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: string; createdAt: string; timezone: string; country: string };
   plan: Plan;
   usage: { domains: number; mailboxes: number; aliases: number };
 }

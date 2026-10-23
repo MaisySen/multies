@@ -8,6 +8,7 @@ import { audit, listAudit } from "../services/audit";
 import { getOrg, usage } from "../services/plans";
 import { PLANS, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, HttpError } from "../lib/errors";
+import { COUNTRIES, isTimeZone } from "@/shared/locale";
 
 export function orgRoutes() {
   return new Hono<AppEnv>()
@@ -18,10 +19,20 @@ export function orgRoutes() {
       return c.json({ organization: { ...org, role: c.var.auth.role }, plan: PLANS[org.plan], usage: await usage(db, org.id) });
     })
     .patch("/", requireAdmin, async (c) => {
-      const { name } = await parseBody(c, z.object({ name: z.string().trim().min(1).max(100) }));
+      const input = await parseBody(c, z.object({
+        name: z.string().trim().min(1).max(100).optional(),
+        timezone: z.string().refine(isTimeZone, "Unknown time zone.").optional(),
+        country: z.enum(COUNTRIES).optional(),
+      }));
       const { auth, deps } = c.var;
-      await deps.db.update(organizations).set({ name }).where(eq(organizations.id, auth.orgId));
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.renamed", metadata: { name }, ip: c.var.ip });
+      const before = await getOrg(deps.db, auth.orgId);
+      await deps.db.update(organizations).set(input).where(eq(organizations.id, auth.orgId));
+      if (input.name && input.name !== before.name) {
+        await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.renamed", metadata: { name: input.name }, ip: c.var.ip });
+      }
+      if ((input.timezone && input.timezone !== before.timezone) || (input.country && input.country !== before.country)) {
+        await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.region_changed", metadata: { timezone: input.timezone ?? before.timezone, country: input.country ?? before.country }, ip: c.var.ip });
+      }
       return c.json({ ok: true });
     })
     /**

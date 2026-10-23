@@ -10,6 +10,8 @@ import { Badge, Card, EmptyState, Meter, Skeleton } from "@/web/components/ui/mi
 import { Button } from "@/web/components/ui/button";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
+import { LOCALE } from "@/shared/locale";
+import { tz } from "@/web/lib/format";
 
 interface BillingInfo {
   enabled: boolean;
@@ -24,7 +26,7 @@ interface BillingInfo {
 }
 interface Invoice { id: string; number: string | null; status: string; total: number; currency: string; createdAt: string; hostedUrl: string | null; pdfUrl: string | null }
 
-const money = (cents: number, currency: string) => new Intl.NumberFormat(undefined, { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+const money = (cents: number, currency: string) => new Intl.NumberFormat(LOCALE, { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
   active: { label: "Active", tone: "ok" }, trialing: { label: "Trial", tone: "ok" }, past_due: { label: "Payment overdue", tone: "warn" },
   unpaid: { label: "Unpaid", tone: "bad" }, canceled: { label: "Cancelled", tone: "neutral" }, incomplete: { label: "Incomplete", tone: "warn" },
@@ -100,7 +102,7 @@ export function BillingSettings() {
           {status && <Badge tone={status.tone} dot>{status.label}</Badge>}
         </div>
         {sub?.currentPeriodEnd && (
-          <p className="mt-1 text-sm text-muted">{sub.cancelAtPeriodEnd ? "Ends" : "Renews"} on {new Date(sub.currentPeriodEnd).toLocaleDateString(undefined, { dateStyle: "long" })}.</p>
+          <p className="mt-1 text-sm text-muted">{sub.cancelAtPeriodEnd ? "Ends" : "Renews"} on {new Date(sub.currentPeriodEnd).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}.</p>
         )}
         {sub?.status === "past_due" && (
           <p className="mt-3 flex items-center gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn"><AlertTriangle className="h-4 w-4" />Your last payment failed. Update your card to keep your plan.</p>
@@ -108,7 +110,7 @@ export function BillingSettings() {
         <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           {meters.map((m) => (
             <div key={m.label}>
-              <div className="mb-1.5 flex justify-between text-xs"><span className="text-muted">{m.label}</span><span className="tabular-nums">{m.used.toLocaleString()} / {m.max.toLocaleString()}</span></div>
+              <div className="mb-1.5 flex justify-between text-xs"><span className="text-muted">{m.label}</span><span className="tabular-nums">{m.used.toLocaleString(LOCALE)} / {m.max.toLocaleString(LOCALE)}</span></div>
               <Meter value={m.used} max={m.max} />
             </div>
           ))}
@@ -131,8 +133,8 @@ export function BillingSettings() {
                 <div className="mt-1 text-sm"><span className="text-lg font-semibold">${p.priceMonthly}</span><span className="text-muted">/mo</span></div>
                 <ul className="mt-3 flex-1 space-y-1 text-xs text-muted">
                   <li>{p.limits.domains} domain{p.limits.domains === 1 ? "" : "s"} · {p.limits.mailboxes} mailboxes</li>
-                  <li>{p.limits.aliases.toLocaleString()} aliases · {p.limits.storagePerMailboxMb / 1024} GB each</li>
-                  <li>{p.limits.seats} seats · {p.limits.dailySends.toLocaleString()} sends / day</li>
+                  <li>{p.limits.aliases.toLocaleString(LOCALE)} aliases · {p.limits.storagePerMailboxMb / 1024} GB each</li>
+                  <li>{p.limits.seats} seats · {p.limits.dailySends.toLocaleString(LOCALE)} sends / day</li>
                 </ul>
                 {!isCurrent && isOwner && (paidFlow ? (
                   hasLiveSub || !higher
@@ -160,7 +162,7 @@ export function BillingSettings() {
               <tbody className="divide-y divide-line">
                 {invoices.data.map((i) => (
                   <tr key={i.id}>
-                    <td className="px-3 py-2.5">{new Date(i.createdAt).toLocaleDateString()}</td>
+                    <td className="px-3 py-2.5">{new Date(i.createdAt).toLocaleDateString(LOCALE, { timeZone: tz() })}</td>
                     <td className="px-3 py-2.5 font-mono text-xs">{i.number ?? i.id}</td>
                     <td className="px-3 py-2.5 tabular-nums">{money(i.total, i.currency)}</td>
                     <td className="px-3 py-2.5"><Badge tone={i.status === "paid" ? "ok" : i.status === "open" ? "warn" : "neutral"}>{i.status}</Badge></td>

@@ -12,7 +12,7 @@ import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { authClient } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
-import { initials } from "@/web/lib/format";
+import { initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
@@ -34,6 +34,8 @@ export function AppLayout() {
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
   useEffect(() => setDrawer(false), [loc.pathname]);
+  // Assigned during render so the first paint already uses the workspace's zone.
+  setDisplayTimeZone(me.data?.organization?.timezone);
 
   if (me.isPending) return <AppSkeleton />;
   if (me.error) {

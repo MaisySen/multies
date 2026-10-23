@@ -96,7 +96,7 @@ export function MarketingLayout() {
             </ul>
           </div>
         </div>
-        <div className="mx-auto max-w-6xl border-t border-line px-5 py-6 text-xs text-subtle">© {new Date().getFullYear()} MyMail. Built for people who own their domain.</div>
+        <div className="mx-auto max-w-6xl border-t border-line px-5 py-6 text-xs text-subtle">© {new Date().getFullYear()} MyMail, Sydney, Australia. Built for people who own their domain.</div>
       </footer>
     </div>
   );

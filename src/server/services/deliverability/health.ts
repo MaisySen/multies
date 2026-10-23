@@ -7,6 +7,7 @@
  */
 import { and, eq, gte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
+import { LOCALE } from "@/shared/locale";
 import { deliveries, dmarcReports, domains } from "../../db/schema";
 
 export interface HealthFactor { id: string; label: string; points: number; max: number; status: "good" | "warn" | "bad" | "unknown"; detail: string }
@@ -45,7 +46,7 @@ export async function domainHealth(deps: Deps, orgId: string, d: typeof domains.
   const passRate = pct(Number(agg?.passed ?? 0), reported);
   factors.push(!reported
     ? { id: "dmarc_pass", label: "DMARC pass rate", max: 15, points: 10, status: "unknown", detail: `No DMARC reports in the last ${days} days. They arrive daily once your DMARC record has a rua address.` }
-    : { id: "dmarc_pass", label: "DMARC pass rate", max: 15, points: passRate >= 98 ? 15 : passRate >= 90 ? 10 : passRate >= 75 ? 5 : 0, status: passRate >= 98 ? "good" : passRate >= 90 ? "warn" : "bad", detail: `${fmt(passRate)} of ${reported.toLocaleString("en-US")} reported messages passed.` });
+    : { id: "dmarc_pass", label: "DMARC pass rate", max: 15, points: passRate >= 98 ? 15 : passRate >= 90 ? 10 : passRate >= 75 ? 5 : 0, status: passRate >= 98 ? "good" : passRate >= 90 ? "warn" : "bad", detail: `${fmt(passRate)} of ${reported.toLocaleString(LOCALE)} reported messages passed.` });
 
   const suffix = `%@${d.name}`;
   const sent = await deps.db.select({
@@ -58,7 +59,7 @@ export async function domainHealth(deps: Deps, orgId: string, d: typeof domains.
   const complaintRate = pct(Number(sent?.complained ?? 0), total);
   factors.push(!total
     ? { id: "bounces", label: "Bounce rate", max: 10, points: 10, status: "unknown", detail: `Nothing sent to outside addresses in the last ${days} days.` }
-    : { id: "bounces", label: "Bounce rate", max: 10, points: bounceRate < 2 ? 10 : bounceRate < 5 ? 5 : 0, status: bounceRate < 2 ? "good" : bounceRate < 5 ? "warn" : "bad", detail: `${fmt(bounceRate)} of ${total.toLocaleString("en-US")} messages bounced.` });
+    : { id: "bounces", label: "Bounce rate", max: 10, points: bounceRate < 2 ? 10 : bounceRate < 5 ? 5 : 0, status: bounceRate < 2 ? "good" : bounceRate < 5 ? "warn" : "bad", detail: `${fmt(bounceRate)} of ${total.toLocaleString(LOCALE)} messages bounced.` });
   factors.push(!total
     ? { id: "complaints", label: "Spam complaints", max: 5, points: 5, status: "unknown", detail: "No complaint data yet." }
     : { id: "complaints", label: "Spam complaints", max: 5, points: complaintRate < 0.1 ? 5 : complaintRate < 0.3 ? 2 : 0, status: complaintRate < 0.1 ? "good" : complaintRate < 0.3 ? "warn" : "bad", detail: `${fmt(complaintRate)} complaint rate. Gmail and Yahoo start filtering above 0.3%.` });

@@ -11,6 +11,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { LOCALE } from "@/shared/locale";
 
 interface Factor { id: string; label: string; points: number; max: number; status: "good" | "warn" | "bad" | "unknown"; detail: string }
 interface Health { domainId: string; domain: string; score: number; grade: "healthy" | "attention" | "at_risk"; factors: Factor[]; stats: { sent: number; bounceRate: number; complaintRate: number; dmarcMessages: number; dmarcPassRate: number | null } }
@@ -23,7 +24,7 @@ interface Dmarc {
 const gradeLabel = { healthy: "Healthy", attention: "Needs attention", at_risk: "At risk" } as const;
 const gradeTone = { healthy: "ok", attention: "warn", at_risk: "bad" } as const;
 const reasonLabel = { hard_bounce: "Hard bounce", complaint: "Spam complaint", manual: "Added by hand" } as const;
-const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const day = (iso: string) => new Date(iso).toLocaleDateString(LOCALE, { month: "short", day: "numeric", timeZone: "UTC" });
 const pct = (n: number) => `${n < 1 && n > 0 ? n.toFixed(2) : Math.round(n * 10) / 10}%`;
 
 export function DeliverabilityPage() {
@@ -134,7 +135,7 @@ function DmarcSection() {
                       <tr key={`${s.domain}|${s.sourceIp}`} className="border-t border-line">
                         <td className="px-4 py-2 font-mono text-[12.5px]">{s.sourceIp}</td>
                         <td className="px-4 py-2 text-muted">{s.domain}</td>
-                        <td className="px-4 py-2 text-right font-mono tabular-nums">{s.messages.toLocaleString("en-US")}</td>
+                        <td className="px-4 py-2 text-right font-mono tabular-nums">{s.messages.toLocaleString(LOCALE)}</td>
                         <td className={cn("px-4 py-2 text-right font-mono tabular-nums", rate >= 98 ? "text-ok" : rate >= 50 ? "text-warn" : "text-bad")}>{pct(rate)}</td>
                       </tr>
                     );

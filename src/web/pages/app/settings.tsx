@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, KeyRound, Plus, Send, Trash2 } from "lucide-react";
@@ -9,9 +9,10 @@ import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
 import { Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input } from "@/web/components/ui/input";
+import { Field, Input, Select } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LOCALE } from "@/shared/locale";
 
 const TABS = [
   { to: "/app/settings", label: "General", end: true },
@@ -99,18 +100,45 @@ function WorkspaceSection() {
   const org = useOrg();
   const qc = useQueryClient();
   const [name, setName] = useState("");
-  useEffect(() => { if (org.data) setName(org.data.organization.name); }, [org.data]);
+  const [timezone, setTimezone] = useState<string>(DEFAULT_TIMEZONE);
+  const [country, setCountry] = useState<string>(DEFAULT_COUNTRY);
+  useEffect(() => {
+    if (!org.data) return;
+    setName(org.data.organization.name);
+    setTimezone(org.data.organization.timezone);
+    setCountry(org.data.organization.country);
+  }, [org.data]);
+  const zones = useMemo(() => {
+    const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [DEFAULT_TIMEZONE];
+    const au = all.filter((z) => z.startsWith("Australia/"));
+    return [...au, ...all.filter((z) => !z.startsWith("Australia/"))];
+  }, []);
+  const regionName = useMemo(() => new Intl.DisplayNames([LOCALE], { type: "region" }), []);
+  const o = org.data?.organization;
+  const dirty = !!o && (name !== o.name || timezone !== o.timezone || country !== o.country);
   const m = useMutation({
-    mutationFn: () => api.patch("/org", { name }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.org }); qc.invalidateQueries({ queryKey: qk.me }); toast.success("Workspace renamed"); },
+    mutationFn: () => api.patch("/org", { name, timezone, country }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.org }); qc.invalidateQueries({ queryKey: qk.me }); toast.success("Workspace saved"); },
     onError: (e) => toast.error(e.message),
   });
   return (
-    <Section title="Workspace" description="The name your team sees.">
+    <Section title="Workspace" description="The name your team sees, and where dates and billing default to.">
       {org.isPending ? <Skeleton className="h-10 max-w-md" /> : (
-        <form className="flex max-w-md items-end gap-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
-          <Field label="Workspace name" className="flex-1">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />}</Field>
-          <Button type="submit" variant="secondary" loading={m.isPending} disabled={!name.trim() || name === org.data?.organization.name}>Save</Button>
+        <form className="grid max-w-xl gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+          <Field label="Workspace name" className="sm:col-span-2">{(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={100} />}</Field>
+          <Field label="Time zone">{(p) => (
+            <Select {...p} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+            </Select>
+          )}</Field>
+          <Field label="Country">{(p) => (
+            <Select {...p} value={country} onChange={(e) => setCountry(e.target.value)}>
+              {COUNTRIES.map((c) => <option key={c} value={c}>{regionName.of(c) ?? c}</option>)}
+            </Select>
+          )}</Field>
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!name.trim() || !dirty}>Save</Button>
+          </div>
         </form>
       )}
     </Section>

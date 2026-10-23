@@ -28,6 +28,10 @@ export const organizations = sqliteTable("organizations", {
   logo: text("logo"),
   metadata: text("metadata"),
   plan: text("plan", { enum: ["starter", "pro", "business"] }).notNull().default("starter"),
+  /** IANA zone used to show dates to the team. */
+  timezone: text("timezone").notNull().default("Australia/Sydney"),
+  /** ISO 3166-1 alpha-2; used as the billing country default. */
+  country: text("country").notNull().default("AU"),
   isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),

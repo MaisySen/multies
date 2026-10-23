@@ -29,6 +29,7 @@ const ACTIONS: Record<string, string> = {
   "plan.upgraded": "upgraded the plan",
   "plan.downgraded": "changed the plan",
   "workspace.renamed": "renamed the workspace",
+  "workspace.region_changed": "changed the time zone or country",
   "inbound_key.created": "created an inbound key",
   "inbound_key.revoked": "revoked an inbound key",
   "demo.workspace_created": "opened a demo workspace",

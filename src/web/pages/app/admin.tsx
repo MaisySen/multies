@@ -5,6 +5,7 @@ import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
 import { Badge, Card, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Section } from "./settings";
+import { LOCALE } from "@/shared/locale";
 
 interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
@@ -64,7 +65,7 @@ export function AdminPage() {
                   <td className="px-3 py-2 capitalize">{t.plan}</td>
                   <td className="px-3 py-2 tabular-nums">{t.members}</td>
                   <td className="px-3 py-2 tabular-nums">{t.domains}</td>
-                  <td className="px-3 py-2 text-muted">{new Date(t.createdAt).toLocaleDateString()}</td>
+                  <td className="px-3 py-2 text-muted">{new Date(t.createdAt).toLocaleDateString(LOCALE)}</td>
                 </tr>
               ))}
             </tbody>

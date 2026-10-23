@@ -163,5 +163,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX `suppressions_org_address_uq` ON `suppressions` (`org_id`,`address`);",
       "CREATE INDEX `deliveries_provider_msg_idx` ON `deliveries` (`provider_message_id`);"
     ]
+  },
+  {
+    "name": "0009_workspace_region",
+    "statements": [
+      "ALTER TABLE `organizations` ADD `timezone` text DEFAULT 'Australia/Sydney' NOT NULL;",
+      "ALTER TABLE `organizations` ADD `country` text DEFAULT 'AU' NOT NULL;"
+    ]
   }
 ];
