@@ -11,6 +11,7 @@ export function HtmlBody({ html }: { html: string }) {
   const [images, setImages] = useState(false);
   const [height, setHeight] = useState(200);
   const ref = useRef<HTMLIFrameElement>(null);
+  // impeccable-disable-next-line broken-image (a regex that detects remote images, not an <img> tag)
   const hasRemote = /<img[^>]+src=["']?https?:/i.test(html) || /url\(\s*['"]?https?:/i.test(html);
   const doc = useMemo(() => {
     const clean = DOMPurify.sanitize(html, { WHOLE_DOCUMENT: false, FORBID_TAGS: ["style", "form", "input", "button"], ADD_ATTR: ["target"] });

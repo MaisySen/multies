@@ -1,4 +1,4 @@
-import { ArrowRight, AtSign, BadgeCheck, Cloud, FileClock, Inbox, KeyRound, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { HeroVisual } from "@/web/components/hero-visual";
 import { PlanCards } from "@/web/components/plan-cards";
@@ -6,16 +6,12 @@ import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 
 const features = [
-  {
-    icon: BadgeCheck, title: "DNS that explains itself",
-    body: "We check MX, SPF, DKIM and DMARC live against the internet and tell you exactly what to fix, down to merging the SPF record you already have.",
-    wide: true,
-  },
-  { icon: KeyRound, title: "A signing key per domain", body: "Every domain gets its own 2048-bit DKIM key, encrypted at rest. Nobody else signs as you." },
-  { icon: AtSign, title: "Mailboxes and aliases", body: "Real inboxes for people, forwarding aliases for roles. sales@ can reach three founders and a Gmail." },
-  { icon: Inbox, title: "Webmail that's fast", body: "Threads, search, folders, drafts and keyboard shortcuts. Opens instantly, works on your phone." },
-  { icon: Cloud, title: "Built on Cloudflare Email Routing", body: "Inbound mail rides Cloudflare's global network into a signed webhook. No servers to babysit.", wide: true },
-  { icon: FileClock, title: "Every delivery, logged", body: "Inbound, outbound and forwarded mail with status and reason, plus an audit trail of every change." },
+  { title: "Mailboxes and aliases", body: "Real inboxes for people, forwarding aliases for roles. sales@ can reach three founders and a Gmail." },
+  { title: "A signing key per domain", body: "Every domain gets its own 2048-bit DKIM key, encrypted at rest. Nobody else signs as you." },
+  { title: "Webmail, plus your own apps", body: "Threads, search and keyboard shortcuts in the browser. App passwords for Outlook, Apple Mail and Thunderbird over IMAP." },
+  { title: "Bounces handled for you", body: "Hard bounces and spam complaints go on a suppression list, so one bad address can't drag down your reputation." },
+  { title: "DMARC reports, read", body: "Gmail, Yahoo and Microsoft send daily reports. We parse them and show every server sending as your domain." },
+  { title: "An API and webhooks", body: "A REST API with an OpenAPI spec, and signed webhooks for received, sent and bounced mail." },
 ];
 
 const faqs = [
@@ -34,13 +30,8 @@ export function Landing() {
   return (
     <>
       <section className="relative overflow-hidden pt-32 sm:pt-40">
-        <div className="grid-bg pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_top,black_30%,transparent_70%)]" aria-hidden />
         <div className="relative mx-auto max-w-6xl px-5 text-center">
-          <a href="#how" className="inline-flex items-center gap-2 rounded-full border border-line-strong bg-white/[0.03] py-1 pl-1.5 pr-3 text-[12.5px] text-muted transition-colors hover:text-fg">
-            <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-hover">New</span>
-            Inbound via Cloudflare Email Routing <ArrowRight className="h-3 w-3" />
-          </a>
-          <h1 className="text-gradient mx-auto mt-7 max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-6xl md:text-7xl">
+          <h1 className="mx-auto text-fg max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.035em] sm:text-6xl md:text-7xl">
             Email on your own domain. Verified in minutes.
           </h1>
           <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-muted">
@@ -71,38 +62,38 @@ export function Landing() {
       </section>
 
       <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-5 py-24 sm:py-32">
-        <div className="max-w-2xl">
-          <p className="text-sm font-medium text-brand-hover">Everything email needs</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">The boring parts, done right.</h2>
-          <p className="mt-4 text-muted">Deliverability lives and dies on DNS. MyMail makes it visible, verifiable and fixable, then gets out of your way.</p>
-        </div>
-        <div className="mt-12 grid gap-4 md:grid-cols-3">
-          {features.map(({ icon: Icon, title, body, wide }) => (
-            <div key={title} className={`group relative overflow-hidden rounded-2xl border border-line bg-surface p-6 transition-colors hover:border-line-strong ${wide ? "md:col-span-2" : ""}`}>
-              <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-brand/0 blur-3xl transition-colors duration-500 group-hover:bg-brand/15" aria-hidden />
-              <div className="grid h-10 w-10 place-items-center rounded-lg border border-line-strong bg-elevated text-brand-hover"><Icon className="h-5 w-5" /></div>
-              <h3 className="mt-5 text-[15px] font-semibold">{title}</h3>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">{body}</p>
-              {title.startsWith("DNS") && <DnsSnippet />}
-            </div>
-          ))}
+        <div className="grid gap-12 lg:grid-cols-[1fr_1.15fr] lg:gap-16">
+          <div>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">DNS you can see, not guess at.</h2>
+            <p className="mt-4 max-w-md text-muted">Whether mail lands is decided by four DNS records. MyMail checks each one live, says what's wrong in plain words, and merges the SPF record you already have instead of breaking it.</p>
+            <DnsSnippet />
+          </div>
+          <dl className="grid content-start gap-x-10 sm:grid-cols-2">
+            {features.map(({ title, body }) => (
+              <div key={title} className="border-t border-line py-6">
+                <dt className="text-[15px] font-semibold">{title}</dt>
+                <dd className="mt-2 text-sm leading-relaxed text-muted">{body}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 
       <section id="how" className="scroll-mt-20 border-y border-line bg-surface/40">
-        <div className="mx-auto max-w-6xl px-5 py-24 sm:py-32">
-          <p className="text-sm font-medium text-brand-hover">How it works</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Three steps. About five minutes.</h2>
-          <ol className="mt-12 grid gap-4 md:grid-cols-3">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:py-24">
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Set up in about five minutes</h2>
+          <ol className="mt-10 grid gap-8 md:grid-cols-3 md:gap-10">
             {[
-              { n: "01", t: "Add your domain", b: "We generate its DKIM key and the exact records to publish: host, type and value, ready to copy." },
-              { n: "02", t: "Publish and verify", b: "Paste the records at your DNS provider. MyMail checks them live and turns each one green as it propagates." },
-              { n: "03", t: "Create mailboxes", b: "Add people and aliases, connect inbound routing, and start reading and sending from your own domain." },
-            ].map((s) => (
-              <li key={s.n} className="rounded-2xl border border-line bg-bg/60 p-6">
-                <span className="font-mono text-xs text-brand-hover">{s.n}</span>
-                <h3 className="mt-3 text-[15px] font-semibold">{s.t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">{s.b}</p>
+              { t: "Add your domain", b: "We generate its DKIM key and the exact records to publish: host, type and value, ready to copy." },
+              { t: "Publish the records", b: "Paste them at your DNS provider. Each one turns green as it propagates, usually within minutes." },
+              { t: "Create mailboxes", b: "Add people and aliases, connect inbound routing, and start reading and sending from your own domain." },
+            ].map((step, i) => (
+              <li key={step.t} className="flex gap-4">
+                <span className="mt-0.5 font-mono text-sm tabular-nums text-subtle" aria-hidden>{i + 1}.</span>
+                <div>
+                  <h3 className="text-[15px] font-semibold">{step.t}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted">{step.b}</p>
+                </div>
               </li>
             ))}
           </ol>
@@ -111,7 +102,6 @@ export function Landing() {
 
       <section className="mx-auto max-w-6xl px-5 py-24 sm:py-32">
         <div className="mb-12 text-center">
-          <p className="text-sm font-medium text-brand-hover">Pricing</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Simple plans that grow with you.</h2>
           <p className="mt-4 text-muted">Start free on one domain. Upgrade when your team does.</p>
         </div>
@@ -139,9 +129,8 @@ export function Landing() {
       </section>
 
       <section className="px-5 pb-24">
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-3xl border border-line-strong bg-gradient-to-br from-brand/25 via-surface to-surface px-6 py-16 text-center sm:px-12">
-          <ShieldCheck className="mx-auto h-8 w-8 text-brand-hover" />
-          <h2 className="mx-auto mt-5 max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Your domain deserves better than a forwarding hack.</h2>
+        <div className="mx-auto max-w-6xl border-t border-line pt-20 text-center">
+          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight sm:text-4xl">Your domain deserves better than a forwarding hack.</h2>
           <p className="mx-auto mt-4 max-w-lg text-muted">Set up real email on it today. It's free for your first domain.</p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg">Create your account</ButtonLink>
@@ -161,7 +150,7 @@ function DnsSnippet() {
     { t: "TXT", h: "_dmarc", v: "v=DMARC1; p=quarantine; rua=mailto:…", s: "warn" },
   ];
   return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-line bg-bg/80 font-mono text-[11.5px]" aria-hidden>
+    <div className="mt-8 overflow-hidden rounded-xl border border-line bg-surface font-mono text-[11.5px]" aria-hidden>
       {lines.map((l) => (
         <div key={l.h + l.t} className="flex items-center gap-3 border-b border-line/70 px-3 py-2 last:border-0">
           <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${l.s === "ok" ? "bg-ok" : "bg-warn"}`} />

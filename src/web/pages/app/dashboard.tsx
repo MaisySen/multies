@@ -124,7 +124,7 @@ function GettingStarted({ data }: { data: Dashboard }) {
   const next = steps.findIndex((s) => !s.done);
   return (
     <Card className="overflow-hidden">
-      <div className="border-b border-line bg-gradient-to-r from-brand/10 to-transparent px-5 py-4">
+      <div className="border-b border-line px-5 py-4">
         <h2 className="text-sm font-semibold">Get set up</h2>
         <p className="text-xs text-muted">{steps.filter((s) => s.done).length} of {steps.length} done</p>
       </div>
@@ -132,7 +132,7 @@ function GettingStarted({ data }: { data: Dashboard }) {
         {steps.map((s, i) => (
           <li key={s.title}>
             <Link to={s.to} className={cn("flex h-full gap-3 p-5 transition-colors hover:bg-white/[0.03]", i === next && "bg-white/[0.02]")}>
-              <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold", s.done ? "border-ok/30 bg-ok-soft text-ok" : i === next ? "border-brand bg-brand text-white" : "border-line-strong text-subtle")}>
+              <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold", s.done ? "border-ok/30 bg-ok-soft text-ok" : i === next ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-subtle")}>
                 {s.done ? <Check className="h-3.5 w-3.5" /> : i + 1}
               </span>
               <span>

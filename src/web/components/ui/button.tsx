@@ -12,7 +12,7 @@ const variants: Record<Variant, string> = {
   secondary: "bg-elevated text-fg border border-line hover:bg-hover hover:border-line-strong",
   outline: "border border-line-strong text-fg hover:bg-elevated",
   ghost: "text-muted hover:text-fg hover:bg-elevated",
-  danger: "bg-bad/90 text-white hover:bg-bad",
+  danger: "bg-bad text-bg hover:bg-bad/90",
 };
 const sizes: Record<Size, string> = {
   sm: "h-8 px-3 text-[13px]",

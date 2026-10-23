@@ -19,7 +19,7 @@ export function PricingPage() {
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-32 sm:pt-40">
       <div className="mx-auto mb-14 max-w-2xl text-center">
-        <h1 className="text-gradient text-4xl font-semibold tracking-tight sm:text-5xl">Pricing</h1>
+        <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Pricing</h1>
         <p className="mt-4 text-[17px] text-muted">Every plan includes verified DNS, webmail and inbound routing. Pay for room to grow, not for features held hostage.</p>
       </div>
       <PlanCards />

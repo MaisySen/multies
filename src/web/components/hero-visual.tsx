@@ -14,7 +14,6 @@ const checks = ["Ownership", "MX → Cloudflare", "SPF", "DKIM (2048-bit)", "DMA
 export function HeroVisual() {
   return (
     <div className="relative mx-auto max-w-5xl" aria-hidden>
-      <div className="pointer-events-none absolute left-1/2 top-0 h-72 w-[80%] -translate-x-1/2 -translate-y-1/3 rounded-full bg-brand/25 blur-[100px]" />
       <div className="relative overflow-hidden rounded-2xl border border-line-strong bg-surface/90 shadow-[0_40px_120px_-30px_rgb(0_0_0/0.9)] backdrop-blur">
         <div className="flex h-10 items-center gap-2 border-b border-line px-4">
           <span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" />
@@ -24,7 +23,7 @@ export function HeroVisual() {
           <aside className="space-y-0.5 border-r border-line p-3 text-[12.5px] max-md:hidden">
             {[{ i: Inbox, l: "Inbox", n: "2", a: true }, { i: Star, l: "Starred" }, { i: Send, l: "Sent" }, { i: Globe, l: "Domains" }, { i: Users, l: "Mailboxes" }, { i: Shield, l: "Activity" }].map(({ i: I, l, n, a }) => (
               <div key={l} className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${a ? "bg-white/[0.07] text-fg" : "text-muted"}`}>
-                <I className="h-3.5 w-3.5" />{l}{n && <span className="ml-auto rounded bg-brand px-1.5 text-[10px] font-semibold text-white">{n}</span>}
+                <I className="h-3.5 w-3.5" />{l}{n && <span className="ml-auto rounded bg-brand px-1.5 text-[10px] font-semibold text-brand-fg">{n}</span>}
               </div>
             ))}
           </aside>
