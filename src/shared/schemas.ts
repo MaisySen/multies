@@ -9,6 +9,8 @@ export const signupSchema = z.object({
   password: passwordSchema,
   organization: z.string().trim().max(100).optional(),
 });
+export const changePasswordSchema = z.object({ currentPassword: z.string().min(1, "Enter your current password"), newPassword: passwordSchema });
+export const deleteAccountSchema = z.object({ password: z.string().min(1, "Enter your password") });
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1, "Enter your password").max(200) });
 
 /** RFC 1035-ish hostname check; rejects IPs, single labels and trailing dots. */

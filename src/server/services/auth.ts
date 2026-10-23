@@ -1,4 +1,4 @@
-import { and, eq, gt, lt } from "drizzle-orm";
+import { and, eq, gt, lt, ne } from "drizzle-orm";
 import type { DB } from "../db";
 import { memberships, organizations, sessions, users } from "../db/schema";
 import { hashPassword, newId, randomToken, sha256Hex, verifyPassword } from "../lib/crypto";
@@ -81,4 +81,34 @@ export async function destroySession(db: DB, sessionId: string) {
 
 export async function purgeExpiredSessions(db: DB, now: Date) {
   await db.delete(sessions).where(lt(sessions.expiresAt, now));
+}
+
+export async function changePassword(db: DB, userId: string, keepSessionId: string, current: string, next: string) {
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user || !(await verifyPassword(current, user.passwordHash))) {
+    throw new HttpError(422, "validation_failed", "Your current password is incorrect.", { fields: { currentPassword: "Your current password is incorrect." } });
+  }
+  await db.update(users).set({ passwordHash: await hashPassword(next) }).where(eq(users.id, userId));
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)));
+}
+
+export async function signOutOtherSessions(db: DB, userId: string, keepSessionId: string) {
+  await db.delete(sessions).where(and(eq(sessions.userId, userId), ne(sessions.id, keepSessionId)));
+}
+
+/**
+ * Deletes the user. Workspaces where they are the only member are deleted with
+ * everything in them; in shared workspaces only their membership goes.
+ */
+export async function deleteAccount(db: DB, userId: string, password: string) {
+  const user = await db.select().from(users).where(eq(users.id, userId)).get();
+  if (!user || !(await verifyPassword(password, user.passwordHash))) {
+    throw new HttpError(422, "validation_failed", "That password is incorrect.", { fields: { password: "That password is incorrect." } });
+  }
+  const mine = await db.select().from(memberships).where(eq(memberships.userId, userId));
+  for (const m of mine) {
+    const others = await db.select({ userId: memberships.userId }).from(memberships).where(and(eq(memberships.orgId, m.orgId), ne(memberships.userId, userId)));
+    if (!others.length) await db.delete(organizations).where(eq(organizations.id, m.orgId));
+  }
+  await db.delete(users).where(eq(users.id, userId));
 }

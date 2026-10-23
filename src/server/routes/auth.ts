@@ -4,8 +4,8 @@ import type { Context } from "hono";
 import { eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { loginSchema, signupSchema } from "@/shared/schemas";
-import { authenticate, createSession, createUserWithOrg, destroySession, SESSION_COOKIE, SESSION_TTL_MS } from "../services/auth";
+import { changePasswordSchema, deleteAccountSchema, loginSchema, signupSchema } from "@/shared/schemas";
+import { authenticate, changePassword, createSession, createUserWithOrg, deleteAccount, destroySession, signOutOtherSessions, SESSION_COOKIE, SESSION_TTL_MS } from "../services/auth";
 import { audit } from "../services/audit";
 import { RateLimiter } from "../lib/rate-limit";
 import { HttpError, tooMany } from "../lib/errors";
@@ -64,6 +64,28 @@ export function authRoutes() {
     const { auth } = c.var;
     await destroySession(c.var.deps.db, auth.sessionId);
     await audit(c.var.deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "auth.logout", ip: c.var.ip });
+    deleteCookie(c, SESSION_COOKIE, { path: "/" });
+    return c.json({ ok: true });
+  })
+  .post("/password", requireAuth, async (c) => {
+    const { auth, deps } = c.var;
+    if (!loginLimiter.take(`pw:${auth.userId}`)) throw tooMany();
+    const { currentPassword, newPassword } = await parseBody(c, changePasswordSchema);
+    await changePassword(deps.db, auth.userId, auth.sessionId, currentPassword, newPassword);
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "auth.password_changed", ip: c.var.ip });
+    return c.json({ ok: true });
+  })
+  .post("/sessions/revoke-others", requireAuth, async (c) => {
+    const { auth, deps } = c.var;
+    await signOutOtherSessions(deps.db, auth.userId, auth.sessionId);
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "auth.sessions_revoked", ip: c.var.ip });
+    return c.json({ ok: true });
+  })
+  .delete("/account", requireAuth, async (c) => {
+    const { auth, deps } = c.var;
+    if (!loginLimiter.take(`del:${auth.userId}`)) throw tooMany();
+    const { password } = await parseBody(c, deleteAccountSchema);
+    await deleteAccount(deps.db, auth.userId, password);
     deleteCookie(c, SESSION_COOKIE, { path: "/" });
     return c.json({ ok: true });
   })
