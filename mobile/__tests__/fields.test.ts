@@ -56,7 +56,9 @@ describe("sample workspace fields and portfolio", () => {
     const d = await t.request<TaskView>("GET", `/tasks/${order.id}`);
     expect(d.customFields?.map((f) => f.type)).toEqual(["currency", "select", "checkbox", "date", "number", "multiselect", "person", "url", "text"]);
     const r = await t.request<{ task: { fields: Record<string, unknown> } }>("PATCH", `/tasks/${order.id}`, { fields: { fld_approved: false, fld_po: null, fld_client: "opt_greenroof" } });
-    expect(r.task.fields).toMatchObject({ fld_approved: false, fld_client: "opt_greenroof" });
+    expect(r.task.fields).toMatchObject({ fld_client: "opt_greenroof" });
+    // An unticked checkbox comes back as no value, the way the server stores it.
+    expect(r.task.fields.fld_approved).toBeUndefined();
     expect(r.task.fields.fld_po).toBeUndefined();
     await expect(t.request("PATCH", `/tasks/${order.id}`, { fields: { fld_client: "nope" } })).rejects.toMatchObject({ status: 422 });
     await expect(t.request("PATCH", `/tasks/${order.id}`, { fields: { fld_budget: "lots" } })).rejects.toMatchObject({ status: 422 });

@@ -8,7 +8,8 @@ import { colors, radius, space } from "@/theme";
 
 /**
  * The task's custom fields: every type is shown, and checkbox, select, text, number, currency,
- * date and URL can be changed here. Multi select and person are edited on the web.
+ * date and URL can be changed here. Multi select and person are edited on the web. A checkbox
+ * with no value is unticked: the server stores an unticked box as no value.
  */
 export function CustomFields({ fields, values, people, onSet, readOnly }: {
   fields: CustomField[];
@@ -37,7 +38,7 @@ export function CustomFields({ fields, values, people, onSet, readOnly }: {
               accessibilityRole={f.type === "checkbox" ? "checkbox" : editable ? "button" : "text"}
               accessibilityState={f.type === "checkbox" ? { checked: value === true, disabled: !editable } : isOpen ? { expanded: true } : undefined}
               aria-checked={f.type === "checkbox" ? value === true : undefined}
-              accessibilityLabel={`${f.name}: ${shown.empty ? "not set" : shown.text}`}
+              accessibilityLabel={`${f.name}: ${f.type === "checkbox" ? (value === true ? "Yes" : "No") : shown.empty ? "not set" : shown.text}`}
               accessibilityHint={editable && f.type !== "checkbox" ? "Change this field" : undefined}
               style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.md, minHeight: 48, paddingVertical: 10 }}>
               <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500", width: 110 }} numberOfLines={2}>{f.name}</Text>

@@ -38,8 +38,8 @@ export function seedFieldValues(work: SampleWork, day: (d: number) => string) {
     if (t) t.fields = { ...values };
   };
   set("Confirm Saturday wholesale order", { fld_budget: 1250, fld_client: "opt_bondi", fld_approved: true, fld_signoff: day(1), fld_hours: 1.5, fld_channels: ["opt_email", "opt_phone"], fld_reviewer: "member:usr_josh", fld_po: "BB-2207" });
-  set("Chase INV-1042", { fld_budget: 2840.5, fld_client: "opt_greenroof", fld_approved: false, fld_channels: ["opt_email"], fld_reviewer: "member:usr_sample" });
-  set("Compare fit out quotes", { fld_budget: 18500, fld_client: "opt_internal", fld_approved: false, fld_signoff: day(9), fld_hours: 6, fld_link: "https://example.com.au/kiosk-joinery" });
+  set("Chase INV-1042", { fld_budget: 2840.5, fld_client: "opt_greenroof", fld_channels: ["opt_email"], fld_reviewer: "member:usr_sample" });
+  set("Compare fit out quotes", { fld_budget: 18500, fld_client: "opt_internal", fld_signoff: day(9), fld_hours: 6, fld_link: "https://example.com.au/kiosk-joinery" });
   set("Lodge the September quarter BAS", { fld_client: "opt_internal", fld_approved: true, fld_hours: 3 });
   for (const t of work.tasks) t.fields ??= {};
 }
@@ -52,7 +52,9 @@ export function applyFieldPatch(fields: CustomField[], t: Task, patch: Record<st
     if (!f) throw new ApiError(422, "unknown_field", "That field isn't on this task's project.");
     if (value === null) { delete next[id]; continue; }
     if (!fits(f, value)) throw new ApiError(422, "validation_error", `That isn't a valid value for ${f.name}.`);
-    next[id] = value;
+    // As on the server, an unticked checkbox is stored as no value.
+    if (value === false || (Array.isArray(value) && !value.length)) delete next[id];
+    else next[id] = value;
   }
   t.fields = next;
 }

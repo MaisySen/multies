@@ -224,8 +224,10 @@ it("task screen shows custom fields and sets a checkbox, a select and a number",
   expect(screen.getByLabelText("Supplier page: not set")).toBeTruthy();
   const get = async () => (await transport.request<{ task: { fields: Record<string, unknown> } }>("GET", `/tasks/${order.id}`)).task.fields;
   // Checkbox: one tap.
+  expect(screen.getByLabelText("Approved: Yes")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("field-fld_approved"));
-  await waitFor(async () => expect((await get()).fld_approved).toBe(false));
+  await waitFor(async () => expect((await get()).fld_approved).toBeUndefined());
+  expect(await screen.findByLabelText("Approved: No")).toBeTruthy();
   // Select: open, pick another client.
   await fireEvent.press(screen.getByTestId("field-fld_client"));
   await fireEvent.press(screen.getByText("Green Roof Cafe"));

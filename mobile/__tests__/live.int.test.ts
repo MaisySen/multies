@@ -156,8 +156,12 @@ runDemo("demo workspace: reads a task's custom fields, sets a checkbox field and
   expect((await api.fields(task.projectId!)).fields.map((f) => f.id)).toContain(box.id);
   const want = detail.task.fields?.[box.id] !== true;
   const { task: updated } = await api.updateTask(task.id, { fields: { [box.id]: want } });
-  expect(updated.fields?.[box.id]).toBe(want);
-  expect((await api.task(task.id)).task.fields?.[box.id]).toBe(want);
+  // The server stores an unticked box as no value.
+  const shown = (v: unknown) => v === true;
+  expect(shown(updated.fields?.[box.id])).toBe(want);
+  expect(shown((await api.task(task.id)).task.fields?.[box.id])).toBe(want);
+  const { task: back } = await api.updateTask(task.id, { fields: { [box.id]: !want } });
+  expect(shown(back.fields?.[box.id])).toBe(!want);
 
   const { projects } = await api.portfolio();
   expect(projects.length).toBeGreaterThan(0);
@@ -167,7 +171,7 @@ runDemo("demo workspace: reads a task's custom fields, sets a checkbox field and
   expect(p.progress).toBeLessThanOrEqual(100);
   for (const k of ["health", "owner", "overdue", "timeLoggedSeconds", "nextDue", "total", "done"]) expect(p).toHaveProperty(k);
 
-  console.log(JSON.stringify({ task: task.ref, fieldTypes: detail.customFields!.map((f) => f.type), checkbox: box.name, set: want,
+  console.log(JSON.stringify({ task: task.ref, fieldTypes: detail.customFields!.map((f) => f.type), checkbox: box.name, set: want, thenSet: !want, values: Object.keys(detail.task.fields ?? {}).length,
     portfolio: projects.map((x) => ({ key: x.key, health: x.health, progress: x.progress, overdue: x.overdue, time: x.timeLoggedSeconds, nextDue: x.nextDue })) }));
   await api.signOut();
 }, 180_000);
