@@ -12,6 +12,8 @@ export interface AuditEntry {
   targetId?: string;
   metadata?: Record<string, unknown>;
   ip?: string | null;
+  /** The agent that acted, or that a person acted on. */
+  agentId?: string | null;
 }
 
 /** Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`. */
@@ -26,15 +28,16 @@ export async function audit(db: DB, e: AuditEntry): Promise<void> {
     targetId: e.targetId ?? null,
     metadata: e.metadata ? JSON.stringify(e.metadata) : null,
     ip: e.ip ?? null,
+    agentId: e.agentId ?? null,
   });
 }
 
-export async function listAudit(db: DB, orgId: string, opts: { limit?: number; before?: Date } = {}) {
+export async function listAudit(db: DB, orgId: string, opts: { limit?: number; before?: Date; agentId?: string } = {}) {
   const limit = Math.min(opts.limit ?? 50, 200);
   const rows = await db
     .select()
     .from(auditLogs)
-    .where(and(eq(auditLogs.orgId, orgId), opts.before ? lt(auditLogs.createdAt, opts.before) : undefined))
+    .where(and(eq(auditLogs.orgId, orgId), opts.before ? lt(auditLogs.createdAt, opts.before) : undefined, opts.agentId ? eq(auditLogs.agentId, opts.agentId) : undefined))
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
   return rows.map((r) => ({ ...r, metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null }));

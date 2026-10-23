@@ -18,6 +18,7 @@ import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } fro
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
 import { sendMessage } from "../services/mail/send";
 import { deprovisionMailbox } from "../services/mailserver";
+import { registerAgentRoutes } from "./v1-agents";
 
 // ---------------------------------------------------------------- schemas
 
@@ -108,9 +109,16 @@ const secured = [{ bearerAuth: [] }];
 const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const auth = await resolveApiKey(c.var.deps, c.req.header("authorization"));
   if (!auth) throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
-  if (auth.scope === "read" && c.req.method !== "GET") throw new HttpError(403, "read_only_key", "This API key can only read.");
+  // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
+  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp")) throw new HttpError(403, "read_only_key", "This API key can only read.");
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
+  await next();
+};
+
+/** Agent keys act only as their agent: the workspace resources need a workspace key. */
+const workspaceKeyOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if ((c.var.auth as { agentId?: string | null }).agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can only use the agent endpoints (/agents, /threads, /search, /events, /mcp). Use a workspace key for this.");
   await next();
 };
 
@@ -134,14 +142,15 @@ export function v1Routes() {
     info: {
       title: "MyMail API",
       version: "1.0.0",
-      description: "Manage domains, mailboxes and aliases, read mail and send it. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
+      description: "Manage domains, mailboxes and aliases, read mail and send it, and give AI agents their own inboxes. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
   api.get("/docs", Scalar({ url: "/api/v1/openapi.json", pageTitle: "MyMail API reference", theme: "default" }));
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
-  for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
+  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp"]) api.use(`/${r}/*`, apiKeyAuth);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
     const a = c.var.auth as { apiKeyId?: string } | undefined;
@@ -290,5 +299,6 @@ export function v1Routes() {
     return c.json({ deleted: true as const }, 200);
   });
 
+  registerAgentRoutes(api);
   return api;
 }

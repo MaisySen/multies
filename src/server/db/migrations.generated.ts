@@ -214,5 +214,26 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `mailboxes` ADD `kind` text DEFAULT 'person' NOT NULL;",
       "ALTER TABLE `organizations` ADD `billing_interval` text;"
     ]
+  },
+  {
+    "name": "0013_agent_inboxes",
+    "statements": [
+      "CREATE TABLE `agent_events` (\n\t`seq` integer PRIMARY KEY AUTOINCREMENT NOT NULL,\n\t`org_id` text NOT NULL,\n\t`agent_id` text,\n\t`type` text NOT NULL,\n\t`data` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `agent_events_org_seq_idx` ON `agent_events` (`org_id`,`seq`);",
+      "CREATE INDEX `agent_events_agent_seq_idx` ON `agent_events` (`agent_id`,`seq`);",
+      "CREATE TABLE `agent_mailbox_access` (\n\t`agent_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`agent_id`, `mailbox_id`),\n\tFOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `agent_mailbox_access_mailbox_idx` ON `agent_mailbox_access` (`mailbox_id`);",
+      "CREATE TABLE `agents` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`description` text,\n\t`approval_mode` text DEFAULT 'always' NOT NULL,\n\t`send_cap_daily` integer DEFAULT 100 NOT NULL,\n\t`allowed_recipients` text,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `agents_mailbox_uq` ON `agents` (`mailbox_id`);",
+      "CREATE INDEX `agents_org_idx` ON `agents` (`org_id`);",
+      "CREATE TABLE `send_approvals` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`agent_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`thread_id` text,\n\t`payload` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`api_key_id` text,\n\t`decided_by_user_id` text,\n\t`decided_by_email` text,\n\t`decided_at` integer,\n\t`note` text,\n\t`message_id` text,\n\t`error` text,\n\t`expires_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`agent_id`) REFERENCES `agents`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `send_approvals_org_status_idx` ON `send_approvals` (`org_id`,`status`,`created_at`);",
+      "CREATE INDEX `send_approvals_agent_idx` ON `send_approvals` (`agent_id`,`created_at`);",
+      "ALTER TABLE `api_keys` ADD `agent_id` text;",
+      "ALTER TABLE `audit_logs` ADD `agent_id` text;",
+      "CREATE INDEX `audit_agent_idx` ON `audit_logs` (`agent_id`,`created_at`);",
+      "ALTER TABLE `messages` ADD `sent_by_agent_id` text;",
+      "ALTER TABLE `messages` ADD `sent_by_user_id` text;"
+    ]
   }
 ];

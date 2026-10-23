@@ -12,6 +12,7 @@ export function presentListItem(m: Row) {
     from: { address: m.fromAddress, name: m.fromName || undefined },
     to: JSON.parse(m.to) as Address[],
     subject: m.subject, snippet: m.snippet, date: m.date, isRead: m.isRead, isStarred: m.isStarred, hasAttachments: m.hasAttachments,
+    sentByAgentId: m.sentByAgentId ?? null,
   };
 }
 
@@ -43,7 +44,7 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
   return boxes.map((b) => {
     const folders: Record<string, { total: number; unread: number }> = {};
     for (const c of counts) if (c.mailboxId === b.id) folders[c.folder] = { total: Number(c.total), unread: Number(c.unread ?? 0) };
-    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, folders };
+    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders };
   });
 }
 

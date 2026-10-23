@@ -62,6 +62,8 @@ export interface AppConfig {
    * The mail server (Stalwart) that gives mail apps IMAP and SMTP access. `enabled`
    * when STALWART_URL and its provisioner login are set.
    */
+  /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
+  agents: { sharedDomain?: string };
   mailServer: {
     enabled: boolean;
     url?: string;
@@ -125,6 +127,7 @@ const EnvSchema = z.object({
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
   MONITOR_URLS: z.string().optional(),
+  AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -208,6 +211,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
     },
+    agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
     mailServer: (() => {
       const missing = (["STALWART_URL", "STALWART_ADMIN_USER", "STALWART_ADMIN_SECRET"] as const).filter((k) => !env[k]);

@@ -28,6 +28,8 @@ export interface StoreInput {
   authResults?: AuthResults;
   attachments?: ParsedAttachment[];
   sizeBytes?: number;
+  sentByAgentId?: string | null;
+  sentByUserId?: string | null;
 }
 
 /** Finds the thread a message belongs to by walking In-Reply-To / References within the mailbox. */
@@ -72,6 +74,8 @@ export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
     isRead: i.isRead ?? false,
     hasAttachments: (i.attachments?.length ?? 0) > 0,
     authResults: i.authResults ? JSON.stringify(i.authResults) : null,
+    sentByAgentId: i.sentByAgentId ?? null,
+    sentByUserId: i.sentByUserId ?? null,
     date: i.date,
   });
   for (const a of i.attachments ?? []) {

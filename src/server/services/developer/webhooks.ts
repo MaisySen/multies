@@ -17,6 +17,10 @@ export const WEBHOOK_EVENTS = [
   "message.complained",
   "domain.verified",
   "domain.failed",
+  "approval.requested",
+  "approval.decided",
+  "agent.created",
+  "agent.deleted",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

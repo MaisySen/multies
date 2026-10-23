@@ -4,12 +4,13 @@ import { ingestDmarcAttachments } from "../deliverability/dmarc";
 import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import type { DB } from "../../db";
-import { aliases, deliveries, domains, mailboxes } from "../../db/schema";
+import { aliases, deliveries, domains, mailboxes, messages } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import type { ParsedEmail } from "./mime";
 import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
 import { getPlan } from "../plans";
+import { notifyAgentsOfInbound } from "../agents";
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -141,8 +142,13 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
     if (d.email.attachments.length && /dmarc|report/i.test(`${d.email.subject ?? ""} ${mb.localPart}`)) {
       await ingestDmarcAttachments(deps, mb.orgId, d.email.attachments);
     }
+    // Agents that can read this mailbox get an event (stream and poll), and the webhook
+    // carries the parsed message: new text without quoted history, codes and links.
+    const stored = await db.select({ threadId: messages.threadId }).from(messages).where(eq(messages.id, messageId)).get();
+    const agentsNotified = await notifyAgentsOfInbound(deps, mb, { id: messageId, threadId: stored?.threadId ?? "", from: d.email.from, subject: d.email.subject ?? "", text: d.email.text ?? "", html: d.email.html });
     await emitEvent(deps, mb.orgId, "message.received", {
       id: messageId, mailboxId: mb.id, to: mb.address, from: d.email.from, subject: d.email.subject ?? "", folder: spam ? "spam" : "inbox", sizeBytes: d.sizeBytes,
+      threadId: stored?.threadId, latestText: agentsNotified.parsed.latestText, codes: agentsNotified.parsed.codes, links: agentsNotified.parsed.links, agentIds: agentsNotified.agentIds,
     });
     return { accepted: true, code: 250, reason: "Delivered.", storedIn: [mb.id], forwardedTo: [] };
   }

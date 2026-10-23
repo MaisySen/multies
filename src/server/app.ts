@@ -24,6 +24,7 @@ import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
 import { v1Routes } from "./routes/v1";
+import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 
@@ -146,6 +147,8 @@ export function createApp(deps: Deps) {
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/developer", developerRoutes());
+  app.route("/api/agents", agentRoutes());
+  app.route("/api/approvals", approvalRoutes());
   app.route("/api/v1", v1Routes());
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());

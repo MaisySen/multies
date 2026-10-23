@@ -222,6 +222,9 @@ export const messages = sqliteTable("messages", {
   hasAttachments: integer("has_attachments", { mode: "boolean" }).notNull().default(false),
   /** JSON: { spf, dkim, dmarc } as reported upstream. */
   authResults: text("auth_results"),
+  /** Who wrote an outgoing message: an AI agent (agents.id) or a person (users.id). */
+  sentByAgentId: text("sent_by_agent_id"),
+  sentByUserId: text("sent_by_user_id"),
   date: ts("date").notNull(),
   createdAt: createdAt(),
 }, (t) => [
@@ -277,8 +280,10 @@ export const auditLogs = sqliteTable("audit_logs", {
   /** JSON metadata */
   metadata: text("metadata"),
   ip: text("ip"),
+  /** Set when an AI agent did this (through its API key or MCP), or when a person acted on an agent. */
+  agentId: text("agent_id"),
   createdAt: createdAt(),
-}, (t) => [index("audit_org_idx").on(t.orgId, t.createdAt)]);
+}, (t) => [index("audit_org_idx").on(t.orgId, t.createdAt), index("audit_agent_idx").on(t.agentId, t.createdAt)]);
 
 /** Key/value settings owned by the platform (e.g. a generated secret in demo deployments). */
 export const appSettings = sqliteTable("app_settings", {
@@ -355,6 +360,8 @@ export const apiKeys = sqliteTable("api_keys", {
   keyHash: text("key_hash").notNull(),
   /** `full` or `read`. */
   scope: text("scope", { enum: ["full", "read"] }).notNull().default("full"),
+  /** An agent key acts only as this agent: its own inbox and the mailboxes it was given. */
+  agentId: text("agent_id"),
   lastUsedAt: ts("last_used_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("api_keys_hash_uq").on(t.keyHash), index("api_keys_org_idx").on(t.orgId)]);
@@ -501,3 +508,64 @@ export const abuseEvents = sqliteTable("abuse_events", {
   resolvedAt: ts("resolved_at"),
   createdAt: createdAt(),
 }, (t) => [index("abuse_events_org_idx").on(t.orgId, t.createdAt), index("abuse_events_open_idx").on(t.resolvedAt)]);
+
+/**
+ * An AI agent with its own inbox (a mailbox of kind `agent`). It works through
+ * agent-scoped API keys and the MCP server, within its send cap, recipient rules and
+ * approval mode. Every action it takes is in the audit log with its id.
+ */
+export const agents = sqliteTable("agents", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  /** `always`: a person approves every send. `external`: only mail leaving MyMail. `never`: sends go straight out. */
+  approvalMode: text("approval_mode", { enum: ["always", "external", "never"] }).notNull().default("always"),
+  sendCapDaily: integer("send_cap_daily").notNull().default(100),
+  /** JSON string[] of addresses or "@domain" entries the agent may send to; null means anyone. */
+  allowedRecipients: text("allowed_recipients"),
+  status: text("status", { enum: ["active", "paused"] }).notNull().default("active"),
+  createdByUserId: text("created_by_user_id"),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("agents_mailbox_uq").on(t.mailboxId), index("agents_org_idx").on(t.orgId)]);
+
+/** Extra mailboxes an agent can read and send from (a shared support@ inbox, say), beside its own. */
+export const agentMailboxAccess = sqliteTable("agent_mailbox_access", {
+  agentId: text("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.agentId, t.mailboxId] }), index("agent_mailbox_access_mailbox_idx").on(t.mailboxId)]);
+
+/** Messages an agent asked to send that wait for a person to approve or reject them. */
+export const sendApprovals = sqliteTable("send_approvals", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  agentId: text("agent_id").notNull().references(() => agents.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  /** The thread a reply belongs to, so the shared inbox can show it in place. */
+  threadId: text("thread_id"),
+  /** JSON: the send request (to, cc, bcc, subject, text, html, inReplyToId). */
+  payload: text("payload").notNull(),
+  status: text("status", { enum: ["pending", "sent", "rejected", "failed", "expired"] }).notNull().default("pending"),
+  apiKeyId: text("api_key_id"),
+  decidedByUserId: text("decided_by_user_id"),
+  decidedByEmail: text("decided_by_email"),
+  decidedAt: ts("decided_at"),
+  note: text("note"),
+  messageId: text("message_id"),
+  error: text("error"),
+  expiresAt: ts("expires_at").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("send_approvals_org_status_idx").on(t.orgId, t.status, t.createdAt), index("send_approvals_agent_idx").on(t.agentId, t.createdAt)]);
+
+/** An ordered event log per workspace: what agents stream (SSE) and poll for. */
+export const agentEvents = sqliteTable("agent_events", {
+  seq: integer("seq").primaryKey({ autoIncrement: true }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  agentId: text("agent_id"),
+  type: text("type").notNull(),
+  data: text("data").notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("agent_events_org_seq_idx").on(t.orgId, t.seq), index("agent_events_agent_seq_idx").on(t.agentId, t.seq)]);
