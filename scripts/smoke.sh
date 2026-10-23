@@ -8,8 +8,14 @@ EXPECT_RELEASE="${2:-}"
 fail() { echo "SMOKE FAIL: $*" >&2; exit 1; }
 
 # 1. Health: database reachable and migrated, and the new release is the one serving.
-for i in $(seq 1 12); do
-  if HEALTH=$(curl -fsS "$BASE/api/health"); then break; fi
+# A deploy takes a few seconds to reach every Cloudflare location, so the old release can
+# still answer at first: keep asking for up to two minutes until the expected one does.
+HEALTH=""
+for i in $(seq 1 24); do
+  if HEALTH=$(curl -fsS "$BASE/api/health") && echo "$HEALTH" | grep -q '"ok":true' \
+     && { [ -z "$EXPECT_RELEASE" ] || echo "$HEALTH" | grep -q "\"release\":\"$EXPECT_RELEASE"; }; then
+    break
+  fi
   sleep 5
 done
 echo "health: ${HEALTH:-none}"
