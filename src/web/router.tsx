@@ -31,6 +31,15 @@ const ContactsPage = lazy(() => contactPages().then((m) => ({ default: m.Contact
 const ContactPage = lazy(() => contactPages().then((m) => ({ default: m.ContactPage })));
 const DealsPage = lazy(() => import("./pages/app/work/deals").then((m) => ({ default: m.DealsPage })));
 const AutomationsPage = lazy(() => import("./pages/app/work/automations").then((m) => ({ default: m.AutomationsPage })));
+const TimesheetPage = lazy(() => import("./pages/app/work/time").then((m) => ({ default: m.TimesheetPage })));
+const formPages = () => import("./pages/app/work/forms");
+const FormsPage = lazy(() => formPages().then((m) => ({ default: m.FormsPage })));
+const PublicFormPage = lazy(() => formPages().then((m) => ({ default: m.PublicFormPage })));
+const ReportsPage = lazy(() => import("./pages/app/work/reports").then((m) => ({ default: m.ReportsPage })));
+const meetingPages = () => import("./pages/app/work/meetings");
+const MeetingsPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingsPage })));
+const MeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingPage })));
+const GuestMeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.GuestMeetingPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
@@ -96,6 +105,11 @@ export const router = createBrowserRouter([
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "deals", element: page(<DealsPage />) },
       { path: "automations", element: page(<AutomationsPage />) },
+      { path: "time", element: page(<TimesheetPage />) },
+      { path: "forms", element: page(<FormsPage />) },
+      { path: "reports", element: page(<ReportsPage />) },
+      { path: "meetings", element: page(<MeetingsPage />) },
+      { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       {
@@ -113,5 +127,8 @@ export const router = createBrowserRouter([
       },
     ],
   },
+  // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
+  { path: "/f/:slug", element: publicPage(<PublicFormPage />) },
+  { path: "/m/:token", element: publicPage(<GuestMeetingPage />) },
   { path: "*", element: <NotFound /> },
 ]);

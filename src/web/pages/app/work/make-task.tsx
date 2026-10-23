@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, ListPlus } from "lucide-react";
+import { CheckSquare, ListPlus, Video } from "lucide-react";
+import { startMeeting } from "./meeting-start";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -48,6 +49,10 @@ export function MakeTask({ messageId, threadId, compact, shortcut }: { messageId
       <button onClick={make} disabled={busy} aria-label="Make task from this email" title={shortcut ? "Make task (t)" : "Make task"}
         className={cn("inline-flex items-center gap-1.5 rounded-md text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-50", compact ? "p-2" : "border border-line px-2.5 py-1.5")}>
         <ListPlus className="h-4 w-4" />{!compact && "Make task"}
+      </button>
+      <button onClick={() => void startMeeting({ type: "thread", id: threadId }, navigate)} aria-label="Start a meeting about this email" title="Start a meeting"
+        className={cn("inline-flex items-center gap-1.5 rounded-md text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg", compact ? "p-2" : "border border-line px-2.5 py-1.5")}>
+        <Video className="h-4 w-4" />{!compact && "Meeting"}
       </button>
     </div>
   );

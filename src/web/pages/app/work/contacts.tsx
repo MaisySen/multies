@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, CheckSquare, Handshake, Mail, Plus, Users } from "lucide-react";
+import { ArrowLeft, Building2, CheckSquare, Handshake, Mail, Plus, Users, Video } from "lucide-react";
+import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -134,6 +135,7 @@ export function ContactPage() {
         </div>
         <div className="ml-auto flex gap-2">
           <Link to={`/app/mail?compose=${encodeURIComponent(c.email)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><Mail className="h-4 w-4" />Email</Link>
+          <Button variant="secondary" onClick={() => void startMeeting({ type: "contact", id: c.id }, navigate)}><Video className="h-4 w-4" />Meeting</Button>
           <Button variant="secondary" onClick={makeDeal}><Handshake className="h-4 w-4" />New deal</Button>
         </div>
       </div>
