@@ -100,11 +100,16 @@ export async function upsertFromMail(deps: Deps, orgId: string, people: { addres
 }
 
 /** Builds contacts from mail the workspace already has (runs once per workspace, in pages). */
+/** Workspaces whose first backfill is known done, per database, so the contacts list skips the check. */
+const backfilled = new WeakMap<object, Set<string>>();
+const seen = (deps: Deps) => { let s = backfilled.get(deps.db); if (!s) backfilled.set(deps.db, (s = new Set())); return s; };
+
 export async function backfillContacts(deps: Deps, orgId: string, opts: { force?: boolean; max?: number } = {}) {
   const key = `contacts_backfill:${orgId}`;
   if (!opts.force) {
+    if (seen(deps).has(orgId)) return { skipped: true, created: 0 };
     const done = await deps.db.select().from(appSettings).where(eq(appSettings.key, key)).get();
-    if (done) return { skipped: true, created: 0 };
+    if (done) { seen(deps).add(orgId); return { skipped: true, created: 0 }; }
   }
   const rows = await deps.db.select({ folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, to: messages.to, cc: messages.cc, date: messages.date })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','spam','trash')`)).orderBy(desc(messages.date)).limit(opts.max ?? 2000);
@@ -139,6 +144,7 @@ export async function backfillContacts(deps: Deps, orgId: string, opts: { force?
     created++;
   }
   await deps.db.insert(appSettings).values({ key, value: deps.now().toISOString() }).onConflictDoUpdate({ target: appSettings.key, set: { value: deps.now().toISOString() } });
+  seen(deps).add(orgId);
   return { skipped: false, created };
 }
 
@@ -166,10 +172,13 @@ export async function listContacts(deps: Deps, orgId: string, q: { q?: string; c
   const conds = [eq(contacts.orgId, orgId), isNull(contacts.deletedAt)];
   if (q.companyId) conds.push(eq(contacts.companyId, q.companyId));
   if (q.q) conds.push(or(like(contacts.name, `%${q.q}%`), like(contacts.email, `%${q.q}%`))!);
-  const rows = await deps.db.select().from(contacts).where(and(...conds)).orderBy(sql`${contacts.lastContactAt} desc nulls last`, asc(contacts.email)).limit(Math.min(q.limit ?? 100, 500)).offset(q.offset ?? 0);
-  const cm = await companyMap(deps, rows.map((r) => r.companyId));
-  const total = await deps.db.select({ n: sql<number>`count(*)` }).from(contacts).where(and(...conds)).get();
-  return { contacts: rows.map((r) => presentContact(r, r.companyId ? cm.get(r.companyId) : null)), total: Number(total?.n ?? rows.length) };
+  // One round trip for the page with its companies, and the count beside it.
+  const [rows, total] = await Promise.all([
+    deps.db.select({ c: contacts, co: companies }).from(contacts).leftJoin(companies, eq(companies.id, contacts.companyId)).where(and(...conds))
+      .orderBy(sql`${contacts.lastContactAt} desc nulls last`, asc(contacts.email)).limit(Math.min(q.limit ?? 100, 500)).offset(q.offset ?? 0),
+    deps.db.select({ n: sql<number>`count(*)` }).from(contacts).where(and(...conds)).get(),
+  ]);
+  return { contacts: rows.map((r) => presentContact(r.c, r.co)), total: Number(total?.n ?? rows.length) };
 }
 
 export async function contactsByIds(deps: Deps, orgId: string, ids: string[]) {
