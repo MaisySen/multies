@@ -19,8 +19,14 @@ for (const [w, h, tag] of [[1440, 900, "desktop"], [390, 844, "phone"]]) {
   for (const p of paths) {
     await page.goto(base + p, { waitUntil: "networkidle" });
     await page.waitForTimeout(600);
+    // The app shell scrolls inside its own container, so grow the viewport until nothing scrolls.
+    const extra = await page.evaluate(() => Math.max(0, ...[...document.querySelectorAll("*")]
+      .filter((el) => /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1)
+      .map((el) => el.scrollHeight - el.clientHeight)));
+    if (extra) { await page.setViewportSize({ width: w, height: h + extra }); await page.waitForTimeout(300); }
     const name = p.replace(/^\//, "").replace(/[/?=&#]/g, "_") || "home";
     await page.screenshot({ path: `${out}/${name}-${tag}.png`, fullPage: true });
+    if (extra) await page.setViewportSize({ width: w, height: h });
   }
   await ctx.close();
 }
