@@ -23,6 +23,8 @@ export interface AppConfig {
     dmarcRua?: string;
   };
   outbound: { driver: "log" | "resend"; resendApiKey?: string };
+  /** Sender of account emails (invites, password resets, verification). */
+  systemFrom: { address: string; name: string };
   /** Largest raw message accepted inbound, in bytes. */
   maxMessageBytes: number;
 }
@@ -44,6 +46,8 @@ const EnvSchema = z.object({
   OUTBOUND_DRIVER: z.enum(["log", "resend"]).optional(),
   RESEND_API_KEY: z.string().optional(),
   MAX_MESSAGE_BYTES: z.string().optional(),
+  SYSTEM_FROM: z.string().optional(),
+  SYSTEM_FROM_NAME: z.string().optional(),
 });
 
 /** Cloudflare Email Routing's published MX hosts. */
@@ -54,6 +58,10 @@ export const CLOUDFLARE_MX = [
 ];
 
 export class ConfigError extends Error {}
+
+function hostOf(url: string): string {
+  try { return new URL(url).hostname || "localhost"; } catch { return "localhost"; }
+}
 
 /** Builds config from a plain env object (process.env on Node, bindings on Workers). */
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
@@ -90,6 +98,10 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dmarcRua: env.MAIL_DMARC_RUA,
     },
     outbound: { driver: outboundDriver, resendApiKey: env.RESEND_API_KEY },
+    systemFrom: {
+      address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
+      name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
+    },
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,
   };
 }
