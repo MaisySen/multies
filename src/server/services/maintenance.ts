@@ -6,6 +6,7 @@ import { sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { appSettings } from "../db/schema";
+import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
 import { sessions, verifications } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
@@ -43,6 +44,29 @@ export async function runMaintenance(deps: Deps) {
     await pruneImports(deps);
   });
   return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired };
+}
+
+const migratedClients = new WeakSet<object>();
+
+/**
+ * Runs maintenance only once the database has every migration this release ships.
+ * Right after a deploy the new code can serve requests before its migrations are applied
+ * (the hosted preview applies them through a hook after upload), and maintenance would then
+ * query tables that don't exist yet. Sentry MYMAIL-API-7 and MYMAIL-API-8 were exactly that:
+ * `agent_events` and `send_approvals` queried seconds before migration 0013 ran. Once the
+ * database is fully migrated the answer is cached, so the check costs one query per isolate.
+ */
+export async function runMaintenanceIfMigrated(deps: Deps) {
+  const client = (deps.db as unknown as { $client: object }).$client;
+  if (!migratedClients.has(client)) {
+    const pending = await pendingMigrations(migrationDriver(client));
+    if (pending.length) {
+      deps.log?.warn("maintenance.skipped", { reason: "migrations_pending", pending });
+      return { skipped: "migrations_pending" as const, pending };
+    }
+    migratedClients.add(client);
+  }
+  return runMaintenance(deps);
 }
 
 async function legacyMaintenance(deps: Deps) {

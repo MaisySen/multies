@@ -11,11 +11,10 @@ import { applyMigrations, migrationDriver, schema, type DB } from "../server/db"
 import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { ResilientOutbound } from "../server/services/resilience";
-import { getOrCreateStoredSecret, runMaintenance } from "../server/services/maintenance";
+import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
 import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
-import { WorkersAiProvider } from "../server/services/ai";
 import { S3BodyStore } from "../server/services/storage/body-store";
 
 interface D1Database { prepare(query: string): unknown }
@@ -49,7 +48,6 @@ async function boot(env: WorkerEnv) {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
     reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
-    ai: aiProvider(env, config),
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
@@ -71,13 +69,6 @@ function peerAwareFetch(env: WorkerEnv): typeof fetch {
     if (peer && typeof peer.fetch === "function" && host && new URL(req.url).hostname === host) return peer.fetch(req);
     return fetch(req);
   }) as typeof fetch;
-}
-
-/** Workers AI through the AI binding (free daily allocation, no card), unless turned off. */
-function aiProvider(env: WorkerEnv, config: ReturnType<typeof loadConfig>) {
-  const ai = env.AI as { run?: unknown } | undefined;
-  if (config.ai.provider === "basic" || !ai || typeof ai.run !== "function") return undefined;
-  return new WorkersAiProvider(ai as ConstructorParameters<typeof WorkersAiProvider>[0], config.ai.model);
 }
 
 /** A Cloudflare rate limiting binding, when wrangler.toml declares one. */
@@ -130,7 +121,7 @@ const handler = {
       const { app, deps } = await getReady(env);
       if (Date.now() - lastMaintenance > 10 * 60_000) {
         lastMaintenance = Date.now();
-        ctx.waitUntil(runMaintenance(deps).catch((e) => console.error("[maintenance]", e)));
+        ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
       }
       return app.fetch(request);
     }
@@ -153,7 +144,7 @@ const handler = {
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
-    ctx.waitUntil(runMaintenance(deps));
+    ctx.waitUntil(runMaintenanceIfMigrated(deps));
   },
 };
 

@@ -31,7 +31,7 @@ function writeOutbox(dir: string) {
   };
 }
 import { ResilientOutbound } from "../server/services/resilience";
-import { runMaintenance } from "../server/services/maintenance";
+import { runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 
 loadDotEnv();
@@ -56,7 +56,7 @@ const deps = {
 const app = createApp(deps);
 
 // Housekeeping: DNS re-checks, session expiry, sandbox purge.
-const tick = () => runMaintenance(deps).catch((err) => console.error("[maintenance]", err));
+const tick = () => runMaintenanceIfMigrated(deps).catch((err) => console.error("[maintenance]", err));
 setInterval(tick, 10 * 60_000).unref();
 setTimeout(tick, 5_000).unref();
 
