@@ -127,6 +127,7 @@ export function createApp(deps: Deps) {
       appName: deps.config.appName,
       mode: deps.config.mode,
       demoEnabled: deps.config.demoEnabled,
+      supportEmail: deps.config.supportEmail,
       outboundDriver: deps.outbound.name,
       billingEnabled: deps.config.billing.enabled,
       mxHosts: deps.config.mail.mxHosts,

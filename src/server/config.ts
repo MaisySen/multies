@@ -9,6 +9,8 @@ export interface AppConfig {
   /** When true, visitors can open a sandbox workspace filled with sample data. */
   demoEnabled: boolean;
   appName: string;
+  /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
+  supportEmail: string;
   appUrl: string;
   /** Root secret for at-rest encryption. Must be long and random in production. */
   appSecret: string;
@@ -96,6 +98,7 @@ const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
   APP_MODE: z.enum(["production", "development"]).optional(),
   APP_NAME: z.string().optional(),
+  SUPPORT_EMAIL: z.string().email().optional(),
   APP_URL: z.string().url().optional(),
   APP_SECRET: z.string().optional(),
   DEMO_MODE: z.string().optional(),
@@ -195,6 +198,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     appName: env.APP_NAME ?? "MyMail",
+    supportEmail: env.SUPPORT_EMAIL?.trim() || "support@mymail.au",
     appUrl: (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, ""),
     appSecret: secret || "dev-only-insecure-secret-change-me-0000000000",
     dnsResolver: env.DNS_RESOLVER ?? "doh",

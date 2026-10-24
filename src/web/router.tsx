@@ -56,6 +56,8 @@ const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => 
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
+const SupportPage = lazy(() => import("./pages/support").then((m) => ({ default: m.SupportPage })));
+const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ default: m.DeleteAccountPage })));
 const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 
@@ -72,6 +74,8 @@ export const router = createBrowserRouter([
       { path: "/agents", element: <AgentsDevPage /> },
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
+      { path: "/support", element: publicPage(<SupportPage />) },
+      { path: "/delete-account", element: publicPage(<DeleteAccountPage />) },
       { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },
       { path: "/acceptable-use", element: publicPage(<LegalPage slug="acceptable-use" />) },
       { path: "/dpa", element: publicPage(<LegalPage slug="dpa" />) },

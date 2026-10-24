@@ -14,6 +14,7 @@ export interface PublicConfig {
   appName: string;
   mode: "production" | "development";
   demoEnabled: boolean;
+  supportEmail?: string;
   outboundDriver: string;
   billingEnabled: boolean;
   mxHosts: { host: string; priority: number }[];

@@ -95,6 +95,9 @@ DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 SENTRY_TRACES_SAMPLE_RATE = "0.1"
 SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
+# Support address on /support and in the store listings. A working inbox until the owner
+# has a domain; then set it to support@ on that domain.
+SUPPORT_EMAIL = "mymail.builder@mail.tab.bot"
 BILLING_GRACE_DAYS = "7"
 # Cross checks: production watches staging and the preview (src/server/services/status.ts).
 MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev,https://mymail.sites.tab.bot"
@@ -161,6 +164,9 @@ DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "staging"
 SENTRY_TRACES_SAMPLE_RATE = "1"
 SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
+# Support address on /support and in the store listings. A working inbox until the owner
+# has a domain; then set it to support@ on that domain.
+SUPPORT_EMAIL = "mymail.builder@mail.tab.bot"
 BILLING_GRACE_DAYS = "7"
 # Staging watches production, through a service binding (see PEER above).
 MONITOR_URLS = "https://mymail.mymail-app.workers.dev"
