@@ -35,6 +35,8 @@ const RELEASE_CONFIG = `
                 keyAlias mymailProp('MYMAIL_UPLOAD_KEY_ALIAS')
                 keyPassword mymailProp('MYMAIL_UPLOAD_KEY_PASSWORD')
             }
+            enableV2Signing true
+            enableV3Signing true
         }`;
 
 function applySigning(src) {
