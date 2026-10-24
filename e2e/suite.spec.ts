@@ -15,6 +15,11 @@ async function demo(page: Page) {
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   // The sample projects and tasks are seeded straight after sign-in.
   await expect.poll(async () => ((await (await page.request.get("/api/tasks")).json()).tasks ?? []).length, { timeout: 15_000 }).toBeGreaterThan(5);
+  // The sample seed's second part (docs, deals, fields, forms) lands a moment after the tasks.
+  await expect.poll(async () => {
+  await page.request.post("/api/account/demo/seed", { headers: { origin: new URL(page.url()).origin } }).catch(() => null);
+  return ((await (await page.request.get("/api/docs")).json().catch(() => ({}))).docs ?? []).length;
+  }, { timeout: 30_000 }).toBeGreaterThan(0);
 }
 
 test("make a task from an email, and see the thread on the task", async ({ page }) => {

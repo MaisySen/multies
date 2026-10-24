@@ -25,6 +25,11 @@ async function demo(page: Page) {
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   const list = async () => ((await (await page.request.get("/api/tasks")).json().catch(() => ({}))).tasks ?? []) as unknown[];
   await expect.poll(async () => (await list()).length, { timeout: 30_000 }).toBeGreaterThan(5);
+  // The sample seed's second part (docs, deals, fields, forms) lands a moment after the tasks.
+  await expect.poll(async () => {
+  await page.request.post("/api/account/demo/seed", { headers: { origin: new URL(page.url()).origin } }).catch(() => null);
+  return ((await (await page.request.get("/api/docs")).json().catch(() => ({}))).docs ?? []).length;
+  }, { timeout: 30_000 }).toBeGreaterThan(0);
   return (await list()) as { id: string; ref: string; title: string; projectId: string }[];
 }
 
@@ -84,16 +89,16 @@ test("templates: make a project from the client onboarding starter", async () =>
 test("goals: a goal with a number key result shows its progress", async () => {
   await page.goto("/app/goals");
   await page.getByRole("button", { name: "New goal" }).first().click();
-  await page.getByRole("dialog", { name: "New goal" }).getByLabel("Goal").fill("Grow repeat customers");
+  await page.getByRole("dialog", { name: "New goal" }).getByLabel("Goal").fill("Win back lapsed clients");
   await page.getByRole("dialog", { name: "New goal" }).getByRole("button", { name: "Create goal" }).click();
-  const goal = page.getByTestId("goal").filter({ hasText: "Grow repeat customers" });
+  const goal = page.getByTestId("goal").filter({ hasText: "Win back lapsed clients" });
   await goal.getByRole("button", { name: "Key result" }).click();
   const kr = page.getByRole("dialog", { name: "Add a key result" });
   await kr.getByLabel("Key result").fill("Repeat orders a month");
   await kr.getByLabel("Target").fill("40");
   await kr.getByLabel("Now").fill("10");
   await kr.getByRole("button", { name: "Add" }).click();
-  await expect(goal.getByRole("progressbar", { name: "Grow repeat customers progress" })).toHaveAttribute("aria-valuenow", "25");
+  await expect(goal.getByRole("progressbar", { name: "Win back lapsed clients progress" })).toHaveAttribute("aria-valuenow", "25");
 });
 
 test("a task set to repeat weekly makes the next one when done", async () => {

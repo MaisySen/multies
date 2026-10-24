@@ -16,6 +16,11 @@ async function demo(page: Page) {
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await expect.poll(async () => ((await (await page.request.get("/api/tasks")).json()).tasks ?? []).length, { timeout: 15_000 }).toBeGreaterThan(5);
+  // The sample seed's second part (docs, deals, fields, forms) lands a moment after the tasks.
+  await expect.poll(async () => {
+  await page.request.post("/api/account/demo/seed", { headers: { origin: new URL(page.url()).origin } }).catch(() => null);
+  return ((await (await page.request.get("/api/docs")).json().catch(() => ({}))).docs ?? []).length;
+  }, { timeout: 30_000 }).toBeGreaterThan(0);
   const projects = (await (await page.request.get("/api/projects")).json()).projects as { id: string; name: string }[];
   return projects.find((p) => p.name === "Blue Harbor move")!;
 }
