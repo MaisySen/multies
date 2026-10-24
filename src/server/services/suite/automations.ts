@@ -78,6 +78,9 @@ export async function updateAutomation(deps: Deps, actor: SuiteActor, id: string
 
 export async function deleteAutomation(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
+  // Another workspace's id (or one already deleted) is a 404, not a silent success.
+  const r = await deps.db.select({ id: automations.id }).from(automations).where(and(eq(automations.id, id), eq(automations.orgId, actor.orgId), isNull(automations.deletedAt))).get();
+  if (!r) throw notFound("Automation");
   await deps.db.update(automations).set({ deletedAt: deps.now() }).where(and(eq(automations.id, id), eq(automations.orgId, actor.orgId)));
   return { ok: true };
 }
