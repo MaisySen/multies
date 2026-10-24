@@ -10,7 +10,7 @@ export function confirmTyped(text: string): boolean {
 /** A plain message for each way DELETE /api/account can fail. */
 export function deleteAccountMessage(err: unknown): string {
   if (!(err instanceof ApiError)) return "Something went wrong. Try again.";
-  if (err.isNetwork) return "Can't reach MyMail. Check your connection and try again. Nothing was deleted.";
+  if (err.isNetwork) return "Can't reach Multies. Check your connection and try again. Nothing was deleted.";
   switch (err.code) {
     case "confirm_required": return `Type ${CONFIRM_WORD} in capitals to confirm.`;
     case "password_required": return "Enter your password to confirm.";
@@ -23,6 +23,6 @@ export function deleteAccountMessage(err: unknown): string {
     case "unauthorized": return "Your session has ended. Sign in again, then delete your account.";
     case "too_many_requests": return err.message;
   }
-  if (err.status >= 500) return "MyMail couldn't finish that just now. Try again in a minute, or contact support if it keeps failing.";
+  if (err.status >= 500) return "Multies couldn't finish that just now. Try again in a minute, or contact support if it keeps failing.";
   return err.message;
 }

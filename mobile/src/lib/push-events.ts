@@ -5,7 +5,7 @@ import { dueLabel } from "./tasks";
 import { channelTitle, plainText } from "./chat";
 
 /**
- * Pushes from the MyMail server carry only an event type and an id, never any mail or task text,
+ * Pushes from the Multies server carry only an event type and an id, never any mail or task text,
  * so nothing private passes through Apple, Google or Expo. The app fetches the item itself and
  * writes the notification on the phone.
  */
@@ -61,8 +61,8 @@ export function fallbackText(type: string): PushText {
     case "chat.dm": return { title: "New direct message", body: "Tap to read it.", channel };
     case "chat.reply": return { title: "New reply in a thread", body: "Tap to read it.", channel };
     case "goal.updated": return { title: "A goal was updated", body: "Tap to see your notifications.", channel };
-    case "automation.status": return { title: "An automation needs a look", body: "Open MyMail on the web to check it.", channel };
-    default: return { title: "MyMail", body: "Something new is waiting for you.", channel };
+    case "automation.status": return { title: "An automation needs a look", body: "Open Multies on the web to check it.", channel };
+    default: return { title: "Multies", body: "Something new is waiting for you.", channel };
   }
 }
 

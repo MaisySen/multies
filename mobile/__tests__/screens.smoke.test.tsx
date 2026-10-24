@@ -30,9 +30,9 @@ beforeEach(() => { transport = new SampleTransport(); mockPush.mockClear(); mock
 it("sign in screen offers sign in and the sample workspace", async () => {
   const SignIn = require("@/app/sign-in").default;
   await wrap(<SignIn />);
-  expect(await screen.findByText("Sign in to MyMail")).toBeTruthy();
+  expect(await screen.findByText("Sign in to Multies")).toBeTruthy();
   await fireEvent.press(screen.getByTestId("sign-in"));
-  expect(await screen.findByText("Enter the email you use for MyMail.")).toBeTruthy();
+  expect(await screen.findByText("Enter the email you use for Multies.")).toBeTruthy();
   expect(screen.getByLabelText("Explore with sample data")).toBeTruthy();
 });
 

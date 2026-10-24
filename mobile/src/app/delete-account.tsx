@@ -22,7 +22,7 @@ export default function DeleteAccount() {
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }}>
         <Card style={{ gap: space.sm }}>
           <Text style={[font.heading, { fontSize: 18 }]}>There{"'"}s no account to delete</Text>
-          <Text style={font.small} testID="sample-delete-note">You{"'"}re exploring sample data. Nothing about you is stored on MyMail{"'"}s servers, so there is no account here to delete.</Text>
+          <Text style={font.small} testID="sample-delete-note">You{"'"}re exploring sample data. Nothing about you is stored on Multies{"'"}s servers, so there is no account here to delete.</Text>
           <Text style={font.small}>With a real account, this screen deletes your login and the workspaces only you use, straight from the app.</Text>
         </Card>
         <Button variant="ghost" icon="log-out" label="Leave the sample workspace" onPress={leave} loading={busy} testID="leave-sample" />

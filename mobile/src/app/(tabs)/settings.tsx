@@ -30,7 +30,7 @@ export default function Settings() {
     const r = await registerPush(mode === "live" ? api : null, { prompt: true });
     setPush(r);
     setAllowed(r.kind === "allowed");
-    if (r.kind === "denied") Alert.alert("Notifications are off", "Turn them on for MyMail in your phone's Settings app.");
+    if (r.kind === "denied") Alert.alert("Notifications are off", "Turn them on for Multies in your phone's Settings app.");
   };
   const clearCache = async () => {
     for (const p of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(p);
@@ -91,7 +91,7 @@ export default function Settings() {
       <Row icon="user-x" label="Delete my account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
 
       <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]}>
-        MyMail {Application.nativeApplicationVersion ?? "1.0.0"}{Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ""}
+        Multies {Application.nativeApplicationVersion ?? "1.0.0"}{Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ""}
       </Text>
     </ScrollView>
   );

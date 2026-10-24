@@ -1,6 +1,6 @@
-# MyMail store submission (App Store and Google Play)
+# Multies store submission (App Store and Google Play)
 
-Everything to paste into App Store Connect and Google Play Console for MyMail 1.5.0 (iOS build 6,
+Everything to paste into App Store Connect and Google Play Console for Multies 1.5.0 (iOS build 6,
 Android versionCode 6), plus the steps only the owner can do. Work top to bottom.
 
 Paths in this file are relative to the `mobile/` folder of the repo.
@@ -29,7 +29,7 @@ Paths in this file are relative to the `mobile/` folder of the repo.
 
 1. **Check the name.** "myMail" is already the name of a popular email app on both stores (from Mail.ru
    Group). App Store names must be unique and a similar name can draw a trademark complaint. The
-   name below is "MyMail: Email, Tasks, Agents"; if App Store Connect refuses it or you want less
+   name below is "Multies: Email, Tasks, Agents"; if App Store Connect refuses it or you want less
    risk, pick another and change `expo.name` in `app.json` to match the home screen name you want.
 2. **Finish the legal pages.** The privacy policy and terms on prod are drafts with placeholders
    such as [Legal entity name] and [ABN]. Fill them in (ideally after a lawyer reads them) before
@@ -90,7 +90,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 
 ### App Information
 
-- **Name** (28 of 30): `MyMail: Email, Tasks, Agents`
+- **Name** (28 of 30): `Multies: Email, Tasks, Agents`
 - **Subtitle** (29 of 30): `Business email on your domain`
 - **Category**: Business (primary), Productivity (secondary)
 - **Content rights**: does not contain, show or access third-party content (mail is the user's own)
@@ -116,7 +116,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 - **Description** (1830 of 4000):
 
 ```text
-MyMail is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
+Multies is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
 
 READ AND ANSWER MAIL
 - Every mailbox you can open, in one inbox: shared addresses like hello@ and accounts@, and your own
@@ -124,7 +124,7 @@ READ AND ANSWER MAIL
 - Search all your mail, and read recent mail with no signal
 
 APPROVE WHAT AGENTS SEND
-Connect your own AI agent (Claude, ChatGPT or any agent) through MyMail's MCP server or API. When an agent wants to send an email, it waits in Approvals. Read it, edit it if you like, then tap Approve or Reject. Nothing leaves until a person says so.
+Connect your own AI agent (Claude, ChatGPT or any agent) through Multies' MCP server or API. When an agent wants to send an email, it waits in Approvals. Read it, edit it if you like, then tap Approve or Reject. Nothing leaves until a person says so.
 
 TASKS FROM EMAIL
 - Turn any email into a task in one tap. Replies on the thread show on the task
@@ -149,7 +149,7 @@ PRIVATE AND IN YOUR CONTROL
 - No ads and no tracking
 - Delete your account at any time in the app: Settings, then Delete my account
 
-The app is free to download and has no in-app purchases. Sign in with your MyMail account, or tap Explore with sample data to look around first.
+The app is free to download and has no in-app purchases. Sign in with your Multies account, or tap Explore with sample data to look around first.
 ```
 
 ### App Review Information
@@ -160,18 +160,18 @@ The app is free to download and has no in-app purchases. Sign in with your MyMai
 - **Notes** (1490 of 4000):
 
 ```text
-MyMail is business email hosting for small businesses, with tasks and an approval queue for AI agents. This app is a companion to the web app at https://mymail.mymail-app.workers.dev.
+Multies is business email hosting for small businesses, with tasks and an approval queue for AI agents. This app is a companion to the web app at https://mymail.mymail-app.workers.dev.
 
 Sign in: use the demo account in the App Review Information sign-in fields (email and password below). It holds sample mail, tasks and projects, and messages agents are waiting to send.
 No account needed: "Explore with sample data" on the sign-in screen opens a sample workspace that runs on the phone only.
 
-Things to try: open a thread, tap Make task, open the Approvals tab and approve or reject a waiting message (the demo workspace shows it as sent but never delivers mail outside MyMail), open Tasks and start a timer.
+Things to try: open a thread, tap Make task, open the Approvals tab and approve or reject a waiting message (the demo workspace shows it as sent but never delivers mail outside Multies), open Tasks and start a timer.
 
 Purchases: none. The app is free, email is free, and the app shows no prices, plans, upgrade or billing buttons and links to no purchase page.
 Account deletion: Settings, then Delete my account. Type DELETE and the account password, then confirm. The account and every workspace only that person uses are deleted at once. The same is available on the web at https://mymail.mymail-app.workers.dev/delete-account.
 Sign in is email and password only (no third-party or social sign in), so Sign in with Apple is not required.
 Encryption: standard HTTPS only (ITSAppUsesNonExemptEncryption is false).
-AI: the app has no AI features of its own. People may connect their own AI agent to their MyMail account through our MCP server; the app only shows what those agents ask to send so a person can approve it.
+AI: the app has no AI features of its own. People may connect their own AI agent to their Multies account through our MCP server; the app only shows what those agents ask to send so a person can approve it.
 ```
 
 ### Age rating questionnaire
@@ -221,7 +221,7 @@ operating system), exempt; no documentation needed.
 
 ## 4. Google Play Console answers
 
-Create app: name `MyMail: Email, Tasks, Agents` (or the name you chose), default language English
+Create app: name `Multies: Email, Tasks, Agents` (or the name you chose), default language English
 (Australia) en-AU, App, Free. Accept the declarations.
 
 ### Main store listing
@@ -274,7 +274,7 @@ Create app: name `MyMail: Email, Tasks, Agents` (or the name you chose), default
 | App info and performance: Diagnostics (server error reports) | Collected, not shared, required, App functionality |
 | Device or other IDs (push token) | Collected, not shared, optional (only if notifications are allowed), App functionality |
 | Location, financial info, health, photos and videos, audio, contacts, calendar, web browsing, app activity | Not collected |
-| Data shared with third parties | None. Mail goes to the recipients a person chooses (a user-initiated transfer). Hosting and email delivery providers process data for MyMail as service providers, which Play does not count as sharing |
+| Data shared with third parties | None. Mail goes to the recipients a person chooses (a user-initiated transfer). Hosting and email delivery providers process data for Multies as service providers, which Play does not count as sharing |
 
 ### Release
 

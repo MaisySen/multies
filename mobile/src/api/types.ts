@@ -194,7 +194,7 @@ export interface Meeting {
   status: string;
   source: MeetingSource | null;
   invitees: string[];
-  /** The meeting page in the web app (needs a MyMail sign in). */
+  /** The meeting page in the web app (needs a Multies sign in). */
   joinUrl: string;
   /** The guest page: works in any browser with no account. */
   guestUrl: string;

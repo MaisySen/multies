@@ -20,7 +20,7 @@ export default function SignIn() {
 
   const submit = async () => {
     setError(null);
-    if (!EMAIL_RE.test(email.trim())) return setError("Enter the email you use for MyMail.");
+    if (!EMAIL_RE.test(email.trim())) return setError("Enter the email you use for Multies.");
     if (!password) return setError("Enter your password.");
     setBusy(true);
     try {
@@ -39,12 +39,12 @@ export default function SignIn() {
         <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg, flexGrow: 1, justifyContent: "center", maxWidth: 480, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
           <View style={{ alignItems: "flex-start", gap: space.md, marginBottom: space.md }}>
             <Logo size={52} />
-            <Text style={font.title} accessibilityRole="header">Sign in to MyMail</Text>
+            <Text style={font.title} accessibilityRole="header">Sign in to Multies</Text>
             <Text style={font.small}>Your inbox, your team and your AI agents, in your pocket.</Text>
           </View>
 
           {SAMPLE_ONLY ? (
-            <Banner tone="brand" icon="info" text="This browser preview runs on sample data. Sign in with your MyMail account in the iPhone or Android app." />
+            <Banner tone="brand" icon="info" text="This browser preview runs on sample data. Sign in with your Multies account in the iPhone or Android app." />
           ) : null}
 
           <Field label="Email" testID="email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address"

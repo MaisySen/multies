@@ -2,7 +2,7 @@
  * @jest-environment node
  */
 /**
- * Runs the app's real API client against a live MyMail server. Skipped unless
+ * Runs the app's real API client against a live Multies server. Skipped unless
  * MYMAIL_LIVE_EMAIL and MYMAIL_LIVE_PASSWORD are set (never commit them):
  *   MYMAIL_LIVE_EMAIL=... MYMAIL_LIVE_PASSWORD=... npx jest live
  */

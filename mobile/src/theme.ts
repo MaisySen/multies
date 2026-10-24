@@ -1,7 +1,7 @@
 import { Appearance, Platform } from "react-native";
 
 /**
- * MyMail's design tokens, after Apple's Human Interface Guidelines: the system font, calm neutral
+ * Multies' design tokens, after Apple's Human Interface Guidelines: the system font, calm neutral
  * greys, one blue accent (the brand tile, #0071E3), and red, amber and green kept for status only.
  * Light and dark follow the phone's setting; the palette is chosen when the app starts.
  * Values mirror the shared brand tokens (brand/tokens.json in the web app repo).

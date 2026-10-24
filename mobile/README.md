@@ -1,6 +1,6 @@
-# MyMail mobile
+# Multies mobile
 
-The MyMail companion app for iPhone and Android. One TypeScript codebase on Expo (React Native,
+The Multies companion app for iPhone and Android. One TypeScript codebase on Expo (React Native,
 Expo Router), talking to the same API as the web app.
 
 | Area | What works |

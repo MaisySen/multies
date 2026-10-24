@@ -4,7 +4,7 @@ The full set of answers, with every field to paste and the owner's checklist, is
 [SUBMISSION.md](SUBMISSION.md). This page is the short version of the listing text.
 
 ## Name and subtitle
-- App Store name (28 of 30): MyMail: Email, Tasks, Agents
+- App Store name (28 of 30): Multies: Email, Tasks, Agents
   ("myMail" is an existing app from another company; see SUBMISSION.md, step 1, before you rely on it.)
 - App Store subtitle (29 of 30): Business email on your domain
 - Google Play short description (76 of 80): Business email on your domain, with tasks and AI agent approvals in one app.
@@ -14,7 +14,7 @@ Your business email, team tasks and AI agent approvals in one app. Approve what 
 
 ## Description (both stores, 1830 of 4000)
 
-MyMail is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
+Multies is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
 
 READ AND ANSWER MAIL
 - Every mailbox you can open, in one inbox: shared addresses like hello@ and accounts@, and your own
@@ -22,7 +22,7 @@ READ AND ANSWER MAIL
 - Search all your mail, and read recent mail with no signal
 
 APPROVE WHAT AGENTS SEND
-Connect your own AI agent (Claude, ChatGPT or any agent) through MyMail's MCP server or API. When an agent wants to send an email, it waits in Approvals. Read it, edit it if you like, then tap Approve or Reject. Nothing leaves until a person says so.
+Connect your own AI agent (Claude, ChatGPT or any agent) through Multies' MCP server or API. When an agent wants to send an email, it waits in Approvals. Read it, edit it if you like, then tap Approve or Reject. Nothing leaves until a person says so.
 
 TASKS FROM EMAIL
 - Turn any email into a task in one tap. Replies on the thread show on the task
@@ -47,7 +47,7 @@ PRIVATE AND IN YOUR CONTROL
 - No ads and no tracking
 - Delete your account at any time in the app: Settings, then Delete my account
 
-The app is free to download and has no in-app purchases. Sign in with your MyMail account, or tap Explore with sample data to look around first.
+The app is free to download and has no in-app purchases. Sign in with your Multies account, or tap Explore with sample data to look around first.
 
 ## Keywords (App Store, 94 of 100)
 custom domain,inbox,small business,approvals,AI,team,shared inbox,Australia,timer,CRM,projects

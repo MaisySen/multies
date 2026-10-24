@@ -29,7 +29,7 @@ export default function TwoFactor() {
   return (
     <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg, maxWidth: 480, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
       <Text style={font.small}>
-        {backup ? "Enter one of the backup codes you saved when you turned on two step sign in. Each code works once." : "Open your authenticator app and enter the 6 digit code for MyMail."}
+        {backup ? "Enter one of the backup codes you saved when you turned on two step sign in. Each code works once." : "Open your authenticator app and enter the 6 digit code for Multies."}
       </Text>
       <Field label={backup ? "Backup code" : "Code"} testID="code" value={code} onChangeText={setCode} autoFocus
         keyboardType={backup ? "default" : "number-pad"} autoComplete="one-time-code" textContentType="oneTimeCode" autoCapitalize="none"

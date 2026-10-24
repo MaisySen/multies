@@ -67,10 +67,10 @@ export async function registerPush(api: Api | null, opts: { prompt?: boolean } =
     await secureStorage.set(PUSH_TOKEN_KEY, token).catch(() => {});
     return {
       kind: "allowed", token, registered: true, serverSends: r.enabled,
-      note: r.enabled ? "Push is on for new mail, approvals, tasks and chat." : "This phone is registered. Push starts when MyMail switches it on.",
+      note: r.enabled ? "Push is on for new mail, approvals, tasks and chat." : "This phone is registered. Push starts when Multies switches it on.",
     };
   } catch {
-    return { kind: "allowed", token, registered: false, serverSends: false, note: "Alerts on, while the app is open. Couldn't reach MyMail to register this phone." };
+    return { kind: "allowed", token, registered: false, serverSends: false, note: "Alerts on, while the app is open. Couldn't reach Multies to register this phone." };
   }
 }
 

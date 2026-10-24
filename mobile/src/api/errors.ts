@@ -32,4 +32,4 @@ export function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(status, code.toLowerCase(), message, details);
 }
 
-export const NETWORK_ERROR = () => new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
+export const NETWORK_ERROR = () => new ApiError(0, "network", "Can't reach Multies. Check your connection.");

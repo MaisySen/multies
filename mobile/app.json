@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MyMail",
+    "name": "Multies",
     "slug": "mymail",
     "scheme": "mymail",
     "version": "1.5.0",
@@ -18,6 +18,7 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
+        "CFBundleDisplayName": "Multies",
         "CFBundleDevelopmentRegion": "en-AU",
         "CFBundleLocalizations": [
           "en-AU"
@@ -140,7 +141,7 @@
       "favicon": "./assets/favicon.png",
       "output": "single",
       "bundler": "metro",
-      "name": "MyMail",
+      "name": "Multies",
       "themeColor": "#0071E3",
       "backgroundColor": "#F2F2F7",
       "lang": "en-AU"

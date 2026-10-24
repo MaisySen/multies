@@ -19,7 +19,7 @@ export interface JarStore {
 }
 
 /**
- * Talks to the MyMail API with the session cookie. The app sends the API's own origin so the
+ * Talks to the Multies API with the session cookie. The app sends the API's own origin so the
  * server's CSRF check and Better Auth's trusted origins both accept it, the same as the web app.
  */
 export class HttpTransport implements Transport {
