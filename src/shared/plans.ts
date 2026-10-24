@@ -68,6 +68,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "1 custom domain",
       "3 mailboxes and 3 people",
       "Tasks, boards, docs and contacts, with 1,000 automation runs a month",
+      "Team chat, goals, templates and repeating tasks",
       "3 GB shared storage",
       "Outlook, Apple Mail and phone access (IMAP and SMTP)",
       "Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.",
