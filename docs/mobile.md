@@ -10,9 +10,9 @@ uses the same REST API as the web app (cookie session kept by the app) and the s
 | Field | Value |
 | --- | --- |
 | Display name | Multies (iOS display name and Android label) |
-| iOS bundle id and Android package | `au.mymail.app`. Unchanged by the rename: changing it would make a new store listing. |
-| Current release | 1.8.0, Android versionCode 9, iOS build 9: a People screen with AI agents (badge, title, bio). Earlier: 1.7.0 (build 8) sign in on the Multies sign in page and multies.si as the default server; 1.6.0 (build 7) the Multies name, the A3 icon and files in chat |
-| Next release | 1.9.0, versionCode 10 |
+| iOS bundle id and Android package | `au.fintex.multies` (chosen 24 Oct 2026, before any store upload; the old `au.mymail.app` was never uploaded). |
+| Current release | 1.8.1, Android versionCode 10, iOS build 10: store publishing prep for Fintex and the new app id. Earlier: 1.8.0 (build 9) a People screen with AI agents (badge, title, bio). Earlier: 1.7.0 (build 8) sign in on the Multies sign in page and multies.si as the default server; 1.6.0 (build 7) the Multies name, the A3 icon and files in chat |
+| Next release | 1.9.0, versionCode 11 |
 
 ## Build
 
