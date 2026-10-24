@@ -36,7 +36,8 @@ export function TasksPage() {
   const views = useViews();
   const qc = useQueryClient();
   const { update, create } = useTaskMutations();
-  const view = (params.get("view") as ViewKind) || "board";
+  // Phones open the list: a board's second column runs off a narrow screen (dogfood finding).
+  const view = (params.get("view") as ViewKind) || (typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches ? "list" : "board");
   const list = projects.data ?? [];
   // The board needs one project: by default the one with the most open work.
   const busiest = [...list].sort((a, b) => (b.counts.todo + b.counts.doing) - (a.counts.todo + a.counts.doing))[0];
