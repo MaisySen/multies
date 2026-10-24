@@ -9,7 +9,7 @@ Multies has three ways in, all served by the same Worker:
 | MCP | `/api/v1/mcp` | AI agents and MCP clients | the same API keys. Streamable HTTP, stateless. |
 
 The v1 OpenAPI 3.1 document is generated from the request schemas at `/api/v1/openapi.json`, with an
-interactive reference at `/api/v1/docs`. That document is the source of truth for request and
+interactive reference at `/api/v1/reference`. That document is the source of truth for request and
 response shapes; this page is the map. Mutating calls accept an `Idempotency-Key` header (8 to 255
 characters); a retry with the same key returns the first answer. Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.

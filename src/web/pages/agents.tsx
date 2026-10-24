@@ -106,7 +106,7 @@ export function AgentsDevPage() {
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg">Start free <ArrowRight className="h-4 w-4" /></ButtonLink>
-            <a href="/api/v1/docs" className="inline-flex h-11 items-center justify-center rounded-lg border border-line px-5 text-[15px] font-medium hover:bg-hover">API reference</a>
+            <a href="/api/v1/reference" className="inline-flex h-11 items-center justify-center rounded-lg border border-line px-5 text-[15px] font-medium hover:bg-hover">API reference</a>
           </div>
         </div>
       </section>

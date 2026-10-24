@@ -42,7 +42,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
     { id: "p-activity", label: "Activity", icon: Activity, run: go("/app/activity"), keywords: ["log", "audit"] },
     { id: "p-settings", label: "Settings", icon: Settings, run: go("/app/settings") },
     { id: "p-billing", label: "Billing", icon: CreditCard, run: go("/app/settings/billing"), keywords: ["plan", "upgrade", "invoice"] },
-    { id: "p-docs", label: "API reference", icon: BookOpen, run: () => { onOpenChange(false); window.open("/api/v1/docs", "_blank", "noopener"); } },
+    { id: "p-docs", label: "API reference", icon: BookOpen, run: () => { onOpenChange(false); window.open("/api/v1/reference", "_blank", "noopener"); } },
   ];
   const records: Item[] = [
     ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: Globe, run: go(`/app/domains/${d.id}`) })),

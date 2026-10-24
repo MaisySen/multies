@@ -12,7 +12,7 @@ const allRoutes = (app: { routes: { method: string; path: string }[] }) => [
 // 2xx, and nothing may answer 5xx. Found the v1 fields, guests and portfolio routes running
 // without the API key check (500 instead of 401) in the round 9 QA pass.
 const PUBLIC_OK = new Set([
-  "GET /api/account/providers", "GET /api/config", "GET /api/health", "GET /api/status", "GET /api/v1/docs", "GET /api/v1/openapi.json",
+  "GET /api/account/providers", "GET /api/config", "GET /api/health", "GET /api/status", "GET /api/v1/reference", "GET /api/v1/openapi.json",
   "POST /api/guest/signout", "POST /api/account/demo",
 ]);
 

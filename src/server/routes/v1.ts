@@ -1,7 +1,7 @@
 /**
  * The public REST API, v1. Routes are declared with @hono/zod-openapi, so the
  * OpenAPI document at /api/v1/openapi.json is generated from the same schemas that
- * validate requests. Interactive reference (Scalar) at /api/v1/docs.
+ * validate requests. Interactive reference (Scalar) at /api/v1/reference.
  * Auth: `Authorization: Bearer mm_live_...` (Settings, Developers).
  */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
@@ -165,7 +165,13 @@ export function v1Routes() {
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
-  api.get("/docs", Scalar({ url: "/api/v1/openapi.json", pageTitle: "Multies API reference", theme: "default" }));
+  api.get("/reference", Scalar({ url: "/api/v1/openapi.json", pageTitle: "Multies API reference", theme: "default" }));
+  // The reference used to live at /api/v1/docs, which is also the docs list. A browser without a key
+  // that opens the old address goes to the reference; everything else gets the list.
+  api.get("/docs", async (c, next) => {
+    if (!c.req.header("authorization") && (c.req.header("accept") ?? "").includes("text/html")) return c.redirect("/api/v1/reference", 301);
+    await next();
+  });
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);

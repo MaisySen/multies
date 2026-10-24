@@ -33,5 +33,9 @@ describe("lazily built public API", () => {
     expect(res.status).toBe(201);
     const list = await app.request("/api/v1/tasks", { headers: { host: "localhost", authorization: `Bearer ${token}` } });
     expect(JSON.stringify(await list.json())).toContain("From the API");
+    // GET /api/v1/docs is the docs list for a key, not the API reference page (dogfood finding F1).
+    const docs = await app.request("/api/v1/docs", { headers: { host: "localhost", authorization: `Bearer ${token}`, accept: "text/html,application/json" } });
+    expect(docs.status).toBe(200);
+    expect(Array.isArray((await docs.json()).docs)).toBe(true);
   });
 });

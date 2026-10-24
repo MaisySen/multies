@@ -18,7 +18,7 @@ describe("security headers", () => {
 
   it("gives the API reference page its own policy and keeps scripts off the app", async () => {
     const { app } = await makeTestApp();
-    const res = await app.request("/api/v1/docs", { headers: { host: "localhost" } });
+    const res = await app.request("/api/v1/reference", { headers: { host: "localhost" } });
     expect(res.headers.get("content-security-policy")).toContain("https://cdn.jsdelivr.net");
     const csp = appCsp();
     expect(csp).toContain("script-src 'self';");

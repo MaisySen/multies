@@ -145,7 +145,7 @@ values are kept outside the repo, in the owner's "CREDENTIALS (owner email v7)" 
 
 **Developer platform**: API keys (Settings, Developers), a REST API at `/api/v1` whose OpenAPI 3.1
 document (`/api/v1/openapi.json`) is generated from the request schemas by `@hono/zod-openapi`, an
-interactive reference at `/api/v1/docs` (Scalar), and outbound webhooks (`message.received`,
+interactive reference at `/api/v1/reference` (Scalar), and outbound webhooks (`message.received`,
 `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`) signed
 with the [Standard Webhooks](https://www.standardwebhooks.com) spec. Verify them with any Standard
 Webhooks library and the endpoint's `whsec_` secret. Failed deliveries retry with backoff for about

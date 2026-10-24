@@ -25,7 +25,7 @@ export function DeveloperSettings() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-elevated px-4 py-3 text-sm">
         <span className="text-muted">REST API for domains, mailboxes, aliases and mail, with an OpenAPI spec.</span>
-        <a href="/api/v1/docs" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><BookOpen className="h-4 w-4" />API reference</a>
+        <a href="/api/v1/reference" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><BookOpen className="h-4 w-4" />API reference</a>
       </div>
       <ApiKeys />
       <Webhooks />

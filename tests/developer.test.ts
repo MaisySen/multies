@@ -107,9 +107,13 @@ describe("API keys and the v1 REST API", () => {
     expect(Object.keys(doc.paths)).toEqual(expect.arrayContaining(["/domains", "/domains/{id}", "/mailboxes", "/aliases", "/messages", "/messages/{id}", "/webhooks"]));
     expect(doc.components.securitySchemes.bearerAuth).toMatchObject({ type: "http", scheme: "bearer" });
     expect(doc.components.schemas.SendRequest).toBeTruthy();
-    const page = await ctx.app.request("/api/v1/docs");
+    const page = await ctx.app.request("/api/v1/reference");
     expect(page.status).toBe(200);
     expect(await page.text()).toContain("/api/v1/openapi.json");
+    // The old address sends a browser to the reference; a key gets the docs list (dogfood finding F1).
+    const old = await ctx.app.request("/api/v1/docs", { headers: { accept: "text/html" } });
+    expect(old.status).toBe(301);
+    expect(old.headers.get("location")).toBe("/api/v1/reference");
   });
 
   it("only admins manage keys", async () => {

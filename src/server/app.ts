@@ -84,7 +84,7 @@ export function createApp(deps: Deps) {
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
-    const set = p === "/api/v1/docs" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
+    const set = p === "/api/v1/reference" ? docsHeaders : p.startsWith("/api/") || p.startsWith("/.well-known/") ? apiHeaders : p.startsWith("/f/") ? formPageHeaders : pageHeaders;
     for (const [k, v] of Object.entries(set)) c.res.headers.set(k, v);
   });
   app.use("/api/*", async (c, next) => {
