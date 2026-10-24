@@ -164,9 +164,10 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
     return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
   }
-  pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
+  const analytics = /^[a-f0-9]{32}$/i.test(envVar(env, "CF_BEACON_TOKEN") ?? "");
+  pageHeaders ??= { csp: appCsp({ analytics }), hsts: isHttps(url.origin) };
   // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
-  formPageHeaders ??= { csp: appCsp({ turnstile: true }), hsts: isHttps(url.origin) };
+  formPageHeaders ??= { csp: appCsp({ turnstile: true, analytics }), hsts: isHttps(url.origin) };
   const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
   const asset = await env.ASSETS.fetch(request);
   if (asset.status !== 404) {

@@ -74,8 +74,8 @@ export function createApp(deps: Deps) {
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
-  const pageHeaders = securityHeaders({ csp: appCsp(), hsts });
-  const formPageHeaders = securityHeaders({ csp: appCsp({ turnstile: true }), hsts });
+  const pageHeaders = securityHeaders({ csp: appCsp({ analytics: !!deps.config.cfBeaconToken }), hsts });
+  const formPageHeaders = securityHeaders({ csp: appCsp({ turnstile: true, analytics: !!deps.config.cfBeaconToken }), hsts });
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
