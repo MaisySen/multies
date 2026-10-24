@@ -276,16 +276,49 @@ export async function addMembers(deps: Deps, a: SuiteActor, id: string, userIds:
 
 // ---------------------------------------------------------------- messages
 
+/**
+ * A short-lived link to one file that works without a session, for phones that open files in
+ * the system browser. The expiry is rounded to the next 15 minutes so links stay cacheable,
+ * and is never less than 15 minutes away.
+ */
+const FILE_LINK_MS = 15 * 60_000;
+async function fileSig(deps: Deps, orgId: string, fileId: string, exp: number) {
+  const { hmacSha256Hex } = await import("../../lib/crypto");
+  return hmacSha256Hex(deps.config.appSecret, `chat-file:${orgId}:${fileId}:${exp}`);
+}
+export async function signedFileUrl(deps: Deps, orgId: string, fileId: string) {
+  const exp = Math.ceil((deps.now().getTime() + FILE_LINK_MS) / FILE_LINK_MS) * FILE_LINK_MS;
+  return `/api/chat/files/${fileId}/download?exp=${exp}&sig=${await fileSig(deps, orgId, fileId, exp)}`;
+}
+export async function readSignedChatFile(deps: Deps, fileId: string, exp: string | undefined, sig: string | undefined) {
+  const at = Number(exp);
+  if (!sig || !Number.isFinite(at) || at < deps.now().getTime()) throw notFound("File");
+  const f = await deps.db.select().from(chatFiles).where(eq(chatFiles.id, fileId)).get();
+  if (!f) throw notFound("File");
+  const want = await fileSig(deps, f.orgId, f.id, at);
+  if (want.length !== sig.length || !timingSafeEqualStr(want, sig)) throw notFound("File");
+  let bytes: Uint8Array | null = null;
+  if (f.contentB64) { const { fromB64 } = await import("../../lib/crypto"); bytes = fromB64(f.contentB64); }
+  else if (f.storageKey && deps.bodyStore) bytes = await deps.bodyStore.get(f.storageKey);
+  if (!bytes) throw notFound("File");
+  return { filename: f.filename, contentType: f.contentType, bytes };
+}
+function timingSafeEqualStr(a: string, b: string) {
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 async function filesFor(deps: Deps, messageIds: string[]) {
-  const out = new Map<string, { id: string; filename: string; contentType: string; size: number }[]>();
+  const out = new Map<string, { id: string; filename: string; contentType: string; size: number; url: string }[]>();
   if (!messageIds.length) return out;
-  const rows = await deps.db.select({ id: chatFiles.id, messageId: chatFiles.messageId, filename: chatFiles.filename, contentType: chatFiles.contentType, size: chatFiles.sizeBytes })
+  const rows = await deps.db.select({ id: chatFiles.id, orgId: chatFiles.orgId, messageId: chatFiles.messageId, filename: chatFiles.filename, contentType: chatFiles.contentType, size: chatFiles.sizeBytes })
     .from(chatFiles).where(inArray(chatFiles.messageId, messageIds)).orderBy(asc(chatFiles.id));
-  for (const r of rows) { const l = out.get(r.messageId) ?? []; l.push({ id: r.id, filename: r.filename, contentType: r.contentType, size: r.size }); out.set(r.messageId, l); }
+  for (const r of rows) { const l = out.get(r.messageId) ?? []; l.push({ id: r.id, filename: r.filename, contentType: r.contentType, size: r.size, url: await signedFileUrl(deps, r.orgId, r.id) }); out.set(r.messageId, l); }
   return out;
 }
 
-function presentMessage(m: MessageRow, files: { id: string; filename: string; contentType: string; size: number }[] = []) {
+function presentMessage(m: MessageRow, files: { id: string; filename: string; contentType: string; size: number; url?: string }[] = []) {
   const deleted = !!m.deletedAt;
   return {
     id: m.id, channelId: m.channelId, parentId: m.parentId, author: { type: m.authorType, id: m.authorId, name: m.authorName },

@@ -12,7 +12,7 @@ import { HttpError } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import {
   addMembers, channelMessages, chatPeople, createChannel, deleteMessage, editMessage, getChannel, getMessage, getThread, guestChannels, guestMessages, guestPost, guestThread,
-  joinChannel, leaveChannel, listChannels, markRead, messageToTask, openDm, postMessage, readChatFile, unreadSummary, updateChannel, type GuestViewer,
+  joinChannel, leaveChannel, listChannels, markRead, messageToTask, openDm, postMessage, readChatFile, readSignedChatFile, unreadSummary, updateChannel, type GuestViewer,
 } from "../services/suite/chat";
 import { deleteTemplate, getTemplate, listTemplates, saveTemplate, useTemplate } from "../services/suite/templates";
 import { addKeyResult, createGoal, deleteGoal, deleteKeyResult, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
@@ -54,6 +54,8 @@ export function download(f: { filename: string; contentType: string; bytes: Uint
 
 export function chatRoutes() {
   return new Hono<AppEnv>()
+    // A signed, short-lived file link (see signedFileUrl) needs no session.
+    .get("/files/:id/download", async (c) => download(await readSignedChatFile(c.var.deps, c.req.param("id"), c.req.query("exp"), c.req.query("sig"))))
     .use("*", requireAuth)
     .get("/channels", async (c) => c.json({ channels: await listChannels(c.var.deps, c.var.auth, { includeArchived: c.req.query("archived") === "1" }) }))
     .post("/channels", async (c) => c.json({ channel: await createChannel(c.var.deps, c.var.auth, await parseBody(c, ChannelCreate)) }, 201))

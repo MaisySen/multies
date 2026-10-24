@@ -97,6 +97,14 @@ describe("team chat", () => {
     const dl = await ctx.app.request(`/api/chat/files/${reply.body.message.attachments[0].id}`, { headers: { cookie: mate.client.cookie, host: "localhost" } });
     expect(dl.headers.get("content-disposition")).toContain("attachment");
     expect(await dl.text()).toBe("<svg/>");
+    // The signed link works with no session (phones open files in the system browser), and only unaltered.
+    const url = reply.body.message.attachments[0].url as string;
+    expect(url).toMatch(/^\/api\/chat\/files\/[^/]+\/download\?exp=\d+&sig=[a-f0-9]{64}$/);
+    const signed = await ctx.app.request(url, { headers: { host: "localhost" } });
+    expect(signed.status).toBe(200);
+    expect(await signed.text()).toBe("<svg/>");
+    expect((await ctx.app.request(url.replace(/sig=([a-f0-9]+)/, (_m, h: string) => `sig=${[...h].reverse().join("")}`), { headers: { host: "localhost" } })).status).toBe(404);
+    expect((await ctx.app.request(url.replace(/exp=\d+/, "exp=1"), { headers: { host: "localhost" } })).status).toBe(404);
     // Only the author edits; an owner may delete.
     expect((await c.patch(`/api/chat/messages/${root.id}`, { body: "changed" })).status).toBe(403);
     expect((await mate.client.patch(`/api/chat/messages/${root.id}`, { body: "Who has the new logo?" })).body.message.editedAt).toBeTruthy();
