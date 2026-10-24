@@ -381,5 +381,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `webhook_endpoints` ADD `format` text DEFAULT 'json' NOT NULL;",
       "ALTER TABLE `webhook_endpoints` ADD `connector` text;"
     ]
+  },
+  {
+    "name": "0022_agent_members_recurrence",
+    "statements": [
+      "ALTER TABLE `meetings` ADD `recurrence` text;",
+      "ALTER TABLE `meetings` ADD `recurrence_tz` text;",
+      "ALTER TABLE `members` ADD `kind` text DEFAULT 'human' NOT NULL;",
+      "ALTER TABLE `members` ADD `title` text;",
+      "ALTER TABLE `members` ADD `bio` text;"
+    ]
   }
 ];

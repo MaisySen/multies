@@ -83,6 +83,11 @@ export const members = sqliteTable("members", {
   organizationId: text("organization_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role", { enum: ["owner", "admin", "member"] }).notNull().default("member"),
+  /** `agent`: an AI agent member. Its user row has no password or sign-in; it acts only through its own API keys. */
+  kind: text("kind", { enum: ["human", "agent"] }).notNull().default("human"),
+  /** Shown in People and on the member card, e.g. "Head of Product". */
+  title: text("title"),
+  bio: text("bio"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("members_org_user_uq").on(t.organizationId, t.userId), index("members_user_idx").on(t.userId)]);
 
@@ -950,6 +955,10 @@ export const meetings = sqliteTable("meetings", {
   mailboxId: text("mailbox_id"),
   invitesSentAt: ts("invites_sent_at"),
   endedAt: ts("ended_at"),
+  /** A weekly RRULE without the "RRULE:" prefix (FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10). Occurrences are expanded on read. */
+  recurrence: text("recurrence"),
+  /** The IANA zone the series keeps its wall clock time in. */
+  recurrenceTz: text("recurrence_tz"),
   ...suiteCols(),
 }, (t) => [index("meetings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("meetings_guest_token_uq").on(t.guestToken), index("meetings_source_idx").on(t.orgId, t.sourceType, t.sourceId)]);
 
