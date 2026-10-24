@@ -13,6 +13,7 @@ import "@/lib/push-task";
 import { SAMPLE_ONLY } from "@/config";
 import { colors, scheme } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
+import { HeldSendBar } from "@/components/held-send-bar";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 if (Platform.OS !== "web") configureNotifications();
@@ -60,6 +61,7 @@ function Navigator({ client }: { client: QueryClient }) {
   if (status === "loading") return null;
   const signedIn = status === "signedIn";
   return (
+    <>
     <Stack screenOptions={{
       headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.fg, headerTitleStyle: { color: colors.fg },
       contentStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerBackButtonDisplayMode: "minimal",
@@ -89,5 +91,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack.Protected>
     </Stack>
+    {signedIn && <HeldSendBar />}
+    </>
   );
 }

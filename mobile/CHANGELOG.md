@@ -3,6 +3,14 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## Unreleased (next build after 1.8.1)
+
+- Undo send: Send closes Compose and holds the message for 5, 10, 20 or 30 seconds (default 10).
+  A bar above the tabs counts down with Undo and Send now; Undo reopens Compose exactly as it was
+  (recipients, subject, body, the reply it belongs to). A failed send reopens it too. VoiceOver and
+  TalkBack hear the hold once. The choice is in Settings, This phone, and is saved on the phone. No
+  server change; the same timing core as the web app (docs/undo-send.md).
+
 ## 1.8.1 (Android versionCode 10, iOS build 10), 24 October 2026
 
 - App id is now au.fintex.multies for the iOS bundle id and the Android package (was au.mymail.app,

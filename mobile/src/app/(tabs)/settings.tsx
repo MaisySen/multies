@@ -4,7 +4,8 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Application from "expo-application";
 import * as Localization from "expo-localization";
-import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle } from "@/components/ui";
+import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle, Segmented } from "@/components/ui";
+import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-send";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/lib/session";
@@ -21,6 +22,7 @@ export default function Settings() {
   const { me, mode, api, signOut } = useSession();
   const overview = useOverview();
   const inbox = useNotificationCount();
+  const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   const insets = useSafeAreaInsets();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
@@ -80,6 +82,12 @@ export default function Settings() {
       <SectionTitle>This phone</SectionTitle>
       <Row icon="globe" label="Language and region" value={`English (Australia)${locale?.regionCode && locale.regionCode !== "AU" ? `, phone set to ${locale.regionCode}` : ""}`} />
       <Row icon="download" label="Clear saved mail" onPress={clearCache} />
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm }} testID="undo-send-setting">
+        <Text style={{ color: colors.fg, fontSize: 16 }} nativeID="undo-send-label">Undo send</Text>
+        <Segmented label="Undo send window" value={String(undoSeconds)} onChange={(v) => setUndoSeconds(parseUndoSeconds(v))}
+          options={UNDO_SEND_CHOICES.map((n) => ({ id: String(n), label: `${n} s` }))} />
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>How long you have to take a message back after Send. Saved on this phone.</Text>
+      </View>
 
       <SectionTitle>Help and legal</SectionTitle>
       <Row icon="activity" label="Service status" onPress={() => open(LINKS.status)} />

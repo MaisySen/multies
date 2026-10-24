@@ -4,28 +4,36 @@ import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Crypto from "expo-crypto";
 import * as Haptics from "expo-haptics";
 import { Button, Chip, Field } from "@/components/ui";
-import { useOverview, useSend, useThread } from "@/lib/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOverview, useThread } from "@/lib/queries";
+import { useSession } from "@/lib/session";
+import { parkDraft, recipientsLabel, sendHold, takeParkedDraft, trackHeld, useUndoSeconds, type HeldDraft } from "@/lib/undo-send";
 import { EMAIL_RE, displayName, parseRecipients, quoteForReply } from "@/lib/format";
 import { colors, radius, space } from "@/theme";
 
 export default function Compose() {
-  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string }>();
+  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string }>();
+  // A message taken back with Undo comes back exactly as it was.
+  const [parked] = useState(() => (params.restore ? takeParkedDraft() : null));
   const sourceId = params.replyTo ?? params.forward ?? "";
   const source = useThread(sourceId, !!sourceId);
   const original = sourceId ? source.data?.thread.find((m) => m.id === sourceId) ?? source.data?.message : undefined;
   const overview = useOverview();
   const mailboxes = useMemo(() => overview.data?.filter((m) => m.kind !== "agent") ?? [], [overview.data]);
-  const send = useSend();
-  const [idempotencyKey] = useState(() => Crypto.randomUUID());
+  const { api } = useSession();
+  const qc = useQueryClient();
+  const [undoSeconds] = useUndoSeconds();
 
-  const [from, setFrom] = useState<string | undefined>();
-  const [to, setTo] = useState(params.to ?? "");
-  const [cc, setCc] = useState("");
-  const [showCc, setShowCc] = useState(false);
-  const [subject, setSubject] = useState(params.subject ?? "");
-  const [text, setText] = useState("");
+  const [from, setFrom] = useState<string | undefined>(parked?.mailboxId);
+  const [to, setTo] = useState(parked?.to ?? params.to ?? "");
+  const [cc, setCc] = useState(parked?.cc ?? "");
+  const [showCc, setShowCc] = useState(!!parked?.cc);
+  const [subject, setSubject] = useState(parked?.subject ?? params.subject ?? "");
+  const [text, setText] = useState(parked?.text ?? "");
   const [error, setError] = useState<string | null>(null);
-  const [prefilled, setPrefilled] = useState(false);
+  const [prefilled, setPrefilled] = useState(!!parked);
+  const replyTo = parked ? parked.inReplyToId : params.replyTo;
+  const forwardOf = parked ? parked.forwardOf : params.forward;
 
   useEffect(() => {
     if (!from && mailboxes.length) setFrom(original ? mailboxes.find((m) => original.mailboxId === m.id)?.id ?? mailboxes[0].id : mailboxes[0].id);
@@ -55,13 +63,28 @@ export default function Compose() {
     if (!toList.length) return setError("Add at least one recipient.");
     if (bad) return setError(`"${bad}" doesn't look like an email address.`);
     if (!subject.trim() && !text.trim()) return setError("Write a subject or a message first.");
-    try {
-      await send.mutateAsync({ input: { mailboxId: from, to: toList, cc: ccList.length ? ccList : undefined, subject: subject.trim(), text, inReplyToId: params.replyTo }, idempotencyKey });
-      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.back();
-    } catch (e) {
-      setError((e as Error).message);
-    }
+    // Undo send: close Compose now and post when the hold ends; the bar above the tabs offers Undo.
+    const draft: HeldDraft = { mailboxId: from, to, cc, subject, text, inReplyToId: replyTo, forwardOf };
+    const input = { mailboxId: from, to: toList, cc: ccList.length ? ccList : undefined, subject: subject.trim(), text, inReplyToId: replyTo };
+    const idempotencyKey = Crypto.randomUUID();
+    const hold = sendHold.hold({
+      seconds: undoSeconds,
+      send: () => api.send(input, idempotencyKey),
+      onSent: () => {
+        void qc.invalidateQueries({ queryKey: ["messages"] });
+        void qc.invalidateQueries({ queryKey: ["thread"] });
+        if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      },
+      onError: (e) => {
+        // Nothing typed is lost: the message goes back into Compose with the reason.
+        parkDraft(draft);
+        Alert.alert("Couldn't send", `${(e as Error).message || "Check your connection and try again."} Your message is back in Compose.`, [
+          { text: "Open", onPress: () => router.push({ pathname: "/compose", params: { restore: "1" } }) },
+        ]);
+      },
+    });
+    trackHeld({ hold, draft, label: recipientsLabel([...toList, ...ccList]) });
+    if (router.canGoBack()) router.back(); else router.replace("/inbox");
   };
 
   const discard = () => {
@@ -76,9 +99,9 @@ export default function Compose() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{
-        title: params.replyTo ? "Reply" : params.forward ? "Forward" : "New message",
+        title: replyTo ? "Reply" : forwardOf ? "Forward" : "New message",
         headerLeft: () => <Button variant="ghost" label="Cancel" onPress={discard} />,
-        headerRight: () => <Button label="Send" icon="send" onPress={submit} loading={send.isPending} testID="send" style={{ minHeight: 38, paddingHorizontal: 14 }} />,
+        headerRight: () => <Button label="Send" icon="send" onPress={submit} testID="send" style={{ minHeight: 38, paddingHorizontal: 14 }} />,
       }} />
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">
         {mailboxes.length > 1 ? (
@@ -100,6 +123,7 @@ export default function Compose() {
             placeholder="Write your message" placeholderTextColor={colors.subtle} selectionColor={colors.brand} textAlignVertical="top"
             style={{ minHeight: 220, color: colors.fg, fontSize: 16, lineHeight: 23, padding: space.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface }} />
         </View>
+        <Text style={{ color: colors.subtle, fontSize: 13 }}>{`After Send you have ${undoSeconds} seconds to undo. Change it in Settings.`}</Text>
         {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityRole="alert">{error}</Text> : null}
       </ScrollView>
     </KeyboardAvoidingView>
