@@ -42,13 +42,13 @@ export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
  * acts as a workspace admin; `read` keys are limited to GET by the API layer. An agent
  * key (agentId set) acts only as that agent, enforced by the agent routes.
  */
-export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null };
+export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null };
 
 export async function resolveApiKey(deps: Deps, header: string | undefined): Promise<ApiKeyAuth | null> {
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
   if (!token) return null;
   // One round trip: the key, whether its creator is still a member, and the workspace's state.
-  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, creatorName: users.name, suspendedAt: organizations.suspendedAt, agentName: agents.name })
+  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, memberTitle: members.title, creatorName: users.name, suspendedAt: organizations.suspendedAt, orgName: organizations.name, agentName: agents.name })
     .from(apiKeys)
     .innerJoin(organizations, eq(organizations.id, apiKeys.orgId))
     .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
@@ -66,8 +66,11 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const userId = k.createdByUserId && row.memberId ? k.createdByUserId : "";
   // An AI agent member's key acts as that member, under its name, with the member role.
   const agentMember = !!userId && row.memberKind === "agent";
+  // Who a post or a change reads as: the agent member by name, an agent inbox by its name,
+  // otherwise the workspace itself (a script acting for the whole workspace).
+  const name = agentMember ? row.creatorName ?? k.name : row.agentName ?? row.orgName;
   return {
-    userId, email: `api-key:${k.prefix}`, name: agentMember ? row.creatorName ?? k.name : row.agentName ?? `API key "${k.name}"`, orgId: k.orgId, role: agentMember ? "member" : "admin",
+    userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role: agentMember ? "member" : "admin",
     sessionId: `apikey:${k.id}`, apiKeyId: k.id, scope: k.scope, orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null,
   };
 }

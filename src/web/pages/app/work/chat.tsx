@@ -19,7 +19,7 @@ export interface ChatChannel {
   members: { id: string; name: string; email: string }[]; unread: number; mentions: number; lastMessageAt: string | null; lastMessage: { id: string; preview: string; authorName: string } | null;
 }
 export interface ChatMessage {
-  id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string }; body: string;
+  id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string; title?: string | null; agent?: boolean }; body: string;
   mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; messageId?: string }[];
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
   pinnedAt?: string | null; pinnedBy?: string | null;
@@ -63,7 +63,8 @@ function Message({ m, onThread, onTask, onEdit, onDelete, onPin, mine, inThread 
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-[13.5px] font-semibold">{m.author.name}</span>
-          {m.author.type === "agent" && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
+          {m.author.title && <span className="truncate text-[12px] text-muted">{m.author.title}</span>}
+          {(m.author.type === "agent" || m.author.agent) && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}

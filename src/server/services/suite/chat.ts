@@ -10,7 +10,7 @@
  */
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { chatChannels, chatFiles, chatMembers, chatMessages, docs, messages, projectGuests, tasks, users } from "../../db/schema";
+import { chatChannels, chatFiles, chatMembers, chatMessages, docs, members as orgMembers, messages, projectGuests, tasks, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { isMimeType } from "../../lib/input-checks";
 import { actorOf, assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
@@ -318,10 +318,13 @@ async function filesFor(deps: Deps, messageIds: string[]) {
   return out;
 }
 
-function presentMessage(m: MessageRow, files: { id: string; filename: string; contentType: string; size: number; url?: string }[] = []) {
+type AuthorInfo = { title: string | null; agent: boolean };
+function presentMessage(m: MessageRow, files: { id: string; filename: string; contentType: string; size: number; url?: string }[] = [], who?: AuthorInfo) {
   const deleted = !!m.deletedAt;
   return {
-    id: m.id, channelId: m.channelId, parentId: m.parentId, author: { type: m.authorType, id: m.authorId, name: m.authorName },
+    id: m.id, channelId: m.channelId, parentId: m.parentId,
+    // `title` and `agent` come from the author's membership: an AI agent member shows its title and an agent label.
+    author: { type: m.authorType, id: m.authorId, name: m.authorName, title: who?.title ?? null, agent: m.authorType === "agent" || !!who?.agent },
     body: deleted ? "" : m.body, mentions: deleted ? [] : (JSON.parse(m.mentions) as Mention[]), links: deleted ? [] : (JSON.parse(m.links) as ChatLink[]),
     attachments: deleted ? [] : files, replyCount: m.replyCount, lastReplyAt: iso(m.lastReplyAt), editedAt: iso(m.editedAt), deleted,
     pinnedAt: deleted ? null : iso(m.pinnedAt), pinnedBy: deleted ? null : m.pinnedBy ?? null,
@@ -330,9 +333,21 @@ function presentMessage(m: MessageRow, files: { id: string; filename: string; co
 }
 export type ChatMessage = ReturnType<typeof presentMessage>;
 
+/** Titles and agent flags of the member authors on a page, in one query. */
+async function authorInfo(deps: Deps, rows: MessageRow[]): Promise<Map<string, AuthorInfo>> {
+  const out = new Map<string, AuthorInfo>();
+  const ids = [...new Set(rows.filter((r) => r.authorType === "member" && r.authorId).map((r) => r.authorId!))];
+  if (!ids.length) return out;
+  const found = await deps.db.select({ userId: orgMembers.userId, title: orgMembers.title, kind: orgMembers.kind }).from(orgMembers)
+    .where(and(eq(orgMembers.organizationId, rows[0].orgId), inArray(orgMembers.userId, ids)));
+  for (const m of found) out.set(m.userId, { title: m.title ?? null, agent: m.kind === "agent" });
+  return out;
+}
+
 async function present(deps: Deps, rows: MessageRow[]) {
   const files = await filesFor(deps, rows.map((r) => r.id));
-  return rows.map((r) => presentMessage(r, files.get(r.id)));
+  const who = await authorInfo(deps, rows);
+  return rows.map((r) => presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined));
 }
 
 export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string }) {
