@@ -2,7 +2,7 @@ import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 
 /**
  * Round 11 end to end: the integrations page (connect a chat app, pause and remove it, create an
- * incoming webhook and post to it) and, when SCHEDULING_ENABLED is on, the booking page.
+ * incoming webhook and post to it) and, when SCHEDULING_ENABLED is on, the booking page on a phone.
  */
 test.describe.configure({ mode: "serial" });
 let ctx: BrowserContext;
@@ -50,4 +50,36 @@ test("creates an incoming webhook and turns a post into a task", async () => {
   await expect(page.getByText("Working")).toBeVisible();
   await page.getByRole("button", { name: "Recent calls" }).click();
   await expect(page.getByText("Created a task")).toBeVisible();
+});
+
+test("sets up a booking page, a guest books on a phone and cancels with the link", async () => {
+  const config = await (await page.request.get("/api/config")).json();
+  test.skip(!config.scheduling, "SCHEDULING_ENABLED is off on this server");
+  await page.goto("/app/scheduling");
+  await expect(page.getByRole("link", { name: "Booking page" })).toBeVisible();
+  const slug = `e2e-${Date.now().toString(36)}`;
+  await page.getByLabel("Link", { exact: true }).fill(slug);
+  await page.getByLabel("Title").fill("Intro call");
+  await page.getByRole("button", { name: "Create booking page" }).click();
+  await expect(page.getByTestId("booking-link")).toContainText(`/book/${slug}`);
+
+  const guest = await ctx.newPage();
+  await guest.setViewportSize({ width: 390, height: 844 });
+  await guest.goto(`/book/${slug}`);
+  await expect(guest.getByRole("heading", { name: "Intro call", level: 1 })).toBeVisible();
+  await guest.getByRole("button", { name: /times?$/ }).first().click();
+  await guest.locator("button[aria-pressed]").filter({ hasText: /\d:\d\d/ }).first().click();
+  await guest.getByLabel("Name").fill("Kim Lee");
+  await guest.getByLabel("Email").fill("kim@example.com");
+  await guest.getByRole("button", { name: "Confirm booking" }).click();
+  await expect(guest.getByRole("heading", { name: "You're booked" })).toBeVisible();
+  await expect(guest.getByRole("link", { name: "Add to calendar" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText("Kim Lee")).toBeVisible();
+
+  await guest.getByRole("link", { name: "Cancel this booking" }).click();
+  await guest.getByRole("button", { name: "Cancel booking" }).click();
+  await expect(guest.getByRole("heading", { name: "Booking cancelled" })).toBeVisible();
+  await guest.close();
 });

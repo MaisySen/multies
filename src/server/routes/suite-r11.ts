@@ -1,17 +1,21 @@
 /**
  * Round 11 in the app (cookie session): integrations (connector catalogue and incoming
- * webhooks), plus the public endpoint /api/hooks/in/<token>. Built on the first request that needs it (see app.ts).
+ * webhooks) and meeting scheduling, plus their public endpoints: /api/hooks/in/<token> and
+ * the booking page API under /api/book. Built on the first request that needs it (see app.ts).
  * Public calls are limited per isolate in memory (no database write for the limit itself).
  */
 import { Hono, type Context, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
-import { parseBody, requireAdmin, requireAuth } from "../middleware";
+import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { RateLimiter } from "../lib/rate-limit";
 import { WEBHOOK_EVENTS, deleteEndpoint, sendTestEvent, updateEndpoint } from "../services/developer/webhooks";
 import {
   CATALOGUE, connectIntegration, createIncomingHook, deleteIncomingHook, getIncomingHook, listIncomingHooks, listIntegrations, readHookPayload, receiveIncoming, updateIncomingHook,
 } from "../services/suite/integrations";
+import {
+  bookSlot, bookingIcs, cancelByGuest, cancelByHost, getMyPage, guestBooking, listBookings, publicAvailability, savePage, schedulingEnabled,
+} from "../services/suite/scheduling";
 import type { SuiteActor } from "../services/suite/common";
 
 const Event = z.string().refine((e) => e === "*" || (WEBHOOK_EVENTS as readonly string[]).includes(e), "Unknown event.");
@@ -21,6 +25,15 @@ const Mapping = z.record(z.string().max(20), z.string().max(80));
 const HookConfig = z.object({ projectId: z.string().max(64).optional(), channelId: z.string().max(64).optional(), mapping: Mapping.optional() });
 export const HookCreate = z.object({ name: z.string().trim().min(1).max(80), action: z.enum(["task", "chat", "contact"]), config: HookConfig.optional() });
 export const HookPatch = z.object({ name: z.string().trim().min(1).max(80).optional(), enabled: z.boolean().optional(), config: HookConfig.optional() });
+const Range = z.tuple([z.string().max(5), z.string().max(5)]);
+export const PageBody = z.object({
+  slug: z.string().max(40).optional(), title: z.string().max(120).optional(), description: z.string().max(1000).optional(), timezone: z.string().max(60).optional(),
+  hours: z.object({ sun: z.array(Range).max(6), mon: z.array(Range).max(6), tue: z.array(Range).max(6), wed: z.array(Range).max(6), thu: z.array(Range).max(6), fri: z.array(Range).max(6), sat: z.array(Range).max(6) }).partial().optional(),
+  slotMin: z.number().int().optional(), bufferMin: z.number().int().optional(), maxDaysAhead: z.number().int().optional(), minNoticeMin: z.number().int().optional(),
+  video: z.boolean().optional(), enabled: z.boolean().optional(),
+});
+export const BookBody = z.object({ startsAt: z.string().max(40), name: z.string().max(120), email: z.string().max(200), note: z.string().max(1000).optional(), timezone: z.string().max(60).optional() });
+export const BookingsQuery = z.object({ upcoming: z.enum(["1", "0", "true", "false"]).optional(), status: z.enum(["confirmed", "cancelled"]).optional(), limit: z.coerce.number().int().min(1).max(500).optional() });
 
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
 
@@ -39,6 +52,11 @@ function publicLimit(limit: number, key: (c: Context<AppEnv>) => string): Middle
     return next();
   };
 }
+
+const enabledOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!schedulingEnabled(c.var.deps)) return c.json({ error: { code: "not_found", message: "Not found." } }, 404);
+  return next();
+};
 
 export function connectorRoutes() {
   return new Hono<AppEnv>()
@@ -73,6 +91,37 @@ export function hookInRoutes() {
     .all("/:token", (c) => c.json({ error: { code: "method_not_allowed", message: "Send a POST with a JSON or form body." } }, 405));
 }
 
+export function schedulingRoutes() {
+  return new Hono<AppEnv>()
+    .use("*", enabledOnly)
+    .use("*", requireAuth)
+    .get("/page", async (c) => c.json({ page: await getMyPage(c.var.deps, actor(c)) }))
+    .put("/page", async (c) => c.json({ page: await savePage(c.var.deps, actor(c), await parseBody(c, PageBody)) }))
+    .get("/bookings", async (c) => {
+      const q = parseQuery(c, BookingsQuery);
+      return c.json({ bookings: await listBookings(c.var.deps, actor(c), { upcoming: q.upcoming === "1" || q.upcoming === "true", status: q.status, limit: q.limit }) });
+    })
+    .post("/bookings/:id/cancel", async (c) => c.json(await cancelByHost(c.var.deps, actor(c), c.req.param("id"))));
+}
+
+/** The booking page's API. Reads are free; a booking or cancel is limited per IP. */
+export function bookRoutes() {
+  const writes = publicLimit(10, (c) => `book:${c.var.ip}`);
+  const reads = publicLimit(120, (c) => `bookr:${c.var.ip}`);
+  return new Hono<AppEnv>()
+    .use("*", enabledOnly)
+    .get("/bookings/:id", reads, async (c) => c.json(await guestBooking(c.var.deps, c.req.param("id"), c.req.query("t") ?? "")))
+    .get("/bookings/:id/ics", reads, async (c) => new Response(await bookingIcs(c.var.deps, c.req.param("id"), c.req.query("t") ?? ""), {
+      headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": "attachment; filename=\"booking.ics\"", "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
+    }))
+    .post("/bookings/:id/cancel", writes, async (c) => c.json(await cancelByGuest(c.var.deps, c.req.param("id"), (await parseBody(c, z.object({ token: z.string().max(80) }))).token)))
+    .get("/:slug", reads, async (c) => {
+      const days = Number(c.req.query("days") ?? "14");
+      return c.json(await publicAvailability(c.var.deps, c.req.param("slug"), { from: c.req.query("from"), days: Number.isFinite(days) ? days : 14 }));
+    })
+    .post("/:slug", writes, async (c) => c.json(await bookSlot(c.var.deps, c.req.param("slug"), await parseBody(c, BookBody)), 201));
+}
+
 type ParentVars = { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"] };
 
 /** One router for every round 11 path, mounted lazily by app.ts. */
@@ -85,5 +134,7 @@ export function r11Routes(parentVars: WeakMap<Request, ParentVars>) {
     })
     .route("/api/connectors", connectorRoutes())
     .route("/api/incoming-hooks", incomingHookRoutes())
-    .route("/api/hooks/in", hookInRoutes());
+    .route("/api/hooks/in", hookInRoutes())
+    .route("/api/scheduling", schedulingRoutes())
+    .route("/api/book", bookRoutes());
 }

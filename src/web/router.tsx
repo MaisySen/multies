@@ -50,6 +50,10 @@ const NotificationsPage = lazy(() => notificationPages().then((m) => ({ default:
 const NotificationSettings = lazy(() => notificationPages().then((m) => ({ default: m.NotificationSettings })));
 const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
 const IntegrationsPage = lazy(() => import("./pages/app/work/integrations").then((m) => ({ default: m.IntegrationsPage })));
+const SchedulingPage = lazy(() => import("./pages/app/work/scheduling").then((m) => ({ default: m.SchedulingPage })));
+const bookPages = () => import("./pages/book");
+const BookingPage = lazy(() => bookPages().then((m) => ({ default: m.BookingPage })));
+const BookingCancelPage = lazy(() => bookPages().then((m) => ({ default: m.BookingCancelPage })));
 const GoalsPage = lazy(() => import("./pages/app/work/goals").then((m) => ({ default: m.GoalsPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
@@ -133,6 +137,7 @@ export const router = createBrowserRouter([
       { path: "goals", element: page(<GoalsPage />) },
       { path: "meetings", element: page(<MeetingsPage />) },
       { path: "meetings/:id", element: page(<MeetingPage />) },
+      { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       {
@@ -154,6 +159,8 @@ export const router = createBrowserRouter([
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
   { path: "/f/:slug", element: publicPage(<PublicFormPage />) },
   { path: "/m/:token", element: publicPage(<GuestMeetingPage />) },
+  { path: "/book/:slug", element: publicPage(<BookingPage />) },
+  { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />) },
   // A project guest (a client): the invite link, then the one project they can see.
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />) },
   { path: "/guest", element: publicPage(<GuestProjectPage />) },

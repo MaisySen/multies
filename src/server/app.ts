@@ -101,8 +101,8 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     const p = c.req.path;
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
-    // Incoming hooks limit themselves in memory, so a public call costs no limiter write.
-    if (p.startsWith("/api/hooks/in/")) return next();
+    // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
+    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/book/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
@@ -157,6 +157,7 @@ export function createApp(deps: Deps) {
       mxHosts: deps.config.mail.mxHosts,
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
+      scheduling: deps.config.schedulingEnabled,
       // A browser DSN is public by design (it can only submit events).
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
@@ -246,7 +247,7 @@ export function createApp(deps: Deps) {
     app.all(prefix, r10Handler);
     app.all(`${prefix}/*`, r10Handler);
   }
-  // Round 11 (integrations and incoming hooks), lazily for the same reason.
+  // Round 11 (integrations, incoming hooks, scheduling and the booking page), lazily for the same reason.
   let r11: R10 | undefined;
   const r11Vars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
   const r11Handler = async (c: Context<AppEnv>) => {
@@ -261,7 +262,7 @@ export function createApp(deps: Deps) {
     try { ctx = c.executionCtx; } catch { ctx = undefined; }
     return r11.fetch(c.req.raw, c.env, ctx);
   };
-  for (const prefix of ["/api/connectors", "/api/incoming-hooks", "/api/hooks/in"]) {
+  for (const prefix of ["/api/connectors", "/api/incoming-hooks", "/api/hooks/in", "/api/scheduling", "/api/book"]) {
     app.all(prefix, r11Handler);
     app.all(`${prefix}/*`, r11Handler);
   }

@@ -564,7 +564,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
   }));
 }
 
-/** Integrations. */
+/** Integrations and scheduling. */
 function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void) {
   const ro = { readOnlyHint: true, openWorldHint: false };
   const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
@@ -588,4 +588,14 @@ function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     const { createIncomingHook } = await import("../services/suite/integrations");
     return createIncomingHook(deps, a, { name: x.name, action: x.action, config: { projectId: x.projectId, channelId: x.channelId, mapping: x.mapping } });
   }));
+  if (deps.config.schedulingEnabled) {
+    server.registerTool("list_bookings", {
+      title: "List meeting bookings", annotations: ro,
+      description: "Bookings made through the workspace's public booking pages, with time, guest name and email, status and the meeting.",
+      inputSchema: { upcoming: z.boolean().optional(), status: z.enum(["confirmed", "cancelled"]).optional() },
+    }, tool(async (x: { upcoming?: boolean; status?: "confirmed" | "cancelled" }) => {
+      const { listBookings } = await import("../services/suite/scheduling");
+      return { bookings: await listBookings(deps, a, { upcoming: x.upcoming ?? true, status: x.status }) };
+    }));
+  }
 }

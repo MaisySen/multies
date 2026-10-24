@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
+import { CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
@@ -9,7 +9,7 @@ import { CommandPalette } from "@/web/components/command-palette";
 import { TimerChip } from "@/web/pages/app/work/time";
 import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
-import { useMe, useWorkspaces } from "@/web/lib/queries";
+import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
 import { useDemoSeedCatchUp } from "@/web/lib/demo";
 import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -51,8 +51,12 @@ const nav = [
   { to: "/app/settings", label: "Settings", icon: Settings },
 ];
 
+/** The booking page sits under Meetings when the server has scheduling switched on. */
+const withScheduling = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: CalendarClock }] : [n]));
+
 export function AppLayout() {
   const me = useMe();
+  const config = useConfig();
   useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
   const loc = useLocation();
   const navigate = useNavigate();
@@ -118,7 +122,7 @@ export function AppLayout() {
         </button>
       </div>
       <nav className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3" aria-label="App">
-        {[...nav, ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false }] : [])].map(({ to, label, icon: Icon, end }) => (
+        {[...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false }] : [])].map(({ to, label, icon: Icon, end }) => (
           <NavLink key={to} to={to} end={end} className={({ isActive }) => cn(
             "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
             isActive ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:bg-hover hover:text-fg",

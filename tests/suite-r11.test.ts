@@ -3,6 +3,7 @@ import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
 import { eventText, mapFields } from "@/server/services/suite/integrations";
+import { computeSlots, zonedTime } from "@/server/services/suite/scheduling";
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 let c: Client;
@@ -167,5 +168,104 @@ describe("incoming webhooks", () => {
     expect(listed.connections).toHaveLength(1);
     expect(listed.incomingHooks).toHaveLength(1);
     await mcp.close();
+  });
+});
+
+describe("scheduling slots", () => {
+  it("converts wall clock times in a zone and leaves out busy times, buffers and notice", () => {
+    expect(zonedTime(2026, 10, 26, 9 * 60, "Australia/Sydney").toISOString()).toBe("2026-10-25T22:00:00.000Z");
+    expect(zonedTime(2026, 11, 2, 9 * 60, "America/New_York").toISOString()).toBe("2026-11-02T14:00:00.000Z");
+    const rules = { timezone: "Australia/Sydney", hours: { mon: [["09:00", "11:00"]] as [string, string][] }, slotMin: 30, bufferMin: 0, maxDaysAhead: 30, minNoticeMin: 0 };
+    const now = new Date("2026-10-24T00:00:00Z");
+    const to = new Date("2026-10-27T00:00:00Z");
+    const busy = [{ start: Date.parse("2026-10-25T22:30:00Z"), end: Date.parse("2026-10-25T23:00:00Z") }];
+    expect(computeSlots(rules, busy, now, now, to)).toEqual(["2026-10-25T22:00:00.000Z", "2026-10-25T23:00:00.000Z", "2026-10-25T23:30:00.000Z"]);
+    expect(computeSlots({ ...rules, bufferMin: 15 }, busy, now, now, to)).toEqual(["2026-10-25T23:30:00.000Z"]);
+    expect(computeSlots({ ...rules, maxDaysAhead: 1 }, [], now, now, to)).toEqual([]);
+    expect(computeSlots(rules, [], new Date("2026-10-25T22:40:00Z"), new Date("2026-10-25T22:40:00Z"), to)).toEqual(["2026-10-25T23:00:00.000Z", "2026-10-25T23:30:00.000Z"]);
+  });
+});
+
+describe("scheduling", () => {
+  beforeEach(async () => {
+    await setup({ SCHEDULING_ENABLED: "true" });
+    ctx.deps.now = () => new Date("2026-10-24T00:00:00Z");
+    const r = await c.put("/api/scheduling/page", { slug: "olive", title: "Intro call", timezone: "Australia/Sydney", hours: { mon: [["09:00", "11:00"]] }, slotMin: 30, minNoticeMin: 0 });
+    expect(r.status).toBe(200);
+  });
+  const guest = () => new Client(ctx.app);
+  const book = (startsAt: string, email = "kim@example.com") => guest().post("/api/book/olive", { startsAt, name: "Kim Lee", email, note: "About the quote" });
+
+  it("shows free slots, books one, blocks a double booking, and sends the event and the .ics", async () => {
+    await c.post("/api/connectors", { connector: "custom", url: "https://receiver.example.com/in", events: ["booking.created", "booking.cancelled"] });
+    const pub = await guest().get("/api/book/olive");
+    expect(pub.status).toBe(200);
+    expect(pub.body.page).toMatchObject({ title: "Intro call", host: "Olive Owner", slotMin: 30 });
+    expect(pub.body.slots).toEqual(["2026-10-25T22:00:00.000Z", "2026-10-25T22:30:00.000Z", "2026-10-25T23:00:00.000Z", "2026-10-25T23:30:00.000Z", "2026-11-01T22:00:00.000Z", "2026-11-01T22:30:00.000Z", "2026-11-01T23:00:00.000Z", "2026-11-01T23:30:00.000Z"]);
+
+    const r = await book("2026-10-25T22:30:00.000Z");
+    expect(r.status).toBe(201);
+    expect(r.body.booking).toMatchObject({ name: "Kim Lee", status: "confirmed", durationMin: 30 });
+    expect(r.body.booking.guestUrl).toContain("/m/");
+    expect((await book("2026-10-25T22:30:00.000Z", "other@example.com")).status).toBe(409);
+    expect((await book("2026-10-25T22:10:00.000Z")).status).toBe(409);
+    expect((await guest().get("/api/book/olive")).body.slots).not.toContain("2026-10-25T22:30:00.000Z");
+    expect(sent.some((s) => JSON.parse(s.body).type === "booking.created")).toBe(true);
+
+    const meetings = (await c.get("/api/meetings")).body.meetings as { title: string }[];
+    expect(meetings.some((m) => m.title === "Intro call: Kim Lee")).toBe(true);
+    const token = new URL(r.body.cancelUrl).searchParams.get("t")!;
+    const ics = await ctx.app.request(`/api/book/bookings/${r.body.booking.id}/ics?t=${token}`, { headers: { host: "localhost" } });
+    expect(ics.headers.get("content-type")).toContain("text/calendar");
+    expect(await ics.text()).toContain("BEGIN:VEVENT");
+    expect((await ctx.app.request(`/api/book/bookings/${r.body.booking.id}/ics?t=wrong`, { headers: { host: "localhost" } })).status).toBe(404);
+  });
+
+  it("lets the guest cancel with the link and the host cancel from the app, and frees the slot", async () => {
+    const r = await book("2026-10-25T22:00:00.000Z");
+    const token = new URL(r.body.cancelUrl).searchParams.get("t")!;
+    expect((await guest().get(`/api/book/bookings/${r.body.booking.id}?t=${token}`)).body.booking.status).toBe("confirmed");
+    expect((await guest().post(`/api/book/bookings/${r.body.booking.id}/cancel`, { token: "nope" })).status).toBe(404);
+    const g = await guest().post(`/api/book/bookings/${r.body.booking.id}/cancel`, { token });
+    expect(g.body.booking).toMatchObject({ status: "cancelled", cancelledBy: "guest" });
+    expect((await guest().get("/api/book/olive")).body.slots).toContain("2026-10-25T22:00:00.000Z");
+
+    const again = await book("2026-10-25T22:00:00.000Z", "second@example.com");
+    expect(again.status).toBe(201);
+    const list = (await c.get("/api/scheduling/bookings")).body.bookings as { id: string; status: string }[];
+    expect(list.map((b) => b.status)).toEqual(["cancelled", "confirmed"]);
+    const h = await c.post(`/api/scheduling/bookings/${again.body.booking.id}/cancel`);
+    expect(h.body.booking).toMatchObject({ status: "cancelled", cancelledBy: "host" });
+  });
+
+  it("validates the page and the booking, and serves REST and MCP", async () => {
+    expect((await c.put("/api/scheduling/page", { slotMin: 20 })).status).toBe(422);
+    expect((await c.put("/api/scheduling/page", { timezone: "Mars/Base" })).status).toBe(422);
+    expect((await c.put("/api/scheduling/page", { hours: { mon: [["11:00", "09:00"]] } })).status).toBe(422);
+    expect((await guest().post("/api/book/olive", { startsAt: "2026-10-25T22:00:00.000Z", name: "", email: "x@y.co" })).status).toBe(422);
+    expect((await guest().post("/api/book/olive", { startsAt: "2026-10-25T22:00:00.000Z", name: "A", email: "bad" })).status).toBe(422);
+    expect((await guest().get("/api/book/nobody")).status).toBe(404);
+    await c.put("/api/scheduling/page", { enabled: false });
+    expect((await guest().get("/api/book/olive")).status).toBe(404);
+    await c.put("/api/scheduling/page", { enabled: true });
+    await book("2026-11-01T22:00:00.000Z");
+
+    const key = (await c.post("/api/developer/keys", { name: "Cal" })).body.secret;
+    expect((await api(key, "GET", "/scheduling/availability")).body.page.slug).toBe("olive");
+    const listed = await api(key, "GET", "/scheduling/bookings");
+    expect(listed.body.bookings).toHaveLength(1);
+    const mcp = await mcpFor(key);
+    const mb = data(await mcp.callTool({ name: "list_bookings", arguments: { upcoming: true } }));
+    expect(mb.bookings[0].name).toBe("Kim Lee");
+    await mcp.close();
+  });
+
+  it("answers 404 everywhere when scheduling is off", async () => {
+    await setup();
+    expect((await c.get("/api/scheduling/page")).status).toBe(404);
+    expect((await c.get("/api/book/olive")).status).toBe(404);
+    expect((await c.get("/api/config")).body.scheduling).toBe(false);
+    const key = (await c.post("/api/developer/keys", { name: "Cal" })).body.secret;
+    expect((await api(key, "GET", "/scheduling/bookings")).status).toBe(404);
   });
 });

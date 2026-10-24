@@ -17,6 +17,8 @@ export interface PublicConfig {
   supportEmail?: string;
   outboundDriver: string;
   billingEnabled: boolean;
+  /** Booking pages (SCHEDULING_ENABLED). */
+  scheduling?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

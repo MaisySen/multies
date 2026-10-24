@@ -110,10 +110,26 @@ update of the hook row, and emits `incoming_hook.received`.
 - Public API: `GET` and `POST /api/v1/incoming-hooks`, `GET`, `PATCH` and `DELETE /api/v1/incoming-hooks/{id}`
 - MCP: `list_integrations`, `create_incoming_hook`
 
+## Scheduling (booking pages)
+
+Off unless the server sets `SCHEDULING_ENABLED=true`; when off, the page and every endpoint below answer
+404. A member sets weekly hours (per day, in their time zone), a slot length of 15, 30, 45 or 60
+minutes, a buffer, how far ahead people can book and the minimum notice, and shares `/book/<slug>`.
+Free slots leave out the host's own scheduled meetings and other bookings (widened by the buffer).
+A booking creates a meeting (with its video guest link when video is on), emails the guest a
+confirmation through system mail with an `.ics` link and a cancel link, and notifies the host in the app.
+No paid calendar APIs and no phone spend. A booking costs two inserts; a slot can only be booked once.
+
+- Page: `/app/scheduling` (Booking page, under Meetings when on); public pages `/book/<slug>` and `/book/<slug>/cancel/<id>?t=<token>`.
+- App API: `GET` and `PUT /api/scheduling/page`, `GET /api/scheduling/bookings` (`upcoming=1`, `status`), `POST /api/scheduling/bookings/:id/cancel`
+- Public booking API (no sign in, limited per IP): `GET /api/book/<slug>?from=&days=` (page and free slots, up to 31 days), `POST /api/book/<slug>` `{ startsAt, name, email, note?, timezone? }` (409 when the slot is gone), `GET /api/book/bookings/:id?t=`, `GET /api/book/bookings/:id/ics?t=`, `POST /api/book/bookings/:id/cancel` `{ token }`
+- Public API: `GET` and `PUT /api/v1/scheduling/availability`, `GET /api/v1/scheduling/bookings`, `POST /api/v1/scheduling/bookings/{id}/cancel`
+- Events: `booking.created`, `booking.cancelled`. MCP: `list_bookings` (registered only when scheduling is on).
+
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.

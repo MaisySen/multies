@@ -1,12 +1,14 @@
 /**
- * Round 11 in the public API (v1): the integrations catalogue and connections, and incoming webhooks.
+ * Round 11 in the public API (v1): the integrations catalogue and connections, incoming
+ * webhooks, and scheduling (only when SCHEDULING_ENABLED=true; otherwise 404).
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { CATALOGUE, connectIntegration, createIncomingHook, deleteIncomingHook, getIncomingHook, listIncomingHooks, listIntegrations, updateIncomingHook } from "../services/suite/integrations";
-import { ConnectBody, HookCreate, HookPatch } from "./suite-r11";
+import { cancelByHost, getMyPage, listBookings, savePage } from "../services/suite/scheduling";
+import { BookingsQuery, ConnectBody, HookCreate, HookPatch, PageBody } from "./suite-r11";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -45,4 +47,16 @@ export function registerSuiteR11Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("delete", "/incoming-hooks/{id}", "Incoming webhooks", "Delete an incoming webhook", "Revokes the URL at once.", { request: { params: Id } }),
     async (c) => send(c, await deleteIncomingHook(c.var.deps, actor(c), pid(c))));
 
+  // ---------------------------------------------------------------- scheduling
+  api.openapi(route("get", "/scheduling/availability", "Scheduling", "Read the booking page", "The key owner's weekly hours, time zone, slot length, buffer, notice and public link. 404 when scheduling is off."),
+    async (c) => send(c, { page: await getMyPage(c.var.deps, actor(c)) }));
+  api.openapi(route("put", "/scheduling/availability", "Scheduling", "Set the booking page", "Body: { slug?, title?, timezone?, hours?: { mon: [[\"09:00\",\"17:00\"]], ... }, slotMin? (15, 30, 45 or 60), bufferMin?, maxDaysAhead?, minNoticeMin?, video?, enabled? }.", { request: body(PageBody) }),
+    async (c) => send(c, { page: await savePage(c.var.deps, actor(c), await jsonBody(c, PageBody)) }));
+  api.openapi(route("get", "/scheduling/bookings", "Scheduling", "List bookings", "Query: upcoming=1, status (confirmed or cancelled), limit. Each booking links its meeting."),
+    async (c) => {
+      const q = BookingsQuery.parse(c.req.query());
+      return send(c, { bookings: await listBookings(c.var.deps, actor(c), { upcoming: q.upcoming === "1" || q.upcoming === "true", status: q.status, limit: q.limit }) });
+    });
+  api.openapi(route("post", "/scheduling/bookings/{id}/cancel", "Scheduling", "Cancel a booking", "Cancels the booking and its meeting, and emails the guest.", { request: { params: Id } }),
+    async (c) => send(c, await cancelByHost(c.var.deps, actor(c), pid(c))));
 }

@@ -8,6 +8,8 @@ export interface AppConfig {
   mode: "production" | "development";
   /** When true, visitors can open a sandbox workspace filled with sample data. */
   demoEnabled: boolean;
+  /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
+  schedulingEnabled: boolean;
   appName: string;
   /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
   supportEmail: string;
@@ -108,6 +110,7 @@ const EnvSchema = z.object({
   APP_URL: z.string().url().optional(),
   APP_SECRET: z.string().optional(),
   DEMO_MODE: z.string().optional(),
+  SCHEDULING_ENABLED: z.string().optional(),
   DNS_RESOLVER: z.enum(["doh", "node"]).optional(),
   MAIL_MX_HOSTS: z.string().optional(),
   MAIL_SPF_INCLUDES: z.string().optional(),
@@ -206,6 +209,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   return {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
+    schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     appName: env.APP_NAME ?? "Multies",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@mymail.au",
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,
