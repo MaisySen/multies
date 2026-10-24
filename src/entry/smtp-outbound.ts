@@ -1,8 +1,8 @@
 /**
- * Outbound mail over SMTP, for self-hosted installs: MyMail hands each message to a
+ * Outbound mail over SMTP, for self-hosted installs: Multies hands each message to a
  * mail server (Stalwart in docker-compose.selfhost.yml) that delivers it. When the
- * sending domain has a DKIM key in MyMail, the message is signed with it, so the DKIM
- * record MyMail shows on the domain page is the one receivers check.
+ * sending domain has a DKIM key in Multies, the message is signed with it, so the DKIM
+ * record Multies shows on the domain page is the one receivers check.
  *
  * Turned on by SMTP_HOST in the Node entry. Nodemailer is MIT-0.
  */

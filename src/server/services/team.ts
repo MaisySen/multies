@@ -1,7 +1,7 @@
 /**
  * Workspace membership on top of Better Auth's organization plugin. Better Auth owns
  * the records and the core rules (invitations, roles, membership); this module adds
- * MyMail's stricter role policy, plan seats and per-mailbox access for members.
+ * Multies' stricter role policy, plan seats and per-mailbox access for members.
  */
 import { cancelForDeletion } from "./billing";
 import { and, count, desc, eq, inArray, max, ne } from "drizzle-orm";

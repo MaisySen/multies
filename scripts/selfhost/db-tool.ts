@@ -1,5 +1,5 @@
 /**
- * Database tool for self-hosted MyMail (SQLite through better-sqlite3).
+ * Database tool for self-hosted Multies (SQLite through better-sqlite3).
  *
  *   node dist/selfhost/db-tool.js import <dump.sql> [db]   load a D1 export, then apply migrations
  *   node dist/selfhost/db-tool.js backup [db] <out.db>      online, consistent copy while the app runs
@@ -33,7 +33,7 @@ function keepOld(dbPath: string) {
   return kept;
 }
 
-/** Loads a `wrangler d1 export` SQL file into a fresh database at dbPath, then runs MyMail's migrations. */
+/** Loads a `wrangler d1 export` SQL file into a fresh database at dbPath, then runs Multies' migrations. */
 export async function importDump(sqlPath: string, dbPath: string): Promise<{ applied: string[]; kept?: string; tables: number }> {
   const sql = cleanD1Dump(readFileSync(sqlPath, "utf8"));
   const tmp = `${dbPath}.importing`;
@@ -56,7 +56,7 @@ export async function importDump(sqlPath: string, dbPath: string): Promise<{ app
   return { applied, kept, tables: summary(dbPath).length };
 }
 
-/** Online backup through SQLite's backup API: safe while MyMail is running. */
+/** Online backup through SQLite's backup API: safe while Multies is running. */
 export async function backup(dbPath: string, outPath: string): Promise<number> {
   const db = new Database(dbPath, { readonly: true, fileMustExist: true });
   try {
@@ -73,7 +73,7 @@ export async function backup(dbPath: string, outPath: string): Promise<number> {
   return statSync(outPath).size;
 }
 
-/** Puts a backup in place of the live database. Stop MyMail first. */
+/** Puts a backup in place of the live database. Stop Multies first. */
 export function restore(inPath: string, dbPath: string): string | undefined {
   const check = new Database(inPath, { readonly: true, fileMustExist: true });
   const ok = (check.pragma("integrity_check", { simple: true }) as string) === "ok";

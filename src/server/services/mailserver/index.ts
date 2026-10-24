@@ -1,6 +1,6 @@
 /**
  * Mail app access (IMAP and SMTP for Outlook, Apple Mail, Thunderbird and phones),
- * served by Stalwart. MyMail provisions a server account per mailbox on first use,
+ * served by Stalwart. Multies provisions a server account per mailbox on first use,
  * and people sign in to their mail apps with app passwords created here.
  */
 import { and, desc, eq } from "drizzle-orm";
@@ -71,7 +71,7 @@ export async function ensureServerAccount(deps: Deps, orgId: string, mailboxId: 
     await client.call([["x:Account/set", { update: { [found]: { credentials: { 0: { "@type": "Password", secret } } } } }, "s"]]);
   }
   const accountId = found ?? await client.createUser({
-    localPart: m.localPart, domainId, secret, quotaBytes: m.quotaMb * 1024 * 1024, description: `MyMail mailbox ${m.id}`,
+    localPart: m.localPart, domainId, secret, quotaBytes: m.quotaMb * 1024 * 1024, description: `Multies mailbox ${m.id}`,
   });
   await deps.db.insert(mailServerAccounts).values({
     mailboxId: m.id, orgId, serverAccountId: accountId, secretEnc: await encryptSecret(deps.config.appSecret, secret),
@@ -92,7 +92,7 @@ export async function listAppPasswords(deps: Deps, auth: AuthContext, mailboxId:
   return rows.map(presentAppPassword);
 }
 
-/** Creates an app password. The secret is returned once and never stored by MyMail. */
+/** Creates an app password. The secret is returned once and never stored by Multies. */
 export async function createAppPassword(deps: Deps, auth: AuthContext, mailboxId: string, name: string) {
   const { m } = await mailboxWithDomain(deps, auth.orgId, mailboxId);
   await assertMailboxAccess(deps.db, auth, mailboxId);
@@ -101,7 +101,7 @@ export async function createAppPassword(deps: Deps, auth: AuthContext, mailboxId
   if (count >= MAX_APP_PASSWORDS_PER_MAILBOX) throw conflict(`A mailbox can have up to ${MAX_APP_PASSWORDS_PER_MAILBOX} app passwords. Revoke one you no longer use.`);
   const client = requireClient(deps);
   const { creds } = await viaMailServer(() => ensureServerAccount(deps, auth.orgId, m.id));
-  const made = await viaMailServer(() => client.createAppPassword(creds, `${name} (MyMail)`));
+  const made = await viaMailServer(() => client.createAppPassword(creds, `${name} (Multies)`));
   const id = newId("apw");
   await deps.db.insert(appPasswords).values({
     id, orgId: auth.orgId, mailboxId: m.id, createdByUserId: auth.userId, name, serverCredentialId: made.id, hint: made.secret.slice(-4),
@@ -147,7 +147,7 @@ export async function syncQuota(deps: Deps, orgId: string, mailboxId: string, qu
 /**
  * Copies an inbound message into the mailbox's server account so mail apps see it.
  * Only for mailboxes that have mail app access turned on. Failures are reported,
- * never bounced: the message is already safely stored in MyMail.
+ * never bounced: the message is already safely stored in Multies.
  */
 export async function mirrorInbound(deps: Deps, mailboxId: string, raw: Uint8Array, opts: { spam?: boolean } = {}) {
   const client = mailServerClient(deps);

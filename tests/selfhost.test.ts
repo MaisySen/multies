@@ -54,7 +54,7 @@ describe("self-host mail bridge", () => {
     expect(raw).toContain("\r\n\r\nHello from the mail bridge.\r\n");
   });
 
-  it("delivers mail Stalwart received into the MyMail inbox and tells Stalwart to keep no copy", async () => {
+  it("delivers mail Stalwart received into the Multies inbox and tells Stalwart to keep no copy", async () => {
     const key = (await c.post("/api/inbound-keys")).body.key;
     const out = await handleHook(hook(), { inboundUrl: "http://localhost/api/inbound/cloudflare", keys: [{ id: key.id, secret: key.secret }], fetch: appFetch });
     expect(out.action).toBe("discard");
@@ -63,7 +63,7 @@ describe("self-host mail bridge", () => {
     expect(list.body.messages[0]).toMatchObject({ subject: "Through Stalwart", from: { address: "grace@navy.mil" } });
   });
 
-  it("tries each workspace's key and rejects unknown recipients with MyMail's reason", async () => {
+  it("tries each workspace's key and rejects unknown recipients with Multies' reason", async () => {
     const other = new Client(ctx.app);
     await other.signup();
     const wrong = (await other.post("/api/inbound-keys")).body.key;
@@ -75,7 +75,7 @@ describe("self-host mail bridge", () => {
     expect(nobody.response?.message).toMatch(/No mailbox/);
   });
 
-  it("asks the sender to retry when MyMail is down or no key is set, and never relays unauthenticated mail", async () => {
+  it("asks the sender to retry when Multies is down or no key is set, and never relays unauthenticated mail", async () => {
     const down = (async () => { throw new Error("connect ECONNREFUSED"); }) as unknown as typeof fetch;
     expect(await handleHook(hook(), { inboundUrl: "http://mymail:8787/api/inbound/cloudflare", keys: [{ id: "k", secret: "s" }], fetch: down })).toMatchObject({ action: "reject", response: { status: 451 } });
     expect(await handleHook(hook(), { inboundUrl: "http://localhost/api/inbound/cloudflare", keys: [], fetch: appFetch })).toMatchObject({ action: "reject", response: { status: 451 } });
@@ -86,7 +86,7 @@ describe("self-host mail bridge", () => {
 });
 
 describe("self-host Stalwart wiring", () => {
-  it("only hooks sessions that are not signed in, and lets only MyMail's account send as others", () => {
+  it("only hooks sessions that are not signed in, and lets only Multies' account send as others", () => {
     const h = hookObject("http://mail-bridge:8025/hook", "t".repeat(30));
     expect(h.enable.match[0].if).toBe("is_empty(authenticated_as)");
     expect(h.tempFailOnError).toBe(true);

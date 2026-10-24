@@ -7,7 +7,7 @@
  * kept for the customers already on them ("legacy"), with their limits unchanged, and
  * are no longer sold.
  *
- * MyMail never pays for AI model calls ("bring your own AI"): the assistant runs on the
+ * Multies never pays for AI model calls ("bring your own AI"): the assistant runs on the
  * workspace's own API key, and people connect Claude, ChatGPT or any agent through MCP.
  */
 export const PRICE_CURRENCY = "aud";
@@ -146,7 +146,7 @@ export const ADDONS: Record<AddonId, Addon> = {
   },
   send_boost: {
     id: "send_boost", name: "Send boost", priceMonthly: 2, unit: "1,000 sends a day",
-    description: "1,000 more recipients a day to addresses outside MyMail.",
+    description: "1,000 more recipients a day to addresses outside Multies.",
     grants: { dailySends: 1000 }, maxQuantity: 20,
   },
   agent_inbox: {

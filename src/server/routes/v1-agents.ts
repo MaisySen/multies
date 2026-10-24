@@ -24,7 +24,7 @@ const body = <T extends z.ZodTypeAny>(schema: T) => ({ body: { required: true, c
 const secured = [{ bearerAuth: [] }];
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" }, example: "agt_k3j2h1g0f9e8d7c6" }) });
 
-const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside MyMail waits. `never`: sends go straight out." });
+const ApprovalMode = z.enum(["always", "external", "never"]).openapi({ description: "`always`: a person approves every send (the default). `external`: only mail to addresses outside Multies waits. `never`: sends go straight out." });
 
 const Agent = z.object({
   id: z.string().openapi({ example: "agt_k3j2h1g0f9e8d7c6" }),

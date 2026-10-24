@@ -15,12 +15,12 @@ function SupportEmail() {
 
 /** Public support page: the support URL given to the App Store and Google Play. */
 export function SupportPage() {
-  useEffect(() => { document.title = "Support | MyMail"; }, []);
+  useEffect(() => { document.title = "Support | Multies"; }, []);
   return (
     <article className="mx-auto max-w-3xl px-5 pb-24 pt-28">
       <p className="text-xs uppercase tracking-wide text-subtle">Help</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">Support</h1>
-      <p className="mt-2 text-muted">Questions about MyMail on the web or the phone app, your account or your mail. A person reads every message.</p>
+      <p className="mt-2 text-muted">Questions about Multies on the web or the phone app, your account or your mail. A person reads every message.</p>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <section className={card} aria-labelledby="s-mail">
           <Mail className="h-5 w-5 text-accent" aria-hidden />
@@ -35,7 +35,7 @@ export function SupportPage() {
         <section className={card} aria-labelledby="s-app">
           <Smartphone className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-app" className="mt-3 font-semibold">The phone app</h2>
-          <p className="mt-1.5 text-[14px] text-muted">Sign in with your MyMail email and password, or tap Explore with sample data to look around first. The app is free and has no purchases.</p>
+          <p className="mt-1.5 text-[14px] text-muted">Sign in with your Multies email and password, or tap Explore with sample data to look around first. The app is free and has no purchases.</p>
         </section>
         <section className={card} aria-labelledby="s-delete">
           <Trash2 className="h-5 w-5 text-accent" aria-hidden />
@@ -52,7 +52,7 @@ export function SupportPage() {
 
 /** Public account deletion page: the deletion URL given to Google Play and Apple. */
 export function DeleteAccountPage() {
-  useEffect(() => { document.title = "Delete your account | MyMail"; }, []);
+  useEffect(() => { document.title = "Delete your account | Multies"; }, []);
   const me = useMe();
   const navigate = useNavigate();
   const [confirm, setConfirm] = useState("");
@@ -79,7 +79,7 @@ export function DeleteAccountPage() {
   return (
     <article className="mx-auto max-w-2xl px-5 pb-24 pt-28">
       <p className="text-xs uppercase tracking-wide text-subtle">Account</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Delete your MyMail account</h1>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight">Delete your Multies account</h1>
       <p className="mt-2 text-muted">You can delete your account at any time, for free. It cannot be undone.</p>
 
       <section aria-labelledby="d-what" className="mt-8">

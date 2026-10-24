@@ -32,8 +32,8 @@ function NotConnected({ missing }: { missing: string[] }) {
       <div className="text-sm">
         <p className="font-medium">This server has no mail server connected yet.</p>
         <p className="mt-1 text-muted">
-          Mail apps connect through Stalwart, an open-source mail server that runs next to MyMail.
-          Whoever runs this MyMail sets {missing.length ? missing.map((m, i) => <span key={m}>{i ? ", " : ""}<code className="font-mono text-[12.5px]">{m}</code></span>) : "the mail server settings"} and this page turns on.
+          Mail apps connect through Stalwart, an open-source mail server that runs next to Multies.
+          Whoever runs this Multies sets {missing.length ? missing.map((m, i) => <span key={m}>{i ? ", " : ""}<code className="font-mono text-[12.5px]">{m}</code></span>) : "the mail server settings"} and this page turns on.
         </p>
         <a className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline" href="https://github.com/MaisySen/mymail/blob/main/docs/mail-server.md" target="_blank" rel="noreferrer">Setup guide</a>
       </div>
@@ -86,7 +86,7 @@ function ServerSettings({ access, username }: { access: MailAccess; username: st
       </div>
       <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-[140px_1fr]">
         <dt className="text-muted">User name</dt><dd className="inline-flex items-center gap-1.5"><code className="font-mono text-[12.5px]">{username}</code><CopyButton value={username} /></dd>
-        <dt className="text-muted">Password</dt><dd>An app password from below. Your MyMail password does not work in mail apps.</dd>
+        <dt className="text-muted">Password</dt><dd>An app password from below. Your Multies password does not work in mail apps.</dd>
       </dl>
     </Section>
   );

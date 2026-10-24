@@ -43,11 +43,11 @@ export async function listGuests(deps: Deps, orgId: string, projectId: string) {
 }
 
 function inviteText(inviter: string, org: string, project: string) {
-  return `${inviter} at ${org} invited you to the project "${project}" on MyMail.\n\nYou can see its tasks, comments and docs, add comments and upload files. You don't need an account and it's free.\n\nThe link works for ${INVITE_DAYS} days and only for you, so please don't forward it.`;
+  return `${inviter} at ${org} invited you to the project "${project}" on Multies.\n\nYou can see its tasks, comments and docs, add comments and upload files. You don't need an account and it's free.\n\nThe link works for ${INVITE_DAYS} days and only for you, so please don't forward it.`;
 }
 
 /**
- * Invites a guest. A person (or a workspace key) sends the invite at once through MyMail's
+ * Invites a guest. A person (or a workspace key) sends the invite at once through Multies'
  * own account mail. An agent's invite is mail that leaves the business, so it goes through
  * that agent's approval rules and waits in the approval queue when they require it.
  */
@@ -80,7 +80,7 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   if (actor.agentId) {
     const { requestSend } = await import("../agents");
     const res = await requestSend(deps, actor as unknown as AuthContext & { agentId: string }, actor.agentId, {
-      to: [email], subject, text: `${inviteText(actor.name, org?.name ?? "MyMail", project.name)}\n\nOpen the project: ${url}\n`,
+      to: [email], subject, text: `${inviteText(actor.name, org?.name ?? "Multies", project.name)}\n\nOpen the project: ${url}\n`,
     });
     if (res.status === "pending_approval") {
       await deps.db.update(projectGuests).set({ approvalId: res.approval.id }).where(eq(projectGuests.id, id));
@@ -89,7 +89,7 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   } else {
     const { sendSystemEmail } = await import("../system-mail");
     const res = await sendSystemEmail(deps, {
-      to: email, subject, text: inviteText(actor.name || actor.email, org?.name ?? "MyMail", project.name),
+      to: email, subject, text: inviteText(actor.name || actor.email, org?.name ?? "Multies", project.name),
       action: { label: "Open the project", url }, template: "guest-invite", orgId: actor.orgId,
     });
     delivery = res.delivered ? { status: "sent" } : { status: "not_sent", detail: res.detail };

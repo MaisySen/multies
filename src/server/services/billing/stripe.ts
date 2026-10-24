@@ -11,7 +11,7 @@ export function stripeClient(secretKey: string, fetchImpl: typeof fetch) {
   return new Stripe(secretKey, {
     httpClient: Stripe.createFetchHttpClient(fetchImpl),
     maxNetworkRetries: 2,
-    appInfo: { name: "MyMail" },
+    appInfo: { name: "Multies" },
   });
 }
 

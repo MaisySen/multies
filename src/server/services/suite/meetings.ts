@@ -1,8 +1,8 @@
 /**
  * Video meetings on LiveKit (Apache 2.0, LiveKit Cloud or self-hosted). A meeting is started
  * from a thread, a task or a contact, gets a guest link (/m/<token>) for people outside the
- * workspace, and its calendar invite (an .ics file) goes out through MyMail's own sending.
- * No recording, notes or transcripts: MyMail never pays for AI. With no LiveKit keys set,
+ * workspace, and its calendar invite (an .ics file) goes out through Multies' own sending.
+ * No recording, notes or transcripts: Multies never pays for AI. With no LiveKit keys set,
  * meetings can still be scheduled and invited, and joining says video is not switched on.
  */
 import { and, desc, eq, gte, isNull } from "drizzle-orm";
@@ -149,7 +149,7 @@ function fold(line: string) {
 export function buildIcs(m: { id: string; title: string; startsAt: Date; durationMin: number; status?: string }, opts: { organizer: { address: string; name?: string | null }; invitees: string[]; guestUrl: string; now: Date; method?: "REQUEST" | "CANCEL"; sequence?: number }) {
   const end = new Date(m.startsAt.getTime() + m.durationMin * 60_000);
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//MyMail//Meetings//EN", "CALSCALE:GREGORIAN", `METHOD:${opts.method ?? "REQUEST"}`,
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Multies//Meetings//EN", "CALSCALE:GREGORIAN", `METHOD:${opts.method ?? "REQUEST"}`,
     "BEGIN:VEVENT", `UID:${m.id}@mymail`, `SEQUENCE:${opts.sequence ?? 0}`, `DTSTAMP:${icsDate(opts.now)}`, `DTSTART:${icsDate(m.startsAt)}`, `DTEND:${icsDate(end)}`,
     `SUMMARY:${icsText(m.title)}`, `LOCATION:${icsText(opts.guestUrl)}`, `URL:${opts.guestUrl}`,
     `DESCRIPTION:${icsText(`Join the video meeting: ${opts.guestUrl}\n\nNo account or app needed. Open the link in a browser.`)}`,
@@ -210,7 +210,7 @@ export async function sendInvites(deps: Deps, actor: SuiteActor, id: string, opt
 
 export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean }) {
   const cfg = deps.config.meetings;
-  if (!cfg) throw new HttpError(503, "meetings_off", "Video meetings aren't switched on for this MyMail yet. The guest link and invite still work once they are.");
+  if (!cfg) throw new HttpError(503, "meetings_off", "Video meetings aren't switched on for this Multies yet. The guest link and invite still work once they are.");
   const { AccessToken } = await import("livekit-server-sdk");
   const at = new AccessToken(cfg.apiKey, cfg.apiSecret, { identity: who.identity, name: who.name, ttl: "6h" });
   at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: who.host });

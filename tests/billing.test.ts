@@ -8,7 +8,7 @@ const STRIPE_ENV = {
   STRIPE_SECRET_KEY: "sk_test_fake", STRIPE_WEBHOOK_SECRET: "whsec_test", STRIPE_PRICE_PRO: "price_pro", STRIPE_PRICE_BUSINESS: "price_biz",
 };
 
-/** A tiny in-memory Stripe: records calls and answers the endpoints MyMail uses. */
+/** A tiny in-memory Stripe: records calls and answers the endpoints Multies uses. */
 function fakeStripe() {
   const calls: { method: string; path: string; body: string }[] = [];
   const subs: Record<string, unknown> = {};
@@ -163,13 +163,13 @@ describe("billing with Stripe", () => {
     expect((await enforceGracePeriods(ctx.deps)).notified).toBe(0);
     expect(notices()).toHaveLength(2);
 
-    const paid = { id: "in_9", number: "MM-0009", customer: "cus_123", amount_paid: 1200, tax: 109, currency: "aud", hosted_invoice_url: "https://invoice.stripe.com/i/9", lines: { data: [{ description: "MyMail Pro", amount: 1200 }] } };
+    const paid = { id: "in_9", number: "MM-0009", customer: "cus_123", amount_paid: 1200, tax: 109, currency: "aud", hosted_invoice_url: "https://invoice.stripe.com/i/9", lines: { data: [{ description: "Multies Pro", amount: 1200 }] } };
     await postWebhook(ctx.app, { id: "evt_p1", type: "invoice.paid", data: { object: paid } }, "whsec_test", new Date(now));
     expect((await ctx.db.query.organizations.findFirst())!.pastDueSince).toBeNull();
     const receipt = ctx.outbound.sent.find((m) => m.subject.startsWith("Receipt MM-0009"))!;
     expect(receipt.html).toContain("Payment received: $12.00");
     expect(receipt.html).toContain("Includes GST");
-    expect(receipt.html).toContain("MyMail Pro");
+    expect(receipt.html).toContain("Multies Pro");
     expect((await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" })).body.error.code).not.toBe("payment_required");
     const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
     expect(audit).toEqual(expect.arrayContaining(["billing.payment_failed", "billing.grace_ended", "billing.recovered", "billing.invoice_paid"]));
@@ -348,7 +348,7 @@ describe("add-ons on one subscription", () => {
     expect(res.body).toEqual({ applied: true, url: null });
     expect((await a.get("/api/billing")).body.limits).toMatchObject({ storageMb: 3072 + 40960, mailboxes: 8 });
     expect((await a.post("/api/billing/addons", { addons: { bogus: 1 } })).status).toBe(400);
-    // The AI assistant add-on is retired: MyMail never sells AI (bring your own AI).
+    // The AI assistant add-on is retired: Multies never sells AI (bring your own AI).
     expect((await a.post("/api/billing/addons", { addons: { ai: 1 } })).status).toBe(400);
   });
 });

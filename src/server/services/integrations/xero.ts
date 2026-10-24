@@ -17,7 +17,7 @@ const SCOPES = "openid profile email offline_access accounting.transactions.read
 interface Tokens { access_token: string; refresh_token: string; expires_in: number }
 
 function client(deps: Deps) {
-  if (!deps.config.xero) throw new HttpError(404, "xero_off", "Xero isn't set up on this MyMail.");
+  if (!deps.config.xero) throw new HttpError(404, "xero_off", "Xero isn't set up on this Multies.");
   return deps.config.xero;
 }
 

@@ -27,7 +27,7 @@ export async function domainHealth(deps: Deps, orgId: string, d: typeof domains.
     const points = status === "good" ? max : status === "warn" ? Math.round(max / 2) : 0;
     factors.push({ id, label, max, points, status, detail: !r ? "Not checked yet." : status === "good" ? okText : (r.message ?? "Fix this record on the domain page.") });
   };
-  dnsFactor("mx", "MX records", 15, "Inbound mail is routed to MyMail.");
+  dnsFactor("mx", "MX records", 15, "Inbound mail is routed to Multies.");
   dnsFactor("spf", "SPF", 15, "Your sending services are authorized.");
   dnsFactor("dkim", "DKIM", 20, "Messages are signed with your key.");
   dnsFactor("dmarc", "DMARC record", 10, "A DMARC policy is published.");

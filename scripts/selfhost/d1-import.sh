@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Moves data across from Cloudflare D1 into this computer's MyMail.
+# Moves data across from Cloudflare D1 into this computer's Multies.
 #   scripts/selfhost/d1-import.sh                     production (D1 "mymail-au")
 #   scripts/selfhost/d1-import.sh mymail-staging --env staging
 #   scripts/selfhost/d1-import.sh --sql import/file.sql   (an export you already have)
 # Needs CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID in .env (D1 read access); remove them afterwards.
-# MyMail stops while the import runs; the old database is kept as /data/mymail.db.before-<time>.
+# Multies stops while the import runs; the old database is kept as /data/mymail.db.before-<time>.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 DC=(docker compose -f docker-compose.selfhost.yml)

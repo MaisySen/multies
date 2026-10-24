@@ -21,7 +21,7 @@ export interface SystemEmail {
 }
 
 export interface SystemEmailResult {
-  /** True when the email reached a real inbox (a MyMail mailbox or an external provider). */
+  /** True when the email reached a real inbox (a Multies mailbox or an external provider). */
   delivered: boolean;
   via: "internal" | "provider" | "none";
   detail?: string;

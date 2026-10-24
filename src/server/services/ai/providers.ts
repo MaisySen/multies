@@ -1,6 +1,6 @@
 /**
  * "Bring your own AI": the model providers a workspace can plug its own API key into.
- * MyMail never pays for model calls. OpenAI, OpenRouter and Groq share the OpenAI chat
+ * Multies never pays for model calls. OpenAI, OpenRouter and Groq share the OpenAI chat
  * completions format; Anthropic uses its Messages API.
  */
 export const AI_PROVIDERS = ["openai", "anthropic", "openrouter", "groq"] as const;

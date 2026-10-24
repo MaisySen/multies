@@ -4,7 +4,7 @@
  * roles and invitations, session management, platform admin, and social / OIDC sign-in
  * (Google, GitHub, Auth0) that switches on when its keys are configured.
  *
- * MyMail adds only product glue: its own ID format, its email pipeline for auth
+ * Multies adds only product glue: its own ID format, its email pipeline for auth
  * emails, plan-based seat limits, per-mailbox access for invited members, and the
  * PBKDF2 password hash (WebCrypto-native, so it is fast on Workers; existing users'
  * hashes keep working).

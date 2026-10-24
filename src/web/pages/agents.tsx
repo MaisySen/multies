@@ -52,7 +52,7 @@ const MCP: Record<string, { label: string; code: string; note: string }> = {
   --header "Authorization: Bearer mm_live_YOUR_AGENT_KEY"`,
   },
   claudeDesktop: {
-    label: "Claude Desktop", note: "Settings, Developer, Edit Config. Claude Desktop's connectors sign in with OAuth, which MyMail doesn't offer yet, so this uses the mcp-remote bridge.",
+    label: "Claude Desktop", note: "Settings, Developer, Edit Config. Claude Desktop's connectors sign in with OAuth, which Multies doesn't offer yet, so this uses the mcp-remote bridge.",
     code: JSON.stringify({ mcpServers: { mymail: { command: "npx", args: ["-y", "mcp-remote", `${BASE}/api/v1/mcp`, "--header", "Authorization:${MYMAIL_AUTH}"], env: { MYMAIL_AUTH: "Bearer mm_live_YOUR_AGENT_KEY" } } } }, null, 2),
   },
   cursor: {
@@ -60,7 +60,7 @@ const MCP: Record<string, { label: string; code: string; note: string }> = {
     code: JSON.stringify({ mcpServers: { mymail: { url: `${BASE}/api/v1/mcp`, headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" } } } }, null, 2),
   },
   openai: {
-    label: "ChatGPT / OpenAI API", note: "ChatGPT's connectors need OAuth, which MyMail doesn't offer yet. With the OpenAI API, use the remote MCP tool with a header.",
+    label: "ChatGPT / OpenAI API", note: "ChatGPT's connectors need OAuth, which Multies doesn't offer yet. With the OpenAI API, use the remote MCP tool with a header.",
     code: `const response = await openai.responses.create({
   model: "gpt-5",
   tools: [{
@@ -148,7 +148,7 @@ data: {"type":"message.received","data":{"subject":"Your code",
 
       <section className="mx-auto max-w-5xl px-5 py-20" aria-labelledby="mcp">
         <h2 id="mcp" className="text-2xl font-semibold tracking-tight sm:text-3xl">Connect with MCP</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">MyMail's MCP server runs at <code className="font-mono text-fg">{BASE}/api/v1/mcp</code> (Streamable HTTP). Use an agent key and the client acts as that agent, inside its guardrails.</p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Multies' MCP server runs at <code className="font-mono text-fg">{BASE}/api/v1/mcp</code> (Streamable HTTP). Use an agent key and the client acts as that agent, inside its guardrails.</p>
         <div className="mt-6 flex flex-wrap gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="MCP clients">
           {Object.entries(MCP).map(([id, m]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id as keyof typeof MCP)}

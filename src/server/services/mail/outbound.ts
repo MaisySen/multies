@@ -68,7 +68,7 @@ export class LogOutbound implements OutboundProvider {
 const NEEDS_DOMAIN = /verify a domain|domain is not verified|testing emails to your own email/i;
 
 export const NEEDS_DOMAIN_DETAIL =
-  "Held: the email provider only delivers to outside addresses once the sending domain is verified with it. Mail inside MyMail is unaffected.";
+  "Held: the email provider only delivers to outside addresses once the sending domain is verified with it. Mail inside Multies is unaffected.";
 
 /** Outbound through Resend's official SDK. */
 export class ResendOutbound implements OutboundProvider {

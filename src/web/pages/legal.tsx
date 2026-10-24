@@ -23,7 +23,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
   const params = useParams();
   const slug = (fixed ?? params.slug) as LegalSlug;
   const doc = LEGAL_DOCS[slug];
-  useEffect(() => { if (doc) document.title = `${doc.title} | MyMail`; }, [doc]);
+  useEffect(() => { if (doc) document.title = `${doc.title} | Multies`; }, [doc]);
   if (!doc) return <NotFound />;
   return (
     <article className="mx-auto max-w-3xl px-5 pb-24 pt-28">
@@ -33,7 +33,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
       <p className="mt-1 text-xs text-subtle">Last updated {LEGAL_UPDATED}</p>
       <div role="note" className="mt-6 flex gap-2.5 rounded-lg border border-warn/30 bg-warn/5 px-3.5 py-3 text-[13px] text-warn">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <span>Draft for review by an Australian lawyer before launch. It describes how MyMail works today, but it is not yet legal advice or a final agreement.</span>
+        <span>Draft for review by an Australian lawyer before launch. It describes how Multies works today, but it is not yet legal advice or a final agreement.</span>
       </div>
       <nav aria-label="On this page" className="mt-8 rounded-lg border border-line p-4 text-sm">
         <ol className="grid gap-1.5 sm:grid-cols-2">

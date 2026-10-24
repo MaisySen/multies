@@ -1,4 +1,4 @@
-# MyMail on Cloudflare Workers + D1, in two environments:
+# Multies on Cloudflare Workers + D1, in two environments:
 #
 #   production  (top level)      https://mymail.mymail-app.workers.dev
 #   staging     ([env.staging])  https://mymail-staging.mymail-app.workers.dev
@@ -39,7 +39,7 @@ binding = "ASSETS"
 not_found_handling = "none"
 run_worker_first = ["/api/*", "/.well-known/*"]
 
-# No Workers AI binding: MyMail never pays for AI model calls. The assistant runs on each
+# No Workers AI binding: Multies never pays for AI model calls. The assistant runs on each
 # workspace's own API key (bring your own AI), and agents connect through MCP.
 
 [[d1_databases]]

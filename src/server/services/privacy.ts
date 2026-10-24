@@ -20,7 +20,7 @@ const PAGE = 200;
 const enc = new TextEncoder();
 const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : null);
 
-/** Everything MyMail holds about one person, outside the mail of their workspaces. */
+/** Everything Multies holds about one person, outside the mail of their workspaces. */
 export async function personalData(deps: Deps, userId: string) {
   const { db } = deps;
   const u = await db.select().from(users).where(eq(users.id, userId)).get();

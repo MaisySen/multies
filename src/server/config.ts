@@ -203,7 +203,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   return {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
-    appName: env.APP_NAME ?? "MyMail",
+    appName: env.APP_NAME ?? "Multies",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@mymail.au",
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,
     appUrl: (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, ""),
@@ -248,7 +248,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     },
     systemFrom: {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
-      name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "MyMail",
+      name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "Multies",
     },
     agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },

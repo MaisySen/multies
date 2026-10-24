@@ -1,12 +1,12 @@
 /**
  * A small client for Stalwart's management and mail APIs (JMAP over HTTP, v0.16+).
- * Stalwart is the open-source mail server MyMail uses for IMAP and SMTP access
+ * Stalwart is the open-source mail server Multies uses for IMAP and SMTP access
  * (Outlook, Apple Mail, Thunderbird, phones). Everything here is plain fetch, so it
  * runs on Workers and Node alike.
  *
  * Admin calls use the provisioner account. App passwords are a per-account object
  * in Stalwart that only the account itself may create, so those calls authenticate
- * as the mailbox's own server account with the secret MyMail keeps for it.
+ * as the mailbox's own server account with the secret Multies keeps for it.
  */
 
 const CORE = "urn:ietf:params:jmap:core";

@@ -39,7 +39,7 @@ export function captureError(err: unknown) {
 /** Sends one test event and waits for it to leave the browser. Returns the event id. */
 export async function sendSentryTest() {
   if (!sdk) return null;
-  const id = sdk.captureException(new Error(`MyMail web test event (${new Date().toISOString()})`));
+  const id = sdk.captureException(new Error(`Multies web test event (${new Date().toISOString()})`));
   await sdk.flush(3000);
   return id;
 }

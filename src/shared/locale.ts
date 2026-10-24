@@ -1,4 +1,4 @@
-/** Regional defaults. MyMail is run from Sydney, so new workspaces start in Australia. */
+/** Regional defaults. Multies is run from Sydney, so new workspaces start in Australia. */
 export const LOCALE = "en-AU";
 export const DEFAULT_TIMEZONE = "Australia/Sydney";
 export const DEFAULT_COUNTRY = "AU";

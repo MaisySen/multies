@@ -1,5 +1,5 @@
 /**
- * The MCP server: MyMail's agent tools for Claude, ChatGPT, Cursor and any MCP client.
+ * The MCP server: Multies' agent tools for Claude, ChatGPT, Cursor and any MCP client.
  * Streamable HTTP, stateless: each request builds a server bound to the caller's API key,
  * so an agent key only ever sees and sends as its own agent.
  */
@@ -48,10 +48,10 @@ function tool<A>(fn: (args: A) => Promise<unknown>) {
 }
 
 export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
-  const server = new McpServer({ name: "mymail", title: "MyMail", version: deps.config.release, websiteUrl: origin },
+  const server = new McpServer({ name: "mymail", title: "Multies", version: deps.config.release, websiteUrl: origin },
     { jsonSchemaValidator: new CfWorkerJsonSchemaValidator(), instructions: actor.agentId
-      ? "You are connected as one MyMail agent inbox. Read threads, search, send or reply as this agent, and pick up tasks assigned to you (next_task), comment on them and mark them done. Sends may wait for a person to approve them; the result says so."
-      : "You are connected to a MyMail workspace. List inboxes, read and search mail, create agent inboxes, send or reply as an agent (pass agentId), and work with tasks, projects, docs and contacts." });
+      ? "You are connected as one Multies agent inbox. Read threads, search, send or reply as this agent, and pick up tasks assigned to you (next_task), comment on them and mark them done. Sends may wait for a person to approve them; the result says so."
+      : "You are connected to a Multies workspace. List inboxes, read and search mail, create agent inboxes, send or reply as an agent (pass agentId), and work with tasks, projects, docs and contacts." });
   const writable = () => { if (actor.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read."); };
   const agentFor = async (agentId?: string) => {
     const id = actor.agentId ?? agentId;

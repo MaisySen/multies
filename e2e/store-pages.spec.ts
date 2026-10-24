@@ -9,7 +9,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test("the support, privacy, terms and deletion pages are public", async ({ page }) => {
-  for (const [path, heading] of [["/support", "Support"], ["/privacy", "Privacy"], ["/terms", "Terms"], ["/delete-account", "Delete your MyMail account"]] as const) {
+  for (const [path, heading] of [["/support", "Support"], ["/privacy", "Privacy"], ["/terms", "Terms"], ["/delete-account", "Delete your Multies account"]] as const) {
     const res = await page.goto(path);
     expect(res?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toContainText(heading);

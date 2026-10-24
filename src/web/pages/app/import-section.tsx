@@ -68,7 +68,7 @@ export function ImportSection() {
 
 interface XeroInfo { configured: boolean; connected: boolean; tenantName?: string | null }
 
-/** Xero, when this MyMail has it set up: connect to chase unpaid invoices from the reminder dialog. */
+/** Xero, when this Multies has it set up: connect to chase unpaid invoices from the reminder dialog. */
 export function XeroSection() {
   const me = useMe();
   const qc = useQueryClient();
@@ -77,7 +77,7 @@ export function XeroSection() {
   if (!info.data?.configured) return null;
   const isAdmin = me.data?.organization?.role !== "member";
   return (
-    <Section id="xero" title="Xero" description="See unpaid invoices when you write a reminder. MyMail only reads invoices and contacts.">
+    <Section id="xero" title="Xero" description="See unpaid invoices when you write a reminder. Multies only reads invoices and contacts.">
       {info.data.connected ? (
         <div className="flex flex-wrap items-center gap-3 text-sm"><Badge tone="ok" dot>Connected</Badge><span>{info.data.tenantName}</span>
           {isAdmin && <Button size="sm" variant="ghost" loading={off.isPending} onClick={() => off.mutate()}>Disconnect</Button>}</div>

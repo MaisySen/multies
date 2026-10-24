@@ -135,7 +135,7 @@ const PLATFORM_ORG = "org_platform";
 async function ensureSharedDomain(deps: Deps, name: string) {
   const existing = await deps.db.select().from(domains).where(eq(domains.name, name)).get();
   if (existing) return existing;
-  await deps.db.insert(organizations).values({ id: PLATFORM_ORG, name: "MyMail platform", slug: "mymail-platform" }).onConflictDoNothing();
+  await deps.db.insert(organizations).values({ id: PLATFORM_ORG, name: "Multies platform", slug: "mymail-platform" }).onConflictDoNothing();
   const { createDomain } = await import("../domains");
   return createDomain(deps, PLATFORM_ORG, name);
 }

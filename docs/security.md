@@ -1,6 +1,6 @@
 # Security
 
-How MyMail protects accounts, mail and keys. The disclosure policy is in [SECURITY.md](../SECURITY.md). Controls map to the OWASP Application Security Verification Standard (ASVS) 4.0, level 2.
+How Multies protects accounts, mail and keys. The disclosure policy is in [SECURITY.md](../SECURITY.md). Controls map to the OWASP Application Security Verification Standard (ASVS) 4.0, level 2.
 
 ## Headers and Content Security Policy
 
@@ -14,7 +14,7 @@ One module, `src/server/lib/security-headers.ts`, builds every security header. 
 | `X-Frame-Options` | `DENY` | No framing (clickjacking). |
 | `X-Content-Type-Options` | `nosniff` | No MIME sniffing. |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | No paths or tokens leak to other sites. |
-| `Permissions-Policy` | camera, microphone, geolocation and others off | Nothing in MyMail needs them. |
+| `Permissions-Policy` | camera, microphone, geolocation and others off | Nothing in Multies needs them. |
 | `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` | `same-origin` | Process isolation. |
 
 `style-src` allows inline styles because React sets style attributes and email bodies render in a sandboxed `srcdoc` iframe that inherits the page policy. `img-src` allows `https:` so a reader can opt in to remote images; the iframe adds its own policy that blocks them until then. The API reference page (Scalar) has a separate policy that allows its renderer from jsDelivr; it holds no user data.
@@ -24,7 +24,7 @@ One module, `src/server/lib/security-headers.ts`, builds every security header. 
 Review, 2026-10-23:
 
 - Session cookies are `HttpOnly`, `Secure` in production and `SameSite=Lax`, set by Better Auth.
-- Every state-changing call under `/api` that uses cookies must be JSON (`content-type: application/json`). A cross-site HTML form cannot send that without a CORS preflight, and MyMail answers no preflights. See `csrfGuard` in `src/server/middleware.ts`.
+- Every state-changing call under `/api` that uses cookies must be JSON (`content-type: application/json`). A cross-site HTML form cannot send that without a CORS preflight, and Multies answers no preflights. See `csrfGuard` in `src/server/middleware.ts`.
 - When the browser sends `Origin`, it must match the host. Cross-site requests get `403 bad_origin`. The smoke test checks this on every deploy.
 - Better Auth checks the request origin against the app URL on its own endpoints.
 - Routes that skip the guard never use cookies: signed provider webhooks (`/api/webhooks/*`, `/api/inbound/*`) and the API key REST API (`/api/v1/*`).

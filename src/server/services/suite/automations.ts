@@ -1,5 +1,5 @@
 /**
- * Automations: simple "when this happens, do that" rules. They run inside MyMail with no
+ * Automations: simple "when this happens, do that" rules. They run inside Multies with no
  * AI and never send outside the business: the actions are making a task and notifying a
  * teammate. Runs count against the plan's monthly allowance.
  */

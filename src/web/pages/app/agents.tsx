@@ -23,7 +23,7 @@ interface AuditRow { id: string; action: string; actorEmail: string | null; targ
 
 export const APPROVAL_LABEL: Record<AgentInfo["approvalMode"], string> = {
   always: "Approve every send",
-  external: "Approve mail leaving MyMail",
+  external: "Approve mail leaving Multies",
   never: "Sends without approval",
 };
 
@@ -207,7 +207,7 @@ export function AgentDetailPage() {
             <ol className="mt-3 space-y-2.5 text-sm">
               {audit.isPending ? <Skeleton className="h-16" /> : !audit.data?.length ? <li className="text-muted">Nothing yet.</li> : audit.data.slice(0, 40).map((e) => (
                 <li key={e.id} className="flex items-start justify-between gap-3">
-                  <span className="min-w-0"><span className="text-muted">{e.actorEmail?.startsWith("agent:") ? a.name : e.actorEmail ?? "MyMail"}</span> {auditLabel(e.action)}
+                  <span className="min-w-0"><span className="text-muted">{e.actorEmail?.startsWith("agent:") ? a.name : e.actorEmail ?? "Multies"}</span> {auditLabel(e.action)}
                     {typeof e.metadata?.subject === "string" && <span className="text-subtle"> "{e.metadata.subject}"</span>}</span>
                   <time className="shrink-0 text-xs text-subtle" dateTime={e.createdAt}>{timeAgo(e.createdAt)}</time>
                 </li>

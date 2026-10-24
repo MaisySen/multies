@@ -18,7 +18,7 @@ import { AccountSection, Section } from "./settings";
 /** Privacy rights (APP 12, GDPR Articles 15 and 20): a copy of everything held about you. */
 function YourDataSection() {
   return (
-    <Section title="Your data" description="Download a copy of what MyMail holds about you: profile, sign-in methods, devices, workspaces and your activity, as JSON. To delete your account, use Delete account above.">
+    <Section title="Your data" description="Download a copy of what Multies holds about you: profile, sign-in methods, devices, workspaces and your activity, as JSON. To delete your account, use Delete account above.">
       <div className="flex flex-wrap items-center gap-3">
         <a href="/api/account/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
           <Download className="h-4 w-4" aria-hidden />Download my data
@@ -95,7 +95,7 @@ function ProfileSection() {
 function RecoveryCodes({ codes }: { codes: string[] }) {
   const text = codes.join("\n");
   const download = () => {
-    const url = URL.createObjectURL(new Blob([`MyMail backup codes\nEach code works once.\n\n${text}\n`], { type: "text/plain" }));
+    const url = URL.createObjectURL(new Blob([`Multies backup codes\nEach code works once.\n\n${text}\n`], { type: "text/plain" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: "mymail-backup-codes.txt" });
     a.click();
     URL.revokeObjectURL(url);

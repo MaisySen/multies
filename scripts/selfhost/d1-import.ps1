@@ -1,4 +1,4 @@
-# Moves data across from Cloudflare D1 into this computer's MyMail (see d1-import.sh for details).
+# Moves data across from Cloudflare D1 into this computer's Multies (see d1-import.sh for details).
 #   powershell -ExecutionPolicy Bypass -File scripts\selfhost\d1-import.ps1                       production (mymail-au)
 #   powershell -ExecutionPolicy Bypass -File scripts\selfhost\d1-import.ps1 -Database mymail-staging -Staging
 #   powershell -ExecutionPolicy Bypass -File scripts\selfhost\d1-import.ps1 -Sql import\file.sql

@@ -1,4 +1,4 @@
-# MyMail
+# Multies
 
 **Email for your team and your AI agents, on your own domain. Free for startups and small
 businesses.** Add a domain, publish DNS records that check themselves live, create mailboxes for
@@ -22,7 +22,7 @@ Tap *Try the live demo* for a private sample workspace, or sign up and add a rea
 | **Contacts and deals** | Contacts and companies built from mail as it arrives and is sent (robot senders and your own domains skipped, free mail domains get no company), backfilled once from existing mail, each with a timeline of threads, tasks and deals. A simple pipeline board in AUD. |
 | **Automations** | Rules with no AI cost: mail from a sender or with a subject word makes a task, a status change notifies someone, a reminder before a task is due. Runs counted per month by plan. |
 | **Push** | Device registration for the mobile app and Expo push for new mail, approvals and task events, behind `PUSH_ENABLED`. The payload carries only an event type and an id. |
-| **AI assistant** | Bring your own AI: MyMail never pays for model calls. Summaries, drafted replies and sorting run only on the workspace's own OpenAI, Anthropic, OpenRouter or Groq key (Settings, encrypted at rest with APP_SECRET); without one, the app points people to connecting Claude, ChatGPT or any agent through the MCP server. No Workers AI binding and no metering. Invoice reminders come from a template and need no key. Xero (behind config) for unpaid invoices. |
+| **AI assistant** | Bring your own AI: Multies never pays for model calls. Summaries, drafted replies and sorting run only on the workspace's own OpenAI, Anthropic, OpenRouter or Groq key (Settings, encrypted at rest with APP_SECRET); without one, the app points people to connecting Claude, ChatGPT or any agent through the MCP server. No Workers AI binding and no metering. Invoice reminders come from a template and need no key. Xero (behind config) for unpaid invoices. |
 | **Import** | Gmail, Outlook and IMAP import through a runner you host ([`deploy/import-runner`](deploy/import-runner/README.md)), behind `IMPORT_RUNNER_TOKEN`. |
 | **Workspaces** | Isolated tenants with owner, admin and member roles, invitations, per mailbox access, SSO enforcement (Business), audit log with CSV export. |
 | **Domains** | Per domain DKIM keys (encrypted at rest), generated MX, SPF, DKIM and DMARC records, live DNS verification over DNS over HTTPS with specific fixes. |
@@ -129,7 +129,7 @@ keeps dependencies current, and `backup.yml` takes nightly encrypted database ba
 
 ## Run it on your own computer
 
-The whole of MyMail (web app, API, database, and a real mail server for sending and receiving)
+The whole of Multies (web app, API, database, and a real mail server for sending and receiving)
 runs on one Windows, macOS or Linux computer with Docker:
 
 ```sh
@@ -182,12 +182,12 @@ and complaint rate. On the Node server, inbound mail is checked with mailauth (D
 the Workers build keeps the verdicts Cloudflare Email Routing writes. Set `RESEND_WEBHOOK_SECRET` to
 the endpoint's signing secret from Resend.
 
-**Mail apps (IMAP and SMTP)**: MyMail drives a Stalwart mail server for Outlook, Apple Mail and
+**Mail apps (IMAP and SMTP)**: Multies drives a Stalwart mail server for Outlook, Apple Mail and
 phones. `docker compose up` runs both; see [`docs/mail-server.md`](docs/mail-server.md).
 
 ## Making real mail flow
 
-1. **A domain** you control, added in MyMail.
+1. **A domain** you control, added in Multies.
 2. **Inbound:** put the domain on Cloudflare (free), enable *Email Routing*, deploy `email-worker/`
    with a key from *Settings → Inbound*, and route the catch-all to the worker. Full steps in
    [`email-worker/README.md`](email-worker/README.md).
@@ -230,5 +230,5 @@ untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/secu
 - R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then.
 - Legal pages are drafts for review by an Australian lawyer.
 - Mail is not hosted in Australia yet: D1 is placed in Cloudflare's Oceania region by a hint. `deploy/au` is the groundwork for a Sydney VPS.
-- ChatGPT and Claude Desktop custom connectors need OAuth, which MyMail doesn't offer yet; the docs use API key headers (Claude Code, Cursor, OpenAI API) and the mcp-remote bridge.
+- ChatGPT and Claude Desktop custom connectors need OAuth, which Multies doesn't offer yet; the docs use API key headers (Claude Code, Cursor, OpenAI API) and the mcp-remote bridge.
 - A domain can belong to one workspace; claiming a squatted domain is manual.

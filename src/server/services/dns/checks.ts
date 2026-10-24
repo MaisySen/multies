@@ -85,7 +85,7 @@ async function checkMx(dns: DnsResolver, d: DomainDnsInput, config: AppConfig): 
     return { id: "mx", status: "fail", found, message: `Missing MX ${missing.length === 1 ? "host" : "hosts"}: ${missing.join(", ")}.` };
   }
   if (extra.length) {
-    return { id: "mx", status: "warn", found, message: `Other MX hosts are also published (${extra.join(", ")}). Remove them so all mail reaches MyMail.` };
+    return { id: "mx", status: "warn", found, message: `Other MX hosts are also published (${extra.join(", ")}). Remove them so all mail reaches Multies.` };
   }
   return { id: "mx", status: "pass", found, message: "Inbound mail is routed correctly." };
 }

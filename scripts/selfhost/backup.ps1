@@ -1,4 +1,4 @@
-# Backs up MyMail's database (online), Stalwart's data and .env into backups\mymail-backup-<time>.tar.gz.
+# Backs up Multies' database (online), Stalwart's data and .env into backups\mymail-backup-<time>.tar.gz.
 # The archive holds your mail and your secrets: keep it somewhere safe.
 #   powershell -ExecutionPolicy Bypass -File scripts\selfhost\backup.ps1
 $ErrorActionPreference = "Stop"

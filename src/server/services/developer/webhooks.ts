@@ -250,7 +250,7 @@ export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent, d
 export async function sendTestEvent(deps: Deps, orgId: string, endpointId: string) {
   const e = await endpointInOrg(deps, orgId, endpointId);
   const id = newId("msg");
-  const payload = JSON.stringify({ type: "webhook.test", timestamp: deps.now().toISOString(), data: { message: "Test event from MyMail. If you can read this, your endpoint works." } });
+  const payload = JSON.stringify({ type: "webhook.test", timestamp: deps.now().toISOString(), data: { message: "Test event from Multies. If you can read this, your endpoint works." } });
   await deps.db.insert(webhookDeliveries).values({ id, orgId, endpointId: e.id, eventType: "webhook.test", payload, nextAttemptAt: deps.now() });
   await attempt(deps, id);
   return (await listDeliveries(deps, orgId, e.id, 1))[0];

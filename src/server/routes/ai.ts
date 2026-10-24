@@ -14,7 +14,7 @@ const KeyInput = z.object({
 
 /**
  * The AI assistant in the app. It runs on the workspace's own AI key (bring your own AI);
- * MyMail never pays for model calls. Admins add, change or remove the key.
+ * Multies never pays for model calls. Admins add, change or remove the key.
  */
 export function aiRoutes() {
   return new Hono<AppEnv>()

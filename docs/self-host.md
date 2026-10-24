@@ -1,6 +1,6 @@
-# Run MyMail on your own computer
+# Run Multies on your own computer
 
-This guide sets up the whole of MyMail on one computer you control: the web app, the API,
+This guide sets up the whole of Multies on one computer you control: the web app, the API,
 the database, and a real mail server for sending and receiving email. It works on Windows,
 macOS and Linux, and the same setup moves to a small server later without changes.
 
@@ -8,9 +8,9 @@ What runs, each in its own container:
 
 | Container | What it does |
 |---|---|
-| `mymail` | The MyMail web app and API. Data lives in one SQLite file on the `mymail-data` volume. |
+| `mymail` | The Multies web app and API. Data lives in one SQLite file on the `mymail-data` volume. |
 | `stalwart` | [Stalwart](https://stalw.art), an open-source mail server, unmodified. It receives mail from the internet (port 25), sends mail out, and serves mail apps (IMAP 993, SMTP 465 and 587). |
-| `mail-bridge` | Hands mail that Stalwart receives to MyMail, the same way the Cloudflare Email Worker does in the hosted version. |
+| `mail-bridge` | Hands mail that Stalwart receives to Multies, the same way the Cloudflare Email Worker does in the hosted version. |
 
 On this computer alone (no domain yet) you can sign up, use every feature, and send mail between
 your own mailboxes. To receive mail from the outside world you need a domain pointed at the
@@ -79,8 +79,8 @@ The script:
 
 1. creates `.env` from `.env.example` and fills every secret with a strong random value
    (it never overwrites a value you already set, so it is safe to run again);
-2. builds the MyMail image (a few minutes the first time);
-3. starts Stalwart in its setup mode, connects it to MyMail, then restarts it normally;
+2. builds the Multies image (a few minutes the first time);
+3. starts Stalwart in its setup mode, connects it to Multies, then restarts it normally;
 4. starts everything.
 
 Open <http://localhost:8787> and create your account. The first account on a new install is
@@ -91,9 +91,9 @@ secure sign-in cookie without HTTPS; it works once a domain with HTTPS is set up
 
 ### Turn on incoming mail
 
-Mail arriving at Stalwart is handed to MyMail with an inbound key, the same as on Cloudflare:
+Mail arriving at Stalwart is handed to Multies with an inbound key, the same as on Cloudflare:
 
-1. In MyMail, open Settings, Inbound, and create a key. Copy the key id and the secret.
+1. In Multies, open Settings, Inbound, and create a key. Copy the key id and the secret.
 2. In `.env`, set `MYMAIL_INBOUND_KEYS=<key id>:<secret>` (more workspaces: comma separated).
 3. Run `docker compose -f docker-compose.selfhost.yml up -d mail-bridge`.
 
@@ -106,13 +106,13 @@ docker compose -f docker-compose.selfhost.yml ps          # what is running
 docker compose -f docker-compose.selfhost.yml logs -f     # live logs
 docker compose -f docker-compose.selfhost.yml stop        # stop (data is kept)
 docker compose -f docker-compose.selfhost.yml up -d       # start again
-git pull && docker compose -f docker-compose.selfhost.yml up -d --build   # update to the latest MyMail
+git pull && docker compose -f docker-compose.selfhost.yml up -d --build   # update to the latest Multies
 ```
 
 Docker Desktop starts the containers again after a restart of the computer, as long as Docker
 Desktop itself starts with the computer (Settings, General).
 
-## 4. Moving your data across from the hosted MyMail
+## 4. Moving your data across from the hosted Multies
 
 This copies the hosted database (Cloudflare D1) into this computer. The hosted copy is only read,
 never changed.
@@ -127,8 +127,8 @@ never changed.
    scripts/selfhost/d1-import.sh                  # Windows: ...\d1-import.ps1
    ```
 
-   It exports the production database (`mymail-au`), stops MyMail, loads the export, applies any
-   database migrations this version needs, and starts MyMail again. Cloudflare pauses the hosted
+   It exports the production database (`mymail-au`), stops Multies, loads the export, applies any
+   database migrations this version needs, and starts Multies again. Cloudflare pauses the hosted
    database while it writes the export (seconds for a small business), so run it at a quiet time. The database it replaces is kept
    on the volume as `mymail.db.before-<time>`.
 4. Copy `APP_SECRET` from the hosted install into `.env` before starting, otherwise saved secrets
@@ -150,7 +150,7 @@ scripts/selfhost/backup.sh                       # Windows: ...\backup.ps1
 
 This writes `backups/mymail-backup-<time>.tar.gz` with:
 
-- a consistent copy of the MyMail database, taken while MyMail keeps running;
+- a consistent copy of the Multies database, taken while Multies keeps running;
 - Stalwart's data (it pauses for a few seconds; sending servers retry, so no mail is lost);
 - your `.env`, because the secrets in it are needed to read the backup.
 
@@ -164,7 +164,7 @@ To restore:
 scripts/selfhost/restore.sh backups/mymail-backup-<time>.tar.gz
 ```
 
-It stops MyMail and Stalwart, puts both back, and starts them again. The database it replaces is
+It stops Multies and Stalwart, puts both back, and starts them again. The database it replaces is
 kept as `mymail.db.before-<time>`.
 
 ## Pointing a domain at it
@@ -191,7 +191,7 @@ Many home internet providers block port 25, both in and out, to stop spam. Witho
 servers cannot deliver to you and Stalwart cannot deliver to them. Ask your provider whether a
 business plan or a static IP unblocks it. If not, either:
 
-- send through a relay: set `RESEND_API_KEY` in `.env` so MyMail sends through Resend instead of
+- send through a relay: set `RESEND_API_KEY` in `.env` so Multies sends through Resend instead of
   Stalwart, or set a relay (smarthost) in Stalwart's admin under the MTA outbound routing settings; or
 - run the whole stack on a small virtual server (1 to 2 GB of memory is enough) with port 25 open,
   using exactly the same steps. Check with the provider that port 25 is open on your plan; some
@@ -209,7 +209,7 @@ public IP is `203.0.113.10`:
 | MX | `example.com.au` | `mail.example.com.au`, priority 10 |
 | TXT | `_spf.mail.example.com.au` | `v=spf1 ip4:203.0.113.10 ~all` |
 | TXT | `example.com.au` | `v=spf1 include:_spf.mail.example.com.au ~all` |
-| TXT | `mymail._domainkey.example.com.au` | the DKIM value MyMail shows on the domain's page |
+| TXT | `mymail._domainkey.example.com.au` | the DKIM value Multies shows on the domain's page |
 | TXT | `_dmarc.example.com.au` | `v=DMARC1; p=quarantine; rua=mailto:dmarc@example.com.au` |
 
 Then in `.env`:
@@ -223,9 +223,9 @@ SYSTEM_FROM=no-reply@example.com.au
 ```
 
 and run `docker compose -f docker-compose.selfhost.yml up -d`, then `scripts/selfhost/setup.sh`
-once more so Stalwart learns its new name. Add the domain in MyMail (Settings, Domains); its page
-lists the records above with a check next to each. MyMail signs outgoing mail with that domain's
-DKIM key itself, so the DKIM record MyMail shows is the one to publish.
+once more so Stalwart learns its new name. Add the domain in Multies (Settings, Domains); its page
+lists the records above with a check next to each. Multies signs outgoing mail with that domain's
+DKIM key itself, so the DKIM record Multies shows is the one to publish.
 
 Also ask your provider to set the reverse DNS (PTR) of your IP to `mail.example.com.au`; many
 receivers distrust mail from an IP without one.
@@ -241,27 +241,27 @@ show a certificate warning.
 ## Stalwart's admin
 
 Stalwart's own admin site is at <http://localhost:8080> on this computer only. Sign in with
-`STALWART_ADMIN_USER` and `STALWART_ADMIN_SECRET` from `.env`. You rarely need it: MyMail creates
+`STALWART_ADMIN_USER` and `STALWART_ADMIN_SECRET` from `.env`. You rarely need it: Multies creates
 mail app accounts there by itself (Settings, Mail apps).
 
 ## How mail flows
 
 - **Incoming:** another server connects to Stalwart on port 25. Stalwart calls the mail bridge
   (an MTA Hook at the DATA stage). The bridge signs the message with your inbound key and posts
-  it to MyMail, exactly like the Cloudflare Email Worker. MyMail files it, and for mailboxes with
+  it to Multies, exactly like the Cloudflare Email Worker. Multies files it, and for mailboxes with
   mail app access also copies it into the Stalwart inbox. Stalwart keeps no copy of its own.
-  Unknown addresses are refused with MyMail's reason; if MyMail is down the sender is told to
+  Unknown addresses are refused with Multies' reason; if Multies is down the sender is told to
   retry later.
-- **Outgoing:** MyMail signs the message with the domain's DKIM key and hands it to Stalwart on
-  port 587 with its own sending account; Stalwart delivers it. With `RESEND_API_KEY` set, MyMail
+- **Outgoing:** Multies signs the message with the domain's DKIM key and hands it to Stalwart on
+  port 587 with its own sending account; Stalwart delivers it. With `RESEND_API_KEY` set, Multies
   sends through Resend instead.
-- **Between your own mailboxes:** delivered inside MyMail directly.
+- **Between your own mailboxes:** delivered inside Multies directly.
 - **Mail apps:** IMAP and SMTP through Stalwart, as described in [mail-server.md](mail-server.md),
   with the same limit: folders in mail apps and in webmail are separate.
-- **Safety:** port 25 accepts mail for any domain because MyMail, not Stalwart, knows your domains.
+- **Safety:** port 25 accepts mail for any domain because Multies, not Stalwart, knows your domains.
   The bridge never lets a message from an unauthenticated sender go back out, and if the bridge
   cannot be reached Stalwart answers "try again later", so the server is never an open relay.
-- **One limit:** a single message to several addresses where MyMail accepts some and refuses
+- **One limit:** a single message to several addresses where Multies accepts some and refuses
   others is delivered to the accepted ones and the refused ones are dropped without a bounce.
 
 ## Troubleshooting

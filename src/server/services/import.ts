@@ -1,7 +1,7 @@
 /**
  * Importing old mail from Gmail, Outlook or any IMAP server.
  *
- * MyMail queues the job; a runner you host (deploy/import-runner: Docker, imapflow) claims it
+ * Multies queues the job; a runner you host (deploy/import-runner: Docker, imapflow) claims it
  * with IMPORT_RUNNER_TOKEN, reads the old mailbox over IMAP with an app password, and posts each
  * message back here, where it is stored like any other mail (and copied to the mail server for
  * IMAP when that is on). The app password is encrypted at rest and wiped when the job ends.
@@ -28,7 +28,7 @@ export type ImportProvider = keyof typeof IMPORT_PROVIDERS;
 export function importEnabled(deps: Deps) { return !!deps.config.importRunnerToken; }
 
 function assertEnabled(deps: Deps) {
-  if (!importEnabled(deps)) throw new HttpError(404, "import_off", "Importing isn't switched on for this MyMail yet.");
+  if (!importEnabled(deps)) throw new HttpError(404, "import_off", "Importing isn't switched on for this Multies yet.");
 }
 
 const present = (j: typeof importJobs.$inferSelect) => ({

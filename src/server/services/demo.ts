@@ -133,13 +133,13 @@ export async function createDemoWorkspace(deps: Deps) {
     const [name, address, box, subject] = HISTORY[i % HISTORY.length];
     seed({ address, name }, box, subject, `${subject}.\n\nThis is an older message in your demo workspace's archive.`, new Date(now - (60 + i * 15 + (i % 3) * 4) * 3600_000), true);
   }
-  // Two messages Alex sent: one outside MyMail (a sandbox never delivers it) and one to the
+  // Two messages Alex sent: one outside Multies (a sandbox never delivers it) and one to the
   // team@ alias, which lands in the founders and support inboxes.
   const alex = { address: founders.address, name: "Alex Rivera" };
   const priyaAt = new Date(now - 20 * 60_000);
   const priyaText = "Hi Priya,\n\nThanks so much! Wednesday at 2pm works great. I'll send an invite.\n\nAlex";
   const toPriya = put(founders, "sent", alex, ["priya@seedround.vc"], "Re: Following up from demo day", priyaText, priyaAt, userId);
-  delivered.push({ id: newId("dlv"), orgId, messageId: toPriya, direction: "outbound", fromAddress: alex.address, toAddress: "priya@seedround.vc", subject: "Re: Following up from demo day", status: "sent", provider: "demo", detail: "Sandbox workspace: shown as sent, not delivered outside MyMail.", createdAt: priyaAt });
+  delivered.push({ id: newId("dlv"), orgId, messageId: toPriya, direction: "outbound", fromAddress: alex.address, toAddress: "priya@seedround.vc", subject: "Re: Following up from demo day", status: "sent", provider: "demo", detail: "Sandbox workspace: shown as sent, not delivered outside Multies.", createdAt: priyaAt });
   const teamAt = new Date(now - 10 * 60_000);
   const team = `team@${domain.name}`;
   const checklist = "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain (done)\n2. support@ and billing@ mailboxes live (done)\n3. sales@ alias forwarding to the founders (done)\n\nLet's ship it.\nAlex";
@@ -217,7 +217,7 @@ async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: strin
 
 /**
  * One DKIM key pair shared by every sandbox domain (they can't publish DNS or send outside
- * MyMail anyway), made once and kept encrypted in app_settings. Generating an RSA key per
+ * Multies anyway), made once and kept encrypted in app_settings. Generating an RSA key per
  * demo cost a large share of the Worker's CPU budget.
  */
 async function sampleDkimKey(deps: Deps): Promise<{ publicKeyB64: string; privateKeyPem: string }> {

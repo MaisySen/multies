@@ -51,8 +51,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         const n = `${queued.length} outside recipient${queued.length > 1 ? "s" : ""}`;
         toast.warning("Saved to Sent, not delivered outside yet", {
           duration: 10000,
-          description: `${r.internal.length ? `Delivered inside MyMail to ${r.internal.length}. ` : ""}${held
-            ? `${n} held: verify this domain with the email provider to send outside MyMail.`
+          description: `${r.internal.length ? `Delivered inside Multies to ${r.internal.length}. ` : ""}${held
+            ? `${n} held: verify this domain with the email provider to send outside Multies.`
             : `${n} queued: outside delivery starts once an email provider is connected.`}`,
         });
       }

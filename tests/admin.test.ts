@@ -44,7 +44,7 @@ describe("operator console", () => {
     await a.signup("ops@acme.io");
     await ctx.db.update(users).set({ role: "admin" }).where(eq(users.email, "ops@acme.io"));
     expect((await a.post("/api/admin/sentry-test")).body).toEqual({ configured: true, eventId: "evt_123" });
-    expect(String(reported[0])).toContain("MyMail API test event");
+    expect(String(reported[0])).toContain("Multies API test event");
   });
 
   it("suspends, caps and restores a workspace, with every action audited", async () => {

@@ -23,7 +23,7 @@ export const BYO_AI_LINE = "Bring your own AI: connect Claude, ChatGPT or any ag
 export const useAiStatus = () => useQuery({ queryKey: ["ai-status"], queryFn: () => api.get<AiStatus>("/ai/status"), staleTime: 60_000 });
 
 /**
- * Bring your own AI. MyMail never pays for model calls: the assistant runs on the
+ * Bring your own AI. Multies never pays for model calls: the assistant runs on the
  * workspace's own key, which is encrypted at rest and never shown again.
  */
 export function AiSection() {
@@ -44,7 +44,7 @@ export function AiSection() {
   const d = status.data;
   const info = d?.providers.find((p) => p.id === provider);
   return (
-    <Section id="ai" title="AI" description={<>{BYO_AI_LINE} MyMail never charges for AI. <Link className="underline underline-offset-2 hover:text-fg" to="/agents#mcp">MCP setup</Link></>}>
+    <Section id="ai" title="AI" description={<>{BYO_AI_LINE} Multies never charges for AI. <Link className="underline underline-offset-2 hover:text-fg" to="/agents#mcp">MCP setup</Link></>}>
       <div className="space-y-4 text-sm">
         <p className="text-muted">The assistant in the inbox (summaries, drafted replies, sorting) runs on your own key. Your provider bills you directly.</p>
         {d?.connected ? (

@@ -1,5 +1,5 @@
 /**
- * Doc co-editing rooms: one Yjs document per MyMail doc, speaking the standard
+ * Doc co-editing rooms: one Yjs document per Multies doc, speaking the standard
  * y-websocket protocol (sync plus awareness, from y-protocols). The Cloudflare
  * Durable Object (worker) and the in-memory rooms of the Node entry both use this
  * class, so the message handling lives in one place.

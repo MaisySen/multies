@@ -17,7 +17,7 @@ const pct = (v: number | null | undefined) => (v === null || v === undefined ? "
 
 const label: Record<State, string> = { operational: "Operational", degraded: "Degraded", down: "Down", not_configured: "Not offered" };
 const dot: Record<State, string> = { operational: "bg-ok", degraded: "bg-warn", down: "bg-bad", not_configured: "bg-subtle/40" };
-const headline = { operational: "Everything is working.", degraded: "Some things are slow or failing.", down: "Part of MyMail is down." } as const;
+const headline = { operational: "Everything is working.", degraded: "Some things are slow or failing.", down: "Part of Multies is down." } as const;
 
 export function StatusPage() {
   const q = useQuery({

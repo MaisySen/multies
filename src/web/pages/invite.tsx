@@ -32,7 +32,7 @@ export function InvitePage() {
         <AlertTriangle className="h-6 w-6 text-warn" />
         <h1 className="mt-3 text-xl font-semibold tracking-tight">This invitation link isn't valid</h1>
         <p className="mt-1 text-sm text-muted">Check that you copied the whole link, or ask for a new one.</p>
-        <ButtonLink to="/" variant="secondary" className="mt-6 w-full">Go to MyMail</ButtonLink>
+        <ButtonLink to="/" variant="secondary" className="mt-6 w-full">Go to Multies</ButtonLink>
       </div>
     );
   }

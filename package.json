@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MyMail: email hosting on your own domain.",
+  "description": "Multies: email hosting on your own domain.",
   "engines": {
     "node": ">=20"
   },

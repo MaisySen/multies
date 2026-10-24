@@ -246,13 +246,13 @@ function OutboundSection() {
   const config = useConfig();
   const live = config.data?.outboundDriver && config.data.outboundDriver !== "log";
   return (
-    <Section title="Outbound mail" description="How mail to addresses outside MyMail leaves the platform.">
+    <Section title="Outbound mail" description="How mail to addresses outside Multies leaves the platform.">
       <div className={cn("flex gap-3 border-l-2 py-1 pl-4 text-sm", live ? "border-ok" : "border-warn")}>
         {live ? <Send className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
           <div className="font-medium">{live ? "Sending through Resend" : "No email provider connected"}</div>
           <p className="mt-0.5 text-muted">
-            {live ? "Resend delivers to outside addresses once your domain is verified with Resend too (it gives you its own SPF and DKIM records). Until then, mail to outside addresses is saved to Sent and marked held in Activity." : "Mail between MyMail addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key (RESEND_API_KEY)."}
+            {live ? "Resend delivers to outside addresses once your domain is verified with Resend too (it gives you its own SPF and DKIM records). Until then, mail to outside addresses is saved to Sent and marked held in Activity." : "Mail between Multies addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key (RESEND_API_KEY)."}
           </p>
         </div>
       </div>

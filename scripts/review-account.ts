@@ -1,5 +1,5 @@
 /**
- * Creates (or re-creates) the fixed App Review demo login on a deployed MyMail.
+ * Creates (or re-creates) the fixed App Review demo login on a deployed Multies.
  *
  *   REVIEW_PASSWORD=... CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... \
  *     npx tsx scripts/review-account.ts --base https://mymail.mymail-app.workers.dev --db mymail-au [--env staging] [--email appreview@example.com]

@@ -1,6 +1,6 @@
 # Secrets rotation
 
-Every secret MyMail uses, where it lives, and how to rotate it without downtime. Rotate on this schedule, immediately when someone with access leaves, and immediately after any suspected leak.
+Every secret Multies uses, where it lives, and how to rotate it without downtime. Rotate on this schedule, immediately when someone with access leaves, and immediately after any suspected leak.
 
 Set a secret on Cloudflare with `npx wrangler secret put NAME` (production) or `npx wrangler secret put NAME --env staging`. Setting a secret deploys a new version of the Worker straight away.
 
@@ -17,7 +17,7 @@ Set a secret on Cloudflare with `npx wrangler secret put NAME` (production) or `
 | `SENTRY_AUTH_TOKEN` | GitHub Actions secret | Every 6 months | Releases and source maps stop uploading. |
 | `DEPLOY_TOKEN` | Preview host build | On leak | Preview migrations fail until rebuilt. |
 | `BACKUP_AGE_RECIPIENT` / private key | GitHub variable / offline | Yearly | Old backups need the old private key. |
-| Stalwart admin password | Mail server host | Yearly, or on leak | MyMail cannot provision until updated. |
+| Stalwart admin password | Mail server host | Yearly, or on leak | Multies cannot provision until updated. |
 
 ## General order (no downtime)
 
@@ -40,7 +40,7 @@ Create a new API key, set `RESEND_API_KEY`, send a test from Settings, then dele
 
 ## Auth0
 
-Applications, MyMail, Settings, "Rotate" the client secret, then set `AUTH0_CLIENT_SECRET` straight away; SSO sign-in fails between the two steps, so do it at a quiet time.
+Applications, Multies, Settings, "Rotate" the client secret, then set `AUTH0_CLIENT_SECRET` straight away; SSO sign-in fails between the two steps, so do it at a quiet time.
 
 ## APP_SECRET
 

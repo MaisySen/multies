@@ -1,6 +1,6 @@
 # Work suite: tasks, projects, docs, contacts and automations
 
-MyMail keeps the work that comes out of email next to the email. Everything here is free in
+Multies keeps the work that comes out of email next to the email. Everything here is free in
 every plan. The same functions serve the web app, the mobile app, the REST API and MCP, so a
 person, a workspace key and an agent key see the same data under the same rules.
 
@@ -51,7 +51,7 @@ Delivered with Standard Webhooks signatures, like the mail events: `task.created
 
 ## Automations
 
-Rules run inside MyMail and never call an AI model.
+Rules run inside Multies and never call an AI model.
 
 | Trigger | Conditions | Actions |
 | --- | --- | --- |
@@ -131,7 +131,7 @@ project and the deals pipeline in AUD, ex GST. The page draws it with Recharts (
 Video runs on LiveKit (Apache 2.0) and is off until `LIVEKIT_URL`, `LIVEKIT_API_KEY` and
 `LIVEKIT_API_SECRET` are set. A meeting can be started from a thread, task or contact (title and
 guests are filled in from it), and has a guest link (`/m/<token>`) that needs no account. Calendar
-invites are an `.ics` file sent through MyMail's own sending: a person sends from a mailbox they can
+invites are an `.ics` file sent through Multies' own sending: a person sends from a mailbox they can
 use; an agent's invite (REST or MCP `schedule_meeting`) always goes out as an agent and follows its
 approval rules, so outside guests wait for a person to approve. Tokens last six hours; members are
 room admins, guests are not. No recording, notes or transcripts.
@@ -155,7 +155,7 @@ Each project can have custom fields: text, number, currency (AUD, stored in cent
 
 Invite an outside person to one project by email. Guests are free on every plan and never count as people on the plan. A guest sees only that project's tasks, comments, files and docs, and can comment and upload files (10 MB each). Nothing else: the guest session cookie only works under `/api/guest`, and every member endpoint answers 401 to it.
 
-- The invite goes out through MyMail's own system mail with a link to `/g/<token>`. With no mail provider configured the API returns the link so a person can share it by hand.
+- The invite goes out through Multies' own system mail with a link to `/g/<token>`. With no mail provider configured the API returns the link so a person can share it by hand.
 - An agent's invite (`invite_guest` over MCP, or `POST /api/v1/projects/{id}/guests` with an agent key) goes through the approval queue like any other agent mail, and the guest stays pending until a person approves it.
 - REST: `GET/POST /api/v1/projects/{id}/guests`, `DELETE /api/v1/guests/{id}` (revokes at once).
 - MCP: `list_guests`, `invite_guest`.

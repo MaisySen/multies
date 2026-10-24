@@ -1,13 +1,13 @@
 /**
- * One-time (and safe to re-run) setup of a Stalwart mail server for MyMail:
+ * One-time (and safe to re-run) setup of a Stalwart mail server for Multies:
  * network listeners for IMAP and SMTP, the operations domain, and the provisioner
- * account MyMail uses to create mailboxes. Run it against a server started in
+ * account Multies uses to create mailboxes. Run it against a server started in
  * recovery mode (STALWART_RECOVERY_MODE=1) with STALWART_RECOVERY_ADMIN set.
  *
  *   STALWART_URL=http://localhost:8080 STALWART_RECOVERY_ADMIN=admin:... \
  *   MAIL_OPS_DOMAIN=ops.example.com STALWART_ADMIN_SECRET=... npx tsx scripts/stalwart-setup.ts
  *
- * Prints the STALWART_ADMIN_USER to give MyMail. Never prints secrets.
+ * Prints the STALWART_ADMIN_USER to give Multies. Never prints secrets.
  */
 import { StalwartClient } from "../src/server/services/mailserver/stalwart";
 
@@ -60,7 +60,7 @@ if (found) {
   console.log("provisioner: updated");
 } else {
   const user = {
-    "@type": "User", name, domainId, description: "MyMail provisioning (do not delete)",
+    "@type": "User", name, domainId, description: "Multies provisioning (do not delete)",
     credentials: { 0: { "@type": "Password", secret: provisionerSecret } }, memberGroupIds: {},
     roles: { "@type": "Admin" }, permissions: { "@type": "Inherit" }, quotas: {}, aliases: {}, encryptionAtRest: { "@type": "Disabled" },
   };

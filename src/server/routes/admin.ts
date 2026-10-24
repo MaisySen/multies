@@ -118,7 +118,7 @@ export function adminRoutes() {
     .post("/sentry-test", (c) => {
       const { deps } = c.var;
       if (!deps.config.sentry.dsnApi || !deps.reportError) return c.json({ configured: false, eventId: null });
-      const eventId = deps.reportError(new Error(`MyMail API test event (${new Date().toISOString()})`), { test: true, by: c.var.auth.email });
+      const eventId = deps.reportError(new Error(`Multies API test event (${new Date().toISOString()})`), { test: true, by: c.var.auth.email });
       return c.json({ configured: true, eventId: eventId ?? null });
     });
 }

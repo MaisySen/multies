@@ -5,7 +5,7 @@
  * LEGAL_ENTITY are placeholders the owner fills in.
  */
 export const LEGAL_ENTITY = {
-  name: "[Legal entity name, for example MyMail Pty Ltd]",
+  name: "[Legal entity name, for example Multies Pty Ltd]",
   abn: "[ABN]",
   address: "[Registered address], Sydney NSW, Australia",
   privacyEmail: "privacy@mymail.au",
@@ -37,7 +37,7 @@ export const PRIVACY: LegalDoc = {
   summary: "What we collect, why, who we share it with, and how to see, export or delete it.",
   sections: [
     { id: "who", title: "Who we are", body: [
-      `MyMail is run by ${E.name}, ABN ${E.abn}, ${E.address} ("we", "us"). We provide email hosting on domains our customers own. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
+      `Multies is run by ${E.name}, ABN ${E.abn}, ${E.address} ("we", "us"). We provide email hosting on domains our customers own. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
       `Questions or requests: ${E.privacyEmail}. We answer within 30 days, usually much sooner.`,
     ] },
     { id: "roles", title: "Our two roles", body: [
@@ -109,13 +109,13 @@ export const PRIVACY: LegalDoc = {
 export const TERMS: LegalDoc = {
   slug: "terms",
   title: "Terms of service",
-  summary: "The agreement between your business and us when you use MyMail.",
+  summary: "The agreement between your business and us when you use Multies.",
   sections: [
     { id: "agreement", title: "The agreement", body: [
-      `These terms are between ${E.name}, ABN ${E.abn} ("we") and the person or business that creates a MyMail account ("you"). By creating an account you agree to them, to the Acceptable use policy, and, where we process personal information for you, to the Data Processing Agreement. If you accept for a business, you confirm you can bind it.`,
+      `These terms are between ${E.name}, ABN ${E.abn} ("we") and the person or business that creates a Multies account ("you"). By creating an account you agree to them, to the Acceptable use policy, and, where we process personal information for you, to the Data Processing Agreement. If you accept for a business, you confirm you can bind it.`,
     ] },
     { id: "service", title: "The service", body: [
-      "MyMail hosts email on domains you own: mailboxes, aliases, webmail, IMAP and SMTP access, an API and webhooks. You must own or control each domain you add and keep its DNS records in place.",
+      "Multies hosts email on domains you own: mailboxes, aliases, webmail, IMAP and SMTP access, an API and webhooks. You must own or control each domain you add and keep its DNS records in place.",
       "We aim for 99.9% monthly availability for mail delivery and the API, measured on our status page. This is a target, not a guarantee, unless your plan includes a written service level.",
     ] },
     { id: "accounts", title: "Accounts", body: [
@@ -150,10 +150,10 @@ export const TERMS: LegalDoc = {
 export const AUP: LegalDoc = {
   slug: "acceptable-use",
   title: "Acceptable use policy",
-  summary: "What you can and cannot send through MyMail, shaped by the Spam Act 2003.",
+  summary: "What you can and cannot send through Multies, shaped by the Spam Act 2003.",
   sections: [
     { id: "spam", title: "Commercial email and the Spam Act 2003", body: [
-      "Every commercial electronic message sent through MyMail must meet the three rules of the Spam Act 2003 (Cth):",
+      "Every commercial electronic message sent through Multies must meet the three rules of the Spam Act 2003 (Cth):",
       { list: [
         "Consent: the recipient asked for it, or there is inferred consent from an existing business relationship and the message relates to it. Purchased, rented or scraped lists are never consent.",
         "Identify: the message clearly identifies you as the sender and how to contact you.",
@@ -168,11 +168,11 @@ export const AUP: LegalDoc = {
         "Harassment, threats, or doxxing.",
         "Sending to addresses you have no relationship with, or mailing lists you did not build yourself.",
         "Trying to get around rate limits, send caps or suspensions, or probing other customers' accounts.",
-        "Reselling MyMail as a bulk sending service without our written agreement.",
+        "Reselling Multies as a bulk sending service without our written agreement.",
       ] },
     ] },
     { id: "limits", title: "Sending limits", body: [
-      "Each plan has a daily sending limit shown in your dashboard. MyMail is built for person to person and transactional email. Newsletters are allowed to opted in lists that meet the rules above, at volumes your plan allows.",
+      "Each plan has a daily sending limit shown in your dashboard. Multies is built for person to person and transactional email. Newsletters are allowed to opted in lists that meet the rules above, at volumes your plan allows.",
       "Keep complaint rates below 0.1% and bounce rates below 5%. Repeated hard bounces add the address to your suppression list automatically.",
     ] },
     { id: "enforcement", title: "What we do about abuse", body: [
@@ -188,10 +188,10 @@ export const AUP: LegalDoc = {
 export const DPA: LegalDoc = {
   slug: "dpa",
   title: "Data processing agreement",
-  summary: "Template terms for when MyMail processes personal information on your behalf (GDPR Article 28 and APP 8).",
+  summary: "Template terms for when Multies processes personal information on your behalf (GDPR Article 28 and APP 8).",
   sections: [
     { id: "parties", title: "Parties and scope", body: [
-      `This agreement is between the customer named on the MyMail account ("Customer", controller) and ${E.name}, ABN ${E.abn} ("MyMail", processor). It forms part of the Terms of service and applies when MyMail processes personal data on the Customer's behalf: mail content, mailbox and alias addresses, and the people the Customer corresponds with. To sign a countersigned copy, email ${E.privacyEmail}.`,
+      `This agreement is between the customer named on the Multies account ("Customer", controller) and ${E.name}, ABN ${E.abn} ("Multies", processor). It forms part of the Terms of service and applies when Multies processes personal data on the Customer's behalf: mail content, mailbox and alias addresses, and the people the Customer corresponds with. To sign a countersigned copy, email ${E.privacyEmail}.`,
     ] },
     { id: "details", title: "Details of processing", body: [
       { table: [
@@ -204,14 +204,14 @@ export const DPA: LegalDoc = {
         ["Special categories", "Not intended; may appear in mail content, which is treated as confidential"],
       ] },
     ] },
-    { id: "obligations", title: "MyMail's obligations", body: [
+    { id: "obligations", title: "Multies' obligations", body: [
       { list: [
         "Process personal data only on the Customer's documented instructions, which are the Terms, this agreement and the Customer's use of the product settings.",
         "Ensure staff with access are bound by confidentiality.",
         "Apply the security measures in section 6.",
         "Use sub processors only as set out in section 5.",
         "Help the Customer answer data subject requests, mainly through the self serve export and deletion tools.",
-        "Help the Customer with security, breach notification and impact assessments, taking into account the information available to MyMail.",
+        "Help the Customer with security, breach notification and impact assessments, taking into account the information available to Multies.",
         "Notify the Customer without undue delay, and within 48 hours, after becoming aware of a personal data breach affecting the Customer's data.",
         "At the end of the service, delete the Customer's data (live data immediately, backups within 30 days) unless the law requires retention. Export is available before deletion.",
         "Make available the information needed to show compliance, and allow audits by the Customer or its auditor once a year with 30 days notice, at the Customer's cost, or by sharing an independent report where one exists.",
@@ -221,7 +221,7 @@ export const DPA: LegalDoc = {
       "The Customer is responsible for having a lawful basis for the mail it sends and stores, for the Spam Act 2003 and similar laws, and for the instructions it gives.",
     ] },
     { id: "subprocessors", title: "Sub processors", body: [
-      "The Customer gives general authorisation for the sub processors below. MyMail will give at least 30 days notice of a new sub processor by email; the Customer may object on reasonable data protection grounds and, if no solution is found, end the affected service and receive a prorated refund. MyMail stays responsible for its sub processors.",
+      "The Customer gives general authorisation for the sub processors below. Multies will give at least 30 days notice of a new sub processor by email; the Customer may object on reasonable data protection grounds and, if no solution is found, end the affected service and receive a prorated refund. Multies stays responsible for its sub processors.",
       { table: SUBPROCESSORS },
     ] },
     { id: "security", title: "Security measures", body: [
@@ -236,7 +236,7 @@ export const DPA: LegalDoc = {
       ] },
     ] },
     { id: "transfers", title: "International transfers", body: [
-      "Customer data is stored with the subprocessors listed, with the primary database placed in Cloudflare's Oceania region. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, MyMail takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
+      "Customer data is stored with the subprocessors listed, with the primary database placed in Cloudflare's Oceania region. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, Multies takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
     ] },
     { id: "general", title: "General", body: [
       "If this agreement conflicts with the Terms on data protection, this agreement wins. Liability is as set out in the Terms. Governing law is that of the Terms, except where the Standard Contractual Clauses require otherwise.",

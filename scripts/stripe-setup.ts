@@ -1,5 +1,5 @@
 /**
- * Creates MyMail's Stripe products and prices (idempotent, by lookup key):
+ * Creates Multies' Stripe products and prices (idempotent, by lookup key):
  *   npm run stripe:setup            (reads STRIPE_SECRET_KEY from the environment)
  *
  * Every add-on gets one product with a monthly price and a yearly price (twelve times
@@ -19,13 +19,13 @@ if (!/^(sk|rk)_test_/.test(key) && !process.argv.includes("--live")) {
   console.error("This is a live key. Pass --live to create live prices on purpose.");
   process.exit(1);
 }
-const stripe = new Stripe(key, { appInfo: { name: "MyMail setup" } });
+const stripe = new Stripe(key, { appInfo: { name: "Multies setup" } });
 
 async function product(id: string) {
   const a = ADDONS[id as keyof typeof ADDONS];
   const found = await stripe.products.search({ query: `metadata['addon']:'${id}'` }).catch(() => ({ data: [] as Stripe.Product[] }));
   const existing = found.data.find((p) => p.active);
-  const fields = { name: `MyMail ${a.name}`, description: a.description, metadata: { addon: id }, unit_label: a.unit.length <= 12 ? a.unit : undefined };
+  const fields = { name: `Multies ${a.name}`, description: a.description, metadata: { addon: id }, unit_label: a.unit.length <= 12 ? a.unit : undefined };
   if (existing) return stripe.products.update(existing.id, fields);
   return stripe.products.create(fields);
 }

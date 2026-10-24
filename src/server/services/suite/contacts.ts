@@ -53,7 +53,7 @@ async function ensureCompany(deps: Deps, a: SuiteActor, domain: string) {
   return id;
 }
 
-const system = (orgId: string): SuiteActor => ({ orgId, userId: "", email: "system", name: "MyMail", system: true });
+const system = (orgId: string): SuiteActor => ({ orgId, userId: "", email: "system", name: "Multies", system: true });
 
 /**
  * Called whenever mail is stored: each outside correspondent gets (or updates) a contact.

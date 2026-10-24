@@ -522,7 +522,7 @@ export const agents = sqliteTable("agents", {
   mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   description: text("description"),
-  /** `always`: a person approves every send. `external`: only mail leaving MyMail. `never`: sends go straight out. */
+  /** `always`: a person approves every send. `external`: only mail leaving Multies. `never`: sends go straight out. */
   approvalMode: text("approval_mode", { enum: ["always", "external", "never"] }).notNull().default("always"),
   sendCapDaily: integer("send_cap_daily").notNull().default(100),
   /** JSON string[] of addresses or "@domain" entries the agent may send to; null means anyone. */
@@ -586,7 +586,7 @@ export const integrations = sqliteTable("integrations", {
 }, (t) => [uniqueIndex("integrations_org_provider_uq").on(t.orgId, t.provider)]);
 
 /**
- * The workspace's own AI provider key ("bring your own AI"). MyMail never pays for model
+ * The workspace's own AI provider key ("bring your own AI"). Multies never pays for model
  * calls: the assistant runs only with this key. The key is encrypted with APP_SECRET.
  */
 export const aiKeys = sqliteTable("ai_keys", {

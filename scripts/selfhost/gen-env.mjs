@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Fills .env for a self-hosted MyMail with strong random secrets.
+ * Fills .env for a self-hosted Multies with strong random secrets.
  *
  *   node scripts/selfhost/gen-env.mjs            (creates .env from .env.example, or tops up an existing .env)
  *   docker run --rm -v "$PWD:/w" -w /w node:22-alpine node scripts/selfhost/gen-env.mjs   (no Node on the computer)
@@ -23,7 +23,7 @@ const GENERATED = {
 const examplePath = ".env.example";
 const envPath = process.argv[2] ?? ".env";
 if (!existsSync(examplePath)) {
-  console.error("Run this from the MyMail folder (where .env.example is).");
+  console.error("Run this from the Multies folder (where .env.example is).");
   process.exit(1);
 }
 // A new .env starts from .env.example with the values that suit a self-hosted install.

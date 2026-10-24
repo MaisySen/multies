@@ -1,18 +1,18 @@
 /**
- * Mail bridge for self-hosted MyMail: the local stand-in for the Cloudflare Email Worker.
+ * Mail bridge for self-hosted Multies: the local stand-in for the Cloudflare Email Worker.
  *
  * Stalwart receives mail from the internet on port 25 and calls this bridge through an
  * MTA Hook (an HTTP POST at the DATA stage, JSON in and out, see docs/self-host.md).
- * The bridge rebuilds the raw message, signs it with a MyMail inbound key exactly the
+ * The bridge rebuilds the raw message, signs it with a Multies inbound key exactly the
  * way email-worker/ does, and POSTs it to /api/inbound/cloudflare once per recipient.
  *
  * Answers to Stalwart:
- *   every recipient accepted by MyMail   -> "discard": Stalwart says 250 and stores nothing
- *                                           (MyMail already has it, and copies it into the
+ *   every recipient accepted by Multies   -> "discard": Stalwart says 250 and stores nothing
+ *                                           (Multies already has it, and copies it into the
  *                                           Stalwart inbox itself for mailboxes with mail app access)
- *   MyMail unreachable or asks to retry  -> "reject" with 451, so the sender tries again later
- *   every recipient refused              -> "reject" with MyMail's code and reason
- *   authenticated sessions               -> "accept" (mail apps and MyMail's own sending relay out)
+ *   Multies unreachable or asks to retry  -> "reject" with 451, so the sender tries again later
+ *   every recipient refused              -> "reject" with Multies' code and reason
+ *   authenticated sessions               -> "accept" (mail apps and Multies' own sending relay out)
  *
  * Environment:
  *   MYMAIL_INBOUND_URL   http://mymail:8787/api/inbound/cloudflare
@@ -96,10 +96,10 @@ async function deliverOne(opts: BridgeOptions, from: string, to: string, body: B
         body: new Uint8Array(body),
       });
     } catch (err) {
-      return { action: "retry", code: 451, reason: `MyMail is not reachable: ${(err as Error).message}` };
+      return { action: "retry", code: 451, reason: `Multies is not reachable: ${(err as Error).message}` };
     }
     const answer = (await res.json().catch(() => null)) as { action?: string; code?: number; reason?: string } | null;
-    const reason = answer?.reason ?? `MyMail answered HTTP ${res.status}`;
+    const reason = answer?.reason ?? `Multies answered HTTP ${res.status}`;
     if (answer?.action === "accept") return { action: "accept", code: 250, reason: "Delivered" };
     // A key belongs to one workspace: try the next key when this one does not manage the domain.
     if (answer?.action === "reject" && /not managed by this signing key/i.test(reason)) { last = { action: "reject", code: 550, reason: `No mailbox for ${to}.` }; continue; }
@@ -125,8 +125,8 @@ export async function handleHook(req: HookRequest, opts: BridgeOptions): Promise
     const first = answers[0];
     return { action: "reject", response: { status: first.code, enhancedStatus: first.code === 552 ? "5.3.4" : "5.1.1", message: first.reason } };
   }
-  // At least one recipient took it. Recipients MyMail refused are dropped here (see docs/self-host.md).
-  return { action: "discard", response: { status: 250, enhancedStatus: "2.0.0", message: "Delivered to MyMail" } };
+  // At least one recipient took it. Recipients Multies refused are dropped here (see docs/self-host.md).
+  return { action: "discard", response: { status: 250, enhancedStatus: "2.0.0", message: "Delivered to Multies" } };
 }
 
 function sameToken(given: string, expected: string): boolean {

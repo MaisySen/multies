@@ -1,4 +1,4 @@
-# First run of self-hosted MyMail on Windows (Docker Desktop). Safe to run again.
+# First run of self-hosted Multies on Windows (Docker Desktop). Safe to run again.
 #   powershell -ExecutionPolicy Bypass -File scripts\selfhost\setup.ps1
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..\..")
@@ -30,6 +30,6 @@ DC up -d --force-recreate stalwart
 Write-Host "== 4/4 start"
 DC up -d
 Write-Host ""
-Write-Host "MyMail is starting at $(EnvValue 'APP_URL'). Create your account there."
+Write-Host "Multies is starting at $(EnvValue 'APP_URL'). Create your account there."
 Write-Host "Then add an inbound key (Settings, Inbound) to MYMAIL_INBOUND_KEYS in .env and run:"
 Write-Host "  docker compose -f docker-compose.selfhost.yml up -d mail-bridge"

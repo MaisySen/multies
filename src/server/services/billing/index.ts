@@ -12,7 +12,7 @@ import { sentToday } from "../mail/delivery";
 import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
 import { onInvoicePaid, onPaymentFailed, sendingPausedForPayment } from "./dunning";
 
-/** The subscription fields MyMail mirrors. */
+/** The subscription fields Multies mirrors. */
 export type StripePrice = { id: string; lookup_key?: string | null; metadata?: Record<string, string> | null; recurring?: { interval?: string } | null };
 export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "cancel_at_period_end" | "metadata"> & {
   customer: string | { id: string };

@@ -35,7 +35,7 @@ export function AutomationsPage() {
   const remove = async (r: Rule) => { try { await api.del(`/automations/${r.id}`); await refresh(); } catch (e) { showError(e as Error); } };
   return (
     <div>
-      <PageHeader title="Automations" description="Simple rules that run inside MyMail. They make tasks and notify your team; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><Plus className="h-4 w-4" />New rule</Button>} />
+      <PageHeader title="Automations" description="Simple rules that run inside Multies. They make tasks and notify your team; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><Plus className="h-4 w-4" />New rule</Button>} />
       {q.isPending ? <Skeleton className="h-40" /> : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>

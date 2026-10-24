@@ -1,4 +1,4 @@
-/** Thin typed client for the MyMail API. Cookies carry the session. */
+/** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public fields?: Record<string, string>) {
     super(message);
@@ -26,11 +26,11 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
         body: body !== undefined ? JSON.stringify(body) : undefined,
       });
     } catch {
-      if (i === tries - 1) throw new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
+      if (i === tries - 1) throw new ApiError(0, "network", "Can't reach Multies. Check your connection.");
       await new Promise((r) => setTimeout(r, 800));
     }
   }
-  if (!res) throw new ApiError(0, "network", "Can't reach MyMail. Check your connection.");
+  if (!res) throw new ApiError(0, "network", "Can't reach Multies. Check your connection.");
   const text = await res.text();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let json: any = null;

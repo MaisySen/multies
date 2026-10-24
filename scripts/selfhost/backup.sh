@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Backs up MyMail's database (online, while it runs), Stalwart's data and .env into
+# Backs up Multies' database (online, while it runs), Stalwart's data and .env into
 # backups/mymail-backup-<time>.tar.gz. Stalwart pauses for a few seconds while its data is copied;
 # mail servers that try during that moment simply retry.
 # The archive holds your mail and your secrets: keep it somewhere safe.

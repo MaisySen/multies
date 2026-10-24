@@ -33,7 +33,7 @@ describe("demo mode", () => {
     expect((await other.get("/api/domains")).body.domains[0].name).not.toBe((await c.get("/api/domains")).body.domains[0].name);
   });
 
-  it("stays small enough for a Worker request and never sends outside MyMail", async () => {
+  it("stays small enough for a Worker request and never sends outside Multies", async () => {
     // Production timed out at more than 100 s: about 640 D1 queries, an RSA key per demo
     // and real provider calls for the sample's outside recipients ran past the CPU limit.
     const ctx = await makeTestApp({ DEMO_MODE: "true" });

@@ -1,9 +1,9 @@
-# MyMail MCP server
+# Multies MCP server
 
-MyMail runs a Model Context Protocol server, so Claude, ChatGPT (through the OpenAI API), Cursor
+Multies runs a Model Context Protocol server, so Claude, ChatGPT (through the OpenAI API), Cursor
 and any MCP client can work an inbox directly.
 
-Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. MyMail never pays for
+Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. Multies never pays for
 or resells AI model calls. People who want the assistant inside webmail add their own OpenAI,
 Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at rest.
 
@@ -40,7 +40,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 | `search_contacts`, `contact_timeline` | Find people and companies, and see every thread, task and deal with one person |
 | `upsert_contact` | Add a contact or update their name, phone, job title or notes |
 
-Agents read only the threads they can open, and anything an agent sends outside MyMail still goes
+Agents read only the threads they can open, and anything an agent sends outside Multies still goes
 through its approval rule. A read only key can call the read tools only.
 
 Every read and send an agent makes is in the audit log, marked as coming through MCP.
@@ -54,7 +54,7 @@ claude mcp add --transport http mymail https://mymail.mymail-app.workers.dev/api
 
 ## Claude Desktop
 
-Claude Desktop's custom connectors sign in with OAuth, which MyMail doesn't offer yet, so connect
+Claude Desktop's custom connectors sign in with OAuth, which Multies doesn't offer yet, so connect
 through the `mcp-remote` bridge. In Settings, Developer, Edit Config (`claude_desktop_config.json`):
 
 ```json
@@ -69,7 +69,7 @@ through the `mcp-remote` bridge. In Settings, Developer, Edit Config (`claude_de
 }
 ```
 
-Restart Claude Desktop. The MyMail tools appear under the tools menu.
+Restart Claude Desktop. The Multies tools appear under the tools menu.
 
 ## Cursor
 
@@ -88,7 +88,7 @@ Restart Claude Desktop. The MyMail tools appear under the tools menu.
 
 ## ChatGPT and the OpenAI API
 
-ChatGPT's connectors in developer mode sign in with OAuth, which MyMail doesn't offer yet. With the
+ChatGPT's connectors in developer mode sign in with OAuth, which Multies doesn't offer yet. With the
 OpenAI API (Responses API or the Agents SDK), use the remote MCP tool with a header:
 
 ```js
@@ -105,7 +105,7 @@ const response = await openai.responses.create({
 });
 ```
 
-`require_approval` there is OpenAI's own prompt. MyMail's approval queue still decides whether a
+`require_approval` there is OpenAI's own prompt. Multies' approval queue still decides whether a
 send goes out.
 
 ## Testing it

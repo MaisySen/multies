@@ -43,8 +43,8 @@ describe.skipIf(!live)("Stalwart, live", () => {
     const user = made.body.username as string;
     const pass = made.body.secret as string;
 
-    // Inbound mail delivered by MyMail shows up over IMAP.
-    const raw = new TextEncoder().encode(`From: Bob <bob@example.com>\r\nTo: ${user}\r\nSubject: Delivered by MyMail\r\nMessage-ID: <live-${Date.now()}@example.com>\r\nDate: ${new Date().toUTCString()}\r\n\r\nHello over IMAP.\r\n`);
+    // Inbound mail delivered by Multies shows up over IMAP.
+    const raw = new TextEncoder().encode(`From: Bob <bob@example.com>\r\nTo: ${user}\r\nSubject: Delivered by Multies\r\nMessage-ID: <live-${Date.now()}@example.com>\r\nDate: ${new Date().toUTCString()}\r\n\r\nHello over IMAP.\r\n`);
     await deliverInbound(ctx.deps, { envelopeFrom: "bob@example.com", rcptTo: user, email: await parseMime(raw), sizeBytes: raw.length, via: "test", raw });
 
     // SMTP submission with the app password, to the same mailbox.
@@ -64,7 +64,7 @@ describe.skipIf(!live)("Stalwart, live", () => {
       await new Promise((r) => setTimeout(r, 500));
     }
     await imap.logout();
-    expect(subjects).toEqual(expect.arrayContaining(["Delivered by MyMail", "Sent from a mail app"]));
+    expect(subjects).toEqual(expect.arrayContaining(["Delivered by Multies", "Sent from a mail app"]));
 
     // A revoked app password stops working.
     expect((await c.del(`/api/mail-access/app-passwords/${made.body.appPassword.id}`)).status).toBe(200);

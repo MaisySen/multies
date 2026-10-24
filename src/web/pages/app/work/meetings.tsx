@@ -31,7 +31,7 @@ function Room({ join, onLeave }: { join: Join; onLeave: () => void }) {
   );
 }
 
-const VIDEO_OFF = "Video isn't switched on for this MyMail yet. You can still schedule meetings and send invites, and the same links start working once it is.";
+const VIDEO_OFF = "Video isn't switched on for this Multies yet. You can still schedule meetings and send invites, and the same links start working once it is.";
 
 export function MeetingsPage() {
   const q = useQuery({ queryKey: ["meetings"], queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });

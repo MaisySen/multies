@@ -181,7 +181,7 @@ export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean
   const out: { url: string; ok: boolean; status?: number; ms: number }[] = [];
   for (const base of deps.config.monitorUrls) {
     const url = `${base.replace(/\/$/, "")}/api/health`;
-    const r = await timed(async () => (await deps.fetch(url, { headers: { "user-agent": "MyMail-uptime/1" } })).status, 10_000);
+    const r = await timed(async () => (await deps.fetch(url, { headers: { "user-agent": "Multies-uptime/1" } })).status, 10_000);
     const ok = r.value === 200;
     out.push({ url, ok, status: r.value, ms: r.latencyMs });
     const key = `crosscheck:${url}`;

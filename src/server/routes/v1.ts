@@ -90,7 +90,7 @@ const SendRequest = z.object({
 
 const SendResult = z.object({
   messageId: z.string(),
-  internal: z.array(z.string()).openapi({ description: "Recipients hosted on MyMail, delivered directly." }),
+  internal: z.array(z.string()).openapi({ description: "Recipients hosted on Multies, delivered directly." }),
   external: z.array(z.object({ address: z.string(), status: z.enum(["sent", "queued", "failed"]), detail: z.string().optional() })),
 }).openapi("SendResult");
 
@@ -158,13 +158,13 @@ export function v1Routes() {
   api.doc31("/openapi.json", (c) => ({
     openapi: "3.1.0",
     info: {
-      title: "MyMail API",
+      title: "Multies API",
       version: "1.0.0",
       description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
-  api.get("/docs", Scalar({ url: "/api/v1/openapi.json", pageTitle: "MyMail API reference", theme: "default" }));
+  api.get("/docs", Scalar({ url: "/api/v1/openapi.json", pageTitle: "Multies API reference", theme: "default" }));
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
@@ -245,7 +245,7 @@ export function v1Routes() {
     responses: { 200: json(z.object({ data: z.array(Alias) }), "The workspace's aliases and forwards."), 401: errors[401] } }),
   async (c) => c.json({ data: (await listAliases(c.var.deps.db, c.var.auth.orgId)).map((a) => ({ id: a.id, domainId: a.domainId, address: a.address, destinations: a.destinations, enabled: a.enabled, createdAt: iso(a.createdAt)! })) }, 200));
 
-  api.openapi(createRoute({ method: "post", path: "/aliases", tags: ["Aliases"], summary: "Create an alias", description: "Forwards an address to mailboxes on MyMail or to outside addresses.", security: secured,
+  api.openapi(createRoute({ method: "post", path: "/aliases", tags: ["Aliases"], summary: "Create an alias", description: "Forwards an address to mailboxes on Multies or to outside addresses.", security: secured,
     request: body(z.object({ domainId: z.string(), localPart: z.string().min(1).max(64).regex(/^[a-z0-9._+-]+$/i).openapi({ example: "sales" }), destinations: z.array(z.string().email()).min(1).max(20) })),
     responses: { 201: json(Alias, "The new alias."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => {

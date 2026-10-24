@@ -206,7 +206,7 @@ function SuppressionSection() {
           </ul>
         )}
       </Card>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Block an address" description="MyMail will not send to it from any mailbox in this workspace."
+      <Dialog open={open} onClose={() => setOpen(false)} title="Block an address" description="Multies will not send to it from any mailbox in this workspace."
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={add.isPending} disabled={!address.trim()} onClick={() => add.mutate()}>Block</Button></>}>
         <form onSubmit={(e) => { e.preventDefault(); if (address.trim()) add.mutate(); }}>
           <Field label="Email address" error={add.error instanceof ApiError ? add.error.message : undefined}>

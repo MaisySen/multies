@@ -89,7 +89,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number, 
       { title: "Set up sales@ alias to reach three people", status: "Done", start: -4, due: -3, who: "bot", labels: ["aliases"] },
       { title: "Check SPF, DKIM and DMARC on blueharbor.co", status: "In progress", start: -1, due: 1, priority: "high", who: "bot", labels: ["dns"] },
       { title: "Confirm cutover time with Maria", status: "Waiting on client", start: 0, due: 2, priority: "medium", who: "me", notes: "Maria suggested Friday after 5pm AEST. Waiting for her IT contact to confirm." },
-      { title: "Point MX records at MyMail", status: "This week", start: 3, due: 3, priority: "urgent", who: "me", labels: ["dns", "migration"] },
+      { title: "Point MX records at Multies", status: "This week", start: 3, due: 3, priority: "urgent", who: "me", labels: ["dns", "migration"] },
       { title: "Train the Blue Harbor team on the shared inbox", status: "This week", start: 4, due: 7, who: "me" },
       { title: "Turn on DMARC quarantine after two clean weeks", status: "Backlog", start: 14, due: 17, priority: "low", labels: ["dns"] },
       { title: "Write the case study with Maria", status: "Backlog", start: 18, due: 24, labels: ["marketing"] },
@@ -102,10 +102,10 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number, 
     })), now);
     const byTitle = (t: string) => planIds[plan.findIndex((p) => p.title === t)];
     await runBatch(deps.db, [
-      ["Check SPF, DKIM and DMARC on blueharbor.co", "Point MX records at MyMail"],
-      ["Confirm cutover time with Maria", "Point MX records at MyMail"],
-      ["Point MX records at MyMail", "Train the Blue Harbor team on the shared inbox"],
-      ["Point MX records at MyMail", "Turn on DMARC quarantine after two clean weeks"],
+      ["Check SPF, DKIM and DMARC on blueharbor.co", "Point MX records at Multies"],
+      ["Confirm cutover time with Maria", "Point MX records at Multies"],
+      ["Point MX records at Multies", "Train the Blue Harbor team on the shared inbox"],
+      ["Point MX records at Multies", "Turn on DMARC quarantine after two clean weeks"],
     ].map(([blocker, blocked]) => deps.db.insert(entityLinks).values({ orgId, fromType: "task", fromId: byTitle(blocker), toType: "task", toId: byTitle(blocked), relation: "blocks", createdAt: new Date(now) }).onConflictDoNothing()));
     if (fromMaria) {
       const subs = [["List every mailbox and alias", true], ["Check the size of each mailbox", true], ["Send the MX change steps to Maria", false]] as const;
@@ -127,7 +127,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number, 
   if (!docsList.length) {
     const doc = await createDoc(deps, actor, {
       title: "Blue Harbor cutover plan", projectId: client.id,
-      text: "Goal\nMove 14 people from Google Workspace to MyMail on Friday with no lost mail.\n\nBefore Friday\n- Export each mailbox and import it\n- Recreate sales@ with three destinations\n- Lower the MX TTL to 300 seconds on Wednesday\n\nOn Friday after 5pm AEST\n- Switch MX, then update SPF and DKIM\n- Send a test from each mailbox\n\nAfter\n- Watch DMARC reports for two weeks, then move to quarantine",
+      text: "Goal\nMove 14 people from Google Workspace to Multies on Friday with no lost mail.\n\nBefore Friday\n- Export each mailbox and import it\n- Recreate sales@ with three destinations\n- Lower the MX TTL to 300 seconds on Wednesday\n\nOn Friday after 5pm AEST\n- Switch MX, then update SPF and DKIM\n- Send a test from each mailbox\n\nAfter\n- Watch DMARC reports for two weeks, then move to quarantine",
       links: [{ type: "project", id: client.id }, ...(fromMaria ? [{ type: "task" as const, id: fromMaria.id }] : [])],
     });
     if (fromMaria) await link(deps, orgId, { type: "task", id: fromMaria.id }, { type: "doc", id: doc.id });

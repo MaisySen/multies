@@ -23,7 +23,7 @@ const FRIENDLY: Record<string, string> = {
 /** Unwraps a Better Auth client result, throwing an ApiError with a readable message. */
 export async function unwrap<T>(p: Promise<{ data: T | null; error: { status: number; code?: string; message?: string } | null }>): Promise<T> {
   let res;
-  try { res = await p; } catch { throw new ApiError(0, "network", "Can't reach MyMail. Check your connection."); }
+  try { res = await p; } catch { throw new ApiError(0, "network", "Can't reach Multies. Check your connection."); }
   if (res.error) {
     const code = res.error.code ?? (res.error.status === 429 ? "TOO_MANY_REQUESTS" : "ERROR");
     throw new ApiError(res.error.status, code.toLowerCase(), FRIENDLY[code] ?? res.error.message ?? "Something went wrong.");

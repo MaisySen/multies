@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# First run of self-hosted MyMail (Linux and macOS). Safe to run again.
+# First run of self-hosted Multies (Linux and macOS). Safe to run again.
 #   1. writes .env with strong secrets (only fills empty values)
-#   2. builds the MyMail image
-#   3. starts Stalwart in recovery mode, wires it to MyMail, restarts it normally
+#   2. builds the Multies image
+#   3. starts Stalwart in recovery mode, wires it to Multies, restarts it normally
 #   4. starts everything
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -32,6 +32,6 @@ unset STALWART_RECOVERY_ADMIN
 echo "== 4/4 start"
 "${DC[@]}" up -d
 echo
-echo "MyMail is starting at $(env_value APP_URL). Create your account there."
+echo "Multies is starting at $(env_value APP_URL). Create your account there."
 echo "Then add an inbound key (Settings, Inbound) to MYMAIL_INBOUND_KEYS in .env and run:"
 echo "  docker compose -f docker-compose.selfhost.yml up -d mail-bridge"

@@ -1,4 +1,4 @@
-# MyMail round 9 QA report
+# Multies round 9 QA report
 
 Date: 24 October 2026 (UTC). Production and staging both run release 5b7a742829ba.
 Tested with demo workspaces and the App Review demo account only. No real customer data was touched.

@@ -120,7 +120,7 @@ export class DocRoom {
   }
 }
 
-/** Durable Object namespace binding, as far as MyMail uses it. */
+/** Durable Object namespace binding, as far as Multies uses it. */
 export interface DocRoomNamespace {
   idFromName(name: string): unknown;
   get(id: unknown): { fetch(request: Request): Promise<Response> };

@@ -1,5 +1,5 @@
 /**
- * An in-memory stand-in for the parts of Stalwart's JMAP API MyMail uses. It checks
+ * An in-memory stand-in for the parts of Stalwart's JMAP API Multies uses. It checks
  * Basic credentials the way the real server does: admin calls need the provisioner,
  * app password calls must come from the account itself.
  */

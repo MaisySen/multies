@@ -4,11 +4,11 @@
  *
  *  1. Server name: defaultHostname = MAIL_CLIENT_HOST (SMTP greeting, certificates).
  *  2. Inbound: an MTA Hook at the DATA stage for sessions that are not signed in, pointing
- *     at the mail bridge (scripts/selfhost/mail-bridge.ts), which hands the message to MyMail.
- *  3. Port 25 takes mail for any domain, because MyMail, not Stalwart, knows which domains
+ *     at the mail bridge (scripts/selfhost/mail-bridge.ts), which hands the message to Multies.
+ *  3. Port 25 takes mail for any domain, because Multies, not Stalwart, knows which domains
  *     and mailboxes exist. Only the hook decides: it never lets an unauthenticated message
  *     relay out (it answers discard or reject, never accept).
- *  4. MyMail's sending account (SMTP_USER) may send as any address MyMail hosts.
+ *  4. Multies' sending account (SMTP_USER) may send as any address Multies hosts.
  *
  * Env: STALWART_URL, STALWART_RECOVERY_ADMIN (user:password), MAIL_OPS_DOMAIN, MAIL_CLIENT_HOST,
  *      MTA_HOOK_TOKEN, BRIDGE_URL (default http://mail-bridge:8025/hook), SMTP_USER, SMTP_PASS.
@@ -74,7 +74,7 @@ async function main() {
     const [r] = await client.call([["x:Account/set", { update: { [relayId]: { credentials: { 0: { "@type": "Password", secret: relaySecret } } } } }, "s"]]);
     ok(r, "sending account (updated)");
   } else {
-    await client.createUser({ localPart: relayLocal, domainId, secret: relaySecret, description: "MyMail sending (do not delete)" });
+    await client.createUser({ localPart: relayLocal, domainId, secret: relaySecret, description: "Multies sending (do not delete)" });
     console.log("sending account: created");
   }
 
@@ -87,7 +87,7 @@ async function main() {
   ok(rcpt, "port 25 recipients");
   const [auth] = await client.call([["x:MtaStageAuth/set", { update: { singleton: { mustMatchSender: senderExpr(relayLogin) } } }, "s"]]);
   ok(auth, "sender rule");
-  console.log("Stalwart is wired to MyMail. Restart it without STALWART_RECOVERY_MODE.");
+  console.log("Stalwart is wired to Multies. Restart it without STALWART_RECOVERY_MODE.");
 }
 
 const isMain = process.argv[1] && /selfhost[/\\]stalwart\.(ts|js)$|selfhost-stalwart\.js$/.test(process.argv[1]);
