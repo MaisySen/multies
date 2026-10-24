@@ -9,7 +9,7 @@ import type { SampleWork } from "./tasks";
  */
 export interface SampleExtras { entries: TimeEntry[]; meetings: Meeting[]; seq: number }
 
-const ORIGIN = "https://mymail.mymail-app.workers.dev";
+const ORIGIN = "https://multies.si";
 const ME = { type: "member" as const, id: "usr_sample", name: "Mia Nguyen" };
 
 function ref(t: Task) { return { id: t.id, ref: t.ref, title: t.title }; }

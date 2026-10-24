@@ -214,7 +214,7 @@ it("meetings list joins and copies the guest link", async () => {
   expect(await screen.findByText("Kiosk fit out walkthrough")).toBeTruthy();
   expect(screen.getByText(/Video isn't switched on/)).toBeTruthy();
   await fireEvent.press(screen.getByTestId("join-mtg_s1"));
-  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://mymail.mymail-app.workers.dev/app/meetings/mtg_s1");
+  expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith("https://multies.si/app/meetings/mtg_s1");
   await fireEvent.press(screen.getByTestId("copy-mtg_s1"));
   await waitFor(() => expect(Clipboard.setStringAsync).toHaveBeenCalledWith(expect.stringContaining("/m/")));
 });

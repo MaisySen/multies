@@ -128,7 +128,7 @@ describe("delete account screen", () => {
     expect(await screen.findByText(/Bondi Bakehouse has other members/)).toBeTruthy();
     spy.mockRestore();
     await fireEvent.press(screen.getByTestId("delete-on-web"));
-    expect(require("expo-web-browser").openBrowserAsync).toHaveBeenCalledWith("https://mymail.mymail-app.workers.dev/delete-account");
+    expect(require("expo-web-browser").openBrowserAsync).toHaveBeenCalledWith("https://multies.si/delete-account");
   });
 
   it("explains there is no account in the sample workspace", async () => {

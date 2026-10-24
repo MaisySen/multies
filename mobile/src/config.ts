@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 const extra = (Constants.expoConfig?.extra ?? {}) as { apiBase?: string; eas?: { projectId?: string } };
 
 /** Production by default. EXPO_PUBLIC_API_BASE points a build at staging or a local server. */
-export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || extra.apiBase || "https://mymail.mymail-app.workers.dev").replace(/\/$/, "");
+export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || extra.apiBase || "https://multies.si").replace(/\/$/, "");
 
 /** The browser preview can't sign in across sites, so it only offers the sample workspace. */
 export const SAMPLE_ONLY = Platform.OS === "web" || process.env.EXPO_PUBLIC_SAMPLE_ONLY === "1";
