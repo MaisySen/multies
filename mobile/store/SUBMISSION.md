@@ -157,7 +157,7 @@ MyMail is business email hosting for small businesses, with tasks and an approva
 Sign in: use the demo account in the App Review Information sign-in fields (email and password below). It holds sample mail, tasks and projects, and messages agents are waiting to send.
 No account needed: "Explore with sample data" on the sign-in screen opens a sample workspace that runs on the phone only.
 
-Things to try: open a thread, tap Make task, open the Approvals tab and approve or reject the waiting message (approving sends that email from the demo workspace), open Tasks and start a timer.
+Things to try: open a thread, tap Make task, open the Approvals tab and approve or reject a waiting message (the demo workspace shows it as sent but never delivers mail outside MyMail), open Tasks and start a timer.
 
 Purchases: none. The app is free, email is free, and the app shows no prices, plans, upgrade or billing buttons and links to no purchase page.
 Account deletion: Settings, then Delete my account. Type DELETE and the account password, then confirm. The account and every workspace only that person uses are deleted at once. The same is available on the web at https://mymail.mymail-app.workers.dev/delete-account.
@@ -288,7 +288,9 @@ Create app: name `MyMail: Email, Tasks, Agents` (or the name you chose), default
 
 ## 6. If a reviewer pushes back
 
-- "Needs a demo account": check the demo account still signs in, then reply with it.
+- "Needs a demo account": check the demo account still signs in, then reply with it. If a reviewer
+  deleted it (they may test account deletion), re-create it with the command under "App Review demo
+  account" in CREDENTIALS.local.md, then reply.
 - "Guideline 3.1.1 (purchases)": the app has no purchases or links to buy; say so and point to the
   Settings screen (no billing entry).
 - "Guideline 5.1.1(v) (account deletion)": Settings, Delete my account, deletes in the app.
