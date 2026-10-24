@@ -68,6 +68,7 @@ const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) =
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
 const ThanksPage = lazy(() => import("./pages/thanks").then((m) => ({ default: m.ThanksPage })));
+const CheckPage = lazy(() => import("./pages/check").then((m) => ({ default: m.CheckPage })));
 const SupportPage = lazy(() => import("./pages/support").then((m) => ({ default: m.SupportPage })));
 const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ default: m.DeleteAccountPage })));
 const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
@@ -87,6 +88,7 @@ export const router = createBrowserRouter([
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },
+      { path: "/check", element: publicPage(<CheckPage />) },
       { path: "/delete-account", element: publicPage(<DeleteAccountPage />) },
       { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },
       { path: "/acceptable-use", element: publicPage(<LegalPage slug="acceptable-use" />) },

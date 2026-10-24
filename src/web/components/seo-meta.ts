@@ -16,6 +16,7 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/": DEFAULT,
   "/pricing": { title: "Pricing | Multies", description: "Free for one domain and three mailboxes. Add-ons cost A$1 to A$5 a month for the whole business, never per person. Prices in AUD." },
   "/agents": { title: "Email inboxes for AI agents | Multies", description: "Give each AI agent its own address with one API call. Mail arrives as clean JSON, replies stay in the thread, and a person approves what agents send." },
+  "/check": { title: "Check your domain's email | Multies", description: "Free check: see who hosts your domain's mail, whether SPF and DMARC are set, and the steps to switch to Multies without losing a message." },
   "/status": { title: "System status | Multies", description: "Live status of Multies' web app, API, inbound mail and outbound delivery." },
   "/privacy": { title: "Privacy policy | Multies", description: "What Multies collects, why, where it is processed and how to delete it." },
   "/terms": { title: "Terms of service | Multies", description: "The terms for using Multies' email, work management and agent features." },

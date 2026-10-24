@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, ArrowLeft, Check, ChevronDown, Info, Loader2, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -15,6 +15,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { DomainStatusBadge } from "@/web/components/app-bits";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { fetchMailCheck, ProviderSummary, SwitchPlan } from "@/web/components/mail-check";
 
 export function DomainDetailPage() {
   const { id = "" } = useParams();
@@ -72,6 +73,8 @@ export function DomainDetailPage() {
         </Card>
       )}
 
+      {d.status !== "verified" && <SwitchPlanCard name={d.name} />}
+
       {d.sending && (
         <Card className="mb-6 flex items-start gap-3 p-4 text-sm" data-testid="domain-sending">
           <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", d.sending.status === "verified" ? "bg-ok" : d.sending.status === "error" ? "bg-bad" : "bg-warn")} aria-hidden />
@@ -90,6 +93,25 @@ export function DomainDetailPage() {
       <CatchAll domain={d} />
       <DangerZone domain={d} />
     </>
+  );
+}
+
+/** While a domain is not verified, says where its mail goes today and the order of steps to switch. */
+function SwitchPlanCard({ name }: { name: string }) {
+  const q = useQuery({ queryKey: ["mail-check", name], queryFn: () => fetchMailCheck(name), retry: false, staleTime: 10 * 60_000 });
+  const c = q.data;
+  if (!c || c.provider.kind === "multies" || c.provider.kind === "none") return null;
+  return (
+    <Card className="mb-6 p-5" data-testid="switch-plan">
+      <ProviderSummary check={c} />
+      <p className="mt-3 text-sm text-muted">Mail keeps arriving at {c.provider.name} until you change the MX records. Follow these steps in order and nobody misses a message.</p>
+      <details className="group mt-3">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-brand-hover">
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />Show the switch plan
+        </summary>
+        <SwitchPlan check={c} className="mt-4" />
+      </details>
+    </Card>
   );
 }
 

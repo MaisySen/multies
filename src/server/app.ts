@@ -34,6 +34,7 @@ import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
+import { checkRoutes } from "./routes/check";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -108,7 +109,7 @@ export function createApp(deps: Deps) {
     const p = c.req.path;
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
-    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/book/")) return next();
+    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
@@ -221,6 +222,7 @@ export function createApp(deps: Deps) {
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
   app.route("/api/public", publicRoutes());
+  app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());
   app.route("/api/portfolio", portfolioRoutes());
   app.route("/api/guests", guestAdminRoutes());
