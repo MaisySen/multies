@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Check, ChevronRight, KeyRound, Pause, Play, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { Bot, Check, ChevronRight, KeyRound, Pause, Play, Plus, ShieldCheck, Trash2, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useDomains, useMailboxes, useMe, useOrg } from "@/web/lib/queries";
@@ -152,6 +152,65 @@ export function ConnectSnippets({ secret, agentId }: { secret: string; agentId: 
   );
 }
 
+interface TrackRecordInfo {
+  mode: AgentInfo["approvalMode"];
+  record: { window: number; decided: number; approvedAsIs: number; approvedEdited: number; rejected: number; expired: number; failed: number; pending: number; cleanStreak: number };
+  suggestion: { mode: AgentInfo["approvalMode"]; direction: "loosen" | "tighten"; reason: string } | null;
+}
+
+/** Earned autonomy: how people decided this agent's recent requests, and the next approval mode worth trying. */
+function TrackRecord({ agentId, mode, canManage, onApply, applying }: { agentId: string; mode: AgentInfo["approvalMode"]; canManage: boolean; onApply: (m: AgentInfo["approvalMode"]) => void; applying: boolean }) {
+  const q = useQuery({ queryKey: ["agents", agentId, "track-record", mode], queryFn: () => api.get<TrackRecordInfo>(`/agents/${agentId}/track-record`) });
+  const t = q.data;
+  const r = t?.record;
+  const total = r ? r.approvedAsIs + r.approvedEdited + r.rejected + r.expired : 0;
+  const bar = r && total ? [
+    { n: r.approvedAsIs, cls: "bg-ok", label: "Approved as written" },
+    { n: r.approvedEdited, cls: "bg-brand", label: "Approved after edits" },
+    { n: r.rejected, cls: "bg-bad", label: "Rejected" },
+    { n: r.expired, cls: "bg-subtle/50", label: "Expired" },
+  ] : [];
+  return (
+    <Card className="p-5" data-testid="track-record">
+      <div className="flex items-center gap-2">
+        <TrendingUp className="h-4 w-4 text-brand-hover" aria-hidden />
+        <h2 className="text-sm font-semibold">Track record</h2>
+      </div>
+      <p className="mt-1 text-xs text-subtle">How people decided this agent's last {r?.window ?? 50} requests. Use it to decide how much it may do on its own.</p>
+      {q.isPending ? <Skeleton className="mt-3 h-14" /> : !r || r.decided === 0 ? (
+        <p className="mt-3 text-sm text-muted">{mode === "never" ? "This agent sends without approval, so there is nothing to score." : "No decisions yet. The record starts with the first approval."}</p>
+      ) : (
+        <>
+          <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-fill" role="img" aria-label={bar.map((b) => `${b.label}: ${b.n}`).join(", ")}>
+            {bar.filter((b) => b.n > 0).map((b) => <span key={b.label} className={b.cls} style={{ width: `${(b.n / total) * 100}%` }} />)}
+          </div>
+          <dl className="mt-3 grid gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
+            {bar.map((b) => (
+              <div key={b.label} className="flex items-center gap-2">
+                <span className={`h-2 w-2 shrink-0 rounded-full ${b.cls}`} aria-hidden />
+                <dt className="text-xs text-subtle">{b.label}</dt>
+                <dd className="ml-auto tabular-nums">{b.n}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-xs text-subtle">{r.cleanStreak === 1 ? "1 approval in a row without a change." : `${r.cleanStreak} approvals in a row without a change.`}</p>
+        </>
+      )}
+      {t?.suggestion && (
+        <div className={`mt-4 rounded-lg border p-3 text-sm ${t.suggestion.direction === "tighten" ? "border-warn/25 bg-warn-soft/60" : "border-brand/25 bg-brand-soft/50"}`}>
+          <p className="font-medium">{t.suggestion.direction === "tighten" ? "Suggested: tighten" : "Suggested: more independence"}</p>
+          <p className="mt-0.5 text-muted">{t.suggestion.reason}</p>
+          {canManage && (
+            <Button size="sm" variant="secondary" className="mt-3" loading={applying} onClick={() => onApply(t.suggestion!.mode)}>
+              Switch to "{APPROVAL_LABEL[t.suggestion.mode]}"
+            </Button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export function AgentDetailPage() {
   const { id = "" } = useParams();
   const qc = useQueryClient();
@@ -184,11 +243,11 @@ export function AgentDetailPage() {
           <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" />Delete</Button>
         </div> : undefined} />
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Guardrails a={a} disabled={!canManage} onSave={(p) => update.mutate(p)} saving={update.isPending} />
           {canManage && <Keys agentId={a.id} />}
         </div>
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card className="p-5">
             <h2 className="text-sm font-semibold">Today</h2>
             <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -196,6 +255,7 @@ export function AgentDetailPage() {
               <div><dt className="text-xs text-subtle">Waiting for approval</dt><dd className="tabular-nums">{a.pendingApprovals ? <Link className="text-brand-hover hover:underline" to="/app/approvals">{a.pendingApprovals}</Link> : 0}</dd></div>
             </dl>
           </Card>
+          <TrackRecord agentId={a.id} mode={a.approvalMode} canManage={canManage} applying={update.isPending && update.variables?.approvalMode !== undefined} onApply={(m) => update.mutate({ approvalMode: m })} />
           <Card className="p-5">
             <h2 className="text-sm font-semibold">Connect</h2>
             <p className="mt-1 text-xs text-subtle">MCP server URL: <code className="font-mono">{mcpUrl()}</code></p>

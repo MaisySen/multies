@@ -160,6 +160,26 @@ Every member has an optional `title` (up to 80 characters) and `bio` (up to 500)
 
 In the app the same actions live under `/api/team/people` and `/api/team/agents`. MCP: `list_people` (optional `kind`).
 
+## Agent track record (earned autonomy)
+
+Round 14. `GET /api/agents/{id}/track-record` (app API, any member) returns `{ mode, record, suggestion }`.
+`record` counts the agent's latest 50 send approvals: `approvedAsIs`, `approvedEdited` (from the
+`approval.approved` audit rows that say a person changed the text or subject), `rejected`, `expired`,
+`failed`, `pending`, and `cleanStreak`, the approvals in a row without a change, newest first. A
+failed delivery neither builds nor breaks the streak.
+
+`suggestion` is `null` or `{ mode, direction, reason }`:
+
+| Current mode | Suggests | When |
+|---|---|---|
+| `always` | `external` | 20 clean approvals in a row |
+| `external` | `never` | 50 clean approvals in a row |
+| `external` or `never` | `always` | 3 or more rejections, at least 20 percent of the decisions in the window |
+
+Nothing changes on its own: an admin applies a suggestion with the usual `PATCH /api/agents/{id}`.
+The agent page shows the record, a bar of outcomes and the suggestion with a one tap switch. The
+read writes nothing.
+
 ## Weekly meeting series
 
 A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.

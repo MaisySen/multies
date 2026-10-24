@@ -13,6 +13,8 @@
 | Security | [../SECURITY.md](../SECURITY.md), [security.md](security.md), [security/secrets-rotation.md](security/secrets-rotation.md), [security/zap-baseline.md](security/zap-baseline.md) |
 | Service levels | [slo.md](slo.md) |
 | Self hosting and mail apps | [self-host.md](self-host.md), [mail-server.md](mail-server.md) |
+| Domain mail check and switch plan | [domain-check.md](domain-check.md) |
+| Product ideas and priorities | [strategy/brainstorm-2026-10-25.md](strategy/brainstorm-2026-10-25.md) |
 | Mobile app | [mobile.md](mobile.md) |
 | Brand | [brand.md](brand.md) |
 | QA | [qa/report.md](qa/report.md), [qa/inventory.md](qa/inventory.md) |

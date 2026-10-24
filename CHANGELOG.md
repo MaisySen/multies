@@ -5,11 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/). Before 1.0.0 eac
 version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` after the fact, so their
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
-## [Unreleased] (rounds 11, 12 and 13)
+## [Unreleased] (rounds 11 to 14)
 
 Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.0 once the parts marked "after the database reset" are switched on.
 
 ### Added
+- Domain mail check (round 14, no migration): a public page at `/check` names who hosts a domain's mail today from its MX records, grades SPF and DMARC, and lists the steps to move to Multies without losing mail, with a link to copy. The same check shows on a domain's page in the app until it is verified. `GET /api/check/domain`, read only, no database writes, 20 checks a minute per IP. See docs/domain-check.md.
+- Agent track record (round 14, no migration): the agent page shows how people decided its last 50 requests (approved as written, after edits, rejected, expired) and suggests loosening the approval mode after a clean streak or tightening it after rejections, applied with one tap by an admin. `GET /api/agents/{id}/track-record`, read only.
 - Customer domains on any DNS provider (round 13, deploy pending, migration 0024): a new domain is registered with the outbound provider for sending and receiving, and the setup page lists the exact records with copy buttons (ownership, receiving MX, SPF, the provider's DKIM, the return path MX and SPF on `send.`, DMARC). Check DNS asks the provider to verify too; mail to the domain arrives through the provider's MX (`email.received`). No nameserver change. See docs/transactional-email.md.
 - Transactional email without SMTP (round 13): `POST /api/v1/messages` accepts `from` (a mailbox address), and a Supabase Send Email Hook endpoint (`/api/v1/auth-email-hooks`, `/api/auth-hooks/supabase/{id}`) sends a Supabase project's auth emails from a workspace mailbox such as no-reply@.
 - Save as template in the doc editor (round 13).
@@ -39,6 +41,9 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 - D1 daily write budget: the demo has a daily cap, maintenance skips demo workspaces, the cron runs every 15 minutes, and write cap errors become a short read only notice instead of a server error.
 - Accessibility: no moderate or worse axe findings on any app or public page, light and dark, desktop and phone; the axe E2E fails on moderate.
 - Documentation brought up to date: architecture, API, SDLC, testing, runbooks (D1 daily limits, multies.si mailboxes), decision records, mobile, auth.
+
+### Fixed
+- The agent page no longer overflows on phones: its two columns may shrink below the width of the connect snippets (round 14).
 
 ## [0.10.0] (round 10, 24 Oct 2026)
 

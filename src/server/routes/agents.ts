@@ -6,6 +6,7 @@ import {
   agentAudit, approveSend, createAgent, createAgentKey, deleteAgent, getAgent, listAgentKeys, listAgents, listApprovals, listThreads, readThread,
   rejectSend, revokeAgentKey, scopeFor, updateAgent,
 } from "../services/agents";
+import { agentTrackRecord } from "../services/agents/autonomy";
 
 const ApprovalMode = z.enum(["always", "external", "never"]);
 const Recipients = z.array(z.string().trim().min(3).max(254)).max(200).nullable().optional();
@@ -47,7 +48,8 @@ export function agentRoutes() {
       return c.json({ apiKey: k.apiKey, secret: k.secret }, 201);
     })
     .delete("/:id/keys/:keyId", requireAdmin, async (c) => c.json(await revokeAgentKey(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("keyId"))))
-    .get("/:id/audit", async (c) => c.json({ entries: await agentAudit(c.var.deps, c.var.auth, c.req.param("id"), 200) }));
+    .get("/:id/audit", async (c) => c.json({ entries: await agentAudit(c.var.deps, c.var.auth, c.req.param("id"), 200) }))
+    .get("/:id/track-record", async (c) => c.json(await agentTrackRecord(c.var.deps, c.var.auth, c.req.param("id"))));
 }
 
 export function approvalRoutes() {
