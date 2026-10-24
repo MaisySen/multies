@@ -44,7 +44,7 @@ the build takes 10 to 30 minutes to process. The jobs API shows which step faile
 ## Register the bundle id (once)
 
 With the .p8 in `~/.multies-secrets/`, a short script signs an ES256 JWT (iss Issuer ID, kid Key
-ID, aud appstoreconnect-v1, 20 minutes or less), then `GET /v1/bundleIds?filter[identifier]=au.mymail.app`
+ID, aud appstoreconnect-v1, 20 minutes or less), then `GET /v1/bundleIds?filter[identifier]=au.fintex.multies`
 and, if empty, `POST /v1/bundleIds` with platform IOS and name Multies.
 
 ## Roll back

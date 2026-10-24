@@ -44,7 +44,7 @@ That APK is signed with the debug key, so it installs on any phone for testing (
 
 EAS builds iOS in the cloud, so no Mac is needed: `npx eas-cli build -p ios --profile production`.
 It needs the owner's Apple Developer Program membership. Everything else is ready: bundle id
-`au.mymail.app`, icons, splash, privacy manifest, en-AU, and the listing draft in `store/`.
+`au.fintex.multies`, icons, splash, privacy manifest, en-AU, and the listing draft in `store/`.
 See docs/release.md for the exact steps.
 
 `ios-native/` is a small native SwiftUI app (approvals only) built with xtool, kept as an
@@ -85,7 +85,7 @@ on each screen of the web build and saves phone sized screenshots.
 
 ## Store publishing
 
-Publisher: Fintex Australia Pty Ltd. Store name Multies. Bundle id and package `au.mymail.app`.
+Publisher: Fintex Australia Pty Ltd. Store name Multies. Bundle id and package `au.fintex.multies` (chosen 24 Oct 2026; the old `au.mymail.app` was never uploaded).
 
 | Doc | What is in it |
 | --- | --- |

@@ -5,6 +5,9 @@ Android, CFBundleShortVersionString on iOS).
 
 ## 1.8.1 (Android versionCode 10, iOS build 10), 24 October 2026
 
+- App id is now au.fintex.multies for the iOS bundle id and the Android package (was au.mymail.app,
+  never uploaded to either store). Rebuilt and re-signed with the same Fintex upload key; the version
+  stays 1.8.1 (10). The sign in callback is unchanged (mymail://auth/callback), so Auth0 needs no change.
 - Store publishing prep for Fintex Australia Pty Ltd, following the Fintex publishing playbook.
 - Android: target SDK 36, compile SDK 37 (needed by the AndroidX libraries in Expo SDK 58).
 - Android: new upload key for Fintex (Play App Signing). The round 9 key was never uploaded and is retired.

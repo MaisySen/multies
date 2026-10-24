@@ -9,7 +9,7 @@ Follows the Fintex publishing playbook (version 1, 24 October 2026). The answers
 | --- | --- |
 | Publisher | Fintex Australia Pty Ltd, ABN 60 688 406 108, contact@fintex.au |
 | Store name | Multies (fallback if Apple refuses it: Multies: Email and Tasks) |
-| Bundle id (iOS) and package (Android) | au.mymail.app. Internal id kept because builds already use it. Cannot change after the first upload; Bidur confirms before then |
+| Bundle id (iOS) and package (Android) | au.fintex.multies. Chosen by Bidur on 24 Oct 2026. Final: it cannot change after the first upload. The old id au.mymail.app was never uploaded to either store |
 | SKU | multies-ios-1 |
 | Primary language | English (Australia) |
 | Apple team | B85KQRQZW7 (individual, conversion to FINTEX AUSTRALIA PTY LTD pending) |
@@ -53,9 +53,9 @@ bundle id registration with the API key, App Store Connect fields through the AP
 
 ## What only Bidur does (playbook section 8)
 
-1. Done 24 Oct 2026: the .p8 arrived and bundle id au.mymail.app is registered (App Store Connect resource QX49MLU6LF).
+1. Done 24 Oct 2026: the .p8 arrived and bundle id au.fintex.multies is registered (App Store Connect resource 287MW3DW82). The earlier registration au.mymail.app (QX49MLU6LF) stays unused.
 2. Create the App Store Connect app record: Name Multies, Primary Language English (Australia),
-   Bundle ID au.mymail.app, SKU multies-ios-1, User Access Full Access.
+   Bundle ID au.fintex.multies, SKU multies-ios-1, User Access Full Access.
 3. Give the App Review phone number.
 4. Done: the Fintex Australia Play developer account exists. Its invite to mymail.builder@mail.tab.bot needs a Google account on that address; Google's signup stops at a phone QR check. Either Bidur scans it, invites a Google account he owns, or does steps 5 and 6 himself.
 5. Create the Play app record: App name Multies, English (Australia), App, Free.

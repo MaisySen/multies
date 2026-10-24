@@ -9,7 +9,7 @@ Paste these into App Store Connect. Publisher: Fintex Australia Pty Ltd.
 | Platform | iOS |
 | Name (30 max) | Multies (7 chars). If taken: Multies: Email and Tasks (24) |
 | Primary language | English (Australia) |
-| Bundle ID | au.mymail.app (internal id, kept because it is already in builds; Bidur to confirm before the first upload) |
+| Bundle ID | au.fintex.multies (final, chosen by Bidur on 24 Oct 2026; registered as App Store Connect resource 287MW3DW82) |
 | SKU | multies-ios-1 |
 | User access | Full Access |
 

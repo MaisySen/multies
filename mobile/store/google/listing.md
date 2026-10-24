@@ -1,6 +1,6 @@
 # Multies: Google Play listing (source of truth)
 
-Publisher: Fintex Australia Pty Ltd. Package au.mymail.app (internal id; Bidur to confirm before the first upload, it cannot change after).
+Publisher: Fintex Australia Pty Ltd. Package au.fintex.multies (final, chosen by Bidur on 24 Oct 2026; it cannot change after the first upload).
 
 ## App record (owner creates once)
 

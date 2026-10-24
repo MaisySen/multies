@@ -11,7 +11,7 @@
     "description": "Email on your own domain, with your team and your AI agents in one inbox.",
     "primaryColor": "#0071E3",
     "ios": {
-      "bundleIdentifier": "au.mymail.app",
+      "bundleIdentifier": "au.fintex.multies",
       "buildNumber": "10",
       "supportsTablet": false,
       "config": {
@@ -119,7 +119,7 @@
       }
     },
     "android": {
-      "package": "au.mymail.app",
+      "package": "au.fintex.multies",
       "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#1D1D1F",

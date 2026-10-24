@@ -5,7 +5,7 @@ The step-by-step owner checklist, with every store answer ready to paste, is in
 
 ## Ready now (1.8.1, see docs/RELEASES.md)
 
-- App name Multies, bundle id and Android package `au.mymail.app` (unchanged), version 1.8.1, iOS build 10,
+- App name Multies, bundle id and Android package `au.fintex.multies` (was `au.mymail.app` until 24 Oct 2026, never uploaded), version 1.8.1, iOS build 10,
   Android versionCode 10. iPhone only (`ios.supportsTablet: false`).
 - Icons (1024x1024 App Store icon with no alpha), adaptive Android icon with foreground, background
   and monochrome layers, splash, notification icon. Expo makes every native size from `assets/`

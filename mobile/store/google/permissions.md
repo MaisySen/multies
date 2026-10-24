@@ -1,6 +1,6 @@
 # Multies Android permissions (1.8.1, versionCode 10)
 
-Read from the built, signed APK with `aapt2 dump permissions` on 24 October 2026 (the AAB has the
+Read from the built, signed APK (package au.fintex.multies) with `aapt2 dump permissions` on 24 October 2026 (the AAB has the
 same merged manifest). targetSdk 36, minSdk 24. No permission here needs a Play Console declaration.
 
 | Permission | Why the app has it |
@@ -12,7 +12,7 @@ same merged manifest). targetSdk 36, minSdk 24. No permission here needs a Play 
 | android.permission.RECEIVE_BOOT_COMPLETED | expo-notifications keeps notification channels and scheduled reminders after a restart |
 | android.permission.WAKE_LOCK | Lets a push message be handled while the phone is asleep (Firebase messaging) |
 | com.google.android.c2dm.permission.RECEIVE | Receives push messages through Firebase Cloud Messaging |
-| au.mymail.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION | Added by AndroidX so the app's own receivers are not reachable by other apps. Signature level, no prompt |
+| au.fintex.multies.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION | Added by AndroidX so the app's own receivers are not reachable by other apps. Signature level, no prompt |
 
 Blocked with `android.blockedPermissions` in app.json, because the app does not use them:
 RECORD_AUDIO, SYSTEM_ALERT_WINDOW, READ_EXTERNAL_STORAGE, WRITE_EXTERNAL_STORAGE,
