@@ -54,6 +54,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
       : "You are connected to a Multies workspace. List inboxes, read and search mail, create agent inboxes, send or reply as an agent (pass agentId), and work with tasks, projects, docs and contacts." });
   const writable = () => { if (actor.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read."); };
   const agentFor = async (agentId?: string) => {
+    if (!actor.agentId && actor.role === "member") throw new HttpError(403, "agent_member_key_scope", "An agent member's key can't send mail as an agent inbox. Use that agent's own key.");
     const id = actor.agentId ?? agentId;
     if (!id) throw new HttpError(422, "agent_required", "Pass agentId: sends always go out as an agent inbox. Call list_inboxes to see them.");
     if (actor.agentId && agentId && agentId !== actor.agentId) throw new HttpError(403, "agent_key_scope", "This key belongs to another agent.");
@@ -152,7 +153,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
     }
   }));
 
-  if (!actor.agentId) {
+  if (!actor.agentId && actor.role !== "member") {
     server.registerTool("create_agent_inbox", {
       title: "Create an agent inbox", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
       description: "Create a new agent with its own email address on the workspace's domain. Its sends need a person's approval unless approvalMode says otherwise. Returns the agent and a key for it, shown once.",
@@ -374,7 +375,17 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     title: "List meetings", annotations: ro,
     description: "Video meetings, newest first, with their guest links.",
     inputSchema: { upcoming: z.boolean().optional() },
-  }, tool(async (x: { upcoming?: boolean }) => ({ meetings: (await listMeetings(deps, a, { upcoming: x.upcoming, limit: 50 })).map((m) => ({ id: m.id, title: m.title, startsAt: m.startsAt, durationMin: m.durationMin, status: m.status, guestUrl: m.guestUrl, invitees: m.invitees })) })));
+  }, tool(async (x: { upcoming?: boolean }) => ({ meetings: (await listMeetings(deps, a, { upcoming: x.upcoming, limit: 50 })).map((m) => ({ id: m.id, title: m.title, startsAt: m.startsAt, durationMin: m.durationMin, status: m.status, guestUrl: m.guestUrl, invitees: m.invitees, repeats: m.recurrence ? { rrule: m.recurrence.rrule, timezone: m.recurrence.timezone, summary: m.recurrence.summary } : null })) })));
+
+  server.registerTool("list_people", {
+    title: "List people and agents", annotations: ro,
+    description: "Everyone in the workspace with title and bio: people (kind human), AI agent members (kind agent) and mail agents (with their inbox).",
+    inputSchema: { kind: z.enum(["human", "agent"]).optional() },
+  }, tool(async (x: { kind?: "human" | "agent" }) => {
+    const { listPeople } = await import("../services/people");
+    const people = await listPeople(deps, actor.orgId);
+    return { people: x.kind ? people.filter((p) => p.kind === x.kind) : people };
+  }));
 
   server.registerTool("schedule_meeting", {
     title: "Schedule a video meeting", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
@@ -383,8 +394,9 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
       title: z.string().max(200).optional(), startsAt: z.string().optional().describe("ISO date and time. Default now."), durationMin: z.number().int().min(5).max(480).optional(),
       sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional(), invitees: z.array(z.string()).max(50).optional(),
       sendInvites: z.boolean().optional(), agentId: z.string().optional().describe("Workspace keys: the agent inbox the invite is sent from."),
+      repeats: z.string().max(200).optional().describe("A weekly series as an RRULE, e.g. FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10 (weekly only, interval 1 or 2). Kept in the workspace time zone."),
     },
-  }, tool(async (x: { title?: string; startsAt?: string; durationMin?: number; sourceType?: "thread" | "task" | "contact"; sourceId?: string; invitees?: string[]; sendInvites?: boolean; agentId?: string }) => {
+  }, tool(async (x: { title?: string; startsAt?: string; durationMin?: number; sourceType?: "thread" | "task" | "contact"; sourceId?: string; invitees?: string[]; sendInvites?: boolean; agentId?: string; repeats?: string }) => {
     writable();
     let who: SuiteActor = a;
     if (x.sendInvites) {
@@ -394,8 +406,8 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
       const ag = await getAgent(deps, actor.orgId, id);
       who = { ...a, agentId: ag.id, name: ag.name };
     }
-    const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined });
-    return { meeting: { id: r.meeting.id, title: r.meeting.title, startsAt: r.meeting.startsAt, guestUrl: r.meeting.guestUrl, invitees: r.meeting.invitees, videoEnabled: r.meeting.videoEnabled }, invites: r.invites };
+    const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, recurrence: x.repeats, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined });
+    return { meeting: { id: r.meeting.id, title: r.meeting.title, startsAt: r.meeting.startsAt, guestUrl: r.meeting.guestUrl, invitees: r.meeting.invitees, videoEnabled: r.meeting.videoEnabled, repeats: r.meeting.recurrence?.summary ?? null }, invites: r.invites };
   }));
 }
 

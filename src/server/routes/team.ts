@@ -10,12 +10,25 @@ import {
 } from "../services/team";
 import { RateLimiter } from "../lib/rate-limit";
 import { tooMany } from "../lib/errors";
+import { agentMemberCount, createAgentMember, createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
 
 const inviteSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   role: z.enum(["admin", "member"]).default("member"),
   mailboxIds: z.array(z.string()).max(500).default([]),
 });
+export const ProfileBody = z.object({
+  title: z.string().max(80).nullable().optional(),
+  bio: z.string().max(500).nullable().optional(),
+  name: z.string().max(80).optional(),
+});
+export const AgentMemberBody = z.object({
+  name: z.string().trim().min(1, "Give the agent a name.").max(80),
+  title: z.string().max(80).nullable().optional(),
+  bio: z.string().max(500).nullable().optional(),
+  scope: z.enum(["full", "read"]).default("full"),
+});
+export const AgentKeyBody = z.object({ name: z.string().max(80).optional(), scope: z.enum(["full", "read"]).default("full") });
 const updateSchema = z.object({ role: z.enum(["admin", "member"]).optional(), mailboxIds: z.array(z.string()).max(500).optional() });
 
 export function teamRoutes() {
@@ -25,10 +38,22 @@ export function teamRoutes() {
     .get("/", async (c) => {
       const { db, now } = c.var.deps;
       const { orgId } = c.var.auth;
-      const [members, invites, plan, seats] = await Promise.all([
-        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlan(db, orgId), seatsUsed(db, orgId, now()),
+      const [members, invites, plan, seats, agentMembers] = await Promise.all([
+        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlan(db, orgId), seatsUsed(db, orgId, now()), agentMemberCount(c.var.deps, orgId),
       ]);
-      return c.json({ members, invites, seats: { ...seats, limit: plan.limits.seats } });
+      return c.json({ members, invites, seats: { ...seats, limit: plan.limits.seats }, agentMembers: { used: agentMembers, limit: plan.limits.agentMembers } });
+    })
+    .get("/people", async (c) => c.json({ people: await listPeople(c.var.deps, c.var.auth.orgId) }))
+    .patch("/people/:userId", async (c) => {
+      const person = await updateProfile(c.var.deps, c.var.auth, c.req.param("userId"), await parseBody(c, ProfileBody));
+      return c.json({ person });
+    })
+    .post("/agents", requireAdmin, async (c) => c.json(await createAgentMember(c.var.deps, c.var.auth, await parseBody(c, AgentMemberBody)), 201))
+    .get("/agents/:userId/keys", requireAdmin, async (c) => c.json({ keys: await listAgentMemberKeys(c.var.deps, c.var.auth, c.req.param("userId")) }))
+    .post("/agents/:userId/keys", requireAdmin, async (c) => c.json(await createAgentMemberKey(c.var.deps, c.var.auth, c.req.param("userId"), await parseBody(c, AgentKeyBody)), 201))
+    .delete("/agents/:userId/keys/:keyId", requireAdmin, async (c) => {
+      await revokeAgentMemberKey(c.var.deps, c.var.auth, c.req.param("userId"), c.req.param("keyId"));
+      return c.json({ ok: true });
     })
     .post("/invites", requireAdmin, async (c) => {
       const { auth, deps } = c.var;

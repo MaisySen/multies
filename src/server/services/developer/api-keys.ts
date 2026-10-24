@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { agents, apiKeys, members, organizations } from "../../db/schema";
+import { agents, apiKeys, members, organizations, users } from "../../db/schema";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
 
@@ -48,11 +48,12 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
   if (!token) return null;
   // One round trip: the key, whether its creator is still a member, and the workspace's state.
-  const row = await deps.db.select({ k: apiKeys, memberId: members.id, suspendedAt: organizations.suspendedAt, agentName: agents.name })
+  const row = await deps.db.select({ k: apiKeys, memberId: members.id, memberKind: members.kind, creatorName: users.name, suspendedAt: organizations.suspendedAt, agentName: agents.name })
     .from(apiKeys)
     .innerJoin(organizations, eq(organizations.id, apiKeys.orgId))
     .leftJoin(members, and(eq(members.userId, apiKeys.createdByUserId), eq(members.organizationId, apiKeys.orgId)))
     .leftJoin(agents, and(eq(agents.id, apiKeys.agentId), eq(agents.orgId, apiKeys.orgId)))
+    .leftJoin(users, eq(users.id, apiKeys.createdByUserId))
     .where(eq(apiKeys.keyHash, await sha256Hex(token))).get();
   if (!row) return null;
   const { k } = row;
@@ -63,8 +64,10 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   }
   // A key outlives its creator's membership only as a plain workspace key.
   const userId = k.createdByUserId && row.memberId ? k.createdByUserId : "";
+  // An AI agent member's key acts as that member, under its name, with the member role.
+  const agentMember = !!userId && row.memberKind === "agent";
   return {
-    userId, email: `api-key:${k.prefix}`, name: row.agentName ?? `API key "${k.name}"`, orgId: k.orgId, role: "admin",
+    userId, email: `api-key:${k.prefix}`, name: agentMember ? row.creatorName ?? k.name : row.agentName ?? `API key "${k.name}"`, orgId: k.orgId, role: agentMember ? "member" : "admin",
     sessionId: `apikey:${k.id}`, apiKeyId: k.id, scope: k.scope, orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null,
   };
 }

@@ -54,7 +54,8 @@ export async function usage(db: DB, orgId: string, now = new Date()) {
     db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "person"))).get(),
     db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "agent"))).get(),
     db.select({ n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).get(),
-    db.select({ n: count() }).from(members).where(eq(members.organizationId, orgId)).get(),
+    // AI agent members take no seat (they have their own limit, agentMembers).
+    db.select({ n: count() }).from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human"))).get(),
     db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),
     readCounter(db, orgId, "agent_messages", now),
   ]);

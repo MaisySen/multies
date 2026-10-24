@@ -13,6 +13,7 @@ import { badRequest, conflict, forbidden, HttpError, notFound, planLimit } from 
 import { authFor } from "../auth";
 import { addonHint, getPlan } from "./plans";
 import { isHosted } from "./mail/delivery";
+import { removeAgentMember } from "./people";
 
 export type Role = "owner" | "admin" | "member";
 
@@ -66,13 +67,15 @@ export async function confirmPassword(deps: Deps, auth: AuthContext, password: s
 export async function seatsUsed(db: DB, orgId: string, now: Date) {
   const pending = await db.select({ expiresAt: invitations.expiresAt }).from(invitations)
     .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, "pending")));
-  const m = await db.select({ n: count() }).from(members).where(eq(members.organizationId, orgId)).get();
+  // AI agent members take no seat.
+  const m = await db.select({ n: count() }).from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human"))).get();
   return { members: m?.n ?? 0, pendingInvites: pending.filter((p) => p.expiresAt > now).length };
 }
 
 export async function listMembers(db: DB, orgId: string) {
-  const rows = await db.select({ memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, joinedAt: members.createdAt })
-    .from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
+  const rows = await db.select({
+    memberId: members.id, userId: users.id, email: users.email, name: users.name, role: members.role, kind: members.kind, title: members.title, bio: members.bio, joinedAt: members.createdAt,
+  }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
   const ids = rows.map((r) => r.userId);
   const access = await db.select().from(mailboxAccess).where(eq(mailboxAccess.orgId, orgId));
   const seen = ids.length
@@ -82,10 +85,12 @@ export async function listMembers(db: DB, orgId: string) {
   return rows
     .map((r) => ({
       ...r,
+      // An agent member's address is internal and never shown.
+      email: r.kind === "agent" ? null : r.email,
       mailboxIds: r.role === "member" ? access.filter((a) => a.userId === r.userId).map((a) => a.mailboxId) : null,
       lastActiveAt: seen.find((s) => s.userId === r.userId)?.at ?? null,
     }))
-    .sort((a, b) => order[a.role] - order[b.role] || a.joinedAt.getTime() - b.joinedAt.getTime());
+    .sort((a, b) => Number(a.kind === "agent") - Number(b.kind === "agent") || order[a.role] - order[b.role] || a.joinedAt.getTime() - b.joinedAt.getTime());
 }
 
 export async function listInvites(db: DB, orgId: string, now: Date) {
@@ -171,7 +176,7 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
 }
 
 async function getMember(db: DB, orgId: string, userId: string) {
-  const m = await db.select({ id: members.id, role: members.role, email: users.email, name: users.name }).from(members)
+  const m = await db.select({ id: members.id, role: members.role, kind: members.kind, email: users.email, name: users.name }).from(members)
     .innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.organizationId, orgId), eq(members.userId, userId))).get();
   if (!m) throw notFound("Member");
@@ -182,6 +187,7 @@ async function getMember(db: DB, orgId: string, userId: string) {
 export async function updateMember(deps: Deps, auth: AuthContext, headers: Headers, userId: string, input: { role?: "admin" | "member"; mailboxIds?: string[] }) {
   const { db } = deps;
   const target = await getMember(db, auth.orgId, userId);
+  if (target.kind === "agent") throw forbidden("Agent members keep the member role. Change what they can do with their API key instead.");
   if (target.role === "owner") throw forbidden("The owner's role can't be changed. Transfer ownership instead.");
   if (userId === auth.userId) throw forbidden("You can't change your own role.");
   if (auth.role === "admin" && (target.role === "admin" || input.role === "admin")) throw forbidden("Only the owner can manage admins.");
@@ -203,6 +209,11 @@ export async function updateMember(deps: Deps, auth: AuthContext, headers: Heade
 export async function removeMember(deps: Deps, auth: AuthContext, headers: Headers, userId: string) {
   const { db } = deps;
   const target = await getMember(db, auth.orgId, userId);
+  if (target.kind === "agent") {
+    if (auth.role === "member") throw forbidden("Only workspace admins can do that.");
+    await removeAgentMember(deps, auth, userId);
+    return target;
+  }
   const self = userId === auth.userId;
   if (target.role === "owner") throw forbidden(self ? "Transfer ownership before leaving the workspace." : "The owner can't be removed.");
   if (!self) {
@@ -221,6 +232,7 @@ export async function transferOwnership(deps: Deps, auth: AuthContext, headers: 
   if (toUserId === auth.userId) throw badRequest("You already own this workspace.");
   await confirmPassword(deps, auth, password);
   const target = await getMember(deps.db, auth.orgId, toUserId);
+  if (target.kind === "agent") throw forbidden("An agent member can't own the workspace.");
   const me = await getMember(deps.db, auth.orgId, auth.userId);
   const api = authFor(deps).api;
   await api.updateMemberRole({ headers, body: { memberId: target.id, role: "owner", organizationId: auth.orgId } });

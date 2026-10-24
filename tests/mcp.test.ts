@@ -60,6 +60,7 @@ describe("MCP server", () => {
       "list_integrations",
       "list_meetings",
       "list_notifications",
+      "list_people",
       "list_projects",
       "list_tasks",
       "list_templates",

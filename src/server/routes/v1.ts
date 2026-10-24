@@ -6,7 +6,7 @@
  */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import type { AppEnv } from "../context";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency } from "../lib/idempotency";
@@ -25,6 +25,7 @@ import { registerSuiteR7Routes } from "./v1-suite-r7";
 import { registerSuiteR8Routes } from "./v1-suite-r8";
 import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
+import { registerPeopleRoutes } from "./v1-people";
 
 // ---------------------------------------------------------------- schemas
 
@@ -125,6 +126,16 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
 /** Agent keys act only as their agent: the workspace resources need a workspace key. */
 const workspaceKeyOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
   if ((c.var.auth as { agentId?: string | null }).agentId) throw new HttpError(403, "agent_key_scope", "Agent keys can only use the agent endpoints (/agents, /threads, /search, /events, /mcp). Use a workspace key for this.");
+  memberKeyCheck(c);
+  await next();
+};
+
+/** An AI agent member's key acts with the member role: it can't run the workspace's mail, agents or integrations. */
+const memberKeyCheck = (c: Context<AppEnv>) => {
+  if (c.var.auth.role === "member") throw new HttpError(403, "agent_member_key_scope", "An agent member's key works with tasks, projects, docs, chat, meetings, goals and people. Use a workspace key for this.");
+};
+const memberKeyReadOnly: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.req.method !== "GET") memberKeyCheck(c);
   await next();
 };
 
@@ -175,7 +186,8 @@ export function v1Routes() {
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
-  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
     const a = c.var.auth as { apiKeyId?: string } | undefined;
@@ -330,6 +342,7 @@ export function v1Routes() {
   registerSuiteR8Routes(api);
   registerSuiteR10Routes(api);
   registerSuiteR11Routes(api);
+  registerPeopleRoutes(api);
   registerMcpRoute(api);
   return api;
 }

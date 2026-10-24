@@ -752,11 +752,12 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
 /** Everyone a task can go to: members and agents. */
 export async function assignees(deps: Deps, orgId: string) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, status: agents.status }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
   return [
-    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.email })),
+    // An AI agent member is assigned like a person; its internal address is never shown.
+    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.kind === "agent" ? null : m.email as string | null, ...(m.kind === "agent" ? { isAgent: true } : {}) })),
     ...ags.map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null })),
   ];
 }

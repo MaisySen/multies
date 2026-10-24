@@ -146,7 +146,7 @@ export async function beforeUserDelete(deps: Deps, userId: string) {
   const mine = await db.select().from(members).where(eq(members.userId, userId));
   for (const m of mine) {
     const others = await db.select({ role: members.role }).from(members)
-      .where(and(eq(members.organizationId, m.organizationId), ne(members.userId, userId)));
+      .where(and(eq(members.organizationId, m.organizationId), ne(members.userId, userId), eq(members.kind, "human")));
     if (others.length && m.role === "owner" && !others.some((o) => o.role === "owner")) {
       const org = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, m.organizationId)).get();
       throw new HttpError(409, "transfer_ownership_first", `You are the only owner of ${org?.name ?? "a workspace"} and it has other members. Make someone else an owner first, or delete the workspace.`);
@@ -154,7 +154,7 @@ export async function beforeUserDelete(deps: Deps, userId: string) {
   }
   for (const m of mine) {
     const others = await db.select({ userId: members.userId }).from(members)
-      .where(and(eq(members.organizationId, m.organizationId), ne(members.userId, userId)));
+      .where(and(eq(members.organizationId, m.organizationId), ne(members.userId, userId), eq(members.kind, "human")));
     if (others.length) {
       await audit(db, { orgId: m.organizationId, actorUserId: userId, action: "member.account_deleted" });
       continue;

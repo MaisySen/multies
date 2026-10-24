@@ -275,7 +275,11 @@ export function authOptions(deps: Deps) {
         // The invite link is the secret and acceptance requires signing in as the
         // invited address; email delivery may not be connected yet.
         requireEmailVerificationOnInvitation: false,
-        membershipLimit: async (_user, org) => (await getPlan(db, org.id)).limits.seats,
+        // Better Auth counts every member row; AI agent members take no seat, so they are added on top.
+        membershipLimit: async (_user, org) => {
+          const [plan, agentsIn] = await Promise.all([getPlan(db, org.id), db.select({ n: count() }).from(schema.members).where(and(eq(schema.members.organizationId, org.id), eq(schema.members.kind, "agent"))).get()]);
+          return plan.limits.seats + (agentsIn?.n ?? 0);
+        },
         schema: { invitation: { additionalFields: { mailboxIds: { type: "string", required: false, input: true } } } },
         sendInvitationEmail: async (data) => {
           await sendSystemEmail(deps, {
@@ -298,7 +302,8 @@ export function authOptions(deps: Deps) {
             // Seats: current members plus pending invitations.
             const plan = await getPlan(db, org.id);
             const [m, p] = await Promise.all([
-              db.select({ n: count() }).from(schema.members).where(eq(schema.members.organizationId, org.id)).get(),
+              // AI agent members take no seat.
+              db.select({ n: count() }).from(schema.members).where(and(eq(schema.members.organizationId, org.id), eq(schema.members.kind, "human"))).get(),
               db.select({ n: count() }).from(schema.invitations).where(and(eq(schema.invitations.organizationId, org.id), eq(schema.invitations.status, "pending"), ne(schema.invitations.email, invitation.email))).get(),
             ]);
             if ((m?.n ?? 0) + (p?.n ?? 0) >= plan.limits.seats) {
