@@ -9,6 +9,7 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { compress } from "hono/compress";
 import { jsonLogger } from "../server/lib/logger";
+import { withAuthRequestState } from "../server/lib/request-state";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createApp } from "../server/app";
@@ -71,7 +72,8 @@ if (existsSync(webRoot)) {
 }
 
 const port = Number(process.env.PORT ?? 8787);
-const server = serve({ fetch: app.fetch, port }, () => {
+// One Better Auth request state per request (see src/server/lib/request-state.ts).
+const server = serve({ fetch: (req, env) => withAuthRequestState(() => Promise.resolve(app.fetch(req, env))), port }, () => {
   console.log(`[mymail] ${config.mode} · http://localhost:${port} · outbound=${outbound.name} · dns=${config.dnsResolver} · demo=${config.demoEnabled}`);
 });
 // Doc co-editing: GET /api/docs/:id/collab upgrades to a WebSocket (in-memory rooms).
