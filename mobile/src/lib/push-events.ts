@@ -2,6 +2,7 @@ import type { Api } from "@/api/endpoints";
 import type { PushData } from "@/api/types";
 import { displayName } from "./format";
 import { dueLabel } from "./tasks";
+import { channelTitle, plainText } from "./chat";
 
 /**
  * Pushes from the MyMail server carry only an event type and an id, never any mail or task text,
@@ -31,12 +32,17 @@ export function routeForPush(d: PushData): string | null {
   if (d.type === "approval.requested") return d.id ? `/approval/${id}` : "/approvals";
   if (d.type.startsWith("task.")) return `/task/${id}`;
   if (d.type === "automation.email" && d.id.startsWith("msg_")) return `/thread/${id}`;
+  // Chat pushes carry the chat message id; that screen looks it up and opens the channel (and thread).
+  if (d.type.startsWith("chat.")) return `/chat/message/${id}`;
+  // There is no goals screen on the phone yet, so a goal update opens the notifications inbox.
+  if (d.type === "goal.updated") return "/notifications";
   return null;
 }
 
-export interface PushText { title: string; body: string; channel: "mail" | "approvals" | "tasks" }
+export interface PushText { title: string; body: string; channel: "mail" | "approvals" | "tasks" | "chat" }
 
 export function channelFor(type: string): PushText["channel"] {
+  if (type.startsWith("chat.")) return "chat";
   return type.startsWith("approval") ? "approvals" : type.startsWith("message") || type.startsWith("mail") ? "mail" : "tasks";
 }
 
@@ -51,6 +57,10 @@ export function fallbackText(type: string): PushText {
     case "task.email_reply": return { title: "New reply on a task's email", body: "Tap to open the task.", channel };
     case "task.due_soon": return { title: "A task is due soon", body: "Tap to open it.", channel };
     case "automation.email": return { title: "An automation sent an email", body: "Tap to see it.", channel };
+    case "chat.mention": return { title: "You were mentioned in chat", body: "Tap to read it.", channel };
+    case "chat.dm": return { title: "New direct message", body: "Tap to read it.", channel };
+    case "chat.reply": return { title: "New reply in a thread", body: "Tap to read it.", channel };
+    case "goal.updated": return { title: "A goal was updated", body: "Tap to see your notifications.", channel };
     case "automation.status": return { title: "An automation needs a look", body: "Open MyMail on the web to check it.", channel };
     default: return { title: "MyMail", body: "Something new is waiting for you.", channel };
   }
@@ -72,6 +82,14 @@ export async function describePush(api: Api | null, d: PushData): Promise<PushTe
       const a = approvals.find((x) => x.id === d.id);
       if (!a) return base;
       return { ...base, body: clip(`"${a.subject}" to ${a.to[0] ?? "a customer"}. Tap to review.`) };
+    }
+    if (d.type.startsWith("chat.")) {
+      const { message: m, channel: c } = await api.chatMessage(d.id);
+      const where = channelTitle(c);
+      const title = d.type === "chat.mention" ? `${m.author.name} mentioned you in ${where}`
+        : d.type === "chat.dm" ? m.author.name
+        : `${m.author.name} replied in ${where}`;
+      return { ...base, title, body: clip(plainText(m) || (m.attachments.length ? "Sent a file" : base.body)) };
     }
     if (d.type.startsWith("task.")) {
       const detail = await api.task(d.id);

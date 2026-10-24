@@ -15,7 +15,7 @@ import { describePush, routeForPush } from "./push-events";
  * switched off, nothing here fails: the phone token step is skipped or the server stores the token
  * and sends nothing, and the app still checks for new approvals every 30 s while open.
  */
-export const CHANNELS = { mail: "mail", approvals: "approvals", tasks: "tasks" } as const;
+export const CHANNELS = { mail: "mail", approvals: "approvals", tasks: "tasks", chat: "chat" } as const;
 
 /** Where the token this phone registered is kept, so sign out can remove it from the server. */
 export const PUSH_TOKEN_KEY = "mymail.pushToken";
@@ -27,6 +27,7 @@ export function configureNotifications() {
   if (Platform.OS === "android") {
     Notifications.setNotificationChannelAsync(CHANNELS.mail, { name: "New mail", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#ff6a3d" }).catch(() => {});
     Notifications.setNotificationChannelAsync(CHANNELS.approvals, { name: "Agent approvals", description: "When an agent asks to send a message", importance: Notifications.AndroidImportance.HIGH, lightColor: "#ff6a3d" }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.chat, { name: "Chat", description: "Mentions, direct messages and thread replies", importance: Notifications.AndroidImportance.HIGH, lightColor: "#ff6a3d" }).catch(() => {});
     Notifications.setNotificationChannelAsync(CHANNELS.tasks, { name: "Tasks", description: "Assigned tasks, comments, replies and due dates", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#ff6a3d" }).catch(() => {});
   }
 }
@@ -66,7 +67,7 @@ export async function registerPush(api: Api | null, opts: { prompt?: boolean } =
     await secureStorage.set(PUSH_TOKEN_KEY, token).catch(() => {});
     return {
       kind: "allowed", token, registered: true, serverSends: r.enabled,
-      note: r.enabled ? "Push is on for new mail, approvals and tasks." : "This phone is registered. Push starts when MyMail switches it on.",
+      note: r.enabled ? "Push is on for new mail, approvals, tasks and chat." : "This phone is registered. Push starts when MyMail switches it on.",
     };
   } catch {
     return { kind: "allowed", token, registered: false, serverSends: false, note: "Alerts on, while the app is open. Couldn't reach MyMail to register this phone." };
