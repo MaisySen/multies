@@ -314,7 +314,7 @@ export async function getTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
   return presentTask(t, l);
 }
 
-export async function validateAssignee(deps: Deps, orgId: string, a: Assignee | null | undefined) {
+async function validateAssignee(deps: Deps, orgId: string, a: Assignee | null | undefined) {
   if (!a) return;
   if (a.type === "member") {
     const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, orgId), eq(members.userId, a.id))).get();
@@ -675,7 +675,6 @@ export async function dependencyLinks(deps: Deps, orgId: string, projectId?: str
 }
 
 export async function dependenciesOf(deps: Deps, orgId: string, taskId: string) {
-  await taskRow(deps, orgId, taskId); // 404 for another workspace's task
   const all = await dependencyLinks(deps, orgId);
   const [blockedBy, blocking] = await Promise.all([
     tasksByIds(deps, orgId, all.filter((l) => l.to === taskId).map((l) => l.from)),

@@ -81,8 +81,6 @@ export function parseDmarcReport(input: Uint8Array | string): ParsedDmarcReport 
 /** A message passes DMARC when either aligned DKIM or aligned SPF passed. */
 export const rowPasses = (r: Pick<DmarcRow, "dkim" | "spf">) => r.dkim === "pass" || r.spf === "pass";
 
-export const MAX_DMARC_ROWS = 500;
-
 /** Stores a report for the workspace that owns its domain. Duplicate reports are ignored. */
 export async function storeDmarcReport(deps: Deps, orgId: string, report: ParsedDmarcReport) {
   const d = await deps.db.select().from(domains).where(and(eq(domains.orgId, orgId), eq(domains.name, report.domain))).get();
@@ -97,12 +95,7 @@ export async function storeDmarcReport(deps: Deps, orgId: string, report: Parsed
     id, orgId, domainId: d.id, reporter: report.reporter, reportId: report.reportId, beginAt: report.begin, endAt: report.end,
     policy: JSON.stringify(report.policy), messages, passed,
   });
-  // Reports come from the outside world. Totals count every row, but only the busiest
-  // MAX_DMARC_ROWS sources are stored, so one huge report cannot spend the database's daily writes.
-  const keep = [...report.rows].sort((a, b) => b.count - a.count).slice(0, MAX_DMARC_ROWS);
-  for (let i = 0; i < keep.length; i += 8) {
-    await deps.db.insert(dmarcRecords).values(keep.slice(i, i + 8).map((r) => ({ id: newId("dmx"), reportId: id, ...r })));
-  }
+  for (const r of report.rows) await deps.db.insert(dmarcRecords).values({ id: newId("dmx"), reportId: id, ...r });
   return { id, duplicate: false };
 }
 

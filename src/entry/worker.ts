@@ -6,7 +6,6 @@
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
 import * as Sentry from "@sentry/cloudflare";
-import { sentryPrivacy } from "../shared/sentry-scrub";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
 import { loadConfig } from "../server/config";
@@ -248,8 +247,5 @@ export default Sentry.withSentry((rawEnv: unknown) => {
     environment: (typeof env.SENTRY_ENVIRONMENT === "string" ? env.SENTRY_ENVIRONMENT : undefined) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
     release: (typeof env.RELEASE === "string" ? env.RELEASE : undefined) ?? buildEnv.RELEASE,
     tracesSampleRate: Number((typeof env.SENTRY_TRACES_SAMPLE_RATE === "string" ? env.SENTRY_TRACES_SAMPLE_RATE : undefined) ?? buildEnv.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
-    // sendDefaultPii stays at its default (off); the scrubber runs on every event.
-    beforeSend: sentryPrivacy.beforeSend,
-    beforeSendTransaction: sentryPrivacy.beforeSendTransaction,
   };
 }, handler as never);

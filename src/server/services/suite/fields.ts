@@ -50,9 +50,6 @@ async function projectOf(deps: Deps, orgId: string, projectId: string) {
 }
 
 export async function listFields(deps: Deps, orgId: string, projectId: string) {
-  // Another workspace's project (or a made up id) is a 404, not an empty list.
-  const project = await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), eq(projects.id, projectId))).get();
-  if (!project) throw notFound("Project");
   const rows = await deps.db.select().from(customFields)
     .where(and(eq(customFields.orgId, orgId), eq(customFields.projectId, projectId), isNull(customFields.deletedAt)))
     .orderBy(asc(customFields.position), asc(customFields.createdAt));

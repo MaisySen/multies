@@ -1,7 +1,7 @@
 /** Simple rich text docs (Tiptap JSON) linked to projects, tasks, threads or contacts. */
 import { and, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { contacts, deals, docs, entityLinks, messages, projects, tasks } from "../../db/schema";
+import { docs, entityLinks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { link, linked } from "./tasks";
@@ -52,21 +52,7 @@ function validDoc(content: unknown): PMNode {
   if (!content || typeof content !== "object" || (content as PMNode).type !== "doc") throw new HttpError(422, "validation_failed", "content must be a Tiptap document (type: doc).");
   const s = JSON.stringify(content);
   if (s.length > 1_000_000) throw new HttpError(413, "too_large", "That doc is over 1 MB.");
-  return safeLinks(content as PMNode, 0);
-}
-
-/** Link marks keep http, https and mailto targets only; a javascript: or data: href is dropped. */
-const SAFE_HREF = /^(https?:|mailto:|\/(?!\/)|#)/i;
-/** Browsers ignore tabs, newlines and other control characters inside a URL scheme ("java\tscript:"). */
-const withoutControls = (s: string) => [...s].filter((ch) => ch.charCodeAt(0) > 0x20).join("");
-function safeLinks(node: PMNode, depth: number): PMNode {
-  if (depth > 64) throw new HttpError(422, "validation_failed", "That doc is nested too deeply.");
-  const n = node as PMNode & { marks?: { type: string; attrs?: Record<string, unknown> }[]; content?: PMNode[] };
-  if (Array.isArray(n.marks)) {
-    n.marks = n.marks.filter((m) => m.type !== "link" || (typeof m.attrs?.href === "string" && SAFE_HREF.test(withoutControls(m.attrs.href))));
-  }
-  if (Array.isArray(n.content)) n.content = n.content.map((c) => safeLinks(c, depth + 1));
-  return n;
+  return content as PMNode;
 }
 
 type DocRow = typeof docs.$inferSelect;
@@ -100,22 +86,9 @@ export async function getDoc(deps: Deps, orgId: string, id: string) {
   return { ...presentDoc(d, true), links: links.map((l) => (l.fromType === "doc" ? { type: l.toType, id: l.toId } : { type: l.fromType, id: l.fromId })) };
 }
 
-/** A link may only point at this workspace's own records: another workspace's id is a 404. */
-async function assertLinkTargets(deps: Deps, orgId: string, targets: LinkTarget[]) {
-  for (const l of targets) {
-    const row = l.type === "project" ? await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), eq(projects.id, l.id))).get()
-      : l.type === "task" ? await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.id, l.id))).get()
-      : l.type === "contact" ? await deps.db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, l.id))).get()
-      : l.type === "deal" ? await deps.db.select({ id: deals.id }).from(deals).where(and(eq(deals.orgId, orgId), eq(deals.id, l.id))).get()
-      : await deps.db.select({ id: messages.id }).from(messages).where(and(eq(messages.orgId, orgId), eq(messages.threadId, l.id))).limit(1).get();
-    if (!row) throw notFound(l.type === "thread" ? "Thread" : l.type[0].toUpperCase() + l.type.slice(1));
-  }
-}
-
 export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[] }) {
   assertWritable(actor);
   const body = input.content !== undefined ? validDoc(input.content) : docFromText(input.text ?? "");
-  await assertLinkTargets(deps, actor.orgId, [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]);
   const now = deps.now();
   const id = sortableId("doc", now.getTime());
   await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), projectId: input.projectId ?? null, ...createdBy(actor), createdAt: now, updatedAt: now });
@@ -130,7 +103,6 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
   const d = await docRow(deps, actor.orgId, id);
   if (patch.version !== undefined && patch.version !== d.version) throw new HttpError(409, "version_conflict", "This doc changed since you opened it. Reload to see the latest.");
   const body = patch.content !== undefined ? validDoc(patch.content) : undefined;
-  await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
   await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),
     ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body) } : {}),

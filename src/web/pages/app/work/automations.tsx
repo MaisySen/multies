@@ -55,7 +55,7 @@ export function AutomationsPage() {
               </Card>
             )}
           </div>
-          <aside className="space-y-4">
+          <aside aria-label="Usage and recipes" className="space-y-4">
             <Card className="p-4">
               <div className="flex items-center justify-between text-[13px]"><span className="font-medium">Runs this month</span><span className="tabular-nums text-muted">{q.data!.usage.used.toLocaleString("en-AU")} of {q.data!.usage.limit.toLocaleString("en-AU")}</span></div>
               <Meter className="mt-2" value={q.data!.usage.used} max={q.data!.usage.limit} />

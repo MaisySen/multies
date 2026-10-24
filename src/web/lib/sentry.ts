@@ -2,8 +2,6 @@
  * Browser error tracking with the official Sentry SDK. Off unless the server reports a DSN,
  * and loaded only then (it is about a third of the first-load JavaScript otherwise).
  */
-import { sentryPrivacy } from "../../shared/sentry-scrub";
-
 type SentryModule = typeof import("@sentry/react");
 let sdk: SentryModule | null = null;
 const early: unknown[] = [];
@@ -22,7 +20,6 @@ export async function startSentry() {
       integrations: [mod.browserTracingIntegration()],
       tracesSampleRate: config.sentry.tracesSampleRate ?? 0.1,
       tracePropagationTargets: [/^\/api\//],
-      ...sentryPrivacy,
     });
     sdk = mod;
     for (const err of early.splice(0)) mod.captureException(err);

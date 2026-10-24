@@ -48,12 +48,13 @@ Migrations never roll back, so they are always backward compatible.
 ## Release checklist
 
 - [ ] All checks above pass on the commit being shipped.
-- [ ] Staging deployed, smoke test and E2E pass, no new Sentry issues.
+- [ ] Staging deployed, smoke test and E2E pass, no new Sentry issues. While the D1 daily write budget is tight, run E2E locally and confirm deploys with one GET of `/api/config` ([runbooks/d1-daily-limits.md](runbooks/d1-daily-limits.md)); skip migrations a release does not need.
 - [ ] Production deployed, smoke test and launch checklist pass, `/api/config` shows the release.
 - [ ] Sentry quiet for 15 minutes after the deploy.
 - [ ] CHANGELOG updated: the round moves from Unreleased to its version.
 - [ ] Docs updated: README, API, architecture, runbooks and decision records match what shipped.
-- [ ] Security checks pass (`npm run security` once it lands; until then `npm audit` and gitleaks).
+- [ ] `npm run security` passes (npm audit, gitleaks over history and pending changes, the authorisation and isolation tests).
+- [ ] The gitleaks pre-commit hook is installed on the machine that commits (`npm run hooks:install`, once per clone).
 - [ ] `main` pushed to GitHub.
 - [ ] Mobile: when the API changed in a way the app uses, the app is checked against production.
 
