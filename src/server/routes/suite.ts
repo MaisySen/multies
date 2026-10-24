@@ -17,7 +17,7 @@ import {
   contactDetail, createContact, createDeal, deleteContact, deleteDeal, getCompany, listCompanies, listContacts, listDeals, updateCompany, updateContact, updateDeal,
 } from "../services/suite/contacts";
 import { automationUsage, createAutomation, deleteAutomation, listAutomations, RECIPES, updateAutomation } from "../services/suite/automations";
-import { listNotifications, markNotificationsRead } from "../services/suite/notify";
+import { getPrefs, listNotifications, markNotificationsRead, markNotificationUnread, setPrefs } from "../services/suite/notify";
 import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
 import {
   AutomationCreate, AutomationPatch, CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, PushDevice,
@@ -141,8 +141,20 @@ export function automationRoutes() {
 export function notificationRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/", async (c) => c.json({ notifications: await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: c.req.query("unread") === "1" }) }))
-    .post("/read", async (c) => c.json(await markNotificationsRead(c.var.deps, c.var.auth.orgId, c.var.auth.userId, (await parseBody(c, z.object({ ids: z.array(z.string()).max(500).optional() }))).ids)));
+    .get("/", async (c) => {
+      const q = parseQuery(c, z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional() }));
+      return c.json(await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: q.unread === "1" || q.unread === "true", category: q.category, limit: q.limit, before: q.before }));
+    })
+    .post("/read", async (c) => {
+      const b = await parseBody(c, z.object({ ids: z.array(z.string()).max(500).optional(), category: z.string().max(20).optional() }));
+      return c.json(await markNotificationsRead(c.var.deps, c.var.auth.orgId, c.var.auth.userId, b.ids, b.category));
+    })
+    .post("/:id/unread", async (c) => c.json(await markNotificationUnread(c.var.deps, c.var.auth.orgId, c.var.auth.userId, c.req.param("id"))))
+    .get("/settings", async (c) => c.json({ settings: await getPrefs(c.var.deps, c.var.auth.orgId, c.var.auth.userId) }))
+    .put("/settings", async (c) => {
+      const b = await parseBody(c, z.object({ settings: z.record(z.string(), z.object({ inApp: z.boolean().optional(), push: z.boolean().optional() })) }));
+      return c.json({ settings: await setPrefs(c.var.deps, c.var.auth.orgId, c.var.auth.userId, b.settings) });
+    })
 }
 
 export function pushRoutes() {

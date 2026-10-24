@@ -465,13 +465,14 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
     await audit(deps.db, { orgId: actor.orgId, ...who, action: "agent.send_queued", targetType: "approval", targetId: id, metadata: { to: input.to, subject: input.subject, reason: a.approvalMode } });
     await recordEvent(deps, actor.orgId, a.id, "approval.requested", { approvalId: id, to: input.to, subject: input.subject, threadId });
     await emitEvent(deps, actor.orgId, "approval.requested", { approvalId: id, agentId: a.id, agent: a.name, from: from.address, to: input.to, subject: input.subject, threadId });
-    if (deps.config.push.enabled) {
-      try {
-        const { pushToUsers } = await import("../suite/push");
-        const { usersWhoCanOpen } = await import("../team");
-        await pushToUsers(deps, actor.orgId, await usersWhoCanOpen(deps.db, actor.orgId, from.id), { type: "approval.requested", id });
-      } catch (err) { deps.reportError?.(err, { where: "approval.push" }); }
-    }
+    // Everyone who can open that inbox gets it in their notifications inbox (and on their phone).
+    try {
+      const { notify } = await import("../suite/notify");
+      const { usersWhoCanOpen } = await import("../team");
+      for (const u of await usersWhoCanOpen(deps.db, actor.orgId, from.id)) {
+        await notify(deps, actor.orgId, u, { type: "approval.requested", entityType: "approval", entityId: id, title: `${a.name} wants to send "${input.subject || "(no subject)"}" to ${[input.to].flat().join(", ")}`.slice(0, 300), actorName: a.name });
+      }
+    } catch (err) { deps.reportError?.(err, { where: "approval.notify" }); }
     return { status: "pending_approval", approval };
   }
   const result = await deliverAsAgent(deps, actor.orgId, a, mb, from, input);
