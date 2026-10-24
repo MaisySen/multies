@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { Tabs } from "expo-router";
 import { Icon } from "@/components/ui";
-import { useApprovals, useOverview } from "@/lib/queries";
+import { useApprovals, useChatUnread, useOverview } from "@/lib/queries";
 import { notifyApprovals } from "@/lib/push";
 import { FEATURES } from "@/config";
 import { colors } from "@/theme";
@@ -12,6 +12,9 @@ export default function TabsLayout() {
   const overview = useOverview();
   const unread = overview.data?.reduce((n, m) => n + (m.folders.inbox?.unread ?? 0), 0) ?? 0;
   const waiting = pending.data?.length ?? 0;
+  const chat = useChatUnread();
+  const chatUnread = chat.data?.total ?? 0;
+  const chatMentions = chat.data?.mentions ?? 0;
 
   // A local alert when a new approval arrives while the app is in the background but still alive.
   const seen = useRef<Set<string> | null>(null);
@@ -35,6 +38,8 @@ export default function TabsLayout() {
     }}>
       <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: ({ color }) => <Icon name="inbox" color={color as string} />, tabBarBadge: unread || undefined, tabBarAccessibilityLabel: unread ? `Inbox, ${unread} unread` : "Inbox" }} />
       <Tabs.Screen name="approvals" options={{ title: "Approvals", tabBarIcon: ({ color }) => <Icon name="check-circle" color={color as string} />, tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
+      <Tabs.Screen name="chat" options={{ title: "Chat", tabBarIcon: ({ color }) => <Icon name="message-circle" color={color as string} />, tabBarBadge: chatUnread || undefined,
+        tabBarAccessibilityLabel: chatUnread ? `Chat, ${chatUnread} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
       <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color }) => <Icon name="check-square" color={color as string} /> }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: ({ color }) => <Icon name="settings" color={color as string} /> }} />
     </Tabs>
