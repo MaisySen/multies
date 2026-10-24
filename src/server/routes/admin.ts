@@ -5,6 +5,8 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAuth, requirePlatformAdmin } from "../middleware";
 import { abuseEvents, deliveries, domains, mailboxes, organizations, users } from "../db/schema";
 import { audit } from "../services/audit";
+import { beforeUserDelete } from "../services/privacy";
+import { HttpError, notFound } from "../lib/errors";
 import { listJobs, queueStats, replayJobs } from "../services/jobs";
 import { getOrg } from "../services/plans";
 
@@ -40,6 +42,30 @@ export function adminRoutes() {
       });
     })
     // Abuse controls: open signals, suspensions and send caps. Every action is audited on the workspace.
+    /** Find accounts by email or name (support and clean up). */
+    .get("/users", async (c) => {
+      const q = (c.req.query("q") ?? "").trim().toLowerCase().slice(0, 100);
+      const rows = await c.var.deps.db.select({ id: users.id, email: users.email, name: users.name, createdAt: users.createdAt }).from(users)
+        .where(q ? sql`lower(${users.email}) like ${"%" + q + "%"} or lower(${users.name}) like ${"%" + q + "%"}` : undefined)
+        .orderBy(desc(users.createdAt)).limit(50);
+      return c.json({ users: rows });
+    })
+    /**
+     * Deletes an account, as DELETE /api/account would for the person: workspaces where they
+     * are the only member go with it. Refused (409) while they are the only owner of a shared
+     * workspace. Audited.
+     */
+    .delete("/users/:id", async (c) => {
+      const { deps, auth } = c.var;
+      const id = c.req.param("id");
+      if (id === auth.userId) throw new HttpError(400, "use_account_delete", "Delete your own account from Settings.");
+      const user = await deps.db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, id)).get();
+      if (!user) throw notFound("User");
+      await beforeUserDelete(deps, id);
+      await deps.db.delete(users).where(eq(users.id, id));
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "admin.user_deleted", targetType: "user", targetId: id, metadata: { email: user.email } });
+      return c.json({ ok: true });
+    })
     .get("/abuse", async (c) => {
       const { db } = c.var.deps;
       const events = await db.select({
