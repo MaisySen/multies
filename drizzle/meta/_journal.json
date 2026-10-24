@@ -141,6 +141,13 @@
       "when": 1792785003202,
       "tag": "0019_suite_fields_guests_portfolio",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792804671217,
+      "tag": "0020_r10_chat_inbox_templates_goals",
+      "breakpoints": true
     }
   ]
 }

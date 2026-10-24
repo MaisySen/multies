@@ -701,6 +701,8 @@ export const tasks = sqliteTable("tasks", {
   completedAt: ts("completed_at"),
   /** Due date reminders already sent, e.g. "due:2026-10-24". */
   reminderSentFor: text("reminder_sent_for"),
+  /** JSON repeat rule ({ freq, interval, weekdays?, monthDay?, until? }); finishing the task makes the next one. */
+  repeatRule: text("repeat_rule"),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
@@ -850,6 +852,7 @@ export const notifications = sqliteTable("notifications", {
   entityType: text("entity_type").notNull(),
   entityId: text("entity_id").notNull(),
   title: text("title").notNull(),
+  actorName: text("actor_name"),
   readAt: ts("read_at"),
   createdAt: createdAt(),
 }, (t) => [index("notifications_user_idx").on(t.userId, t.orgId, t.createdAt)]);
@@ -1024,3 +1027,123 @@ export const taskFiles = sqliteTable("task_files", {
   uploadedByName: text("uploaded_by_name").notNull().default(""),
   createdAt: createdAt(),
 }, (t) => [index("task_files_task_idx").on(t.taskId, t.createdAt)]);
+
+// ---------------------------------------------------------------- round 10: chat, inbox settings, templates, goals
+
+/** A chat channel or a direct message conversation in a workspace. */
+export const chatChannels = sqliteTable("chat_channels", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["channel", "dm"] }).notNull().default("channel"),
+  name: text("name").notNull().default(""),
+  topic: text("topic").notNull().default(""),
+  /** Private channels are seen only by their members. */
+  isPrivate: integer("is_private", { mode: "boolean" }).notNull().default(false),
+  /** A channel can belong to a project; with guestAccess the project's guests can read and post in it. */
+  projectId: text("project_id"),
+  guestAccess: integer("guest_access", { mode: "boolean" }).notNull().default(false),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  /** For a DM: the sorted user ids joined by commas, so the same people always get the same DM. */
+  dmKey: text("dm_key"),
+  lastMessageAt: ts("last_message_at"),
+  ...suiteCols(),
+}, (t) => [index("chat_channels_org_idx").on(t.orgId, t.kind), uniqueIndex("chat_channels_dm_uq").on(t.orgId, t.dmKey)]);
+
+export const chatMembers = sqliteTable("chat_members", {
+  channelId: text("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  lastReadAt: ts("last_read_at"),
+  joinedAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.channelId, t.userId] }), index("chat_members_user_idx").on(t.userId, t.orgId)]);
+
+export const chatMessages = sqliteTable("chat_messages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  /** Set on a reply in a thread: the top level message it answers. */
+  parentId: text("parent_id"),
+  authorType: text("author_type", { enum: ["member", "agent", "guest", "system"] }).notNull(),
+  authorId: text("author_id"),
+  authorName: text("author_name").notNull().default(""),
+  body: text("body").notNull().default(""),
+  /** JSON [{ type, id, name }] resolved at send time. */
+  mentions: text("mentions").notNull().default("[]"),
+  /** Space separated "member:<id>" keys of the people mentioned (with "channel" for everyone), for unread counts. */
+  mentionKeys: text("mention_keys").notNull().default(""),
+  /** JSON [{ type, id, ref, title }] */
+  links: text("links").notNull().default("[]"),
+  replyCount: integer("reply_count").notNull().default(0),
+  lastReplyAt: ts("last_reply_at"),
+  editedAt: ts("edited_at"),
+  deletedAt: ts("deleted_at"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("chat_messages_channel_idx").on(t.channelId, t.parentId, t.createdAt), index("chat_messages_updated_idx").on(t.channelId, t.updatedAt), index("chat_messages_parent_idx").on(t.parentId)]);
+
+export const chatFiles = sqliteTable("chat_files", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => chatChannels.id, { onDelete: "cascade" }),
+  messageId: text("message_id").notNull(),
+  filename: text("filename").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  contentB64: text("content_b64"),
+  storageKey: text("storage_key"),
+  createdAt: createdAt(),
+}, (t) => [index("chat_files_message_idx").on(t.messageId)]);
+
+/** Per person, per workspace: which notification categories show in the inbox and which buzz the phone. */
+export const notificationPrefs = sqliteTable("notification_prefs", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  /** JSON { [category]: { inApp, push } } */
+  settings: text("settings").notNull().default("{}"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
+
+/** A saved project or task template. The starter gallery lives in code and is not stored. */
+export const templates = sqliteTable("templates", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["project", "task"] }).notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  category: text("category").notNull().default("Custom"),
+  /** JSON template body (see services/suite/templates.ts). */
+  data: text("data").notNull(),
+  ...suiteCols(),
+}, (t) => [index("templates_org_idx").on(t.orgId, t.kind)]);
+
+/** Goals (objectives) with key results; progress is worked out when read. */
+export const goals = sqliteTable("goals", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  ownerId: text("owner_id"),
+  /** A goal can sit under a bigger goal; progress rolls up. */
+  parentId: text("parent_id"),
+  startAt: ts("start_at"),
+  dueAt: ts("due_at"),
+  health: text("health", { enum: ["on_track", "at_risk", "off_track"] }),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  ...suiteCols(),
+}, (t) => [index("goals_org_idx").on(t.orgId, t.parentId)]);
+
+export const keyResults = sqliteTable("key_results", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  goalId: text("goal_id").notNull().references(() => goals.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** number, currency (AUD), percent, or tasks (progress from linked tasks or a whole project). */
+  kind: text("kind", { enum: ["number", "currency", "percent", "tasks"] }).notNull().default("number"),
+  startValue: real("start_value").notNull().default(0),
+  targetValue: real("target_value").notNull().default(100),
+  currentValue: real("current_value").notNull().default(0),
+  unit: text("unit").notNull().default(""),
+  projectId: text("project_id"),
+  position: real("position").notNull().default(0),
+  ...suiteCols(),
+}, (t) => [index("key_results_goal_idx").on(t.goalId)]);
