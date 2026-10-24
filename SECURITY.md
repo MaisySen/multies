@@ -1,12 +1,12 @@
 # Security policy
 
-Multies hosts people's email, so we take reports seriously and answer them fast.
+Multies holds people's email, chat, tasks and documents, so we take reports seriously and answer them fast.
 
 ## Reporting a vulnerability
 
 Please report privately. Do not open a public issue.
 
-- Email the address in [`/.well-known/security.txt`](https://mymail.mymail-app.workers.dev/.well-known/security.txt) on any Multies deployment.
+- Email **mymail.builder@mail.tab.bot** (the support address today; it is also the contact in [`/.well-known/security.txt`](https://multies.si/.well-known/security.txt)). A dedicated security address on multies.si will replace it once mail on the domain is set up, and this page will say so.
 - Or use GitHub's private vulnerability reporting on this repository (Security tab, "Report a vulnerability").
 
 Include what you found, where, how to reproduce it, and the impact you expect. A proof of concept helps. Do not include other people's data.
@@ -34,13 +34,13 @@ We will not take legal action against research that follows this policy:
 
 ## Scope
 
-In scope: the Multies web app and API on its official deployments, the inbound email worker, and the code in this repository.
+In scope: the Multies web app, REST API, MCP server and webhooks on its official deployments (multies.si, app.multies.si and the mymail workers.dev hosts), the inbound email worker, the mobile app, and the code in this repository.
 
-Out of scope: findings from automated scanners without a working exploit, missing headers on pages with no sensitive content, self-XSS, clickjacking on pages without actions, rate limits above the documented values, social engineering, and physical attacks. Third-party services (Cloudflare, Stripe, Resend, Auth0, Sentry) have their own programmes.
+Out of scope: findings from automated scanners without a working exploit, missing headers on pages with no sensitive content, self-XSS, clickjacking on pages without actions, rate limits above the documented values, social engineering, and physical attacks. Third-party services (Cloudflare, Stripe, Resend, Auth0, Sentry, LiveKit) and the AI providers that users bring their own keys for have their own programmes.
 
 ## Supported versions
 
-Only the latest release on `main` is supported. Deployments update on every merge.
+Only the latest release is supported: the version on production (see `/api/config`) and the newest mobile app build in the stores. Fixes ship as a new release, staging first, then production.
 
 ## How Multies is secured
 

@@ -1,14 +1,14 @@
 # Domain and DNS: multies.si
 
-The product lives on `multies.si`. Until the domain is active, the app runs at
-https://mymail.mymail-app.workers.dev, and that address keeps working afterwards.
+The product lives on `multies.si`. The production Worker also answers on `app.multies.si` and on
+https://mymail.mymail-app.workers.dev, so old links keep working; `www.multies.si` redirects to the apex.
 
 ## Where things are
 
 | Piece | Where | State (24 Oct 2026) |
 | --- | --- | --- |
 | Registrar | Hostinger (the owner's account) | Nameservers changed by the owner at 1:33 PM Sydney time |
-| DNS | Cloudflare, Free plan, zone `multies.si` | Pending until the new nameservers reach the .si registry |
+| DNS | Cloudflare, Free plan, zone `multies.si` | Active; https://multies.si serves production |
 | Nameservers | `jonah.ns.cloudflare.com` and `mimi.ns.cloudflare.com` | Set at Hostinger |
 | Web Analytics | Cloudflare Web Analytics site for `multies.si` | Set up; the beacon token is a Worker variable |
 
@@ -19,13 +19,13 @@ The zone id, the beacon token and the API token are in "CREDENTIALS (owner email
 ```bash
 curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
   "https://api.cloudflare.com/client/v4/zones?name=multies.si" | jq '.result[0].status'
-dig +short NS multies.si
+dig +short NS multies.si      # or: nslookup -type=ns multies.si
 ```
 
 `"active"` means Cloudflare serves the domain. .si delegations usually move within an hour, sometimes
 up to a day.
 
-## Once the zone is active
+## Moving the app onto the domain (done in round 11, kept for the next domain)
 
 1. **Custom domains on the Worker.** Attach `multies.si` and `app.multies.si` (or `www.multies.si` as a redirect) to the production Worker `mymail`, in the dashboard (Workers, mymail, Settings, Domains and Routes) or with `[[routes]]` entries using `custom_domain = true` in `wrangler.toml`. Cloudflare issues the certificates.
 2. **App URL.** Set `APP_URL` to `https://multies.si` in `wrangler.toml` and add it to the trusted origins, so canonical tags, the sitemap, robots.txt, emails and Open Graph tags use the new address. Keep `workers_dev = true` so the old address still answers.

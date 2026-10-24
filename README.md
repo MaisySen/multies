@@ -5,8 +5,8 @@ and projects, docs, meetings, goals, templates and notifications, with AI agents
 your team.** Free for startups, with small paid add-ons. Agents run on the AI you bring (your own
 provider key), so Multies never pays for model calls and never resells them.
 
-Production: https://mymail.mymail-app.workers.dev (moving to https://multies.si once the domain is
-active). Staging: https://mymail-staging.mymail-app.workers.dev. Preview: https://mymail.sites.tab.bot.
+Production: https://multies.si (also served at https://app.multies.si and
+https://mymail.mymail-app.workers.dev). Staging: https://mymail-staging.mymail-app.workers.dev. Preview: https://mymail.sites.tab.bot.
 Tap *Try the live demo* for a private sample workspace, or sign up and add a real domain.
 
 Documentation index: [docs/README.md](docs/README.md). Changes per release: [CHANGELOG.md](CHANGELOG.md).
@@ -212,7 +212,7 @@ untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/secu
 
 ## Known gaps
 
-- Production runs on its workers.dev address until the multies.si zone is active ([docs/runbooks/domain-dns.md](docs/runbooks/domain-dns.md)).
+- Mail on multies.si (Email Routing and the outbound sender) is set up separately from the web address ([docs/runbooks/domain-dns.md](docs/runbooks/domain-dns.md)).
 - R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then, and D1 Time Travel covers the last 7 days on the free plan ([docs/runbooks/db-backup-restore.md](docs/runbooks/db-backup-restore.md)).
 - Legal pages are drafts for review by an Australian lawyer.
 - Mail is not hosted in Australia yet: D1 is placed in Cloudflare's Oceania region by a hint. `deploy/au` is the groundwork for a Sydney VPS.

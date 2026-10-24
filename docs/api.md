@@ -79,7 +79,7 @@ MCP: `set_task_repeat`.
 
 ## MCP tools
 
-52 tools at the time of writing:
+The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
 `append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_guests`, `list_inboxes`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
