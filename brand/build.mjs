@@ -1,0 +1,106 @@
+// Builds every MyMail brand asset from the SVG sources in this folder.
+// Run from the app root: node brand/build.mjs
+// The wordmark is Inter SemiBold (SIL OFL 1.1), outlined to paths so it renders the same everywhere.
+import sharp from "sharp";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..");
+const BLUE = "#0071E3";
+const INK = "#1D1D1F";
+const PAPER = "#F5F5F7";
+const WORDMARK = "M2.93 0V-29.1H10.79L16.32 -14.07Q16.6 -13.24 16.96 -11.93Q17.32 -10.61 17.7 -9.09Q18.08 -7.56 18.42 -6.11Q18.76 -4.66 19 -3.54H17.94Q18.19 -4.62 18.52 -6.06Q18.86 -7.5 19.24 -9.03Q19.62 -10.56 19.99 -11.89Q20.35 -13.23 20.63 -14.07L26.09 -29.1H33.97V0H28.76V-14.69Q28.76 -15.62 28.78 -16.95Q28.81 -18.28 28.85 -19.81Q28.89 -21.33 28.92 -22.88Q28.96 -24.44 28.97 -25.83H29.34Q28.95 -24.3 28.49 -22.69Q28.04 -21.07 27.59 -19.56Q27.14 -18.04 26.73 -16.78Q26.33 -15.52 26.04 -14.69L20.66 0H16.23L10.77 -14.69Q10.48 -15.5 10.09 -16.75Q9.69 -17.99 9.24 -19.49Q8.78 -21 8.31 -22.62Q7.85 -24.25 7.4 -25.83H7.83Q7.86 -24.53 7.89 -23Q7.93 -21.47 7.96 -19.93Q8 -18.38 8.03 -17.02Q8.06 -15.66 8.06 -14.69V0Z M38.89 7.79 40.08 3.83 40.69 3.99Q41.84 4.29 42.74 4.15Q43.64 4.02 44.24 3.37Q44.85 2.72 45.1 1.47L45.42 0.08L37.17 -21.84H42.6L46.6 -9.96Q47.3 -7.85 47.75 -5.76Q48.19 -3.67 48.74 -1.48H47.4Q47.95 -3.67 48.47 -5.77Q48.99 -7.88 49.7 -9.96L53.82 -21.84H59.2L49.82 2.8Q49.15 4.56 48.15 5.79Q47.15 7.03 45.71 7.67Q44.28 8.32 42.3 8.32Q41.21 8.32 40.3 8.16Q39.39 8 38.89 7.79Z M62.39 0V-29.1H70.26L75.79 -14.07Q76.07 -13.24 76.43 -11.93Q76.79 -10.61 77.17 -9.09Q77.55 -7.56 77.89 -6.11Q78.23 -4.66 78.46 -3.54H77.41Q77.66 -4.62 77.99 -6.06Q78.33 -7.5 78.71 -9.03Q79.09 -10.56 79.46 -11.89Q79.82 -13.23 80.1 -14.07L85.56 -29.1H93.44V0H88.23V-14.69Q88.23 -15.62 88.25 -16.95Q88.28 -18.28 88.32 -19.81Q88.36 -21.33 88.39 -22.88Q88.43 -24.44 88.44 -25.83H88.8Q88.42 -24.3 87.96 -22.69Q87.5 -21.07 87.05 -19.56Q86.6 -18.04 86.2 -16.78Q85.8 -15.52 85.51 -14.69L80.13 0H75.7L70.24 -14.69Q69.95 -15.5 69.56 -16.75Q69.16 -17.99 68.71 -19.49Q68.25 -21 67.78 -22.62Q67.32 -24.25 66.87 -25.83H67.3Q67.33 -24.53 67.36 -23Q67.4 -21.47 67.43 -19.93Q67.47 -18.38 67.5 -17.02Q67.53 -15.66 67.53 -14.69V0Z M104.68 0.45Q102.61 0.45 100.94 -0.3Q99.28 -1.05 98.32 -2.52Q97.36 -3.99 97.36 -6.14Q97.36 -7.99 98.05 -9.19Q98.75 -10.4 99.93 -11.12Q101.12 -11.85 102.61 -12.22Q104.09 -12.59 105.68 -12.76Q107.59 -12.97 108.78 -13.13Q109.96 -13.28 110.52 -13.63Q111.08 -13.98 111.08 -14.72V-14.82Q111.08 -15.9 110.65 -16.65Q110.21 -17.4 109.37 -17.79Q108.52 -18.19 107.27 -18.19Q106 -18.19 105.07 -17.8Q104.14 -17.41 103.56 -16.79Q102.97 -16.17 102.69 -15.44L97.99 -16.41Q98.64 -18.34 99.98 -19.6Q101.33 -20.86 103.2 -21.49Q105.07 -22.11 107.25 -22.11Q108.79 -22.11 110.36 -21.74Q111.93 -21.38 113.25 -20.53Q114.56 -19.68 115.36 -18.23Q116.16 -16.78 116.16 -14.6V0H111.3V-3.01H111.1Q110.62 -2.08 109.76 -1.29Q108.9 -0.5 107.64 -0.03Q106.38 0.45 104.68 0.45ZM105.98 -3.32Q107.56 -3.32 108.7 -3.94Q109.85 -4.56 110.48 -5.59Q111.11 -6.63 111.11 -7.83V-10.42Q110.86 -10.21 110.27 -10.04Q109.68 -9.87 108.94 -9.73Q108.21 -9.6 107.5 -9.5Q106.79 -9.4 106.3 -9.34Q105.16 -9.19 104.24 -8.83Q103.33 -8.47 102.8 -7.83Q102.28 -7.2 102.28 -6.2Q102.28 -5.25 102.76 -4.62Q103.24 -3.98 104.07 -3.65Q104.91 -3.32 105.98 -3.32Z M121.07 0V-21.84H126.14V0ZM123.61 -24.93Q122.39 -24.93 121.52 -25.74Q120.65 -26.56 120.65 -27.7Q120.65 -28.87 121.52 -29.68Q122.39 -30.49 123.61 -30.49Q124.83 -30.49 125.7 -29.68Q126.58 -28.87 126.58 -27.71Q126.58 -26.56 125.7 -25.74Q124.83 -24.93 123.61 -24.93Z M136.13 -29.1V0H131.05V-29.1Z";
+
+// The mark: an M whose middle stroke is the flap of an envelope, on a rounded tile.
+// Grid is 64 units. Tile corner radius is 22.5 percent, close to an iOS app icon.
+const GLYPH = "M18 44V21l14 12 14-12v23";
+const glyph = (stroke = "#fff", width = 5.5) =>
+  `<path d="${GLYPH}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round"/>`;
+const tile = (fill = BLUE, r = 14.4) => `<rect width="64" height="64" rx="${r}" fill="${fill}"/>`;
+const svg = (vb, body, extra = "") => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}"${extra}>${body}</svg>\n`;
+
+const markColour = svg("0 0 64 64", tile() + glyph());
+// Monochrome: one colour (currentColor), the M knocked out of the tile.
+const monoMask = `<mask id="m"><rect width="64" height="64" fill="#fff"/>${glyph("#000")}</mask>`;
+const markMono = svg("0 0 64 64", `<defs>${monoMask}</defs><rect width="64" height="64" rx="14.4" fill="currentColor" mask="url(#m)"/>`);
+
+// Lockup: 40 unit mark, 12 unit gap, wordmark at 40 units with its cap height centred on the mark.
+const W = 191, H = 49;
+const lockup = (text, mark) => svg(`0 0 ${W} ${H}`,
+  `<g transform="translate(0 4.5) scale(0.625)">${mark}</g><path transform="translate(52 39.05)" fill="${text}" d="${WORDMARK}"/>`);
+const logoLight = lockup(INK, tile() + glyph());
+const logoDark = lockup(PAPER, tile() + glyph());
+const logoMono = svg(`0 0 ${W} ${H}`,
+  `<defs>${monoMask}</defs><g transform="translate(0 4.5) scale(0.625)"><rect width="64" height="64" rx="14.4" fill="currentColor" mask="url(#m)"/></g><path transform="translate(52 39.05)" fill="currentColor" d="${WORDMARK}"/>`);
+
+// Full-bleed square for platforms that round corners themselves (iOS, PWA). glyphScale keeps the M in the safe zone.
+const square = (size, { bg = BLUE, scale = 1, fg = "#fff", alphaBg = false } = {}) => {
+  const s = size / 64;
+  const g = `<g transform="translate(${size / 2} ${size / 2}) scale(${s * scale}) translate(-32 -32.5)">${glyph(fg)}</g>`;
+  return svg(`0 0 ${size} ${size}`, (alphaBg ? "" : `<rect width="${size}" height="${size}" fill="${bg}"/>`) + g);
+};
+
+const out = (p, data) => { const f = join(here, p); mkdirSync(dirname(f), { recursive: true }); writeFileSync(f, data); return f; };
+const png = async (svgText, file, size, flatten = false) => {
+  let img = sharp(Buffer.from(svgText), { density: 384 }).resize(size, size);
+  if (flatten) img = img.flatten({ background: BLUE });
+  out(file, await img.png({ compressionLevel: 9 }).toBuffer());
+};
+
+out("logo-mark.svg", markColour);
+out("logo-mark-mono.svg", markMono);
+out("logo-light.svg", logoLight);
+out("logo-dark.svg", logoDark);
+out("logo-mono.svg", logoMono);
+
+// Web: favicons, touch icon and manifest icons.
+const favicon = markColour;
+await png(favicon, "web/favicon-16.png", 16);
+await png(favicon, "web/favicon-32.png", 32);
+await png(favicon, "web/favicon-48.png", 48);
+await png(square(180, { scale: 0.92 }), "web/apple-touch-icon.png", 180, true);
+await png(square(192), "web/icon-192.png", 192);
+await png(square(512), "web/icon-512.png", 512);
+await png(square(512, { scale: 0.78 }), "web/icon-maskable-512.png", 512, true);
+out("web/favicon.svg", favicon);
+
+// favicon.ico holding the 16, 32 and 48 PNGs (PNG-in-ICO, supported by every current browser).
+const icoParts = ["web/favicon-16.png", "web/favicon-32.png", "web/favicon-48.png"].map((p) => readFileSync(join(here, p)));
+const header = Buffer.alloc(6); header.writeUInt16LE(0, 0); header.writeUInt16LE(1, 2); header.writeUInt16LE(icoParts.length, 4);
+let offset = 6 + 16 * icoParts.length;
+const dir = icoParts.map((buf, i) => {
+  const e = Buffer.alloc(16); const size = [16, 32, 48][i];
+  e.writeUInt8(size, 0); e.writeUInt8(size, 1); e.writeUInt8(0, 2); e.writeUInt8(0, 3);
+  e.writeUInt16LE(1, 4); e.writeUInt16LE(32, 6); e.writeUInt32LE(buf.length, 8); e.writeUInt32LE(offset, 12);
+  offset += buf.length; return e;
+});
+out("web/favicon.ico", Buffer.concat([header, ...dir, ...icoParts]));
+
+// Mobile sources (Expo). Android adaptive layers are 1024 with the M inside the central 66 percent.
+await png(square(1024, { scale: 0.92 }), "mobile/icon.png", 1024, true);
+await png(square(1024, { scale: 0.62, alphaBg: true }), "mobile/adaptive-foreground.png", 1024);
+await png(svg("0 0 1024 1024", `<rect width="1024" height="1024" fill="${BLUE}"/>`), "mobile/adaptive-background.png", 1024);
+await png(square(1024, { scale: 0.62, alphaBg: true }), "mobile/adaptive-monochrome.png", 1024);
+await png(svg("0 0 64 64", tile() + glyph()), "mobile/splash-icon.png", 1024);
+await png(square(96, { scale: 1.1, alphaBg: true }), "mobile/notification-icon.png", 96);
+
+// Open Graph card, 1200 by 630.
+const og = svg("0 0 1200 630", `<rect width="1200" height="630" fill="${PAPER}"/>
+<g transform="translate(120 110) scale(2)">${lockup(INK, tile() + glyph()).replace(/<\/?svg[^>]*>/g, "")}</g>
+<text x="120" y="360" font-family="Inter, Helvetica, Arial, sans-serif" font-size="56" font-weight="600" fill="${INK}" letter-spacing="-1">Email on your own domain,</text>
+<text x="120" y="430" font-family="Inter, Helvetica, Arial, sans-serif" font-size="56" font-weight="600" fill="${INK}" letter-spacing="-1">with tasks, chat and agents.</text>
+<text x="120" y="520" font-family="Inter, Helvetica, Arial, sans-serif" font-size="30" fill="#6E6E73">Free for small teams. Prices in AUD.</text>`);
+out("og-image.svg", og);
+out("web/og-image.png", await sharp(Buffer.from(og), { density: 144 }).resize(1200, 630).png({ compressionLevel: 9 }).toBuffer());
+
+// Large renders for docs and decks.
+out("logo-light.png", await sharp(Buffer.from(logoLight), { density: 1200 }).resize({ width: 1200 }).png().toBuffer());
+out("logo-dark.png", await sharp(Buffer.from(logoDark), { density: 1200 }).resize({ width: 1200 }).png().toBuffer());
+
+// Copy the web set into public/.
+for (const f of ["favicon.svg", "favicon.ico", "favicon-16.png", "favicon-32.png", "apple-touch-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "og-image.png"]) {
+  writeFileSync(join(root, "public", f), readFileSync(join(here, "web", f)));
+}
+console.log("brand assets written");
