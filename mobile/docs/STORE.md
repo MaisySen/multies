@@ -53,11 +53,11 @@ bundle id registration with the API key, App Store Connect fields through the AP
 
 ## What only Bidur does (playbook section 8)
 
-1. Email AuthKey_GQ43YP4N5K.p8 to mymail.builder@mail.tab.bot.
+1. Done 24 Oct 2026: the .p8 arrived and bundle id au.mymail.app is registered (App Store Connect resource QX49MLU6LF).
 2. Create the App Store Connect app record: Name Multies, Primary Language English (Australia),
    Bundle ID au.mymail.app, SKU multies-ios-1, User Access Full Access.
 3. Give the App Review phone number.
-4. Create the Google Play developer account as an Organisation for Fintex (if none exists).
+4. Done: the Fintex Australia Play developer account exists. Its invite to mymail.builder@mail.tab.bot needs a Google account on that address; Google's signup stops at a phone QR check. Either Bidur scans it, invites a Google account he owns, or does steps 5 and 6 himself.
 5. Create the Play app record: App name Multies, English (Australia), App, Free.
 6. Upload the first AAB on the Internal testing track and accept Play App Signing. Release name
    1.8.1 (10).
