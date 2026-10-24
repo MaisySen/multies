@@ -82,12 +82,21 @@ export function addonHint(limit: string) {
 
 const LABEL = { domains: "domains", mailboxes: "mailboxes", aliases: "aliases", agentInboxes: "agent inboxes" } as const;
 
+async function countOf(db: DB, orgId: string, kind: keyof typeof LABEL) {
+  const q = kind === "domains" ? db.select({ n: count() }).from(domains).where(eq(domains.orgId, orgId))
+    : kind === "aliases" ? db.select({ n: count() }).from(aliases).where(eq(aliases.orgId, orgId))
+    : db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, kind === "mailboxes" ? "person" : "agent")));
+  return (await q.get())?.n ?? 0;
+}
+
 /** Throws a 403 `plan_limit` when creating one more `kind` would exceed the plan. */
 export async function assertCanCreate(db: DB, orgId: string, kind: keyof typeof LABEL) {
   // (seats are enforced in services/team.ts, where pending invites count too)
-  const [plan, used] = await Promise.all([getPlan(db, orgId), usage(db, orgId)]);
+  // Counts only the one thing being created: the full usage() read (seven queries, including
+  // usage_counters) ran once per mailbox, alias and domain a demo makes (Sentry MYMAIL-API-M).
+  const [plan, used] = await Promise.all([getPlan(db, orgId), countOf(db, orgId, kind)]);
   const limit = plan.limits[kind];
-  if (used[kind] >= limit) {
+  if (used >= limit) {
     const what = limit === 1 ? LABEL[kind].replace(/es$/, "").replace(/s$/, "") : LABEL[kind];
     throw planLimit(`Your workspace includes ${limit} ${what}. ${addonHint(kind)}`);
   }

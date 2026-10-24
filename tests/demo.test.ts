@@ -47,7 +47,8 @@ describe("demo mode", () => {
     client.prepare = (q: string) => { queries++; return prepare(q); };
     const c = new Client(ctx.app);
     expect((await c.post("/api/account/demo")).status).toBe(201);
-    expect(queries).toBeLessThan(200);
+    // 115 since the plan limit check counts only what it creates (Sentry MYMAIL-API-M).
+    expect(queries).toBeLessThan(130);
     expect(ctx.outbound.sent).toHaveLength(0);
     const sent = (await c.get("/api/mail/messages?folder=sent")).body.messages;
     expect(sent.length).toBeGreaterThan(0);
