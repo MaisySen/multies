@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, FileText, Hash, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Plus, Send, Users, X } from "lucide-react";
+import { CheckSquare, FileText, Hash, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -22,6 +22,7 @@ export interface ChatMessage {
   id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string }; body: string;
   mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; messageId?: string }[];
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
+  pinnedAt?: string | null; pinnedBy?: string | null;
 }
 interface Person { id: string; type: "member" | "agent"; name: string; email: string | null }
 
@@ -54,7 +55,7 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void }) {
+function Message({ m, onThread, onTask, onEdit, onDelete, onPin, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   return (
     <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover" data-testid="chat-message" id={`m-${m.id}`}>
@@ -65,6 +66,7 @@ function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m:
           {m.author.type === "agent" && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
+          {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
         </div>
         {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : <Body m={m} />}
         {m.attachments.length > 0 && (
@@ -82,12 +84,58 @@ function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m:
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
           <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><MoreHorizontal className="h-4 w-4" aria-hidden /></button>}>
             <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
+            {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
           </Menu>
         </div>
       )}
     </li>
+  );
+}
+
+/** One line of a message for previews: mentions and links as plain words. */
+const preview = (m: ChatMessage) => {
+  const names = new Map(m.mentions.map((x) => [`${x.type}:${x.id}`, x.name]));
+  const links = new Map(m.links.map((l) => [`${l.type}:${l.id}`, l.ref ?? l.title]));
+  return m.body.replace(TOKEN_RE, (t) => {
+    const inner = t.slice(2, -1);
+    if (t.startsWith("<@")) return `@${names.get(inner) ?? "someone"}`;
+    if (t.startsWith("<#")) return links.get(inner) ?? "a link";
+    return "@channel";
+  }).replace(/\s+/g, " ").trim();
+};
+
+/** The channel's pinned messages: the newest pin in one line, the rest a tap away. */
+function PinnedBar({ pins, onOpen, onUnpin }: { pins: ChatMessage[]; onOpen: (m: ChatMessage) => void; onUnpin: (m: ChatMessage) => void }) {
+  const [open, setOpen] = useState(false);
+  if (!pins.length) return null;
+  const first = pins[0];
+  return (
+    <div className="border-b border-line bg-surface px-4 py-2" data-testid="pinned-bar">
+      <div className="flex items-center gap-2 text-[13px]">
+        <Pin className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+        <button type="button" className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => onOpen(first)}>
+          <span className="font-medium">{first.author.name}:</span> {preview(first) || "Attachment"}
+        </button>
+        <button type="button" className="shrink-0 text-[12.5px] font-medium text-brand-hover hover:underline" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          {open ? "Hide" : pins.length === 1 ? "1 pinned" : `${pins.length} pinned`}
+        </button>
+      </div>
+      {open && (
+        <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto" aria-label="Pinned messages">
+          {pins.map((m) => (
+            <li key={m.id} className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-hover">
+              <button type="button" className="min-w-0 flex-1 text-left text-[13px]" onClick={() => onOpen(m)}>
+                <span className="font-medium">{m.author.name}</span> <span className="text-[11.5px] text-subtle">{mailDate(m.createdAt)}</span>
+                <span className="block truncate text-muted">{preview(m) || "Attachment"}</span>
+              </button>
+              <Button variant="ghost" size="icon" aria-label={`Unpin the message from ${m.author.name}`} onClick={() => onUnpin(m)}><PinOff className="h-4 w-4" /></Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -163,6 +211,10 @@ export function ChatPage() {
     queryKey: ["chat", "thread", threadId], enabled: !!threadId, refetchInterval: visible ? 4000 : false,
     queryFn: () => api.get<{ message: ChatMessage; replies: ChatMessage[] }>(`/chat/messages/${threadId}/thread`),
   });
+  const pins = useQuery({
+    queryKey: ["chat", "pins", current?.id], enabled: !!current && current.kind === "channel", refetchInterval: visible ? 30_000 : false,
+    queryFn: async () => (await api.get<{ pins: ChatMessage[] }>(`/chat/channels/${current!.id}/pins`)).pins,
+  });
   const lastId = messages.data?.[messages.data.length - 1]?.id;
   // Marks the channel read once per new last message (keyed on ids: the channel list refetch makes new objects).
   const currentId = current?.id;
@@ -173,7 +225,7 @@ export function ChatPage() {
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lastId]);
 
-  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["chat", "messages"] }), qc.invalidateQueries({ queryKey: ["chat", "thread"] }), qc.invalidateQueries({ queryKey: ["chat", "channels"] })]);
+  const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["chat", "messages"] }), qc.invalidateQueries({ queryKey: ["chat", "thread"] }), qc.invalidateQueries({ queryKey: ["chat", "channels"] }), qc.invalidateQueries({ queryKey: ["chat", "pins"] })]);
   const send = (parentId?: string) => async (body: string, files: File[]) => {
     const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || undefined, contentBase64: await toBase64(f) })));
     await api.post(`/chat/channels/${current!.id}/messages`, { body, parentId, attachments: attachments.length ? attachments : undefined });
@@ -191,10 +243,23 @@ export function ChatPage() {
     if (!window.confirm("Delete this message?")) return;
     try { await api.del(`/chat/messages/${m.id}`); await refresh(); } catch (e) { showError(e as Error); }
   };
+  const togglePin = async (m: ChatMessage) => {
+    try {
+      if (m.pinnedAt) await api.del(`/chat/messages/${m.id}/pin`); else await api.post(`/chat/messages/${m.id}/pin`, {});
+      await refresh();
+    } catch (e) { showError(e as Error); }
+  };
   const openThread = (m: ChatMessage) => setParams((p) => { p.set("thread", m.id); return p; });
+  /** Scrolls to a pinned message when it is on screen, otherwise opens it beside the channel. */
+  const openPin = (m: ChatMessage) => {
+    const el = document.getElementById(`m-${m.id}`);
+    if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("bg-hover"); window.setTimeout(() => el.classList.remove("bg-hover"), 1500); }
+    else openThread(m);
+  };
   const row = (m: ChatMessage, inThread = false) => (
     <Message key={m.id} m={m} inThread={inThread} mine={m.author.type === "member" && m.author.id === myId}
-      onThread={() => openThread(m)} onTask={() => void makeTask(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)} />
+      onThread={() => openThread(m)} onTask={() => void makeTask(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
+      onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} />
   );
   const chans = list.filter((c) => c.kind === "channel");
   const dms = list.filter((c) => c.kind === "dm");
@@ -230,6 +295,7 @@ export function ChatPage() {
               {current.guestAccess && <span className="rounded bg-ok/15 px-1.5 text-[11.5px] text-ok">shared with guests</span>}
               <span className="truncate text-[12.5px] text-subtle">{current.topic}</span>
             </header>
+            <PinnedBar pins={pins.data ?? []} onOpen={openPin} onUnpin={(m) => void togglePin(m)} />
             <div className="flex-1 overflow-y-auto px-2 py-2">
               {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? (
                 <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
