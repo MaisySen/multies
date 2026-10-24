@@ -10,6 +10,9 @@
  *   MYMAIL_KEY_ID        the inbound key id from MyMail → Settings → Inbound
  *   MYMAIL_KEY_SECRET    its secret (set with `wrangler secret put MYMAIL_KEY_SECRET`)
  *   FALLBACK_FORWARD     optional verified address to forward to if MyMail is unreachable
+ *   MYMAIL_ROUTES        optional JSON: recipient domain to another Multies host, for example
+ *                        {"multies.si": {"url": "https://multies.si/api/inbound/cloudflare", "keyId": "ink_...", "secret": "MYMAIL_KEY_SECRET_PROD"}}
+ *                        where "secret" names another secret binding. Other domains use the defaults above.
  */
 
 interface ForwardableEmailMessage {
@@ -26,6 +29,26 @@ export interface Env {
   MYMAIL_KEY_ID: string;
   MYMAIL_KEY_SECRET: string;
   FALLBACK_FORWARD?: string;
+  MYMAIL_ROUTES?: string;
+  [secret: string]: string | undefined;
+}
+
+interface Target { url: string; keyId: string; secret: string }
+
+/** Picks the Multies host for a recipient: a MYMAIL_ROUTES entry for its domain, else the defaults. */
+export function targetFor(env: Env, rcptTo: string): Target {
+  const domain = rcptTo.toLowerCase().split("@").pop() ?? "";
+  if (env.MYMAIL_ROUTES) {
+    try {
+      const routes = JSON.parse(env.MYMAIL_ROUTES) as Record<string, { url: string; keyId: string; secret: string }>;
+      const r = routes[domain];
+      const secret = r ? env[r.secret] : undefined;
+      if (r && secret) return { url: r.url, keyId: r.keyId, secret };
+    } catch {
+      console.error("[mymail] MYMAIL_ROUTES is not valid JSON; using the default host");
+    }
+  }
+  return { url: env.MYMAIL_WEBHOOK_URL, keyId: env.MYMAIL_KEY_ID, secret: env.MYMAIL_KEY_SECRET };
 }
 
 const hex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -40,15 +63,16 @@ export async function sign(secret: string, ts: string, from: string, to: string,
 export async function deliver(message: ForwardableEmailMessage, env: Env, fetchFn: typeof fetch = fetch) {
   const body = await new Response(message.raw).arrayBuffer();
   const ts = Math.floor(Date.now() / 1000).toString();
-  const signature = await sign(env.MYMAIL_KEY_SECRET, ts, message.from, message.to, body);
+  const target = targetFor(env, message.to);
+  const signature = await sign(target.secret, ts, message.from, message.to, body);
 
   let res: Response;
   try {
-    res = await fetchFn(env.MYMAIL_WEBHOOK_URL, {
+    res = await fetchFn(target.url, {
       method: "POST",
       headers: {
         "content-type": "message/rfc822",
-        "x-mymail-key": env.MYMAIL_KEY_ID,
+        "x-mymail-key": target.keyId,
         "x-mymail-timestamp": ts,
         "x-mymail-envelope-from": message.from,
         "x-mymail-envelope-to": message.to,
