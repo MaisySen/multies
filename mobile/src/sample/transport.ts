@@ -5,6 +5,7 @@ import { sampleData } from "./fixtures";
 import { taskRoute } from "./tasks";
 import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
 import { samplePortfolio } from "./fields";
+import { chatRoute, sampleChat } from "./chat";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -15,12 +16,14 @@ export class SampleTransport implements Transport {
   private data = sampleData();
   private extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
   private seq = 100;
+  private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
 
   constructor(private latencyMs = 0) {}
 
   reset() {
     this.data = sampleData();
     this.extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
+    this.chat = sampleChat(Date.now(), this.data.work, this.data.messages);
   }
 
   async request<T>(method: Method, rawPath: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
@@ -36,6 +39,8 @@ export class SampleTransport implements Transport {
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
+    const talk = chatRoute(this.chat, d.work, d.messages, method, parts, params, body);
+    if (talk !== undefined) return json(talk);
     const extra = extrasRoute(this.extras, d.work, method, parts, params, body);
     if (extra !== undefined) return json(extra);
     const work = taskRoute(d.work, d.messages, method, parts, params, body);
