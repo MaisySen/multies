@@ -82,7 +82,7 @@ export function TasksPage() {
   return (
     <div className="flex min-h-[calc(100dvh-7rem)] flex-col">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h1 className="mr-2 text-xl font-semibold tracking-tight sm:text-[22px]">Tasks</h1>
+        <h1 className="mr-2 large-title">Tasks</h1>
         <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px]">
           {view !== "board" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

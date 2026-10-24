@@ -130,7 +130,7 @@ export function ContactPage() {
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Avatar label={initials(c.name || c.email)} className="h-12 w-12 text-sm" />
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight sm:text-[22px]" data-testid="contact-name">{c.name || c.email}</h1>
+          <h1 className="large-title" data-testid="contact-name">{c.name || c.email}</h1>
           <p className="text-[13.5px] text-muted">{c.email}{c.title && <> · {c.title}</>}{c.company && <> · {c.company.name}</>}</p>
         </div>
         <div className="ml-auto flex gap-2">
