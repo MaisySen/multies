@@ -130,6 +130,8 @@ export interface Dashboard {
   sentToday: number;
   series: { day: string; inbound: number; outbound: number }[];
   recent: AuditEntry[];
+  /** People in the workspace and AI agent members, counted apart (agents take no seat). */
+  team: { members: number; agents: number };
   onboarding: {
     dismissed: boolean;
     steps: { domainAdded: boolean; domainVerified: boolean; mailboxCreated: boolean; inboundConnected: boolean; firstSend: boolean; teamInvited: boolean };

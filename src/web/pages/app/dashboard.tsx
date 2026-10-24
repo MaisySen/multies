@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ArrowRight, AtSign, Check, Globe, Inbox, Send, Users } from "lucide-react";
+import { ArrowRight, AtSign, Bot, Check, Globe, Inbox, Send, UserRound, Users } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { qk, useDashboard, useMe } from "@/web/lib/queries";
 import { api } from "@/web/lib/api";
@@ -22,9 +22,11 @@ export function DashboardPage() {
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
           {!data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
             <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
             <Stat icon={<Users />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
+            <Stat icon={<UserRound />} label="People" value={String(data.team.members)} sub={`of ${data.plan.limits.seats} seats`} used={data.team.members} max={data.plan.limits.seats}
+              note={<span className="inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" aria-hidden="true" />{data.team.agents === 1 ? "1 AI agent" : `${data.team.agents} AI agents`}, no seat used</span>} />
             <Stat icon={<AtSign />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
             <Stat icon={<Send />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
           </div>
@@ -82,12 +84,13 @@ function greeting() {
   return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }
 
-function Stat({ icon, label, value, sub, used, max }: { icon: React.ReactNode; label: string; value: string; sub: string; used: number; max: number }) {
+function Stat({ icon, label, value, sub, used, max, note }: { icon: React.ReactNode; label: string; value: string; sub: string; used: number; max: number; note?: React.ReactNode }) {
   return (
     <Card className="p-4 sm:p-5">
       <div className="flex items-center gap-2 text-[13px] text-muted [&_svg]:h-4 [&_svg]:w-4">{icon}{label}</div>
       <div className="mt-3 flex items-baseline gap-1.5"><span className="text-2xl font-semibold tabular-nums tracking-tight">{value}</span><span className="text-xs text-subtle">{sub}</span></div>
       <Meter value={used} max={max} className="mt-4" />
+      {note ? <div className="mt-2 text-xs text-subtle" data-testid="stat-note">{note}</div> : null}
     </Card>
   );
 }

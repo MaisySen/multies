@@ -40,13 +40,19 @@ export function dashboardRoutes() {
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle returns sync or async results depending on the driver
     const count = async (q: any) => Number(((await q) as { n: number } | undefined)?.n ?? 0);
-    const [inboundCount, outboundCount, memberCount, inviteCount, org] = await Promise.all([
+    const [inboundCount, outboundCount, byKind, inviteCount, org] = await Promise.all([
       count(db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "inbound"))).get()),
       count(db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "outbound"))).get()),
-      count(db.select({ n: sql<number>`count(*)` }).from(members).where(eq(members.organizationId, orgId)).get()),
+      // People and AI agent members in one query; agents take no seat and are shown apart.
+      db.select({ kind: members.kind, n: sql<number>`count(*)` }).from(members).where(eq(members.organizationId, orgId)).groupBy(members.kind) as Promise<{ kind: string; n: number }[]>,
       count(db.select({ n: sql<number>`count(*)` }).from(invitations).where(eq(invitations.organizationId, orgId)).get()),
       db.select({ metadata: organizations.metadata }).from(organizations).where(eq(organizations.id, orgId)).get(),
     ]);
+    const team = {
+      members: Number(byKind.find((r) => r.kind === "human")?.n ?? 0),
+      agents: Number(byKind.find((r) => r.kind === "agent")?.n ?? 0),
+    };
+    const memberCount = team.members;
     const onboarding = {
       dismissed: !!readMeta(org?.metadata ?? null).onboardingDismissedAt,
       steps: {
@@ -69,7 +75,7 @@ export function dashboardRoutes() {
     }
     return c.json({
       plan, usage: used, domains: doms, storageBytes: Number(storage?.used ?? 0),
-      sentToday: today, series, recent, onboarding,
+      sentToday: today, series, recent, onboarding, team,
     });
   });
 }

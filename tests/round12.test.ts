@@ -46,3 +46,14 @@ describe("VTIMEZONE in the .ics", () => {
     expect(text).toContain("RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=1SU");
   });
 });
+
+describe("dashboard team count", () => {
+  it("counts people and AI agent members apart, and an agent does not count as inviting the team", async () => {
+    expect((await c.get("/api/dashboard")).body.team).toEqual({ members: 1, agents: 0 });
+    expect((await c.post("/api/team/agents", { name: "Builder", title: "Engineering lead", bio: "An AI agent." })).status).toBe(201);
+    expect((await c.post("/api/team/agents", { name: "QA", title: "Quality", bio: "An AI agent." })).status).toBe(201);
+    const d = (await c.get("/api/dashboard")).body;
+    expect(d.team).toEqual({ members: 1, agents: 2 });
+    expect(d.onboarding.steps.teamInvited).toBe(false);
+  });
+});

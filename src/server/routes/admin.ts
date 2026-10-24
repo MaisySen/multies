@@ -28,7 +28,8 @@ export function adminRoutes() {
         suspendedAt: organizations.suspendedAt, suspendedReason: organizations.suspendedReason, sendCapDaily: organizations.sendCapDaily,
         pastDueSince: organizations.pastDueSince,
         // Qualified by hand: Drizzle renders columns unqualified in a one-table select, which bound "id" to the inner table.
-        members: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id")`,
+        members: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id" and m."kind" = 'human')`,
+        agents: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id" and m."kind" = 'agent')`,
         domains: sql<number>`(select count(*) from "domains" d where d."org_id" = "organizations"."id")`,
       }).from(organizations).orderBy(desc(organizations.createdAt)).limit(100);
       return c.json({

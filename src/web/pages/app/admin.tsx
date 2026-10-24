@@ -12,7 +12,7 @@ import { LOCALE } from "@/shared/locale";
 
 interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
-  tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null }[];
+  tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null }[];
   integrations: Record<string, boolean | string>;
 }
 
@@ -62,13 +62,13 @@ export function AdminPage() {
       <Section title="Workspaces" description="Newest first, up to 100. Suspending stops sending and API access; receiving continues.">
         <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Workspaces">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-muted"><tr><th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Plan</th><th className="px-3 py-2 font-medium">Members</th><th className="px-3 py-2 font-medium">Domains</th><th className="px-3 py-2 font-medium">Created</th><th className="px-3 py-2 font-medium">Controls</th></tr></thead>
+            <thead className="text-left text-xs text-muted"><tr><th className="px-3 py-2 font-medium">Name</th><th className="px-3 py-2 font-medium">Plan</th><th className="px-3 py-2 font-medium">People</th><th className="px-3 py-2 font-medium">AI agents</th><th className="px-3 py-2 font-medium">Domains</th><th className="px-3 py-2 font-medium">Created</th><th className="px-3 py-2 font-medium">Controls</th></tr></thead>
             <tbody className="divide-y divide-line">
               {tenants.map((t) => (
                 <tr key={t.id}>
                   <td className="px-3 py-2">{t.name}{t.isDemo && <Badge className="ml-2">demo</Badge>}{t.suspendedAt && <Badge tone="bad" className="ml-2">suspended</Badge>}{t.pastDueSince && <Badge tone="warn" className="ml-2">past due</Badge>}</td>
                   <td className="px-3 py-2 capitalize">{t.plan}</td>
-                  <td className="px-3 py-2 tabular-nums">{t.members}</td>
+                  <td className="px-3 py-2 tabular-nums">{t.members}</td><td className="px-3 py-2 tabular-nums">{t.agents}</td>
                   <td className="px-3 py-2 tabular-nums">{t.domains}</td>
                   <td className="px-3 py-2 text-muted">{new Date(t.createdAt).toLocaleDateString(LOCALE)}</td>
                   <td className="px-3 py-2"><TenantControls t={t} /></td>
