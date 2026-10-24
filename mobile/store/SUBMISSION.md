@@ -1,7 +1,7 @@
 # Multies store submission (App Store and Google Play)
 
-Everything to paste into App Store Connect and Google Play Console for Multies 1.5.0 (iOS build 6,
-Android versionCode 6), plus the steps only the owner can do. Work top to bottom.
+Everything to paste into App Store Connect and Google Play Console for Multies 1.6.0 (iOS build 7,
+Android versionCode 7), plus the steps only the owner can do. Work top to bottom.
 
 Paths in this file are relative to the `mobile/` folder of the repo.
 
@@ -9,7 +9,7 @@ Paths in this file are relative to the `mobile/` folder of the repo.
 
 | Item | Where |
 | --- | --- |
-| Version 1.5.0, iOS build 6, Android versionCode 6 | `app.json` |
+| Version 1.6.0, iOS build 7, Android versionCode 7 | `app.json` |
 | iPhone only (`supportsTablet: false`), so no iPad screenshots | `app.json` |
 | Bundle id and package `au.mymail.app` | `app.json` |
 | Production build profiles (`production`, `production-local-credentials`) and submit placeholders | `eas.json` |
@@ -100,7 +100,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 
 - Price: Free (AUD 0). Availability: all countries or Australia first, your choice.
 
-### Version 1.5.0, iOS App
+### Version 1.6.0, iOS App
 
 - **Promotional text** (161 of 170):
 
@@ -112,7 +112,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 - **Copyright**: 2026 [your legal entity name]
 - **Screenshots**: 6.9 inch display, upload `store/screenshots/ios-6.9/01..07` (1320x2868). 6.5 inch
   display, upload `store/screenshots/ios-6.5/01..07` (1284x2778). No iPad screenshots (iPhone only).
-- **Build**: pick build 5 after it finishes processing.
+- **Build**: pick build 7 after it finishes processing.
 - **Description** (1830 of 4000):
 
 ```text

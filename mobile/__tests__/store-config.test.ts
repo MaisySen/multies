@@ -18,10 +18,10 @@ function privacyFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("store config", () => {
-  it("is version 1.5.0, build 6 on both stores", () => {
-    expect(app.version).toBe("1.5.0");
-    expect(app.ios.buildNumber).toBe("6");
-    expect(app.android.versionCode).toBe(6);
+  it("is version 1.6.0, build 7 on both stores", () => {
+    expect(app.version).toBe("1.6.0");
+    expect(app.ios.buildNumber).toBe("7");
+    expect(app.android.versionCode).toBe(7);
   });
 
   it("is iPhone only, declares standard encryption only and keeps release signing in prebuild", () => {

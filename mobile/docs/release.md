@@ -3,15 +3,15 @@
 The step-by-step owner checklist, with every store answer ready to paste, is in
 [../store/SUBMISSION.md](../store/SUBMISSION.md). This page covers how the builds are made.
 
-## Ready now (1.5.0)
+## Ready now (1.6.0)
 
-- App name MyMail, bundle id and Android package `au.mymail.app`, version 1.5.0, iOS build 6,
-  Android versionCode 6. iPhone only (`ios.supportsTablet: false`).
+- App name Multies, bundle id and Android package `au.mymail.app` (unchanged), version 1.6.0, iOS build 7,
+  Android versionCode 7. iPhone only (`ios.supportsTablet: false`).
 - Icons (1024x1024 App Store icon with no alpha), adaptive Android icon with foreground, background
   and monochrome layers, splash, notification icon. Expo makes every native size from `assets/`
   at prebuild.
 - iOS privacy manifest in `app.json` (`ios.privacyManifests`). Expo writes it to
-  `ios/MyMail/PrivacyInfo.xcprivacy` at prebuild; a copy is in `store/ios/PrivacyInfo.xcprivacy`.
+  `ios/Multies/PrivacyInfo.xcprivacy` at prebuild; a copy is in `store/ios/PrivacyInfo.xcprivacy`.
   It declares every required reason API used by the native modules in this app (UserDefaults
   CA92.1, FileTimestamp C617.1 and 0A2A.1, SystemBootTime 35F9.1, DiskSpace E174.1); a test checks
   this against the `PrivacyInfo.xcprivacy` files in `node_modules`.
