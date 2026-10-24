@@ -1,12 +1,15 @@
 # Multies
 
-**Email for your team and your AI agents, on your own domain. Free for startups and small
-businesses.** Add a domain, publish DNS records that check themselves live, create mailboxes for
-people and inboxes for agents, and work the same threads in webmail, mail apps, the REST API or
-MCP, with a person approving what agents send.
+**One calm workspace for small businesses and startups: email on your own domain, team chat, tasks
+and projects, docs, meetings, goals, templates and notifications, with AI agents working alongside
+your team.** Free for startups, with small paid add-ons. Agents run on the AI you bring (your own
+provider key), so Multies never pays for model calls and never resells them.
 
-Live preview: **https://mymail.sites.tab.bot**. Staging: https://mymail-staging.mymail-app.workers.dev.
+Production: https://mymail.mymail-app.workers.dev (moving to https://multies.si once the domain is
+active). Staging: https://mymail-staging.mymail-app.workers.dev. Preview: https://mymail.sites.tab.bot.
 Tap *Try the live demo* for a private sample workspace, or sign up and add a real domain.
+
+Documentation index: [docs/README.md](docs/README.md). Changes per release: [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -18,6 +21,10 @@ Tap *Try the live demo* for a private sample workspace, or sign up and add a rea
 | **Agent inboxes** | One API call creates an agent, its address and a scoped key. Threads as JSON (new text, one-time codes, links), send and reply with daily caps, allow lists and an approval queue, events by webhook, poll or SSE, a shared team inbox with agent replies labelled, and an audit trail. See `/agents` and [`docs/MCP.md`](docs/MCP.md). |
 | **MCP** | `/api/v1/mcp` on the official SDK (Streamable HTTP, stateless), authenticated with scoped API keys: list inboxes, threads, search, send, reply, wait for mail, create agent inboxes, and the work tools (tasks, projects, docs, contacts). |
 | **Tasks and projects** | One click makes a task from any thread (title from the subject, notes from the newest text, linked to the thread); replies on the thread show in the task's history. Assignee (a person or an agent), status, start and due dates, priority, labels, subtasks and comments. Projects with their own statuses (each in a to do, doing or done group), shown as a board (dnd-kit), a list (TanStack Table), a calendar (FullCalendar) or a timeline (SVAR Gantt), with saved filters. See [`docs/suite.md`](docs/suite.md). |
+| **Team chat** | Public and private channels, direct messages, threads, mentions of people, agents or the whole channel, links to tasks, mail threads and docs, files with signed short lived links, guest channels on projects, and a message turned into a task in one step. |
+| **Notifications** | One inbox for mentions, assignments, comments, approvals, due dates, chat, email and status changes, with filters, mark read by category, and per person in app and push settings. |
+| **Goals** | Goals with key results (number, AUD, percent, or linked tasks), progress rolled up from key results and child goals, and health. |
+| **Templates and repeating tasks** | A starter gallery (client onboarding, content calendar, sales pipeline, bug tracker) plus saved project and task templates; tasks that repeat daily, weekly on chosen days, monthly, yearly or every N, with an end date. |
 | **Docs** | Rich text docs (Tiptap) linked to projects, tasks, threads and contacts, with versioned saves; agents can search, read, create and append. |
 | **Contacts and deals** | Contacts and companies built from mail as it arrives and is sent (robot senders and your own domains skipped, free mail domains get no company), backfilled once from existing mail, each with a timeline of threads, tasks and deals. A simple pipeline board in AUD. |
 | **Automations** | Rules with no AI cost: mail from a sender or with a subject word makes a task, a status change notifies someone, a reminder before a task is due. Runs counted per month by plan. |
@@ -35,42 +42,7 @@ Tap *Try the live demo* for a private sample workspace, or sign up and add a rea
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  subgraph Clients
-    B[Browser: React SPA]
-    MC[Mail apps: IMAP and SMTP]
-    API[API clients and webhooks]
-  end
-  subgraph Cloudflare
-    W[Worker: Hono API and SPA shell]
-    D1[(D1: SQLite)]
-    RL[Rate limit bindings]
-    ER[Email Routing and Email Worker]
-    CRON[Cron every 5 to 15 min: jobs, uptime, dunning, pruning]
-  end
-  S[Stalwart mail server]
-  R[Resend: outbound]
-  ST[Stripe: billing]
-  SE[Sentry: errors, traces, releases]
-  GH[GitHub Actions: CI, deploys, scans, backups]
-
-  B -->|HTTPS, cookie session| W
-  API -->|Bearer key| W
-  MC --> S
-  S <-->|admin API| W
-  ER -->|signed webhook| W
-  W --> D1
-  W --> RL
-  CRON --> W
-  W -->|send| R
-  R -->|delivery events| W
-  W <-->|checkout, webhooks| ST
-  W --> SE
-  B --> SE
-  GH -->|wrangler deploy, migrations| W
-  GH -->|nightly encrypted export| D1
-```
+The full picture, with a diagram, is in [docs/architecture.md](docs/architecture.md).
 
 Requests flow through one Hono app (`createApp(deps)`) on both runtimes: `src/entry/worker.ts` on
 Cloudflare Workers with D1, and `src/entry/node.ts` on Node with SQLite. Everything outside the
@@ -103,13 +75,24 @@ docs/              runbooks, security, legal, architecture
 
 Requires Node 22.
 
+Quick start, one process serving the built web app and the API with a throwaway database:
+
 ```bash
-npm install
+npm ci
+npm run build:web
+PORT=8792 DATABASE_PATH=/tmp/x.db OUTBOX_DIR=/tmp/out DEMO_MODE=true \
+  APP_URL=http://localhost:8792 npx tsx src/entry/node.ts
+```
+
+Open http://localhost:8792 and tap *Try the live demo*. Outgoing mail is written to `OUTBOX_DIR`
+instead of being sent.
+
+For day to day work with hot reload:
+
+```bash
 cp .env.example .env            # defaults work for local dev
 npm run dev                     # API on :8787, web on http://localhost:5173
 ```
-
-Set `DEMO_MODE=true` in `.env` for sample data.
 
 ### Checks
 
@@ -120,12 +103,15 @@ npm run lint:copy      # no dashes or filler words in product copy
 npm run test:coverage  # Vitest with coverage thresholds
 npm run test:e2e       # Playwright (first: npx playwright install chromium)
 npm run lhci           # Lighthouse budgets
+npm run a11y:audit     # axe-core over every page (WCAG 2.2 AA)
 k6 run load/smoke.js   # load test, see load/README.md
 ```
 
 CI (`.github/workflows/ci.yml`) runs all of these, plus a dependency audit gate and Vale on the docs.
 `security.yml` runs Semgrep and gitleaks, `zap.yml` runs a weekly OWASP ZAP baseline, Dependabot
 keeps dependencies current, and `backup.yml` takes nightly encrypted database backups.
+GitHub Actions has no minutes left until 1 November 2026, so until then the same checks and deploys
+are run by hand: see [docs/sdlc.md](docs/sdlc.md) and [docs/testing.md](docs/testing.md).
 
 ## Run it on your own computer
 
@@ -143,17 +129,17 @@ pointing a domain at it are in [docs/self-host.md](docs/self-host.md).
 
 | Environment | URL | Database | Deploys |
 | --- | --- | --- | --- |
-| Preview | https://mymail.sites.tab.bot | preview D1 | by hand, `publish_preview` |
-| Staging | https://mymail-staging.mymail-app.workers.dev | `mymail-staging` | every push to `main` after checks pass |
-| Production | https://mymail.mymail-app.workers.dev | `mymail` | the same build as staging, after staging smoke tests and the `production` environment gate |
+| Preview | https://mymail.sites.tab.bot | preview D1 | by hand |
+| Staging | https://mymail-staging.mymail-app.workers.dev | D1 `mymail-staging` | by hand, after the checks pass |
+| Production | https://mymail.mymail-app.workers.dev | D1 `mymail-au` (Oceania) | by hand, the same commit after staging passes its smoke and E2E checks |
 
-Each deploy applies D1 migrations first, deploys with the commit as the Sentry release, runs
-`scripts/smoke.sh`, and uploads source maps. See [`docs/runbooks/release.md`](docs/runbooks/release.md)
-for the checklist and [`docs/runbooks/incident.md`](docs/runbooks/incident.md) when something breaks.
-Restores: [`docs/runbooks/restore.md`](docs/runbooks/restore.md). Service levels: [`docs/slo.md`](docs/slo.md).
+Each deploy builds with the commit as the release, applies D1 migrations, deploys with Wrangler,
+runs `scripts/smoke.sh` and confirms the release on `/api/config`. Steps:
+[docs/runbooks/deploy.md](docs/runbooks/deploy.md). Rollback: [docs/runbooks/rollback.md](docs/runbooks/rollback.md).
+Incidents: [docs/runbooks/incident-response.md](docs/runbooks/incident-response.md). Service levels: [docs/slo.md](docs/slo.md).
 
-Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SENTRY_AUTH_TOKEN`. App secrets
-live in Cloudflare (`wrangler secret put`, listed at the top of `wrangler.toml`).
+App secrets live in Cloudflare (`wrangler secret put`, listed at the top of `wrangler.toml`). Their
+values are kept outside the repo, in the owner's "CREDENTIALS (owner email v7)" list.
 
 ## More detail
 
@@ -226,8 +212,8 @@ untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/secu
 
 ## Known gaps
 
-- Production needs a custom domain; it runs on its workers.dev address today.
-- R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then.
+- Production runs on its workers.dev address until the multies.si zone is active ([docs/runbooks/domain-dns.md](docs/runbooks/domain-dns.md)).
+- R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then, and D1 Time Travel covers the last 30 days ([docs/runbooks/db-backup-restore.md](docs/runbooks/db-backup-restore.md)).
 - Legal pages are drafts for review by an Australian lawyer.
 - Mail is not hosted in Australia yet: D1 is placed in Cloudflare's Oceania region by a hint. `deploy/au` is the groundwork for a Sydney VPS.
 - ChatGPT and Claude Desktop custom connectors need OAuth, which Multies doesn't offer yet; the docs use API key headers (Claude Code, Cursor, OpenAI API) and the mcp-remote bridge.
