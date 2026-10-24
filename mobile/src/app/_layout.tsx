@@ -76,6 +76,12 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
         <Stack.Screen name="meetings" options={{ title: "Meetings" }} />
         <Stack.Screen name="portfolio" options={{ title: "Portfolio" }} />
+        <Stack.Screen name="chat/[id]" options={{ title: "" }} />
+        <Stack.Screen name="chat/thread/[id]" options={{ title: "Thread" }} />
+        <Stack.Screen name="chat/message/[id]" options={{ title: "" }} />
+        <Stack.Screen name="chat/new" options={{ presentation: "modal", title: "New message" }} />
+        <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+        <Stack.Screen name="notification-settings" options={{ title: "Notification settings" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack.Protected>
     </Stack>

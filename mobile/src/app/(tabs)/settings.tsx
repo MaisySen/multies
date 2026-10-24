@@ -6,7 +6,7 @@ import * as Application from "expo-application";
 import * as Localization from "expo-localization";
 import { Avatar, Badge, Card, Row, SectionTitle } from "@/components/ui";
 import { useSession } from "@/lib/session";
-import { useOverview } from "@/lib/queries";
+import { useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
@@ -18,6 +18,7 @@ const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", p
 export default function Settings() {
   const { me, mode, api, signOut } = useSession();
   const overview = useOverview();
+  const inbox = useNotificationCount();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
@@ -65,6 +66,8 @@ export default function Settings() {
       <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(`${API_BASE}/app`)} />
 
       <SectionTitle>Notifications</SectionTitle>
+      <Row icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
+      <Row icon="sliders" label="Notification settings" onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
       <Row icon="bell" label={allowed ? "Notifications allowed" : "Turn on notifications"} value={allowed ? "On" : undefined} onPress={turnOnPush} testID="push" />
       {push?.kind === "allowed" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.note}</Text> : null}
       {push?.kind === "unsupported" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.reason}</Text> : null}

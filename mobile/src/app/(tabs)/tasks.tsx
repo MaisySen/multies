@@ -4,6 +4,7 @@ import { router, Stack } from "expo-router";
 import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, Loading, Segmented } from "@/components/ui";
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
+import { NotificationBell } from "@/components/notification-bell";
 import { useOffline } from "@/lib/offline";
 import { STATUSES, dueLabel, moveLabel, nextStatus, senderName, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
 import { colors, radius, space } from "@/theme";
@@ -25,6 +26,7 @@ export default function Tasks() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerRight: () => (
         <View style={{ flexDirection: "row" }}>
+          <NotificationBell />
           <IconButton icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="open-meetings" />
           <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" />
         </View>

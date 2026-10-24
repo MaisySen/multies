@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { FlatList, RefreshControl, ScrollView, Text, View } from "react-native";
+import { NotificationBell } from "@/components/notification-bell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { Banner, Chip, EmptyState, IconButton, Loading, Button } from "@/components/ui";
@@ -69,6 +70,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
         <Text style={{ color: colors.fg, fontSize: 30, fontWeight: "700", letterSpacing: -0.5 }} accessibilityRole="header">Mail</Text>
         {me?.organization ? <Text style={{ color: colors.subtle, fontSize: 13 }} numberOfLines={1}>{me.organization.name}</Text> : null}
       </View>
+      <NotificationBell />
       <IconButton icon="search" label="Search mail" onPress={onSearch} testID="open-search" />
     </View>
   );
