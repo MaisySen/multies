@@ -26,8 +26,6 @@ for (const size of SIZES) {
   // A real account has no sample banner, so the store images leave it out.
   const hideBanner = () => page.evaluate(() => { for (const el of document.querySelectorAll("div")) { const t = el.textContent ?? ""; if (t.includes("Sample workspace.") && t.length < 90) el.style.display = "none"; } });
   const shot = async (name) => { await page.waitForTimeout(800); await hideBanner(); n += 1; await page.screenshot({ path: `${dir}/${String(n).padStart(2, "0")}-${name}.png` }); };
-  // Moves within the app without a reload, as the sample workspace lives in memory.
-  const go = async (path) => { await page.evaluate((p) => { window.history.pushState({}, "", p); window.dispatchEvent(new PopStateEvent("popstate")); }, path); await page.waitForTimeout(400); };
 
   await page.goto(base); await page.waitForLoadState("networkidle");
   await tid("sample").click();
