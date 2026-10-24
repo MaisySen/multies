@@ -98,6 +98,8 @@ SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
 # Support address on /support and in the store listings. A working inbox until the owner
 # has a domain; then set it to support@ on that domain.
 SUPPORT_EMAIL = "mymail.builder@mail.tab.bot"
+# The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
+KEEP_DEMO_ORG_IDS = "org_b0kb5ykvrto8w0rm"
 BILLING_GRACE_DAYS = "7"
 # Cross checks: production watches staging and the preview (src/server/services/status.ts).
 MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev,https://mymail.sites.tab.bot"
@@ -167,6 +169,8 @@ SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
 # Support address on /support and in the store listings. A working inbox until the owner
 # has a domain; then set it to support@ on that domain.
 SUPPORT_EMAIL = "mymail.builder@mail.tab.bot"
+# The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
+KEEP_DEMO_ORG_IDS = "org_xqswgcz3cvizpiel"
 BILLING_GRACE_DAYS = "7"
 # Staging watches production, through a service binding (see PEER above).
 MONITOR_URLS = "https://mymail.mymail-app.workers.dev"

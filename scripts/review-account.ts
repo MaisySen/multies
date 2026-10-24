@@ -52,7 +52,10 @@ async function main() {
   const hash = await hashPassword(password);
   d1([
     `UPDATE users SET email = ${q(email)}, name = 'App Review', email_verified = 1 WHERE id = ${q(me.user.id)}`,
-    `INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (${q(newId("acc"))}, ${q(me.user.id)}, 'credential', ${q(me.user.id)}, ${q(hash)}, ${now}, ${now})`,
+    // A demo user already has a credential row with a random password: replace that one.
+    d1(`SELECT id FROM accounts WHERE user_id = ${q(me.user.id)} AND provider_id = 'credential'`).length
+      ? `UPDATE accounts SET password = ${q(hash)}, updated_at = ${now} WHERE user_id = ${q(me.user.id)} AND provider_id = 'credential'`
+      : `INSERT INTO accounts (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (${q(newId("acc"))}, ${q(me.user.id)}, 'credential', ${q(me.user.id)}, ${q(hash)}, ${now}, ${now})`,
     `UPDATE organizations SET name = 'Harbour Coffee Co (App Review)' WHERE id = ${q(me.organization.id)}`,
   ].join("; "));
   const check = await fetch(`${base}/api/auth/sign-in/email`, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ email, password }) });
