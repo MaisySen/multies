@@ -408,5 +408,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `domains` ADD `provider_records` text;",
       "ALTER TABLE `domains` ADD `provider_status` text;"
     ]
+  },
+  {
+    "name": "0025_drop_redundant_companies_org_idx",
+    "statements": [
+      "DROP INDEX `companies_org_idx`;"
+    ]
   }
 ];

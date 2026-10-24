@@ -13,6 +13,7 @@ import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
 import { useDemoSeedCatchUp } from "@/web/lib/demo";
 import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
+import { ReadOnlyBanner } from "@/web/lib/read-only";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
@@ -181,6 +182,7 @@ export function AppLayout() {
           <button className="grid h-11 w-11 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover" onClick={() => setDrawer(true)} aria-label="Open navigation"><MenuIcon className="h-[22px] w-[22px]" /></button>
           <Link to="/app" aria-label="Multies overview" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-[22px]" /></Link>
         </header>
+        <ReadOnlyBanner />
         <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>

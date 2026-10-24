@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { READ_ONLY_MESSAGE } from "@/web/lib/read-only";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Play } from "lucide-react";
@@ -152,6 +153,7 @@ export function LoginPage() {
       <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
       {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign in didn't complete. Please try again." /></div>}
+      {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
       {!idp && <SocialButtons />}
       {password && (

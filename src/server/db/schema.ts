@@ -790,7 +790,8 @@ export const companies = sqliteTable("companies", {
   domain: text("domain"),
   notes: text("notes").notNull().default(""),
   ...suiteCols(),
-}, (t) => [index("companies_org_idx").on(t.orgId), uniqueIndex("companies_org_domain_uq").on(t.orgId, t.domain)]);
+  // No separate org_id index: companies_org_domain_uq starts with org_id and serves the same lookups (one index write fewer per row).
+}, (t) => [uniqueIndex("companies_org_domain_uq").on(t.orgId, t.domain)]);
 
 /** People the workspace corresponds with. Created from mail automatically, or by hand. */
 export const contacts = sqliteTable("contacts", {

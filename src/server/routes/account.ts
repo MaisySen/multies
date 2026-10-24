@@ -1,3 +1,4 @@
+import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -32,6 +33,11 @@ export function accountRoutes() {
     .post("/demo", async (c) => {
       if (!c.var.deps.config.demoEnabled) throw notFound("Demo");
       if (!demoLimiter.take(c.var.ip)) throw tooMany();
+      // A new demo costs about 2,000 D1 rows over its life (create, seed and purge; D1 counts each index).
+      // It is the first writer to stop when the account's daily D1 budget runs low.
+      if (await optionalWritesPaused(c.var.deps)) {
+        return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
+      }
       const cap = c.var.deps.config.demoDailyLimit;
       if (cap > 0) {
         // One cheap read: each demo writes a few hundred rows, and the database has a daily write budget.

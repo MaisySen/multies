@@ -176,6 +176,13 @@
       "when": 1792829952499,
       "tag": "0024_domain_provider_auth_hooks",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1792845157317,
+      "tag": "0025_drop_redundant_companies_org_idx",
+      "breakpoints": true
     }
   ]
 }

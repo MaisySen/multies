@@ -48,7 +48,7 @@ Migrations never roll back, so they are always backward compatible.
 ## Release checklist
 
 - [ ] All checks above pass on the commit being shipped.
-- [ ] Staging deployed, smoke test and E2E pass, no new Sentry issues. While the D1 daily write budget is tight, run E2E locally and confirm deploys with one GET of `/api/config` ([runbooks/d1-daily-limits.md](runbooks/d1-daily-limits.md)); skip migrations a release does not need.
+- [ ] Staging deployed, smoke test and E2E pass, no new Sentry issues. Run E2E locally (Playwright refuses a remote base URL unless `E2E_ALLOW_REMOTE=1` and `--grep` name one spec) and confirm deploys with one GET of `/api/config`; production and staging share one D1 budget of 100,000 rows written a day ([runbooks/d1-daily-limits.md](runbooks/d1-daily-limits.md)). Skip migrations a release does not need. A change that adds writes on a hot path (sign in, every request, the cron) updates `tests/write-cost.test.ts`.
 - [ ] Production deployed, smoke test and launch checklist pass, `/api/config` shows the release.
 - [ ] Sentry quiet for 15 minutes after the deploy.
 - [ ] CHANGELOG updated: the round moves from Unreleased to its version.

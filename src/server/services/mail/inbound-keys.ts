@@ -45,6 +45,9 @@ export async function verifyInboundSignature(
   const secret = await decryptSecret(deps.config.appSecret, key.secretEnc);
   const expected = await hmacSha256Hex(secret, await signingPayload(h.ts, h.from, h.to, body));
   if (!safeEqual(expected, h.signature.toLowerCase())) return { ok: false, reason: "Bad signature." };
-  await deps.db.update(inboundKeys).set({ lastUsedAt: deps.now() }).where(eq(inboundKeys.id, key.id));
+  // Last used is shown to the nearest few minutes; one write per message was a write per inbound mail.
+  if (!key.lastUsedAt || deps.now().getTime() - key.lastUsedAt.getTime() > 15 * 60_000) {
+    await deps.db.update(inboundKeys).set({ lastUsedAt: deps.now() }).where(eq(inboundKeys.id, key.id));
+  }
   return { ok: true, orgId: key.orgId, keyId: key.id };
 }

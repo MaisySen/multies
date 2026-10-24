@@ -2,6 +2,7 @@
 import { createAuthClient } from "better-auth/react";
 import { twoFactorClient } from "better-auth/client/plugins";
 import { ApiError } from "./api";
+import { markReadOnly, READ_ONLY_MESSAGE } from "./read-only";
 
 export const authClient = createAuthClient({
   basePath: "/api/auth",
@@ -24,6 +25,12 @@ const FRIENDLY: Record<string, string> = {
 export async function unwrap<T>(p: Promise<{ data: T | null; error: { status: number; code?: string; message?: string } | null }>): Promise<T> {
   let res;
   try { res = await p; } catch { throw new ApiError(0, "network", "Can't reach Multies. Check your connection."); }
+  // The app's own error shape ({ error: { code, message } }), e.g. read only when the database's daily write limit is reached.
+  const own = (res.error as { error?: { code?: string; message?: string } } | null)?.error;
+  if (res.error && own?.code === "read_only") {
+    markReadOnly();
+    throw new ApiError(res.error.status, "read_only", READ_ONLY_MESSAGE);
+  }
   if (res.error) {
     const code = res.error.code ?? (res.error.status === 429 ? "TOO_MANY_REQUESTS" : "ERROR");
     throw new ApiError(res.error.status, code.toLowerCase(), FRIENDLY[code] ?? res.error.message ?? "Something went wrong.");

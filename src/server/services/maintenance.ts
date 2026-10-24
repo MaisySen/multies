@@ -12,6 +12,7 @@ import { lt } from "drizzle-orm";
 import { sessions, verifications } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
+import { checkWriteBudget } from "./write-budget";
 import { randomToken } from "../lib/crypto";
 import { pruneRateLimits } from "../lib/rate-limit";
 import { pruneIdempotencyKeys } from "../lib/idempotency";
@@ -41,13 +42,15 @@ export async function runMaintenance(deps: Deps) {
   const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
-  const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders] = await Promise.all([
+  const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, writes] = await Promise.all([
     step("uptime", () => recordUptimeCheck(deps)),
     step("cross_check", () => crossCheck(deps)),
     step("legacy", () => legacyMaintenance(deps)),
     step("dunning", () => enforceGracePeriods(deps)),
     step("approvals", () => expireApprovals(deps)),
     step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
+    // Reads the account's D1 writes today from analytics (no database write) and alerts past 60%.
+    step("write_budget", () => checkWriteBudget(deps)),
   ]);
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
@@ -56,7 +59,7 @@ export async function runMaintenance(deps: Deps) {
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
-  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders };
+  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
 /**

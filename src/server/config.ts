@@ -62,6 +62,13 @@ export interface AppConfig {
   keepDemoOrgIds: string[];
   /** New demo workspaces allowed per rolling 24 hours, platform wide (DEMO_DAILY_LIMIT); 0 means no cap. */
   demoDailyLimit: number;
+  /**
+   * The account wide D1 daily write budget (services/write-budget.ts). Read from Cloudflare analytics
+   * with CF_ANALYTICS_TOKEN (read only) and CF_ACCOUNT_ID; without both the guard is off.
+   * D1_DAILY_WRITE_BUDGET (default 100000), WRITE_BUDGET_WARN_PCT (60), WRITE_BUDGET_SHED_PCT (80).
+   * `strict` (WRITE_BUDGET_GUARD=strict, staging) refuses API writes from the warn level on.
+   */
+  writeBudget: { token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean };
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -148,6 +155,12 @@ const EnvSchema = z.object({
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
   KEEP_DEMO_ORG_IDS: z.string().optional(),
   DEMO_DAILY_LIMIT: z.string().optional(),
+  CF_ANALYTICS_TOKEN: z.string().optional(),
+  CF_ACCOUNT_ID: z.string().optional(),
+  D1_DAILY_WRITE_BUDGET: z.string().optional(),
+  WRITE_BUDGET_WARN_PCT: z.string().optional(),
+  WRITE_BUDGET_SHED_PCT: z.string().optional(),
+  WRITE_BUDGET_GUARD: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
@@ -257,6 +270,14 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
+    writeBudget: {
+      token: env.CF_ANALYTICS_TOKEN?.trim() || undefined,
+      accountId: env.CF_ACCOUNT_ID?.trim() || undefined,
+      daily: Math.max(1000, Number.parseInt(env.D1_DAILY_WRITE_BUDGET ?? "100000", 10) || 100_000),
+      warnAt: pct(env.WRITE_BUDGET_WARN_PCT, 60),
+      shedAt: pct(env.WRITE_BUDGET_SHED_PCT, 80),
+      strict: env.WRITE_BUDGET_GUARD === "strict",
+    },
     billing: {
       // Only the secret key is required. Prices are found by lookup key (and created in
       // test mode); the webhook secret adds server-to-server sync on top of the
@@ -298,6 +319,12 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       };
     })(),
   };
+}
+
+/** A percentage from the environment (1 to 100) as a fraction, or the default. */
+function pct(v: string | undefined, def: number) {
+  const n = Number.parseInt(v ?? "", 10);
+  return (Number.isFinite(n) && n >= 1 && n <= 100 ? n : def) / 100;
 }
 
 function clampRate(v: string | undefined, fallback: number): number {

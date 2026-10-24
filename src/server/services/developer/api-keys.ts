@@ -4,6 +4,9 @@ import { agents, apiKeys, members, organizations, users } from "../../db/schema"
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
 
+/** How often a key's last used time is written (D1 daily write budget). */
+export const LAST_USED_EVERY_MS = 15 * 60_000;
+
 export const MAX_API_KEYS = 25;
 export type ApiKeyScope = "full" | "read";
 
@@ -58,8 +61,9 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   if (!row) return null;
   const { k } = row;
   const now = deps.now();
-  // Write at most once a minute per key.
-  if (!k.lastUsedAt || now.getTime() - k.lastUsedAt.getTime() > 60_000) {
+  // Write at most once every 15 minutes per key: an agent polling once a minute would otherwise
+  // cost 1,440 row writes a day per key against the shared D1 daily budget.
+  if (!k.lastUsedAt || now.getTime() - k.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
     await deps.db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, k.id));
   }
   // A key outlives its creator's membership only as a plain workspace key.

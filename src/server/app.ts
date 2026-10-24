@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
+import { writeBudget } from "./services/write-budget";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -51,6 +52,10 @@ export function createApp(deps: Deps) {
     }
     if (isD1LimitError(err)) {
       console.warn("[api] database daily limit reached", c.req.method, c.req.path);
+      // A browser landing on a sign in callback gets the sign in page with the read only notice, not raw JSON.
+      if (c.req.method === "GET" && c.req.path.startsWith("/api/auth/") && (c.req.header("accept") ?? "").includes("text/html")) {
+        return c.redirect("/login?error=read_only", 302);
+      }
       return c.json(READ_ONLY_BODY, 503, { "retry-after": "600" });
     }
     console.error("[api] unhandled", err);
@@ -113,6 +118,18 @@ export function createApp(deps: Deps) {
     return csrfGuard(c, next);
   });
 
+  // Staging (WRITE_BUDGET_GUARD=strict) shares production's daily D1 write budget, so once the account
+  // passes the warn level its API refuses writes with the same read only answer a D1 limit gives.
+  // Production never refuses here; it only stops optional writers (services/write-budget.ts).
+  if (deps.config.writeBudget.strict) {
+    app.use("/api/*", async (c, next) => {
+      if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS" || c.req.path === "/api/health") return next();
+      const r = await writeBudget(deps);
+      if (r.level === "warn" || r.level === "shed") return c.json(READ_ONLY_BODY, 503, { "retry-after": "3600" });
+      return next();
+    });
+  }
+
   // Health: the database must be reachable and fully migrated (migrations run at deploy time).
   let schemaCurrent = false;
   app.get("/api/health", async (c) => {
@@ -124,7 +141,9 @@ export function createApp(deps: Deps) {
         if (pending.length) return c.json({ ok: true, degraded: true, mode: deps.config.mode, db: "migrations_pending", pending, release: deps.config.release });
         schemaCurrent = true;
       }
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release });
+      // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
+      const wb = await writeBudget(deps);
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { today: wb.rowsWritten, budget: wb.budget, level: wb.level, at: wb.at } } : {}) });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }

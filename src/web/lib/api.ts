@@ -1,3 +1,5 @@
+import { markReadOnly } from "./read-only";
+
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public fields?: Record<string, string>) {
@@ -37,6 +39,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
   try { json = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
   if (!res.ok) {
     const e = json?.error;
+    if (res.status === 503 && e?.code === "read_only") markReadOnly();
     throw new ApiError(res.status, e?.code ?? "error", e?.message ?? `Request failed (${res.status})`, e?.details?.fields);
   }
   return json as T;

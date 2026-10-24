@@ -148,6 +148,8 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   } catch (err) {
     return fail(500, err instanceof Error ? err.message : "Sending failed.");
   }
-  await deps.db.update(authEmailHooks).set({ lastUsedAt: deps.now() }).where(eq(authEmailHooks.id, h.h.id));
+  if (!h.h.lastUsedAt || deps.now().getTime() - h.h.lastUsedAt.getTime() > 15 * 60_000) {
+    await deps.db.update(authEmailHooks).set({ lastUsedAt: deps.now() }).where(eq(authEmailHooks.id, h.h.id));
+  }
   return { status: 200, body: {} };
 }
