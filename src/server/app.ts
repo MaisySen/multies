@@ -141,6 +141,8 @@ export function createApp(deps: Deps) {
     c.json({
       appName: deps.config.appName,
       mode: deps.config.mode,
+      release: deps.config.release,
+      cfBeaconToken: deps.config.cfBeaconToken,
       demoEnabled: deps.config.demoEnabled,
       supportEmail: deps.config.supportEmail,
       outboundDriver: deps.outbound.name,

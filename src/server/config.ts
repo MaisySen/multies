@@ -11,6 +11,8 @@ export interface AppConfig {
   appName: string;
   /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
   supportEmail: string;
+  /** Cloudflare Web Analytics beacon token (cookieless). Unset means no analytics. */
+  cfBeaconToken: string | null;
   appUrl: string;
   /** Root secret for at-rest encryption. Must be long and random in production. */
   appSecret: string;
@@ -143,6 +145,7 @@ const EnvSchema = z.object({
   MAIL_SMTP_PORT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
   RELEASE: z.string().optional(),
+  CF_BEACON_TOKEN: z.string().optional(),
   SENTRY_RELEASE: z.string().optional(),
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
@@ -202,6 +205,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     appName: env.APP_NAME ?? "MyMail",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@mymail.au",
+    cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,
     appUrl: (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, ""),
     appSecret: secret || "dev-only-insecure-secret-change-me-0000000000",
     dnsResolver: env.DNS_RESOLVER ?? "doh",

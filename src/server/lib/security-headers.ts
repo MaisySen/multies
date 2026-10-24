@@ -21,18 +21,21 @@ export interface CspOptions {
 }
 
 const TURNSTILE = "https://challenges.cloudflare.com";
+const CF_INSIGHTS_SCRIPT = "https://static.cloudflareinsights.com";
+const CF_INSIGHTS = "https://cloudflareinsights.com";
 const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"];
 
 export function appCsp(opts: CspOptions = {}): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     // Public form pages (/f/...) load Cloudflare Turnstile; every other page runs only our own scripts.
-    "script-src": ["'self'", ...(opts.turnstile ? [TURNSTILE] : [])],
+    // Cloudflare Web Analytics (cookieless) loads only when a beacon token is configured.
+    "script-src": ["'self'", CF_INSIGHTS_SCRIPT, ...(opts.turnstile ? [TURNSTILE] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],
     // Video meetings: LiveKit Cloud or a self-hosted LiveKit server, over secure WebSockets.
-    "connect-src": ["'self'", ...SENTRY_INGEST, "https://*.livekit.cloud", "wss:", ...(opts.connectSrc ?? [])],
+    "connect-src": ["'self'", ...SENTRY_INGEST, CF_INSIGHTS, "https://*.livekit.cloud", "wss:", ...(opts.connectSrc ?? [])],
     "media-src": ["'self'", "blob:"],
     "frame-src": ["'self'", "blob:", ...(opts.turnstile ? [TURNSTILE] : [])],
     "worker-src": ["'self'", "blob:"],
