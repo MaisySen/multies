@@ -7,3 +7,13 @@ dist
 test-results
 playwright-report
 .git
+
+# Self-host data and local secrets never go into the image.
+backups
+import
+coverage
+e2e
+mobile
+*.db
+*.sql
+CREDENTIALS*

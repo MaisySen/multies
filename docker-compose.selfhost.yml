@@ -1,0 +1,99 @@
+# MyMail on your own computer: the web app and API, the mail bridge, and Stalwart for real mail.
+# Full guide: docs/self-host.md. Quick start (Linux, macOS, or Windows with PowerShell):
+#
+#   scripts/selfhost/setup.sh          (Windows: powershell -File scripts\selfhost\setup.ps1)
+#   open http://localhost:8787
+#
+# What runs:
+#   mymail       web app and API (Node, SQLite on the mymail-data volume), sends mail through Stalwart
+#   mail-bridge  takes mail Stalwart receives on port 25 and hands it to MyMail (like email-worker/ on Cloudflare)
+#   stalwart     unmodified Stalwart mail server: SMTP in (25), submission (465, 587), IMAP (993)
+#   setup, tools one-off jobs (profiles "setup" and "tools")
+name: mymail
+
+x-app: &app
+  image: mymail:local
+  env_file: .env
+  environment: &app-env
+    DATABASE_PATH: /data/mymail.db
+    STALWART_URL: http://stalwart:8080
+    SMTP_HOST: stalwart
+    SMTP_PORT: "587"
+    SMTP_ALLOW_SELF_SIGNED: "true"
+
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:${STALWART_VERSION:-v0.16}
+    restart: unless-stopped
+    command: ["--config", "/etc/stalwart/config.json"]
+    environment:
+      STALWART_HOSTNAME: ${MAIL_CLIENT_HOST:-localhost}
+      # Both are set only while scripts/selfhost/setup.* runs; never keep them in .env.
+      STALWART_RECOVERY_MODE: ${STALWART_RECOVERY_MODE:-}
+      STALWART_RECOVERY_ADMIN: ${STALWART_RECOVERY_ADMIN:-}
+    volumes:
+      - ./deploy/stalwart/config.json:/etc/stalwart/config.json:ro
+      - stalwart-data:/var/lib/stalwart
+    ports:
+      - "${SMTP_IN_PORT:-25}:25"   # mail from the internet (needs a domain, see docs/self-host.md)
+      - "465:465"                  # submission for mail apps, TLS
+      - "587:587"                  # submission for mail apps, STARTTLS
+      - "993:993"                  # IMAP for mail apps, TLS
+      - "127.0.0.1:${STALWART_ADMIN_PORT:-8080}:8080"   # Stalwart admin, this computer only
+
+  mymail:
+    <<: *app
+    build: .
+    restart: unless-stopped
+    volumes:
+      - mymail-data:/data
+    ports:
+      - "${MYMAIL_PORT:-8787}:8787"
+    depends_on: [stalwart]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+
+  mail-bridge:
+    image: mymail:local
+    restart: unless-stopped
+    command: ["node", "dist/selfhost/mail-bridge.js"]
+    environment:
+      MYMAIL_INBOUND_URL: http://mymail:8787/api/inbound/cloudflare
+      MYMAIL_INBOUND_KEYS: ${MYMAIL_INBOUND_KEYS:-}
+      MTA_HOOK_TOKEN: ${MTA_HOOK_TOKEN:?run scripts/selfhost/gen-env.mjs first}
+      MAX_MESSAGE_BYTES: ${MAX_MESSAGE_BYTES:-10485760}
+    depends_on: [mymail]
+
+  # One-off: wires Stalwart to MyMail. scripts/selfhost/setup.* runs it with Stalwart in recovery mode.
+  setup:
+    image: mymail:local
+    profiles: ["setup"]
+    command: ["sh", "-c", "node dist/selfhost/stalwart-setup.js && node dist/selfhost/selfhost-stalwart.js"]
+    environment:
+      STALWART_URL: http://stalwart:8080
+      STALWART_RECOVERY_ADMIN: ${STALWART_RECOVERY_ADMIN:-}   # set only while scripts/selfhost/setup.* runs
+      MAIL_OPS_DOMAIN: ${MAIL_OPS_DOMAIN:-}
+      STALWART_ADMIN_SECRET: ${STALWART_ADMIN_SECRET:-}
+      MAIL_CLIENT_HOST: ${MAIL_CLIENT_HOST:-localhost}
+      MTA_HOOK_TOKEN: ${MTA_HOOK_TOKEN:-}
+      BRIDGE_URL: http://mail-bridge:8025/hook
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+    depends_on: [stalwart]
+
+  # One-off database jobs: docker compose -f docker-compose.selfhost.yml run --rm tools <import|backup|restore|migrate|summary> ...
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    entrypoint: ["node", "dist/selfhost/db-tool.js"]
+    volumes:
+      - mymail-data:/data
+      - ./backups:/backups
+      - ./import:/import
+
+volumes:
+  mymail-data:
+  stalwart-data:
