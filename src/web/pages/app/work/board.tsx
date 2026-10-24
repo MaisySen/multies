@@ -15,7 +15,7 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
     <div className={cn("group rounded-lg border border-line bg-elevated p-3 text-left shadow-sm transition-colors hover:border-line-strong", dragging && "rotate-1 border-brand/40 shadow-pop")}>
       <button type="button" onClick={onOpen} className="block min-h-6 w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>
       {t.labels.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-white/[0.06] px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
+        <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-fill px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
       )}
       <div className="mt-2.5 flex items-center gap-2.5 text-[11.5px] text-subtle">
         <span className="font-mono">{t.ref}</span>

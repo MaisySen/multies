@@ -218,7 +218,7 @@ export function BillingSettings() {
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Invoices">
             <table className="w-full text-sm">
-              <thead className="bg-white/[0.02] text-left text-xs text-subtle"><tr><th className="px-3 py-2 font-medium">Date</th><th className="px-3 py-2 font-medium">Invoice</th><th className="px-3 py-2 font-medium">Amount</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2" /></tr></thead>
+              <thead className="bg-fill/60 text-left text-xs text-subtle"><tr><th className="px-3 py-2 font-medium">Date</th><th className="px-3 py-2 font-medium">Invoice</th><th className="px-3 py-2 font-medium">Amount</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2" /></tr></thead>
               <tbody className="divide-y divide-line">
                 {invoices.data.map((i) => (
                   <tr key={i.id}>

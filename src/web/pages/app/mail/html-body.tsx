@@ -37,7 +37,7 @@ export function HtmlBody({ html }: { html: string }) {
   return (
     <div>
       {hasRemote && !images && (
-        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-white/[0.03] px-3 py-2 text-xs text-muted">
+        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-fill/60 px-3 py-2 text-xs text-muted">
           <span className="flex items-center gap-2"><ImageOff className="h-3.5 w-3.5" />Remote images are hidden to protect your privacy.</span>
           <button className="font-medium text-fg hover:underline" onClick={() => setImages(true)}>Show images</button>
         </div>

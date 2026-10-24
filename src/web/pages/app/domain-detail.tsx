@@ -144,7 +144,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
               <button className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />What we found in DNS ({check.found.length})
               </button>
-              {open && <ul className="mt-2 space-y-1">{check.found.map((f) => <li key={f} className="break-all rounded bg-white/[0.03] px-2 py-1 font-mono text-[12px] text-muted">{f}</li>)}</ul>}
+              {open && <ul className="mt-2 space-y-1">{check.found.map((f) => <li key={f} className="break-all rounded bg-fill/60 px-2 py-1 font-mono text-[12px] text-muted">{f}</li>)}</ul>}
             </div>
           )}
         </div>

@@ -64,7 +64,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
 
   return (
     <Command.Dialog open={open} onOpenChange={onOpenChange} label="Command menu"
-      overlayClassName="fixed inset-0 z-[90] bg-black/60 animate-fade-in"
+      overlayClassName="fixed inset-0 z-[90] bg-black/40 animate-fade-in"
       contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in">
       <div className="flex items-center gap-2.5 border-b border-line px-3.5">
         <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />

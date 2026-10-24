@@ -213,7 +213,7 @@ function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => v
               <div className="truncate font-medium">{a.address}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <ArrowRight className="h-3 w-3 text-subtle" />
-                {a.destinations.map((d) => <span key={d} className="rounded-md border border-line bg-white/[0.03] px-1.5 py-0.5 text-[11.5px] text-muted">{d}</span>)}
+                {a.destinations.map((d) => <span key={d} className="rounded-md border border-line bg-fill/60 px-1.5 py-0.5 text-[11.5px] text-muted">{d}</span>)}
               </div>
             </div>
             <Switch checked={a.enabled} onChange={() => toggle.mutate(a)} label={`${a.enabled ? "Disable" : "Enable"} ${a.address}`} />

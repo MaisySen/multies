@@ -21,13 +21,13 @@ export function HeroVisual() {
     <div className="relative mx-auto max-w-5xl" aria-hidden>
       <div className="relative overflow-hidden rounded-2xl border border-line-strong bg-surface/90 shadow-[0_40px_120px_-30px_rgb(0_0_0/0.9)] backdrop-blur">
         <div className="flex h-10 items-center gap-2 border-b border-line px-4">
-          <span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" /><span className="h-2.5 w-2.5 rounded-full bg-white/15" />
-          <div className="mx-auto hidden h-6 w-72 items-center justify-center rounded-md bg-white/[0.04] text-[11px] text-subtle sm:flex">app.yourcompany.com/mail</div>
+          <span className="h-2.5 w-2.5 rounded-full bg-fill" /><span className="h-2.5 w-2.5 rounded-full bg-fill" /><span className="h-2.5 w-2.5 rounded-full bg-fill" />
+          <div className="mx-auto hidden h-6 w-72 items-center justify-center rounded-md bg-fill/60 text-[11px] text-subtle sm:flex">app.yourcompany.com/mail</div>
         </div>
         <div className="grid grid-cols-[180px_1fr] text-left max-md:grid-cols-1">
           <aside className="space-y-0.5 border-r border-line p-3 text-[12.5px] max-md:hidden">
             {[{ i: Inbox, l: "Inbox", n: "2", a: true }, { i: Star, l: "Starred" }, { i: Send, l: "Sent" }, { i: Globe, l: "Domains" }, { i: Users, l: "Mailboxes" }, { i: Shield, l: "Activity" }].map(({ i: I, l, n, a }) => (
-              <div key={l} className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${a ? "bg-white/[0.07] text-fg" : "text-muted"}`}>
+              <div key={l} className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${a ? "bg-fill text-fg" : "text-muted"}`}>
                 <I className="h-3.5 w-3.5" />{l}{n && <span className="ml-auto rounded bg-brand px-1.5 text-[10px] font-semibold text-brand-fg">{n}</span>}
               </div>
             ))}

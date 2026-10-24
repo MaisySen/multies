@@ -53,7 +53,7 @@ export function MeetingsPage() {
               <h2 className="mb-2 text-[13px] font-semibold">{label as string}</h2>
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
-                  <Link key={m.id} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.02]">
+                  <Link key={m.id} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
                     <CalendarClock className="h-4 w-4 shrink-0 text-muted" />
                     <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}</div></div>
                     {m.status !== "scheduled" && <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}

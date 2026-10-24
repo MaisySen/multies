@@ -47,7 +47,7 @@ export function ContactsPage() {
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="contact-list">
             {people.data.contacts.map((c) => (
-              <Link key={c.id} to={`/app/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03]">
+              <Link key={c.id} to={`/app/contacts/${c.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
                 <Avatar label={initials(c.name || c.email)} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[14px] font-medium">{c.name || c.email}</div>
@@ -66,7 +66,7 @@ export function ContactsPage() {
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {companies.data.map((c) => (
-            <Link key={c.id} to={`/app/contacts?company=${c.id}`} onClick={(e) => { e.preventDefault(); setQ(c.domain ?? c.name); setParams({}); }} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03]">
+            <Link key={c.id} to={`/app/contacts?company=${c.id}`} onClick={(e) => { e.preventDefault(); setQ(c.domain ?? c.name); setParams({}); }} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
               <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-elevated"><Building2 className="h-4 w-4 text-muted" /></span>
               <div className="min-w-0 flex-1"><div className="text-[14px] font-medium">{c.name}</div><div className="text-[12.5px] text-muted">{c.domain}</div></div>
               <div className="text-right text-[12px] text-subtle">{c.contactCount} {c.contactCount === 1 ? "person" : "people"}</div>

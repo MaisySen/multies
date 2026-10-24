@@ -34,7 +34,7 @@ export function ActivityPage() {
         {tab === "deliveries" && (
           <div className="inline-flex rounded-lg border border-line p-0.5 text-[12.5px]">
             {[["", "All"], ["inbound", "Inbound"], ["outbound", "Outbound"]].map(([d, l]) => (
-              <button key={d} onClick={() => setParams(d ? { direction: d } : {})} className={cn("rounded-md px-2.5 py-1", direction === d ? "bg-white/[0.07] text-fg" : "text-muted hover:text-fg")}>{l}</button>
+              <button key={d} onClick={() => setParams(d ? { direction: d } : {})} className={cn("rounded-md px-2.5 py-1", direction === d ? "bg-fill text-fg" : "text-muted hover:text-fg")}>{l}</button>
             ))}
           </div>
         )}
@@ -80,7 +80,7 @@ function Deliveries({ direction }: { direction: string }) {
           </tr></thead>
           <tbody className="divide-y divide-line">
             {rows.map((d) => (
-              <tr key={d.id} className="hover:bg-white/[0.02]">
+              <tr key={d.id} className="hover:bg-hover">
                 <td className="whitespace-nowrap px-4 py-3 text-muted" title={fullDate(d.createdAt)}>{timeAgo(d.createdAt)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">

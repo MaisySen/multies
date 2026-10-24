@@ -139,7 +139,7 @@ export function GuestProjectPage() {
             <ul className="divide-y divide-line rounded-xl border border-line" data-testid="guest-tasks">
               {top.map((t) => (
                 <li key={t.id}>
-                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); window.scrollTo(0, 0); }} className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-white/[0.03]", openTask === t.id && "bg-white/[0.04]")}>
+                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); window.scrollTo(0, 0); }} className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-hover", openTask === t.id && "bg-fill/60")}>
                     {t.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
                     <span className="font-mono text-[11.5px] text-subtle">{t.ref}</span>
                     <span className={cn("truncate", t.status === "done" && "text-subtle line-through")}>{t.title}</span>

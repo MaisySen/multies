@@ -85,7 +85,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
         </thead>
         <tbody>
           {table.getRowModel().rows.map((r) => (
-            <tr key={r.id} onClick={() => onOpen(r.original.id)} className="cursor-pointer border-b border-line last:border-0 hover:bg-white/[0.03]">
+            <tr key={r.id} onClick={() => onOpen(r.original.id)} className="cursor-pointer border-b border-line last:border-0 hover:bg-hover">
               {r.getVisibleCells().map((c) => <td key={c.id} className={cn("px-3 py-2.5", hideOnPhone.has(c.column.id) && "hidden md:table-cell", c.column.id === "title" && "max-w-[420px]")}>{flexRender(c.column.columnDef.cell, c.getContext())}</td>)}
             </tr>
           ))}

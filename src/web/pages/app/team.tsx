@@ -174,7 +174,7 @@ function MailboxPicker({ mailboxes, value, onChange }: { mailboxes: Mailbox[]; v
       {mailboxes.map((b) => {
         const on = value.includes(b.id);
         return (
-          <label key={b.id} className={cn("flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-hover", on && "bg-white/[0.04]")}>
+          <label key={b.id} className={cn("flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-hover", on && "bg-fill/60")}>
             <input type="checkbox" className="h-4 w-4 accent-[var(--color-brand)]" checked={on} onChange={() => onChange(on ? value.filter((v) => v !== b.id) : [...value, b.id])} />
             <span className="truncate">{b.address}</span>
             <span className="ml-auto truncate text-xs text-subtle">{b.displayName}</span>

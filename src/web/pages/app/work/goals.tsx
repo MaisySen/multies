@@ -22,7 +22,7 @@ const val = (k: KeyResult, n: number) => (k.kind === "currency" ? aud.format(n) 
 function Bar({ value, label }: { value: number; label: string }) {
   return (
     <div className="flex items-center gap-2" aria-label={label}>
-      <div className="h-2 w-28 overflow-hidden rounded-full bg-white/[0.08]" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+      <div className="h-2 w-28 overflow-hidden rounded-full bg-fill" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
         <div className="h-full rounded-full bg-brand" style={{ width: `${value}%` }} />
       </div>
       <span className="w-10 text-right text-[12.5px] tabular-nums">{value}%</span>
@@ -54,7 +54,7 @@ export function GoalsPage() {
             </div>
             <div className="flex items-center gap-3">
               <select aria-label={`Health of ${g.name}`} value={g.health ?? ""} onChange={(e) => void setHealth(g, e.target.value)}
-                className={cn("h-7 rounded-md border-0 px-2 text-[12.5px] font-medium", h ? HEALTH[h].cls : "bg-white/[0.06] text-muted")}>
+                className={cn("h-7 rounded-md border-0 px-2 text-[12.5px] font-medium", h ? HEALTH[h].cls : "bg-fill text-muted")}>
                 <option value="">{g.suggestedHealth ? `${HEALTH[g.suggestedHealth].label} (suggested)` : "Not set"}</option>
                 {(Object.keys(HEALTH) as Health[]).map((x) => <option key={x} value={x}>{HEALTH[x].label}</option>)}
               </select>
@@ -64,7 +64,7 @@ export function GoalsPage() {
           {g.keyResults.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {g.keyResults.map((k) => (
-                <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/[0.03] px-3 py-2 text-[13.5px]">
+                <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-fill/60 px-3 py-2 text-[13.5px]">
                   <span className="min-w-0 flex-1">{k.name}</span>
                   <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
                   {k.kind !== "tasks" && <Button variant="ghost" size="sm" onClick={() => void setCurrent(k)}>Update</Button>}

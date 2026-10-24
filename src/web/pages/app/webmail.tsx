@@ -150,7 +150,7 @@ export function WebmailPage() {
             const count = id === "drafts" ? mb.folders.drafts?.total : unread;
             return (
               <button key={id} onClick={() => setParam({ folder: id === "inbox" ? null : id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
-                className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg")}>
+                className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
                 <Icon className="h-4 w-4" />{label}
                 {!!count && <span className={cn("ml-auto text-[11px] tabular-nums", id === "inbox" ? "rounded bg-brand px-1.5 font-semibold text-brand-fg" : "text-subtle")}>{count}</span>}
               </button>
@@ -159,7 +159,7 @@ export function WebmailPage() {
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
           <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
-          <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
+          <div className="h-1 overflow-hidden rounded-full bg-fill"><div className="h-full rounded-full bg-brand" style={{ width: `${Math.max(2, Math.min(100, (mb.usedBytes / (mb.quotaMb * 1048576)) * 100))}%` }} /></div>
           <div className="mt-3 hidden gap-x-3 gap-y-1 xl:flex xl:flex-wrap"><span><Kbd>c</Kbd> compose</span><span><Kbd>j</Kbd>/<Kbd>k</Kbd> move</span><span><Kbd>e</Kbd> archive</span><span><Kbd>t</Kbd> task</span><span><Kbd>/</Kbd> search</span></div>
         </div>
       </aside>
@@ -227,7 +227,7 @@ export function WebmailPage() {
 function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
-    <li className={cn("group relative border-b border-line", active ? "bg-brand-soft/60" : "hover:bg-white/[0.025]")}>
+    <li className={cn("group relative border-b border-line", active ? "bg-brand-soft/60" : "hover:bg-hover")}>
       <button onClick={onOpen} className="block w-full px-4 py-3 pr-10 text-left" aria-current={active || undefined}>
         <div className="flex items-baseline gap-2">
           {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label="Unread" />}

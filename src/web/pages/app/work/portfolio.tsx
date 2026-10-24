@@ -47,7 +47,7 @@ export function PortfolioPage() {
         <>
           <div className="mb-4 flex flex-wrap gap-2 text-[12.5px]" aria-label="Health summary">
             {(Object.keys(HEALTH) as Health[]).map((h) => <span key={h} className={cn("rounded-full px-2.5 py-1 font-medium", HEALTH[h].cls)}>{counts[h]} {HEALTH[h].label.toLowerCase()}</span>)}
-            <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-muted">{rows.length - counts.on_track - counts.at_risk - counts.off_track} not set</span>
+            <span className="rounded-full bg-fill px-2.5 py-1 text-muted">{rows.length - counts.on_track - counts.at_risk - counts.off_track} not set</span>
           </div>
           <Card className="overflow-x-auto p-0">
             <table className="w-full text-[13px]" data-testid="portfolio-table">
@@ -73,14 +73,14 @@ export function PortfolioPage() {
                     </td>
                     <td className="px-3 py-2.5">
                       <Select aria-label={`Health of ${r.name}`} value={r.health ?? ""} onChange={(e) => void save(r.id, { health: e.target.value || null })}
-                        className={cn("h-7 w-auto! border-0 text-[12.5px] font-medium", r.health ? HEALTH[r.health].cls : "bg-white/[0.06] text-muted")}>
+                        className={cn("h-7 w-auto! border-0 text-[12.5px] font-medium", r.health ? HEALTH[r.health].cls : "bg-fill text-muted")}>
                         <option value="">Not set</option>
                         {(Object.keys(HEALTH) as Health[]).map((h) => <option key={h} value={h}>{HEALTH[h].label}</option>)}
                       </Select>
                     </td>
                     <td className="px-3 py-2.5">
                       <div className="flex min-w-[120px] items-center gap-2">
-                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]" role="progressbar" aria-label={`${r.name} progress`} aria-valuenow={r.progress} aria-valuemin={0} aria-valuemax={100}>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-fill" role="progressbar" aria-label={`${r.name} progress`} aria-valuenow={r.progress} aria-valuemin={0} aria-valuemax={100}>
                           <div className="h-full rounded-full bg-brand" style={{ width: `${r.progress}%` }} />
                         </div>
                         <span className="w-10 text-right tabular-nums text-muted">{r.progress}%</span>

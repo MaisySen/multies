@@ -48,13 +48,13 @@ export function StatusPage() {
         <ul className="divide-y divide-line" aria-hidden>
           {Array.from({ length: 7 }, (_, i) => (
             <li key={i} className="flex h-[73px] items-center justify-between gap-4 py-4">
-              <div className="h-4 w-40 rounded bg-white/[0.06]" />
-              <div className="h-4 w-24 rounded bg-white/[0.06]" />
+              <div className="h-4 w-40 rounded bg-fill" />
+              <div className="h-4 w-24 rounded bg-fill" />
             </li>
           ))}
         </ul>
       )}
-      {!s && <div className="mt-10 h-[148px] rounded bg-white/[0.03]" aria-hidden />}
+      {!s && <div className="mt-10 h-[148px] rounded bg-fill/60" aria-hidden />}
       {s && (
         <>
           <ul className="divide-y divide-line">
@@ -83,7 +83,7 @@ export function StatusPage() {
 }
 
 function UptimeHistory({ history }: { history: NonNullable<Status["history"]> }) {
-  const color = (d: Day) => (d.worst === null ? "bg-white/[0.07]" : d.worst === "down" ? "bg-bad" : d.worst === "degraded" ? "bg-warn" : "bg-ok");
+  const color = (d: Day) => (d.worst === null ? "bg-fill" : d.worst === "down" ? "bg-bad" : d.worst === "degraded" ? "bg-warn" : "bg-ok");
   return (
     <section className="mt-10" aria-labelledby="uptime-heading">
       <div className="flex flex-wrap items-baseline justify-between gap-2">

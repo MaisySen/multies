@@ -152,7 +152,7 @@ data: {"type":"message.received","data":{"subject":"Your code",
         <div className="mt-6 flex flex-wrap gap-1 rounded-lg border border-line p-1 text-sm sm:w-fit" role="tablist" aria-label="MCP clients">
           {Object.entries(MCP).map(([id, m]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id as keyof typeof MCP)}
-              className={cn("rounded-md px-3 py-1.5", tab === id ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:text-fg")}>{m.label}</button>
+              className={cn("rounded-md px-3 py-1.5", tab === id ? "bg-fill font-medium text-fg" : "text-muted hover:text-fg")}>{m.label}</button>
           ))}
         </div>
         <p className="mt-4 text-sm text-muted">{MCP[tab].note}</p>

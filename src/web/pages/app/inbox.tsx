@@ -43,7 +43,7 @@ export function TeamInboxPage() {
               <ul className="divide-y divide-line">
                 {threads.data.data.map((t) => (
                   <li key={t.id}>
-                    <button onClick={() => open(t.id)} aria-current={selected === t.id} className={cn("block w-full px-4 py-3 text-left transition-colors hover:bg-white/[0.03]", selected === t.id && "bg-white/[0.05]")}>
+                    <button onClick={() => open(t.id)} aria-current={selected === t.id} className={cn("block w-full px-4 py-3 text-left transition-colors hover:bg-hover", selected === t.id && "bg-fill/60")}>
                       <div className="flex items-baseline justify-between gap-3">
                         <span className={cn("truncate text-sm", t.unreadCount ? "font-semibold" : "font-medium")}>{t.from.name ?? t.from.address}</span>
                         <time className="shrink-0 text-xs text-subtle" dateTime={t.lastMessageAt}>{mailDate(t.lastMessageAt)}</time>

@@ -57,12 +57,12 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
 function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   return (
-    <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.03]" data-testid="chat-message" id={`m-${m.id}`}>
+    <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover" data-testid="chat-message" id={`m-${m.id}`}>
       <Avatar label={m.author.name} className="mt-0.5 h-8 w-8 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-[13.5px] font-semibold">{m.author.name}</span>
-          {m.author.type === "agent" && <span className="rounded bg-white/[0.07] px-1 text-[11px] text-muted">agent</span>}
+          {m.author.type === "agent" && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
         </div>
@@ -199,10 +199,10 @@ export function ChatPage() {
   const navItem = (c: ChatChannel, icon: ReactNode) => (
     <li key={c.id}>
       <Link to={`/app/chat/${c.id}`} aria-current={c.id === current?.id ? "page" : undefined}
-        className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-[13.5px]", c.id === current?.id ? "bg-white/[0.07] text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg", c.unread > 0 && "font-semibold text-fg")}>
+        className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-[13.5px]", c.id === current?.id ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg", c.unread > 0 && "font-semibold text-fg")}>
         {icon}<span className="flex-1 truncate">{c.name}</span>
         {c.mentions > 0 ? <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-brand-fg" aria-label={`${c.mentions} mentions`}>{c.mentions}</span>
-          : c.unread > 0 ? <span className="rounded-full bg-white/[0.12] px-1.5 text-[11px]" aria-label={`${c.unread} unread`}>{c.unread}</span> : null}
+          : c.unread > 0 ? <span className="rounded-full bg-fill px-1.5 text-[11px]" aria-label={`${c.unread} unread`}>{c.unread}</span> : null}
       </Link>
     </li>
   );

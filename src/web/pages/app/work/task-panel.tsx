@@ -149,7 +149,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               <p className="mt-1.5 text-[13px] text-muted">{t.source.subject || "(no subject)"} · {t.source.from}</p>
               <ol className="mt-3 space-y-2">
                 {q.data!.thread.map((m) => (
-                  <li key={m.id} className={cn("rounded-lg border border-line p-3", m.direction === "outbound" ? "bg-white/[0.02]" : "bg-elevated/60")}>
+                  <li key={m.id} className={cn("rounded-lg border border-line p-3", m.direction === "outbound" ? "bg-fill/60" : "bg-elevated/60")}>
                     <div className="flex items-center gap-2 text-[12px]">
                       <span className="font-medium text-fg">{m.from.name || m.from.address}</span>
                       {m.byAgent && <Badge tone="brand"><Bot className="h-3 w-3" />Agent</Badge>}
@@ -170,7 +170,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>
             <ul className="mt-2 space-y-1">
               {q.data!.subtasks.map((s: Task) => (
-                <li key={s.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-white/[0.03]">
+                <li key={s.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-hover">
                   <button aria-label={s.status === "done" ? `Mark ${s.title} as not done` : `Mark ${s.title} as done`} onClick={() => update.mutate({ id: s.id, patch: { status: s.status === "done" ? "todo" : "done" } }, { onSuccess: () => void q.refetch() })}>
                     {s.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
                   </button>

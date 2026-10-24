@@ -47,7 +47,7 @@ export function DashboardPage() {
                 <ul className="mt-4 space-y-1">
                   {data.domains.slice(0, 6).map((d) => (
                     <li key={d.id}>
-                      <Link to={`/app/domains/${d.id}`} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.04]">
+                      <Link to={`/app/domains/${d.id}`} className="-mx-2 flex items-center justify-between gap-3 rounded-lg px-2 py-2 hover:bg-hover">
                         <span className="truncate text-sm">{d.name}</span><DomainStatusBadge status={d.status} />
                       </Link>
                     </li>
@@ -148,7 +148,7 @@ function GettingStarted({ data }: { data: Dashboard }) {
       <ol className="grid sm:grid-cols-2 lg:grid-cols-3">
         {steps.map((s, i) => (
           <li key={s.title} className="border-line [&:not(:last-child)]:border-b sm:[&:nth-child(odd)]:border-r lg:[&:nth-child(odd)]:border-r-0 lg:[&:not(:nth-child(3n))]:border-r lg:[&:nth-child(-n+3)]:border-b lg:[&:nth-child(n+4)]:border-b-0">
-            <Link to={s.to} className={cn("flex h-full gap-3 p-4 transition-colors hover:bg-white/[0.03]", i === next && "bg-white/[0.02]")} aria-current={i === next ? "step" : undefined}>
+            <Link to={s.to} className={cn("flex h-full gap-3 p-4 transition-colors hover:bg-hover", i === next && "bg-fill/60")} aria-current={i === next ? "step" : undefined}>
               <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold", s.done ? "border-ok/30 bg-ok-soft text-ok" : i === next ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-subtle")}>
                 {s.done ? <Check className="h-3.5 w-3.5" aria-label="Done" /> : i + 1}
               </span>

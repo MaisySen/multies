@@ -5,7 +5,7 @@ import { useConfig, useMe } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 
-const card = "rounded-xl border border-line bg-white/[0.02] p-5";
+const card = "rounded-xl border border-line bg-fill/60 p-5";
 
 function SupportEmail() {
   const config = useConfig();

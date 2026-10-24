@@ -39,7 +39,7 @@ export function DomainsPage() {
 function DomainRow({ d }: { d: Domain }) {
   const passed = d.lastCheck?.records.filter((r) => r.status === "pass").length ?? 0;
   return (
-    <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-white/[0.03] sm:p-5">
+    <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-hover sm:p-5">
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><Globe className="h-4 w-4" /></div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><span className="truncate font-medium">{d.name}</span><DomainStatusBadge status={d.status} /></div>

@@ -51,7 +51,7 @@ export function AgentsPage() {
         ) : (
           <Card className="divide-y divide-line overflow-hidden">
             {agents.data.map((a) => (
-              <Link key={a.id} to={`/app/agents/${a.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-white/[0.03] sm:p-5">
+              <Link key={a.id} to={`/app/agents/${a.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-hover sm:p-5">
                 <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><Bot className="h-4 w-4" /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
