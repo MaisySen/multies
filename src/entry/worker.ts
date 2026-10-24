@@ -4,6 +4,7 @@
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
 import { isKnownPage } from "../shared/known-routes";
+import { metaFor, SITE_URL } from "../web/components/seo-meta";
 import * as Sentry from "@sentry/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
@@ -183,7 +184,33 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
   res.headers.set("cache-control", "no-cache");
-  return res;
+  return request.method === "HEAD" ? res : withPageMeta(res, url.pathname);
+}
+
+/**
+ * Puts the page's own title, description, canonical and social tags into the shell, so crawlers and
+ * link previews that do not run scripts see the right ones. A streaming rewrite: no extra CPU to speak of.
+ */
+interface RewriterElement { setAttribute(name: string, value: string): void; setInnerContent(text: string): void; append(content: string, opts?: { html: boolean }): void }
+interface Rewriter { on(selector: string, handler: { element(el: RewriterElement): void }): Rewriter; transform(res: Response): Response }
+declare const HTMLRewriter: { new (): Rewriter } | undefined;
+
+function withPageMeta(res: Response, path: string): Response {
+  if (typeof HTMLRewriter === "undefined") return res;
+  const meta = metaFor(path);
+  const url = `${SITE_URL}${path === "/" ? "/" : path.replace(/\/+$/, "")}`;
+  const content = (value: string) => ({ element: (el: RewriterElement) => { el.setAttribute("content", value); } });
+  return new HTMLRewriter()
+    .on("title", { element: (el) => { el.setInnerContent(meta.title); } })
+    .on('meta[name="description"]', content(meta.description))
+    .on('meta[property="og:title"]', content(meta.title))
+    .on('meta[property="og:description"]', content(meta.description))
+    .on('meta[property="og:url"]', content(url))
+    .on('meta[name="twitter:title"]', content(meta.title))
+    .on('meta[name="twitter:description"]', content(meta.description))
+    .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", url); } })
+    .on("head", { element: (el) => { if (meta.noindex) el.append('<meta name="robots" content="noindex" />', { html: true }); } })
+    .transform(res);
 }
 
 const handler = {
