@@ -66,7 +66,7 @@ export function GoalsPage() {
               {g.keyResults.map((k) => (
                 <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-fill/60 px-3 py-2 text-[13.5px]">
                   <span className="min-w-0 flex-1">{k.name}</span>
-                  <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
+                  <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : k.target < k.start ? `${val(k, k.current)}, down to ${val(k, k.target)}` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
                   {k.kind !== "tasks" && <Button variant="ghost" size="sm" onClick={() => void setCurrent(k)}>Update</Button>}
                   <Bar value={k.progress} label={`${k.name} progress`} />
                 </li>

@@ -324,6 +324,11 @@ describe("goals and OKRs", () => {
     expect(tree.goals).toHaveLength(1);
     expect(tree.goals[0].children[0].progress).toBe(50);
     expect(tree.goals[0].progress).toBe(50); // average of 50 (revenue) and 50 (child)
+    // A countdown with no start counts from its current value (dogfood F5).
+    const bugs = (await c.post(`/api/goals/${top.id}/key-results`, { name: "Open high severity bugs", kind: "number", target: 0, current: 10 })).body.keyResult;
+    expect(bugs).toMatchObject({ start: 10, target: 0, current: 10, progress: 0 });
+    expect((await c.patch(`/api/key-results/${bugs.id}`, { current: 4 })).body.keyResult.progress).toBe(60);
+    await c.call("DELETE", `/api/key-results/${bugs.id}`);
     await c.patch(`/api/key-results/${top.keyResults[0].id}`, { current: 20000 });
     expect((await c.get(`/api/goals/${top.id}`)).body.goal.progress).toBe(75);
     // A whole project as a key result.
