@@ -15,6 +15,7 @@ import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/ser
 import type { Deps, RateLimitBinding } from "../server/context";
 import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
+import { withAuthRequestState } from "../server/lib/request-state";
 import { S3BodyStore } from "../server/services/storage/body-store";
 import { collabAccess } from "../server/collab/access";
 import { collabDocId } from "../server/collab/room";
@@ -139,42 +140,52 @@ async function collabUpgrade(request: Request, env: WorkerEnv, docId: string): P
   return rooms.get(rooms.idFromName(docId)).fetch(new Request(request.url, { method: "GET", headers }));
 }
 
-const handler = {
-  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
-    const url = new URL(request.url);
-    if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
-    const collabDoc = collabDocId(url.pathname);
-    if (collabDoc) return collabUpgrade(request, env, collabDoc);
-    if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
-      const { app, deps } = await getReady(env);
-      // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
-      // Production and staging have cron triggers and must not: every new isolate used to
-      // start a 20 second maintenance pass whose queries queued ahead of the request's own.
-      if (envVar(env, "MAINTENANCE_ON_REQUEST") === "true" && Date.now() - lastMaintenance > 10 * 60_000) {
-        lastMaintenance = Date.now();
-        ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
-      }
-      // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
-      return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
+/**
+ * Better Auth keeps per-request state in AsyncLocalStorage. Opening that store once at
+ * the start of each request keeps it for the whole request: when Better Auth opened it
+ * lazily inside each auth call, concurrent requests in one isolate lost it and getSession
+ * failed (500 failed_to_get_session on about 1 in 5 requests under load).
+ */
+async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
+  const collabDoc = collabDocId(url.pathname);
+  if (collabDoc) return collabUpgrade(request, env, collabDoc);
+  if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
+    const { app, deps } = await getReady(env);
+    // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
+    // Production and staging have cron triggers and must not: every new isolate used to
+    // start a 20 second maintenance pass whose queries queued ahead of the request's own.
+    if (envVar(env, "MAINTENANCE_ON_REQUEST") === "true" && Date.now() - lastMaintenance > 10 * 60_000) {
+      lastMaintenance = Date.now();
+      ctx.waitUntil(runMaintenanceIfMigrated(deps).catch((e) => console.error("[maintenance]", e)));
     }
-    pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
-    // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
-    formPageHeaders ??= { csp: appCsp({ turnstile: true }), hsts: isHttps(url.origin) };
-    const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
-    const asset = await env.ASSETS.fetch(request);
-    if (asset.status !== 404) {
-      const res = withSecurityHeaders(asset, headers);
-      // Hashed build files never change; everything else revalidates.
-      if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
-      return res;
-    }
-    // Every app route renders the app shell, which routes client-side.
-    const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-      ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
-      : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
-    const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), headers);
-    res.headers.set("cache-control", "no-cache");
+    // The execution context lets a route finish work after its response (c.executionCtx.waitUntil).
+    return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
+  }
+  pageHeaders ??= { csp: appCsp(), hsts: isHttps(url.origin) };
+  // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
+  formPageHeaders ??= { csp: appCsp({ turnstile: true }), hsts: isHttps(url.origin) };
+  const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
+  const asset = await env.ASSETS.fetch(request);
+  if (asset.status !== 404) {
+    const res = withSecurityHeaders(asset, headers);
+    // Hashed build files never change; everything else revalidates.
+    if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
     return res;
+  }
+  // Every app route renders the app shell, which routes client-side.
+  const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
+    ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
+    : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
+  const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), headers);
+  res.headers.set("cache-control", "no-cache");
+  return res;
+}
+
+const handler = {
+  fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    return withAuthRequestState(() => serve(request, env, ctx));
   },
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
