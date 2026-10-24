@@ -21,18 +21,21 @@ REST API (`/api/v1`) with API keys.
 workspace  { name, timezone?, domain? }        domain hosts the agents' addresses
 founder    { name, email, title? }             the account the script signs in as
 invites    [{ email, role: admin|member, name?, title? }]   sent only with --send-invites
-agents     [{ key, name, title, bio, localPart?, approvalMode? }]
+agents     [{ key, name, title, bio, inbox?, localPart?, approvalMode? }]   agent members by default; inbox: true makes a mail agent
 channels   [{ name, purpose, welcome?, welcomeBy?: "agent:<key>" }]
 projects   [{ name, key?, color?, description?, owner?, tasks?: [{ title, notes?, priority?, due?, assignee?, labels?, status? }] }]
 goals      [{ name, description?, due?, keyResults?: [{ name, kind?, start?, target?, current?, unit?, project? }] }]
 docs       [{ title, text, project? }]         text: one paragraph per line, # headings, - bullets
 meetings   [{ title, weekday (0 Sunday), time "HH:MM", timezone, durationMin?, prepTask?: { project, assignee? } }]
-templates  [{ name, description?, category?, project, title, notes }]
+templates  [{ name, kind?: task|doc, description?, category?, title, notes }]   notes is the body of a doc template
 ```
 
 People references: `member:self` (the founder), `member:<email>` (a member who has joined),
-`agent:<key>` (an agent from the `agents` list). An agent's bio is saved as
-"<title>. <bio>" and should say it is an AI agent.
+`agent:<key>` (an agent from the `agents` list). Since round 12 agents are agent members: a
+title, a bio (which should say it is an AI agent), their own key ("<Agent name> key"), no seat
+and no mailbox, 10 on Free. Channel purposes go through `PATCH /api/v1/chat/channels/{id}`, each
+welcome post is pinned, and templates are written from scratch with `POST /api/v1/templates`
+(`kind: doc` for a doc template, with `notes` as its body).
 
 ### Run locally
 
@@ -99,9 +102,9 @@ templates, notifications, integrations or portfolio.
 4. **Medium.** Members have no title or bio; invites cannot carry one; nobody can be invited as Owner (only admin or member).
 5. **Medium.** Key results that count down ("open high severity bugs, 10 to 0") show "10 of 0" and 0 percent.
 6. **Medium.** Meetings cannot repeat, and meeting times show in the browser's zone with no label (a Monday 10:00 Sydney meeting reads "Sun, 25 Oct, 11:00 pm" in a UTC browser), while chat times follow the workspace zone.
-7. **Medium.** Public API gaps: no route to create a workspace, mint the first key, invite or list members, update a channel, pin a message, create a template or delete a doc.
-8. **Medium.** Chat has no pinned messages, so each channel's welcome and rules scroll away.
-9. **Medium.** Templates are only for projects and tasks, saved from an existing item; no doc templates and no template from scratch.
+7. **Medium, partly fixed in round 12** (channel update, pins, templates create, docs delete and the people list are in /api/v1; creating a workspace, minting the first key and inviting still need a session). Public API gaps: no route to create a workspace, mint the first key, invite or list members, update a channel, pin a message, create a template or delete a doc.
+8. **Fixed in round 12.** Chat has no pinned messages, so each channel's welcome and rules scroll away.
+9. **Fixed in round 12** (doc templates with two starters, templates from scratch in the app and the API). Templates are only for projects and tasks, saved from an existing item; no doc templates and no template from scratch.
 10. **Medium.** Phone: Tasks opens as a board with the second column cut off; goal key result names wrap to four lines; the chat composer shows keyboard hints and a sample ref (OPS-12) from another workspace.
 11. **Medium.** Inbound: support@ and security@ on the company domain do not reach the workspace shared inbox yet (the builder owns the Email Routing side).
 12. **Low.** New projects default to the email status "Waiting on reply".

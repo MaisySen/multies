@@ -31,7 +31,8 @@ export interface OrgConfig {
   founder: { name: string; email: string; title?: string };
   /** Real invite emails. Sent only with --send-invites. role: admin or member. */
   invites?: { email: string; role: "admin" | "member"; name?: string; title?: string; note?: string }[];
-  agents?: { key: string; name: string; title: string; bio: string; localPart?: string; approvalMode?: "always" | "external" | "never" }[];
+  /** inbox: true makes a mail agent with an address (counts toward agent inboxes); otherwise an agent member. */
+  agents?: { key: string; name: string; title: string; bio: string; inbox?: boolean; localPart?: string; approvalMode?: "always" | "external" | "never" }[];
   channels?: { name: string; purpose: string; welcome?: string; welcomeBy?: Ref }[];
   projects?: {
     name: string; key?: string; color?: string; description?: string; owner?: Ref;
@@ -40,10 +41,11 @@ export interface OrgConfig {
   goals?: { name: string; description?: string; due?: string; keyResults?: { name: string; kind?: "number" | "currency" | "percent" | "tasks"; start?: number; target?: number; current?: number; unit?: string; project?: string }[] }[];
   docs?: { title: string; text: string; project?: string }[];
   meetings?: { title: string; weekday: number; time: string; timezone: string; durationMin?: number; invitees?: string[]; prepTask?: { project: string; assignee?: Ref } }[];
-  templates?: { name: string; description?: string; category?: string; project: string; title: string; notes: string }[];
+  /** kind task (default) or doc; for a doc, notes is the body. project is kept for older configs and no longer used. */
+  templates?: { name: string; kind?: "task" | "doc"; description?: string; category?: string; project?: string; title: string; notes: string }[];
 }
 
-interface State { base: string; workspaceId?: string; workspaceKey?: string; agents: Record<string, { id: string; keyId?: string; secret?: string; address?: string }> }
+interface State { base: string; workspaceId?: string; workspaceKey?: string; agents: Record<string, { id: string; member?: boolean; keyId?: string; secret?: string; address?: string }> }
 
 // ---------------------------------------------------------------- args
 const args = process.argv.slice(2);
@@ -124,7 +126,7 @@ class Runner {
     await this.goals(projects);
     await this.docs(projects);
     await this.meetings(projects);
-    await this.templates(projects);
+    await this.templates();
     this.save();
     this.note(`Done in ${Math.round((Date.now() - t0) / 1000)} s with ${this.writes} create or update calls. State: ${this.statePath}`);
   }
@@ -139,7 +141,7 @@ class Runner {
     } else if (!password) {
       if (!process.env.ORG_API_KEY) throw new Error("Set ORG_PASSWORD (or ORG_SESSION_COOKIE, or ORG_API_KEY for a key only run).");
       this.session = false;
-      this.note("Key only run: steps that need a session (workspace, invites, templates, channel purpose) are skipped");
+      this.note("Key only run: steps that need a session (workspace, invites) are skipped");
       return;
     } else try {
       await this.http("POST", "/api/auth/sign-in/email", { email, password }, "session");
@@ -204,32 +206,61 @@ class Runner {
     catch (e) { this.note(`  domain ${name} not added: ${(e as Error).message}`); }
   }
 
+  /**
+   * AI agents become agent members (round 12 default): a member with a title and bio, its own
+   * key, no seat and no mailbox (10 on Free). An agent with inbox: true is made the older way,
+   * as a mail agent with an address on the workspace domain.
+   */
   async agents() {
     const want = this.cfg.agents ?? [];
     if (!want.length) return;
-    const have = arr(await this.v1("GET", "/agents")) as any[];
+    const people = arr(await this.v1("GET", "/people")) as any[];
+    const mailAgents = want.some((a) => a.inbox) ? arr(await this.v1("GET", "/agents")) as any[] : [];
     for (const a of want) {
-      const bio = `${a.title}. ${a.bio}`.slice(0, 500);
-      let found = have.find((x) => x.name === a.name);
+      if (a.inbox) { await this.mailAgent(a, mailAgents); continue; }
+      const bio = a.bio.slice(0, 500);
+      const found = people.find((x) => x.type === "member" && x.kind === "agent" && x.name === a.name);
       if (!found) {
         try {
-          const out = await this.v1("POST", "/agents", { name: a.name, description: bio, localPart: a.localPart ?? slug(a.name), approvalMode: a.approvalMode ?? "always", createKey: true });
-          found = out.agent;
-          this.state.agents[a.key] = { id: out.agent.id, keyId: out.apiKey?.id, secret: out.apiKey?.secret, address: out.agent.address };
+          const out = await this.v1("POST", "/agent-members", { name: a.name, title: a.title, bio });
+          this.state.agents[a.key] = { id: out.member.userId ?? out.member.id, member: true, keyId: out.apiKey?.id, secret: out.secret };
           this.save();
-          this.note(`Created agent ${a.name} (${a.title}) with key "${a.name} agent key"`);
-        } catch (e) { this.note(`  agent ${a.name} not created: ${(e as Error).message}`); continue; }
-      } else {
-        if ((found.description ?? "") !== bio) { await this.v1("PATCH", `/agents/${found.id}`, { description: bio }); this.note(`  bio updated for ${a.name}`); }
-        const s = this.state.agents[a.key];
-        if (!s?.secret) {
-          const k = await this.v1("POST", `/agents/${found.id}/keys`, { name: `${a.name} agent key` });
-          this.state.agents[a.key] = { id: found.id, keyId: k.id ?? k.apiKey?.id, secret: k.secret ?? k.apiKey?.secret, address: found.address };
-          this.save();
-          this.note(`Agent ${a.name} exists; minted a fresh key (the old secret was not on file)`);
-        } else this.note(`Agent ${a.name} exists`);
+          this.note(`Created agent member ${a.name} (${a.title}) with key "${a.name} key"`);
+        } catch (e) { this.note(`  agent ${a.name} not created: ${(e as Error).message}`); }
+        continue;
       }
+      const id = found.userId ?? found.id;
+      if ((found.title ?? "") !== a.title || (found.bio ?? "") !== bio) { await this.v1("PATCH", `/people/${id}`, { title: a.title, bio }); this.note(`  title and bio updated for ${a.name}`); }
+      const s = this.state.agents[a.key];
+      if (!s?.secret) {
+        const k = await this.v1("POST", `/agent-members/${id}/keys`, { name: `${a.name} key` });
+        this.state.agents[a.key] = { id, member: true, keyId: k.apiKey?.id ?? k.id, secret: k.secret ?? k.apiKey?.secret };
+        this.save();
+        this.note(`Agent member ${a.name} exists; minted a fresh key (the old secret was not on file)`);
+      } else this.note(`Agent member ${a.name} exists`);
     }
+  }
+
+  async mailAgent(a: NonNullable<OrgConfig["agents"]>[number], have: any[]) {
+    const bio = `${a.title}. ${a.bio}`.slice(0, 500);
+    const found = have.find((x) => x.name === a.name);
+    if (!found) {
+      try {
+        const out = await this.v1("POST", "/agents", { name: a.name, description: bio, localPart: a.localPart ?? slug(a.name), approvalMode: a.approvalMode ?? "always", createKey: true });
+        this.state.agents[a.key] = { id: out.agent.id, keyId: out.apiKey?.id, secret: out.apiKey?.secret, address: out.agent.address };
+        this.save();
+        this.note(`Created mail agent ${a.name} (${a.title}) with key "${a.name} agent key"`);
+      } catch (e) { this.note(`  agent ${a.name} not created: ${(e as Error).message}`); }
+      return;
+    }
+    if ((found.description ?? "") !== bio) { await this.v1("PATCH", `/agents/${found.id}`, { description: bio }); this.note(`  bio updated for ${a.name}`); }
+    const s = this.state.agents[a.key];
+    if (!s?.secret) {
+      const k = await this.v1("POST", `/agents/${found.id}/keys`, { name: `${a.name} agent key` });
+      this.state.agents[a.key] = { id: found.id, keyId: k.id ?? k.apiKey?.id, secret: k.secret ?? k.apiKey?.secret, address: found.address };
+      this.save();
+      this.note(`Mail agent ${a.name} exists; minted a fresh key (the old secret was not on file)`);
+    } else this.note(`Mail agent ${a.name} exists`);
   }
 
   async invites() {
@@ -248,7 +279,7 @@ class Runner {
   ref(r?: Ref): string | undefined {
     if (!r) return undefined;
     const [kind, v] = [r.slice(0, r.indexOf(":")), r.slice(r.indexOf(":") + 1)];
-    if (kind === "agent") { const a = this.state.agents[v]; return a ? `agent:${a.id}` : undefined; }
+    if (kind === "agent") { const a = this.state.agents[v]; return a ? `${a.member ? "member" : "agent"}:${a.id}` : undefined; }
     if (v === "self") return this.me ? `member:${this.me}` : undefined;
     const m = this.members.find((x) => x.email?.toLowerCase() === v.toLowerCase());
     return m ? `member:${m.userId}` : undefined;
@@ -257,7 +288,6 @@ class Runner {
   async projects(): Promise<Record<string, string>> {
     const ids: Record<string, string> = {};
     const want = [...(this.cfg.projects ?? [])];
-    for (const t of this.cfg.templates ?? []) if (!want.some((p) => p.name === t.project)) want.push({ name: t.project, description: "Source tasks for the workspace's task templates." });
     for (const mt of this.cfg.meetings ?? []) if (mt.prepTask && !want.some((p) => p.name === mt.prepTask!.project)) want.push({ name: mt.prepTask.project });
     const have = arr(await this.v1("GET", "/projects")) as any[];
     for (const p of want) {
@@ -291,14 +321,21 @@ class Runner {
         c = out.channel ?? out;
         this.note(`Created #${ch.name}`);
       }
-      // No public route updates a channel (finding), so the purpose of an existing channel is set through the app API.
-      if (this.session && c.id && (c.topic ?? "") !== ch.purpose) { await this.app("PATCH", `/api/chat/channels/${c.id}`, { topic: ch.purpose }); this.note(`  purpose set on #${ch.name}`); }
+      if (c.id && (c.topic ?? "") !== ch.purpose) { await this.v1("PATCH", `/chat/channels/${c.id}`, { topic: ch.purpose }); this.note(`  purpose set on #${ch.name}`); }
       if (!ch.welcome || !c.id) continue;
       const msgs = arr(await this.v1("GET", `/chat/channels/${c.id}/messages?limit=50`)) as any[];
-      if (msgs.some((m) => (m.body ?? "").startsWith(ch.welcome!.slice(0, 40)))) continue;
-      const by = ch.welcomeBy?.startsWith("agent:") ? this.state.agents[ch.welcomeBy.slice(6)]?.secret : undefined;
-      await this.v1("POST", `/chat/channels/${c.id}/messages`, { body: ch.welcome }, by);
-      this.note(`  welcome posted in #${ch.name}`);
+      let welcome = msgs.find((m) => (m.body ?? "").startsWith(ch.welcome!.slice(0, 40)));
+      if (!welcome) {
+        const by = ch.welcomeBy?.startsWith("agent:") ? this.state.agents[ch.welcomeBy.slice(6)]?.secret : undefined;
+        const out = await this.v1("POST", `/chat/channels/${c.id}/messages`, { body: ch.welcome }, by);
+        welcome = out?.message ?? out;
+        this.note(`  welcome posted in #${ch.name}`);
+      }
+      // One write; a server older than round 12 has no pins, which is not worth failing the run for.
+      if (welcome?.id && !welcome.pinnedAt) {
+        try { await this.v1("POST", `/chat/messages/${welcome.id}/pin`); this.note(`  welcome pinned in #${ch.name}`); }
+        catch (e) { this.note(`  could not pin the welcome in #${ch.name}: ${(e as Error).message}`); }
+      }
     }
   }
 
@@ -350,18 +387,14 @@ class Runner {
     }
   }
 
-  async templates(projects: Record<string, string>) {
-    if (!this.session) return this.note("Templates skipped: no session");
-    const list = await this.app("GET", "/api/templates");
-    const have = (list.templates ?? []) as any[];
+  async templates() {
+    // Written from scratch through the public API (round 12): no source task in a project, one write each.
+    const have = arr(await this.v1("GET", "/templates")) as any[];
     for (const t of this.cfg.templates ?? []) {
       if (have.some((x) => x.name === t.name)) { this.note(`Template ${t.name} exists`); continue; }
-      const pid = projects[t.project];
-      const tasks = arr(await this.v1("GET", `/tasks?projectId=${encodeURIComponent(pid)}`)) as any[];
-      let src = tasks.find((x) => x.title === t.title);
-      if (!src) src = (await this.v1("POST", "/tasks", { title: t.title, notes: t.notes, projectId: pid })).task;
-      if (!src?.id) continue;
-      await this.app("POST", "/api/templates", { kind: "task", fromTaskId: src.id, name: t.name, description: t.description, category: t.category ?? "Custom" });
+      const kind = t.kind ?? "task";
+      const data = kind === "doc" ? { title: t.title, text: t.notes ?? "" } : { title: t.title, notes: t.notes };
+      await this.v1("POST", "/templates", { kind, data, name: t.name, description: t.description, category: t.category ?? "Custom" });
       this.note(`Created template ${t.name}`);
     }
   }
