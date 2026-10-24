@@ -126,7 +126,7 @@ export function AppLayout() {
       <nav className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3" aria-label="App">
         {([...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false, group: "admin" as const }] : [])] as NavItem[]).map(({ to, label, icon: Icon, end, group }, i, all) => (
           <Fragment key={to}>
-          {(i === 0 || all[i - 1].group !== group) && <div className={cn("px-2.5 pb-1 text-[11.5px] font-semibold text-subtle", i > 0 && "pt-4")}>{GROUP_LABEL[group]}</div>}
+          {(i === 0 || all[i - 1].group !== group) && <div data-testid="nav-group" className={cn("px-2.5 pb-1 text-[11.5px] font-semibold text-subtle", i > 0 && "pt-4")}>{GROUP_LABEL[group]}</div>}
           <NavLink to={to} end={end} className={({ isActive }) => cn(
             "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
             isActive ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:bg-hover hover:text-fg",
