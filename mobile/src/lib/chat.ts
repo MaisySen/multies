@@ -30,7 +30,7 @@ export function segments(m: Pick<ChatMessage, "body" | "mentions" | "links">, me
       const type = hit[1] as "member" | "agent";
       const id = hit[2];
       const mention = m.mentions.find((x) => x.type === type && (x.id === id || x.id === `${type}:${id}`)) ?? null;
-      out.push({ kind: "mention", text: `@${mention?.name ?? (type === "agent" ? "an agent" : "someone")}`, mention, self: !!meId && type === "member" && id === meId });
+      out.push({ kind: "mention", text: `@${mention?.name ?? (type === "agent" ? "an agent" : "someone")}`, mention, self: !!meId && type === "member" && (meId === `member:${id}` || meId === id) });
     } else {
       const type = hit[3] as ChatLink["type"];
       const id = hit[4];
