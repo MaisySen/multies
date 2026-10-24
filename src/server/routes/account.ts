@@ -1,11 +1,13 @@
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { organizations } from "../db/schema";
-import { notFound, tooMany } from "../lib/errors";
+import { accounts, members, organizations } from "../db/schema";
+import { HttpError, notFound, tooMany } from "../lib/errors";
+import { authFor } from "../auth";
+import { verifyPassword } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { createDemoWorkspace } from "../services/demo";
@@ -80,6 +82,44 @@ export function accountRoutes() {
       return new Response(stream, {
         headers: { "content-type": "application/zip", "content-disposition": `attachment; filename="mymail-workspace-${day}.zip"`, "cache-control": "no-store" },
       });
+    })
+    /**
+     * Deletes the signed-in person's account (App Store and Google Play require an in-app
+     * path; the phone app and the /delete-account page call this). Workspaces where they are
+     * the only member go with them, mail included. Body: { confirm: "DELETE", password? }.
+     */
+    .delete("/", async (c) => {
+      const { auth, deps } = c.var;
+      const body = await parseBody(c, z.object({ confirm: z.string().max(20).optional(), password: z.string().max(200).optional() }));
+      if (body.confirm !== "DELETE") throw new HttpError(400, "confirm_required", "Type DELETE to confirm.");
+      const cred = await deps.db.select({ password: accounts.password }).from(accounts)
+        .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get();
+      if (cred?.password) {
+        if (!body.password) throw new HttpError(400, "password_required", "Enter your password to confirm.");
+        if (!(await verifyPassword(body.password, cred.password))) throw new HttpError(403, "wrong_password", "That password is incorrect.");
+      }
+      const mine = await deps.db.select({ orgId: members.organizationId, role: members.role }).from(members).where(eq(members.userId, auth.userId));
+      const blocking: string[] = [];
+      let alone = 0;
+      for (const m of mine) {
+        const others = await deps.db.select({ role: members.role }).from(members)
+          .where(and(eq(members.organizationId, m.orgId), ne(members.userId, auth.userId)));
+        if (!others.length) alone++;
+        else if (m.role === "owner" && !others.some((o) => o.role === "owner")) {
+          const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, m.orgId)).get();
+          blocking.push(org?.name ?? m.orgId);
+        }
+      }
+      if (blocking.length) {
+        return c.json({ error: { code: "transfer_ownership_first", message: `You are the only owner of ${blocking.join(", ")}, which has other members. Make someone else an owner first.` }, workspaces: blocking }, 409);
+      }
+      const res = await authFor(deps).api.deleteUser({ headers: c.req.raw.headers, body: cred?.password ? { password: body.password } : {}, asResponse: true });
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 400) throw new HttpError(403, "reauth_required", "Sign in again to confirm it's you, then retry.");
+        throw new HttpError(500, "delete_failed", "Your account could not be deleted. Try again, or contact support.");
+      }
+      for (const cookie of res.headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
+      return c.json({ ok: true, deletedWorkspaces: alone });
     })
     .delete("/workspace", async (c) => {
       const { auth, deps } = c.var;
