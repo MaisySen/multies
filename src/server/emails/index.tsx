@@ -3,14 +3,14 @@
  * the same in Gmail, Outlook, Apple Mail and dark mode. Each template takes typed props;
  * `renderEmail` returns the HTML and plain text parts.
  */
-import { Body, Button, Column, Container, Head, Heading, Hr, Html, Link, Preview, Row, Section, Text } from "@react-email/components";
+import { Body, Button, Column, Container, Head, Heading, Hr, Html, Img, Link, Preview, Row, Section, Text } from "@react-email/components";
 import { render } from "@react-email/render";
 import type { ReactNode } from "react";
 
-const brand = "#6366f1";
+const brand = "#0071E3";
 const font = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Helvetica, Arial, sans-serif";
 const s = {
-  body: { backgroundColor: "#f4f4f5", fontFamily: font, color: "#18181b", margin: 0, padding: "32px 12px" },
+  body: { backgroundColor: "#f4f4f5", fontFamily: font, color: "#1D1D1F", margin: 0, padding: "32px 12px" },
   card: { backgroundColor: "#ffffff", border: "1px solid #e4e4e7", borderRadius: "12px", maxWidth: "520px", padding: "32px" },
   logo: { fontSize: "16px", fontWeight: 700, margin: "0 0 24px" },
   h1: { fontSize: "20px", fontWeight: 600, lineHeight: "28px", margin: "0 0 16px" },
@@ -30,7 +30,7 @@ function Layout({ brand: b, preview, title, children, action, reason }: { brand:
       <Preview>{preview}</Preview>
       <Body style={s.body}>
         <Container style={s.card}>
-          <Text style={s.logo}>{b.appName}</Text>
+          <Img src={`${b.appUrl.replace(/\/$/, "")}/email-logo.png`} width="125" height="32" alt={b.appName} style={{ margin: "0 0 24px", border: 0 }} />
           <Heading as="h1" style={s.h1}>{title}</Heading>
           {children}
           {action && (
