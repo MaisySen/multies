@@ -35,6 +35,10 @@ import { ResilientOutbound } from "../server/services/resilience";
 import { runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 import { attachCollab } from "../server/collab/node";
+import { SmtpOutbound, smtpSettingsFrom } from "./smtp-outbound";
+import { domains } from "../server/db/schema";
+import { decryptSecret } from "../server/lib/crypto";
+import { eq } from "drizzle-orm";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -43,9 +47,16 @@ const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
 const applied = await migrate(db);
 if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`);
 
+// Self-hosted installs send through their own mail server when SMTP_HOST is set (src/entry/smtp-outbound.ts).
+const smtp = smtpSettingsFrom(process.env);
 const outbound = config.outbound.driver === "resend"
   ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!))
-  : new LogOutbound((line) => console.log(line), process.env.OUTBOX_DIR ? writeOutbox(process.env.OUTBOX_DIR) : undefined);
+  : smtp
+    ? new ResilientOutbound(new SmtpOutbound(smtp, async (name) => {
+      const row = await db.select().from(domains).where(eq(domains.name, name)).get();
+      return row ? { domainName: row.name, keySelector: row.dkimSelector, privateKey: await decryptSecret(config.appSecret, row.dkimPrivateKeyEnc) } : undefined;
+    }))
+    : new LogOutbound((line) => console.log(line), process.env.OUTBOX_DIR ? writeOutbox(process.env.OUTBOX_DIR) : undefined);
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
 const deps = {
