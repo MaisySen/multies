@@ -25,10 +25,10 @@ export function ActivityPage() {
     <>
       <PageHeader title="Activity" description="Every message that moved through your domains, and every change anyone made." />
       <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div role="tablist" aria-label="Activity type" className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+        <div role="tablist" aria-label="Activity type" className="inline-flex rounded-lg bg-fill p-0.5">
           {([["deliveries", "Delivery log"], ["audit", "Audit log"]] as const).map(([t, l]) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "audit" ? { tab: t } : {})}
-              className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors", tab === t ? "bg-elevated text-fg" : "text-muted hover:text-fg")}>{l}</button>
+              className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors", tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>{l}</button>
           ))}
         </div>
         {tab === "deliveries" && (

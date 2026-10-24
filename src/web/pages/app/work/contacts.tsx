@@ -33,9 +33,9 @@ export function ContactsPage() {
       <PageHeader title="Contacts" description="Everyone you email with, added automatically, with their companies. Open someone to see every thread, task and deal with them."
         actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><Handshake className="h-4 w-4" />Deals</Link><Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div role="tablist" className="flex rounded-lg border border-line bg-surface p-0.5">
+        <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
           {(["people", "companies"] as const).map((t) => (
-            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px] capitalize", tab === t ? "bg-elevated font-medium" : "text-muted hover:text-fg")}>{t}</button>
+            <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "people" ? {} : { tab: t })} className={cn("rounded-md px-3 py-1.5 text-[13px] capitalize", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{t}</button>
           ))}
         </div>
         <Input aria-label="Search contacts" placeholder={tab === "people" ? "Search by name or email" : "Search companies"} value={q} onChange={(e) => setQ(e.target.value)} className="h-9 max-w-xs" />

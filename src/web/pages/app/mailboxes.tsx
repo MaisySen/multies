@@ -30,10 +30,10 @@ export function MailboxesPage() {
     <>
       <PageHeader title="Mailboxes" description="Inboxes for people, and aliases that forward role addresses wherever they need to go."
         actions={!noDomains && <Button size="sm" onClick={() => setCreating(true)}><Plus className="h-4 w-4" />{tab === "aliases" ? "New alias" : "New mailbox"}</Button>} />
-      <div role="tablist" aria-label="Address type" className="mb-5 inline-flex rounded-lg border border-line bg-surface p-0.5">
+      <div role="tablist" aria-label="Address type" className="mb-5 inline-flex rounded-lg bg-fill p-0.5">
         {(["mailboxes", "aliases"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "aliases" ? { tab: t } : {})}
-            className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium capitalize transition-colors", tab === t ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>
+            className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium capitalize transition-colors", tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>
             {t}{" "}{usage && limits && <span className="ml-1 text-subtle tabular-nums">{usage[t]}/{limits[t].toLocaleString(LOCALE)}</span>}
           </button>
         ))}

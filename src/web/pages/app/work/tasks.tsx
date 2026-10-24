@@ -92,10 +92,10 @@ export function TasksPage() {
         {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" />Guests</Button>}
         <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Project</Button>
         <div className="ml-auto flex items-center gap-2">
-          <div role="tablist" aria-label="View" className="flex rounded-lg border border-line bg-surface p-0.5">
+          <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
             {VIEWS.map((v) => (
               <button key={v.id} role="tab" aria-selected={view === v.id} aria-label={v.label} onClick={() => set({ view: v.id })}
-                className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px]", view === v.id ? "bg-elevated font-medium text-fg" : "text-muted hover:text-fg")}>
+                className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px]", view === v.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
                 <v.icon className="h-3.5 w-3.5" /><span className="hidden sm:inline">{v.label}</span>
               </button>
             ))}

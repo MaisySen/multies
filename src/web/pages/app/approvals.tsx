@@ -35,9 +35,9 @@ export function ApprovalsPage() {
   return (
     <>
       <PageHeader title="Approvals" description="Messages your agents want to send. Nothing leaves until someone approves it. Edit before you approve if it needs a better word." />
-      <div className="mb-4 flex gap-1 rounded-lg border border-line p-1 text-sm sm:w-fit" role="tablist" aria-label="Approvals">
+      <div className="mb-4 flex gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="Approvals">
         {(["pending", "decided"] as const).map((t) => (
-          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-1.5 sm:flex-none", tab === t ? "bg-fill font-medium text-fg" : "text-muted hover:text-fg")}>
+          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)} className={cn("flex-1 rounded-md px-3 py-1.5 sm:flex-none", tab === t ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
             {t === "pending" ? `Waiting${pending.data?.length ? ` (${pending.data.length})` : ""}` : "Decided"}
           </button>
         ))}

@@ -149,10 +149,10 @@ data: {"type":"message.received","data":{"subject":"Your code",
       <section className="mx-auto max-w-5xl px-5 py-20" aria-labelledby="mcp">
         <h2 id="mcp" className="text-2xl font-semibold tracking-tight sm:text-3xl">Connect with MCP</h2>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">MyMail's MCP server runs at <code className="font-mono text-fg">{BASE}/api/v1/mcp</code> (Streamable HTTP). Use an agent key and the client acts as that agent, inside its guardrails.</p>
-        <div className="mt-6 flex flex-wrap gap-1 rounded-lg border border-line p-1 text-sm sm:w-fit" role="tablist" aria-label="MCP clients">
+        <div className="mt-6 flex flex-wrap gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="MCP clients">
           {Object.entries(MCP).map(([id, m]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id as keyof typeof MCP)}
-              className={cn("rounded-md px-3 py-1.5", tab === id ? "bg-fill font-medium text-fg" : "text-muted hover:text-fg")}>{m.label}</button>
+              className={cn("rounded-md px-3 py-1.5", tab === id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{m.label}</button>
           ))}
         </div>
         <p className="mt-4 text-sm text-muted">{MCP[tab].note}</p>
