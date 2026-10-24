@@ -57,18 +57,14 @@ export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   verb: string; data?: Record<string, unknown>; event?: WebhookEvent; eventData?: Record<string, unknown>;
 }) {
   const actor = actorOf(a);
-  const act: typeof activity.$inferInsert = {
-    id: sortableId("act", deps.now().getTime()), orgId: a.orgId, actorType: actor.type, actorId: actor.id, actorName: actor.name,
-    verb: w.verb, entityType: w.entityType, entityId: w.entityId, data: JSON.stringify(w.data ?? {}), createdAt: deps.now(),
-  };
-  const change: typeof changes.$inferInsert = { orgId: a.orgId, entityType: w.entityType, entityId: w.entityId, op: w.op, version: w.version ?? 1, createdAt: deps.now() };
   try {
-    if (deps.writeBuffer) {
-      deps.writeBuffer.activity.push(act);
-      deps.writeBuffer.changes.push(change);
-    } else {
-      await Promise.all([deps.db.insert(activity).values(act), deps.db.insert(changes).values(change)]);
-    }
+    await Promise.all([
+      deps.db.insert(activity).values({
+        id: sortableId("act", deps.now().getTime()), orgId: a.orgId, actorType: actor.type, actorId: actor.id, actorName: actor.name,
+        verb: w.verb, entityType: w.entityType, entityId: w.entityId, data: JSON.stringify(w.data ?? {}), createdAt: deps.now(),
+      }),
+      deps.db.insert(changes).values({ orgId: a.orgId, entityType: w.entityType, entityId: w.entityId, op: w.op, version: w.version ?? 1, createdAt: deps.now() }),
+    ]);
   } catch (err) {
     deps.reportError?.(err, { where: "recordWrite", entity: w.entityType });
   }
@@ -96,17 +92,3 @@ export const parseDate = (s: string | null | undefined): Date | null => {
   if (Number.isNaN(d.getTime())) throw new HttpError(422, "validation_failed", `Not a date: ${s}`);
   return d;
 };
-
-/** Writes rows collected in deps.writeBuffer in one batch, a few rows per statement (D1 allows 100 bound values per statement). */
-export async function flushWriteBuffer(deps: Deps, buffer: NonNullable<Deps["writeBuffer"]>) {
-  const { runBatch } = await import("../../db");
-  const chunk = <T>(rows: T[], n: number) => Array.from({ length: Math.ceil(rows.length / n) }, (_, i) => rows.slice(i * n, i * n + n));
-  const acts = buffer.activity as (typeof activity.$inferInsert)[];
-  const chs = buffer.changes as (typeof changes.$inferInsert)[];
-  await runBatch(deps.db, [
-    ...chunk(acts, 9).map((rows) => deps.db.insert(activity).values(rows)),
-    ...chunk(chs, 14).map((rows) => deps.db.insert(changes).values(rows)),
-  ]);
-  buffer.activity.length = 0;
-  buffer.changes.length = 0;
-}

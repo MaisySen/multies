@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
+import { Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
@@ -41,7 +41,6 @@ const nav = [
   { to: "/app/goals", label: "Goals", icon: Target },
   { to: "/app/templates", label: "Templates", icon: LayoutTemplate },
   { to: "/app/automations", label: "Automations", icon: Zap },
-  { to: "/app/integrations", label: "Integrations", icon: Plug },
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
   { to: "/app/domains", label: "Domains", icon: Globe },
@@ -160,11 +159,11 @@ export function AppLayout() {
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <aside aria-label="Sidebar" className="hidden w-60 shrink-0 border-r border-line bg-surface lg:block">{sidebar}</aside>
+      <aside className="hidden w-60 shrink-0 border-r border-line bg-surface lg:block">{sidebar}</aside>
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={() => setDrawer(false)} />
-          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] shadow-pop">{sidebar}</aside>
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] shadow-pop">{sidebar}</aside>
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">

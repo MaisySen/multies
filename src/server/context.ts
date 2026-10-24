@@ -6,8 +6,6 @@ import type { OutboundProvider } from "./services/mail/outbound";
 /** Everything the app needs from the outside world. Swapped wholesale in tests. */
 export interface Deps {
   db: DB;
-  /** When set, recordWrite collects activity and change rows here and the caller writes them in one batch (bulk seeds). */
-  writeBuffer?: { activity: unknown[]; changes: unknown[] };
   config: AppConfig;
   dns: DnsResolver;
   outbound: OutboundProvider;

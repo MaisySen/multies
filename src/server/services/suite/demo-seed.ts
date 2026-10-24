@@ -11,7 +11,7 @@ import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
 import { enqueue, registerJob } from "../jobs";
 import { addComment, createProject, listProjects, listTasks, createTaskFromThread, defaultProject, link } from "./tasks";
-import { createdBy, flushWriteBuffer, parseDate, sortableId, type SuiteActor } from "./common";
+import { createdBy, parseDate, sortableId, type SuiteActor } from "./common";
 
 const day = (now: number, d: number) => new Date(now + d * 86_400_000).toISOString().slice(0, 10);
 
@@ -43,11 +43,7 @@ registerJob("demo.seed_suite", async (deps, payload) => {
       await enqueue(deps, "demo.seed_suite", { ...p, part: 1 }, { orgId: p.orgId, maxAttempts: 3 });
       return;
     }
-    // Activity and change rows from the seed go out in one batch at the end, not two inserts per item (Sentry MYMAIL-API-N).
-    const writeBuffer = { activity: [] as unknown[], changes: [] as unknown[] };
-    const buffered: Deps = { ...deps, writeBuffer };
-    await seedDemoSuite(buffered, actor, deps.now().getTime(), part);
-    await flushWriteBuffer(deps, writeBuffer);
+    await seedDemoSuite(deps, actor, deps.now().getTime(), part);
     // The second part runs as its own job, so the next seed request picks it up.
     if (part === 1) await enqueue(deps, "demo.seed_suite", { ...p, part: 2 }, { orgId: p.orgId, maxAttempts: 3 });
   } catch (err) {
