@@ -21,7 +21,10 @@ const runDemo = process.env.MYMAIL_LIVE_DEMO === "1" ? it : it.skip;
 function nodeFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const https = (url.startsWith("http:") ? require("node:http") : require("node:https")) as typeof import("node:https");
   return new Promise((resolve, reject) => {
-    const req = https.request(url, { method: init.method ?? "GET", headers: init.headers as Record<string, string> }, (res) => {
+    const headers = { ...(init.headers as Record<string, string>) };
+    // Send a length, as phones do; some servers ignore a chunked body on DELETE.
+    if (init.body) headers["content-length"] = String(Buffer.byteLength(init.body as string));
+    const req = https.request(url, { method: init.method ?? "GET", headers }, (res) => {
       const chunks: Buffer[] = [];
       res.on("data", (c: Buffer) => chunks.push(c));
       res.on("end", () => {
@@ -175,3 +178,17 @@ runDemo("demo workspace: reads a task's custom fields, sets a checkbox field and
     portfolio: projects.map((x) => ({ key: x.key, health: x.health, progress: x.progress, overdue: x.overdue, time: x.timeLoggedSeconds, nextDue: x.nextDue })) }));
   await api.signOut();
 }, 180_000);
+
+runDemo("deletes a fresh demo account with DELETE /api/account and the session ends", async () => {
+  let jar: Jar = {};
+  const api = endpoints(new HttpTransport({ get: () => jar, set: (j) => { jar = j; } }, () => {}, base, nodeFetch as unknown as typeof fetch));
+  await api.startDemo();
+  const who = await api.me();
+  expect(who.user.email).toBeTruthy();
+  const res = await api.deleteAccount();
+  expect(res.ok).toBe(true);
+  expect(typeof res.deletedWorkspaces).toBe("number");
+  // The old cookie no longer opens anything.
+  await expect(api.me()).rejects.toMatchObject({ status: 401 });
+  console.log(`deleted demo account ${who.user.email}, workspaces removed: ${res.deletedWorkspaces}`);
+}, 60000);
