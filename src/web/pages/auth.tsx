@@ -7,7 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { api, ApiError } from "@/web/lib/api";
-import { authClient, unwrap } from "@/web/lib/auth-client";
+import { authClient, unwrap, type AuthProviders } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 
@@ -43,19 +43,57 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
   return { submit, loading, error, fields, needsSecondFactor };
 }
 
+export function useAuthProviders() {
+  return useQuery({ queryKey: ["auth-providers"], queryFn: () => api.get<AuthProviders>("/account/providers"), staleTime: Infinity });
+}
+
+function safeNext(next: string | null) {
+  return next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app";
+}
+
+/**
+ * The identity provider's sign in and sign up page (Universal Login). One button each way;
+ * the provider offers email and password, passwordless codes, passkeys and social accounts.
+ */
+function IdentityButtons({ mode, showDivider }: { mode: "signin" | "signup"; showDivider: boolean }) {
+  const [params] = useSearchParams();
+  const [busy, setBusy] = useState<"signin" | "signup" | null>(null);
+  const go = async (which: "signin" | "signup") => {
+    setBusy(which);
+    const email = params.get("email") ?? undefined;
+    try {
+      await unwrap(authClient.signIn.social({
+        provider: "auth0", callbackURL: safeNext(params.get("next")), errorCallbackURL: "/login?error=oauth",
+        ...(email ? { loginHint: email } : {}),
+        ...(which === "signup" ? { additionalParams: { screen_hint: "signup" } } : {}),
+      }));
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Sign in failed"); setBusy(null); }
+  };
+  const primary = mode === "signup" ? "signup" : "signin";
+  const secondary = primary === "signin" ? "signup" : "signin";
+  const label = { signin: "Continue with Multies", signup: "Create your account" };
+  return (
+    <div className="mt-6 space-y-2">
+      <Button className="w-full" size="lg" loading={busy === primary} onClick={() => go(primary)} data-testid="idp-primary">{label[primary]}</Button>
+      <Button variant="secondary" className="w-full" loading={busy === secondary} onClick={() => go(secondary)} data-testid="idp-secondary">{secondary === "signup" ? "Create account" : "Sign in instead"}</Button>
+      <p className="pt-1 text-center text-xs text-subtle">Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.</p>
+      {showDivider && <div className="flex items-center gap-3 pt-2 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or use your password<span className="h-px flex-1 bg-line" /></div>}
+    </div>
+  );
+}
+
+/** Direct social sign in, for deployments without the identity provider (self host). */
 function SocialButtons() {
-  const providers = useQuery({ queryKey: ["auth-providers"], queryFn: () => api.get<{ google: boolean; github: boolean; auth0: boolean }>("/account/providers"), staleTime: Infinity });
+  const providers = useAuthProviders();
   const [params] = useSearchParams();
   const [busy, setBusy] = useState<string | null>(null);
-  const list = (["google", "github", "auth0"] as const).filter((p) => providers.data?.[p]);
+  const list = (["google", "github"] as const).filter((p) => providers.data?.[p]);
   if (!list.length) return null;
-  const label = { google: "Google", github: "GitHub", auth0: "single sign-on (Auth0)" };
+  const label = { google: "Google", github: "GitHub" };
   const go = async (provider: (typeof list)[number]) => {
     setBusy(provider);
-    const next = params.get("next");
-    const callbackURL = next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app";
-    try { await unwrap(authClient.signIn.social({ provider, callbackURL, errorCallbackURL: "/login?error=oauth" })); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Sign-in failed"); setBusy(null); }
+    try { await unwrap(authClient.signIn.social({ provider, callbackURL: safeNext(params.get("next")), errorCallbackURL: "/login?error=oauth" })); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Sign in failed"); setBusy(null); }
   };
   return (
     <div className="mt-6 space-y-2">
@@ -99,6 +137,9 @@ function DemoLink() {
 export function LoginPage() {
   const { submit, loading, error, fields, needsSecondFactor } = useAuthSubmit((b) => unwrap(authClient.signIn.email({ email: b.email, password: b.password })));
   const [params] = useSearchParams();
+  const providers = useAuthProviders();
+  const idp = !!providers.data?.idp;
+  const password = providers.data ? providers.data.password : false;
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -109,20 +150,23 @@ export function LoginPage() {
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
-      {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Use your company's SSO button below.</p>}
-      {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign-in didn't complete. Try again, or use your email and password." /></div>}
-      <SocialButtons />
-      <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
-        <FormError message={error} />
-        <Field label="Email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="you@company.com" required autoFocus={!params.get("email")} defaultValue={params.get("email") ?? ""} />}</Field>
-        <div className="space-y-1.5">
-          <Field label="Password" error={fields.password}>{(p) => <PasswordInput {...p} name="password" autoComplete="current-password" required autoFocus={!!params.get("email")} />}</Field>
-          <div className="text-right"><Link to="/forgot-password" className="text-xs text-muted hover:text-fg hover:underline">Forgot password?</Link></div>
-        </div>
-        <Button type="submit" className="w-full" size="lg" loading={loading}>Sign in</Button>
-      </form>
+      {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
+      {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign in didn't complete. Please try again." /></div>}
+      {idp && <IdentityButtons mode="signin" showDivider={password} />}
+      {!idp && <SocialButtons />}
+      {password && (
+        <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
+          <FormError message={error} />
+          <Field label="Email" error={fields.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" placeholder="you@company.com" required autoFocus={!idp && !params.get("email")} defaultValue={params.get("email") ?? ""} />}</Field>
+          <div className="space-y-1.5">
+            <Field label="Password" error={fields.password}>{(p) => <PasswordInput {...p} name="password" autoComplete="current-password" required autoFocus={!idp && !!params.get("email")} />}</Field>
+            <div className="text-right"><Link to="/forgot-password" className="text-xs text-muted hover:text-fg hover:underline">Forgot password?</Link></div>
+          </div>
+          <Button type="submit" className="w-full" size="lg" variant={idp ? "secondary" : undefined} loading={loading}>Sign in</Button>
+        </form>
+      )}
       <DemoLink />
-      <p className="mt-6 text-center text-sm text-muted">New to Multies? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>
+      {!idp && <p className="mt-6 text-center text-sm text-muted">New to Multies? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>}
     </div>
   );
 }
@@ -158,6 +202,24 @@ function SecondFactor() {
 const card = "rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur";
 
 export function ForgotPasswordPage() {
+  const providers = useAuthProviders();
+  if (providers.data && !providers.data.password) return <ManagedAtSignIn title="Reset your password" body="Choose Continue with Multies, enter your email, then pick Forgot password. We'll email you a link." />;
+  return <LocalForgotPassword />;
+}
+
+/** Password, reset and verification steps that happen on the sign in page when the identity provider is on. */
+function ManagedAtSignIn({ title, body }: { title: string; body: string }) {
+  return (
+    <div className={card}>
+      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-1 text-sm text-muted">{body}</p>
+      <IdentityButtons mode="signin" showDivider={false} />
+      <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
+    </div>
+  );
+}
+
+function LocalForgotPassword() {
   const config = useConfig();
   const [email, setEmail] = useState("");
   const send = useMutation({ mutationFn: () => unwrap(authClient.requestPasswordReset({ email, redirectTo: "/reset-password" })) });
@@ -191,6 +253,12 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
+  const providers = useAuthProviders();
+  if (providers.data && !providers.data.password) return <ManagedAtSignIn title="Reset your password" body="Password resets happen on the sign in page now. Choose Continue with Multies, then Forgot password." />;
+  return <LocalResetPassword />;
+}
+
+function LocalResetPassword() {
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
   const navigate = useNavigate();
@@ -246,6 +314,26 @@ export function EmailVerifiedPage() {
 }
 
 export function SignupPage() {
+  const providers = useAuthProviders();
+  const [params] = useSearchParams();
+  if (providers.data?.idp && !providers.data.password) {
+    return (
+      <div className={card}>
+        <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
+        <p className="mt-1 text-sm text-muted">Free for startups and small teams. No credit card.</p>
+        <IdentityButtons mode="signup" showDivider={false} />
+        <p className="mt-4 text-center text-xs text-subtle">
+          By creating an account you agree to the <Link to="/terms" className="underline hover:text-fg">Terms</Link>, <Link to="/acceptable-use" className="underline hover:text-fg">Acceptable use policy</Link> and <Link to="/privacy" className="underline hover:text-fg">Privacy policy</Link>.
+        </p>
+        <DemoLink />
+        <p className="mt-6 text-center text-sm text-muted">Already have an account? <Link to={`/login${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Sign in</Link></p>
+      </div>
+    );
+  }
+  return <LocalSignup idp={!!providers.data?.idp} />;
+}
+
+function LocalSignup({ idp }: { idp: boolean }) {
   const { submit, loading, error, fields } = useAuthSubmit(async (b) => {
     await unwrap(authClient.signUp.email({ name: b.name, email: b.email, password: b.password, callbackURL: "/email-verified" }));
     await api.get("/account/me"); // creates the personal workspace
@@ -262,6 +350,7 @@ export function SignupPage() {
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
       <p className="mt-1 text-sm text-muted">Free for your first domain. No credit card.</p>
+      {idp && <IdentityButtons mode="signup" showDivider />}
       <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
         <FormError message={error && !Object.keys(fields).length ? error : null} />
         <Field label="Your name" error={fields.name}>{(p) => <Input {...p} name="name" autoComplete="name" placeholder="Ada Lovelace" required autoFocus />}</Field>

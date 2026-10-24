@@ -15,7 +15,7 @@ import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
-import { authClient } from "@/web/lib/auth-client";
+import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
 import { initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -102,9 +102,9 @@ export function AppLayout() {
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {
-    try { await authClient.signOut(); } catch { /* already signed out */ }
+    const providers = qc.getQueryData<AuthProviders>(["auth-providers"]) ?? await api.get<AuthProviders>("/account/providers").catch(() => null);
     qc.clear();
-    navigate("/login");
+    if (await signOutEverywhere({ idp: !!providers?.idp }) === "done") navigate("/login");
   };
 
   const sidebar = (

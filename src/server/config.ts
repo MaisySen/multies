@@ -41,6 +41,8 @@ export interface AppConfig {
      * Node deployments without it. AUTH_LOCAL_PASSWORD=on|off overrides.
      */
     localPassword: boolean;
+    /** Believe X-Forwarded-For and X-Real-IP for client addresses (self host behind a known proxy). */
+    trustProxy: boolean;
     /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
     breachCheck: boolean;
   };
@@ -137,6 +139,7 @@ const EnvSchema = z.object({
   AUTH0_CLIENT_SECRET: z.string().optional(),
   AUTH0_NATIVE_CLIENT_ID: z.string().optional(),
   AUTH_LOCAL_PASSWORD: z.enum(["on", "off", "true", "false"]).optional(),
+  TRUST_PROXY: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   SENTRY_DSN_API: z.string().optional(),
@@ -239,6 +242,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       },
       ...(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET, ...(env.AUTH0_NATIVE_CLIENT_ID ? { nativeClientId: env.AUTH0_NATIVE_CLIENT_ID } : {}) } } : {}),
+      trustProxy: env.TRUST_PROXY === "true" || env.TRUST_PROXY === "1",
       localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },

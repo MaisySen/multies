@@ -30,3 +30,19 @@ export async function unwrap<T>(p: Promise<{ data: T | null; error: { status: nu
   }
   return res.data as T;
 }
+
+/** What this deployment offers: the identity provider (one sign in and sign up page) and/or the password form. */
+export interface AuthProviders { idp: boolean; password: boolean; google: boolean; github: boolean }
+
+/**
+ * Ends the app session, then the identity provider's session too when it is on, so the next
+ * person at this browser sees the sign in page instead of being let straight back in.
+ */
+export async function signOutEverywhere(opts: { idp?: boolean } = {}): Promise<"redirected" | "done"> {
+  try { await authClient.signOut(); } catch { /* already signed out */ }
+  if (opts.idp) {
+    window.location.assign("/api/auth/logout/idp");
+    return "redirected";
+  }
+  return "done";
+}

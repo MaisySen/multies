@@ -96,7 +96,9 @@ export function authOptions(deps: Deps) {
     }),
     advanced: {
       ...cookieOptions(prod),
-      ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"] },
+      // Cloudflare sets CF-Connecting-IP and a client cannot forge it there. Forwarded headers
+      // are only believed behind a proxy the operator names (TRUST_PROXY=true, self host).
+      ipAddress: { ipAddressHeaders: config.auth.trustProxy ? ["x-forwarded-for", "x-real-ip"] : ["cf-connecting-ip"] },
       database: {
         // Invitation ids double as the invite link, so they get a long random token.
         generateId: ({ model }) => (model === "invitation" ? randomToken(24) : newId(ID_PREFIX[model] ?? model.slice(0, 3))),
@@ -145,7 +147,10 @@ export function authOptions(deps: Deps) {
     session: sessionOptions(),
     rateLimit: {
       enabled: true,
-      storage: "database",
+      // Counters live in memory (per isolate on Workers): no database write per auth request,
+      // which is what used up the free daily write budget. The account lockout and the
+      // identity provider's own brute force protection still hold across isolates.
+      storage: "memory",
       window: 60,
       max: 100,
       customRules: {
