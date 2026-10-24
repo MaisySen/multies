@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "./context";
 import { forbidden, HttpError, unauthorized, zodToHttp } from "./lib/errors";
 import { SSO_METHODS, authFor } from "./auth";
+import { isLostRequestState, withAuthRequestState } from "./lib/request-state";
 import { members, organizations, sessions, users } from "./db/schema";
 import { newId } from "./lib/crypto";
 import { audit } from "./services/audit";
@@ -14,7 +15,14 @@ import { audit } from "./services/audit";
  * sign-in path ends in the same place.
  */
 export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthContext | null> {
-  const s = await authFor(deps).api.getSession({ headers });
+  const getSession = () => authFor(deps).api.getSession({ headers });
+  let s: Awaited<ReturnType<typeof getSession>>;
+  try {
+    s = await getSession();
+  } catch (err) {
+    if (!isLostRequestState(err)) throw err;
+    s = await withAuthRequestState(getSession);
+  }
   if (!s) return null;
   const { db } = deps;
   // The membership and the workspace's SSO rule in one query: on D1 each query is a round trip.

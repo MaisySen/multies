@@ -33,4 +33,13 @@ describe("Better Auth request state", () => {
       withAuthRequestState(async () => (await c.get(i % 2 ? "/api/tasks" : "/api/contacts")).status)));
     expect(statuses.every((s) => s === 200)).toBe(true);
   });
+
+  it("recognises the lost request state failure, and nothing else", async () => {
+    const { isLostRequestState } = await import("@/server/lib/request-state");
+    expect(isLostRequestState({ statusCode: 500, body: { code: "FAILED_TO_GET_SESSION" } })).toBe(true);
+    expect(isLostRequestState({ cause: new Error("No request state found. Please make sure...") })).toBe(true);
+    expect(isLostRequestState({ statusCode: 401, body: { code: "FAILED_TO_GET_SESSION" } })).toBe(false);
+    expect(isLostRequestState(new Error("database is locked"))).toBe(false);
+    expect(isLostRequestState(null)).toBe(false);
+  });
 });
