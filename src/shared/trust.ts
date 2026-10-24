@@ -75,7 +75,7 @@ export const INCIDENTS: Incident[] = [
   {
     date: "24 October 2026",
     title: "Sign in unavailable until the daily database limit reset",
-    impact: "Test and demo traffic used up the database's free daily write allowance, so the database answered read only and new sign ins failed until the allowance reset at 00:00 UTC. Mail already stored stayed readable. No data was lost.",
+    impact: "Test and demo traffic used up the database's free daily write allowance, so the database answered read only and new sign ins failed until the allowance reset at 00:00 UTC. People already signed in could still read their mail.",
     fix: "A daily write guard now watches the count, stops demos and test runs early, and the app shows a read only notice instead of failing.",
   },
 ];
