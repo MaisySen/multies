@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowDownLeft, ArrowUpRight, Download, FileClock, Mail } from "lucide-react";
+import { ArrowDownLeft, ArrowRight, ArrowUpRight, Download, FileClock, Mail } from "lucide-react";
 import { api } from "@/web/lib/api";
 import type { AuditEntry, Delivery } from "@/web/lib/types";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -85,7 +85,7 @@ function Deliveries({ direction }: { direction: string }) {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     {d.direction === "inbound" ? <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-brand-hover" aria-label="Inbound" /> : <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-ok" aria-label="Outbound" />}
-                    <span className="max-w-44 truncate text-muted">{d.fromAddress}</span><span className="text-subtle">→</span><span className="max-w-44 truncate">{d.toAddress}</span>
+                    <span className="max-w-44 truncate text-muted">{d.fromAddress}</span><ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle" aria-label="to" /><span className="max-w-44 truncate">{d.toAddress}</span>
                   </div>
                 </td>
                 <td className="max-w-56 truncate px-4 py-3">{d.subject || <span className="text-subtle">(no subject)</span>}</td>

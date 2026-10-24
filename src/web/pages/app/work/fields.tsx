@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, GripVertical, Plus, Trash2, X } from "lucide-react";
+import { ArrowUp, Check, ExternalLink, GripVertical, Plus, Trash2, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -46,7 +46,7 @@ export function FieldCell({ field, value, people }: { field: CustomField; value:
       </span>
     );
   }
-  if (field.type === "checkbox") return <span className="text-ok" aria-label="Yes">✓</span>;
+  if (field.type === "checkbox") return <span className="inline-flex text-ok" role="img" aria-label="Yes"><Check className="h-4 w-4" aria-hidden /></span>;
   if (field.type === "url") return <a href={String(value)} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-brand-hover hover:underline">{formatValue(field, value)}<ExternalLink className="h-3 w-3" /></a>;
   return <span className={cn("whitespace-nowrap", (field.type === "currency" || field.type === "number") && "tabular-nums")}>{formatValue(field, value, people)}</span>;
 }
@@ -58,7 +58,7 @@ export function FieldInput({ field, value, people, onSave }: { field: CustomFiel
   const cls = "h-8 text-[13px]";
   switch (field.type) {
     case "checkbox":
-      return <input type="checkbox" aria-label={label} checked={value === true} onChange={(e) => onSave(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand,#ff5a36)]" />;
+      return <input type="checkbox" aria-label={label} checked={value === true} onChange={(e) => onSave(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />;
     case "select":
       return (
         <Select aria-label={label} value={(value as string) ?? ""} onChange={(e) => onSave(e.target.value || null)} className={cls}>
@@ -146,7 +146,7 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
               <GripVertical className="h-4 w-4 text-subtle" aria-hidden />
               <Input aria-label={`Name of ${f.name}`} defaultValue={f.name} onBlur={(e) => e.target.value.trim() && e.target.value !== f.name && patch(f.id, { name: e.target.value })} className="h-8 flex-1 text-[13px]" />
               <span className="whitespace-nowrap text-[12px] text-subtle">{FIELD_TYPE_LABEL[f.type]}</span>
-              <Button variant="ghost" size="icon" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => patch(f.id, { position: fields[i - 1].position - 1 })}>↑</Button>
+              <Button variant="ghost" size="icon" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => patch(f.id, { position: fields[i - 1].position - 1 })}><ArrowUp className="h-4 w-4" aria-hidden /></Button>
               <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => remove(f)}><Trash2 className="h-4 w-4" /></Button>
             </div>
             {(f.type === "select" || f.type === "multiselect") && (

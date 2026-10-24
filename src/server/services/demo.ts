@@ -142,7 +142,7 @@ export async function createDemoWorkspace(deps: Deps) {
   delivered.push({ id: newId("dlv"), orgId, messageId: toPriya, direction: "outbound", fromAddress: alex.address, toAddress: "priya@seedround.vc", subject: "Re: Following up from demo day", status: "sent", provider: "demo", detail: "Sandbox workspace: shown as sent, not delivered outside MyMail.", createdAt: priyaAt });
   const teamAt = new Date(now - 10 * 60_000);
   const team = `team@${domain.name}`;
-  const checklist = "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain ✅\n2. support@ and billing@ mailboxes live ✅\n3. sales@ alias forwarding to the founders ✅\n\nLet's ship it.\nAlex";
+  const checklist = "Team,\n\nQuick checklist before Friday's launch:\n\n1. DNS verified for the new domain (done)\n2. support@ and billing@ mailboxes live (done)\n3. sales@ alias forwarding to the founders (done)\n\nLet's ship it.\nAlex";
   const toTeam = put(founders, "sent", alex, [team], "Launch checklist for Friday", checklist, teamAt, userId);
   for (const box of ["founders", "support"]) put(boxFor(box), "inbox", alex, [team], "Launch checklist for Friday", checklist, teamAt);
   delivered.push({ id: newId("dlv"), orgId, messageId: toTeam, direction: "outbound", fromAddress: alex.address, toAddress: team, subject: "Launch checklist for Friday", status: "delivered", provider: "internal", detail: `Alias → ${founders.address}, support@${domain.name}`, createdAt: teamAt });
