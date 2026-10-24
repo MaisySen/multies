@@ -2,10 +2,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, FileText, Hash, Lock, Mail, MessageSquare, Paperclip, Plus, Send, Users, X } from "lucide-react";
+import { CheckSquare, FileText, Hash, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
-import { formatBytes, mailDate } from "@/web/lib/format";
+import { formatBytes, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -58,7 +58,7 @@ function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m:
   const taskLinks = m.links.filter((l) => l.type === "task");
   return (
     <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover" data-testid="chat-message" id={`m-${m.id}`}>
-      <Avatar label={m.author.name} className="mt-0.5 h-8 w-8 shrink-0" />
+      <Avatar label={initials(m.author.name)} className="mt-0.5 h-8 w-8 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-[13.5px] font-semibold">{m.author.name}</span>
@@ -80,7 +80,7 @@ function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m:
       {!m.deleted && (
         <div className="flex items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
-          <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] text-muted hover:bg-elevated hover:text-fg">More</button>}>
+          <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><MoreHorizontal className="h-4 w-4" aria-hidden /></button>}>
             <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
@@ -122,7 +122,7 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
     <form onSubmit={submit} className="relative border-t border-line p-3">
       {matches.length > 0 && (
         <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-3 mb-1 w-64 overflow-hidden rounded-lg border border-line-strong bg-elevated shadow-pop">
-          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={p.name} className="h-5 w-5" />{p.name}{p.type === "agent" && <span className="text-subtle">agent</span>}</button></li>)}
+          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{p.type === "agent" && <span className="text-subtle">agent</span>}</button></li>)}
         </ul>
       )}
       {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></span>)}</div>}
