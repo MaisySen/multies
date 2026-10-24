@@ -5,6 +5,7 @@ import { sampleData } from "./fixtures";
 import { taskRoute } from "./tasks";
 import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
 import { samplePortfolio } from "./fields";
+import { samplePeople } from "./people";
 import { chatRoute, sampleChat } from "./chat";
 
 /**
@@ -39,6 +40,7 @@ export class SampleTransport implements Transport {
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
+    if (method === "GET" && path === "/team/people") return json(samplePeople(Date.now()));
     const talk = chatRoute(this.chat, d.work, d.messages, method, parts, params, body);
     if (talk !== undefined) return json(talk);
     const extra = extrasRoute(this.extras, d.work, method, parts, params, body);

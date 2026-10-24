@@ -21,6 +21,7 @@ export const keys = {
   timer: ["time", "running"] as const,
   meetings: ["meetings"] as const,
   portfolio: ["portfolio"] as const,
+  people: ["people"] as const,
   chat: ["chat"] as const,
   chatChannels: ["chat", "channels"] as const,
   chatUnread: ["chat", "unread"] as const,
@@ -245,6 +246,12 @@ export function useCreateMeeting() {
 export function usePortfolio() {
   const { api, mode } = useSession();
   return useQuery({ queryKey: keys.portfolio, queryFn: () => cached(kv(), `meta:${mode}:portfolio`, () => api.portfolio()) });
+}
+
+/** Everyone in the workspace: people first, then AI agents. Saved on the phone for offline reading. */
+export function usePeople() {
+  const { api, mode } = useSession();
+  return useQuery({ queryKey: keys.people, queryFn: () => cached(kv(), `meta:${mode}:people`, () => api.people()), select: (d) => d.people, staleTime: 5 * 60_000 });
 }
 
 // ---------------------------------------------------------------- team chat

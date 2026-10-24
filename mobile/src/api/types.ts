@@ -164,6 +164,25 @@ export type FieldValue = string | number | boolean | string[];
 export type FieldValues = Record<string, FieldValue | null | undefined>;
 
 export type ProjectHealth = "on_track" | "at_risk" | "off_track";
+
+/**
+ * One row of GET /api/team/people (the same list as /api/v1/people): people (kind human), AI agent
+ * members (kind agent, no email) and mail agents (type mail_agent, with their inbox address).
+ */
+export interface Person {
+  id: string;
+  type: "member" | "mail_agent";
+  kind: "human" | "agent";
+  userId: string | null;
+  agentId: string | null;
+  name: string;
+  email: string | null;
+  role: "owner" | "admin" | "member" | null;
+  title: string | null;
+  bio: string | null;
+  inbox: string | null;
+  joinedAt: string;
+}
 /** One row of GET /api/portfolio. */
 export interface PortfolioProject {
   id: string;

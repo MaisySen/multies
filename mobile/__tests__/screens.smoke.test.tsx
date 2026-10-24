@@ -257,6 +257,20 @@ it("task screen shows custom fields and sets a checkbox, a select and a number",
   expect(await screen.findByText("24 Oct 2026")).toBeTruthy();
 });
 
+it("people lists humans with their role and AI agents with a badge, title and bio", async () => {
+  const People = require("@/app/people").default;
+  await wrap(<People />);
+  expect(await screen.findByText("Mia Nguyen")).toBeTruthy();
+  expect(screen.getByText("2 people and 3 AI agents. Titles and bios are edited on the web.")).toBeTruthy();
+  expect(screen.getByText("Owner")).toBeTruthy();
+  expect(screen.getByText("Operations lead")).toBeTruthy();
+  expect(screen.getAllByText("AI agent")).toHaveLength(3);
+  expect(screen.getByText("Finance assistant")).toBeTruthy();
+  expect(screen.getByText(/reconciles invoices/)).toBeTruthy();
+  expect(screen.getByText("support-agent@harbourcoffee.com.au")).toBeTruthy();
+  expect(screen.getByLabelText(/^Bookkeeper, AI agent, Finance assistant/)).toBeTruthy();
+});
+
 it("portfolio lists projects with health, progress, overdue, time and next due", async () => {
   const Portfolio = require("@/app/portfolio").default;
   await wrap(<Portfolio />);

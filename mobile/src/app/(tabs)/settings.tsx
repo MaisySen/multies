@@ -67,6 +67,7 @@ export default function Settings() {
       <Row icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
+      <Row icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
       <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(`${API_BASE}/app`)} />
 
       <SectionTitle>Notifications</SectionTitle>

@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
   Agent, Approval, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
+  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
@@ -92,6 +92,8 @@ export function endpoints(t: Transport) {
     meetings: (upcoming = true) => t.request<{ meetings: Meeting[]; videoEnabled: boolean }>("GET", `/meetings${q({ upcoming: upcoming ? 1 : undefined })}`),
     fields: (projectId: string) => t.request<{ fields: CustomField[] }>("GET", `/fields${q({ projectId })}`),
     portfolio: () => t.request<{ projects: PortfolioProject[] }>("GET", "/portfolio"),
+    // People and AI agent members with titles and bios (read only on the phone).
+    people: () => t.request<{ people: Person[] }>("GET", "/team/people"),
     createMeeting: (input: MeetingCreate) => t.request<{ meeting: Meeting; invites?: unknown }>("POST", "/meetings", input),
 
     // Push devices. The server only sends when push is switched on there; `enabled` says which.
