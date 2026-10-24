@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { makeTestApp } from "./helpers";
+import { makeTestApp, Client } from "./helpers";
 import { resetStatusCache } from "@/server/services/status";
 
 describe("public status", () => {
@@ -24,5 +24,13 @@ describe("public status", () => {
     expect(res.status).toBe(503);
     const body = await res.json();
     expect(body.components.find((c: { id: string }) => c.id === "mail_apps").state).toBe("down");
+  });
+
+  it("shows SMTP sending as working on a self-hosted install", async () => {
+    const ctx = await makeTestApp();
+    Object.defineProperty(ctx.deps.outbound, "name", { value: "smtp" });
+    resetStatusCache();
+    const s = (await new Client(ctx.app).get("/api/status")).body;
+    expect(s.components.find((x: { id: string }) => x.id === "outbound")).toMatchObject({ state: "operational" });
   });
 });

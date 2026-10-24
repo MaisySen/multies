@@ -60,7 +60,11 @@ async function computeStatus(deps: Deps) {
     detail: Number(stats.inbound) ? `${Number(stats.inbound).toLocaleString("en-AU")} messages in the last 24 hours.` : "No mail received in the last 24 hours.",
   });
 
-  if (deps.config.outbound.driver !== "resend") {
+  // Self-hosted installs send through their own mail server (SMTP_HOST, src/entry/smtp-outbound.ts).
+  const outboundName = (deps.outbound as { name?: string } | undefined)?.name ?? "";
+  if (deps.config.outbound.driver !== "resend" && /smtp/.test(outboundName)) {
+    components.push({ id: "outbound", name: "Sending mail", state: "operational", detail: "Sending through this server's own mail server (SMTP)." });
+  } else if (deps.config.outbound.driver !== "resend") {
     components.push({ id: "outbound", name: "Sending mail", state: "not_configured", detail: "No sending provider is set up on this server." });
   } else {
     const probe = await timed(async () => (await deps.fetch("https://api.resend.com/domains", { headers: { authorization: `Bearer ${deps.config.outbound.resendApiKey}` } })).status);
