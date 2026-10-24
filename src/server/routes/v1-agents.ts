@@ -276,6 +276,9 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
       .where(and(eq(attachments.id, c.req.param("id")!), eq(messages.orgId, actor.orgId))).get();
     const bytes = r && (!scope || scope.includes(r.mailboxId)) ? await attachmentBytes(r.a, c.var.deps.bodyStore) : null;
     if (!r || !bytes) throw notFound("Attachment");
-    return new Response(bytes as BodyInit, { headers: { "content-type": r.a.contentType, "content-disposition": `attachment; filename="${r.a.filename.replace(/["\\\r\n]/g, "_")}"`, "x-content-type-options": "nosniff" } });
+    // The sender chose this type, so it is only passed on when it is a plain type token, and the
+    // file is always a sandboxed download (an HTML attachment can never run on our origin).
+    const type = /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(r.a.contentType) ? r.a.contentType : "application/octet-stream";
+    return new Response(bytes as BodyInit, { headers: { "content-type": type, "content-disposition": `attachment; filename="${r.a.filename.replace(/[^\x20-\x7e]|["\\]/g, "_")}"`, "x-content-type-options": "nosniff", "cache-control": "private, no-store", "content-security-policy": "default-src 'none'; sandbox" } });
   }) as never);
 }
