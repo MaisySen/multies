@@ -57,11 +57,13 @@ function validDoc(content: unknown): PMNode {
 
 /** Link marks keep http, https and mailto targets only; a javascript: or data: href is dropped. */
 const SAFE_HREF = /^(https?:|mailto:|\/(?!\/)|#)/i;
+/** Browsers ignore tabs, newlines and other control characters inside a URL scheme ("java\tscript:"). */
+const withoutControls = (s: string) => [...s].filter((ch) => ch.charCodeAt(0) > 0x20).join("");
 function safeLinks(node: PMNode, depth: number): PMNode {
   if (depth > 64) throw new HttpError(422, "validation_failed", "That doc is nested too deeply.");
   const n = node as PMNode & { marks?: { type: string; attrs?: Record<string, unknown> }[]; content?: PMNode[] };
   if (Array.isArray(n.marks)) {
-    n.marks = n.marks.filter((m) => m.type !== "link" || (typeof m.attrs?.href === "string" && SAFE_HREF.test(m.attrs.href.replace(/[\u0000-\u0020]/g, ""))));
+    n.marks = n.marks.filter((m) => m.type !== "link" || (typeof m.attrs?.href === "string" && SAFE_HREF.test(withoutControls(m.attrs.href))));
   }
   if (Array.isArray(n.content)) n.content = n.content.map((c) => safeLinks(c, depth + 1));
   return n;
