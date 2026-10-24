@@ -1,5 +1,6 @@
 // Runs axe-core (WCAG 2.2 A and AA) over every page, signed in, at desktop and phone widths.
 // Usage: node scripts/a11y-audit.mjs <base-url> <out.json> [--cookies cookies.json]
+// COLOR_SCHEME=dark audits the dark theme (light is the default). PAGES=/a,/b limits the pages.
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -17,7 +18,7 @@ const browser = await chromium.launch();
 const results = [];
 let total = 0;
 for (const vp of [{ width: 1280, height: 800, name: "desktop" }, { width: 390, height: 844, name: "phone" }]) {
-  const ctx = await browser.newContext({ viewport: vp });
+  const ctx = await browser.newContext({ viewport: vp, colorScheme: process.env.COLOR_SCHEME === "dark" ? "dark" : "light" });
   const page = await ctx.newPage();
   for (const p of pages) {
     if (p.startsWith("/app")) await ctx.addCookies(cookies); else await ctx.clearCookies();

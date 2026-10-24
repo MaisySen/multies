@@ -41,7 +41,7 @@ export interface SavedView { id: string; projectId: string | null; name: string;
 export type ViewKind = "board" | "list" | "calendar" | "timeline";
 
 export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
-export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-[#60a5fa]", high: "text-warn", urgent: "text-bad" };
+export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-brand-hover", high: "text-warn", urgent: "text-bad" };
 
 export const sk = {
   projects: ["projects"] as const,
