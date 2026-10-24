@@ -45,6 +45,16 @@ export const WEBHOOK_EVENTS = [
   "guest.invited",
   "guest.joined",
   "guest.revoked",
+  "chat.channel.created",
+  "chat.message.created",
+  "chat.message.updated",
+  "chat.message.deleted",
+  "chat.mention",
+  "task.recurred",
+  "template.used",
+  "goal.created",
+  "goal.updated",
+  "goal.deleted",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 

@@ -49,7 +49,7 @@ export function assertWritable(a: SuiteActor) {
   if (a.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read.");
 }
 
-export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "deal" | "automation" | "comment" | "view" | "time_entry" | "form" | "meeting" | "custom_field" | "guest" | "file";
+export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "deal" | "automation" | "comment" | "view" | "time_entry" | "form" | "meeting" | "custom_field" | "guest" | "file" | "channel" | "chat_message" | "goal" | "key_result" | "template";
 
 /** Records the activity entry and the change entry for one write. Never throws into the caller's write. */
 export async function recordWrite(deps: Deps, a: SuiteActor, w: {

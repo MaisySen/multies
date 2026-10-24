@@ -217,6 +217,26 @@ export function createApp(deps: Deps) {
     try { ctx = c.executionCtx; } catch { ctx = undefined; }
     return v1.fetch(req, c.env, ctx);
   };
+  // Round 10 (chat, templates, goals, guest chat) is built on its first request too, for the same reason.
+  type R10 = import("hono").Hono<AppEnv>;
+  let r10: R10 | undefined;
+  const r10Vars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
+  const r10Handler = async (c: Context<AppEnv>) => {
+    if (!r10) {
+      const { r10Routes } = await import("./routes/suite-r10");
+      r10 = r10Routes(r10Vars) as unknown as R10;
+      r10.notFound(notFoundHandler);
+      r10.onError(errorHandler);
+    }
+    r10Vars.set(c.req.raw, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
+    let ctx: Parameters<R10["fetch"]>[2];
+    try { ctx = c.executionCtx; } catch { ctx = undefined; }
+    return r10.fetch(c.req.raw, c.env, ctx);
+  };
+  for (const prefix of ["/api/chat", "/api/templates", "/api/goals", "/api/key-results", "/api/guest/chat"]) {
+    app.all(prefix, r10Handler);
+    app.all(`${prefix}/*`, r10Handler);
+  }
   app.all("/api/v1", v1Handler);
   app.all("/api/v1/*", v1Handler);
   app.route("/api/webhooks/resend", resendWebhookRoutes());
