@@ -77,3 +77,21 @@ describe("Sentry scrubbing", () => {
     expect(scrubUrl("/a?b=1&c=2")).toBe("/a?b=[redacted]&c=[redacted]");
   });
 });
+
+describe("stored content", () => {
+  it("drops javascript: and data: links from docs and keeps safe ones", async () => {
+    const { app } = await makeTestApp();
+    const c = new Client(app);
+    await c.signup("docs@example.com");
+    const text = (href: string) => ({ type: "text", text: href, marks: [{ type: "link", attrs: { href } }] });
+    const content = { type: "doc", content: [{ type: "paragraph", content: [text("javascript:alert(1)"), text(" JaVa\tScRiPt:alert(2)"), text("data:text/html,x"), text("https://example.com"), text("mailto:a@example.com")] }] };
+    const made = await c.post("/api/docs", { title: "Links", content });
+    expect(made.status).toBe(201);
+    const doc = await c.get(`/api/docs/${made.body.id ?? made.body.doc?.id}`);
+    const s = JSON.stringify(doc.body);
+    expect(s).not.toMatch(/"href":"\s*(javascript|data):/i);
+    expect(s).not.toMatch(/"href":"[^"]*script:/i);
+    expect(s).toContain('"href":"https://example.com"');
+    expect(s).toContain('"href":"mailto:a@example.com"');
+  });
+});
