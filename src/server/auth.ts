@@ -31,6 +31,19 @@ import { beforeUserDelete } from "./services/privacy";
 import { HttpError } from "./lib/errors";
 import { getPlan } from "./services/plans";
 
+/** Better Auth endpoints whose success is a security event worth an audit entry. */
+const SECURITY_EVENTS: Record<string, string> = {
+  "/change-password": "account.password_changed",
+  "/set-password": "account.password_changed",
+  "/two-factor/enable": "account.two_factor_enabled",
+  "/two-factor/disable": "account.two_factor_disabled",
+  "/two-factor/generate-backup-codes": "account.backup_codes_regenerated",
+  "/revoke-session": "account.session_revoked",
+  "/revoke-sessions": "account.sessions_revoked",
+  "/revoke-other-sessions": "account.sessions_revoked",
+  "/change-email": "account.email_change_requested",
+};
+
 const ID_PREFIX: Record<string, string> = {
   user: "usr", session: "ses", account: "acc", verification: "vrf", organization: "org",
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
@@ -169,6 +182,18 @@ export function authOptions(deps: Deps) {
         }
       }),
       after: createAuthMiddleware(async (ctx) => {
+        // Security events on the account go to the audit log of the person's workspace.
+        const securityAction = SECURITY_EVENTS[ctx.path];
+        if (securityAction) {
+          const returned = ctx.context.returned;
+          const userId = ctx.context.session?.user?.id ?? ctx.context.newSession?.user?.id;
+          if (userId && !(returned instanceof Error)) {
+            const m = await db.select().from(schema.members).where(eq(schema.members.userId, userId)).get();
+            const email = ctx.context.session?.user?.email ?? ctx.context.newSession?.user?.email ?? null;
+            if (m) await audit(db, { orgId: m.organizationId, actorUserId: userId, actorEmail: email, action: securityAction }).catch(() => undefined);
+          }
+          return;
+        }
         if (ctx.path !== "/sign-in/email") return;
         const email = typeof ctx.body?.email === "string" ? ctx.body.email : "";
         if (!email) return;
@@ -177,8 +202,9 @@ export function authOptions(deps: Deps) {
         if (failed) {
           const locked = await recordFailure(db, email, deps.now());
           if (locked) {
-            deps.log?.warn("auth.account_locked", { email: email.toLowerCase() });
             const user = await db.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase())).get();
+            // No email in logs: the user id is enough to find the account.
+            deps.log?.warn("auth.account_locked", { user: user?.id ?? null });
             if (user) {
               const m = await db.select().from(schema.members).where(eq(schema.members.userId, user.id)).get();
               if (m) await audit(db, { orgId: m.organizationId, actorUserId: user.id, actorEmail: user.email, action: "account.locked", metadata: { reason: "failed_sign_ins" } });

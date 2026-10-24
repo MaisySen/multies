@@ -95,3 +95,14 @@ describe("stored content", () => {
     expect(s).toContain('"href":"mailto:a@example.com"');
   });
 });
+
+describe("security audit log", () => {
+  it("records a password change in the workspace audit log", async () => {
+    const { app } = await makeTestApp();
+    const c = new Client(app);
+    await c.signup("audit@example.com");
+    expect((await c.post("/api/auth/change-password", { currentPassword: "a-strong-password", newPassword: "another-strong-one", revokeOtherSessions: false })).status).toBe(200);
+    const log = await c.get("/api/org/audit");
+    expect(JSON.stringify(log.body)).toContain("account.password_changed");
+  });
+});
