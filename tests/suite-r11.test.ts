@@ -3,7 +3,7 @@ import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
 import { eventText, mapFields } from "@/server/services/suite/integrations";
-import { computeSlots, zonedTime } from "@/server/services/suite/scheduling";
+import { busyTimes, computeSlots, zonedTime } from "@/server/services/suite/scheduling";
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
 let c: Client;
@@ -186,6 +186,19 @@ describe("scheduling slots", () => {
   });
 });
 
+describe("busy times", () => {
+  it("expands a weekly series on read inside the window and keeps one-off meetings and bookings", () => {
+    const from = new Date("2026-10-24T00:00:00Z"), to = new Date("2026-11-08T00:00:00Z");
+    const busy = busyTimes(
+      [{ startsAt: new Date("2026-10-05T22:00:00Z"), durationMin: 60, recurrence: "FREQ=WEEKLY;INTERVAL=1;BYDAY=MO", recurrenceTz: "Australia/Sydney" },
+        { startsAt: new Date("2026-10-27T01:00:00Z"), durationMin: 30 }],
+      [{ startsAt: new Date("2026-10-28T03:00:00Z"), durationMin: 15 }], from, to);
+    expect(busy.map((b) => new Date(b.start).toISOString())).toEqual(["2026-10-25T22:00:00.000Z", "2026-11-01T22:00:00.000Z", "2026-10-27T01:00:00.000Z", "2026-10-28T03:00:00.000Z"]);
+    expect(busyTimes([{ startsAt: new Date("2026-10-05T22:00:00Z"), durationMin: 60, recurrence: "FREQ=WEEKLY;COUNT=2;BYDAY=MO", recurrenceTz: "Australia/Sydney" }], [], from, to)).toEqual([]);
+    expect(busyTimes([{ startsAt: new Date("2026-10-05T22:00:00Z"), durationMin: 60, recurrence: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO", recurrenceTz: "Australia/Sydney" }], [], from, to)).toHaveLength(1);
+  });
+});
+
 describe("scheduling", () => {
   beforeEach(async () => {
     await setup({ SCHEDULING_ENABLED: "true" });
@@ -219,6 +232,17 @@ describe("scheduling", () => {
     expect(ics.headers.get("content-type")).toContain("text/calendar");
     expect(await ics.text()).toContain("BEGIN:VEVENT");
     expect((await ctx.app.request(`/api/book/bookings/${r.body.booking.id}/ics?t=wrong`, { headers: { host: "localhost" } })).status).toBe(404);
+  });
+
+  it("counts every occurrence of the host's weekly series as busy, not just the first", async () => {
+    // A weekly Monday 09:00 Sydney meeting that started the week before the window.
+    const made = await c.post("/api/meetings", { title: "Weekly product review", startsAt: "2026-10-18T22:00:00.000Z", durationMin: 30, recurrence: { days: ["mo"], timezone: "Australia/Sydney" } });
+    expect(made.status).toBe(201);
+    const slots = (await guest().get("/api/book/olive")).body.slots as string[];
+    expect(slots).not.toContain("2026-10-25T22:00:00.000Z");
+    expect(slots).not.toContain("2026-11-01T22:00:00.000Z");
+    expect(slots).toContain("2026-10-25T22:30:00.000Z");
+    expect((await book("2026-11-01T22:00:00.000Z")).status).toBe(409);
   });
 
   it("lets the guest cancel with the link and the host cancel from the app, and frees the slot", async () => {

@@ -5,7 +5,7 @@
  * guest link, an .ics file and a confirmation email through system mail. No paid calendar APIs.
  * A booking costs two inserts (meeting and booking); cancelling costs two updates.
  */
-import { and, asc, eq, gte, isNull, lt, ne } from "drizzle-orm";
+import { and, asc, eq, gte, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { bookings, meetings, organizations, schedulingPages, users } from "../../db/schema";
 import { randomToken, sha256Hex } from "../../lib/crypto";
@@ -13,6 +13,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { emitEvent } from "../developer/webhooks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
 import { buildIcs } from "./meetings";
+import { expandWeekly, parseRrule } from "./meeting-recurrence";
 
 export const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 export type Day = (typeof DAYS)[number];
@@ -160,15 +161,42 @@ export async function savePage(deps: Deps, actor: SuiteActor, input: PageInput) 
   return (await getMyPage(deps, actor))!;
 }
 
+/**
+ * Busy time for a page's host in [from, to): their own meetings and confirmed bookings. A weekly
+ * series is one row; every occurrence in the window counts as busy, worked out on read.
+ */
 async function busyFor(deps: Deps, p: PageRow, from: Date, to: Date): Promise<Busy[]> {
   const lookBack = new Date(from.getTime() - 8 * 3600_000);
   const [m, b] = await Promise.all([
-    deps.db.select({ startsAt: meetings.startsAt, durationMin: meetings.durationMin }).from(meetings)
-      .where(and(eq(meetings.orgId, p.orgId), eq(meetings.createdById, p.userId), ne(meetings.status, "cancelled"), isNull(meetings.deletedAt), gte(meetings.startsAt, lookBack), lt(meetings.startsAt, to))),
+    deps.db.select({ startsAt: meetings.startsAt, durationMin: meetings.durationMin, recurrence: meetings.recurrence, recurrenceTz: meetings.recurrenceTz }).from(meetings)
+      .where(and(eq(meetings.orgId, p.orgId), eq(meetings.createdById, p.userId), ne(meetings.status, "cancelled"), isNull(meetings.deletedAt), lt(meetings.startsAt, to),
+        or(gte(meetings.startsAt, lookBack), isNotNull(meetings.recurrence)))),
     deps.db.select({ startsAt: bookings.startsAt, durationMin: bookings.durationMin }).from(bookings)
       .where(and(eq(bookings.pageId, p.id), eq(bookings.status, "confirmed"), gte(bookings.startsAt, lookBack), lt(bookings.startsAt, to))),
   ]);
-  return [...m, ...b].map((x) => ({ start: x.startsAt.getTime(), end: x.startsAt.getTime() + x.durationMin * 60_000 }));
+  return busyTimes(m, b, lookBack, to);
+}
+
+type BusyRow = { startsAt: Date; durationMin: number; recurrence?: string | null; recurrenceTz?: string | null };
+
+/** Turns meeting and booking rows into busy ranges, expanding weekly series inside [from, to). */
+export function busyTimes(meetingRows: BusyRow[], bookingRows: BusyRow[], from: Date, to: Date): Busy[] {
+  const out: Busy[] = [];
+  const add = (at: number, min: number) => out.push({ start: at, end: at + min * 60_000 });
+  for (const x of meetingRows) {
+    if (!x.recurrence) { if (x.startsAt.getTime() >= from.getTime()) add(x.startsAt.getTime(), x.durationMin); continue; }
+    const tz = x.recurrenceTz || "UTC";
+    let starts: Date[];
+    try {
+      // A meeting that began before the window can still run into it.
+      starts = expandWeekly(x.startsAt, parseRrule(x.recurrence, tz), tz, new Date(from.getTime() - x.durationMin * 60_000), to, 500);
+    } catch {
+      starts = x.startsAt.getTime() >= from.getTime() ? [x.startsAt] : [];
+    }
+    for (const at of starts) add(at.getTime(), x.durationMin);
+  }
+  for (const x of bookingRows) add(x.startsAt.getTime(), x.durationMin);
+  return out;
 }
 
 const rulesOf = (p: PageRow): SlotRules => ({ timezone: p.timezone, hours: JSON.parse(p.hours) as WeeklyHours, slotMin: p.slotMin, bufferMin: p.bufferMin, maxDaysAhead: p.maxDaysAhead, minNoticeMin: p.minNoticeMin });
