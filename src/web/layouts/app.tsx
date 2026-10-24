@@ -105,7 +105,7 @@ export function AppLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
-        <Link to="/app" aria-label="MyMail overview"><Logo className="h-6" /></Link>
+        <Link to="/app" aria-label="Multies overview"><Logo className="h-6" /></Link>
         <button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg lg:hidden" onClick={() => setDrawer(false)} aria-label="Close navigation"><X className="h-5 w-5" /></button>
       </div>
       <div className="shrink-0 px-3">
@@ -169,7 +169,7 @@ export function AppLayout() {
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b border-line bg-bg/80 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-xl backdrop-saturate-150 lg:hidden">
           <button className="grid h-11 w-11 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover" onClick={() => setDrawer(true)} aria-label="Open navigation"><MenuIcon className="h-[22px] w-[22px]" /></button>
-          <Link to="/app" aria-label="MyMail overview" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-[22px]" /></Link>
+          <Link to="/app" aria-label="Multies overview" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-[22px]" /></Link>
         </header>
         <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}

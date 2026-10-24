@@ -19,14 +19,14 @@ test("1. unknown pages answer a real 404 with the styled not-found page", async 
   expect(res?.status()).toBe(404);
   await expect(page.getByRole("heading", { name: "This page bounced." })).toBeVisible();
   await expect(page.getByRole("link", { name: "Go home" })).toBeVisible();
-  await expect(page.getByRole("img", { name: "MyMail" }).first()).toBeVisible();
+  await expect(page.getByRole("img", { name: "Multies" }).first()).toBeVisible();
 });
 
 test("2 and 3. every public page has its own title and a meta description", async ({ page }) => {
   const titles = new Map<string, string>();
   for (const p of PAGES) {
     await open(page, p);
-    await expect.poll(() => page.title()).toContain("MyMail");
+    await expect.poll(() => page.title()).toContain("Multies");
     const title = await page.title();
     const description = (await metaContent(page, 'meta[name="description"]')) ?? "";
     expect(description.length, `${p} description`).toBeGreaterThan(40);
@@ -66,7 +66,7 @@ test("5. favicon set, touch icon and web manifest from the logo", async ({ page,
   const svg = await (await request.get("/favicon.svg")).text();
   expect(svg).toContain("<svg");
   const manifest = await (await request.get("/site.webmanifest")).json();
-  expect(manifest.name).toBe("MyMail");
+  expect(manifest.name).toBe("Multies");
   const sizes = manifest.icons.map((i: { sizes: string; purpose?: string }) => `${i.sizes}${i.purpose ? ` ${i.purpose}` : ""}`);
   expect(sizes).toEqual(expect.arrayContaining(["192x192", "512x512", "512x512 maskable"]));
   for (const i of manifest.icons) expect((await request.get(i.src)).status(), i.src).toBe(200);

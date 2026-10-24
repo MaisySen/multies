@@ -1,4 +1,4 @@
-# MyMail brand
+# Multies brand
 
 Everything here is built from hand-written SVG by `node brand/build.mjs` (run from the app root). Edit the
 geometry in that script, run it, and commit the output. It also copies the web icons into `public/`.
@@ -30,7 +30,7 @@ outlined to paths, tracked slightly tight.
 
 | Name | Hex | Use |
 | --- | --- | --- |
-| MyMail Blue | `#0071E3` | The tile, primary buttons in dark mode. |
+| Multies Blue | `#0071E3` | The tile, primary buttons in dark mode. |
 | Blue (light UI) | `#0066CC` | Primary buttons and links on light backgrounds (5.6:1 with white). |
 | Ink | `#1D1D1F` | Wordmark and text on light. |
 | Paper | `#F5F5F7` | Wordmark and text on dark, light page background. |

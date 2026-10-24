@@ -13,7 +13,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "What do tasks, boards, docs and contacts cost?", a: "Nothing. They come with every workspace, Free included: projects, tasks, custom fields, the portfolio, docs with live co-editing, contacts, deals, time tracking, forms, reports and video meetings for everyone on your team, with no per person price. Automations run up to 1,000 times a month on Free." },
   { q: "Do guests cost anything?", a: "No. Guests are free on every plan, Free included, and they never count as people on your plan. Invite a client to one project by email: they see its tasks, comments and docs, and can comment and upload files. Nothing else in your workspace." },
   { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace." },
-  { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. If you want the assistant in the inbox, add your own OpenAI, Anthropic, OpenRouter or Groq key in Settings and your provider bills you directly. MyMail never resells AI." },
+  { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. If you want the assistant in the inbox, add your own OpenAI, Anthropic, OpenRouter or Groq key in Settings and your provider bills you directly. Multies never resells AI." },
   { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
   { q: "What are agent inboxes?", a: "Email addresses for AI agents. Create one with a single API call or from an MCP client, read threads as JSON, get new mail by webhook or a live stream, and send with caps and an optional human approval step. Every action is in the audit log." },
   { q: "Where is my mail stored?", a: "Today mail is stored with Cloudflare, whose database for this region cannot be pinned to Australia. We are moving mail storage to servers in Sydney and will say so here only once it is true." },
@@ -82,7 +82,7 @@ function Calculator() {
         </div>
         <div className="flex flex-col justify-between gap-6 rounded-xl bg-canvas/60 p-5">
           <div>
-            <p className="text-sm text-muted">MyMail for your whole team</p>
+            <p className="text-sm text-muted">Multies for your whole team</p>
             <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums" aria-live="polite">
               {charge.amount === 0 ? "A$0" : formatPlanPrice(charge.amount)}<span className="text-base font-normal text-subtle"> {charge.amount === 0 ? "forever" : charge.interval === "year" ? "a year" : "a month"}</span>
             </p>

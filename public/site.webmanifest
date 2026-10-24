@@ -1,6 +1,6 @@
 {
-  "name": "MyMail",
-  "short_name": "MyMail",
+  "name": "Multies",
+  "short_name": "Multies",
   "description": "Email on your own domain, with tasks, chat and agents.",
   "start_url": "/app",
   "scope": "/",

@@ -7,7 +7,7 @@ export function NotFound() {
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-6 py-16 text-center">
       <div className="w-full max-w-md animate-pop-in">
-        <Link to="/" aria-label="MyMail home" className="inline-flex"><Logo /></Link>
+        <Link to="/" aria-label="Multies home" className="inline-flex"><Logo /></Link>
         <p className="mt-12 text-[13px] font-semibold tabular-nums tracking-wide text-subtle">Error 404</p>
         <h1 className="mt-2 text-[34px] font-bold leading-tight tracking-[-0.025em]">This page bounced.</h1>
         <p className="mx-auto mt-3 max-w-sm text-[17px] leading-relaxed text-muted">The address doesn't exist, like mail to a mailbox nobody created. Check the link, or head back.</p>

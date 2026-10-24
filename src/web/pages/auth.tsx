@@ -108,7 +108,7 @@ export function LoginPage() {
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
-      <p className="mt-1 text-sm text-muted">Sign in to your MyMail workspace.</p>
+      <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Use your company's SSO button below.</p>}
       {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign-in didn't complete. Try again, or use your email and password." /></div>}
       <SocialButtons />
@@ -122,7 +122,7 @@ export function LoginPage() {
         <Button type="submit" className="w-full" size="lg" loading={loading}>Sign in</Button>
       </form>
       <DemoLink />
-      <p className="mt-6 text-center text-sm text-muted">New to MyMail? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>
+      <p className="mt-6 text-center text-sm text-muted">New to Multies? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>
     </div>
   );
 }
@@ -169,7 +169,7 @@ export function ForgotPasswordPage() {
         <h1 className="mt-4 text-xl font-semibold tracking-tight">Check your inbox</h1>
         <p className="mt-1 text-sm text-muted">If an account exists for <b className="font-medium text-fg">{email}</b>, a reset link is on its way. It works for one hour.</p>
         {!deliveryConnected && (
-          <p className="mt-4 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">Email delivery isn't connected on this deployment yet, so only addresses hosted on MyMail receive it. Your workspace owner or the platform operator can issue you a reset link.</p>
+          <p className="mt-4 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">Email delivery isn't connected on this deployment yet, so only addresses hosted on Multies receive it. Your workspace owner or the platform operator can issue you a reset link.</p>
         )}
         <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
       </div>
@@ -240,7 +240,7 @@ export function EmailVerifiedPage() {
           <p className="mt-1 text-sm text-muted">Your address is verified.</p>
         </>
       )}
-      <Link to="/app" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Open MyMail</Link>
+      <Link to="/app" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Open Multies</Link>
     </div>
   );
 }

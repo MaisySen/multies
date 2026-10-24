@@ -35,7 +35,7 @@ export function MarketingLayout() {
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-fg focus:px-3 focus:py-2 focus:text-bg">Skip to content</a>
       <header className={cn("fixed inset-x-0 top-0 z-50 transition-[background,border-color,backdrop-filter] duration-200", scrolled || open ? "border-b border-line bg-bg/75 backdrop-blur-xl" : "border-b border-transparent")}>
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5" aria-label="Main">
-          <Link to="/" aria-label="MyMail home"><Logo /></Link>
+          <Link to="/" aria-label="Multies home"><Logo /></Link>
           <div className="hidden items-center gap-1 md:flex">
             {links.map((l) => (
               <NavLink key={l.to} to={l.to} className="rounded-md px-3 py-1.5 text-sm text-muted transition-colors hover:text-fg">{l.label}</NavLink>
@@ -110,7 +110,7 @@ export function MarketingLayout() {
           </div>
         </div>
         <div className="mx-auto flex max-w-6xl flex-col gap-2 border-t border-line px-5 py-6 text-xs text-subtle max-sm:pb-28 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} MyMail, Sydney, Australia. Built for people who own their domain.</span>
+          <span>© {new Date().getFullYear()} Multies. Built for small businesses and startups that own their domain.</span>
           <span data-testid="cookie-notice"><Cookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
         </div>
       </footer>
