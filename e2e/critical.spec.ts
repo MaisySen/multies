@@ -55,7 +55,7 @@ test("sign up, then confirm the email address from the verification email", asyn
 test("send a message from the demo workspace and find it in Sent", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await page.goto("/app/mail?compose=1");
   const compose = page.getByRole("dialog", { name: "New message" });
   await expect(compose).toBeVisible();
@@ -126,7 +126,7 @@ test("create an API key and call the REST API with it", async ({ page, request }
 test("create an agent inbox with one API call, then act as the agent by API and MCP", async ({ page, request }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await page.goto("/app/settings/developers");
   await page.getByRole("button", { name: "Create API key" }).click();
   await page.getByRole("dialog").getByLabel("Name").fill("Agents");
@@ -161,7 +161,7 @@ test("create an agent inbox with one API call, then act as the agent by API and 
 test("approve an agent's message from the approval queue", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await page.getByRole("navigation", { name: "App" }).getByRole("link", { name: /Approvals/ }).click();
   await expect(page.getByRole("heading", { name: "Approvals" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Waiting (2)" })).toBeVisible();

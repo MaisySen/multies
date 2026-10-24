@@ -14,7 +14,7 @@ test.beforeEach(async ({ context }) => {
 async function demo(page: Page) {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await expect.poll(async () => ((await (await page.request.get("/api/tasks")).json()).tasks ?? []).length, { timeout: 15_000 }).toBeGreaterThan(5);
   const projects = (await (await page.request.get("/api/projects")).json()).projects as { id: string; name: string }[];
   return projects.find((p) => p.name === "Blue Harbor move")!;

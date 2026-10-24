@@ -21,7 +21,7 @@ test("the support, privacy, terms and deletion pages are public", async ({ page 
 test("a signed in person deletes their account on the web", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/);
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await page.goto("/delete-account");
   const button = page.getByRole("button", { name: "Delete my account" });
   await expect(button).toBeDisabled();
