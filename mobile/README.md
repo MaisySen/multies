@@ -5,7 +5,7 @@ Expo Router), talking to the same API as the web app.
 
 | Area | What works |
 | --- | --- |
-| Sign in | Email and password against production Better Auth, two step codes (authenticator or backup code), "trust this phone", session kept in the iOS Keychain or Android Keystore |
+| Sign in | The Multies sign in page in the system browser (email and password, Google, Apple or GitHub), Authorization Code with PKCE, then the ID token is traded for a Multies session; the session is kept in the iOS Keychain or Android Keystore |
 | Mail | Inbox, Starred, Sent and Archive, per mailbox filter, read a thread, reply, forward, compose with a From picker, archive, star, trash, search |
 | Offline | The first page of each folder and the last 60 threads are saved in SQLite on the phone. With no connection the app shows the saved copy and searches it |
 | Agent approvals | Waiting and Decided lists, approve or reject in one tap, review and edit the subject or body before approving, a note when rejecting, haptics, badge count on the tab |
@@ -82,3 +82,20 @@ on each screen of the web build and saves phone sized screenshots.
 - Web preview (sample data only): https://mymail-mobile.sites.tab.bot/
 - Android debug-signed APKs come from `npx expo prebuild --platform android` and `cd android && ./gradlew assembleRelease`. Add `-PreactNativeArchitectures=arm64-v8a` for a smaller APK (about 31 MB) that runs on modern phones.
 - Live API check (never commit the values): `MYMAIL_LIVE_EMAIL=... MYMAIL_LIVE_PASSWORD=... npx jest live`
+
+## Store publishing
+
+Publisher: Fintex Australia Pty Ltd. Store name Multies. Bundle id and package `au.mymail.app`.
+
+| Doc | What is in it |
+| --- | --- |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each version |
+| [docs/RELEASES.md](docs/RELEASES.md) | Every build: version, build number, commit, file |
+| [docs/STORE.md](docs/STORE.md) | Identifiers, accounts, the macOS route for iOS, owner steps |
+| [docs/SECURITY.md](docs/SECURITY.md) | Where keys live, what is never committed |
+| [docs/RUNBOOK.md](docs/RUNBOOK.md) | How to build, sign, upload and roll back |
+| [docs/TEST_PLAN.md](docs/TEST_PLAN.md) | What to test before each upload |
+| [store/](store/) | Single source for listing text, privacy answers, policy and terms |
+| [ci/github/ios-testflight.yml](ci/github/ios-testflight.yml) | TestFlight workflow, ready to copy into `.github/workflows/` |
+
+Public pages: https://multies.sites.tab.bot/privacy/, /terms/, /support/ and /delete-account/.

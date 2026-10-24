@@ -15,6 +15,7 @@
 const { withAppBuildGradle, withProjectBuildGradle } = require("expo/config-plugins");
 
 const TARGET_SDK = 36; // Google Play: new apps and updates target API 36 from 31 August 2026.
+const COMPILE_SDK = 37; // AndroidX libraries in Expo SDK 58 need compileSdk 37 to build (checkAarMetadata). Play only rules on the target level.
 const MARK = "// mymail-release-signing";
 
 const SIGNING = `
@@ -53,7 +54,7 @@ function applySigning(src) {
 
 function applyTargetSdk(src) {
   if (src.includes("mymail-target-sdk")) return src;
-  return src.replace(/apply plugin: "expo-root-project"/, `ext { targetSdkVersion = ${TARGET_SDK} } // mymail-target-sdk\napply plugin: "expo-root-project"`);
+  return src.replace(/apply plugin: "expo-root-project"/, `ext { targetSdkVersion = ${TARGET_SDK}; compileSdkVersion = ${COMPILE_SDK} } // mymail-target-sdk\napply plugin: "expo-root-project"`);
 }
 
 module.exports = function withReleaseSigning(config) {
@@ -64,3 +65,4 @@ module.exports = function withReleaseSigning(config) {
 module.exports.applySigning = applySigning;
 module.exports.applyTargetSdk = applyTargetSdk;
 module.exports.TARGET_SDK = TARGET_SDK;
+module.exports.COMPILE_SDK = COMPILE_SDK;

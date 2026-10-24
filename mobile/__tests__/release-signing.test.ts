@@ -1,5 +1,5 @@
 /* The config plugin that keeps release signing and the target SDK through expo prebuild. */
-const { applySigning, applyTargetSdk, TARGET_SDK } = require("../plugins/with-release-signing");
+const { applySigning, applyTargetSdk, TARGET_SDK, COMPILE_SDK } = require("../plugins/with-release-signing");
 
 const GRADLE = `android {
     signingConfigs {
@@ -50,7 +50,8 @@ describe("release signing plugin", () => {
     const root = 'buildscript {}\napply plugin: "expo-root-project"\n';
     const out: string = applyTargetSdk(root);
     expect(TARGET_SDK).toBeGreaterThanOrEqual(36);
-    expect(out).toContain(`ext { targetSdkVersion = ${TARGET_SDK} }`);
+    expect(out).toContain(`ext { targetSdkVersion = ${TARGET_SDK}; compileSdkVersion = ${COMPILE_SDK} }`);
+    expect(COMPILE_SDK).toBeGreaterThanOrEqual(TARGET_SDK);
     expect(applyTargetSdk(out)).toBe(out);
   });
 });

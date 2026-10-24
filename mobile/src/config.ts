@@ -45,10 +45,11 @@ export const FEATURES = {
 export const LINKS = {
   signup: `${API_BASE}/signup`,
   forgotPassword: `${API_BASE}/forgot-password`,
-  privacy: `${API_BASE}/privacy`,
-  terms: `${API_BASE}/terms`,
+  /** The published Fintex pages, the same URLs the store listings give (store/apple/listing.md). */
+  privacy: "https://multies.sites.tab.bot/privacy/",
+  terms: "https://multies.sites.tab.bot/terms/",
   accountSettings: `${API_BASE}/app/settings/account`,
   deleteAccount: `${API_BASE}/delete-account`,
   status: `${API_BASE}/status`,
-  support: `${API_BASE}/support`,
+  support: "https://multies.sites.tab.bot/support/",
 };
