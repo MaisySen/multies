@@ -32,7 +32,9 @@
     "design:audit": "node scripts/design-audit.mjs",
     "a11y:audit": "node scripts/a11y-audit.mjs",
     "test:coverage": "vitest run --coverage",
-    "lhci": "lhci autorun --config=lighthouserc.cjs"
+    "lhci": "lhci autorun --config=lighthouserc.cjs",
+    "security": "node scripts/security-check.mjs",
+    "hooks:install": "git config core.hooksPath scripts/githooks"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
