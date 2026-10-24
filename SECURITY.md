@@ -6,7 +6,7 @@ Multies holds people's email, chat, tasks and documents, so we take reports seri
 
 Please report privately. Do not open a public issue.
 
-- Email **mymail.builder@mail.tab.bot** (the support address today; it is also the contact in [`/.well-known/security.txt`](https://multies.si/.well-known/security.txt)). A dedicated security address on multies.si will replace it once mail on the domain is set up, and this page will say so.
+- Email **security@multies.si**. Until mail on multies.si is live, use **mymail.builder@mail.tab.bot** instead; it is also the contact in [`/.well-known/security.txt`](https://multies.si/.well-known/security.txt) for now, and this page will say when security@multies.si takes over.
 - Or use GitHub's private vulnerability reporting on this repository (Security tab, "Report a vulnerability").
 
 Include what you found, where, how to reproduce it, and the impact you expect. A proof of concept helps. Do not include other people's data.
@@ -40,7 +40,22 @@ Out of scope: findings from automated scanners without a working exploit, missin
 
 ## Supported versions
 
-Only the latest release is supported: the version on production (see `/api/config`) and the newest mobile app build in the stores. Fixes ship as a new release, staging first, then production.
+| Component | Supported |
+| --- | --- |
+| Web app and API (multies.si and the official workers.dev hosts) | The current release only: the version on production (see `/api/config`). Fixes ship as a new release, staging first, then production. |
+| Inbound email worker | The current release only. |
+| Android and iOS apps | The latest store version and the one before it. Older versions keep working but get no fixes. |
+| Self-hosted (Docker or Node) | The latest tagged release. Update to it before you report. |
+
+## Disclosure process
+
+1. You report privately to security@multies.si.
+2. We acknowledge within 2 business days and agree a severity with you (CVSS 4.0).
+3. We fix it on a private branch, add a regression test, and deploy within the targets above.
+4. We tell you when the fix is live and agree a disclosure date with you, normally within 90 days of your report, or sooner once the fix is deployed.
+5. We publish a short advisory in the changelog and credit you if you want.
+
+If a report shows that a secret or customer data may have been exposed, we rotate the secret first and tell affected customers as the law requires.
 
 ## How Multies is secured
 
