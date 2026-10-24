@@ -12,6 +12,7 @@ import { randomToken, toB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { link, resolveTaskId } from "./tasks";
+import { vtimezone } from "./vtimezone";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
 
 type MeetingRow = typeof meetings.$inferSelect;
@@ -225,6 +226,7 @@ export function buildIcs(m: { id: string; title: string; startsAt: Date; duratio
   const end = new Date(m.startsAt.getTime() + m.durationMin * 60_000);
   const lines = [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Multies//Meetings//EN", "CALSCALE:GREGORIAN", `METHOD:${opts.method ?? "REQUEST"}`,
+    ...(m.recurrence && m.recurrenceTz ? vtimezone(m.recurrenceTz, m.startsAt) : []),
     "BEGIN:VEVENT", `UID:${m.id}@mymail`, `SEQUENCE:${opts.sequence ?? 0}`, `DTSTAMP:${icsDate(opts.now)}`, ...(m.recurrence && m.recurrenceTz
       ? [`DTSTART;TZID=${m.recurrenceTz}:${icsLocal(m.startsAt, m.recurrenceTz)}`, `DTEND;TZID=${m.recurrenceTz}:${icsLocal(end, m.recurrenceTz)}`, `RRULE:${m.recurrence}`]
       : [`DTSTART:${icsDate(m.startsAt)}`, `DTEND:${icsDate(end)}`]),
