@@ -10,6 +10,7 @@ import { TimerChip } from "@/web/pages/app/work/time";
 import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useMe, useWorkspaces } from "@/web/lib/queries";
+import { useDemoSeedCatchUp } from "@/web/lib/demo";
 import type { Me } from "@/web/lib/types";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Button } from "@/web/components/ui/button";
@@ -51,6 +52,7 @@ const nav = [
 
 export function AppLayout() {
   const me = useMe();
+  useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
   const loc = useLocation();
   const navigate = useNavigate();
   const qc = useQueryClient();
