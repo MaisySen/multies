@@ -32,7 +32,9 @@
     "design:audit": "node scripts/design-audit.mjs",
     "a11y:audit": "node scripts/a11y-audit.mjs",
     "test:coverage": "vitest run --coverage",
-    "lhci": "lhci autorun --config=lighthouserc.cjs"
+    "lhci": "lhci autorun --config=lighthouserc.cjs",
+    "security": "node scripts/security-check.mjs",
+    "hooks:install": "git config core.hooksPath scripts/githooks"
   },
   "dependencies": {
     "@cfworker/json-schema": "^4.1.1",
@@ -132,5 +134,8 @@
     "vite": "^8.3.5",
     "vitest": "^5.0.5",
     "wrangler": "^4.152.0"
+  },
+  "overrides": {
+    "undici": "^7.30.1"
   }
 }

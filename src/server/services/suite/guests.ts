@@ -36,6 +36,7 @@ export function presentGuest(g: GuestRow, approvalStatus: ApprovalStatus | null 
 export type Guest = ReturnType<typeof presentGuest>;
 
 export async function listGuests(deps: Deps, orgId: string, projectId: string) {
+  await getProject(deps, orgId, projectId); // 404 for another workspace's project
   const rows = await deps.db.select({ g: projectGuests, approval: sendApprovals.status }).from(projectGuests)
     .leftJoin(sendApprovals, eq(sendApprovals.id, projectGuests.approvalId))
     .where(and(eq(projectGuests.orgId, orgId), eq(projectGuests.projectId, projectId))).orderBy(desc(projectGuests.createdAt));

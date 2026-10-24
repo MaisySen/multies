@@ -8,6 +8,7 @@ import type { Deps } from "../../context";
 import { members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
 import { sendSystemEmail } from "../system-mail";
 import { decryptSecret, encryptSecret, newId, randomBytes, toB64 } from "../../lib/crypto";
+import { isPublicHost } from "../../lib/ssrf";
 import { badRequest, conflict, notFound } from "../../lib/errors";
 
 export const WEBHOOK_EVENTS = [
@@ -66,14 +67,13 @@ export const MAX_ENDPOINTS = 10;
 export const RETRY_SCHEDULE_MS = [60_000, 5 * 60_000, 30 * 60_000, 2 * 3600_000, 6 * 3600_000];
 const TIMEOUT_MS = 5_000;
 
-const PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.|\[?::1\]?$|\[?f[cd][0-9a-f]{2}:|.*\.internal$|.*\.local$)/i;
 
 export function validateEndpointUrl(deps: Deps, raw: string): string {
   let u: URL;
   try { u = new URL(raw); } catch { throw badRequest("Enter a full URL, like https://example.com/webhooks/mymail."); }
   const dev = deps.config.mode === "development";
   if (u.protocol !== "https:" && !(dev && u.protocol === "http:")) throw badRequest("Webhook URLs must use https.");
-  if (!dev && PRIVATE_HOST.test(u.hostname)) throw badRequest("Webhook URLs must point to a public address.");
+  if (!dev && !isPublicHost(u.hostname)) throw badRequest("Webhook URLs must point to a public address.");
   if (u.username || u.password) throw badRequest("Put credentials in your receiver, not in the URL.");
   return u.toString();
 }
@@ -155,6 +155,8 @@ async function attempt(deps: Deps, deliveryId: string) {
   let status: number | null = null;
   let error: string | null = null;
   try {
+    // Endpoints saved before a stricter rule are checked again on every attempt.
+    if (deps.config.mode !== "development" && !isPublicHost(new URL(e.url).hostname)) throw new Error("the URL points to a private address");
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
     const res = await deps.fetch(e.url, {
