@@ -17,7 +17,7 @@ describe("chat markup", () => {
       mentions: [{ type: "member", id: "usr_1", name: "Mia Nguyen" }],
       links: [{ type: "task", id: "tsk_9", ref: "OPS-3", title: "Chase INV-1042" }, { type: "thread", id: "thr_2", ref: null, title: "Re: Invoice" }],
     });
-    expect(plainText(m)).toBe("@Mia Nguyen please check OPS-3 Chase INV-1042 and Re: Invoice @channel");
+    expect(plainText(m)).toBe("@Mia Nguyen please check OPS-3 and Re: Invoice @channel");
     const s = segments(m, "member:usr_1");
     expect(s[0]).toMatchObject({ kind: "mention", text: "@Mia Nguyen", self: true });
     expect(s.filter((x) => x.kind === "link")).toHaveLength(2);

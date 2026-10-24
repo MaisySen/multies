@@ -35,7 +35,8 @@ export function segments(m: Pick<ChatMessage, "body" | "mentions" | "links">, me
       const type = hit[3] as ChatLink["type"];
       const id = hit[4];
       const link = m.links.find((x) => x.type === type && x.id === id) ?? null;
-      out.push({ kind: "link", text: link ? linkLabel(link) : type === "task" ? "a task" : type === "thread" ? "an email" : "a doc", link });
+      // Inline the short form (the ref, such as OPS-3); the chip under the message carries the full title.
+      out.push({ kind: "link", text: link ? link.ref ?? link.title : type === "task" ? "a task" : type === "thread" ? "an email" : "a doc", link });
     }
     last = at + hit[0].length;
   }
