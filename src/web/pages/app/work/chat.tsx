@@ -164,10 +164,12 @@ export function ChatPage() {
     queryFn: () => api.get<{ message: ChatMessage; replies: ChatMessage[] }>(`/chat/messages/${threadId}/thread`),
   });
   const lastId = messages.data?.[messages.data.length - 1]?.id;
+  // Marks the channel read once per new last message (keyed on ids: the channel list refetch makes new objects).
+  const currentId = current?.id;
   useEffect(() => {
-    if (!current || !lastId) return;
-    void api.post(`/chat/channels/${current.id}/read`, {}).then(() => qc.invalidateQueries({ queryKey: ["chat", "channels"] })).catch(() => undefined);
-  }, [current, lastId, qc]);
+    if (!currentId || !lastId) return;
+    void api.post(`/chat/channels/${currentId}/read`, {}).then(() => qc.invalidateQueries({ queryKey: ["chat", "channels"] })).catch(() => undefined);
+  }, [currentId, lastId, qc]);
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lastId]);
 

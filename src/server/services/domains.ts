@@ -1,8 +1,8 @@
 import { emitEvent } from "./developer/webhooks";
-import { and, asc, count, eq, lt, or, isNull } from "drizzle-orm";
+import { and, asc, count, eq, lt, ne, or, isNull } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
-import { aliases, domains, mailboxes } from "../db/schema";
+import { aliases, domains, mailboxes, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { conflict, notFound } from "../lib/errors";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
@@ -88,12 +88,26 @@ export async function verifyDomain(deps: Deps, d: DomainRow) {
   return { report, status, changed };
 }
 
-/** Re-checks domains not checked in `staleMs`. Called on an interval / cron. */
-export async function recheckStaleDomains(deps: Deps, staleMs = 15 * 60_000, limit = 25) {
-  const cutoff = new Date(deps.now().getTime() - staleMs);
-  const rows = await deps.db.select().from(domains)
-    .where(or(isNull(domains.lastCheckedAt), lt(domains.lastCheckedAt, cutoff)))
-    .orderBy(asc(domains.lastCheckedAt)).limit(limit);
+/**
+ * Re-checks domains on a schedule: ones still waiting for DNS every `staleMs`, verified ones once a day.
+ * Sample workspaces are skipped: their domains are made up, and checking them only spent database writes
+ * (each check writes the domain row).
+ */
+export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, limit = 25) {
+  const t = deps.now().getTime();
+  const cutoff = new Date(t - staleMs);
+  const verifiedCutoff = new Date(t - 24 * 3600_000);
+  const rows = (await deps.db.select({ d: domains }).from(domains)
+    .innerJoin(organizations, eq(organizations.id, domains.orgId))
+    .where(and(
+      eq(organizations.isDemo, false),
+      or(
+        isNull(domains.lastCheckedAt),
+        and(ne(domains.status, "verified"), lt(domains.lastCheckedAt, cutoff)),
+        lt(domains.lastCheckedAt, verifiedCutoff),
+      ),
+    ))
+    .orderBy(asc(domains.lastCheckedAt)).limit(limit)).map((r) => r.d);
   // A few at a time: each check is several DNS lookups and one update, and in a row they
   // were a long chain of round trips (Sentry MYMAIL-API-5).
   const results: ({ id: string } & Awaited<ReturnType<typeof verifyDomain>>)[] = [];

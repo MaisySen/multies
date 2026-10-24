@@ -1,7 +1,7 @@
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, eq, ne } from "drizzle-orm";
+import { and, count, eq, gt, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { accounts, members, organizations, users } from "../db/schema";
@@ -30,6 +30,15 @@ export function accountRoutes() {
     .post("/demo", async (c) => {
       if (!c.var.deps.config.demoEnabled) throw notFound("Demo");
       if (!demoLimiter.take(c.var.ip)) throw tooMany();
+      const cap = c.var.deps.config.demoDailyLimit;
+      if (cap > 0) {
+        // One cheap read: each demo writes a few hundred rows, and the database has a daily write budget.
+        const since = new Date(c.var.deps.now().getTime() - 24 * 3600_000);
+        const made = await c.var.deps.db.select({ n: count() }).from(organizations).where(and(eq(organizations.isDemo, true), gt(organizations.createdAt, since))).get();
+        if ((made?.n ?? 0) >= cap) {
+          return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
+        }
+      }
       const { headers } = await createDemoWorkspace(c.var.deps);
       for (const cookie of headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
       return c.json({ ok: true }, 201);

@@ -1,4 +1,5 @@
 import { enforceGracePeriods } from "./billing/dunning";
+import { isD1LimitError } from "../lib/d1-limit";
 import { expireApprovals, pruneAgentEvents } from "./agents";
 import { pruneImports } from "./import";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
@@ -30,7 +31,7 @@ export async function runMaintenance(deps: Deps) {
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); } catch (err) {
       // A busy or briefly unavailable database is not a bug: the step runs again on the next pass.
-      if (isTransientDbError(err)) { deps.log?.warn("maintenance.step_skipped", { step: name, error: err }); return undefined; }
+      if (isTransientDbError(err) || isD1LimitError(err)) { deps.log?.warn("maintenance.step_skipped", { step: name, error: err }); return undefined; }
       deps.log?.error("maintenance.step_failed", { step: name, error: err }); deps.reportError?.(err, { maintenance: name }); return undefined;
     }
   };

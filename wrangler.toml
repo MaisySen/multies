@@ -101,6 +101,8 @@ SECURITY_CONTACT = "mailto:mymail.builder@mail.tab.bot"
 SUPPORT_EMAIL = "mymail.builder@mail.tab.bot"
 # The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
 KEEP_DEMO_ORG_IDS = "org_b0kb5ykvrto8w0rm"
+# At most this many new demo workspaces a day (each writes a few hundred rows).
+DEMO_DAILY_LIMIT = "40"
 BILLING_GRACE_DAYS = "7"
 # Cross checks: production watches staging and the preview (src/server/services/status.ts).
 MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev,https://mymail.sites.tab.bot"
@@ -116,9 +118,10 @@ service = "mymail-staging"
 enabled = true
 head_sampling_rate = 1
 
-# Housekeeping, job queue, uptime self check: every 5 minutes.
+# Housekeeping, job queue, uptime self check: every 15 minutes (each pass costs database writes,
+# and the account shares one daily write budget across production and staging).
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/15 * * * *"]
 
 # ------------------------------------------------------------------ staging
 [env.staging]
@@ -163,6 +166,7 @@ simple = { limit = 300, period = 60 }
 [env.staging.vars]
 APP_MODE = "production"
 APP_URL = "https://mymail-staging.mymail-app.workers.dev"
+DEMO_DAILY_LIMIT = "10"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "staging"
 SENTRY_TRACES_SAMPLE_RATE = "1"

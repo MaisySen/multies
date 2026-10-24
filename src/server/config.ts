@@ -49,6 +49,8 @@ export interface AppConfig {
   platformAdmins: string[];
   /** Demo workspaces the daily purge keeps (the fixed App Review account). KEEP_DEMO_ORG_IDS. */
   keepDemoOrgIds: string[];
+  /** New demo workspaces allowed per rolling 24 hours, platform wide (DEMO_DAILY_LIMIT); 0 means no cap. */
+  demoDailyLimit: number;
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -130,6 +132,7 @@ const EnvSchema = z.object({
   SENTRY_ENVIRONMENT: z.string().optional(),
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
   KEEP_DEMO_ORG_IDS: z.string().optional(),
+  DEMO_DAILY_LIMIT: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
@@ -235,6 +238,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
+    demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
     billing: {
       // Only the secret key is required. Prices are found by lookup key (and created in
       // test mode); the webhook secret adds server-to-server sync on top of the

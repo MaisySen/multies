@@ -101,8 +101,10 @@ export async function createDemoWorkspace(deps: Deps) {
   const rows: (typeof messages.$inferInsert)[] = [];
   const delivered: (typeof deliveries.$inferInsert)[] = [];
   const used = new Map<string, number>();
-  const put = (mb: { id: string; address: string }, folder: "inbox" | "archive" | "sent", from: { address: string; name: string }, to: string[], subject: string, text: string, date: Date, sentBy?: string) => {
+  const put = (mb: { id: string; address: string }, box: "inbox" | "archive" | "sent", from: { address: string; name: string }, to: string[], subject: string, text: string, date: Date, sentBy?: string) => {
     const id = newId("msg");
+    // Inbox mail older than 58 hours starts out archived and read (set here, not by a later UPDATE, to save writes).
+    const folder = box === "inbox" && date.getTime() < now - 58 * 3600_000 ? "archive" : box;
     const sizeBytes = text.length + 600;
     rows.push({
       id, orgId, mailboxId: mb.id, folder, isRead: folder !== "inbox", threadId: newId("thr"),
@@ -153,15 +155,13 @@ export async function createDemoWorkspace(deps: Deps) {
     ...chunk(delivered, 8).map((c) => deps.db.insert(deliveries).values(c)),
     ...[...used].map(([id, n]) => deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${n}` }).where(eq(mailboxes.id, id))),
   ]);
-  await deps.db.run(sql`UPDATE messages SET folder = 'archive', is_read = 1 WHERE org_id = ${orgId} AND folder = 'inbox' AND date < ${now - 58 * 3600_000}`);
 
   const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
   await seedDemoAgents(deps, auth, domain, now);
   // Tasks, docs, contacts and deals are seeded by a background job so this request stays small.
   await enqueue(deps, "demo.seed_suite", { orgId, userId, email, name: "Alex Rivera" }, { orgId, maxAttempts: 3 });
 
-  // Backdate the delivery log to each message's date so the activity chart has history.
-  await deps.db.run(sql`UPDATE deliveries SET created_at = (SELECT date FROM messages WHERE messages.id = deliveries.message_id) WHERE org_id = ${orgId} AND message_id IS NOT NULL`);
+  // Each delivery row already carries its message's date (createdAt above), so the activity chart has history.
 
   const at = (hoursAgo: number) => new Date(now - hoursAgo * 3600_000);
   const trail: [string, number, Record<string, unknown>?][] = [

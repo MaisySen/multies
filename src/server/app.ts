@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -46,6 +47,10 @@ export function createApp(deps: Deps) {
       const body = (err.body ?? {}) as { code?: string; message?: string };
       const code = body.code === "PLAN_LIMIT" ? "plan_limit" : (body.code ?? "error").toLowerCase();
       return c.json({ error: { code, message: body.message ?? err.message } }, err.statusCode as 400);
+    }
+    if (isD1LimitError(err)) {
+      console.warn("[api] database daily limit reached", c.req.method, c.req.path);
+      return c.json(READ_ONLY_BODY, 503, { "retry-after": "600" });
     }
     console.error("[api] unhandled", err);
     const eventId = deps.reportError?.(err, { method: c.req.method, path: c.req.path });
