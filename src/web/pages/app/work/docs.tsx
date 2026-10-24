@@ -17,6 +17,7 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { useMe } from "@/web/lib/queries";
 import { colourFor, connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
+import { tone } from "@/web/components/app-bits";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -264,7 +265,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
             <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>
             {peers.map((p) => (
               <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex max-w-[10rem] items-center gap-1 whitespace-nowrap rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.color }} aria-hidden /><span className="truncate">{p.name.split(" ")[0]}</span>
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone(p.color) }} aria-hidden /><span className="truncate">{p.name.split(" ")[0]}</span>
               </span>
             ))}
           </div>

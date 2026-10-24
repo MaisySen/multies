@@ -9,6 +9,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useProjects, useTasks } from "./data";
+import { tone } from "@/web/components/app-bits";
 
 export interface TimeEntry {
   id: string; taskId: string | null; task: { id: string; ref: string; title: string } | null; projectId: string | null;
@@ -171,7 +172,7 @@ export function TimesheetPage() {
                 {q.data!.rows.map((r) => (
                   <tr key={`${r.person.id}-${r.project?.id}`} className="border-b border-line/60">
                     <td className="px-4 py-2.5">{r.person.name}{r.person.type === "agent" && <span className="ml-1 text-[11px] text-subtle">agent</span>}</td>
-                    <td className="px-2 py-2.5"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: r.project?.color ?? "#8a8f98" }} />{r.project?.name ?? "No project"}</span></td>
+                    <td className="px-2 py-2.5"><span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: tone(r.project?.color) }} />{r.project?.name ?? "No project"}</span></td>
                     {q.data!.days.map((d) => <td key={d} className={cn("px-2 py-2.5 text-right tabular-nums", !r.days[d] && "text-subtle")}>{r.days[d] ? hoursText(r.days[d]) : "-"}</td>)}
                     <td className="px-4 py-2.5 text-right font-medium tabular-nums">{hoursText(r.total)}</td>
                   </tr>

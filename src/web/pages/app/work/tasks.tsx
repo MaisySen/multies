@@ -16,6 +16,7 @@ import { GuestsDialog } from "./guests";
 import { TaskList } from "./list";
 import { TaskPanel } from "./task-panel";
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
+import { tone } from "@/web/components/app-bits";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
@@ -201,7 +202,7 @@ function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { p
   );
 }
 
-const SWATCHES = ["#8a8f98", "#3b82f6", "#f59e0b", "#a855f7", "#ec4899", "#14b8a6", "#22c55e", "#ef4444"];
+const SWATCHES = ["#8e8e93", "#5b7fa6", "#4f8a8b", "#5e8c61", "#a3824a", "#a65e5e", "#7d6b9e", "#6e6e73"];
 
 function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (p: Project) => void }) {
   const qc = useQueryClient();
@@ -234,7 +235,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           <ul className="space-y-2">
             {statuses.map((s, i) => (
               <li key={i} className="flex items-center gap-2">
-                <Menu align="start" trigger={<button className="h-5 w-5 shrink-0 rounded-full border border-line-strong" style={{ background: s.color }} aria-label={`Colour for ${s.name}`} />}>
+                <Menu align="start" trigger={<button className="h-5 w-5 shrink-0 rounded-full border border-line-strong" style={{ background: tone(s.color) }} aria-label={`Colour for ${s.name}`} />}>
                   <div className="flex gap-1 p-2">{SWATCHES.map((c) => <button key={c} className="h-5 w-5 rounded-full" style={{ background: c }} aria-label={c} onClick={() => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, color: c } : y)))} />)}</div>
                 </Menu>
                 <Input aria-label="Status name" value={s.name} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, name: e.target.value } : y)))} className="h-8 text-[13px]" />

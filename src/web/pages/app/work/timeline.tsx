@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Gantt, WillowDark } from "@svar-ui/react-gantt";
+import { Gantt, Willow, WillowDark } from "@svar-ui/react-gantt";
+import { useAppearance } from "@/web/components/theme";
 import "@svar-ui/react-gantt/style.css";
 import type { Task } from "./data";
 
@@ -14,6 +15,8 @@ const fmtDay = (d: Date) => String(d.getDate());
  */
 export function TaskTimeline({ tasks, links = [], onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
   const dated = tasks.filter((t) => t.due || t.start).sort((a, b) => (a.start ?? a.due ?? "").localeCompare(b.start ?? b.due ?? ""));
+  const { resolved } = useAppearance();
+  const Theme = resolved === "dark" ? WillowDark : Willow;
   const narrow = typeof window !== "undefined" && window.innerWidth < 640;
   const rows = useMemo(() => dated.map((t) => {
     const end = new Date(t.due ?? t.start!);
@@ -28,7 +31,7 @@ export function TaskTimeline({ tasks, links = [], onOpen, onDates, onLink }: { t
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
     <div className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
-      <WillowDark fonts={false}>
+      <Theme fonts={false}>
         <Gantt
           tasks={rows} links={arrows as never} start={min} end={max} cellWidth={36} cellHeight={36} scaleHeight={30}
           scales={[{ unit: "month", step: 1, format: fmtMonth }, { unit: "day", step: 1, format: fmtDay }]}
@@ -44,7 +47,7 @@ export function TaskTimeline({ tasks, links = [], onOpen, onDates, onLink }: { t
             api.intercept("show-editor", (ev: { id?: string | number }) => { if (ev.id) onOpen(String(ev.id)); return false; });
           }}
         />
-      </WillowDark>
+      </Theme>
     </div>
   );
 }

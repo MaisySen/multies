@@ -9,6 +9,7 @@ import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task } from "./data";
+import { tone } from "@/web/components/app-bits";
 
 export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode }) {
   return (
@@ -55,7 +56,7 @@ function Column({ id, title, color, count, children, onAdd }: { id: string; titl
   return (
     <section aria-label={title} data-testid={`column-${title}`} className={cn("flex w-[280px] shrink-0 flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
       <header className="flex items-center gap-2 px-3 py-2.5">
-        <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
+        <span className="h-2 w-2 rounded-full" style={{ background: tone(color) }} aria-hidden />
         <h2 className="text-[13px] font-semibold">{title}</h2>
         <span className="text-[12px] text-subtle tabular-nums">{count}</span>
         <button onClick={onAdd} className="ml-auto rounded p-1 text-subtle hover:bg-elevated hover:text-fg" aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
@@ -78,7 +79,7 @@ export function Board({ project, tasks, onOpen, onMove, onAdd, groupBy }: {
   groupBy?: CustomField;
 }) {
   const cols = useMemo(() => groupBy
-    ? [...groupBy.options.map((o) => ({ id: o.id, name: o.label, color: o.color })), { id: NO_VALUE, name: `No ${groupBy.name.toLowerCase()}`, color: "#8a8f98" }]
+    ? [...groupBy.options.map((o) => ({ id: o.id, name: o.label, color: o.color })), { id: NO_VALUE, name: `No ${groupBy.name.toLowerCase()}`, color: "#8e8e93" }]
     : project.statuses.map((s) => ({ id: s.id, name: s.name, color: s.color })), [groupBy, project.statuses]);
   const keyOf = useCallback((t: Task) => {
     if (!groupBy) return t.statusId;

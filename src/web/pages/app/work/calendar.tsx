@@ -4,13 +4,14 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventDropArg } from "@fullcalendar/core";
 import type { Task } from "./data";
+import { tone } from "@/web/components/app-bits";
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
 export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: (id: string) => void; onDue: (id: string, due: string) => void }) {
   const events = useMemo(() => tasks.filter((t) => t.due || t.start).map((t) => ({
     id: t.id, title: `${t.ref} ${t.title}`, start: (t.start ?? t.due)!.slice(0, 10),
     end: t.start && t.due && t.due > t.start ? new Date(new Date(t.due).getTime() + 86_400_000).toISOString().slice(0, 10) : undefined,
-    allDay: true, backgroundColor: t.status === "done" ? "#2a2a30" : t.statusColor, borderColor: "transparent", textColor: t.status === "done" ? "#86868f" : "#0b0b0d",
+    allDay: true, backgroundColor: t.status === "done" ? "var(--color-fill)" : tone(t.statusColor), borderColor: "transparent", textColor: t.status === "done" ? "var(--color-subtle)" : "#111113",
   })), [tasks]);
   const onDrop = (e: EventDropArg) => {
     const t = tasks.find((x) => x.id === e.event.id);

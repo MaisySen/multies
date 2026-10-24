@@ -5,6 +5,7 @@ import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task } from "./data";
 import { FieldCell, formatValue } from "./fields";
+import { tone } from "@/web/components/app-bits";
 
 /** A sort key for a custom field value: numbers as numbers, select by option order, empty last. */
 function fieldSortKey(f: CustomField, t: Task, people: AssigneeOption[]): string | number {
@@ -43,7 +44,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     },
     {
       id: "status", header: "Status", accessorFn: (t) => `${pname.get(t.projectId)?.statuses.findIndex((s) => s.id === t.statusId) ?? 0}`,
-      cell: ({ row }) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="h-2 w-2 rounded-full" style={{ background: row.original.statusColor }} />{row.original.statusName}</span>,
+      cell: ({ row }) => <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><span className="h-2 w-2 rounded-full" style={{ background: tone(row.original.statusColor) }} />{row.original.statusName}</span>,
     },
     {
       id: "assignee", header: "Assignee", accessorFn: (t) => t.assignee?.name ?? "~",

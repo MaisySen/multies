@@ -8,6 +8,7 @@ import { Card, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Select } from "@/web/components/ui/input";
 import { useProjects } from "./data";
 import { hoursText } from "./time";
+import { tone } from "@/web/components/app-bits";
 
 interface Dashboard {
   range: { days: number };
@@ -23,9 +24,9 @@ interface Dashboard {
 }
 
 const aud = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
-const axis = { stroke: "#6b7079", fontSize: 11, tickLine: false, axisLine: false } as const;
-const tip = { contentStyle: { background: "#16181d", border: "1px solid #2a2d34", borderRadius: 8, fontSize: 12 }, labelStyle: { color: "#e6e7ea" }, cursor: { fill: "rgba(255,255,255,0.04)" } };
-const STAGE_COLOR: Record<string, string> = { lead: "#8a8f98", qualified: "#3b82f6", proposal: "#f59e0b", won: "#22c55e", lost: "#ef4444" };
+const axis = { stroke: "var(--color-subtle)", fontSize: 11, tickLine: false, axisLine: false } as const;
+const tip = { contentStyle: { background: "var(--color-elevated)", border: "1px solid var(--color-line)", borderRadius: 10, fontSize: 12, color: "var(--color-fg)", boxShadow: "var(--shadow-pop)" }, labelStyle: { color: "var(--color-fg)" }, itemStyle: { color: "var(--color-fg)" }, cursor: { fill: "var(--color-fill)" } } as const;
+const STAGE_COLOR: Record<string, string> = { lead: "#8e8e93", qualified: "#5b7fa6", proposal: "#a3824a", won: "#5e8c61", lost: "#a65e5e" };
 
 function Kpi({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub?: string; tone?: string }) {
   return (
@@ -66,20 +67,20 @@ export function ReportsPage() {
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Tasks by status">
               <div className="h-56" data-testid="chart-status"><ResponsiveContainer><BarChart data={d.tasks.byStatus} margin={{ left: -20, right: 8 }}>
-                <CartesianGrid vertical={false} stroke="#24272e" /><XAxis dataKey="name" {...axis} interval={0} /><YAxis {...axis} allowDecimals={false} /><Tooltip {...tip} />
+                <CartesianGrid vertical={false} stroke="var(--color-line)" /><XAxis dataKey="name" {...axis} interval={0} /><YAxis {...axis} allowDecimals={false} /><Tooltip {...tip} />
                 <Bar dataKey="count" name="Tasks" radius={[4, 4, 0, 0]}>{d.tasks.byStatus.map((s) => <Cell key={s.name} fill={s.color} />)}</Bar>
               </BarChart></ResponsiveContainer></div>
             </Panel>
             <Panel title="Open tasks by person">
               <div className="h-56" data-testid="chart-assignee"><ResponsiveContainer><BarChart data={d.tasks.byAssignee} layout="vertical" margin={{ left: 10, right: 8 }}>
-                <CartesianGrid horizontal={false} stroke="#24272e" /><XAxis type="number" {...axis} allowDecimals={false} /><YAxis type="category" dataKey="name" {...axis} width={110} /><Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="open" name="Open" stackId="a" fill="#3b82f6" /><Bar dataKey="overdue" name="Of which overdue" fill="#f59e0b" radius={[0, 4, 4, 0]} />
+                <CartesianGrid horizontal={false} stroke="var(--color-line)" /><XAxis type="number" {...axis} allowDecimals={false} /><YAxis type="category" dataKey="name" {...axis} width={110} /><Tooltip {...tip} /><Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="open" name="Open" stackId="a" fill="var(--color-brand)" /><Bar dataKey="overdue" name="Of which overdue" fill="var(--color-warn)" radius={[0, 4, 4, 0]} />
               </BarChart></ResponsiveContainer></div>
             </Panel>
             <Panel title="Tasks done per day">
               <div className="h-56"><ResponsiveContainer><BarChart data={d.tasks.completedByDay} margin={{ left: -20, right: 8 }}>
-                <CartesianGrid vertical={false} stroke="#24272e" /><XAxis dataKey="day" {...axis} tickFormatter={(v: string) => new Date(`${v}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short" })} minTickGap={24} /><YAxis {...axis} allowDecimals={false} /><Tooltip {...tip} />
-                <Bar dataKey="count" name="Done" fill="#22c55e" radius={[3, 3, 0, 0]} />
+                <CartesianGrid vertical={false} stroke="var(--color-line)" /><XAxis dataKey="day" {...axis} tickFormatter={(v: string) => new Date(`${v}T00:00:00`).toLocaleDateString("en-AU", { day: "numeric", month: "short" })} minTickGap={24} /><YAxis {...axis} allowDecimals={false} /><Tooltip {...tip} />
+                <Bar dataKey="count" name="Done" fill="var(--color-ok)" radius={[3, 3, 0, 0]} />
               </BarChart></ResponsiveContainer></div>
             </Panel>
             <Panel title="Time per project">
@@ -89,7 +90,7 @@ export function ReportsPage() {
                     <Pie data={d.time.byProject} dataKey="seconds" nameKey="name" innerRadius="55%" outerRadius="85%" paddingAngle={2} stroke="none">{d.time.byProject.map((p) => <Cell key={p.name} fill={p.color} />)}</Pie>
                     <Tooltip {...tip} formatter={(v) => hoursText(Number(v))} />
                   </PieChart></ResponsiveContainer></div>
-                  <ul className="w-44 space-y-1.5 text-[12.5px]">{d.time.byProject.map((p) => <li key={p.name} className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} /><span className="truncate">{p.name}</span><span className="ml-auto tabular-nums text-muted">{hoursText(p.seconds)}</span></li>)}</ul>
+                  <ul className="w-44 space-y-1.5 text-[12.5px]">{d.time.byProject.map((p) => <li key={p.name} className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ background: tone(p.color) }} /><span className="truncate">{p.name}</span><span className="ml-auto tabular-nums text-muted">{hoursText(p.seconds)}</span></li>)}</ul>
                 </div>
               )}
             </Panel>
@@ -98,8 +99,8 @@ export function ReportsPage() {
             <Panel title="Deals pipeline (AUD)">
               <div className="mb-2 flex gap-6 text-[12.5px] text-muted"><span>Open <b className="text-fg tabular-nums">{aud(d.deals.openValue)}</b> in {d.deals.openCount} deals</span><span>Won <b className="text-ok tabular-nums">{aud(d.deals.wonValue)}</b></span></div>
               <div className="h-52" data-testid="chart-deals"><ResponsiveContainer><BarChart data={d.deals.pipeline} margin={{ left: 0, right: 8 }}>
-                <CartesianGrid vertical={false} stroke="#24272e" /><XAxis dataKey="name" {...axis} /><YAxis {...axis} tickFormatter={(v: number) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`)} /><Tooltip {...tip} formatter={(v) => aud(Number(v))} />
-                <Bar dataKey="value" name="Value" radius={[4, 4, 0, 0]}>{d.deals.pipeline.map((s) => <Cell key={s.stage} fill={STAGE_COLOR[s.stage] ?? "#8a8f98"} />)}</Bar>
+                <CartesianGrid vertical={false} stroke="var(--color-line)" /><XAxis dataKey="name" {...axis} /><YAxis {...axis} tickFormatter={(v: number) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`)} /><Tooltip {...tip} formatter={(v) => aud(Number(v))} />
+                <Bar dataKey="value" name="Value" radius={[4, 4, 0, 0]}>{d.deals.pipeline.map((s) => <Cell key={s.stage} fill={STAGE_COLOR[s.stage] ?? "#8e8e93"} />)}</Bar>
               </BarChart></ResponsiveContainer></div>
               <Link to="/app/deals" className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] text-brand-hover hover:underline"><Handshake className="h-3.5 w-3.5" />Open the deals board</Link>
             </Panel>

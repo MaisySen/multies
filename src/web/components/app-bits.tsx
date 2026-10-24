@@ -85,3 +85,11 @@ export function describeAudit(e: AuditEntry): { verb: string; object?: string } 
   const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };
 }
+
+/**
+ * Mutes a user or seed colour for display so tags, statuses and project dots stay calm next to the one
+ * accent. The stored colour is unchanged.
+ */
+export function tone(hex: string | null | undefined): string {
+  return `color-mix(in srgb, ${hex || "#8e8e93"} 62%, #8e8e93)`;
+}

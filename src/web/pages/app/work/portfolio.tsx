@@ -9,6 +9,7 @@ import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc
 import { Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
 import { hoursText } from "./time";
+import { tone } from "@/web/components/app-bits";
 
 export type Health = "on_track" | "at_risk" | "off_track";
 export interface PortfolioRow {
@@ -67,7 +68,7 @@ export function PortfolioPage() {
                   <tr key={r.id} className="border-b border-line last:border-0 align-middle">
                     <td className="px-3 py-2.5">
                       <Link to={`/app/tasks?project=${r.id}&view=list`} className="inline-flex items-center gap-2 font-medium hover:underline">
-                        <span className="h-2.5 w-2.5 rounded-sm" style={{ background: r.color }} aria-hidden />{r.name}
+                        <span className="h-2.5 w-2.5 rounded-sm" style={{ background: tone(r.color) }} aria-hidden />{r.name}
                       </Link>
                       {r.archived && <span className="ml-2 text-[11.5px] text-subtle">archived</span>}
                     </td>

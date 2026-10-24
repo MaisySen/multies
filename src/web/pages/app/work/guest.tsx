@@ -19,6 +19,7 @@ import { timeAgo } from "@/web/lib/format";
 import type { Comment, CustomField, Status, Task, TaskFile } from "./data";
 import { FieldCell } from "./fields";
 import { FileList } from "./task-files";
+import { tone } from "@/web/components/app-bits";
 
 interface Home {
   guest: { id: string; email: string; name: string }; workspace: { name: string };
@@ -130,7 +131,7 @@ export function GuestProjectPage() {
           <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4" />Sign out</Button>
         </header>
         <div className="mb-4 flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm" style={{ background: h.project.color }} aria-hidden />
+          <span className="h-3 w-3 rounded-sm" style={{ background: tone(h.project.color) }} aria-hidden />
           <h1 className="text-xl font-semibold" data-testid="guest-project">{h.project.name}</h1>
         </div>
         <p className="mb-4 text-[13px] text-muted">You can see this project's tasks, comments and docs, comment, and upload files.</p>
