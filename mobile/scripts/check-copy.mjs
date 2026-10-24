@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const roots = ["src", "docs", "store", "ios-native/Sources", "scripts", "README.md", "AGENTS.md", "app.json", "eas.json", "eslint.config.js", "__tests__"];
+const roots = ["src", "docs", "store", "plugins", "ios-native/Sources", "scripts", "README.md", "AGENTS.md", "app.json", "eas.json", "eslint.config.js", "__tests__"];
 const DASHES = ["\u2013", "\u2014"];
 const hits = [];
 function walk(p) {
