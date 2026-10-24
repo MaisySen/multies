@@ -280,8 +280,8 @@ export interface ChatChannel {
   lastMessage: { id: string; preview: string; authorName: string } | null; createdAt: string; joined?: boolean;
 }
 export interface ChatMention { type: "member" | "agent" | "channel"; id: string; name: string }
-export interface ChatLink { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string }
-export interface ChatAttachment { id: string; filename: string; contentType: string; size: number }
+export interface ChatLink { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; /** For a thread: its newest message, which is what the mail screen opens. */ messageId?: string }
+export interface ChatAttachment { id: string; filename: string; contentType: string; size: number; /** A signed link that works without a session for at least 15 minutes. */ url?: string }
 export interface ChatMessage {
   id: string; channelId: string; parentId: string | null; author: { type: "member" | "agent" | "guest"; id: string; name: string };
   body: string; mentions: ChatMention[]; links: ChatLink[]; attachments: ChatAttachment[];

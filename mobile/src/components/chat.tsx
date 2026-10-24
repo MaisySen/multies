@@ -16,12 +16,13 @@ const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", th
 /** Opens what a chip points at: a task or an email thread in the app, a doc on the web. */
 export function openLink(l: ChatLink) {
   if (l.type === "task") router.push({ pathname: "/task/[id]", params: { id: l.id } });
-  else if (l.type === "thread") router.push({ pathname: "/thread/[id]", params: { id: l.id } });
+  else if (l.type === "thread") router.push({ pathname: "/thread/[id]", params: { id: l.messageId ?? l.id } });
   else WebBrowser.openBrowserAsync(`${API_BASE}/app/docs/${encodeURIComponent(l.id)}`).catch(() => {});
 }
 
-/** The file address on the server. It opens in the system browser, which uses its own MyMail sign in. */
+/** The file address on the server. The signed link opens in the system browser with no sign in; older servers send none. */
 export function fileUrl(a: ChatAttachment) {
+  if (a.url && a.url.startsWith("/api/chat/files/")) return `${API_BASE}${a.url}`;
   return `${API_BASE}/api/chat/files/${encodeURIComponent(a.id)}`;
 }
 
