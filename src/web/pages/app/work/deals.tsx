@@ -40,7 +40,7 @@ function StageColumn({ s, deals }: { s: Stage; deals: Deal[] }) {
   return (
     <section aria-label={s.name} className={cn("flex w-[260px] shrink-0 flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
       <header className="px-3 py-2.5">
-        <div className="flex items-center gap-2"><h3 className="text-[13px] font-semibold">{s.name}</h3><span className="text-[12px] text-subtle">{deals.length}</span></div>
+        <div className="flex items-center gap-2"><h2 className="text-[13px] font-semibold">{s.name}</h2><span className="text-[12px] text-subtle">{deals.length}</span></div>
         <div className="text-[12px] tabular-nums text-muted">{aud(s.total)}</div>
       </header>
       <ul ref={setNodeRef} className="flex min-h-[80px] flex-1 flex-col gap-2 px-2 pb-3">{deals.map((d) => <DealCard key={d.id} d={d} />)}</ul>

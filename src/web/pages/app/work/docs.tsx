@@ -272,6 +272,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         <span className={cn(!session && "ml-auto")} role="status">{status}</span>
         <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm("Delete this doc?")) return; await api.del(`/docs/${id}`); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
+      <h1 className="sr-only">{title || "Untitled doc"}</h1>
       <input aria-label="Doc title" value={title}
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
         onBlur={() => void saveTitle()}

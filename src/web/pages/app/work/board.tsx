@@ -56,7 +56,7 @@ function Column({ id, title, color, count, children, onAdd }: { id: string; titl
     <section aria-label={title} data-testid={`column-${title}`} className={cn("flex w-[280px] shrink-0 flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
       <header className="flex items-center gap-2 px-3 py-2.5">
         <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
-        <h3 className="text-[13px] font-semibold">{title}</h3>
+        <h2 className="text-[13px] font-semibold">{title}</h2>
         <span className="text-[12px] text-subtle tabular-nums">{count}</span>
         <button onClick={onAdd} className="ml-auto rounded p-1 text-subtle hover:bg-elevated hover:text-fg" aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
       </header>

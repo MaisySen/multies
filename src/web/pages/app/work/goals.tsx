@@ -49,7 +49,7 @@ export function GoalsPage() {
         <Card className="mb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-semibold">{g.name}</h3>
+              <h2 className="text-[15px] font-semibold">{g.name}</h2>
               <p className="text-[12.5px] text-subtle">{g.owner ? `${g.owner.name} · ` : ""}{g.due ? `due ${shortDate(g.due)}` : "no due date"}{!g.health && g.suggestedHealth ? " · health suggested from the dates" : ""}</p>
             </div>
             <div className="flex items-center gap-3">

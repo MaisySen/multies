@@ -80,7 +80,7 @@ function Message({ m, onThread, onTask, onEdit, onDelete, mine, inThread }: { m:
       {!m.deleted && (
         <div className="flex items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
-          <Menu label="Message actions" trigger={<span className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] text-muted hover:bg-elevated hover:text-fg">More</span>}>
+          <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] text-muted hover:bg-elevated hover:text-fg">More</button>}>
             <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
