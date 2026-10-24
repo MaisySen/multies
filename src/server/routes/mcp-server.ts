@@ -23,6 +23,10 @@ import { createMeeting, listMeetings } from "../services/suite/meetings";
 import { createField, listFields, type FilterOp } from "../services/suite/fields";
 import { inviteGuest, listGuests } from "../services/suite/guests";
 import { portfolio } from "../services/suite/portfolio";
+import { channelMessages, getThread, listChannels, messageToTask, postMessage } from "../services/suite/chat";
+import { listTemplates, useTemplate } from "../services/suite/templates";
+import { createGoal, goalTree, updateKeyResult } from "../services/suite/goals";
+import { listNotifications } from "../services/suite/notify";
 import { updateProject } from "../services/suite/tasks";
 import {
   createAgent, eventsSince, getAgent, latestEventSeq, listAgents, listThreads, readThread, replyInThread, requestSend, scopeFor, searchMessages, type Actor,
@@ -166,6 +170,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSuiteTools(server, deps, actor, writable);
   registerR7Tools(server, deps, actor, writable);
   registerR8Tools(server, deps, actor, writable);
+  registerR10Tools(server, deps, actor, writable);
   return server;
 }
 
@@ -465,5 +470,95 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     writable();
     const p = await updateProject(deps, a, x.projectId, { health: x.health, ...(x.note !== undefined ? { healthNote: x.note } : {}) });
     return { project: { id: p.id, name: p.name, health: p.health, healthNote: p.healthNote } };
+  }));
+}
+
+/** Chat, templates and goals. Agents read and post in public channels; DMs and private channels are only for people. */
+function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void) {
+  const ro = { readOnlyHint: true, openWorldHint: false };
+  const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+  const a = actor as unknown as SuiteActor;
+
+  server.registerTool("list_channels", {
+    title: "List chat channels", annotations: ro,
+    description: "Public chat channels in the workspace with their topic and last message.",
+  }, tool(async () => ({ channels: (await listChannels(deps, a)).map((c) => ({ id: c.id, name: c.name, topic: c.topic, lastMessage: c.lastMessage, lastMessageAt: c.lastMessageAt })) })));
+
+  server.registerTool("read_channel", {
+    title: "Read a chat channel", annotations: ro,
+    description: "Recent top level messages in a channel, oldest first, with mentions, links, attachments and reply counts. Pass since (ISO time) to get only newer or changed messages.",
+    inputSchema: { channelId: z.string(), limit: z.number().int().min(1).max(100).optional(), since: z.string().optional() },
+  }, tool(async (x: { channelId: string; limit?: number; since?: string }) => channelMessages(deps, a, x.channelId, { limit: x.limit ?? 30, since: x.since })));
+
+  server.registerTool("read_chat_thread", {
+    title: "Read a chat thread", annotations: ro,
+    description: "A top level chat message and all its replies.",
+    inputSchema: { messageId: z.string() },
+  }, tool(async (x: { messageId: string }) => getThread(deps, a, x.messageId)));
+
+  server.registerTool("post_message", {
+    title: "Post in a chat channel", annotations: rw,
+    description: "Post a message in a public channel, or reply in a thread with parentId. Mention a person with <@member:USER_ID> (ids from list_assignees or get_task), link a task with <#task:ID> or an email thread with <#thread:ID>. Chat stays inside the workspace, so it needs no approval.",
+    inputSchema: { channelId: z.string(), body: z.string().min(1).max(20_000), parentId: z.string().optional() },
+  }, tool(async (x: { channelId: string; body: string; parentId?: string }) => { writable(); return { message: await postMessage(deps, a, x.channelId, { body: x.body, parentId: x.parentId }) }; }));
+
+  server.registerTool("message_to_task", {
+    title: "Turn a chat message into a task", annotations: rw,
+    description: "Make a task from a chat message. The task links back to the message and the message shows the task.",
+    inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional() },
+  }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string }) => {
+    writable();
+    const t = await messageToTask(deps, a, x.messageId, { title: x.title, projectId: x.projectId, assignee: parseAssignee(x.assignee) });
+    return { task: { id: t.id, ref: t.ref, title: t.title } };
+  }));
+
+  server.registerTool("list_templates", {
+    title: "List project and task templates", annotations: ro,
+    description: "Starter templates (client onboarding, content calendar, sales pipeline, bug tracker) and the workspace's saved ones.",
+  }, tool(async () => ({ templates: await listTemplates(deps, a.orgId) })));
+
+  server.registerTool("use_template", {
+    title: "Make a project or task from a template", annotations: rw,
+    description: "Creates a project (statuses, custom fields, tasks with due dates from startDate) or, for a task template, a task in projectId.",
+    inputSchema: { templateId: z.string(), name: z.string().max(120).optional(), projectId: z.string().optional(), startDate: z.string().optional() },
+  }, tool(async (x: { templateId: string; name?: string; projectId?: string; startDate?: string }) => { writable(); return useTemplate(deps, a, x.templateId, x); }));
+
+  server.registerTool("set_task_repeat", {
+    title: "Make a task repeat", annotations: rw,
+    description: "freq daily, weekly, monthly or yearly; interval for every N; weekdays (0 Sunday to 6 Saturday) for weekly; monthDay for monthly; until YYYY-MM-DD. Finishing the task makes the next one. Pass freq none to stop.",
+    inputSchema: { taskId: z.string(), freq: z.enum(["daily", "weekly", "monthly", "yearly", "none"]), interval: z.number().int().min(1).max(365).optional(), weekdays: z.array(z.number().int().min(0).max(6)).optional(), monthDay: z.number().int().min(1).max(31).optional(), until: z.string().optional() },
+  }, tool(async (x: { taskId: string; freq: "daily" | "weekly" | "monthly" | "yearly" | "none"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string }) => {
+    writable();
+    const t = await updateTask(deps, a, x.taskId, { repeat: x.freq === "none" ? null : { freq: x.freq, interval: x.interval, weekdays: x.weekdays, monthDay: x.monthDay, until: x.until } });
+    return { ref: t.ref, repeat: t.repeat };
+  }));
+
+  server.registerTool("list_goals", {
+    title: "Goals and key results", annotations: ro,
+    description: "Every goal with its key results, progress (0 to 100, from numbers and linked tasks, rolled up through child goals), health and a summary.",
+  }, tool(async () => goalTree(deps, a.orgId)));
+
+  server.registerTool("create_goal", {
+    title: "Create a goal", annotations: rw,
+    description: "A goal with optional key results. Key result kinds: number, currency (AUD), percent (start, target, current) or tasks (taskIds or projectId).",
+    inputSchema: {
+      name: z.string().min(1).max(200), description: z.string().max(5000).optional(), parentId: z.string().optional(), due: z.string().optional(),
+      keyResults: z.array(z.object({ name: z.string(), kind: z.enum(["number", "currency", "percent", "tasks"]).optional(), start: z.number().optional(), target: z.number().optional(), current: z.number().optional(), projectId: z.string().optional(), taskIds: z.array(z.string()).optional() })).max(20).optional(),
+    },
+  }, tool(async (x: Parameters<typeof createGoal>[2]) => { writable(); return { goal: await createGoal(deps, a, x) }; }));
+
+  server.registerTool("update_key_result", {
+    title: "Record progress on a key result", annotations: rw,
+    description: "Set current (and optionally target) on a number, currency or percent key result, or replace the linked taskIds on a tasks key result.",
+    inputSchema: { keyResultId: z.string(), current: z.number().optional(), target: z.number().optional(), taskIds: z.array(z.string()).optional() },
+  }, tool(async (x: { keyResultId: string; current?: number; target?: number; taskIds?: string[] }) => { writable(); return { keyResult: await updateKeyResult(deps, a, x.keyResultId, x) }; }));
+
+  server.registerTool("list_notifications", {
+    title: "Your notifications", annotations: ro,
+    description: "The notifications inbox of the person who made this key (workspace keys only): mentions, assignments, comments, approvals and due-soon items.",
+    inputSchema: { unread: z.boolean().optional(), category: z.enum(["mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"]).optional() },
+  }, tool(async (x: { unread?: boolean; category?: string }) => {
+    if (a.agentId || !a.userId) throw new HttpError(403, "workspace_key_only", "Agent keys have no notifications inbox. Use a workspace key.");
+    return listNotifications(deps, a.orgId, a.userId, { unread: x.unread, category: x.category, limit: 50 });
   }));
 }

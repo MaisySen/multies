@@ -1,0 +1,78 @@
+/**
+ * Round 10 in the public API (v1): team chat, templates and goals with key results.
+ * API keys read and post in public channels only; DMs and private channels stay between people.
+ * An agent key posts as its agent, and @mentions of an agent arrive as the chat.mention webhook.
+ */
+import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
+import type { Context } from "hono";
+import type { AppEnv } from "../context";
+import type { SuiteActor } from "../services/suite/common";
+import { channelMessages, createChannel, getThread, listChannels, messageToTask, postMessage } from "../services/suite/chat";
+import { getTemplate, listTemplates, useTemplate } from "../services/suite/templates";
+import { addKeyResult, createGoal, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
+import { parseAssignee } from "../services/suite/tasks";
+import { ChannelCreate, ChatPost, GoalCreate, GoalPatch, KrCreate, KrPatch, MessageToTask, MessagesQuery, TemplateUse, decodeAttachments } from "./suite-r10";
+
+const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
+const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
+const errors = { 401: err("Missing or invalid API key."), 403: err("The key can't do this."), 404: err("Not found."), 422: err("Validation failed.") } as const;
+const json = (description: string) => ({ description, content: { "application/json": { schema: z.record(z.string(), z.unknown()) } } });
+// The request schemas are shared with the app routes; z.any() keeps the zod copies apart in types.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const body = (schema: any) => ({ body: { required: true, content: { "application/json": { schema } } } });
+const secured = [{ bearerAuth: [] }];
+const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) });
+const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const send = (c: Context<AppEnv>, data: unknown, status: 200 | 201 = 200) => c.json(data as any, status) as any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const jsonBody = async (c: Context<AppEnv>, schema: { parse: (v: unknown) => any }) => schema.parse(await c.req.json().catch(() => ({})));
+
+const pid = (c: Context<AppEnv>) => c.req.param("id") ?? "";
+
+export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
+  const route = (method: "get" | "post" | "patch", path: string, tag: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
+    createRoute({ method, path, tags: [tag], summary, description, security: secured, ...extra, responses: { 200: json("OK."), 201: json("Created."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } });
+
+  // ---------------------------------------------------------------- chat
+  api.openapi(route("get", "/chat/channels", "Chat", "List public channels", "Public channels in the workspace with their topic and last message. DMs and private channels are only for people."),
+    async (c) => send(c, { channels: await listChannels(c.var.deps, actor(c)) }));
+  api.openapi(route("post", "/chat/channels", "Chat", "Create a public channel", "Body: { name, topic?, projectId?, guestAccess? }. With projectId and guestAccess the project's guests can read and post.", { request: body(ChannelCreate) }),
+    async (c) => send(c, { channel: await createChannel(c.var.deps, actor(c), await jsonBody(c, ChannelCreate)) }, 201));
+  api.openapi(route("get", "/chat/channels/{id}/messages", "Chat", "Read a channel", "Top level messages, oldest first. Query: limit, before (a message id) or since (ISO time, for polling). Each message carries mentions, links to tasks, threads and docs, attachments and its reply count.", { request: { params: Id } }),
+    async (c) => send(c, await channelMessages(c.var.deps, actor(c), pid(c), MessagesQuery.parse(c.req.query()))));
+  api.openapi(route("post", "/chat/channels/{id}/messages", "Chat", "Post a message", "Body: { body, parentId?, attachments?: [{ filename, contentType?, contentBase64 }] }. Markup: <@member:USER_ID> mentions a person, <@agent:AGENT_ID> an agent, <!channel> everyone; <#task:ID>, <#thread:ID> and <#doc:ID> link items. An agent key posts as its agent.", { request: { params: Id, ...body(ChatPost) } }),
+    async (c) => {
+      const b = await jsonBody(c, ChatPost);
+      return send(c, { message: await postMessage(c.var.deps, actor(c), pid(c), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments) }) }, 201);
+    });
+  api.openapi(route("get", "/chat/messages/{id}/thread", "Chat", "Read a thread", "The top level message and its replies.", { request: { params: Id } }),
+    async (c) => send(c, await getThread(c.var.deps, actor(c), pid(c))));
+  api.openapi(route("post", "/chat/messages/{id}/task", "Chat", "Turn a message into a task", "Body: { title?, projectId?, assignee?: member:<id> or agent:<id>, due? }. The task links back to the message, and the message shows the task.", { request: { params: Id, ...body(MessageToTask) } }),
+    async (c) => {
+      const b = await jsonBody(c, MessageToTask);
+      return send(c, { task: await messageToTask(c.var.deps, actor(c), pid(c), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due }) }, 201);
+    });
+
+  // ---------------------------------------------------------------- templates
+  api.openapi(route("get", "/templates", "Templates", "List templates", "The starter gallery (client onboarding, content calendar, sales pipeline, bug tracker) and the workspace's saved project and task templates."),
+    async (c) => send(c, { templates: await listTemplates(c.var.deps, actor(c).orgId) }));
+  api.openapi(route("get", "/templates/{id}", "Templates", "Read a template", "The template with its statuses, fields and tasks.", { request: { params: Id } }),
+    async (c) => send(c, { template: await getTemplate(c.var.deps, actor(c).orgId, pid(c)) }));
+  api.openapi(route("post", "/templates/{id}/use", "Templates", "Make a project or task from a template", "Body: { name?, projectId? (for a task template), startDate? (YYYY-MM-DD, due dates count from it) }.", { request: { params: Id, ...body(TemplateUse) } }),
+    async (c) => send(c, await useTemplate(c.var.deps, actor(c), pid(c), await jsonBody(c, TemplateUse)), 201));
+
+  // ---------------------------------------------------------------- goals
+  api.openapi(route("get", "/goals", "Goals", "List goals with progress", "Every goal as a tree with its key results, progress (0 to 100, rolled up from key results and child goals) and health, plus a portfolio summary."),
+    async (c) => send(c, await goalTree(c.var.deps, actor(c).orgId)));
+  api.openapi(route("post", "/goals", "Goals", "Create a goal", "Body: { name, description?, ownerId?, parentId?, start?, due?, health?, keyResults?: [...] }.", { request: body(GoalCreate) }),
+    async (c) => send(c, { goal: await createGoal(c.var.deps, actor(c), await jsonBody(c, GoalCreate)) }, 201));
+  api.openapi(route("get", "/goals/{id}", "Goals", "Read a goal", "The goal with key results and child goals.", { request: { params: Id } }),
+    async (c) => send(c, { goal: await getGoal(c.var.deps, actor(c).orgId, pid(c)) }));
+  api.openapi(route("patch", "/goals/{id}", "Goals", "Update a goal", "Any of name, description, ownerId, parentId, start, due, health (on_track, at_risk, off_track or null), archived.", { request: { params: Id, ...body(GoalPatch) } }),
+    async (c) => send(c, { goal: await updateGoal(c.var.deps, actor(c), pid(c), await jsonBody(c, GoalPatch)) }));
+  api.openapi(route("post", "/goals/{id}/key-results", "Goals", "Add a key result", "Body: { name, kind: number | currency (AUD) | percent | tasks, start?, target?, current?, unit?, projectId?, taskIds? }. A tasks key result measures linked tasks, or every top level task in a project.", { request: { params: Id, ...body(KrCreate) } }),
+    async (c) => send(c, { keyResult: await addKeyResult(c.var.deps, actor(c), pid(c), await jsonBody(c, KrCreate)) }, 201));
+  api.openapi(route("patch", "/key-results/{id}", "Goals", "Update a key result", "Set current to record progress, or change the target, the linked tasks or the project.", { request: { params: Id, ...body(KrPatch) } }),
+    async (c) => send(c, { keyResult: await updateKeyResult(c.var.deps, actor(c), pid(c), await jsonBody(c, KrPatch)) }));
+}
