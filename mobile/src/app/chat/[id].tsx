@@ -70,7 +70,7 @@ export default function ChannelScreen() {
         renderItem={({ item }) => <ChatMessageRow m={item} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
       />
       <Composer people={people.data ?? []} placeholder={title ? `Message ${title}` : "Message"} sending={send.isPending}
-        onSend={(body) => send.mutateAsync({ body })} />
+        onSend={(body, files, onProgress) => send.mutateAsync({ body, attachments: files, onProgress })} />
       <MessageMenu m={menu} onClose={() => setMenu(null)} onReply={openThread} onMakeTask={makeTask} busy={toTask.isPending} />
     </KeyboardAvoidingView>
   );

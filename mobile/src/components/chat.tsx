@@ -6,6 +6,8 @@ import * as Clipboard from "expo-clipboard";
 import { Avatar, Icon, IconButton, type IconName } from "@/components/ui";
 import { API_BASE } from "@/config";
 import { bytes } from "@/lib/format";
+import { CHAT_FILES_PER_MESSAGE, linkStillGood, pickChatFiles, progressLabel, sendErrorText, toOutgoing, type OutgoingFile, type PickedFile } from "@/lib/chat-files";
+import { useSession } from "@/lib/session";
 import { encodeMentions, filterPeople, insertMention, linkLabel, mentionQuery, messageTime, plainText, segments } from "@/lib/chat";
 import type { ChatAttachment, ChatLink, ChatMessage, ChatPerson } from "@/api/types";
 import { colors, font, radius, space, TOUCH } from "@/theme";
@@ -39,12 +41,28 @@ export function LinkChip({ link }: { link: ChatLink }) {
   );
 }
 
-function AttachmentRow({ a, sample }: { a: ChatAttachment; sample: boolean }) {
-  const open = () => {
-    if (sample) { Alert.alert("Sample file", "Files in the sample workspace are examples, so there is nothing to open."); return; }
-    WebBrowser.openBrowserAsync(fileUrl(a)).catch(() => {});
+function AttachmentRow({ a, messageId, sample }: { a: ChatAttachment; messageId: string; sample: boolean }) {
+  const { api } = useSession();
+  // Signed links last at least 15 minutes. A screen left open longer asks the server for a fresh one.
+  const freshUrl = async () => {
+    if (linkStillGood(a.url)) return fileUrl(a);
+    try {
+      const { message } = await api.chatMessage(messageId);
+      const again = message.attachments.find((x) => x.id === a.id);
+      return fileUrl(again ?? a);
+    } catch {
+      return fileUrl(a);
+    }
   };
-  const share = () => { if (!sample) Share.share(Platform.OS === "ios" ? { url: fileUrl(a) } : { message: fileUrl(a), title: a.filename }).catch(() => {}); };
+  const open = async () => {
+    if (sample) { Alert.alert("Sample file", "Files in the sample workspace are examples, so there is nothing to open."); return; }
+    WebBrowser.openBrowserAsync(await freshUrl()).catch(() => {});
+  };
+  const share = async () => {
+    if (sample) return;
+    const url = await freshUrl();
+    Share.share(Platform.OS === "ios" ? { url } : { message: url, title: a.filename }).catch(() => {});
+  };
   return (
     <Pressable onPress={open} onLongPress={share} accessibilityRole="button" accessibilityLabel={`Attachment ${a.filename}, ${bytes(a.size)}`} accessibilityHint="Opens the file. Press and hold to share it."
       testID={`attachment-${a.id}`}
@@ -82,7 +100,7 @@ export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, sho
           </Text>
         )}
         {m.links.length ? <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>{m.links.map((l) => <LinkChip key={`${l.type}:${l.id}`} link={l} />)}</View> : null}
-        {m.attachments.length ? <View style={{ gap: 6 }}>{m.attachments.map((a) => <AttachmentRow key={a.id} a={a} sample={sample} />)}</View> : null}
+        {m.attachments.length ? <View style={{ gap: 6 }}>{m.attachments.map((a) => <AttachmentRow key={a.id} a={a} messageId={m.id} sample={sample} />)}</View> : null}
         {showReplies && m.replyCount > 0 ? (
           <Pressable onPress={() => onOpenThread?.(m)} accessibilityRole="button" accessibilityLabel={`${m.replyCount} ${m.replyCount === 1 ? "reply" : "replies"}, open thread`} testID={`replies-${m.id}`}
             style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 32 }}>
@@ -126,25 +144,51 @@ export function MessageMenu({ m, onClose, onReply, onMakeTask, busy }: {
 
 /**
  * Message box with a simple @ mention picker: type @ and a few letters, tap a name, and it is
- * sent as a real mention. Sending a file is not in this version; files sent on the web show here.
+ * sent as a real mention. The paperclip attaches up to 5 files (10 MB each) that go with the message,
+ * with progress while they upload.
  */
-export function Composer({ people, placeholder, onSend, sending, testID = "composer" }: {
-  people: ChatPerson[]; placeholder: string; onSend: (body: string) => Promise<unknown>; sending?: boolean; testID?: string;
+export function Composer({ people, placeholder, onSend, sending, testID = "composer", allowFiles = true }: {
+  people: ChatPerson[]; placeholder: string;
+  onSend: (body: string, files?: OutgoingFile[], onProgress?: (fraction: number) => void) => Promise<unknown>;
+  sending?: boolean; testID?: string; allowFiles?: boolean;
 }) {
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<ChatPerson[]>([]);
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const query = mentionQuery(text);
   const matches = query === null ? [] : filterPeople(people, query);
+  const busy = !!sending || progress !== null;
+  const ready = (!!text.trim() || files.length > 0) && !busy;
+  const attach = async () => {
+    if (busy) return;
+    if (files.length >= CHAT_FILES_PER_MESSAGE) { setError(`You can attach up to ${CHAT_FILES_PER_MESSAGE} files at a time.`); return; }
+    try {
+      const got = await pickChatFiles(files.length);
+      setError(got.problem);
+      if (got.files.length) setFiles((x) => [...x, ...got.files]);
+    } catch (e) {
+      setError(sendErrorText(e));
+    }
+  };
   const send = async () => {
     const body = encodeMentions(text.trim(), picked);
-    if (!body) return;
+    if ((!body && !files.length) || busy) return;
     setError(null);
     try {
-      await onSend(body);
-      setText(""); setPicked([]);
+      if (files.length) {
+        setProgress(0);
+        const outgoing = await toOutgoing(files);
+        await onSend(body, outgoing, setProgress);
+      } else {
+        await onSend(body);
+      }
+      setText(""); setPicked([]); setFiles([]);
     } catch (e) {
-      setError((e as Error).message || "Couldn't send. Try again.");
+      setError(sendErrorText(e));
+    } finally {
+      setProgress(null);
     }
   };
   return (
@@ -162,12 +206,39 @@ export function Composer({ people, placeholder, onSend, sending, testID = "compo
           ))}
         </View>
       ) : null}
-      {error ? <Text style={{ color: colors.bad, fontSize: 13, paddingHorizontal: space.lg, paddingTop: space.sm }} accessibilityLiveRegion="polite">{error}</Text> : null}
+      {files.length ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: space.md, paddingTop: space.sm }} accessibilityLabel="Files to send">
+          {files.map((f, i) => (
+            <View key={`${f.uri}-${i}`} testID={`${testID}-file-${i}`}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%", minHeight: 34, paddingLeft: 10, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }}>
+              <Icon name="paperclip" size={14} />
+              <Text style={{ color: colors.fg, fontSize: 14, flexShrink: 1 }} numberOfLines={1}>{f.name}</Text>
+              {f.size !== undefined ? <Text style={font.tiny}>{bytes(f.size)}</Text> : null}
+              <Pressable onPress={() => !busy && setFiles((x) => x.filter((_, j) => j !== i))} disabled={busy} hitSlop={8}
+                accessibilityRole="button" accessibilityLabel={`Remove ${f.name}`} testID={`${testID}-file-${i}-remove`}
+                style={{ minWidth: 34, minHeight: 34, alignItems: "center", justifyContent: "center" }}>
+                <Icon name="x" size={14} />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {progress !== null ? (
+        <View style={{ paddingHorizontal: space.lg, paddingTop: space.sm, gap: 4 }} testID={`${testID}-progress`}
+          accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }} accessibilityLabel={progressLabel(progress)}>
+          <Text style={font.tiny} accessibilityLiveRegion="polite">{progressLabel(progress)}</Text>
+          <View style={{ height: 3, borderRadius: 2, backgroundColor: colors.line, overflow: "hidden" }}>
+            <View style={{ height: 3, width: `${Math.round(Math.max(0.02, progress) * 100)}%`, backgroundColor: colors.brand }} />
+          </View>
+        </View>
+      ) : null}
+      {error ? <Text style={{ color: colors.bad, fontSize: 13, paddingHorizontal: space.lg, paddingTop: space.sm }} accessibilityLiveRegion="polite" testID={`${testID}-error`}>{error}</Text> : null}
       <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm, padding: space.sm, paddingHorizontal: space.md }}>
+        {allowFiles ? <IconButton icon="paperclip" label="Attach files" onPress={attach} color={busy ? colors.subtle : colors.fg} testID={`${testID}-attach`} /> : null}
         <TextInput value={text} onChangeText={setText} placeholder={placeholder} placeholderTextColor={colors.subtle} multiline testID={testID}
           accessibilityLabel={placeholder} accessibilityHint="Type @ to mention someone"
           style={{ flex: 1, minHeight: TOUCH, maxHeight: 140, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, color: colors.fg, paddingHorizontal: space.md, paddingTop: 11, paddingBottom: 11, fontSize: 16 }} />
-        <IconButton icon="send" label="Send" onPress={send} color={text.trim() && !sending ? colors.brand : colors.subtle} testID={`${testID}-send`} />
+        <IconButton icon="send" label="Send" onPress={send} color={ready ? colors.brand : colors.subtle} testID={`${testID}-send`} />
       </View>
     </View>
   );

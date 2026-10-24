@@ -324,7 +324,8 @@ export function useSendChat(channelId: string) {
   const { api } = useSession();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: ChatSend) => api.sendChat(channelId, input),
+    mutationFn: ({ onProgress, ...input }: ChatSend & { onProgress?: (fraction: number) => void }) =>
+      api.sendChat(channelId, input, onProgress ? { onUploadProgress: onProgress } : {}),
     onSuccess: ({ message }) => {
       if (message.parentId) {
         qc.invalidateQueries({ queryKey: keys.chatThread(message.parentId) });

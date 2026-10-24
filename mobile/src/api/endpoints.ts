@@ -70,7 +70,8 @@ export function endpoints(t: Transport) {
       t.request<{ messages: ChatMessage[]; hasMore: boolean }>("GET", `/chat/channels/${encodeURIComponent(id)}/messages${q({ limit: p.limit, before: p.before, since: p.since })}`),
     chatMessage: (id: string) => t.request<{ message: ChatMessage; channel: ChatChannel }>("GET", `/chat/messages/${encodeURIComponent(id)}`),
     chatThread: (id: string) => t.request<{ message: ChatMessage; replies: ChatMessage[] }>("GET", `/chat/messages/${encodeURIComponent(id)}/thread`),
-    sendChat: (channelId: string, input: ChatSend) => t.request<{ message: ChatMessage }>("POST", `/chat/channels/${encodeURIComponent(channelId)}/messages`, input),
+    sendChat: (channelId: string, input: ChatSend, opts: { onUploadProgress?: (fraction: number) => void } = {}) =>
+      t.request<{ message: ChatMessage }>("POST", `/chat/channels/${encodeURIComponent(channelId)}/messages`, input, opts.onUploadProgress ? { onUploadProgress: opts.onUploadProgress } : undefined),
     readChannel: (id: string, messageId?: string) => t.request<{ ok: true }>("POST", `/chat/channels/${encodeURIComponent(id)}/read`, messageId ? { messageId } : {}),
     joinChannel: (id: string) => t.request<{ channel: ChatChannel }>("POST", `/chat/channels/${encodeURIComponent(id)}/join`, {}),
     chatUnread: () => t.request<ChatUnread>("GET", "/chat/unread"),

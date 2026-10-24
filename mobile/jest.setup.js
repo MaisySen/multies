@@ -27,6 +27,7 @@ jest.mock("expo-haptics", () => ({
   ImpactFeedbackStyle: { Medium: "medium" }, NotificationFeedbackType: { Success: "success" },
 }));
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})) }));
+jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn(async () => ({ canceled: true, assets: null })) }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn(async () => true) }));
 jest.mock("expo-crypto", () => ({ randomUUID: () => "00000000-0000-4000-8000-000000000000" }));
 jest.mock("lucide-react-native", () => {
@@ -41,6 +42,6 @@ jest.mock("react-native-svg", () => {
   const { View } = require("react-native");
   const React = require("react");
   const C = (props) => React.createElement(View, props, props.children);
-  return { __esModule: true, default: C, Svg: C, Path: C, Rect: C, Circle: C, G: C };
+  return { __esModule: true, default: C, Svg: C, Path: C, Rect: C, Circle: C, G: C, Polyline: C };
 });
 jest.setTimeout(15000);

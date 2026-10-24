@@ -38,7 +38,7 @@ export default function ChatThread() {
         {replies.map((r) => <ChatMessageRow key={r.id} m={r} meId={meId} sample={mode === "sample"} onLongPress={setMenu} showReplies={false} />)}
       </ScrollView>
       <Composer people={people.data ?? []} placeholder="Reply in thread" sending={send.isPending} testID="thread-composer"
-        onSend={(body) => send.mutateAsync({ body, parentId: message.id })} />
+        onSend={(body, files, onProgress) => send.mutateAsync({ body, parentId: message.id, attachments: files, onProgress })} />
       <MessageMenu m={menu} onClose={() => setMenu(null)} onMakeTask={makeTask} busy={toTask.isPending} />
     </KeyboardAvoidingView>
   );
