@@ -5,7 +5,7 @@ and versions follow [Semantic Versioning](https://semver.org/). Before 1.0.0 eac
 version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` after the fact, so their
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
-## [Unreleased] (round 11)
+## [Unreleased] (rounds 11 and 12)
 
 Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.0 once the parts marked "after the database reset" are switched on.
 
@@ -17,9 +17,18 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 - Security: a cross workspace sweep over every id route, SSRF guard on outgoing webhooks, stricter CSRF media types, Sentry scrubbing, safer doc links and attachment downloads, audit log entries for account security changes, `npm run security` and a gitleaks pre-commit hook.
 - New A3 logo (chunky rounded M with a spark for the AI agent), across web, favicons, social card, email and the mobile icons.
 - Mobile 1.6.0 (build 7): new icon, Multies name, send files from chat. Mobile 1.7.0 (build 8): identity provider sign in and multies.si as the default server.
+- Pinned chat messages (round 12): pin a channel's welcome, rules or key links from the message menu; the newest pin shows in a bar above the messages with the rest a tap away. REST `POST`/`DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`, MCP `pin_message`. Needs migration 0023 (after the database reset).
+- Doc templates and templates from scratch (round 12): a New template dialog writes a task, doc or project template without a source item, doc templates make a doc (starters: Meeting notes, Project brief), and a doc can be saved as a template (`fromDocId`). REST `POST /api/v1/templates`, MCP `create_template`.
+- Public API (round 12): `PATCH /api/v1/chat/channels/{id}` (name, topic, archive) and `DELETE /api/v1/docs/{id}`.
+- Teams Workflows (round 12): a Microsoft Teams connector with a Workflows (Power Automate) URL gets an Adaptive Card; older connector URLs keep plain text.
+- Dashboard (round 12): a People stat counts people against seats and shows AI agent members apart; the operator console lists people and agents per workspace.
 - AI agent members: agents join People with a title, a bio and an AI agent badge, work through their own scoped API keys (member role, posts and comments under their name), need no mailbox and take no seat; 10 on Free. Titles and bios for everyone, in People, REST `/api/v1/people` and MCP `list_people`. Weekly meeting series (every 1 or 2 weeks, chosen days, end date or count) expanded on read, with the RRULE in the .ics. Needs migration 0022 (after the database reset).
 
 ### Changed
+- Booking pages (round 12): every occurrence of the host's weekly meeting series counts as busy, worked out on read with no extra rows.
+- Calendar files (round 12): a meeting series' .ics carries a VTIMEZONE for its time zone, so older Outlook versions accept it.
+- Demo speed (round 12): the plan limit check counts only what it creates, so opening a demo no longer reads usage counters once per mailbox, alias and domain (157 to 115 queries, Sentry MYMAIL-API-M).
+- Dogfood setup (round 12): `scripts/dogfood/org-setup.ts` makes agents as agent members, pins each channel's welcome and writes templates through the public API.
 - Demo workspace opens faster: POST /demo runs 157 queries instead of 382 and the sample seed writes its activity rows in one batch (Sentry MYMAIL-API-H and N).
 - D1 daily write budget: the demo has a daily cap, maintenance skips demo workspaces, the cron runs every 15 minutes, and write cap errors become a short read only notice instead of a server error.
 - Accessibility: no moderate or worse axe findings on any app or public page, light and dark, desktop and phone; the axe E2E fails on moderate.

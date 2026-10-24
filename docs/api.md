@@ -28,6 +28,7 @@ App API (`/api/chat`):
 - `POST /channels/:id/messages` (`body`, `parentId?`, `attachments?: [{ filename, contentType?, contentBase64 }]`)
 - `GET /messages/:id`, `GET /messages/:id/thread`, `PATCH` and `DELETE /messages/:id`
 - `POST /messages/:id/task`: turn a message into a task that links back to it
+- `POST` and `DELETE /messages/:id/pin`: pin a top level message to its channel or unpin it (up to 50 per channel; a reply answers 422); `GET /channels/:id/pins` lists them, newest pin first. Messages carry `pinnedAt` and `pinnedBy` (a name).
 - `GET /unread`, `GET /people` (for mentions and new DMs)
 - `GET /files/:id`, and `GET /files/:id/download?exp=&sig=`: a signed link valid for at least 15 minutes that needs no session (used by the phone app)
 - Guests use `/api/guest/chat` and see only channels shared with their project.
@@ -36,8 +37,10 @@ Body markup, the same in every client: `<@member:USER_ID>`, `<@agent:AGENT_ID>`,
 `<#task:ID>`, `<#thread:ID>`, `<#doc:ID>`. Responses carry `mentions` and `links` resolved with names.
 Clients poll `GET /unread` every 15 s and the open channel with `?since=` every 4 s while visible.
 
-Public API: `GET` and `POST /api/v1/chat/channels`, `GET` and `POST /api/v1/chat/channels/{id}/messages`,
-`GET /api/v1/chat/messages/{id}/thread`, `POST /api/v1/chat/messages/{id}/task`. An agent key posts as its agent.
+Public API: `GET` and `POST /api/v1/chat/channels`, `PATCH /api/v1/chat/channels/{id}` (`name?`, `topic?`, `archived?`,
+`projectId?`, `guestAccess?`), `GET` and `POST /api/v1/chat/channels/{id}/messages`, `GET /api/v1/chat/messages/{id}/thread`,
+`POST /api/v1/chat/messages/{id}/task`, `POST` and `DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`.
+An agent key posts as its agent. MCP: `pin_message` (`messageId`, `pinned`).
 
 ## Notifications
 
@@ -61,9 +64,20 @@ MCP: `set_task_repeat`.
 
 ## Templates
 
-- App API: `GET /api/templates`, `POST /api/templates`, `GET /api/templates/:id`, `POST /api/templates/:id/use`, `DELETE /api/templates/:id`
-- Public API: `GET /api/v1/templates`, `GET /api/v1/templates/{id}`, `POST /api/v1/templates/{id}/use` (`name?`, `projectId?` for a task template, `startDate?`; due dates count from it)
-- The starter gallery: client onboarding, content calendar, sales pipeline, bug tracker. Event: `template.used`. MCP: `list_templates`, `use_template`.
+Kinds: `project`, `task` and `doc`. A template is saved from an item (`fromProjectId`, `fromTaskId`, `fromDocId`) or
+written from scratch with `data`:
+
+- project: `{ project: { name, description?, color? }, tasks: [{ title, notes?, priority?, dueInDays?, status?, labels?, subtasks? }] }` (up to 200 tasks)
+- task: `{ title, notes?, priority?, dueInDays?, labels?, subtasks? }`
+- doc: `{ title, text }`, one paragraph per line, `#` for a heading and `-` for a bullet
+
+Using a doc template makes a doc (`{ kind: "doc", doc }`), in `projectId` when given.
+
+- App API: `GET /api/templates?kind=`, `POST /api/templates` (`kind`, `name?`, `description?`, `category?`, then `data` or a `from...` id), `GET /api/templates/:id`, `POST /api/templates/:id/use`, `DELETE /api/templates/:id`
+- Public API: `GET /api/v1/templates`, `POST /api/v1/templates` (same body), `GET /api/v1/templates/{id}`, `POST /api/v1/templates/{id}/use` (`name?`, `projectId?` for a task or doc template, `startDate?`; due dates count from it)
+- The starter gallery: client onboarding, content calendar, sales pipeline, bug tracker, and the doc starters meeting notes and project brief. Event: `template.used`. MCP: `list_templates`, `use_template`, `create_template`.
+
+Docs: the public API also has `DELETE /api/v1/docs/{id}` (a soft delete; the doc then answers 404).
 
 ## Goals and key results
 
@@ -83,7 +97,10 @@ A catalogue of no-cost targets built on the outgoing webhooks below: Slack (inco
 (channel webhook), Microsoft Teams (incoming webhook or Workflows webhook), Zapier (Catch Hook), Make
 (custom webhook), n8n (Webhook node), Google Sheets (an Apps Script web app) and any HTTPS URL.
 Connecting means pasting the URL and choosing events. Slack, Discord and Teams get a one line chat
-message (`{ "text": ... }`, or `{ "content": ... }` for Discord); the others get the standard signed
+message (`{ "text": ... }`, or `{ "content": ... }` for Discord). A Teams Workflows URL (a Power Automate
+flow on `*.logic.azure.com` or `*.powerplatform.com`, or any `/workflows/` path) gets an Adaptive Card
+message instead (`{ "type": "message", "attachments": [{ "contentType": "application/vnd.microsoft.card.adaptive", "content": { "type": "AdaptiveCard", "version": "1.4", ... } }] }`),
+which the "Post to a channel when a webhook request is received" flow posts as is; the others get the standard signed
 JSON event and a `whsec_` secret, shown once. Each connection is an outgoing webhook endpoint with a
 `format` (json, slack, discord, teams) and a `connector`, so retries, dead letters and replay work the same.
 
@@ -115,7 +132,8 @@ update of the hook row, and emits `incoming_hook.received`.
 Off unless the server sets `SCHEDULING_ENABLED=true`; when off, the page and every endpoint below answer
 404. A member sets weekly hours (per day, in their time zone), a slot length of 15, 30, 45 or 60
 minutes, a buffer, how far ahead people can book and the minimum notice, and shares `/book/<slug>`.
-Free slots leave out the host's own scheduled meetings and other bookings (widened by the buffer).
+Free slots leave out the host's own scheduled meetings, every occurrence of the host's weekly series
+(worked out on read) and other bookings, widened by the buffer.
 A booking creates a meeting (with its video guest link when video is on), emails the guest a
 confirmation through system mail with an `.ics` link and a cancel link, and notifies the host in the app.
 No paid calendar APIs and no phone spend. A booking costs two inserts; a slot can only be booked once.
@@ -148,13 +166,13 @@ A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional
 
 - Create or edit with `recurrence`, either `{ interval: 1 | 2, days: ["mo", "we"], until: "YYYY-MM-DD" | null, count: n | null, timezone }` (the zone defaults to the workspace's) or an RRULE string such as `FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10`. The first meeting's weekday is always part of the series. `null` makes it a one off.
 - `PATCH /api/v1/meetings/{id}` edits the whole series (title, start, length, guests, recurrence).
-- `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...`. Calendar invites carry the same.
+- `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...` and a `VTIMEZONE` for that zone (yearly STANDARD and DAYLIGHT rules from the runtime's zone data, or one STANDARD part for a zone without daylight saving), which older Outlook versions need. Calendar invites carry the same.
 - Meetings come back with `recurrence: { interval, days, until, count, rrule, timezone, summary }` or null. MCP: `schedule_meeting` takes `repeats` (an RRULE), `list_meetings` returns `repeats`.
 
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
