@@ -97,7 +97,7 @@ horizontal overflow on inbox, mail, chat, tasks, goals, docs, meetings, team, se
 templates, notifications, integrations or portfolio.
 
 1. **High.** `GET /api/v1/docs` answers the API reference page instead of the docs list (the two share a path), so no integration can list docs and find-or-create makes duplicates.
-2. **High.** Chat shows an agent's post as `API key "Builder agent key"` instead of "Builder"; a workspace key's post shows as a member named `API key "Org setup script"`.
+2. **Fixed in round 13** (an agent member's key posts under its name with its title and an agent label; a workspace key posts as the workspace). Chat shows an agent's post as `API key "Builder agent key"` instead of "Builder"; a workspace key's post shows as a member named `API key "Org setup script"`.
 3. **High, top feature.** Agents are mail inboxes, not team members: each needs a mailbox on a domain, they are missing from People and Settings Team, the Agents page shows only addresses (no title or bio), and Free stops at 3, so a six agent team cannot be built.
 4. **Medium.** Members have no title or bio; invites cannot carry one; nobody can be invited as Owner (only admin or member).
 5. **Medium.** Key results that count down ("open high severity bugs, 10 to 0") show "10 of 0" and 0 percent.
@@ -106,14 +106,14 @@ templates, notifications, integrations or portfolio.
 8. **Fixed in round 12.** Chat has no pinned messages, so each channel's welcome and rules scroll away.
 9. **Fixed in round 12** (doc templates with two starters, templates from scratch in the app and the API). Templates are only for projects and tasks, saved from an existing item; no doc templates and no template from scratch.
 10. **Medium.** Phone: Tasks opens as a board with the second column cut off; goal key result names wrap to four lines; the chat composer shows keyboard hints and a sample ref (OPS-12) from another workspace.
-11. **Medium.** Inbound: support@ and security@ on the company domain do not reach the workspace shared inbox yet (the builder owns the Email Routing side).
-12. **Low.** New projects default to the email status "Waiting on reply".
-13. **Low.** Sign up makes an extra empty workspace, and a new sign in opens it rather than the last one used.
-14. **Low.** The docs list preview repeats the title and runs headings into the body.
-15. **Low.** Settings Team leads with the single sign on card; agents are not shown beside the seats.
-16. **Low.** The sidebar has Mail and Team inbox side by side and more than 20 items.
-17. **Low.** Copy: "Video isn't switched on for this Multies yet".
-18. **Low.** On the node entry without SUPPORT_EMAIL, `/api/config` reports the old support@mymail.au.
+11. **Medium, unblocked in round 13; the builder finishes it after the deploy** (multies.si per docs/runbooks/multies-si-mailboxes.md; a customer domain on any DNS provider now receives through the provider's MX, see docs/transactional-email.md). Inbound: support@ and security@ on the company domain do not reach the workspace shared inbox yet (the builder owns the Email Routing side).
+12. **Fixed in round 13** (To do, In progress, In review, Done). New projects default to the email status "Waiting on reply".
+13. **Fixed in round 13** (a new sign in opens the workspace used last; the first workspace stays, since a new account needs a place to land). Sign up makes an extra empty workspace, and a new sign in opens it rather than the last one used.
+14. **Fixed in round 13.** The docs list preview repeats the title and runs headings into the body.
+15. **Fixed in round 13** (members first, agents counted beside seats, SSO card last). Settings Team leads with the single sign on card; agents are not shown beside the seats.
+16. **Fixed in round 13** (grouped into Work, Mail and Admin; Team inbox is now Shared inbox under Mail). The sidebar has Mail and Team inbox side by side and more than 20 items.
+17. **Fixed in round 13** ("Video calls aren't switched on for this workspace yet"). Copy: "Video isn't switched on for this Multies yet".
+18. **Fixed in round 13** (support@multies.si). On the node entry without SUPPORT_EMAIL, `/api/config` reports the old support@mymail.au.
 
 ## Screenshots
 

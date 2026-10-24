@@ -177,6 +177,18 @@ The tools at the time of writing (the generated list is in [qa/inventory.md](qa/
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
 
+## Transactional email (no SMTP)
+
+Multies has no SMTP server. Apps send over HTTPS: `POST /api/v1/messages` takes `from` (a mailbox address) as
+well as `mailboxId`. A Supabase project sends its auth emails through `POST /api/v1/auth-email-hooks`
+(`from`, `secret` from Supabase's Send Email Hook, `supabaseUrl`, `appName?`): the answer's `url`
+(`/api/auth-hooks/supabase/{id}`) goes into Supabase. `GET` lists hooks, `DELETE /{id}` removes one. Workspace keys only.
+Full setup, including the DNS records for a customer domain: [transactional-email.md](transactional-email.md).
+
+Domains (`/api/domains`, `/api/v1/domains`) carry `sending: { status: verified | pending | error, detail }` when the
+domain is registered with the outbound provider, and their `records` then list the provider's DKIM, return path
+(`return_mx`, `return_spf`) and receiving MX.
+
 ## Outgoing webhooks
 
 Endpoints are added in Settings, Developers (or `/api/developer`). Deliveries follow

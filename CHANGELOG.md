@@ -5,11 +5,15 @@ and versions follow [Semantic Versioning](https://semver.org/). Before 1.0.0 eac
 version. Round dates are UTC. Rounds 1 to 9 were reconstructed from `git log` after the fact, so their
 boundaries are approximate; from round 10 on, this file is updated in the same release.
 
-## [Unreleased] (rounds 11 and 12)
+## [Unreleased] (rounds 11, 12 and 13)
 
 Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.0 once the parts marked "after the database reset" are switched on.
 
 ### Added
+- Customer domains on any DNS provider (round 13, deploy pending, migration 0024): a new domain is registered with the outbound provider for sending and receiving, and the setup page lists the exact records with copy buttons (ownership, receiving MX, SPF, the provider's DKIM, the return path MX and SPF on `send.`, DMARC). Check DNS asks the provider to verify too; mail to the domain arrives through the provider's MX (`email.received`). No nameserver change. See docs/transactional-email.md.
+- Transactional email without SMTP (round 13): `POST /api/v1/messages` accepts `from` (a mailbox address), and a Supabase Send Email Hook endpoint (`/api/v1/auth-email-hooks`, `/api/auth-hooks/supabase/{id}`) sends a Supabase project's auth emails from a workspace mailbox such as no-reply@.
+- Save as template in the doc editor (round 13).
+- Chat (round 13): posts made with an agent member's key show its name, title and an agent label; a workspace key posts as the workspace name.
 - multies.si: the app, the API and the landing page answer on https://multies.si (www redirects to the apex), outbound mail comes from no-reply@multies.si, and inbound mail for multies.si reaches the inbound worker.
 - Integrations page (`/app/integrations`): outgoing connectors for Slack, Discord, Microsoft Teams, Zapier, Make, n8n, Google Sheets and any URL, built on the signed webhooks (chat apps get a message body); incoming webhooks at `/api/hooks/in/<token>` that create a task, post a chat message or create a contact; REST, MCP and the `incoming_hook.received` event. Needs migration 0021 (after the database reset).
 - Booking pages (`/app/scheduling`, public `/book/<slug>`) behind `SCHEDULING_ENABLED`: weekly hours per time zone, slot lengths from 15 to 60 minutes, buffer, notice and horizon, a meeting with its video link per booking, confirmation email with an .ics and a cancel link; REST, MCP and `booking.created` / `booking.cancelled`. Off on production until migration 0021 runs.
@@ -25,6 +29,7 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 - AI agent members: agents join People with a title, a bio and an AI agent badge, work through their own scoped API keys (member role, posts and comments under their name), need no mailbox and take no seat; 10 on Free. Titles and bios for everyone, in People, REST `/api/v1/people` and MCP `list_people`. Weekly meeting series (every 1 or 2 weeks, chosen days, end date or count) expanded on read, with the RRULE in the .ics. Needs migration 0022 (after the database reset).
 
 ### Changed
+- Dogfood fixes (round 13): new projects use To do, In progress, In review, Done; sign in returns to the workspace used last; doc previews drop a repeated title; Settings Team lists members first with agents counted beside seats; the sidebar is grouped into Work, Mail and Admin and Team inbox is now Shared inbox; video and import copy name the workspace; the default support address is support@multies.si.
 - Booking pages (round 12): every occurrence of the host's weekly meeting series counts as busy, worked out on read with no extra rows.
 - Calendar files (round 12): a meeting series' .ics carries a VTIMEZONE for its time zone, so older Outlook versions accept it.
 - Demo speed (round 12): the plan limit check counts only what it creates, so opening a demo no longer reads usage counters once per mailbox, alias and domain (157 to 115 queries, Sentry MYMAIL-API-M).
