@@ -127,6 +127,18 @@ CI (`.github/workflows/ci.yml`) runs all of these, plus a dependency audit gate 
 `security.yml` runs Semgrep and gitleaks, `zap.yml` runs a weekly OWASP ZAP baseline, Dependabot
 keeps dependencies current, and `backup.yml` takes nightly encrypted database backups.
 
+## Run it on your own computer
+
+The whole of MyMail (web app, API, database, and a real mail server for sending and receiving)
+runs on one Windows, macOS or Linux computer with Docker:
+
+```sh
+scripts/selfhost/setup.sh      # Windows: powershell -ExecutionPolicy Bypass -File scripts\selfhost\setup.ps1
+```
+
+Then open http://localhost:8787. Moving data across from the hosted version, backups, and
+pointing a domain at it are in [docs/self-host.md](docs/self-host.md).
+
 ## Environments and deploys
 
 | Environment | URL | Database | Deploys |
