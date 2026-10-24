@@ -106,7 +106,7 @@ export function MarketingLayout() {
               <li><Link to="/terms" className="hover:text-fg">Terms</Link></li>
               <li><Link to="/acceptable-use" className="hover:text-fg">Acceptable use</Link></li>
               <li><Link to="/dpa" className="hover:text-fg">Data processing</Link></li>
-              <li><a href="/.well-known/security.txt" className="hover:text-fg">Security</a></li>
+              <li><Link to="/trust" className="hover:text-fg">Security and trust</Link></li>
             </ul>
           </div>
         </div>

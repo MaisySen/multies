@@ -23,7 +23,7 @@ const SLOP_RE = new RegExp(`\\b(${SLOP.map((w) => w.replace(/[-']/g, (c) => `\\$
 
 /** Files whose words reach people: the web app, email templates, docs. */
 export function isUserFacing(file: string) {
-  return /^(src\/web\/|docs\/|README\.md$|index\.html$|src\/server\/auth\.ts$|src\/server\/services\/(system-mail|demo)\.ts$|src\/server\/services\/dns\/checks\.ts$|src\/server\/services\/mail-check\.ts$|src\/shared\/mail-check\.ts$|mail-server\/)/.test(file);
+  return /^(src\/web\/|docs\/|README\.md$|index\.html$|src\/server\/auth\.ts$|src\/server\/services\/(system-mail|demo)\.ts$|src\/server\/services\/dns\/checks\.ts$|src\/server\/services\/mail-check\.ts$|src\/shared\/mail-check\.ts$|src\/shared\/trust\.ts$|src\/shared\/undo-send\.ts$|mail-server\/)/.test(file);
 }
 
 /** The product's old name. People see "Multies"; internal names (the worker, hosts, headers) are not prose. */

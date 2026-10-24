@@ -4,7 +4,7 @@
  * link checkers see a real 404. Keep this in step with the router.
  */
 const EXACT = new Set([
-  "/", "/pricing", "/agents", "/check", "/status", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
+  "/", "/pricing", "/agents", "/check", "/trust", "/status", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
   "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks",
 ]);
 const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/"];

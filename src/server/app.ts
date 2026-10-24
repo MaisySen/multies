@@ -158,7 +158,7 @@ export function createApp(deps: Deps) {
       `Expires: ${expires}`,
       "Preferred-Languages: en",
       `Canonical: ${deps.config.appUrl}/.well-known/security.txt`,
-      `Policy: ${deps.config.appUrl}/security`,
+      `Policy: ${deps.config.appUrl}/trust`,
       "",
     ].join("\n"));
   });
