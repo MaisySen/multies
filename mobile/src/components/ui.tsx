@@ -1,16 +1,19 @@
-import { forwardRef, type ComponentRef, type ReactNode } from "react";
+import { forwardRef, useEffect, useState, type ComponentRef, type ReactNode } from "react";
 import {
-  ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View,
+  ActivityIndicator, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View,
   type PressableProps, type StyleProp, type TextInputProps, type TextStyle, type ViewStyle,
 } from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { colors, font, radius, space, TOUCH } from "@/theme";
+import { colors, font, motion, radius, shadow, space, TOUCH } from "@/theme";
 import { initials } from "@/lib/format";
+import { useReduceMotion } from "@/lib/motion";
+import { ICONS, type IconName } from "./icons";
 
-export type IconName = keyof typeof Feather.glyphMap;
+export type { IconName } from "./icons";
 
+/** A Lucide line icon (ISC licence), 2 pt stroke, hidden from screen readers: the control carries the label. */
 export function Icon({ name, size = 20, color = colors.muted }: { name: IconName; size?: number; color?: string }) {
-  return <Feather name={name} size={size} color={color} accessibilityElementsHidden importantForAccessibility="no" />;
+  const Glyph = ICONS[name];
+  return <Glyph size={size} color={color} strokeWidth={size <= 16 ? 2.25 : 2} accessibilityElementsHidden importantForAccessibility="no" testID={`icon-${name}`} />;
 }
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -39,7 +42,7 @@ export function Button({ label, onPress, variant = "primary", icon, loading, dis
 }
 
 const variants: Record<Variant, { bg: string; pressed: string; fg: string; border: string }> = {
-  primary: { bg: colors.brand, pressed: colors.brandHover, fg: colors.brandFg, border: colors.brand },
+  primary: { bg: colors.brandFill, pressed: colors.brandHover, fg: colors.brandFg, border: colors.brandFill },
   secondary: { bg: colors.elevated, pressed: colors.hover, fg: colors.fg, border: colors.lineStrong },
   ghost: { bg: "transparent", pressed: colors.hover, fg: colors.fg, border: "transparent" },
   danger: { bg: colors.badSoft, pressed: "rgba(251,113,133,0.2)", fg: colors.bad, border: "rgba(251,113,133,0.35)" },
@@ -85,7 +88,7 @@ const tones: Record<Tone, { bg: string; fg: string }> = {
   ok: { bg: colors.okSoft, fg: colors.ok },
   warn: { bg: colors.warnSoft, fg: colors.warn },
   bad: { bg: colors.badSoft, fg: colors.bad },
-  neutral: { bg: "rgba(255,255,255,0.06)", fg: colors.muted },
+  neutral: { bg: colors.neutralSoft, fg: colors.muted },
 };
 
 export function Badge({ label, tone = "neutral", icon }: { label: string; tone?: Tone; icon?: IconName }) {
@@ -136,7 +139,7 @@ export function Segmented<T extends string>({ value, options, onChange, label }:
 export function Chip({ label, selected, onPress, count }: { label: string; selected?: boolean; onPress?: () => void; count?: number }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? `${label}, ${count} unread` : label}
-      style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: "rgba(255,106,61,0.45)" }]}>
+      style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
       <Text style={{ color: selected ? colors.brand : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
       {count ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 13 }}>{count}</Text> : null}
     </Pressable>
@@ -175,9 +178,53 @@ export function Row({ icon, label, value, onPress, danger, testID }: { icon: Ico
   );
 }
 
-export function Loading({ label = "Loading" }: { label?: string }) {
-  return <View style={{ padding: space.xxl, alignItems: "center" }}><ActivityIndicator color={colors.brand} accessibilityLabel={label} /></View>;
+/** A gently pulsing placeholder block. Still when Reduce Motion is on. */
+export function Skeleton({ width, height = 14, radius: r = 6, style }: { width?: number | `${number}%`; height?: number; radius?: number; style?: StyleProp<ViewStyle> }) {
+  const reduce = useReduceMotion();
+  const [pulse] = useState(() => new Animated.Value(0.55));
+  useEffect(() => {
+    if (reduce) return;
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 700, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0.55, duration: 700, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, [reduce, pulse]);
+  return <Animated.View style={[{ width: width ?? "100%", height, borderRadius: r, backgroundColor: colors.elevated, opacity: pulse }, style]} />;
 }
+
+/** Loading state: skeleton rows shaped like a list, instead of a spinner. */
+export function Loading({ label = "Loading", rows = 6 }: { label?: string; rows?: number }) {
+  return (
+    <View style={{ paddingVertical: space.md }} accessible accessibilityRole="progressbar" accessibilityLabel={label} testID="loading">
+      {Array.from({ length: rows }, (_, i) => (
+        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
+          <Skeleton width={36} height={36} radius={18} />
+          <View style={{ flex: 1, gap: space.sm }}>
+            <Skeleton width={i % 2 ? "55%" : "70%"} height={13} />
+            <Skeleton width={i % 3 ? "85%" : "65%"} height={11} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** A large title header (34 pt), as iOS shows at the top of a tab, with optional actions on the right. */
+export function LargeTitle({ title, subtitle, right, top = 0 }: { title: string; subtitle?: string | null; right?: ReactNode; top?: number }) {
+  return (
+    <View style={{ paddingTop: top + space.md, paddingHorizontal: space.lg, paddingBottom: space.sm, flexDirection: "row", alignItems: "flex-end", gap: space.sm, backgroundColor: colors.bg }}>
+      <View style={{ flex: 1 }}>
+        <Text style={font.largeTitle} accessibilityRole="header" numberOfLines={1}>{title}</Text>
+        {subtitle ? <Text style={font.tiny} numberOfLines={1}>{subtitle}</Text> : null}
+      </View>
+      {right ? <View style={{ flexDirection: "row", alignItems: "center", paddingBottom: 2 }}>{right}</View> : null}
+    </View>
+  );
+}
+
+export { motion };
 
 export function PressableCard(props: PressableProps & { children: ReactNode; style?: StyleProp<ViewStyle> }) {
   const { style, children, ...rest } = props;
@@ -188,11 +235,11 @@ export const styles = StyleSheet.create({
   button: { minHeight: TOUCH + 4, borderRadius: radius.md, paddingHorizontal: space.lg, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: space.sm, borderWidth: 1 },
   buttonText: { fontSize: 16, fontWeight: "600" },
   iconButton: { width: TOUCH, height: TOUCH, borderRadius: TOUCH / 2, alignItems: "center", justifyContent: "center" },
-  iconBadge: { position: "absolute", top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.brand, borderWidth: 2, borderColor: colors.bg },
+  iconBadge: { position: "absolute", top: 9, right: 9, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.bad, borderWidth: 2, borderColor: colors.bg },
   label: { color: colors.muted, fontSize: 14, fontWeight: "500" },
   input: { minHeight: TOUCH + 4, borderRadius: radius.md, borderWidth: 1, borderColor: colors.lineStrong, backgroundColor: colors.surface, color: colors.fg, paddingHorizontal: space.md, fontSize: 16 },
   error: { color: colors.bad, fontSize: 13 },
-  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.line, padding: space.lg },
+  card: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, padding: space.lg, ...shadow },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.pill, alignSelf: "flex-start" },
   badgeText: { fontSize: 12, fontWeight: "600" },
   avatar: { alignItems: "center", justifyContent: "center" },

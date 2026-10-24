@@ -81,7 +81,7 @@ export default function Thread() {
 
 function MessageCard({ m, agentName }: { m: Message; agentName?: string }) {
   return (
-    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: agentName ? "rgba(255,106,61,0.35)" : colors.line, padding: space.lg, gap: space.md }}>
+    <View style={{ backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: agentName ? colors.brandLine : colors.line, padding: space.lg, gap: space.md }}>
       <View style={{ flexDirection: "row", gap: space.md, alignItems: "center" }}>
         <Avatar name={displayName(m.from)} agent={!!agentName} size={36} />
         <View style={{ flex: 1 }}>

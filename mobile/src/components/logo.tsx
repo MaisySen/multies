@@ -1,13 +1,11 @@
-import { View } from "react-native";
-import { Feather } from "@expo/vector-icons";
-import { colors } from "@/theme";
+import Svg, { Path, Rect } from "react-native-svg";
 
-/** The MyMail mark: an envelope on a vermilion tile, as in the web favicon. */
+/** The MyMail mark: an M whose middle stroke is an envelope flap, white on the blue tile. Same geometry as brand/logo-mark.svg. */
 export function Logo({ size = 40 }: { size?: number }) {
   return (
-    <View accessibilityRole="image" accessibilityLabel="MyMail"
-      style={{ width: size, height: size, borderRadius: size * 0.25, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }}>
-      <Feather name="mail" size={size * 0.55} color={colors.brandFg} />
-    </View>
+    <Svg width={size} height={size} viewBox="0 0 64 64" accessibilityRole="image" accessibilityLabel="MyMail">
+      <Rect width={64} height={64} rx={14.4} fill="#0071E3" />
+      <Path d="M18 44V21l14 12 14-12v23" fill="none" stroke="#FFFFFF" strokeWidth={5.5} strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
   );
 }

@@ -13,17 +13,17 @@ export function sampleFields(projectId: string): CustomField[] {
   return [
     f("fld_budget", "Budget", "currency", 0),
     f("fld_client", "Client", "select", 1, [
-      { id: "opt_bondi", label: "Bondi Bakehouse", color: "#f5a524" },
-      { id: "opt_greenroof", label: "Green Roof Cafe", color: "#2fbf71" },
-      { id: "opt_internal", label: "Harbour Coffee Co", color: "#ff6a3d" },
+      { id: "opt_bondi", label: "Bondi Bakehouse", color: "#8E8E93" },
+      { id: "opt_greenroof", label: "Green Roof Cafe", color: "#636366" },
+      { id: "opt_internal", label: "Harbour Coffee Co", color: "#0071E3" },
     ]),
     f("fld_approved", "Approved", "checkbox", 2),
     f("fld_signoff", "Sign off by", "date", 3),
     f("fld_hours", "Estimate (hours)", "number", 4),
     f("fld_channels", "Channels", "multiselect", 5, [
-      { id: "opt_email", label: "Email", color: "#60a5fa" },
-      { id: "opt_phone", label: "Phone", color: "#a78bfa" },
-      { id: "opt_stall", label: "Market stall", color: "#f472b6" },
+      { id: "opt_email", label: "Email", color: "#0071E3" },
+      { id: "opt_phone", label: "Phone", color: "#8E8E93" },
+      { id: "opt_stall", label: "Market stall", color: "#636366" },
     ]),
     f("fld_reviewer", "Reviewer", "person", 6),
     f("fld_link", "Supplier page", "url", 7),
@@ -91,10 +91,10 @@ export function samplePortfolio(work: SampleWork, extras: SampleExtras, now: num
   return {
     projects: [
       ops,
-      { id: "prj_kiosk", name: "Surry Hills kiosk", key: "KSK", color: "#60a5fa", archived: false, owner: { id: "usr_josh", name: "Josh Tran" },
+      { id: "prj_kiosk", name: "Surry Hills kiosk", key: "KSK", color: "#8E8E93", archived: false, owner: { id: "usr_josh", name: "Josh Tran" },
         health: "on_track", healthNote: null, progress: 35, total: 20, done: 7, overdue: 0, timeLoggedSeconds: 14 * 3600 + 20 * 60,
         nextDue: day(6), nextDueTask: null },
-      { id: "prj_markets", name: "Marrickville Markets stall", key: "MKT", color: "#f472b6", archived: false, owner: null,
+      { id: "prj_markets", name: "Marrickville Markets stall", key: "MKT", color: "#636366", archived: false, owner: null,
         health: null, healthNote: null, progress: 80, total: 10, done: 8, overdue: 1, timeLoggedSeconds: 5 * 3600 + 5 * 60,
         nextDue: null, nextDueTask: null },
     ],

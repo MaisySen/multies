@@ -16,7 +16,7 @@ export function ApprovalCard({ a, agent, onDecide, busy }: { a: Approval; agent?
   const pending = a.status === "pending";
   const haptic = () => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); };
   return (
-    <Card style={{ gap: space.md, borderColor: pending ? "rgba(255,106,61,0.3)" : colors.line }}>
+    <Card style={{ gap: space.md, borderColor: pending ? colors.brandLine : colors.line }}>
       <Pressable onPress={() => router.push({ pathname: "/approval/[id]", params: { id: a.id } })} accessibilityRole="button"
         accessibilityLabel={`${agent?.name ?? "An agent"} wants to send "${a.subject}" to ${a.to.join(", ")}. ${st.label}.`} accessibilityHint="Opens the full message to review or edit"
         style={({ pressed }) => ({ gap: space.md, opacity: pressed ? 0.75 : 1 })}>

@@ -15,7 +15,7 @@ export default function Portfolio() {
   if (q.error) return <EmptyState icon="alert-circle" title="Couldn't load the portfolio" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />;
   const list = sortPortfolio(q.data.projects);
   return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl * 2 }}
+    <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl * 2 }}
       refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); }} />} testID="portfolio">
       {offline ? <Banner text="You're offline. This is the portfolio saved on this phone." /> : null}
       {list.length ? (
@@ -55,7 +55,7 @@ function ProjectRow({ p }: { p: PortfolioProject }) {
           <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 14 }}>{pct}%</Text>
           <Text style={font.tiny}>{p.done} of {p.total} done</Text>
         </View>
-        <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.08)", overflow: "hidden" }}>
+        <View style={{ height: 8, borderRadius: 4, backgroundColor: colors.neutralSoft, overflow: "hidden" }}>
           <View style={{ width: `${pct}%`, height: 8, borderRadius: 4, backgroundColor: p.color ?? colors.brand }} />
         </View>
       </View>

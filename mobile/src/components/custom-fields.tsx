@@ -79,7 +79,7 @@ function Value({ field, shown }: { field: CustomField; shown: ShownValue }) {
 export function Pill({ label, color }: { label: string; color: string | null }) {
   const c = color ?? colors.muted;
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: colors.line }}>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 9, paddingVertical: 3, borderRadius: radius.pill, backgroundColor: colors.neutralSoft, borderWidth: 1, borderColor: colors.line }}>
       <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c }} />
       <Text style={{ color: colors.fg, fontSize: 13, fontWeight: "600" }}>{label}</Text>
     </View>

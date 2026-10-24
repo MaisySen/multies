@@ -25,7 +25,7 @@ export function sampleWork(now: number, messages: Message[]): SampleWork {
     { id: "agent:agt_support", type: "agent", name: "Support triage", email: "support-agent@harbourcoffee.com.au" },
   ];
   const project: Project = {
-    id: "prj_ops", name: "Operations", key: "OPS", color: "#ff6a3d",
+    id: "prj_ops", name: "Operations", key: "OPS", color: "#0071E3",
     statuses: (["todo", "doing", "done"] as TaskStatus[]).map((c, i) => ({ id: STATUS_IDS[c].id, name: STATUS_IDS[c].name, category: c, color: STATUS_IDS[c].color, position: i })),
   };
   const work: SampleWork = { project, tasks: [], comments: [], assignees, seq: 0, fields: sampleFields(project.id) };
