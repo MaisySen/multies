@@ -6,19 +6,20 @@ import { Spinner } from "./spinner";
 type Variant = "primary" | "secondary" | "ghost" | "danger" | "outline";
 type Size = "sm" | "md" | "lg" | "icon";
 
-const base = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background,color,border,box-shadow,transform] duration-150 select-none disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]";
+const base = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-[background-color,color,border-color,box-shadow,transform,opacity] duration-150 ease-out select-none disabled:pointer-events-none disabled:opacity-40 active:scale-[0.97] active:opacity-90 [&_svg]:shrink-0";
 const variants: Record<Variant, string> = {
-  primary: "bg-fg text-bg hover:bg-white shadow-[0_1px_0_0_rgb(255_255_255/0.4)_inset]",
-  secondary: "bg-elevated text-fg border border-line hover:bg-hover hover:border-line-strong",
-  outline: "border border-line-strong text-fg hover:bg-elevated",
-  ghost: "text-muted hover:text-fg hover:bg-elevated",
-  danger: "bg-bad text-bg hover:bg-bad/90",
+  primary: "bg-brand text-brand-fg hover:bg-brand/90",
+  secondary: "bg-fill text-fg hover:bg-hover",
+  outline: "border border-line-strong text-fg hover:bg-hover",
+  ghost: "text-muted hover:text-fg hover:bg-hover",
+  danger: "bg-bad-soft text-bad hover:bg-bad/15",
 };
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-[13px]",
-  md: "h-9 px-3.5 text-sm",
+  // Phone widths get 44 px touch targets (Apple HIG).
+  sm: "h-8 px-3 text-[13px] max-sm:min-h-11 max-sm:px-3.5",
+  md: "h-9 px-4 text-sm max-sm:min-h-11",
   lg: "h-11 px-5 text-[15px]",
-  icon: "h-8 w-8",
+  icon: "h-8 w-8 max-sm:min-h-11 max-sm:min-w-11",
 };
 
 export function buttonClass(variant: Variant = "primary", size: Size = "md", className?: string) {

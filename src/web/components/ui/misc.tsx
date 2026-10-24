@@ -3,12 +3,12 @@ import { Check, Copy } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("rounded-xl border border-line bg-surface", className)} {...rest}>{children}</div>;
+  return <div className={cn("rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
 }
 
 type Tone = "neutral" | "ok" | "warn" | "bad" | "brand";
 const tones: Record<Tone, string> = {
-  neutral: "bg-white/[0.06] text-muted border-line",
+  neutral: "bg-fill text-muted border-line",
   ok: "bg-ok-soft text-ok border-ok/20",
   warn: "bg-warn-soft text-warn border-warn/20",
   bad: "bg-bad-soft text-bad border-bad/20",
@@ -30,10 +30,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function EmptyState({ icon, title, body, action, className }: { icon: ReactNode; title: string; body: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center px-6 py-14 text-center", className)}>
-      <div className="relative mb-5">
-        <div className="absolute inset-0 -m-3 rounded-full bg-brand/10 blur-xl" aria-hidden />
-        <div className="relative grid h-12 w-12 place-items-center rounded-xl border border-line-strong bg-elevated text-muted [&_svg]:h-5 [&_svg]:w-5">{icon}</div>
-      </div>
+      <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</div>
       <h2 className="text-[15px] font-semibold">{title}</h2>
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}
@@ -51,7 +48,7 @@ export function CopyButton({ value, label = "Copy", className }: { value: string
         setDone(true);
         setTimeout(() => setDone(false), 1400);
       }}
-      className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-line bg-elevated px-2 text-xs text-muted transition-colors hover:border-line-strong hover:text-fg", className)}
+      className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 text-xs text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11 max-sm:px-3", className)}
       aria-label={done ? "Copied" : `${label} to clipboard`}
     >
       {done ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
@@ -70,7 +67,7 @@ export function Avatar({ label, className }: { label: string; className?: string
   return (
     <span
       className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-fg", className)}
-      style={{ background: `hsl(${h} 22% 24%)` }}
+      style={{ background: `hsl(${h} var(--avatar-s) var(--avatar-l))` }}
       aria-hidden
     >
       {label}
@@ -83,18 +80,18 @@ export function Switch({ checked, onChange, label, disabled }: { checked: boolea
     <button
       type="button" role="switch" aria-checked={checked} aria-label={label} disabled={disabled}
       onClick={() => onChange(!checked)}
-      className={cn("relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:opacity-50", checked ? "border-brand bg-brand" : "border-line-strong bg-elevated")}
+      className={cn("relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 ease-out disabled:opacity-40 max-sm:h-[31px] max-sm:w-[51px]", checked ? "bg-brand" : "bg-line-strong")}
     >
-      <span className={cn("absolute left-0 top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform", checked ? "translate-x-[18px]" : "translate-x-0.5")} />
+      <span className={cn("absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_2px_4px_rgb(0_0_0/0.2)] transition-transform duration-200 [transition-timing-function:var(--ease-spring)] max-sm:h-[27px] max-sm:w-[27px]", checked ? "translate-x-4 max-sm:translate-x-5" : "translate-x-0")} />
     </button>
   );
 }
 
 export function PageHeader({ title, description, actions }: { title: string; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold tracking-tight sm:text-[22px]">{title}</h1>
+        <h1 className="large-title">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -105,7 +102,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 export function Meter({ value, max, className, label }: { value: number; max: number; className?: string; label?: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]", className)} role="progressbar" aria-label={label ?? `${value} of ${max} used`} aria-valuenow={value} aria-valuemax={max} aria-valuemin={0}>
+    <div className={cn("h-1.5 w-full overflow-hidden rounded-full bg-fill", className)} role="progressbar" aria-label={label ?? `${value} of ${max} used`} aria-valuenow={value} aria-valuemax={max} aria-valuemin={0}>
       <div className={cn("h-full rounded-full transition-[width] duration-500", pct > 90 ? "bg-bad" : pct > 70 ? "bg-warn" : "bg-brand")} style={{ width: `${Math.max(pct, value > 0 ? 3 : 0)}%` }} />
     </div>
   );

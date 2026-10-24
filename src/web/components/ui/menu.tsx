@@ -30,7 +30,7 @@ export function Menu({ trigger, children, align = "end", label }: { trigger: Rea
           : trigger}
       </div>
       {open && (
-        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-xl border border-line-strong bg-elevated p-1 shadow-pop", align === "end" ? "right-0" : "left-0")}>
+        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-xl border border-line bg-elevated p-1 shadow-pop", align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left")}>
           {children}
         </div>
       )}
@@ -42,7 +42,7 @@ export function MenuItem({ children, onSelect, danger, icon }: { children: React
   return (
     <button
       type="button" role="menuitem" onClick={onSelect}
-      className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors hover:bg-hover focus:bg-hover [&_svg]:h-4 [&_svg]:w-4", danger ? "text-bad" : "text-fg/90")}
+      className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] outline-none transition-colors duration-100 hover:bg-hover focus-visible:bg-hover max-sm:min-h-11 max-sm:text-[15px] [&_svg]:h-4 [&_svg]:w-4", danger ? "text-bad" : "text-fg/90")}
     >
       {icon}
       {children}
@@ -51,5 +51,5 @@ export function MenuItem({ children, onSelect, danger, icon }: { children: React
 }
 
 export function MenuLabel({ children }: { children: ReactNode }) {
-  return <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">{children}</div>;
+  return <div className="truncate px-2.5 pb-1 pt-1.5 text-[12px] text-subtle">{children}</div>;
 }
