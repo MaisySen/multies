@@ -57,7 +57,16 @@ async function boot(env: WorkerEnv) {
   const deps: Deps = {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
-    reportError: config.sentry.dsnApi ? (err, context) => Sentry.captureException(err, { extra: context }) : undefined,
+    reportError: config.sentry.dsnApi ? (err, context) => {
+      // A report about another environment (an uptime cross check) carries that environment, not this worker's.
+      const about = typeof context?.environment === "string" ? context.environment : null;
+      if (!about) return Sentry.captureException(err, { extra: context });
+      return Sentry.withScope((scope) => {
+        scope.addEventProcessor((e) => ({ ...e, environment: about }));
+        scope.setTag("reported_by", config.sentry.environment);
+        return Sentry.captureException(err, { extra: context });
+      });
+    } : undefined,
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),

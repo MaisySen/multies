@@ -64,3 +64,13 @@ describe("maintenance right after a deploy", () => {
     expect(errors).toEqual([]);
   });
 });
+
+describe("health while migrations are pending", () => {
+  it("answers 200, degraded, so uptime checks page only on a real database failure", async () => {
+    const { createApp } = await import("@/server/app");
+    const { deps } = await behindByAgentMigration();
+    const res = await createApp(deps).request("/api/health", { headers: { host: "localhost" } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, degraded: true, db: "migrations_pending" });
+  });
+});

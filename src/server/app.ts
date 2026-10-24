@@ -118,7 +118,9 @@ export function createApp(deps: Deps) {
     try {
       if (!schemaCurrent) {
         const pending = await pendingMigrations(migrationDriver((deps.db as unknown as { $client: unknown }).$client));
-        if (pending.length) return c.json({ ok: false, mode: deps.config.mode, db: "migrations_pending", pending }, 503);
+        // Pending migrations are a deploy step not yet run, not an outage: answer 200 and say so, so
+        // uptime checks page only when the database itself fails. Deploy checks read `db`.
+        if (pending.length) return c.json({ ok: true, degraded: true, mode: deps.config.mode, db: "migrations_pending", pending, release: deps.config.release });
         schemaCurrent = true;
       }
       return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release });

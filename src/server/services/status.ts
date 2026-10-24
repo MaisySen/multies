@@ -177,6 +177,11 @@ export const CROSS_CHECK_ALERT_AFTER = 2;
  * CROSS_CHECK_ALERT_AFTER failures in a row, and logs the recovery; the per URL state
  * lives in app_settings so it survives across cron runs and isolates.
  */
+/** The environment a monitored URL belongs to, so its alert is filed there and not under the checker's. */
+export function monitoredEnvironment(url: string) {
+  return /staging/i.test(new URL(url).hostname) ? "staging" : "production";
+}
+
 export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean; status?: number; ms: number }[]> {
   const out: { url: string; ok: boolean; status?: number; ms: number }[] = [];
   for (const base of deps.config.monitorUrls) {
@@ -196,7 +201,7 @@ export async function crossCheck(deps: Deps): Promise<{ url: string; ok: boolean
     deps.log?.warn("uptime.cross_check_failed", { url, status: r.value ?? null, ms: r.latencyMs, consecutive: state.fails });
     if (state.fails >= CROSS_CHECK_ALERT_AFTER && !state.alerted) {
       state.alerted = true;
-      deps.reportError?.(new Error(`Uptime check failed: ${url} answered ${r.value ?? "nothing"} ${state.fails} times in a row`), { url, status: r.value, ms: r.latencyMs });
+      deps.reportError?.(new Error(`Uptime check failed: ${url} answered ${r.value ?? "nothing"} ${state.fails} times in a row`), { url, status: r.value, ms: r.latencyMs, environment: monitoredEnvironment(url) });
     }
     const value = JSON.stringify(state);
     await deps.db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value } });

@@ -20,6 +20,7 @@ for i in $(seq 1 24); do
 done
 echo "health: ${HEALTH:-none}"
 echo "$HEALTH" | grep -q '"ok":true' || fail "health is not ok"
+echo "$HEALTH" | grep -q '"db":"ok"' || fail "database is not fully migrated (health says db is not ok)"
 if [ -n "$EXPECT_RELEASE" ]; then
   echo "$HEALTH" | grep -q "\"release\":\"$EXPECT_RELEASE" || fail "expected release $EXPECT_RELEASE"
 fi

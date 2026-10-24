@@ -144,7 +144,8 @@ describe("uptime history", () => {
     const { deps } = await makeTestApp({ MONITOR_URLS: "https://up.example,https://down.example" }, {
       fetch: (async (url: string) => new Response("{}", { status: String(url).includes("down") ? downStatus : 200 })) as unknown as typeof fetch,
     });
-    deps.reportError = (e) => (reported.push(e), "evt");
+    const contexts: (Record<string, unknown> | undefined)[] = [];
+    deps.reportError = (e, ctx) => (reported.push(e), contexts.push(ctx), "evt");
     const { crossCheck } = await import("@/server/services/status");
     const out = await crossCheck(deps);
     expect(out.map((o) => o.ok)).toEqual([true, false]);
@@ -152,6 +153,8 @@ describe("uptime history", () => {
     await crossCheck(deps);
     expect(reported).toHaveLength(1);
     expect(String(reported[0])).toContain("down.example");
+    // The alert is filed under the environment that is down, not the checker's.
+    expect(contexts[0]).toMatchObject({ environment: "production" });
     await crossCheck(deps);
     expect(reported).toHaveLength(1); // no repeat alert for the same outage
     downStatus = 200;
@@ -160,6 +163,13 @@ describe("uptime history", () => {
     await crossCheck(deps);
     await crossCheck(deps);
     expect(reported).toHaveLength(2); // a new outage after recovery alerts again
+  });
+
+  it("files a cross check alert under the monitored environment", async () => {
+    const { monitoredEnvironment } = await import("@/server/services/status");
+    expect(monitoredEnvironment("https://mymail-staging.mymail-app.workers.dev/api/health")).toBe("staging");
+    expect(monitoredEnvironment("https://mymail.mymail-app.workers.dev/api/health")).toBe("production");
+    expect(monitoredEnvironment("https://multies.si/api/health")).toBe("production");
   });
 
   it("runs maintenance steps independently", async () => {
