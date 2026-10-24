@@ -28,7 +28,11 @@ import "./suite/push";
  */
 export async function runMaintenance(deps: Deps) {
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
-    try { return await fn(); } catch (err) { deps.log?.error("maintenance.step_failed", { step: name, error: err }); deps.reportError?.(err, { maintenance: name }); return undefined; }
+    try { return await fn(); } catch (err) {
+      // A busy or briefly unavailable database is not a bug: the step runs again on the next pass.
+      if (isTransientDbError(err)) { deps.log?.warn("maintenance.step_skipped", { step: name, error: err }); return undefined; }
+      deps.log?.error("maintenance.step_failed", { step: name, error: err }); deps.reportError?.(err, { maintenance: name }); return undefined;
+    }
   };
   // The demo seed makes hundreds of queries, enough with the other steps to pass the Workers
   // limit on calls per invocation, so it runs in its own request (POST /api/account/demo/seed).
@@ -52,6 +56,19 @@ export async function runMaintenance(deps: Deps) {
     ]);
   });
   return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders };
+}
+
+/**
+ * Errors from the database that say "try again later" rather than "this query is wrong": SQLite busy
+ * or locked (several local servers or test runs sharing one file), D1 overloaded or reset, and a
+ * table a preview database has not migrated yet. Drizzle wraps the driver's error as `cause`.
+ */
+export function isTransientDbError(err: unknown): boolean {
+  for (let e: unknown = err, depth = 0; e && depth < 4; e = (e as { cause?: unknown }).cause, depth++) {
+    const text = `${(e as { code?: string }).code ?? ""} ${(e as Error).message ?? ""}`;
+    if (/SQLITE_BUSY|SQLITE_LOCKED|database is locked|no such table|D1_ERROR.*(overloaded|reset|timed out|Network connection lost)|storage caused object to be reset/i.test(text)) return true;
+  }
+  return false;
 }
 
 const migratedClients = new WeakSet<object>();

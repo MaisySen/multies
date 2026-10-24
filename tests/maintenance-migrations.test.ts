@@ -32,10 +32,11 @@ async function behindByAgentMigration() {
 const messages = (errors: unknown[]) => errors.map((e) => String((e as { cause?: unknown }).cause ?? e));
 
 describe("maintenance right after a deploy", () => {
-  it("reproduces the Sentry errors when maintenance runs on a database that is behind", async () => {
+  it("does not report a missing table as an error when maintenance runs on a database that is behind", async () => {
+    // This used to reach Sentry as "no such table: send_approvals" (MYMAIL-API-P and Q on the preview).
     const { deps, errors } = await behindByAgentMigration();
     await runMaintenance(deps);
-    expect(messages(errors).join("\n")).toMatch(/no such table: (send_approvals|agent_events)/);
+    expect(messages(errors).join("\n")).not.toMatch(/no such table/);
   });
 
   it("waits for migrations, then runs cleanly once they are applied", async () => {
