@@ -4,7 +4,8 @@ import { makeTestApp, Client } from "./helpers";
 import { loginMethodFor } from "@/server/auth";
 import { sessions, users } from "@/server/db/schema";
 
-const AUTH0 = { AUTH0_DOMAIN: "acme.au.auth0.com", AUTH0_CLIENT_ID: "cid", AUTH0_CLIENT_SECRET: "secret" };
+// Password sessions stay on here (AUTH_LOCAL_PASSWORD=on) so the test can compare them with SSO sessions.
+const AUTH0 = { AUTH0_DOMAIN: "acme.au.auth0.com", AUTH0_CLIENT_ID: "cid", AUTH0_CLIENT_SECRET: "secret", AUTH_LOCAL_PASSWORD: "on" };
 
 describe("team SSO enforcement", () => {
   it("records how each session signed in", () => {
