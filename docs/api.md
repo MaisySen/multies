@@ -126,6 +126,31 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 - Public API: `GET` and `PUT /api/v1/scheduling/availability`, `GET /api/v1/scheduling/bookings`, `POST /api/v1/scheduling/bookings/{id}/cancel`
 - Events: `booking.created`, `booking.cancelled`. MCP: `list_bookings` (registered only when scheduling is on).
 
+## People and AI agent members
+
+Every member has an optional `title` (up to 80 characters) and `bio` (up to 500), shown in People (Settings, Team) and read by REST and MCP. An AI agent member is a workspace member with `kind: "agent"`: it has no mailbox, takes no seat and no inbox, and works only through its own API keys. Those keys act as the agent member with the member role, so its chat posts, task comments and activity carry its name, and it can't do admin work (domains, mailboxes, webhooks, agent inboxes, integrations). The Free plan includes 10 agent members (Pro 25, Business 100); one more answers 403 `plan_limit`. Mail agents with their own inbox (`/agents`) are listed in People too, as `type: "mail_agent"`.
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/people` | People (`kind: "human"`), agent members (`kind: "agent"`, `email` null) and mail agents, each with `title` and `bio`. |
+| GET | `/api/v1/people/{id}` | One member by user id. |
+| PATCH | `/api/v1/people/{id}` | `{ title?, bio?, name? }`. A workspace key edits anyone but the owner; an agent member's key edits itself; `name` is for agent members only. |
+| POST | `/api/v1/agent-members` | `{ name, title?, bio?, scope? }` (`full` or `read`). Returns `{ member, apiKey, secret }`; the secret is shown once. |
+| DELETE | `/api/v1/agent-members/{id}` | Removes the member and revokes its keys. What it posted stays under its name. |
+| GET, POST | `/api/v1/agent-members/{id}/keys` | List keys, or make another (`{ name?, scope? }`). |
+| DELETE | `/api/v1/agent-members/{id}/keys/{keyId}` | Revokes one key. |
+
+In the app the same actions live under `/api/team/people` and `/api/team/agents`. MCP: `list_people` (optional `kind`).
+
+## Weekly meeting series
+
+A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional last day or number of meetings. A series is one meeting row; the upcoming list (`GET /api/v1/meetings?upcoming=true`) works out the next occurrences on read (up to 12 per series over the next 60 days), each with the series' `id` and `seriesStartsAt`. Nothing is written per occurrence. Times keep their wall clock time in the series' time zone across daylight saving changes.
+
+- Create or edit with `recurrence`, either `{ interval: 1 | 2, days: ["mo", "we"], until: "YYYY-MM-DD" | null, count: n | null, timezone }` (the zone defaults to the workspace's) or an RRULE string such as `FREQ=WEEKLY;INTERVAL=1;BYDAY=MO;COUNT=10`. The first meeting's weekday is always part of the series. `null` makes it a one off.
+- `PATCH /api/v1/meetings/{id}` edits the whole series (title, start, length, guests, recurrence).
+- `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...`. Calendar invites carry the same.
+- Meetings come back with `recurrence: { interval, days, until, count, rrule, timezone, summary }` or null. MCP: `schedule_meeting` takes `repeats` (an RRULE), `list_meetings` returns `repeats`.
+
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):

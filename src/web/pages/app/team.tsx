@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Crown, Link2, Mail, MoreHorizontal, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pencil, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -9,7 +9,7 @@ import type { InviteCreated, Mailbox, PendingInvite, Role, TeamMember } from "@/
 import { Avatar, Badge, Card, CopyButton, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input, Select } from "@/web/components/ui/input";
+import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -56,7 +56,9 @@ export function TeamSettings() {
 
   if (team.isPending) return <Card className="p-6"><Skeleton className="h-5 w-40" /><Skeleton className="mt-4 h-12" /><Skeleton className="mt-2 h-12" /></Card>;
   if (team.error) return <Card className="p-6 text-sm text-bad">{team.error.message}</Card>;
-  const { members, invites, seats } = team.data;
+  const { invites, seats } = team.data;
+  const members = team.data.members.filter((m) => m.kind !== "agent");
+  const agentMembers = team.data.members.filter((m) => m.kind === "agent");
   const used = seats.members + seats.pendingInvites;
 
   return (
@@ -80,6 +82,8 @@ export function TeamSettings() {
           {members.map((m) => <MemberRow key={m.userId} m={m} myRole={myRole} myId={me.data?.user.id ?? ""} mailboxes={mailboxes.data ?? []} />)}
         </ul>
       </Card>
+
+      <AgentsCard agents={agentMembers} limit={team.data.agentMembers?.limit ?? 10} canManage={canManage} myId={me.data?.user.id ?? ""} />
 
       {canManage && (
         <Card>
@@ -127,7 +131,9 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
   const [editing, setEditing] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [profiling, setProfiling] = useState(false);
   const self = m.userId === myId;
+  const canProfile = self || (myRole === "owner") || (myRole === "admin" && m.role !== "owner");
   const canEdit = !self && m.role !== "owner" && (myRole === "owner" || (myRole === "admin" && m.role === "member"));
   const setRole = useMutation({
     mutationFn: (role: "admin" | "member") => api.patch(`/team/members/${m.userId}`, { role }),
@@ -140,7 +146,8 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
         <Avatar label={initials(m.name)} />
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium"><span className="truncate">{m.name}</span>{self && <span className="text-xs font-normal text-subtle">(you)</span>}</div>
-          <div className="truncate text-xs text-muted">{m.email}</div>
+          <div className="truncate text-xs text-muted">{m.title ? <><span className="text-fg/80">{m.title}</span> · </> : null}{m.email}</div>
+          {m.bio && <div className="mt-0.5 line-clamp-2 text-xs text-subtle">{m.bio}</div>}
         </div>
       </div>
       <div className="flex items-center gap-4 pl-11 sm:pl-0">
@@ -148,8 +155,9 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
         <div className="hidden w-24 text-xs text-subtle lg:block">{m.lastActiveAt ? `Active ${timeAgo(m.lastActiveAt)}` : "Not signed in"}</div>
         <div className="w-24"><RoleBadge role={m.role} /></div>
         <div className="w-8">
-          {(canEdit || (self && m.role !== "owner") || (myRole === "owner" && !self)) && (
+          {(canEdit || canProfile) && (
             <Menu label={`Actions for ${m.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${m.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
+              {canProfile && <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit title and bio</MenuItem>}
               {canEdit && m.role === "member" && <MenuItem icon={<Mail />} onSelect={() => setEditing(true)}>Mailbox access</MenuItem>}
               {canEdit && myRole === "owner" && m.role === "member" && <MenuItem icon={<Shield />} onSelect={() => setRole.mutate("admin")}>Make admin</MenuItem>}
               {canEdit && myRole === "owner" && m.role === "admin" && <MenuItem icon={<UserMinus />} onSelect={() => setRole.mutate("member")}>Make member</MenuItem>}
@@ -162,6 +170,7 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
       <AccessDialog open={editing} onClose={() => setEditing(false)} member={m} mailboxes={mailboxes} />
       <RemoveDialog open={removing} onClose={() => setRemoving(false)} member={m} self={self} />
       <TransferDialog open={transferring} onClose={() => setTransferring(false)} member={m} />
+      {profiling && <ProfileDialog onClose={() => setProfiling(false)} member={m} />}
     </li>
   );
 }
@@ -295,5 +304,149 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
         <Button size="sm" variant="ghost" loading={revoke.isPending} onClick={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><Trash2 className="h-3.5 w-3.5" /></Button>
       </div>
     </li>
+  );
+}
+
+/** Title and bio for anyone; an agent member's name too. */
+function ProfileDialog({ onClose, member }: { onClose: () => void; member: TeamMember }) {
+  const qc = useQueryClient();
+  const agent = member.kind === "agent";
+  const [name, setName] = useState(member.name);
+  const [title, setTitle] = useState(member.title ?? "");
+  const [bio, setBio] = useState(member.bio ?? "");
+  const save = useMutation({
+    mutationFn: () => api.patch(`/team/people/${member.userId}`, { title, bio, ...(agent ? { name } : {}) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success("Profile saved"); onClose(); },
+    onError: (e) => showError(e),
+  });
+  return (
+    <Dialog open onClose={onClose} title={`Profile for ${member.name}`} description="Shown in People and on the member card."
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={save.isPending} disabled={agent && !name.trim()} onClick={() => save.mutate()}>Save</Button></>}>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
+        {agent && <Field label="Name">{(p) => <Input {...p} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />}</Field>}
+        <Field label="Title" hint="For example Head of Product.">{(p) => <Input {...p} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} />}</Field>
+        <Field label="Bio">{(p) => <Textarea {...p} rows={3} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} />}</Field>
+        <button type="submit" hidden />
+      </form>
+    </Dialog>
+  );
+}
+
+type AgentCreated = { member: { userId: string; name: string }; secret: string };
+
+/** AI agent members: no seat, no mailbox, their own API keys. */
+function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; limit: number; canManage: boolean; myId: string }) {
+  const [adding, setAdding] = useState(false);
+  const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
+  if (!canManage && !agents.length) return null;
+  return (
+    <Card>
+      <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-[15px] font-semibold">AI agents</h2>
+          <p className="mt-1 text-sm text-muted">Agents post, comment and take tasks with their own API key. They take no seat and need no mailbox.</p>
+        </div>
+        {canManage && (
+          <div className="flex items-center gap-4">
+            <div className="w-36">
+              <div className="mb-1.5 flex justify-between text-xs text-muted"><span>Agents</span><span className="tabular-nums">{agents.length} / {limit}</span></div>
+              <Meter value={agents.length} max={limit} />
+            </div>
+            <Button onClick={() => setAdding(true)} disabled={agents.length >= limit} title={agents.length >= limit ? "Your plan's agent limit is reached" : undefined}><Plus className="h-4 w-4" />Add agent</Button>
+          </div>
+        )}
+      </div>
+      {agents.length === 0 ? (
+        <EmptyState className="py-10" icon={<Bot />} title="No agents yet" body="Add an agent with a title and a short bio, then give its key to the tool that runs it." />
+      ) : (
+        <ul className="divide-y divide-line" aria-label="AI agents">
+          {agents.map((a) => <AgentRow key={a.userId} a={a} canManage={canManage} self={a.userId === myId} onKey={(s) => setSecret({ name: a.name, secret: s })} />)}
+        </ul>
+      )}
+      {adding && <AddAgentDialog onClose={() => setAdding(false)} onCreated={(r) => { setAdding(false); setSecret({ name: r.member.name, secret: r.secret }); }} />}
+      <Dialog open={!!secret} onClose={() => setSecret(null)} title={`API key for ${secret?.name ?? ""}`} description="Copy it now. For your security it is shown once."
+        footer={<Button onClick={() => setSecret(null)}>Done</Button>}>
+        {secret && (
+          <div className="flex items-center gap-2 rounded-lg border border-line bg-surface p-2 pl-3">
+            <KeyRound className="h-4 w-4 shrink-0 text-subtle" />
+            <code className="min-w-0 flex-1 truncate font-mono text-xs" data-testid="agent-key">{secret.secret}</code>
+            <CopyButton value={secret.secret} label="Copy key" />
+          </div>
+        )}
+        <p className="mt-3 text-xs text-subtle">Send it as Authorization: Bearer on the REST API or the MCP server. It acts as this agent with the member role.</p>
+      </Dialog>
+    </Card>
+  );
+}
+
+function AgentRow({ a, canManage, self, onKey }: { a: TeamMember; canManage: boolean; self: boolean; onKey: (secret: string) => void }) {
+  const qc = useQueryClient();
+  const [profiling, setProfiling] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const newKey = useMutation({
+    mutationFn: () => api.post<{ secret: string }>(`/team/agents/${a.userId}/keys`, {}),
+    onSuccess: (r) => onKey(r.secret),
+    onError: (e) => showError(e),
+  });
+  const remove = useMutation({
+    mutationFn: () => api.del(`/team/members/${a.userId}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success(`${a.name} removed`); setRemoving(false); },
+    onError: (e) => showError(e),
+  });
+  return (
+    <li className="flex items-start gap-3 px-5 py-3.5" data-testid="agent-member">
+      <Avatar label={initials(a.name)} />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <span className="truncate">{a.name}</span>
+          <Badge tone="brand"><Bot className="h-3 w-3" />AI agent</Badge>
+        </div>
+        {a.title && <div className="truncate text-xs text-fg/80">{a.title}</div>}
+        {a.bio && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{a.bio}</div>}
+        <div className="mt-0.5 text-xs text-subtle">{a.lastActiveAt ? `Active ${timeAgo(a.lastActiveAt)}` : `Added ${timeAgo(a.joinedAt)}`}</div>
+      </div>
+      {(canManage || self) && (
+        <Menu label={`Actions for ${a.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
+          <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit profile</MenuItem>
+          {canManage && <MenuItem icon={<KeyRound />} onSelect={() => newKey.mutate()}>New API key</MenuItem>}
+          {canManage && <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(true)}>Remove</MenuItem>}
+        </Menu>
+      )}
+      {profiling && <ProfileDialog onClose={() => setProfiling(false)} member={a} />}
+      <Dialog open={removing} onClose={() => setRemoving(false)} title={`Remove ${a.name}?`} description="Its API keys stop working at once. What it posted stays, under its name."
+        footer={<><Button variant="secondary" onClick={() => setRemoving(false)}>Cancel</Button><Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>Remove</Button></>} />
+    </li>
+  );
+}
+
+function AddAgentDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (r: AgentCreated) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
+  const [bio, setBio] = useState("");
+  const [scope, setScope] = useState<"full" | "read">("full");
+  const add = useMutation({
+    mutationFn: () => api.post<AgentCreated>("/team/agents", { name, title, bio, scope }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onCreated(r); },
+  });
+  return (
+    <Dialog open onClose={onClose} title="Add an AI agent" description="It joins People with its own API key. No seat and no mailbox needed."
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={add.isPending} disabled={!name.trim()} onClick={() => add.mutate()}>Add agent</Button></>}>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (name.trim()) add.mutate(); }}>
+        {add.error && <p className="rounded-lg border border-bad/25 bg-bad-soft px-3 py-2 text-sm text-bad">{add.error.message}</p>}
+        <Field label="Name">{(p) => <Input {...p} value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="Builder" autoFocus />}</Field>
+        <Field label="Title">{(p) => <Input {...p} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Engineering lead" />}</Field>
+        <Field label="Bio">{(p) => <Textarea {...p} rows={3} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} placeholder="What it does and who it reports to." />}</Field>
+        <Field label="Key access" hint={scope === "full" ? "Reads and writes tasks, projects, docs, chat, meetings and goals." : "Reads only."}>
+          {(p) => (
+            <Select {...p} value={scope} onChange={(e) => setScope(e.target.value as "full" | "read")}>
+              <option value="full">Read and write</option>
+              <option value="read">Read only</option>
+            </Select>
+          )}
+        </Field>
+        <button type="submit" hidden />
+      </form>
+    </Dialog>
   );
 }

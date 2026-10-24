@@ -146,9 +146,13 @@ export type Role = "owner" | "admin" | "member";
 
 export interface TeamMember {
   userId: string;
-  email: string;
+  /** Null for AI agent members, whose address is internal. */
+  email: string | null;
   name: string;
   role: Role;
+  kind: "human" | "agent";
+  title: string | null;
+  bio: string | null;
   joinedAt: string;
   lastActiveAt: string | null;
   /** Null for owners and admins, who can open every mailbox. */
@@ -170,6 +174,7 @@ export interface TeamInfo {
   members: TeamMember[];
   invites: PendingInvite[];
   seats: { members: number; pendingInvites: number; limit: number };
+  agentMembers: { used: number; limit: number };
 }
 
 export interface InviteCreated { id: string; link: string; emailed: boolean; emailDetail?: string }

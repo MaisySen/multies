@@ -3,20 +3,78 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { CalendarClock, Mail, Plus, Video, VideoOff } from "lucide-react";
+import { CalendarClock, Download, Mail, Pencil, Plus, Repeat, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input } from "@/web/components/ui/input";
+import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
   source: { type: "thread" | "task" | "contact"; id: string } | null; invitees: string[]; invitesSentAt: string | null; joinUrl: string; guestUrl: string; videoEnabled: boolean;
+  /** A weekly series. In the upcoming list each occurrence is its own entry with the series' id. */
+  recurrence: Series | null;
+  seriesStartsAt: string | null;
+}
+type Day = "mo" | "tu" | "we" | "th" | "fr" | "sa" | "su";
+interface Series { interval: 1 | 2; days: Day[]; until: string | null; count: number | null; rrule: string; timezone: string; summary: string }
+const DAYS: [Day, string][] = [["mo", "Mon"], ["tu", "Tue"], ["we", "Wed"], ["th", "Thu"], ["fr", "Fri"], ["sa", "Sat"], ["su", "Sun"]];
+const dayOfInput = (local: string): Day => DAYS[(new Date(`${local.slice(0, 10)}T12:00:00Z`).getUTCDay() + 6) % 7][0];
+
+/** Repeat settings shared by scheduling and editing a series. Weekly only. */
+interface RepeatState { every: "none" | "1" | "2"; days: Day[]; end: "never" | "until" | "count"; until: string; count: string }
+const noRepeat = (): RepeatState => ({ every: "none", days: [], end: "never", until: "", count: "10" });
+const repeatOf = (s: Series | null): RepeatState => s ? { every: String(s.interval) as "1" | "2", days: s.days, end: s.count ? "count" : s.until ? "until" : "never", until: s.until ?? "", count: String(s.count ?? 10) } : noRepeat();
+const repeatBody = (r: RepeatState) => r.every === "none" ? null : {
+  interval: Number(r.every), days: r.days, timezone: tz(),
+  until: r.end === "until" && r.until ? r.until : null, count: r.end === "count" ? Number(r.count) || 1 : null,
+};
+
+function RepeatFields({ value, onChange, startDay }: { value: RepeatState; onChange: (v: RepeatState) => void; startDay: Day }) {
+  const set = (p: Partial<RepeatState>) => onChange({ ...value, ...p });
+  return (
+    <div className="space-y-3">
+      <Field label="Repeat">{(fp) => (
+        <Select {...fp} value={value.every} onChange={(e) => set({ every: e.target.value as RepeatState["every"] })}>
+          <option value="none">Does not repeat</option>
+          <option value="1">Every week</option>
+          <option value="2">Every 2 weeks</option>
+        </Select>
+      )}</Field>
+      {value.every !== "none" && (
+        <>
+          <div role="group" aria-label="Days" className="flex flex-wrap gap-1.5">
+            {DAYS.map(([d, label]) => {
+              const on = d === startDay || value.days.includes(d);
+              return (
+                <button key={d} type="button" aria-pressed={on} disabled={d === startDay}
+                  onClick={() => set({ days: on ? value.days.filter((x) => x !== d) : [...value.days, d] })}
+                  className={`h-8 min-w-11 rounded-full border px-2.5 text-[12.5px] font-medium transition-colors ${on ? "border-brand bg-brand text-white" : "border-line text-muted hover:bg-hover"} disabled:cursor-default`}>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="grid grid-cols-[1fr_1fr] gap-3">
+            <Field label="Ends">{(fp) => (
+              <Select {...fp} value={value.end} onChange={(e) => set({ end: e.target.value as RepeatState["end"] })}>
+                <option value="never">Never</option>
+                <option value="until">On a date</option>
+                <option value="count">After a number of meetings</option>
+              </Select>
+            )}</Field>
+            {value.end === "until" && <Field label="Last day">{(fp) => (<Input {...fp} type="date" value={value.until} onChange={(e) => set({ until: e.target.value })} />)}</Field>}
+            {value.end === "count" && <Field label="Meetings">{(fp) => (<Input {...fp} type="number" min={1} max={520} value={value.count} onChange={(e) => set({ count: e.target.value })} />)}</Field>}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 interface Join { url: string; token: string; room: string }
 
@@ -36,11 +94,14 @@ const VIDEO_OFF = "Video isn't switched on for this Multies yet. You can still s
 
 export function MeetingsPage() {
   const q = useQuery({ queryKey: ["meetings"], queryFn: () => api.get<{ meetings: Meeting[]; videoEnabled: boolean }>("/meetings") });
+  // Weekly series come back as one entry per upcoming occurrence (worked out on the server, nothing stored).
+  const soon = useQuery({ queryKey: ["meetings", "upcoming"], queryFn: () => api.get<{ meetings: Meeting[] }>("/meetings?upcoming=1") });
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
   const now = Date.now();
-  const upcoming = q.data?.meetings.filter((m) => m.status === "scheduled" && new Date(m.endsAt).getTime() > now - 3600_000).sort((a, b) => a.startsAt.localeCompare(b.startsAt)) ?? [];
-  const past = q.data?.meetings.filter((m) => !upcoming.includes(m)) ?? [];
+  const upcoming = (soon.data?.meetings ?? q.data?.meetings ?? []).filter((m) => m.status === "scheduled" && new Date(m.endsAt).getTime() > now - 3600_000).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  const upcomingIds = new Set(upcoming.map((m) => m.id));
+  const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
       <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. No recordings or transcripts." actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Schedule</Button>} />
@@ -54,9 +115,9 @@ export function MeetingsPage() {
               <h2 className="mb-2 text-[13px] font-semibold">{label as string}</h2>
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
-                  <Link key={m.id} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
-                    <CalendarClock className="h-4 w-4 shrink-0 text-muted" />
-                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}</div></div>
+                  <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover" data-testid="meeting-row">
+                    {m.recurrence ? <Repeat className="h-4 w-4 shrink-0 text-muted" aria-label="Repeats" /> : <CalendarClock className="h-4 w-4 shrink-0 text-muted" />}
+                    <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
                     {m.status !== "scheduled" && <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}
                     {m.invitesSentAt && <Badge tone="ok">Invited</Badge>}
                   </Link>
@@ -76,12 +137,13 @@ function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () 
   const [at, setAt] = useState(() => { const d = new Date(Date.now() + 3600_000); d.setUTCMinutes(0, 0, 0); return isoToZonedInput(d); });
   const [duration, setDuration] = useState("30");
   const [guests, setGuests] = useState("");
+  const [repeat, setRepeat] = useState<RepeatState>(noRepeat);
   const [busy, setBusy] = useState(false);
   const save = async (send: boolean) => {
     setBusy(true);
     try {
       const invitees = guests.split(/[\s,;]+/).map((g) => g.trim()).filter(Boolean);
-      const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: zonedInputToIso(at), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0 });
+      const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: zonedInputToIso(at), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0, ...(repeat.every !== "none" ? { recurrence: repeatBody(repeat) } : {}) });
       if (r.invites?.status === "sent") toast.success("Invites sent");
       onClose(); onMade(r.meeting.id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
@@ -94,6 +156,7 @@ function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () 
           <Field label={`Starts (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
           <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
         </div>
+        <RepeatFields value={repeat} onChange={setRepeat} startDay={dayOfInput(at)} />
         <Field label="Guests" hint="Email addresses, separated by commas. Each gets a calendar invite with the join link.">{(fp) => (<Input {...fp} value={guests} onChange={(e) => setGuests(e.target.value)} placeholder="maria@blueharbor.co" />)}</Field>
       </div>
     </Dialog>
@@ -106,6 +169,7 @@ export function MeetingPage() {
   const q = useQuery({ queryKey: ["meeting", id], queryFn: async () => (await api.get<{ meeting: Meeting }>(`/meetings/${id}`)).meeting });
   const [join, setJoin] = useState<Join | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const m = q.data;
   const enter = async () => {
     setBusy(true);
@@ -135,8 +199,53 @@ export function MeetingPage() {
           {m.invitees.length > 0 && m.status === "scheduled" && <div className="mt-3 flex items-center gap-3"><Button size="sm" variant="secondary" onClick={() => void invite()}>{m.invitesSentAt ? "Send invites again" : "Send calendar invites"}</Button>{m.invitesSentAt && <span className="text-[12px] text-subtle">Sent {when(m.invitesSentAt)}</span>}</div>}
         </Card>
       </div>
-      {m.status === "scheduled" && <div className="mt-4 flex gap-2"><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>Cancel meeting</Button></div>}
+      {m.recurrence && (
+        <Card className="mt-4 flex items-start gap-3 p-5" data-testid="meeting-series">
+          <Repeat className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[13px] font-semibold">{m.recurrence.summary}</h2>
+            <p className="mt-1 text-[13px] text-muted">First meeting {when(m.startsAt)}. Changes apply to every meeting in the series, and the same guest link works each time.</p>
+          </div>
+        </Card>
+      )}
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
+        <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><Download className="h-4 w-4" />Calendar file</a>
+        {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
+      </div>
+      {editing && <EditMeetingDialog m={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ["meeting", id] }); void qc.invalidateQueries({ queryKey: ["meetings"] }); }} />}
     </div>
+  );
+}
+
+/** Edits the meeting, or the whole series when it repeats. */
+function EditMeetingDialog({ m, onClose, onSaved }: { m: Meeting; onClose: () => void; onSaved: () => void }) {
+  const [title, setTitle] = useState(m.title);
+  const [at, setAt] = useState(() => isoToZonedInput(new Date(m.startsAt)));
+  const [duration, setDuration] = useState(String(m.durationMin));
+  const [repeat, setRepeat] = useState<RepeatState>(() => repeatOf(m.recurrence));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    setBusy(true);
+    try {
+      const startsAt = zonedInputToIso(at);
+      await api.patch(`/meetings/${m.id}`, { title, durationMin: Number(duration), ...(startsAt !== m.startsAt ? { startsAt } : {}), recurrence: repeatBody(repeat) });
+      toast.success(m.recurrence || repeat.every !== "none" ? "Series saved" : "Meeting saved");
+      onSaved();
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+  };
+  return (
+    <Dialog open onClose={onClose} title={m.recurrence ? "Edit series" : "Edit meeting"} description={m.recurrence ? "Changes apply to every meeting in the series." : undefined}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={busy}>Save</Button></>}>
+      <div className="space-y-3">
+        <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} />)}</Field>
+        <div className="grid grid-cols-[1fr_110px] gap-3">
+          <Field label={`${m.recurrence ? "First meeting" : "Starts"} (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
+          <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
+        </div>
+        <RepeatFields value={repeat} onChange={setRepeat} startDay={dayOfInput(at)} />
+      </div>
+    </Dialog>
   );
 }
 
