@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
@@ -7,7 +8,7 @@ import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
-import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
+import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -40,7 +41,7 @@ export function DocsPage() {
           {docs.data.map((d) => (
             <li key={d.id}><Link to={`/app/docs/${d.id}`} className="block h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
               <div className="flex items-center gap-2 text-[14px] font-medium"><FileText className="h-4 w-4 text-muted" />{d.title}</div>
-              <p className="mt-2 line-clamp-3 text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
+              <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
               <p className="mt-3 text-[12px] text-subtle">Edited {timeAgo(d.updatedAt)}</p>
             </Link></li>
           ))}
@@ -271,6 +272,14 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           </div>
         )}
         <span className={cn(!session && "ml-auto")} role="status">{status}</span>
+        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg"
+          onClick={async () => {
+            // Save pending edits first: the template copies the stored doc.
+            if (state === "unsaved") { clearTimeout(timer.current); await save(); }
+            try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
+          }}>
+          <LayoutTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
+        </button>
         <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm("Delete this doc?")) return; await api.del(`/docs/${id}`); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
       <h1 className="sr-only">{title || "Untitled doc"}</h1>
