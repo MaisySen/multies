@@ -23,5 +23,5 @@ What we promise ourselves, how we measure it, and what happens when we miss. Tar
 ## When the budget runs out
 
 1. Freeze feature releases; only reliability fixes ship until the month resets or the cause is fixed.
-2. Write a postmortem for each incident that spent more than a quarter of the budget ([incident.md](runbooks/incident.md)).
+2. Write a postmortem for each incident that spent more than a quarter of the budget ([incident-response.md](runbooks/incident-response.md)).
 3. Review the objective itself each quarter: an SLO nobody misses is too loose, one we always miss is wrong.

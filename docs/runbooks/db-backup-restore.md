@@ -1,16 +1,27 @@
-# Restore runbook
+# Database backup and restore
 
-Use this when data is lost or corrupted: a bad migration, a bug that wrote wrong data, a mistaken bulk delete, or a lost database. Read it fully before starting. Restoring production is an incident: open one first ([incident.md](incident.md)).
+Use this when data is lost or corrupted: a bad migration, a bug that wrote wrong data, a mistaken bulk delete, or a lost database. Read it fully before starting. Restoring production is an incident: open one first ([incident-response.md](incident-response.md)).
 
 ## Backups we have
 
 | Layer | What | Retention | Restore time |
 | --- | --- | --- | --- |
-| D1 Time Travel | Point-in-time restore to any minute | 30 days (Workers paid plan), 7 days (free plan) | Minutes |
+| D1 Time Travel | Point-in-time restore to any minute | 7 days on the free plan we run on (30 days on Workers Paid) | Minutes |
 | Nightly logical dump | `wrangler d1 export` of production and staging, gzip, encrypted with age, stored as a GitHub Actions artifact (`.github/workflows/backup.yml`) | 30 days | 10 to 30 minutes |
 | R2 copy (optional) | Same encrypted file in R2 when `R2_BUCKET` is set | Bucket lifecycle | 10 to 30 minutes |
 
 Targets: recovery point objective (RPO) 1 minute with Time Travel, 24 hours from the nightly dump; recovery time objective (RTO) 1 hour.
+
+GitHub Actions has no minutes until 1 November 2026, so the nightly dump is not running. Until then,
+take a manual export before every production deploy that carries a migration, and keep it outside
+the repo (encrypted with the age key named below):
+
+```bash
+npx wrangler d1 export mymail-au --remote --output mymail-au-$(date -u +%Y%m%dT%H%MZ).sql
+npx wrangler d1 export mymail-staging --remote --env staging --output mymail-staging-$(date -u +%Y%m%dT%H%MZ).sql
+```
+
+The Cloudflare token for these commands is in "CREDENTIALS (owner email v7)", Cloudflare section.
 
 R2 needs a payment method on the Cloudflare account even for the free tier, so it is off until the owner enables it. To turn it on: enable R2 in the dashboard, create a bucket (for example `mymail-backups`) with a 90 day lifecycle rule, give the CI token "Workers R2 Storage: Edit", and set the repository variable `R2_BUCKET=mymail-backups`.
 

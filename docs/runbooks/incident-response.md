@@ -1,11 +1,11 @@
-# Incident runbook
+# Incident response
 
 For anything customers notice: the app or API down or slow, mail not arriving or not sending,
 data looking wrong, a security problem.
 
 ## 1. Declare (first 5 minutes)
 
-- Say it out loud in the team channel: "Incident: <what customers see>". One person is the **incident lead**; they coordinate and decide, others investigate.
+- Say it in the team chat (or by email to the owner while the team is one person): "Incident: <what customers see>". One person is the **incident lead**; they coordinate and decide, others investigate.
 - Pick a severity:
 
 | Severity | Meaning | Response |
@@ -17,7 +17,8 @@ data looking wrong, a security problem.
 ## 2. Look
 
 - `/status` and `/api/status`: which component is red.
-- Sentry: new issues and the release they started in (each deploy is a release tied to its commit).
+- Sentry: new issues and the release they started in (each deploy is a release tied to its commit). Alerts arrive by email at the support mailbox; how to read them: [sentry-triage.md](sentry-triage.md).
+- `/api/config` and `/api/health`: which release is serving.
 - Workers logs (Cloudflare dashboard, Workers, mymail, Logs): filter on `level:error` or a `requestId` from a customer report. Every response carries `x-request-id`.
 - Job queue: the operator console (`/app/admin`) shows queued, dead and failing jobs; outbound mail that cannot be sent waits there instead of being lost.
 - Provider status pages: Cloudflare, Resend, Stripe.
@@ -26,8 +27,8 @@ data looking wrong, a security problem.
 
 | Situation | Action |
 | --- | --- |
-| Bad deploy | `npx wrangler rollback` (production) or `npx wrangler rollback --env staging`, then confirm with `scripts/smoke.sh <url>` |
-| Bad migration or data damage | Stop writes (roll back), then follow [restore.md](restore.md) |
+| Bad deploy | Roll back: [rollback.md](rollback.md) |
+| Bad migration or data damage | Stop writes (roll back), then follow [db-backup-restore.md](db-backup-restore.md) |
 | Outbound provider down | Nothing to do right away: the circuit breaker opens and sends queue as `delayed`. Replay dead jobs from the operator console once it recovers |
 | Spam or abuse from a workspace | Suspend it or set a send cap in the operator console |
 | Leaked secret | Rotate it now ([secrets-rotation.md](../security/secrets-rotation.md)), then look for misuse in the audit log |

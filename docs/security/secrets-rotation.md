@@ -57,4 +57,4 @@ Repository, Settings, Secrets and variables, Actions. Replace `CLOUDFLARE_API_TO
 
 ## After a leak
 
-Treat it as an incident ([runbooks/incident.md](../runbooks/incident.md)): rotate the leaked value first, then check provider logs for use of the old value, then write the postmortem.
+Treat it as an incident ([runbooks/incident-response.md](../runbooks/incident-response.md)): rotate the leaked value first, then check provider logs for use of the old value, then write the postmortem.
