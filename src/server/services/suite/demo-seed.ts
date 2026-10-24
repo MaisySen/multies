@@ -5,7 +5,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
-import { activity, agents, changes, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
+import { activity, agents, changes, organizations, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
 import { backfillContacts, contactIdFor, createDeal, listDeals } from "./contacts";
 import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
@@ -23,7 +23,17 @@ const day = (now: number, d: number) => new Date(now + d * 86_400_000).toISOStri
 registerJob("demo.seed_suite", async (deps, payload) => {
   const p = payload as { orgId: string; userId: string; email: string; name: string };
   const actor: SuiteActor = { orgId: p.orgId, userId: p.userId, email: p.email, name: p.name, role: "owner" };
-  await seedDemoSuite(deps, actor, deps.now().getTime());
+  // A visitor can delete their sandbox while the seed is still running (the store's
+  // account deletion check does exactly that). Then there is nothing left to seed, and the
+  // foreign key failure that follows is not an error.
+  const stillThere = async () => !!(await deps.db.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, p.orgId)).get());
+  if (!(await stillThere())) return;
+  try {
+    await seedDemoSuite(deps, actor, deps.now().getTime());
+  } catch (err) {
+    if (!(await stillThere())) return;
+    throw err;
+  }
 });
 
 export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) {

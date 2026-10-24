@@ -51,6 +51,17 @@ describe("delete my account", () => {
     expect((await c.get("/api/account/me")).status).toBe(401);
   });
 
+  it("a demo seed still queued after the sandbox is deleted finishes quietly", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    expect((await c.call("DELETE", "/api/account", { confirm: "DELETE" })).status).toBe(200);
+    const { runDueJobs } = await import("@/server/services/jobs");
+    await import("@/server/services/suite/demo-seed");
+    const r = await runDueJobs(ctx.deps, 5, { types: ["demo.seed_suite"] });
+    expect(r).toMatchObject({ failed: 0, dead: 0 });
+  });
+
   it("is refused without a session", async () => {
     const { app } = await makeTestApp();
     expect((await new Client(app).call("DELETE", "/api/account", { confirm: "DELETE" })).status).toBe(401);
