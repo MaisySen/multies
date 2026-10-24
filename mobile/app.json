@@ -3,7 +3,7 @@
     "name": "Multies",
     "slug": "mymail",
     "scheme": "mymail",
-    "version": "1.7.0",
+    "version": "1.8.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,7 +12,7 @@
     "primaryColor": "#0071E3",
     "ios": {
       "bundleIdentifier": "au.mymail.app",
-      "buildNumber": "8",
+      "buildNumber": "9",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -119,7 +119,7 @@
     },
     "android": {
       "package": "au.mymail.app",
-      "versionCode": 8,
+      "versionCode": 9,
       "adaptiveIcon": {
         "backgroundColor": "#1D1D1F",
         "foregroundImage": "./assets/android-icon-foreground.png",
