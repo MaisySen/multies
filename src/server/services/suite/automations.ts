@@ -3,9 +3,9 @@
  * AI and never send outside the business: the actions are making a task and notifying a
  * teammate. Runs count against the plan's monthly allowance.
  */
-import { and, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { automations, members, tasks, usageCounters } from "../../db/schema";
+import { automations, members, organizations, tasks, usageCounters } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { getPlan } from "../plans";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
@@ -191,11 +191,28 @@ export async function runStatusAutomations(deps: Deps, orgId: string, task: Task
 }
 
 /** From maintenance (every few minutes): due date reminders. Each task is reminded once per due date. */
+/**
+ * Each reminder costs about a dozen queries (the task, its watchers, the notification, the
+ * run counter), and the Workers limit on calls per invocation is shared with the rest of
+ * maintenance. One run sends at most REMINDER_BUDGET reminders and looks at most RULE_BUDGET
+ * rules, least recently run first, so the next run (five minutes later) picks up the rest.
+ * Demo workspaces are sample data and get no reminders. Sentry MYMAIL-API-C was this step
+ * passing the limit once many demo workspaces each had a due date rule.
+ */
+export const REMINDER_BUDGET = 25;
+export const RULE_BUDGET = 50;
+
 export async function runDueReminders(deps: Deps) {
-  const rules = await deps.db.select().from(automations).where(and(eq(automations.trigger, "due_soon"), eq(automations.enabled, true), isNull(automations.deletedAt)));
+  const rules = (await deps.db.select({ rule: automations }).from(automations)
+    .innerJoin(organizations, eq(organizations.id, automations.orgId))
+    .where(and(eq(automations.trigger, "due_soon"), eq(automations.enabled, true), isNull(automations.deletedAt), eq(organizations.isDemo, false)))
+    .orderBy(sql`${automations.lastRunAt} IS NOT NULL`, asc(automations.lastRunAt))
+    .limit(RULE_BUDGET)).map((x) => x.rule);
   let sent = 0;
+  let budget = REMINDER_BUDGET;
   const now = deps.now();
   for (const r of rules) {
+    if (budget <= 0) break;
     const c = JSON.parse(r.conditions) as DueConditions;
     const until = new Date(now.getTime() + Number(c.hoursBefore ?? 24) * 3_600_000);
     const due = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, r.orgId), isNull(tasks.deletedAt), ne(tasks.status, "done"), gte(tasks.dueAt, now), lte(tasks.dueAt, until),
@@ -203,7 +220,9 @@ export async function runDueReminders(deps: Deps) {
     for (const t of due) {
       const key = `${r.id}:${t.dueAt!.toISOString()}`;
       if (t.reminderSentFor?.split(",").includes(key)) continue;
+      if (budget <= 0) break;
       if (!(await takeRun(deps, r.orgId))) break;
+      budget--;
       const { getTask } = await import("./tasks");
       const task = await getTask(deps, { orgId: r.orgId, userId: "", email: "", name: "", system: true }, t.id);
       for (const u of await notifyTargets(deps, r.orgId, JSON.parse(r.actionConfig) as NotifyConfig, task)) {
