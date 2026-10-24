@@ -45,9 +45,8 @@
   "submit": {
     "production": {
       "ios": {
-        "appleId": "OWNER_FILL_IN_apple_id_email",
-        "ascAppId": "OWNER_FILL_IN_app_store_connect_app_id",
-        "appleTeamId": "OWNER_FILL_IN_apple_team_id"
+        "ascAppId": "6826562106",
+        "appleTeamId": "B85KQRQZW7"
       },
       "android": {
         "track": "internal",

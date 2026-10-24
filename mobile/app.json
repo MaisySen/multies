@@ -209,7 +209,10 @@
     },
     "extra": {
       "apiBase": "https://mymail.mymail-app.workers.dev",
-      "eas": {}
-    }
+      "eas": {
+        "projectId": "83c874f8-cc92-4440-8ccd-5b99c2d8ec1f"
+      }
+    },
+    "owner": "multies"
   }
 }
