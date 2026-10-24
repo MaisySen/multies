@@ -74,9 +74,10 @@ describe("auth (Better Auth)", () => {
   });
 
   it("reports which sign-in providers are configured", async () => {
-    expect((await new Client(ctx.app).get("/api/account/providers")).body).toEqual({ google: false, github: false, auth0: false });
+    expect((await new Client(ctx.app).get("/api/account/providers")).body).toEqual({ idp: false, password: true, google: false, github: false, auth0: false });
     const c2 = await makeTestApp({ AUTH0_DOMAIN: "https://mymail.us.auth0.com/", AUTH0_CLIENT_ID: "id", AUTH0_CLIENT_SECRET: "secret", GITHUB_CLIENT_ID: "g", GITHUB_CLIENT_SECRET: "s" });
-    expect((await new Client(c2.app).get("/api/account/providers")).body).toEqual({ google: false, github: true, auth0: true });
+    // With the identity provider on it is the one sign in page; direct social buttons and the password form step aside.
+    expect((await new Client(c2.app).get("/api/account/providers")).body).toEqual({ idp: true, password: false, google: false, github: false, auth0: true });
     expect(c2.deps.config.auth.auth0?.domain).toBe("mymail.us.auth0.com");
   });
 });

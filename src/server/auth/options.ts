@@ -19,7 +19,7 @@ import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { lastLoginMethod } from "better-auth/plugins";
 import { idpPlugins, socialProviders } from "./providers";
-import { loginMethodFor, resolveLoginMethod, sessionOptions, cookieOptions } from "./session";
+import { instanceRateLimitStore, loginMethodFor, resolveLoginMethod, sessionOptions, cookieOptions } from "./session";
 import { accountLinkingOptions, afterAccountLinked } from "./linking";
 import { localPasswordEnabled } from "./config";
 import { multiesAuthPlugin } from "./mobile";
@@ -147,10 +147,11 @@ export function authOptions(deps: Deps) {
     session: sessionOptions(),
     rateLimit: {
       enabled: true,
-      // Counters live in memory (per isolate on Workers): no database write per auth request,
+      // Counters live in this instance's memory (one per Workers isolate): no database write per auth request,
       // which is what used up the free daily write budget. The account lockout and the
       // identity provider's own brute force protection still hold across isolates.
       storage: "memory",
+      customStorage: instanceRateLimitStore(),
       window: 60,
       max: 100,
       customRules: {

@@ -38,3 +38,27 @@ export function resolveLoginMethod(ctx: { path?: string; params?: Record<string,
   if (ctx.path?.startsWith("/oauth2/callback/") || ctx.path?.startsWith("/callback/")) return ctx.params?.providerId ?? ctx.params?.id ?? ctx.path.split("/").pop() ?? null;
   return null;
 }
+
+/**
+ * Rate limit counters for the auth endpoints, held in this app instance's memory (one per
+ * Workers isolate): no database write per sign in attempt. A fixed window per key, at most
+ * 10,000 keys, oldest dropped first.
+ */
+export function instanceRateLimitStore(maxKeys = 10_000) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+  return {
+    async consume(key: string, rule: { window: number; max: number }) {
+      const now = Date.now();
+      let e = hits.get(key);
+      if (!e || now >= e.resetAt) {
+        e = { count: 0, resetAt: now + rule.window * 1000 };
+        hits.delete(key);
+        if (hits.size >= maxKeys) hits.delete(hits.keys().next().value as string);
+        hits.set(key, e);
+      }
+      if (e.count >= rule.max) return { allowed: false, retryAfter: Math.max(1, Math.ceil((e.resetAt - now) / 1000)) };
+      e.count += 1;
+      return { allowed: true, retryAfter: null };
+    },
+  };
+}
