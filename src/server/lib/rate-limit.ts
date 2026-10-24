@@ -75,9 +75,18 @@ export class DbRateLimitStore implements Store<AppEnv> {
   }
 }
 
-/** Removes expired counters. Called from maintenance. */
-export async function pruneRateLimits(db: DB, now = Date.now()) {
-  await db.run(sql`DELETE FROM api_rate_limits WHERE reset_at <= ${now}`);
+/**
+ * Removes expired counters. Called from maintenance. A prune that fails (the database busy with
+ * other writes, or a preview database still migrating) is skipped: expired rows are ignored when
+ * counting anyway, and the next pass removes them.
+ */
+export async function pruneRateLimits(db: DB, now = Date.now()): Promise<boolean> {
+  try {
+    await db.run(sql`DELETE FROM api_rate_limits WHERE reset_at <= ${now}`);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 const body = { error: { code: "rate_limited", message: "Too many requests. Slow down and try again shortly." } };
