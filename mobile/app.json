@@ -6,10 +6,10 @@
     "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#08080a",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#F2F2F7",
     "description": "Email on your own domain, with your team and your AI agents in one inbox.",
-    "primaryColor": "#ff6a3d",
+    "primaryColor": "#0071E3",
     "ios": {
       "bundleIdentifier": "au.mymail.app",
       "buildNumber": "6",
@@ -120,7 +120,7 @@
       "package": "au.mymail.app",
       "versionCode": 6,
       "adaptiveIcon": {
-        "backgroundColor": "#ff6a3d",
+        "backgroundColor": "#0071E3",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundImage": "./assets/android-icon-background.png"
@@ -141,8 +141,8 @@
       "output": "single",
       "bundler": "metro",
       "name": "MyMail",
-      "themeColor": "#08080a",
-      "backgroundColor": "#08080a",
+      "themeColor": "#0071E3",
+      "backgroundColor": "#F2F2F7",
       "lang": "en-AU"
     },
     "plugins": [
@@ -158,14 +158,18 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 120,
           "resizeMode": "contain",
-          "backgroundColor": "#08080a"
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#000000"
+          }
         }
       ],
       [
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#ff6a3d",
+          "color": "#0071E3",
           "defaultChannel": "mail",
           "enableBackgroundRemoteNotifications": true
         }
