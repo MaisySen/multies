@@ -5,6 +5,7 @@
  */
 import { isKnownPage } from "../shared/known-routes";
 import * as Sentry from "@sentry/node";
+import { sentryPrivacy } from "../shared/sentry-scrub";
 import { S3BodyStore } from "../server/services/storage/body-store";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -43,7 +44,7 @@ import { eq } from "drizzle-orm";
 
 loadDotEnv();
 const config = loadConfig(process.env);
-if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, release: config.release, tracesSampleRate: config.sentry.tracesSampleRate });
+if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, release: config.release, tracesSampleRate: config.sentry.tracesSampleRate, ...sentryPrivacy });
 const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
 const applied = await migrate(db);
 if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`);
