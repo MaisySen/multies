@@ -22,6 +22,7 @@ const TABS = [
   { to: "/app/settings/team", label: "Team" },
   { to: "/app/settings/billing", label: "Billing" },
   { to: "/app/settings/account", label: "Account & security" },
+  { to: "/app/settings/notifications", label: "Notifications" },
   { to: "/app/settings/mail", label: "Mail routing" },
   { to: "/app/settings/mail-apps", label: "Mail apps" },
   { to: "/app/settings/developers", label: "Developers" },

@@ -44,6 +44,12 @@ const PortfolioPage = lazy(() => import("./pages/app/work/portfolio").then((m) =
 const guestPages = () => import("./pages/app/work/guest");
 const GuestAcceptPage = lazy(() => guestPages().then((m) => ({ default: m.GuestAcceptPage })));
 const GuestProjectPage = lazy(() => guestPages().then((m) => ({ default: m.GuestProjectPage })));
+const ChatPage = lazy(() => import("./pages/app/work/chat").then((m) => ({ default: m.ChatPage })));
+const notificationPages = () => import("./pages/app/notifications");
+const NotificationsPage = lazy(() => notificationPages().then((m) => ({ default: m.NotificationsPage })));
+const NotificationSettings = lazy(() => notificationPages().then((m) => ({ default: m.NotificationSettings })));
+const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
+const GoalsPage = lazy(() => import("./pages/app/work/goals").then((m) => ({ default: m.GoalsPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
 const SettingsLayout = lazy(() => settings().then((m) => ({ default: m.SettingsLayout })));
@@ -117,6 +123,11 @@ export const router = createBrowserRouter([
       { path: "forms", element: page(<FormsPage />) },
       { path: "reports", element: page(<ReportsPage />) },
       { path: "portfolio", element: page(<PortfolioPage />) },
+      { path: "chat", element: page(<ChatPage />) },
+      { path: "chat/:id", element: page(<ChatPage />) },
+      { path: "notifications", element: page(<NotificationsPage />) },
+      { path: "templates", element: page(<TemplatesPage />) },
+      { path: "goals", element: page(<GoalsPage />) },
       { path: "meetings", element: page(<MeetingsPage />) },
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
@@ -129,6 +140,7 @@ export const router = createBrowserRouter([
           { path: "team", element: page(<TeamSettings />) },
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },
+          { path: "notifications", element: page(<NotificationSettings />) },
           { path: "mail", element: page(<MailSettings />) },
           { path: "mail-apps", element: page(<MailAppsSettings />) },
           { path: "developers", element: page(<DeveloperSettings />) },

@@ -7,6 +7,7 @@ import { TaskTime } from "./time";
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
+import { toast } from "sonner";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
 import { Avatar, Badge, Skeleton } from "@/web/components/ui/misc";
@@ -79,6 +80,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <Menu trigger={<button className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
               <MenuItem icon={<FileText />} onSelect={newDoc}>New doc for this task</MenuItem>
               <MenuItem icon={<Video />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
+              <MenuItem icon={<FileText />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
               <MenuItem icon={<Trash2 />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
@@ -116,6 +118,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <dd><Input type="date" aria-label="Start date" value={dateInput(t.start)} onChange={(e) => save({ start: e.target.value || null })} className="h-8 text-[13px]" /></dd>
             <dt className="text-subtle">Due</dt>
             <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px]" /></dd>
+            <dt className="text-subtle">Repeat</dt>
+            <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
             <dt className="text-subtle">Labels</dt>
             <dd><Input aria-label="Labels" placeholder="ops, client" value={labels} onChange={(e) => setLabels(e.target.value)}
               onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px]" /></dd>
@@ -268,5 +272,40 @@ function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blo
       {blocking.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocking</p><ul className="mt-1 space-y-1">{blocking.map((b) => row(b, () => void remove(task.id, b.id)))}</ul></>}
       {!blockedBy.length && !blocking.length && !adding && <p className="mt-1 text-[12.5px] text-subtle">Nothing blocks this task.</p>}
     </section>
+  );
+}
+
+type Repeat = NonNullable<Task["repeat"]>;
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Repeat rule: none, daily, weekly on chosen days, monthly, yearly, or every N of those. */
+function RepeatPicker({ value, onChange }: { value: Repeat | null; onChange: (r: Omit<Repeat, "text"> | null) => void }) {
+  const freq = value?.freq ?? "";
+  const interval = value?.interval ?? 1;
+  const set = (patch: Partial<Omit<Repeat, "text">>) => {
+    const next = { freq: (patch.freq ?? value?.freq ?? "weekly") as Repeat["freq"], interval: patch.interval ?? interval, weekdays: patch.weekdays ?? value?.weekdays, monthDay: patch.monthDay ?? value?.monthDay, until: value?.until ?? null };
+    if (next.freq !== "weekly") delete next.weekdays;
+    if (next.freq !== "monthly") delete next.monthDay;
+    onChange(next);
+  };
+  return (
+    <div className="space-y-1.5" data-testid="repeat-picker">
+      <div className="flex gap-1.5">
+        <Select aria-label="Repeat" value={freq} onChange={(e) => (e.target.value ? set({ freq: e.target.value as Repeat["freq"] }) : onChange(null))} className="h-8 text-[13px]">
+          <option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option>
+        </Select>
+        {freq && <label className="flex items-center gap-1 text-[12.5px] text-muted">every<Input aria-label="Repeat every" type="number" min={1} max={365} value={interval} onChange={(e) => set({ interval: Math.max(1, Number(e.target.value) || 1) })} className="h-8 w-14 text-[13px]" /></label>}
+      </div>
+      {freq === "weekly" && (
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Repeat on">
+          {DAYS.map((d, i) => {
+            const on = value?.weekdays?.includes(i) ?? false;
+            return <button key={d} type="button" aria-pressed={on} onClick={() => set({ weekdays: on ? (value?.weekdays ?? []).filter((x) => x !== i) : [...(value?.weekdays ?? []), i].sort() })}
+              className={on ? "rounded-md bg-brand px-1.5 py-0.5 text-[11.5px] text-brand-fg" : "rounded-md border border-line px-1.5 py-0.5 text-[11.5px] text-muted"}>{d}</button>;
+          })}
+        </div>
+      )}
+      {value && <p className="text-[11.5px] text-subtle">{value.text}. Finishing it makes the next one.</p>}
+    </div>
   );
 }

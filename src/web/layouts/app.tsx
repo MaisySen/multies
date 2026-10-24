@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
+import { Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, Sparkles, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
 import { TimerChip } from "@/web/pages/app/work/time";
+import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useMe, useWorkspaces } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
@@ -24,6 +25,8 @@ const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigat
 const nav = [
   { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
   { to: "/app/mail", label: "Mail", icon: Inbox },
+  { to: "/app/notifications", label: "Notifications", icon: Bell },
+  { to: "/app/chat", label: "Chat", icon: MessageCircle },
   { to: "/app/inbox", label: "Team inbox", icon: MessagesSquare },
   { to: "/app/tasks", label: "Tasks", icon: CheckSquare },
   { to: "/app/docs", label: "Docs", icon: FileText },
@@ -33,6 +36,8 @@ const nav = [
   { to: "/app/forms", label: "Forms", icon: ClipboardList },
   { to: "/app/reports", label: "Reports", icon: BarChart3 },
   { to: "/app/portfolio", label: "Portfolio", icon: Briefcase },
+  { to: "/app/goals", label: "Goals", icon: Target },
+  { to: "/app/templates", label: "Templates", icon: LayoutTemplate },
   { to: "/app/automations", label: "Automations", icon: Zap },
   { to: "/app/agents", label: "Agents", icon: Bot },
   { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
@@ -55,6 +60,8 @@ export function AppLayout() {
     queryFn: async () => (await api.get<{ approvals: unknown[] }>("/approvals?status=pending")).approvals,
   });
   const pendingCount = approvals.data?.length ?? 0;
+  const unreadNotes = useUnreadNotifications(!!me.data?.organization);
+  const chatUnread = useQuery({ queryKey: ["chat", "unread"], enabled: !!me.data?.organization, refetchInterval: 30_000, queryFn: () => api.get<{ total: number; mentions: number }>("/chat/unread") });
   useEffect(() => setDrawer(false), [loc.pathname]);
   // Assigned during render so the first paint already uses the workspace's zone.
   setDisplayTimeZone(me.data?.organization?.timezone);
@@ -113,6 +120,8 @@ export function AppLayout() {
             isActive ? "bg-white/[0.07] font-medium text-fg" : "text-muted hover:bg-white/[0.04] hover:text-fg",
           )}>
             <Icon className="h-4 w-4" />{label}
+            {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
+            {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-white/[0.12] px-1.5 text-[11px] font-semibold tabular-nums" aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
             {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
           </NavLink>
         ))}
