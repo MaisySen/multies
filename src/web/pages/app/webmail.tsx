@@ -15,6 +15,7 @@ import { formatBytes, fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
+import { useReopenedDrafts } from "@/web/lib/undo-send";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask } from "./work/make-task";
@@ -89,6 +90,8 @@ export function WebmailPage() {
     act.mutate({ ids: [current.id], action });
     open(next?.id ?? null);
   };
+  // Undo send (or a failed send) puts the message back into Compose, exactly as it was.
+  useReopenedDrafts<ComposeDraft>((d) => setCompose(d));
   const startCompose = (d?: Partial<ComposeDraft>) => setCompose({ mailboxId: mailboxId || mailboxes[0]?.id || "", to: "", subject: "", text: "", ...d });
   // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
   // ?compose=name@example.com (from a contact page) opens it addressed to that person.

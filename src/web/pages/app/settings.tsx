@@ -9,7 +9,9 @@ import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig, useMe, useOrg, qk } from "@/web/lib/queries";
-import { Card, CopyButton, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, CopyButton, Kbd, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { useUndoSeconds } from "@/web/lib/undo-send";
+import { UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
@@ -62,10 +64,28 @@ export function GeneralSettings() {
 export function MailSettings() {
   return (
     <div className="space-y-6">
+      <UndoSendSection />
       <InboundSection />
       <OutboundSection />
       <ImportSection />
     </div>
+  );
+}
+
+/** How long Send waits before posting, so a message can be taken back. Kept on this device, per browser. */
+function UndoSendSection() {
+  const [seconds, setSeconds] = useUndoSeconds();
+  return (
+    <Section id="undo-send" title="Undo send" description={<>After you press Send, Multies holds the message for a few seconds so you can take it back. Press <Kbd>Z</Kbd> or Undo while it counts down. This choice is saved on this device.</>}>
+      <div role="radiogroup" aria-label="Undo send window" className="inline-flex rounded-lg bg-fill p-0.5">
+        {UNDO_SEND_CHOICES.map((n) => (
+          <button key={n} type="button" role="radio" aria-checked={seconds === n} onClick={() => setSeconds(n)}
+            className={cn("h-8 min-w-14 rounded-md px-3 text-[13px] transition-colors max-sm:min-h-11", seconds === n ? "bg-elevated font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+            {n} seconds
+          </button>
+        ))}
+      </div>
+    </Section>
   );
 }
 

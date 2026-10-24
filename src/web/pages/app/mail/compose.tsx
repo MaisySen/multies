@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Minus, Send, Trash2, X } from "lucide-react";
+import { Minus, Send, Trash2, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -8,6 +8,8 @@ import type { Mailbox, MailboxOverview } from "@/web/lib/types";
 import { Button } from "@/web/components/ui/button";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
+import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
+import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -18,6 +20,26 @@ export interface ComposeDraft {
   text: string;
   inReplyToId?: string;
   draftId?: string;
+}
+
+type SendResult = { internal: string[]; external: { address: string; status: string; detail?: string }[] };
+
+/** The outcome toast after a held message has been posted. */
+function reportSent(r: SendResult) {
+  const failed = r.external.filter((e) => e.status === "failed");
+  const queued = r.external.filter((e) => e.status === "queued");
+  if (failed.length) toast.error(`Couldn't deliver to ${failed.map((f) => f.address).join(", ")}`, { description: failed[0].detail });
+  else if (queued.length) {
+    const held = queued.some((q) => q.detail?.startsWith("Held:"));
+    const n = `${queued.length} outside recipient${queued.length > 1 ? "s" : ""}`;
+    toast.warning("Saved to Sent, not delivered outside yet", {
+      duration: 10000,
+      description: `${r.internal.length ? `Delivered inside Multies to ${r.internal.length}. ` : ""}${held
+        ? `${n} held: verify this domain with the email provider to send outside Multies.`
+        : `${n} queued: outside delivery starts once an email provider is connected.`}`,
+    });
+  }
+  else toast.success("Message sent");
 }
 
 const splitAddrs = (s?: string) => (s ?? "").split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
@@ -34,36 +56,35 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
-  // One key per message being written: a retried send can never deliver twice.
-  const sendKey = useRef(`send_${crypto.randomUUID()}`);
-  const send = useMutation({
-    mutationFn: () => api.post<{ internal: string[]; external: { address: string; status: string; detail?: string }[] }>("/mail/send", {
-      mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId, draftId: d.draftId,
-    }, { idempotencyKey: sendKey.current }),
-    onSuccess: (r) => {
-      refresh();
-      qc.invalidateQueries({ queryKey: ["dashboard"] });
-      const failed = r.external.filter((e) => e.status === "failed");
-      const queued = r.external.filter((e) => e.status === "queued");
-      if (failed.length) toast.error(`Couldn't deliver to ${failed.map((f) => f.address).join(", ")}`, { description: failed[0].detail });
-      else if (queued.length) {
-        const held = queued.some((q) => q.detail?.startsWith("Held:"));
-        const n = `${queued.length} outside recipient${queued.length > 1 ? "s" : ""}`;
-        toast.warning("Saved to Sent, not delivered outside yet", {
-          duration: 10000,
-          description: `${r.internal.length ? `Delivered inside Multies to ${r.internal.length}. ` : ""}${held
-            ? `${n} held: verify this domain with the email provider to send outside Multies.`
-            : `${n} queued: outside delivery starts once an email provider is connected.`}`,
-        });
-      }
-      else toast.success("Message sent");
-      onClose();
-    },
-    onError: (e) => {
-      sendKey.current = `send_${crypto.randomUUID()}`;
-      toast.error(e instanceof ApiError ? e.message : "Couldn't send.");
-    },
-  });
+  const [undoSeconds, setUndoSeconds] = useUndoSeconds();
+  // Send holds the message in the browser for a few seconds (Undo send), then posts it.
+  // Compose closes at once; the hold lives outside this component, so it keeps counting after it unmounts.
+  const send = () => {
+    if (!d.to.trim()) { toRef.current?.focus(); return; }
+    const snapshot = d;
+    const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];
+    // One key per held message: a retried post can never deliver twice.
+    const key = `send_${crypto.randomUUID()}`;
+    holdMessage({
+      seconds: undoSeconds,
+      to,
+      send: () => api.post<SendResult>("/mail/send", {
+        mailboxId: snapshot.mailboxId, to: splitAddrs(snapshot.to), cc: splitAddrs(snapshot.cc), bcc: splitAddrs(snapshot.bcc),
+        subject: snapshot.subject, text: snapshot.text, inReplyToId: snapshot.inReplyToId, draftId: snapshot.draftId,
+      }, { idempotencyKey: key }),
+      onSent: (r) => {
+        void qc.invalidateQueries({ queryKey: ["mail"] });
+        void qc.invalidateQueries({ queryKey: ["dashboard"] });
+        reportSent(r);
+      },
+      onError: (e) => {
+        toast.error(e instanceof ApiError ? e.message : "Couldn't send.", { description: "Your message is back in Compose." });
+        reopenDraft(snapshot, "failed");
+      },
+      onUndo: () => reopenDraft(snapshot, "undo"),
+    });
+    onClose();
+  };
   const saveDraft = useMutation({
     mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text }),
     onSuccess: () => { refresh(); toast.success("Draft saved"); onClose(); },
@@ -78,7 +99,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       minimized ? "sm:h-12" : "sm:h-[min(620px,85dvh)]",
     )}
       onKeyDown={(e) => {
-        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); send.mutate(); }
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); send(); }
         if (e.key === "Escape") { e.stopPropagation(); close(); }
       }}>
       <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
@@ -89,7 +110,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         </div>
       </div>
       {!minimized && (
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); send.mutate(); }}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <Row label="From">
             <select value={d.mailboxId} onChange={set("mailboxId")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="From">
               {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.displayName} &lt;{m.address}&gt;</option>)}
@@ -107,8 +128,14 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <textarea ref={bodyRef} value={d.text} onChange={set("text")} aria-label="Message" className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
           <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
             <div className="flex items-center gap-2">
-              <Button type="submit" loading={send.isPending} disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>
+              <Button type="submit" disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
+              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover" title="How long you have to undo after pressing Send">
+                <Undo2 className="h-3.5 w-3.5" aria-hidden />
+                <select value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window">
+                  {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
+                </select>
+              </label>
             </div>
             <button type="button" onClick={onClose} className="rounded-md p-2 text-muted hover:bg-hover hover:text-bad" aria-label="Discard"><Trash2 className="h-4 w-4" /></button>
           </div>
