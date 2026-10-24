@@ -52,3 +52,12 @@ is in the mobile project's `docs/release.md` and `store/SUBMISSION.md`.
 4. App Store: archive in Xcode, upload to App Store Connect, TestFlight, then submit for review with the fixed App Review demo login.
 5. Store listings point at https://multies.si/support and https://multies.si/delete-account.
 6. Note the release in the CHANGELOG.
+
+## Sign in
+
+The app has no password screen. "Continue with Multies" and "Create account" open the Multies sign in
+page (the identity provider's Universal Login) in the system browser as the Native application
+"Multies Mobile", with PKCE, state and nonce, and the callback `mymail://auth/callback` (the app.json
+scheme). The app swaps the code for an ID token, sends it to `POST /api/auth/mobile/exchange`, and keeps
+only the Multies session cookie in SecureStore. Details: [auth.md](auth.md). Builds can point at another
+tenant with `EXPO_PUBLIC_IDP_DOMAIN` and `EXPO_PUBLIC_IDP_CLIENT_ID`.
