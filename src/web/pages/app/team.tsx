@@ -63,7 +63,6 @@ export function TeamSettings() {
 
   return (
     <div className="space-y-6">
-      {myRole === "owner" && <SsoEnforcement required={!!me.data?.organization?.requireSso} />}
       <Card>
         <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -74,6 +73,7 @@ export function TeamSettings() {
             <div className="w-36">
               <div className="mb-1.5 flex justify-between text-xs text-muted"><span>Seats</span><span className="tabular-nums">{used} / {seats.limit}</span></div>
               <Meter value={used} max={seats.limit} />
+              <div className="mt-1.5 text-xs text-subtle tabular-nums" data-testid="agent-seats">{agentMembers.length} agent{agentMembers.length === 1 ? "" : "s"}, no seat needed</div>
             </div>
             {canManage && <Button onClick={() => setInviting(true)} disabled={used >= seats.limit} title={used >= seats.limit ? "All seats are in use" : undefined}><UserPlus className="h-4 w-4" />Invite</Button>}
           </div>
@@ -100,6 +100,8 @@ export function TeamSettings() {
           )}
         </Card>
       )}
+
+      {myRole === "owner" && <SsoEnforcement required={!!me.data?.organization?.requireSso} />}
 
       <InviteDialog open={inviting} onClose={() => setInviting(false)} myRole={myRole} mailboxes={mailboxes.data ?? []}
         onCreated={(r) => { setInviting(false); setCreated(r); }} />

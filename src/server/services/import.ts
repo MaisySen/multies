@@ -28,7 +28,7 @@ export type ImportProvider = keyof typeof IMPORT_PROVIDERS;
 export function importEnabled(deps: Deps) { return !!deps.config.importRunnerToken; }
 
 function assertEnabled(deps: Deps) {
-  if (!importEnabled(deps)) throw new HttpError(404, "import_off", "Importing isn't switched on for this Multies yet.");
+  if (!importEnabled(deps)) throw new HttpError(404, "import_off", "Importing isn't switched on for this workspace yet.");
 }
 
 const present = (j: typeof importJobs.$inferSelect) => ({

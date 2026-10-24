@@ -9,7 +9,7 @@ const card = "rounded-xl border border-line bg-fill/60 p-5";
 
 function SupportEmail() {
   const config = useConfig();
-  const email = config.data?.supportEmail ?? "support@mymail.au";
+  const email = config.data?.supportEmail ?? "support@multies.si";
   return <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>;
 }
 

@@ -8,9 +8,9 @@ export const LEGAL_ENTITY = {
   name: "[Legal entity name, for example Multies Pty Ltd]",
   abn: "[ABN]",
   address: "[Registered address], Sydney NSW, Australia",
-  privacyEmail: "privacy@mymail.au",
-  abuseEmail: "abuse@mymail.au",
-  supportEmail: "support@mymail.au",
+  privacyEmail: "privacy@multies.si",
+  abuseEmail: "abuse@multies.si",
+  supportEmail: "support@multies.si",
 };
 
 export const LEGAL_UPDATED = "23 October 2026";

@@ -104,7 +104,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { projects: await listProjects(c.var.deps, actor(c).orgId) }));
 
   api.openapi(createRoute({ method: "post", path: "/projects", tags: tag("Projects"), summary: "Create a project", security: secured,
-    description: "Statuses are optional: the default is To do, In progress, Waiting on reply and Done. Each status belongs to a group (todo, doing, done).",
+    description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done).",
     request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 422: errors[422] } }),
   async (c) => send(c, { project: await createProject(c.var.deps, actor(c), c.req.valid("json")) }, 201));
 

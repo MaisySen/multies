@@ -25,7 +25,7 @@ import { localPasswordEnabled } from "./config";
 import { multiesAuthPlugin } from "./mobile";
 import { clearFailures, lockedUntil, recordFailure } from "../services/lockout";
 import { audit } from "../services/audit";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "../context";
 import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
@@ -257,10 +257,13 @@ export function authOptions(deps: Deps) {
       },
       session: {
         create: {
-          // New sessions open the person's first workspace.
+          // New sessions open the workspace the person used last (their newest session's), else their first.
           before: async (session, ctx) => {
-            const m = await db.select().from(schema.members).where(eq(schema.members.userId, session.userId)).get();
-            return { data: { ...session, activeOrganizationId: m?.organizationId ?? null, loginMethod: loginMethodFor(ctx?.path, ctx?.params) } };
+            const last = await db.select({ orgId: schema.members.organizationId }).from(schema.sessions)
+              .innerJoin(schema.members, and(eq(schema.members.userId, schema.sessions.userId), eq(schema.members.organizationId, schema.sessions.activeOrganizationId)))
+              .where(eq(schema.sessions.userId, session.userId)).orderBy(desc(schema.sessions.updatedAt)).limit(1).get();
+            const m = last ? undefined : await db.select().from(schema.members).where(eq(schema.members.userId, session.userId)).get();
+            return { data: { ...session, activeOrganizationId: last?.orgId ?? m?.organizationId ?? null, loginMethod: loginMethodFor(ctx?.path, ctx?.params) } };
           },
         },
       },

@@ -19,7 +19,7 @@ export const PRIORITIES: Priority[] = ["none", "low", "medium", "high", "urgent"
 export const DEFAULT_STATUSES: { name: string; category: Category; color: string }[] = [
   { name: "To do", category: "todo", color: "#8a8f98" },
   { name: "In progress", category: "doing", color: "#3b82f6" },
-  { name: "Waiting on reply", category: "doing", color: "#f59e0b" },
+  { name: "In review", category: "doing", color: "#f59e0b" },
   { name: "Done", category: "done", color: "#22c55e" },
 ];
 

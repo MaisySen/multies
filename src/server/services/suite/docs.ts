@@ -70,9 +70,15 @@ function safeLinks(node: PMNode, depth: number): PMNode {
 }
 
 type DocRow = typeof docs.$inferSelect;
+/** The list preview: body lines only (a first line that repeats the title is dropped), one per block. */
+export function excerptOf(title: string, plain: string): string {
+  const lines = plain.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length && lines[0].toLowerCase() === title.trim().toLowerCase()) lines.shift();
+  return lines.join("\n").slice(0, 200);
+}
 function presentDoc(d: DocRow, full = false) {
   return {
-    id: d.id, title: d.title, projectId: d.projectId, excerpt: d.plainText.slice(0, 200),
+    id: d.id, title: d.title, projectId: d.projectId, excerpt: excerptOf(d.title, d.plainText),
     ...(full ? { content: JSON.parse(d.content) as PMNode, text: d.plainText } : {}),
     createdBy: { type: d.createdByType, id: d.createdById }, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(), version: d.version,
   };

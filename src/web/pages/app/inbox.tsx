@@ -33,7 +33,7 @@ export function TeamInboxPage() {
   const open = (id: string | null) => setParams(id ? { thread: id } : {}, { replace: false });
   return (
     <>
-      <PageHeader title="Team inbox" description="Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place." />
+      <PageHeader title="Shared inbox" description="Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place." />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", selected && "hidden lg:block")}>
           {threads.isPending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>

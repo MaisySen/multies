@@ -223,7 +223,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
     appName: env.APP_NAME ?? "Multies",
-    supportEmail: env.SUPPORT_EMAIL?.trim() || "support@mymail.au",
+    supportEmail: env.SUPPORT_EMAIL?.trim() || "support@multies.si",
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,
     appUrl: (env.APP_URL ?? "http://localhost:5173").replace(/\/$/, ""),
     appSecret: secret || "dev-only-insecure-secret-change-me-0000000000",

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
@@ -24,35 +24,37 @@ import { PLANS } from "@/shared/plans";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
-const nav = [
-  { to: "/app", label: "Overview", icon: LayoutDashboard, end: true },
-  { to: "/app/mail", label: "Mail", icon: Inbox },
-  { to: "/app/notifications", label: "Notifications", icon: Bell },
-  { to: "/app/chat", label: "Chat", icon: MessageCircle },
-  { to: "/app/inbox", label: "Team inbox", icon: MessagesSquare },
-  { to: "/app/tasks", label: "Tasks", icon: CheckSquare },
-  { to: "/app/docs", label: "Docs", icon: FileText },
-  { to: "/app/contacts", label: "Contacts", icon: Contact },
-  { to: "/app/time", label: "Timesheet", icon: Timer },
-  { to: "/app/meetings", label: "Meetings", icon: Video },
-  { to: "/app/forms", label: "Forms", icon: ClipboardList },
-  { to: "/app/reports", label: "Reports", icon: BarChart3 },
-  { to: "/app/portfolio", label: "Portfolio", icon: Briefcase },
-  { to: "/app/goals", label: "Goals", icon: Target },
-  { to: "/app/templates", label: "Templates", icon: LayoutTemplate },
-  { to: "/app/automations", label: "Automations", icon: Zap },
-  { to: "/app/integrations", label: "Integrations", icon: Plug },
-  { to: "/app/agents", label: "Agents", icon: Bot },
-  { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck },
-  { to: "/app/domains", label: "Domains", icon: Globe },
-  { to: "/app/mailboxes", label: "Mailboxes", icon: Users },
-  { to: "/app/deliverability", label: "Deliverability", icon: ShieldCheck },
-  { to: "/app/activity", label: "Activity", icon: Activity },
-  { to: "/app/settings", label: "Settings", icon: Settings },
+type NavItem = { to: string; label: string; icon: typeof Inbox; end?: boolean; group: "work" | "mail" | "admin" };
+const nav: NavItem[] = [
+  { to: "/app", label: "Overview", icon: LayoutDashboard, end: true, group: "work" },
+  { to: "/app/notifications", label: "Notifications", icon: Bell, group: "work" },
+  { to: "/app/chat", label: "Chat", icon: MessageCircle, group: "work" },
+  { to: "/app/tasks", label: "Tasks", icon: CheckSquare, group: "work" },
+  { to: "/app/docs", label: "Docs", icon: FileText, group: "work" },
+  { to: "/app/meetings", label: "Meetings", icon: Video, group: "work" },
+  { to: "/app/goals", label: "Goals", icon: Target, group: "work" },
+  { to: "/app/contacts", label: "Contacts", icon: Contact, group: "work" },
+  { to: "/app/time", label: "Timesheet", icon: Timer, group: "work" },
+  { to: "/app/forms", label: "Forms", icon: ClipboardList, group: "work" },
+  { to: "/app/reports", label: "Reports", icon: BarChart3, group: "work" },
+  { to: "/app/portfolio", label: "Portfolio", icon: Briefcase, group: "work" },
+  { to: "/app/templates", label: "Templates", icon: LayoutTemplate, group: "work" },
+  { to: "/app/automations", label: "Automations", icon: Zap, group: "work" },
+  { to: "/app/mail", label: "Mail", icon: Inbox, group: "mail" },
+  { to: "/app/inbox", label: "Shared inbox", icon: MessagesSquare, group: "mail" },
+  { to: "/app/mailboxes", label: "Mailboxes", icon: Users, group: "mail" },
+  { to: "/app/domains", label: "Domains", icon: Globe, group: "mail" },
+  { to: "/app/deliverability", label: "Deliverability", icon: ShieldCheck, group: "mail" },
+  { to: "/app/agents", label: "Agents", icon: Bot, group: "admin" },
+  { to: "/app/approvals", label: "Approvals", icon: ClipboardCheck, group: "admin" },
+  { to: "/app/integrations", label: "Integrations", icon: Plug, group: "admin" },
+  { to: "/app/activity", label: "Activity", icon: Activity, group: "admin" },
+  { to: "/app/settings", label: "Settings", icon: Settings, group: "admin" },
 ];
+const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Admin" } as const;
 
 /** The booking page sits under Meetings when the server has scheduling switched on. */
-const withScheduling = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: CalendarClock }] : [n]));
+const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: CalendarClock, group: "work" as const }] : [n]));
 
 export function AppLayout() {
   const me = useMe();
@@ -122,8 +124,10 @@ export function AppLayout() {
         </button>
       </div>
       <nav className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3" aria-label="App">
-        {[...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false }] : [])].map(({ to, label, icon: Icon, end }) => (
-          <NavLink key={to} to={to} end={end} className={({ isActive }) => cn(
+        {([...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: Shield, end: false, group: "admin" as const }] : [])] as NavItem[]).map(({ to, label, icon: Icon, end, group }, i, all) => (
+          <Fragment key={to}>
+          {(i === 0 || all[i - 1].group !== group) && <div className={cn("px-2.5 pb-1 text-[11.5px] font-semibold text-subtle", i > 0 && "pt-4")}>{GROUP_LABEL[group]}</div>}
+          <NavLink to={to} end={end} className={({ isActive }) => cn(
             "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
             isActive ? "bg-brand-soft font-medium text-brand-hover" : "text-muted hover:bg-hover hover:text-fg",
           )}>
@@ -132,6 +136,7 @@ export function AppLayout() {
             {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
             {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
           </NavLink>
+          </Fragment>
         ))}
       </nav>
       {organization?.isDemo && (

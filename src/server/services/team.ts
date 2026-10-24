@@ -170,7 +170,7 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
   if (inv.email !== auth.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
   await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: id } });
-  await db.update(sessions).set({ activeOrganizationId: inv.organizationId }).where(eq(sessions.id, auth.sessionId));
+  await db.update(sessions).set({ activeOrganizationId: inv.organizationId, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
   const org = (await db.select().from(organizations).where(eq(organizations.id, inv.organizationId)).get())!;
   return { orgId: org.id, orgName: org.name, role: inv.role ?? "member" };
 }
@@ -259,7 +259,7 @@ export async function createWorkspace(deps: Deps, auth: AuthContext, headers: He
   const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "workspace"}-${crypto.randomUUID().slice(0, 8)}`;
   const org = await authFor(deps).api.createOrganization({ headers, body: { name, slug } });
   if (!org) throw new HttpError(500, "internal", "The workspace could not be created.");
-  await deps.db.update(sessions).set({ activeOrganizationId: org.id }).where(eq(sessions.id, auth.sessionId));
+  await deps.db.update(sessions).set({ activeOrganizationId: org.id, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
   return org.id;
 }
 
