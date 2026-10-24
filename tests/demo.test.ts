@@ -63,8 +63,15 @@ describe("demo mode", () => {
     // Housekeeping leaves the seed alone: it is too big to share an invocation with other work.
     await runMaintenance(ctx.deps);
     expect((await c.get("/api/docs")).body.docs).toHaveLength(0);
+    // Part 1 (projects and tasks), then part 2 (docs, deals, automations, chat, goals), then nothing.
+    expect((await c.post("/api/account/demo/seed")).body).toMatchObject({ ok: true, ran: 1 });
+    expect((await c.get("/api/tasks")).body.tasks.length).toBeGreaterThanOrEqual(10);
+    expect((await c.get("/api/docs")).body.docs).toHaveLength(0);
     expect((await c.post("/api/account/demo/seed")).body).toMatchObject({ ok: true, ran: 1 });
     expect((await c.post("/api/account/demo/seed")).body).toMatchObject({ ok: true, ran: 0 });
+    const general = (await c.get("/api/chat/channels")).body.channels.find((x: { name: string }) => x.name === "general");
+    expect(general.lastMessage.preview).toContain("Blue Harbor");
+    expect((await c.get("/api/goals")).body.goals[0]).toMatchObject({ name: "Grow repeat customers this quarter", progress: expect.any(Number) });
     const projects = (await c.get("/api/projects")).body.projects;
     expect(projects.map((p: { key: string }) => p.key).sort()).toEqual(["BHM", "TSK"]);
     const tasks = (await c.get("/api/tasks")).body.tasks as { title: string; source: unknown; due: string | null }[];
@@ -79,6 +86,7 @@ describe("demo mode", () => {
     const { enqueue } = await import("@/server/services/jobs");
     const me = (await c.get("/api/account/me")).body;
     await enqueue(ctx.deps, "demo.seed_suite", { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: "Alex Rivera" });
+    await runDueJobs(ctx.deps);
     await runDueJobs(ctx.deps);
     expect((await c.get("/api/projects")).body.projects).toHaveLength(2);
     expect((await c.get("/api/tasks")).body.tasks).toHaveLength(tasks.length);

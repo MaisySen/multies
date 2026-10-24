@@ -15,8 +15,15 @@ export function useStartDemo() {
       await api.post("/account/demo");
       qc.clear();
       navigate("/app");
-      // Sample tasks, docs and deals are seeded in a second request, while the dashboard loads.
-      void api.post("/account/demo/seed").then(() => qc.invalidateQueries()).catch(() => undefined);
+      // Sample tasks, docs and deals are seeded in later requests while the dashboard loads,
+      // a part per request. A request cut short is simply asked again.
+      void (async () => {
+        for (let i = 0, idle = 0; i < 10 && idle < 2; i++) {
+          const r = await api.post<{ ran: number }>("/account/demo/seed").catch(() => null);
+          if (r?.ran) { idle = 0; void qc.invalidateQueries(); } else if (r) idle++;
+          await new Promise((res) => setTimeout(res, r ? 600 : 4000));
+        }
+      })();
     } catch (err) {
       toast.error(err instanceof ApiError && err.status === 404 ? "The live demo isn't enabled on this server." : err instanceof Error ? err.message : "Couldn't open the demo.");
     } finally {

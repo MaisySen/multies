@@ -49,6 +49,8 @@ export async function enqueue(deps: Deps, type: JobType, payload: unknown, opts:
 }
 
 const LEASE_MS = 2 * 60_000;
+/** Jobs that run inside a visitor's request get a short lease, so one cut off by the CPU limit is picked up again by their next request. */
+const SHORT_LEASE: Partial<Record<JobType, number>> = { "demo.seed_suite": 15_000 };
 
 /**
  * Runs due jobs. Each job is claimed with a conditional update (a lease), so two
@@ -71,7 +73,7 @@ export async function runDueJobs(deps: Deps, limit = 25, only: { types?: JobType
   for (const job of due) {
     // Leave the rest for the next run rather than run past this invocation's budget.
     if (only.budgetMs !== undefined && Date.now() - started > only.budgetMs) break;
-    const lease = new Date(now.getTime() + LEASE_MS);
+    const lease = new Date(now.getTime() + (SHORT_LEASE[job.type as JobType] ?? LEASE_MS));
     const claimed = await deps.db.update(jobs).set({ status: "running", lockedUntil: lease, updatedAt: now })
       .where(and(eq(jobs.id, job.id), eq(jobs.status, job.status), job.lockedUntil ? eq(jobs.lockedUntil, job.lockedUntil) : sql`${jobs.lockedUntil} IS NULL`))
       .returning({ id: jobs.id });

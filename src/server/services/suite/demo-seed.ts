@@ -9,7 +9,7 @@ import { activity, agents, changes, organizations, entityLinks, forms, meetings,
 import { backfillContacts, contactIdFor, createDeal, listDeals } from "./contacts";
 import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
-import { registerJob } from "../jobs";
+import { enqueue, registerJob } from "../jobs";
 import { addComment, createProject, listProjects, listTasks, createTaskFromThread, defaultProject, link } from "./tasks";
 import { createdBy, parseDate, sortableId, type SuiteActor } from "./common";
 
@@ -28,15 +28,22 @@ registerJob("demo.seed_suite", async (deps, payload) => {
   // foreign key failure that follows is not an error.
   const stillThere = async () => !!(await deps.db.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, p.orgId)).get());
   if (!(await stillThere())) return;
+  const part = (payload as { part?: 1 | 2 }).part ?? 1;
   try {
-    await seedDemoSuite(deps, actor, deps.now().getTime());
+    await seedDemoSuite(deps, actor, deps.now().getTime(), part);
+    // The second part runs as its own job, so the next seed request picks it up.
+    if (part === 1) await enqueue(deps, "demo.seed_suite", { ...p, part: 2 }, { orgId: p.orgId, maxAttempts: 3 });
   } catch (err) {
     if (!(await stillThere())) return;
     throw err;
   }
 });
 
-export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) {
+/**
+ * Seeds in two parts so no single request does too much on the Workers Free CPU limit:
+ * part 1 makes the projects and tasks, part 2 the docs, deals, automations, chat and goals.
+ */
+export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number, part: 1 | 2 | "all" = "all") {
   const orgId = actor.orgId;
   await backfillContacts(deps, orgId, { force: true });
   const me = { type: "member" as const, id: actor.userId };
@@ -61,6 +68,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
   const seeded = await listTasks(deps, actor, { projectId: client.id, includeSubtasks: true });
   let fromMaria = seeded.find((t) => t.title.startsWith("Move Blue Harbor")) ?? null;
   if (!seeded.length) fromMaria = await seedTasks();
+  if (part === 1) return;
 
   async function seedTasks() {
     // Tasks made from real sample threads, the way a person would with "Make task".
@@ -113,7 +121,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number) 
   }
 
   const [docsList, dealsList, autoList] = await Promise.all([listDocs(deps, orgId), listDeals(deps, orgId), listAutomations(deps, orgId)]);
-  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now), seedRound8(deps, actor, client.id, tasksProject.id)]);
+  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now), seedRound8(deps, actor, client.id, tasksProject.id), seedRound10(deps, actor, fromMaria, now)]);
 
   async function seedDocs() {
   if (!docsList.length) {
@@ -236,4 +244,30 @@ async function seedRound8(deps: Deps, actor: SuiteActor, clientId: string, other
     updateProject(deps, actor, clientId, { health: "at_risk", healthNote: "Waiting on Maria to confirm the cutover date", ownerId: actor.userId }),
     otherId !== clientId ? updateProject(deps, actor, otherId, { health: "on_track", ownerId: actor.userId }) : null,
   ]);
+}
+
+/** A #general welcome with a task link, and one goal with key results, so chat and goals are not empty. */
+async function seedRound10(deps: Deps, actor: SuiteActor, fromMaria: { id: string } | null, now: number) {
+  const [{ listChannels, postMessage }, { goalTree, createGoal }] = await Promise.all([import("./chat"), import("./goals")]);
+  const [channels, goals] = await Promise.all([listChannels(deps, actor), goalTree(deps, actor.orgId)]);
+  const general = channels.find((c) => c.name === "general");
+  const work: Promise<unknown>[] = [];
+  if (general && !general.lastMessage) {
+    work.push(postMessage(deps, actor, general.id, {
+      body: fromMaria
+        ? `Blue Harbor's move is on for Friday. Progress is on <#task:${fromMaria.id}>, and replies to Maria go out from founders@.`
+        : "Blue Harbor's move is on for Friday. Replies to Maria go out from founders@.",
+    }));
+  }
+  if (!goals.goals.length) {
+    const due = new Date(now + 70 * 86_400_000).toISOString().slice(0, 10);
+    work.push(createGoal(deps, actor, {
+      name: "Grow repeat customers this quarter", due,
+      keyResults: [
+        { name: "Monthly recurring revenue", kind: "currency", start: 8000, target: 15000, current: 11200 },
+        { name: "Repeat orders a month", kind: "number", start: 0, target: 40, current: 22 },
+      ],
+    }));
+  }
+  await Promise.all(work);
 }
