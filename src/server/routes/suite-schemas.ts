@@ -29,6 +29,14 @@ export const FieldCreate = z.object({
 export const FieldPatch = z.object({ name: z.string().trim().min(1).max(60).optional(), options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional() }).openapi("FieldPatch");
 export const GuestInvite = z.object({ email: z.string().trim().email().max(254), name: z.string().trim().max(80).optional(), agentId: z.string().optional() }).openapi("GuestInvite");
 
+export const RepeatRule = z.object({
+  freq: z.enum(["daily", "weekly", "monthly", "yearly"]),
+  interval: z.number().int().min(1).max(365).optional().openapi({ description: "Every N days, weeks, months or years (custom). Default 1." }),
+  weekdays: z.array(z.number().int().min(0).max(6)).max(7).optional().openapi({ description: "Weekly: days of the week, 0 Sunday to 6 Saturday." }),
+  monthDay: z.number().int().min(1).max(31).optional().openapi({ description: "Monthly: day of the month (short months use their last day)." }),
+  until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().openapi({ description: "Stop repeating after this date, YYYY-MM-DD." }),
+}).nullable().optional().openapi("RepeatRule", { description: "Finishing a repeating task makes the next one, with the dates moved on. null stops repeating." });
+
 export const TaskCreate = z.object({
   title: z.string().trim().min(1).max(300).openapi({ example: "Send Harbour Coffee the revised quote" }),
   notes: z.string().max(50_000).optional(),
@@ -40,6 +48,7 @@ export const TaskCreate = z.object({
   parentId: z.string().nullable().optional().openapi({ description: "Makes this a subtask of another task." }),
   source: z.object({ messageId: z.string().optional(), threadId: z.string().optional() }).nullable().optional().openapi({ description: "The email this task is about. The task links to its thread." }),
   fields: FieldValues.optional(),
+  repeat: RepeatRule,
 }).openapi("TaskCreate");
 export const TaskFromEmail = z.object({
   messageId: z.string().optional(), threadId: z.string().optional(),
@@ -52,6 +61,7 @@ export const TaskPatch = z.object({
   priority: Priority.optional(), start: date, due: date, labels: z.array(z.string().max(40)).max(20).optional(),
   parentId: z.string().nullable().optional(), position: z.number().finite().optional(),
   fields: FieldValues.optional(),
+  repeat: RepeatRule,
   version: z.number().int().optional().openapi({ description: "Send the version you read to reject the write if someone changed the task since." }),
 }).openapi("TaskPatch");
 export const TaskQuery = z.object({

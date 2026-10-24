@@ -9,6 +9,7 @@ import { agents, docs, entityLinks, members, messages, projectStatuses, projects
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, setTaskFieldValues, valuesForTasks, type FieldFilter } from "./fields";
+import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
 import { assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 
 export type Category = "todo" | "doing" | "done";
@@ -235,6 +236,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     subtasks: l.subtasks.get(t.id) ?? { total: 0, done: 0 },
     commentCount: l.comments.get(t.id) ?? 0,
     fields: l.fields.get(t.id) ?? {},
+    repeat: t.repeatRule ? { ...(JSON.parse(t.repeatRule) as RepeatRule), text: describeRule(JSON.parse(t.repeatRule) as RepeatRule) } : null,
     completedAt: iso(t.completedAt),
     createdBy: { type: t.createdByType, id: t.createdById },
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(), version: t.version,
@@ -353,6 +355,8 @@ export interface CreateTaskInput {
   priority?: Priority; start?: string | null; due?: string | null; labels?: string[]; parentId?: string | null;
   source?: { messageId?: string; threadId?: string } | null;
   fields?: Record<string, unknown>;
+  /** Makes the task repeat: finishing it creates the next one. */
+  repeat?: RepeatRule | null;
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
@@ -390,7 +394,8 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     priority: input.priority ?? "none", startAt: parseDate(input.start), dueAt: parseDate(input.due), labels: JSON.stringify(normaliseLabels(input.labels)),
     parentId: input.parentId ?? null, position: await bottomPosition(deps, status.id),
     threadId: source.threadId, messageId: source.messageId, sourceFrom: source.from, sourceSubject: source.subject,
-    completedAt: status.category === "done" ? now : null, ...createdBy(actor), createdAt: now, updatedAt: now,
+    completedAt: status.category === "done" ? now : null, repeatRule: input.repeat ? JSON.stringify(normaliseRule(input.repeat)) : null,
+    ...createdBy(actor), createdAt: now, updatedAt: now,
   };
   await deps.db.insert(tasks).values(row);
   if (input.fields && Object.keys(input.fields).length) await setTaskFieldValues(deps, actor.orgId, { id, projectId: project.id }, input.fields);
@@ -409,7 +414,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   });
   if (task.assignee?.type === "member" && task.assignee.id !== actor.userId) {
     const { notify } = await import("./notify");
-    await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: id, title: `${task.ref} assigned to you: ${title}` });
+    await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: id, title: `${task.ref} assigned to you: ${title}`, actorName: actor.name || actor.email });
   }
   return task;
 }
@@ -432,6 +437,8 @@ export interface UpdateTaskInput {
   start?: string | null; due?: string | null; labels?: string[]; parentId?: string | null; position?: number; version?: number;
   /** Custom field values by field id (or name); null clears one. */
   fields?: Record<string, unknown>;
+  /** A repeat rule, or null to stop repeating. */
+  repeat?: RepeatRule | null;
 }
 
 export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string, patch: UpdateTaskInput) {
@@ -444,6 +451,7 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (patch.title !== undefined) { set.title = patch.title.trim() || t.title; changed.title = set.title; }
   if (patch.notes !== undefined) { set.notes = patch.notes; changed.notes = true; }
   if (patch.priority !== undefined) { set.priority = patch.priority; changed.priority = patch.priority; }
+  if (patch.repeat !== undefined) { const r = normaliseRule(patch.repeat); set.repeatRule = r ? JSON.stringify(r) : null; changed.repeat = r; }
   if (patch.labels !== undefined) { set.labels = JSON.stringify(normaliseLabels(patch.labels)); changed.labels = normaliseLabels(patch.labels); }
   if (patch.start !== undefined) { set.startAt = parseDate(patch.start); changed.start = patch.start; }
   if (patch.due !== undefined) { set.dueAt = parseDate(patch.due); set.reminderSentFor = null; changed.due = patch.due; }
@@ -487,13 +495,50 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   }
   if (changed.assignee && task.assignee?.type === "member" && task.assignee.id !== actor.userId) {
     const { notify } = await import("./notify");
-    await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}` });
+    await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}`, actorName: actor.name || actor.email });
+  }
+  let out = task;
+  if (statusChanged && fromCategory !== "done" && task.status === "done" && task.repeat) {
+    await spawnRepeat(deps, actor, t.id);
+    out = await getTask(deps, actor, t.id);
   }
   if (statusChanged) {
     const { runStatusAutomations } = await import("./automations");
     await runStatusAutomations(deps, actor.orgId, task, fromCategory);
   }
-  return task;
+  return out;
+}
+
+/**
+ * Makes the next task of a repeating series when one is finished. The new task copies the
+ * title, notes, assignee, priority, labels, custom fields and subtasks (reset to to do), with
+ * the start and due dates moved on by the rule. The finished task keeps its history and drops the rule.
+ */
+async function spawnRepeat(deps: Deps, actor: SuiteActor, taskId: string) {
+  const t = await taskRow(deps, actor.orgId, taskId);
+  if (!t.repeatRule) return null;
+  const rule = JSON.parse(t.repeatRule) as RepeatRule;
+  const now = deps.now();
+  const base = t.dueAt ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  // Never make the next one in the past when a task is finished late.
+  let due = nextOccurrence(rule, base);
+  for (let i = 0; due && due.getTime() < now.getTime() - 86_400_000 && i < 400; i++) due = nextOccurrence(rule, due);
+  await deps.db.update(tasks).set({ repeatRule: null }).where(eq(tasks.id, t.id));
+  if (!due) return null;
+  const shift = due.getTime() - base.getTime();
+  const fields = (await valuesForTasks(deps, actor.orgId, [t.id])).get(t.id) ?? {};
+  const next = await createTask(deps, actor, {
+    title: t.title, notes: t.notes, projectId: t.projectId, status: "todo",
+    assignee: t.assigneeType && t.assigneeId ? { type: t.assigneeType, id: t.assigneeId } : null,
+    priority: t.priority, labels: JSON.parse(t.labels) as string[], parentId: t.parentId,
+    start: t.startAt ? new Date(t.startAt.getTime() + shift).toISOString() : null, due: due.toISOString(),
+    fields: Object.keys(fields).length ? fields : undefined, repeat: rule,
+  });
+  const subs = await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, t.id), isNull(tasks.deletedAt))).orderBy(asc(tasks.position));
+  for (const sub of subs) await createTask(deps, actor, { title: sub.title, parentId: next.id, projectId: t.projectId });
+  await link(deps, actor.orgId, { type: "task", id: next.id }, { type: "task", id: t.id }, "repeat_of");
+  await recordWrite(deps, actor, { entityType: "task", entityId: next.id, op: "update", version: next.version, verb: "repeated", data: { from: t.id }, event: "task.recurred", eventData: { task: next, previousTaskId: t.id } });
+  return next;
 }
 
 export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
@@ -519,11 +564,32 @@ export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string,
   await deps.db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, t.id));
   const comment = { id, taskId: t.id, body: text, author: { type: by.createdByType, id: by.createdById, name: actor.name || actor.email }, createdAt: now.toISOString() };
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "commented", data: { commentId: id, excerpt: text.slice(0, 140) }, event: "task.commented", eventData: { taskId: t.id, comment } });
-  if (t.assigneeType === "member" && t.assigneeId && t.assigneeId !== actor.userId) {
-    const { notify } = await import("./notify");
-    await notify(deps, actor.orgId, t.assigneeId, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}` });
+  const { notify } = await import("./notify");
+  const mentioned = await mentionedMembers(deps, actor.orgId, text);
+  for (const u of mentioned) if (u !== actor.userId) await notify(deps, actor.orgId, u, { type: "task.mentioned", entityType: "task", entityId: t.id, title: `${actor.name || actor.email} mentioned you on ${t.title}`, actorName: actor.name || actor.email });
+  if (t.assigneeType === "member" && t.assigneeId && t.assigneeId !== actor.userId && !mentioned.includes(t.assigneeId)) {
+    await notify(deps, actor.orgId, t.assigneeId, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}`, actorName: actor.name || actor.email });
   }
   return comment;
+}
+
+/** People named in a comment, by <@member:id> or by "@Name" / "@emailname". */
+export async function mentionedMembers(deps: Deps, orgId: string, text: string) {
+  if (!text.includes("@")) return [];
+  const ms = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId));
+  const lower = text.toLowerCase();
+  const out = new Set<string>();
+  for (const m of ms) {
+    const local = m.email.split("@")[0].toLowerCase();
+    const first = m.name.trim().split(/\s+/)[0]?.toLowerCase();
+    const at = (w: string) => {
+      if (!w) return false;
+      const esc = w.replace(/[.*+?^$\\{}()|[\]\\]/g, "\\$&");
+      return new RegExp("(^|[^\\w@])@" + esc + "(?![\\w])", "i").test(lower);
+    };
+    if (text.includes(`<@member:${m.id}>`) || at(m.name.toLowerCase()) || at(local) || (first && at(first))) out.add(m.id);
+  }
+  return [...out];
 }
 
 export async function listComments(deps: Deps, orgId: string, taskId: string) {
