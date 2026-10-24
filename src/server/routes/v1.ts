@@ -154,7 +154,7 @@ export function v1Routes() {
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
-  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings"]) api.use(`/${r}/*`, apiKeyAuth);
+  for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio"]) api.use(`/${r}/*`, apiKeyAuth);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
     const a = c.var.auth as { apiKeyId?: string } | undefined;
