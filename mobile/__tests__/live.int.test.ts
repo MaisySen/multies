@@ -192,3 +192,62 @@ runDemo("deletes a fresh demo account with DELETE /api/account and the session e
   await expect(api.me()).rejects.toMatchObject({ status: 401 });
   console.log(`deleted demo account ${who.user.email}, workspaces removed: ${res.deletedWorkspaces}`);
 }, 60000);
+
+runDemo("demo workspace: chat (post with a mention, read back, thread, make task) and the notifications inbox with its settings", async () => {
+  let jar: Jar = {};
+  const transport = new HttpTransport({ get: () => jar, set: (j) => { jar = j; } }, () => {}, base, nodeFetch as unknown as typeof fetch);
+  const api = endpoints(transport);
+  await api.startDemo();
+  const me = await api.me();
+
+  let { channels } = await api.chatChannels();
+  let channel = channels.find((c) => c.kind === "channel" && !c.archived && c.joined !== false);
+  if (!channel) {
+    // A workspace with no channel yet: make one, as the web app would.
+    channel = (await transport.request<{ channel: typeof channels[number] }>("POST", "/chat/channels", { name: `mobile-check-${Date.now() % 100000}` })).channel;
+    channels = (await api.chatChannels()).channels;
+  }
+  expect(channels.some((c) => c.id === channel!.id)).toBe(true);
+  const { people } = await api.chatPeople();
+  const target = people.find((p) => p.id !== `member:${me.user.id}`) ?? people[0];
+  expect(target).toBeTruthy();
+
+  const before = await api.chatMessages(channel.id, { limit: 50 });
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const { message } = await api.sendChat(channel.id, { body: `Live check from the phone app <@${target.id}>` });
+  expect(message.mentions.some((m) => m.name === target.name)).toBe(true);
+  const back = await api.chatMessages(channel.id, { since });
+  expect(back.messages.map((m) => m.id)).toContain(message.id);
+  expect(before.messages.map((m) => m.id)).not.toContain(message.id);
+
+  const { message: reply } = await api.sendChat(channel.id, { body: "Reply in the thread", parentId: message.id });
+  const thread = await api.chatThread(message.id);
+  expect(thread.replies.map((r) => r.id)).toContain(reply.id);
+  const routed = await api.chatMessage(reply.id);
+  expect(routed.message.parentId).toBe(message.id);
+  expect(routed.channel.id).toBe(channel.id);
+
+  const { task } = await api.chatMessageToTask(message.id);
+  const detail = await api.task(task.id);
+  expect(detail.task.id).toBe(task.id);
+
+  await api.readChannel(channel.id);
+  const unread = await api.chatUnread();
+  expect(unread.channels[channel.id]?.unread ?? 0).toBe(0);
+
+  const inbox = await api.notifications({ limit: 50 });
+  expect(Array.isArray(inbox.notifications)).toBe(true);
+  await api.readNotifications();
+  expect((await api.notifications({ unread: true })).unread).toBe(0);
+
+  const { settings } = await api.notificationSettings();
+  const category = Object.keys(settings)[0];
+  expect(category).toBeTruthy();
+  const flipped = !settings[category].push;
+  const saved = await api.saveNotificationSettings({ [category]: { push: flipped } });
+  expect(saved.settings[category].push).toBe(flipped);
+  expect((await api.notificationSettings()).settings[category].push).toBe(flipped);
+  await api.saveNotificationSettings({ [category]: { push: !flipped } });
+  console.log(`chat live check: channel ${channel.name}, message ${message.id}, reply ${reply.id}, task ${task.ref}, ${inbox.notifications.length} notifications, setting ${category}.push toggled`);
+  await api.signOut();
+}, 90000);
