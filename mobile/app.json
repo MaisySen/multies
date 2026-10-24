@@ -3,7 +3,7 @@
     "name": "MyMail",
     "slug": "mymail",
     "scheme": "mymail",
-    "version": "1.4.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,7 +12,7 @@
     "primaryColor": "#ff6a3d",
     "ios": {
       "bundleIdentifier": "au.mymail.app",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -118,7 +118,7 @@
     },
     "android": {
       "package": "au.mymail.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#ff6a3d",
         "foregroundImage": "./assets/android-icon-foreground.png",

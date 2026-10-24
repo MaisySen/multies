@@ -3,10 +3,10 @@
 The step-by-step owner checklist, with every store answer ready to paste, is in
 [../store/SUBMISSION.md](../store/SUBMISSION.md). This page covers how the builds are made.
 
-## Ready now (1.4.0)
+## Ready now (1.5.0)
 
-- App name MyMail, bundle id and Android package `au.mymail.app`, version 1.4.0, iOS build 5,
-  Android versionCode 5. iPhone only (`ios.supportsTablet: false`).
+- App name MyMail, bundle id and Android package `au.mymail.app`, version 1.5.0, iOS build 6,
+  Android versionCode 6. iPhone only (`ios.supportsTablet: false`).
 - Icons (1024x1024 App Store icon with no alpha), adaptive Android icon with foreground, background
   and monochrome layers, splash, notification icon. Expo makes every native size from `assets/`
   at prebuild.
