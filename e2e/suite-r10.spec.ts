@@ -40,7 +40,7 @@ test("chat: post with a task link, reply in a thread and turn a message into a t
   const box = page.getByTestId("chat-composer");
   await box.fill(`Can someone pick up ${tasks[0].ref} today?`);
   await box.press("Enter");
-  const msg = page.getByTestId("chat-message").filter({ hasText: "Can someone pick up" });
+  const msg = page.getByRole("region", { name: /^Messages in / }).getByTestId("chat-message").filter({ hasText: "Can someone pick up" });
   await expect(msg).toBeVisible();
   await expect(msg.getByTestId("chat-link")).toContainText(tasks[0].ref);
   // Thread reply.
@@ -54,7 +54,7 @@ test("chat: post with a task link, reply in a thread and turn a message into a t
   await expect(msg.getByRole("button", { name: "1 reply" })).toBeVisible();
   // Make task.
   await msg.hover();
-  await msg.getByText("More").click();
+  await msg.getByRole("button", { name: "More message actions" }).click();
   await page.getByRole("menuitem", { name: "Make task" }).click();
   await expect(page).toHaveURL(/\/app\/tasks\?task=tsk_/);
   await expect(page.getByRole("dialog", { name: "Task" }).getByLabel("Title")).toHaveValue(/Can someone pick up/);
