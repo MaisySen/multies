@@ -1,7 +1,7 @@
 # MyMail store submission (App Store and Google Play)
 
-Everything to paste into App Store Connect and Google Play Console for MyMail 1.4.0 (iOS build 5,
-Android versionCode 5), plus the steps only the owner can do. Work top to bottom.
+Everything to paste into App Store Connect and Google Play Console for MyMail 1.5.0 (iOS build 6,
+Android versionCode 6), plus the steps only the owner can do. Work top to bottom.
 
 Paths in this file are relative to the `mobile/` folder of the repo.
 
@@ -9,7 +9,7 @@ Paths in this file are relative to the `mobile/` folder of the repo.
 
 | Item | Where |
 | --- | --- |
-| Version 1.4.0, iOS build 5, Android versionCode 5 | `app.json` |
+| Version 1.5.0, iOS build 6, Android versionCode 6 | `app.json` |
 | iPhone only (`supportsTablet: false`), so no iPad screenshots | `app.json` |
 | Bundle id and package `au.mymail.app` | `app.json` |
 | Production build profiles (`production`, `production-local-credentials`) and submit placeholders | `eas.json` |
@@ -100,7 +100,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 
 - Price: Free (AUD 0). Availability: all countries or Australia first, your choice.
 
-### Version 1.4.0, iOS App
+### Version 1.5.0, iOS App
 
 - **Promotional text** (161 of 170):
 
@@ -113,7 +113,7 @@ bundle id `au.mymail.app`, SKU `mymail-ios`, full access.
 - **Screenshots**: 6.9 inch display, upload `store/screenshots/ios-6.9/01..07` (1320x2868). 6.5 inch
   display, upload `store/screenshots/ios-6.5/01..07` (1284x2778). No iPad screenshots (iPhone only).
 - **Build**: pick build 5 after it finishes processing.
-- **Description** (1469 of 4000):
+- **Description** (1830 of 4000):
 
 ```text
 MyMail is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
@@ -132,6 +132,14 @@ TASKS FROM EMAIL
 - Custom fields such as budget, client or approved
 - Start and stop a timer on a task, or log time by hand
 - Start a video meeting from a task or a thread and share a guest link
+
+TEAM CHAT
+- Channels and direct messages for your team, with threads and @mentions
+- Links to tasks and emails open right in the app
+- Press and hold a message to turn it into a task
+
+ONE INBOX FOR NOTIFICATIONS
+Mentions, assignments, comments, approvals, due dates and chat in one list. Filter it, mark it read, and choose what comes to your phone as a push.
 
 SEE EVERY PROJECT
 A portfolio view shows each project's progress, overdue tasks, time logged and next due date, with a health flag your team sets.
@@ -196,7 +204,7 @@ SDK. Data collected:
 | --- | --- | --- | --- | --- |
 | Contact Info: Name | Yes | Yes | No | App Functionality |
 | Contact Info: Email Address | Yes | Yes | No | App Functionality |
-| User Content: Emails or Text Messages | Yes (the mail itself) | Yes | No | App Functionality |
+| User Content: Emails or Text Messages | Yes (the mail and team chat) | Yes | No | App Functionality |
 | User Content: Other User Content (tasks, comments, docs, time entries) | Yes | Yes | No | App Functionality |
 | Identifiers: User ID | Yes | Yes | No | App Functionality |
 | Identifiers: Device ID (push notification token, only after notifications are allowed) | Yes | Yes | No | App Functionality |
@@ -219,7 +227,7 @@ Create app: name `MyMail: Email, Tasks, Agents` (or the name you chose), default
 ### Main store listing
 
 - **Short description** (76 of 80): `Business email on your domain, with tasks and AI agent approvals in one app.`
-- **Full description** (1480 of 4000): the same text as the App Store description above.
+- **Full description** (1841 of 4000): the same text as the App Store description above.
 - **App icon**: `store/play/play-icon-512.png` (512x512)
 - **Feature graphic**: `store/play/feature-graphic-1024x500.png` (1024x500)
 - **Phone screenshots**: `store/screenshots/play-phone/01..07` (1080x1920)
@@ -261,7 +269,7 @@ Create app: name `MyMail: Email, Tasks, Agents` (or the name you chose), default
 | Personal info: Email address | Collected, not shared, required, App functionality, Account management |
 | Personal info: User IDs | Collected, not shared, required, App functionality |
 | Messages: Emails | Collected, not shared, required, App functionality |
-| Messages: Other in-app messages (task comments) | Collected, not shared, optional, App functionality |
+| Messages: Other in-app messages (task comments and team chat) | Collected, not shared, optional, App functionality |
 | Files and docs | Not collected by the app (it views attachments, it does not upload them) |
 | App info and performance: Diagnostics (server error reports) | Collected, not shared, required, App functionality |
 | Device or other IDs (push token) | Collected, not shared, optional (only if notifications are allowed), App functionality |

@@ -12,7 +12,7 @@ The full set of answers, with every field to paste and the owner's checklist, is
 ## Promotional text (App Store, 161 of 170)
 Your business email, team tasks and AI agent approvals in one app. Approve what an agent wants to send before it leaves. Free email, no ads, no in-app purchases.
 
-## Description (both stores, 1469 of 4000)
+## Description (both stores, 1830 of 4000)
 
 MyMail is business email on the domain you already own, with your team, your tasks and your AI agents in the same place. It is made for Australian startups and small businesses.
 
@@ -30,6 +30,14 @@ TASKS FROM EMAIL
 - Custom fields such as budget, client or approved
 - Start and stop a timer on a task, or log time by hand
 - Start a video meeting from a task or a thread and share a guest link
+
+TEAM CHAT
+- Channels and direct messages for your team, with threads and @mentions
+- Links to tasks and emails open right in the app
+- Press and hold a message to turn it into a task
+
+ONE INBOX FOR NOTIFICATIONS
+Mentions, assignments, comments, approvals, due dates and chat in one list. Filter it, mark it read, and choose what comes to your phone as a push.
 
 SEE EVERY PROJECT
 A portfolio view shows each project's progress, overdue tasks, time logged and next due date, with a health flag your team sets.
