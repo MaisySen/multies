@@ -45,7 +45,7 @@
         },
         {
           "title": "Meetings cannot repeat, and times show without a time zone",
-          "notes": "Where: Meetings\nSteps to reproduce:\n1. POST /api/v1/meetings has no recurrence field, so a weekly meeting is one meeting (the dogfood org uses a repeating prep task as a workaround).\n2. With the workspace on Australia/Sydney, schedule Monday 10:00 Sydney and open Meetings in a browser on UTC.\nActual: 'Sun, 25 Oct, 11:00 pm' with no zone label.\nExpected: weekly or other repeats, and a zone label (or the workspace zone) on every time.",
+          "notes": "Where: Meetings\nSteps to reproduce:\n1. POST /api/v1/meetings has no recurrence field, so a weekly meeting is one meeting (the dogfood org uses a repeating prep task as a workaround).\n2. With the workspace on Australia/Sydney, schedule Monday 10:00 Sydney and open Meetings in a browser on UTC.\nActual: 'Sun, 25 Oct, 11:00 pm' with no zone label (the browser's zone), while chat times in the same session follow the workspace zone.\nExpected: weekly or other repeats, and a zone label (or the workspace zone) on every time.",
           "priority": "medium",
           "labels": [
             "dogfood"

@@ -98,7 +98,7 @@ templates, notifications, integrations or portfolio.
 3. **High, top feature.** Agents are mail inboxes, not team members: each needs a mailbox on a domain, they are missing from People and Settings Team, the Agents page shows only addresses (no title or bio), and Free stops at 3, so a six agent team cannot be built.
 4. **Medium.** Members have no title or bio; invites cannot carry one; nobody can be invited as Owner (only admin or member).
 5. **Medium.** Key results that count down ("open high severity bugs, 10 to 0") show "10 of 0" and 0 percent.
-6. **Medium.** Meetings cannot repeat, and meeting times show in the browser's zone with no label (a Monday 10:00 Sydney meeting reads "Sun, 25 Oct, 11:00 pm" in a UTC browser).
+6. **Medium.** Meetings cannot repeat, and meeting times show in the browser's zone with no label (a Monday 10:00 Sydney meeting reads "Sun, 25 Oct, 11:00 pm" in a UTC browser), while chat times follow the workspace zone.
 7. **Medium.** Public API gaps: no route to create a workspace, mint the first key, invite or list members, update a channel, pin a message, create a template or delete a doc.
 8. **Medium.** Chat has no pinned messages, so each channel's welcome and rules scroll away.
 9. **Medium.** Templates are only for projects and tasks, saved from an existing item; no doc templates and no template from scratch.
@@ -114,6 +114,17 @@ templates, notifications, integrations or portfolio.
 
 ## Screenshots
 
-Light and dark, desktop and phone, in `/home/user/tab/files/dogfood-org/` (not in the repo):
-desktop-light-chat, desktop-dark-tasks, desktop-light-goals, desktop-dark-docs,
-phone-light-chat, phone-dark-tasks.
+Haajir HQ on the local build, light and dark, desktop and phone, in
+`/home/user/tab/files/dogfood-org/` (not in the repo): haajir-hq-desktop-light-chat,
+haajir-hq-desktop-dark-tasks, haajir-hq-desktop-light-goals, haajir-hq-desktop-dark-docs,
+haajir-hq-phone-light-chat, haajir-hq-phone-dark-tasks.
+
+## The Haajir config on the local build
+
+`/home/user/tab/files/haajir/org-config.json` with `--merge scripts/dogfood/findings.json` ran
+clean locally: workspace Haajir HQ, 3 of 7 agents (Builder, Design, Growth; Partnerships,
+Success, QA and Finance stop at the Free plan's 3 agent inboxes, finding 3), 11 channels with
+welcome posts, 5 projects with 55 tasks, 3 goals with 12 key results, 5 docs, 2 weekly meetings
+with prep tasks, 3 templates. 342 new rows in 107 calls. A second run made no new items. The
+invite to the board chair is skipped unless `--send-invites` is passed. For post-update.ts on
+this org pass `--agent cto` (the config's key for Builder).
