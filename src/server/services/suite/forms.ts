@@ -9,7 +9,7 @@ import { formSubmissions, forms, organizations } from "../../db/schema";
 import { hmacSha256Hex, randomToken } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
-import { createTask, parseAssignee } from "./tasks";
+import { createTask, getProject, parseAssignee, validateAssignee } from "./tasks";
 
 export type FieldType = "text" | "email" | "textarea" | "phone" | "select" | "number" | "date";
 export interface FormField { id: string; label: string; type: FieldType; required: boolean; options?: string[]; placeholder?: string }
@@ -89,6 +89,9 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
   const fields = normaliseFields(input.fields ?? (target === "task" ? DEFAULT_TASK_FIELDS : DEFAULT_TASK_FIELDS.slice(0, 2)));
   checkTarget(target, fields);
   const assignee = parseAssignee(input.assigneeId ?? null);
+  // The project and the assignee must be this workspace's own (another workspace's id is a 404).
+  if (input.projectId) await getProject(deps, actor.orgId, input.projectId);
+  await validateAssignee(deps, actor.orgId, assignee);
   const now = deps.now();
   const id = sortableId("frm", now.getTime());
   await deps.db.insert(forms).values({
@@ -108,8 +111,8 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   if (patch.name !== undefined) { const n = patch.name.trim().slice(0, 120); if (!n) throw new HttpError(422, "validation_failed", "Give the form a name."); set.name = n; }
   if (patch.description !== undefined) set.description = patch.description.slice(0, 2000);
   if (patch.target !== undefined) set.target = patch.target;
-  if (patch.projectId !== undefined) set.projectId = patch.projectId;
-  if (patch.assigneeId !== undefined) { const a = parseAssignee(patch.assigneeId); set.assigneeType = a?.type ?? null; set.assigneeId = a?.id ?? null; }
+  if (patch.projectId !== undefined) { if (patch.projectId) await getProject(deps, actor.orgId, patch.projectId); set.projectId = patch.projectId; }
+  if (patch.assigneeId !== undefined) { const a = parseAssignee(patch.assigneeId); await validateAssignee(deps, actor.orgId, a); set.assigneeType = a?.type ?? null; set.assigneeId = a?.id ?? null; }
   if (patch.fields !== undefined) set.fields = JSON.stringify(normaliseFields(patch.fields));
   if (patch.successMessage !== undefined) set.successMessage = patch.successMessage.slice(0, 500);
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
