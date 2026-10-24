@@ -15,6 +15,8 @@ describe("demo mode", () => {
     const { app } = await makeTestApp({ DEMO_MODE: "true" });
     const c = new Client(app);
     expect((await c.post("/api/account/demo")).status).toBe(201);
+    // The sample agents arrive in the first seed part, which the app requests straight after opening.
+    expect((await c.post("/api/account/demo/seed")).body.ran).toBe(1);
     const me = await c.get("/api/account/me");
     expect(me.body.organization).toMatchObject({ isDemo: true, plan: "starter" });
     // Two sample agents, one reply sent with approval and two waiting.
@@ -45,7 +47,7 @@ describe("demo mode", () => {
     client.prepare = (q: string) => { queries++; return prepare(q); };
     const c = new Client(ctx.app);
     expect((await c.post("/api/account/demo")).status).toBe(201);
-    expect(queries).toBeLessThan(450);
+    expect(queries).toBeLessThan(200);
     expect(ctx.outbound.sent).toHaveLength(0);
     const sent = (await c.get("/api/mail/messages?folder=sent")).body.messages;
     expect(sent.length).toBeGreaterThan(0);

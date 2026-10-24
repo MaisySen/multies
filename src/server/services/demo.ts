@@ -156,10 +156,9 @@ export async function createDemoWorkspace(deps: Deps) {
     ...[...used].map(([id, n]) => deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${n}` }).where(eq(mailboxes.id, id))),
   ]);
 
-  const auth = { userId, email, name: "Alex Rivera", orgId, role: "owner" as const, sessionId: "demo" };
-  await seedDemoAgents(deps, auth, domain, now);
-  // Tasks, docs, contacts and deals are seeded by a background job so this request stays small.
-  await enqueue(deps, "demo.seed_suite", { orgId, userId, email, name: "Alex Rivera" }, { orgId, maxAttempts: 3 });
+  // The sample agents, then tasks, docs, contacts and deals, are seeded by background job parts
+  // (POST /api/account/demo/seed runs them), so opening the demo stays well under two seconds.
+  await enqueue(deps, "demo.seed_suite", { orgId, userId, email, name: "Alex Rivera", part: 0 }, { orgId, maxAttempts: 3 });
 
   // Each delivery row already carries its message's date (createdAt above), so the activity chart has history.
 
@@ -178,7 +177,7 @@ export async function createDemoWorkspace(deps: Deps) {
 }
 
 /** Two agents at work: one on its own inbox chasing invoices, one triaging support@ beside the team. */
-async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
+export async function seedDemoAgents(deps: Deps, auth: AuthContext, domain: { id: string; name: string }, now: number) {
   const support = (await listMailboxes(deps.db, auth.orgId)).find((m) => m.localPart === "support")!;
   const [invoices, triage] = await Promise.all([createAgent(deps, auth, { name: "Invoice chaser", localPart: "accounts", domainId: domain.id, createKey: false, sendCapDaily: 40, allowedRecipients: null }), createAgent(deps, auth, { name: "Support triage", localPart: "triage", domainId: domain.id, createKey: false, approvalMode: "external", mailboxIds: [support.id] })]);
   const inbound = async (to: string, from: { address: string; name: string }, subject: string, text: string, hoursAgo: number) => {

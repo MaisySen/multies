@@ -57,8 +57,12 @@ export function taskRoutes() {
       // A demo opened from the mobile app or the API has its sample seed still waiting: run it
       // here, in this request's own budget, the first time someone lists tasks.
       if (!tasks.length && !fieldFilters.length && Object.values(q).every((v) => v === undefined)) {
-        const seeded = await runDueJobs(c.var.deps, 1, { types: ["demo.seed_suite"], orgId: c.var.auth.orgId });
-        if (seeded.ran) tasks = await list();
+        // Part 0 (agents) comes first, so run up to two parts to reach the tasks.
+        for (let i = 0; i < 2 && !tasks.length; i++) {
+          const seeded = await runDueJobs(c.var.deps, 1, { types: ["demo.seed_suite"], orgId: c.var.auth.orgId });
+          if (!seeded.ran) break;
+          tasks = await list();
+        }
       }
       return c.json({ tasks });
     })

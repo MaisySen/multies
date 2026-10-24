@@ -5,7 +5,7 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
-import { activity, agents, changes, organizations, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
+import { activity, agents, changes, domains, organizations, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
 import { backfillContacts, contactIdFor, createDeal, listDeals } from "./contacts";
 import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
@@ -28,8 +28,21 @@ registerJob("demo.seed_suite", async (deps, payload) => {
   // foreign key failure that follows is not an error.
   const stillThere = async () => !!(await deps.db.select({ id: organizations.id }).from(organizations).where(eq(organizations.id, p.orgId)).get());
   if (!(await stillThere())) return;
-  const part = (payload as { part?: 1 | 2 }).part ?? 1;
+  const part = (payload as { part?: 0 | 1 | 2 }).part ?? 1;
   try {
+    if (part === 0) {
+      // Part 0: the two sample agents and their mail. Skipped on a retry once they exist.
+      const have = await deps.db.select({ id: agents.id }).from(agents).where(eq(agents.orgId, p.orgId)).limit(1).all();
+      if (!have.length) {
+        const domain = await deps.db.select({ id: domains.id, name: domains.name }).from(domains).where(eq(domains.orgId, p.orgId)).get();
+        if (domain) {
+          const { seedDemoAgents } = await import("../demo");
+          await seedDemoAgents(deps, { userId: p.userId, email: p.email, name: p.name, orgId: p.orgId, role: "owner", sessionId: "demo" }, domain, deps.now().getTime());
+        }
+      }
+      await enqueue(deps, "demo.seed_suite", { ...p, part: 1 }, { orgId: p.orgId, maxAttempts: 3 });
+      return;
+    }
     await seedDemoSuite(deps, actor, deps.now().getTime(), part);
     // The second part runs as its own job, so the next seed request picks it up.
     if (part === 1) await enqueue(deps, "demo.seed_suite", { ...p, part: 2 }, { orgId: p.orgId, maxAttempts: 3 });
