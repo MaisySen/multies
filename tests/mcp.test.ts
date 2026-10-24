@@ -43,6 +43,7 @@ describe("MCP server", () => {
       "create_doc",
       "create_form",
       "create_goal",
+      "create_incoming_hook",
       "create_task",
       "find_tasks_by_field",
       "get_portfolio",
@@ -56,6 +57,7 @@ describe("MCP server", () => {
       "list_goals",
       "list_guests",
       "list_inboxes",
+      "list_integrations",
       "list_meetings",
       "list_notifications",
       "list_projects",
@@ -86,7 +88,7 @@ describe("MCP server", () => {
       "update_task",
       "upsert_contact",
       "use_template",
-      "wait_for_email"
+      "wait_for_email",
     ]);
     const made = data(await mcp.callTool({ name: "create_agent_inbox", arguments: { name: "Research bot", localPart: "research" } }));
     expect(made.agent.address).toBe("research@acme.io");

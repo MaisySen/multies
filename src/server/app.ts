@@ -101,12 +101,14 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     const p = c.req.path;
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
+    // Incoming hooks limit themselves in memory, so a public call costs no limiter write.
+    if (p.startsWith("/api/hooks/in/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
-    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
+    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/")) return next();
     return csrfGuard(c, next);
   });
 
@@ -243,6 +245,25 @@ export function createApp(deps: Deps) {
   for (const prefix of ["/api/chat", "/api/templates", "/api/goals", "/api/key-results", "/api/guest/chat"]) {
     app.all(prefix, r10Handler);
     app.all(`${prefix}/*`, r10Handler);
+  }
+  // Round 11 (integrations and incoming hooks), lazily for the same reason.
+  let r11: R10 | undefined;
+  const r11Vars = new WeakMap<Request, { deps: Deps; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
+  const r11Handler = async (c: Context<AppEnv>) => {
+    if (!r11) {
+      const { r11Routes } = await import("./routes/suite-r11");
+      r11 = r11Routes(r11Vars) as unknown as R10;
+      r11.notFound(notFoundHandler);
+      r11.onError(errorHandler);
+    }
+    r11Vars.set(c.req.raw, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
+    let ctx: Parameters<R10["fetch"]>[2];
+    try { ctx = c.executionCtx; } catch { ctx = undefined; }
+    return r11.fetch(c.req.raw, c.env, ctx);
+  };
+  for (const prefix of ["/api/connectors", "/api/incoming-hooks", "/api/hooks/in"]) {
+    app.all(prefix, r11Handler);
+    app.all(`${prefix}/*`, r11Handler);
   }
   app.all("/api/v1", v1Handler);
   app.all("/api/v1/*", v1Handler);

@@ -364,5 +364,22 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `notifications` ADD `actor_name` text;",
       "ALTER TABLE `tasks` ADD `repeat_rule` text;"
     ]
+  },
+  {
+    "name": "0021_r11_integrations_scheduling",
+    "statements": [
+      "CREATE TABLE `bookings` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`page_id` text NOT NULL,\n\t`meeting_id` text,\n\t`starts_at` integer NOT NULL,\n\t`duration_min` integer NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`note` text DEFAULT '' NOT NULL,\n\t`status` text DEFAULT 'confirmed' NOT NULL,\n\t`slot_key` integer,\n\t`cancel_token_hash` text NOT NULL,\n\t`cancelled_by` text,\n\t`cancelled_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`page_id`) REFERENCES `scheduling_pages`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `bookings_page_idx` ON `bookings` (`page_id`,`starts_at`);",
+      "CREATE INDEX `bookings_org_idx` ON `bookings` (`org_id`,`starts_at`);",
+      "CREATE UNIQUE INDEX `bookings_slot_uq` ON `bookings` (`page_id`,`slot_key`);",
+      "CREATE TABLE `incoming_hooks` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`action` text NOT NULL,\n\t`config` text DEFAULT '{}' NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`token_hint` text NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`call_count` integer DEFAULT 0 NOT NULL,\n\t`last_called_at` integer,\n\t`recent` text DEFAULT '[]' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `incoming_hooks_org_idx` ON `incoming_hooks` (`org_id`);",
+      "CREATE UNIQUE INDEX `incoming_hooks_token_uq` ON `incoming_hooks` (`token_hash`);",
+      "CREATE TABLE `scheduling_pages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`slug` text NOT NULL,\n\t`title` text NOT NULL,\n\t`description` text DEFAULT '' NOT NULL,\n\t`timezone` text NOT NULL,\n\t`hours` text NOT NULL,\n\t`slot_min` integer DEFAULT 30 NOT NULL,\n\t`buffer_min` integer DEFAULT 0 NOT NULL,\n\t`max_days_ahead` integer DEFAULT 30 NOT NULL,\n\t`min_notice_min` integer DEFAULT 120 NOT NULL,\n\t`video` integer DEFAULT true NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `scheduling_pages_slug_uq` ON `scheduling_pages` (`slug`);",
+      "CREATE UNIQUE INDEX `scheduling_pages_user_uq` ON `scheduling_pages` (`org_id`,`user_id`);",
+      "ALTER TABLE `webhook_endpoints` ADD `format` text DEFAULT 'json' NOT NULL;",
+      "ALTER TABLE `webhook_endpoints` ADD `connector` text;"
+    ]
   }
 ];

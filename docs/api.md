@@ -75,12 +75,45 @@ MCP: `set_task_repeat`.
 ## Integrations
 
 - `/api/integrations`: Xero connection (behind config), connect, callback, unpaid invoices, disconnect.
-- Round 11 adds an integrations page with a catalogue of incoming and outgoing webhooks and Zapier style connectors. Its routes are added here in the same release.
+- Page: `/app/integrations` (sidebar, next to Automations). Workspace admins connect and remove; members can look.
+
+### Outgoing connectors
+
+A catalogue of no-cost targets built on the outgoing webhooks below: Slack (incoming webhook), Discord
+(channel webhook), Microsoft Teams (incoming webhook or Workflows webhook), Zapier (Catch Hook), Make
+(custom webhook), n8n (Webhook node), Google Sheets (an Apps Script web app) and any HTTPS URL.
+Connecting means pasting the URL and choosing events. Slack, Discord and Teams get a one line chat
+message (`{ "text": ... }`, or `{ "content": ... }` for Discord); the others get the standard signed
+JSON event and a `whsec_` secret, shown once. Each connection is an outgoing webhook endpoint with a
+`format` (json, slack, discord, teams) and a `connector`, so retries, dead letters and replay work the same.
+
+- App API: `GET /api/connectors` (catalogue and connections), `GET /api/connectors/catalogue`, `POST /api/connectors` `{ connector, url, events?, name? }`, `PATCH /api/connectors/:id` `{ enabled?, events?, url?, name? }`, `POST /api/connectors/:id/test`, `DELETE /api/connectors/:id`
+- Public API: `GET /api/v1/integrations/catalogue`, `GET /api/v1/integrations`, `POST /api/v1/integrations`
+
+### Incoming webhooks (from Zapier, Make, n8n, forms and scripts)
+
+Create one to get a secret URL, `POST /api/hooks/in/<token>`, that accepts JSON, a form post or plain
+text (at most 64 KB) and does one action:
+
+- `task`: title from `title`, `text`, `subject`, `name` or `summary`; notes from `notes`, `description`, `body`, `message` or `details` (otherwise the other simple fields as `key: value` lines); due from `due`, `due_date`, `dueDate` or `deadline`; assignee from `assignee` or `assignee_email` (a member's email). Optional `projectId`.
+- `chat`: posts `text`, `message`, `body`, `content`, `title` or `subject` to the chosen public channel.
+- `contact`: `email` (required), `name` (or `first_name` and `last_name`), `phone`, `notes`.
+
+`config.mapping` overrides a field, for example `{ "title": "data.subject" }` (dotted paths work).
+The token is random, shown once and stored only as a SHA-256 hash; revoke it by switching the hook off
+or deleting it. Answers: 201 `{ ok, result: { type, id } }`, 404 for an unknown or switched off token,
+413 over 64 KB, 422 when the required field is missing, 429 over 60 calls a minute per hook. Each call
+is kept with its status (the last 20, shown on the page). A call costs the action's own writes plus one
+update of the hook row, and emits `incoming_hook.received`.
+
+- App API: `GET` and `POST /api/incoming-hooks`, `GET`, `PATCH` and `DELETE /api/incoming-hooks/:id`
+- Public API: `GET` and `POST /api/v1/incoming-hooks`, `GET`, `PATCH` and `DELETE /api/v1/incoming-hooks/{id}`
+- MCP: `list_integrations`, `create_incoming_hook`
 
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_guests`, `list_inboxes`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -94,7 +127,7 @@ verify them and reject old timestamps. Failed deliveries retry with backoff for 
 wait as dead letters you can replay. An endpoint that fails five deliveries in a row is switched off
 and its owners are emailed.
 
-Events (44): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`.
+Events (47): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`.
 
 The list lives in `src/server/services/developer/webhooks.ts`.
 

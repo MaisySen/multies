@@ -49,6 +49,7 @@ const notificationPages = () => import("./pages/app/notifications");
 const NotificationsPage = lazy(() => notificationPages().then((m) => ({ default: m.NotificationsPage })));
 const NotificationSettings = lazy(() => notificationPages().then((m) => ({ default: m.NotificationSettings })));
 const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
+const IntegrationsPage = lazy(() => import("./pages/app/work/integrations").then((m) => ({ default: m.IntegrationsPage })));
 const GoalsPage = lazy(() => import("./pages/app/work/goals").then((m) => ({ default: m.GoalsPage })));
 const ActivityPage = lazy(() => import("./pages/app/activity").then((m) => ({ default: m.ActivityPage })));
 const settings = () => import("./pages/app/settings");
@@ -120,6 +121,7 @@ export const router = createBrowserRouter([
       { path: "contacts/:id", element: page(<ContactPage />) },
       { path: "deals", element: page(<DealsPage />) },
       { path: "automations", element: page(<AutomationsPage />) },
+      { path: "integrations", element: page(<IntegrationsPage />) },
       { path: "time", element: page(<TimesheetPage />) },
       { path: "forms", element: page(<FormsPage />) },
       { path: "reports", element: page(<ReportsPage />) },

@@ -170,6 +170,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSuiteTools(server, deps, actor, writable);
   registerR7Tools(server, deps, actor, writable);
   registerR8Tools(server, deps, actor, writable);
+  registerR11Tools(server, deps, actor, writable);
   registerR10Tools(server, deps, actor, writable);
   return server;
 }
@@ -560,5 +561,31 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
   }, tool(async (x: { unread?: boolean; category?: string }) => {
     if (a.agentId || !a.userId) throw new HttpError(403, "workspace_key_only", "Agent keys have no notifications inbox. Use a workspace key.");
     return listNotifications(deps, a.orgId, a.userId, { unread: x.unread, category: x.category, limit: 50 });
+  }));
+}
+
+/** Integrations. */
+function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void) {
+  const ro = { readOnlyHint: true, openWorldHint: false };
+  const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
+  const a = actor as unknown as SuiteActor;
+
+  server.registerTool("list_integrations", {
+    title: "List integrations", annotations: ro,
+    description: "The connector catalogue (Slack, Discord, Teams, Zapier, Make, n8n, Google Sheets, any URL), the connected integrations, and the incoming webhooks with their last calls.",
+  }, tool(async () => {
+    const { listIntegrations, listIncomingHooks } = await import("../services/suite/integrations");
+    const { catalogue, connections } = await listIntegrations(deps, a.orgId);
+    return { catalogue: catalogue.map((c) => ({ id: c.id, name: c.name, format: c.format, events: c.events })), connections, incomingHooks: await listIncomingHooks(deps, a.orgId) };
+  }));
+
+  server.registerTool("create_incoming_hook", {
+    title: "Create an incoming webhook", annotations: rw,
+    description: "Makes a secret URL that turns a JSON or form POST into a task (title, notes, due, assignee email), a chat message in a channel, or a contact. The URL is returned once.",
+    inputSchema: { name: z.string().min(1).max(80), action: z.enum(["task", "chat", "contact"]), projectId: z.string().optional(), channelId: z.string().optional(), mapping: z.record(z.string(), z.string()).optional() },
+  }, tool(async (x: { name: string; action: "task" | "chat" | "contact"; projectId?: string; channelId?: string; mapping?: Record<string, string> }) => {
+    writable();
+    const { createIncomingHook } = await import("../services/suite/integrations");
+    return createIncomingHook(deps, a, { name: x.name, action: x.action, config: { projectId: x.projectId, channelId: x.channelId, mapping: x.mapping } });
   }));
 }

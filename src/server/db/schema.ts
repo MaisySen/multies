@@ -382,6 +382,10 @@ export const webhookEndpoints = sqliteTable("webhook_endpoints", {
   /** Deliveries in a row that ran out of retries. At the threshold the endpoint is disabled. */
   consecutiveDead: integer("consecutive_dead").notNull().default(0),
   disabledReason: text("disabled_reason"),
+  /** How each event is written: our signed JSON, or a chat message body for Slack, Discord or Teams. */
+  format: text("format", { enum: ["json", "slack", "discord", "teams"] }).notNull().default("json"),
+  /** The integrations catalogue entry this endpoint was connected from, if any. */
+  connector: text("connector"),
   createdAt: createdAt(),
 }, (t) => [index("webhook_endpoints_org_idx").on(t.orgId)]);
 
@@ -1147,3 +1151,67 @@ export const keyResults = sqliteTable("key_results", {
   position: real("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("key_results_goal_idx").on(t.goalId)]);
+
+/**
+ * Incoming webhooks (round 11): a secret URL /api/hooks/in/<token> that turns a JSON or form
+ * post into a task, a chat message or a contact. Only the token's SHA-256 is stored. The last
+ * calls live in `recent` (JSON, newest first, at most 20), so a call costs one bookkeeping write.
+ */
+export const incomingHooks = sqliteTable("incoming_hooks", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  action: text("action", { enum: ["task", "chat", "contact"] }).notNull(),
+  /** JSON: { projectId?, channelId?, mapping?: Record<target, sourceField> }. */
+  config: text("config").notNull().default("{}"),
+  tokenHash: text("token_hash").notNull(),
+  /** The first characters of the token, so people can tell hooks apart. */
+  tokenHint: text("token_hint").notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  callCount: integer("call_count").notNull().default(0),
+  lastCalledAt: ts("last_called_at"),
+  /** JSON [{ at, status, ok, result?, error? }], newest first, at most 20. */
+  recent: text("recent").notNull().default("[]"),
+  createdById: text("created_by_id"),
+  createdAt: createdAt(),
+}, (t) => [index("incoming_hooks_org_idx").on(t.orgId), uniqueIndex("incoming_hooks_token_uq").on(t.tokenHash)]);
+
+/** A member's public booking page (round 11, SCHEDULING_ENABLED): weekly hours and slot rules. */
+export const schedulingPages = sqliteTable("scheduling_pages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  timezone: text("timezone").notNull(),
+  /** JSON { mon: [["09:00","17:00"]], tue: [...], ... }; a missing or empty day is closed. */
+  hours: text("hours").notNull(),
+  slotMin: integer("slot_min").notNull().default(30),
+  bufferMin: integer("buffer_min").notNull().default(0),
+  maxDaysAhead: integer("max_days_ahead").notNull().default(30),
+  minNoticeMin: integer("min_notice_min").notNull().default(120),
+  video: integer("video", { mode: "boolean" }).notNull().default(true),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("scheduling_pages_slug_uq").on(t.slug), uniqueIndex("scheduling_pages_user_uq").on(t.orgId, t.userId)]);
+
+/** A guest's booking on a scheduling page. `slotKey` is set while confirmed, so a slot books once. */
+export const bookings = sqliteTable("bookings", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  pageId: text("page_id").notNull().references(() => schedulingPages.id, { onDelete: "cascade" }),
+  meetingId: text("meeting_id"),
+  startsAt: ts("starts_at").notNull(),
+  durationMin: integer("duration_min").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  note: text("note").notNull().default(""),
+  status: text("status", { enum: ["confirmed", "cancelled"] }).notNull().default("confirmed"),
+  slotKey: integer("slot_key"),
+  cancelTokenHash: text("cancel_token_hash").notNull(),
+  cancelledBy: text("cancelled_by"),
+  cancelledAt: ts("cancelled_at"),
+  createdAt: createdAt(),
+}, (t) => [index("bookings_page_idx").on(t.pageId, t.startsAt), index("bookings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("bookings_slot_uq").on(t.pageId, t.slotKey)]);

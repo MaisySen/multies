@@ -148,6 +148,13 @@
       "when": 1792804671217,
       "tag": "0020_r10_chat_inbox_templates_goals",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1792812575598,
+      "tag": "0021_r11_integrations_scheduling",
+      "breakpoints": true
     }
   ]
 }

@@ -55,6 +55,9 @@ export const WEBHOOK_EVENTS = [
   "goal.created",
   "goal.updated",
   "goal.deleted",
+  "incoming_hook.received",
+  "booking.created",
+  "booking.cancelled",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
@@ -76,7 +79,7 @@ export function validateEndpointUrl(deps: Deps, raw: string): string {
 }
 
 export function presentEndpoint(e: typeof webhookEndpoints.$inferSelect) {
-  return { id: e.id, url: e.url, description: e.description, events: JSON.parse(e.events) as string[], enabled: e.enabled, disabledReason: e.disabledReason, createdAt: e.createdAt };
+  return { id: e.id, url: e.url, description: e.description, events: JSON.parse(e.events) as string[], enabled: e.enabled, disabledReason: e.disabledReason, format: e.format ?? "json", connector: e.connector ?? null, createdAt: e.createdAt };
 }
 
 export async function listEndpoints(deps: Deps, orgId: string) {
@@ -89,7 +92,9 @@ async function endpointInOrg(deps: Deps, orgId: string, id: string) {
   return e;
 }
 
-export async function createEndpoint(deps: Deps, orgId: string, input: { url: string; events: string[]; description?: string }) {
+export type EndpointFormat = "json" | "slack" | "discord" | "teams";
+
+export async function createEndpoint(deps: Deps, orgId: string, input: { url: string; events: string[]; description?: string; format?: EndpointFormat; connector?: string }) {
   const count = (await deps.db.select({ id: webhookEndpoints.id }).from(webhookEndpoints).where(eq(webhookEndpoints.orgId, orgId))).length;
   if (count >= MAX_ENDPOINTS) throw conflict(`A workspace can have up to ${MAX_ENDPOINTS} webhook endpoints.`);
   const url = validateEndpointUrl(deps, input.url);
@@ -97,6 +102,7 @@ export async function createEndpoint(deps: Deps, orgId: string, input: { url: st
   const id = newId("whe");
   await deps.db.insert(webhookEndpoints).values({
     id, orgId, url, description: input.description ?? null, events: JSON.stringify(input.events),
+    format: input.format ?? "json", connector: input.connector ?? null,
     secretEnc: await encryptSecret(deps.config.appSecret, secret),
   });
   return { endpoint: presentEndpoint(await endpointInOrg(deps, orgId, id)), secret };
@@ -144,6 +150,8 @@ async function attempt(deps: Deps, deliveryId: string) {
   const secret = await decryptSecret(deps.config.appSecret, e.secretEnc);
   const now = deps.now();
   const signature = new Webhook(secret).sign(d.id, now, d.payload);
+  // Slack, Discord and Teams take a chat message body, not our event; the signature headers stay for parity.
+  const body = e.format && e.format !== "json" ? await chatBody(e.format, d.payload, deps.config.appName) : d.payload;
   let status: number | null = null;
   let error: string | null = null;
   try {
@@ -158,7 +166,7 @@ async function attempt(deps: Deps, deliveryId: string) {
         "webhook-timestamp": String(Math.floor(now.getTime() / 1000)),
         "webhook-signature": signature,
       },
-      body: d.payload,
+      body,
       signal: ctrl.signal,
       redirect: "manual",
     }).finally(() => clearTimeout(timer));
@@ -271,4 +279,12 @@ export async function pruneDeliveries(deps: Deps) {
   const old = await deps.db.select({ id: webhookDeliveries.id }).from(webhookDeliveries).where(lte(webhookDeliveries.createdAt, cutoff)).limit(500);
   if (old.length) await deps.db.delete(webhookDeliveries).where(inArray(webhookDeliveries.id, old.map((o) => o.id)));
   return old.length;
+}
+
+/** Turns a stored event into the message body a chat app's incoming webhook expects. */
+async function chatBody(format: Exclude<EndpointFormat, "json">, payload: string, appName: string) {
+  const { eventText } = await import("../suite/integrations");
+  const text = eventText(JSON.parse(payload) as { type: string; data?: Record<string, unknown> }, appName);
+  if (format === "discord") return JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } });
+  return JSON.stringify({ text });
 }
