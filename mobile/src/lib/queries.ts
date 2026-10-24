@@ -2,7 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useSession } from "./session";
 import { cached } from "./offline";
 import { kv } from "./kv";
-import type { Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
+import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
+import { useForeground, usePollWhileVisible } from "./visible";
+import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
   overview: ["overview"] as const,
@@ -19,6 +21,17 @@ export const keys = {
   timer: ["time", "running"] as const,
   meetings: ["meetings"] as const,
   portfolio: ["portfolio"] as const,
+  chat: ["chat"] as const,
+  chatChannels: ["chat", "channels"] as const,
+  chatUnread: ["chat", "unread"] as const,
+  chatPeople: ["chat", "people"] as const,
+  chatChannel: (id: string) => ["chat", "channel", id] as const,
+  chatMessages: (id: string) => ["chat", "messages", id] as const,
+  chatThread: (id: string) => ["chat", "thread", id] as const,
+  notifications: ["notifications"] as const,
+  notificationList: (category: string) => ["notifications", "list", category] as const,
+  notificationCount: ["notifications", "count"] as const,
+  notificationSettings: ["notificationSettings"] as const,
 };
 
 export function useOverview() {
@@ -232,4 +245,185 @@ export function useCreateMeeting() {
 export function usePortfolio() {
   const { api, mode } = useSession();
   return useQuery({ queryKey: keys.portfolio, queryFn: () => cached(kv(), `meta:${mode}:portfolio`, () => api.portfolio()) });
+}
+
+// ---------------------------------------------------------------- team chat
+
+export function useChatChannels() {
+  const { api, mode } = useSession();
+  return useQuery({ queryKey: keys.chatChannels, queryFn: () => cached(kv(), `meta:${mode}:chat:channels`, () => api.chatChannels()), select: (d) => d.channels });
+}
+
+/** Unread and mention counts for the Chat tab badge: every 15 s while the app is in the foreground. */
+export function useChatUnread() {
+  const { api } = useSession();
+  const foreground = useForeground();
+  return useQuery({ queryKey: keys.chatUnread, queryFn: () => api.chatUnread(), refetchInterval: foreground ? CHAT_POLL.unreadMs : false });
+}
+
+export function useChatPeople() {
+  const { api } = useSession();
+  return useQuery({ queryKey: keys.chatPeople, queryFn: () => api.chatPeople(), select: (d) => d.people, staleTime: 5 * 60_000 });
+}
+
+export function useChatChannel(id: string) {
+  const { api } = useSession();
+  return useQuery({ queryKey: keys.chatChannel(id), queryFn: () => api.chatChannel(id), select: (d) => d.channel, enabled: !!id });
+}
+
+interface Feed { messages: ChatMessage[]; hasMore: boolean }
+
+/**
+ * The open channel's messages, oldest first. The first load takes the newest 50; after that it
+ * asks only for what changed (?since=) every 4 s, and only while the screen is focused and the
+ * app is in the foreground.
+ */
+export function useChannelMessages(id: string) {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  const interval = usePollWhileVisible(CHAT_POLL.channelMs);
+  return useQuery({
+    queryKey: keys.chatMessages(id),
+    enabled: !!id,
+    refetchInterval: interval,
+    queryFn: async (): Promise<Feed> => {
+      const prev = qc.getQueryData<Feed>(keys.chatMessages(id));
+      const since = prev ? latestChange(prev.messages) : null;
+      if (!prev || !since) return api.chatMessages(id, { limit: 50 });
+      const r = await api.chatMessages(id, { since });
+      return { messages: mergeMessages(prev.messages, r.messages), hasMore: prev.hasMore };
+    },
+  });
+}
+
+/** Loads the page of messages before the oldest one on screen. */
+export function useEarlierMessages(id: string) {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const prev = qc.getQueryData<Feed>(keys.chatMessages(id));
+      const first = prev?.messages[0];
+      if (!first) return null;
+      return api.chatMessages(id, { limit: 50, before: first.id });
+    },
+    onSuccess: (r) => {
+      if (!r) return;
+      qc.setQueryData<Feed>(keys.chatMessages(id), (prev) => prev ? { messages: mergeMessages(prev.messages, r.messages), hasMore: r.hasMore } : prev);
+    },
+  });
+}
+
+export function useChatThread(id: string) {
+  const { api } = useSession();
+  const interval = usePollWhileVisible(CHAT_POLL.channelMs);
+  return useQuery({ queryKey: keys.chatThread(id), queryFn: () => api.chatThread(id), enabled: !!id, refetchInterval: interval });
+}
+
+export function useSendChat(channelId: string) {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ChatSend) => api.sendChat(channelId, input),
+    onSuccess: ({ message }) => {
+      if (message.parentId) {
+        qc.invalidateQueries({ queryKey: keys.chatThread(message.parentId) });
+        qc.invalidateQueries({ queryKey: keys.chatMessages(channelId) });
+      } else {
+        qc.setQueryData<Feed>(keys.chatMessages(channelId), (prev) => prev ? { ...prev, messages: mergeMessages(prev.messages, [message]) } : prev);
+      }
+      qc.invalidateQueries({ queryKey: keys.chatChannels });
+    },
+  });
+}
+
+export function useMarkChannelRead() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; messageId?: string }) => api.readChannel(v.id, v.messageId),
+    onSuccess: (_r, v) => {
+      qc.setQueryData<{ channels: { id: string; unread: number; mentions: number }[] }>(keys.chatChannels, (d) =>
+        d ? { ...d, channels: d.channels.map((c) => (c.id === v.id ? { ...c, unread: 0, mentions: 0 } : c)) } : d);
+      qc.invalidateQueries({ queryKey: keys.chatUnread });
+    },
+  });
+}
+
+export function useMessageToTask() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { messageId: string; title?: string }) => api.chatMessageToTask(v.messageId, v.title ? { title: v.title } : {}),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: keys.tasks }); qc.invalidateQueries({ queryKey: keys.chat }); },
+  });
+}
+
+export function useStartDm() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userIds: string[]) => api.startDm(userIds),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.chatChannels }),
+  });
+}
+
+// ---------------------------------------------------------------- notifications inbox
+
+export function useNotifications(category: string) {
+  const { api, mode } = useSession();
+  return useQuery({
+    queryKey: keys.notificationList(category),
+    queryFn: () => cached(kv(), `meta:${mode}:notifications:${category}`, () => api.notifications({ category: category === "all" ? undefined : category, limit: 50 })),
+  });
+}
+
+/** The unread count for the bell and the Settings row, refreshed every minute while the app is open. */
+export function useNotificationCount() {
+  const { api } = useSession();
+  const foreground = useForeground();
+  return useQuery({
+    queryKey: keys.notificationCount,
+    queryFn: () => api.notifications({ unread: true, limit: 1 }),
+    select: (d) => d.unread,
+    refetchInterval: foreground ? 60_000 : false,
+  });
+}
+
+export function useReadNotifications() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { ids?: string[]; category?: string }) => api.readNotifications(v),
+    onMutate: (v) => {
+      // Show it read straight away; the refetch after settles the counts.
+      for (const [key, data] of qc.getQueriesData<{ notifications: { id: string; read: boolean; category?: string }[]; unread: number }>({ queryKey: ["notifications", "list"] })) {
+        if (!data) continue;
+        const hit = (n: { id: string; category?: string }) => (v.ids ? v.ids.includes(n.id) : v.category ? n.category === v.category : true);
+        qc.setQueryData(key, { ...data, notifications: data.notifications.map((n) => (hit(n) ? { ...n, read: true } : n)) });
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.notifications }),
+  });
+}
+
+export function useNotificationSettings() {
+  const { api } = useSession();
+  return useQuery({ queryKey: keys.notificationSettings, queryFn: () => api.notificationSettings(), select: (d) => d.settings });
+}
+
+export function useSaveNotificationSetting() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { category: string; key: "inApp" | "push"; value: boolean }) => api.saveNotificationSettings({ [v.category]: { [v.key]: v.value } }),
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: keys.notificationSettings });
+      const before = qc.getQueryData<{ settings: NotificationSettings }>(keys.notificationSettings);
+      if (before) qc.setQueryData(keys.notificationSettings, { settings: { ...before.settings, [v.category]: { ...before.settings[v.category], [v.key]: v.value } } });
+      return { before };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.before) qc.setQueryData(keys.notificationSettings, ctx.before); },
+    onSuccess: (r) => qc.setQueryData(keys.notificationSettings, r),
+  });
 }

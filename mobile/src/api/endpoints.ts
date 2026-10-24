@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type {
-  Agent, Approval, AppNotification, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  CustomField, Meeting, MeetingCreate, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
+  Agent, Approval, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
+  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
@@ -53,8 +53,30 @@ export function endpoints(t: Transport) {
     assignees: () => t.request<{ assignees: Assignee[] }>("GET", "/tasks/assignees"),
     projects: () => t.request<{ projects: Project[] }>("GET", "/projects"),
     changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
-    notifications: (unread = false) => t.request<{ notifications: AppNotification[] }>("GET", `/notifications${q({ unread: unread ? 1 : undefined })}`),
-    readNotifications: (ids?: string[]) => t.request<{ marked: number }>("POST", "/notifications/read", ids ? { ids } : {}),
+    // Notifications inbox. No ids and no category marks everything read.
+    notifications: (p: { unread?: boolean; category?: string; limit?: number; before?: string } = {}) =>
+      t.request<NotificationPage>("GET", `/notifications${q({ unread: p.unread ? 1 : undefined, category: p.category, limit: p.limit, before: p.before })}`),
+    readNotifications: (p: { ids?: string[]; category?: string } = {}) =>
+      t.request<{ ok: true; updated: number }>("POST", "/notifications/read", { ...(p.ids ? { ids: p.ids } : {}), ...(p.category ? { category: p.category } : {}) }),
+    unreadNotification: (id: string) => t.request<{ ok: true }>("POST", `/notifications/${encodeURIComponent(id)}/unread`, {}),
+    notificationSettings: () => t.request<{ settings: NotificationSettings }>("GET", "/notifications/settings"),
+    saveNotificationSettings: (settings: Partial<Record<string, Partial<{ inApp: boolean; push: boolean }>>>) =>
+      t.request<{ settings: NotificationSettings }>("PUT", "/notifications/settings", { settings }),
+
+    // Team chat. Bodies use the plain markup in lib/chat.ts; the server resolves mentions and links.
+    chatChannels: () => t.request<{ channels: ChatChannel[] }>("GET", "/chat/channels"),
+    chatChannel: (id: string) => t.request<{ channel: ChatChannel }>("GET", `/chat/channels/${encodeURIComponent(id)}`),
+    chatMessages: (id: string, p: { limit?: number; before?: string; since?: string } = {}) =>
+      t.request<{ messages: ChatMessage[]; hasMore: boolean }>("GET", `/chat/channels/${encodeURIComponent(id)}/messages${q({ limit: p.limit, before: p.before, since: p.since })}`),
+    chatMessage: (id: string) => t.request<{ message: ChatMessage; channel: ChatChannel }>("GET", `/chat/messages/${encodeURIComponent(id)}`),
+    chatThread: (id: string) => t.request<{ message: ChatMessage; replies: ChatMessage[] }>("GET", `/chat/messages/${encodeURIComponent(id)}/thread`),
+    sendChat: (channelId: string, input: ChatSend) => t.request<{ message: ChatMessage }>("POST", `/chat/channels/${encodeURIComponent(channelId)}/messages`, input),
+    readChannel: (id: string, messageId?: string) => t.request<{ ok: true }>("POST", `/chat/channels/${encodeURIComponent(id)}/read`, messageId ? { messageId } : {}),
+    joinChannel: (id: string) => t.request<{ channel: ChatChannel }>("POST", `/chat/channels/${encodeURIComponent(id)}/join`, {}),
+    chatUnread: () => t.request<ChatUnread>("GET", "/chat/unread"),
+    chatPeople: () => t.request<{ people: ChatPerson[] }>("GET", "/chat/people"),
+    startDm: (userIds: string[]) => t.request<{ channel: ChatChannel }>("POST", "/chat/dms", { userIds }),
+    chatMessageToTask: (id: string, input: { title?: string; projectId?: string } = {}) => t.request<{ task: Task }>("POST", `/chat/messages/${encodeURIComponent(id)}/task`, input),
 
     // Time tracking. One timer runs per person; starting a new one stops the old one first.
     runningTimer: () => t.request<{ entry: TimeEntry | null }>("GET", "/time/running"),

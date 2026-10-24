@@ -259,10 +259,41 @@ export interface Project {
 export interface Change { seq: number; entity: string; id: string; op: string; version: number; at: string }
 export interface ChangePage { changes: Change[]; cursor: number; more: boolean }
 
-export interface AppNotification { id: string; type: string; entityType: string | null; entityId: string | null; title: string; read: boolean; createdAt: string }
+// ---------------------------------------------------------------- notifications inbox
+
+export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
+export interface AppNotification {
+  id: string; type: string; category?: NotificationCategory | string;
+  entityType: "task" | "message" | "chat_message" | "approval" | "goal" | string | null; entityId: string | null;
+  title: string; actor?: { type: string; id: string; name: string } | null; read: boolean; createdAt: string; link?: string;
+}
+export interface NotificationPage { notifications: AppNotification[]; unread: number; counts: Partial<Record<string, number>>; hasMore: boolean }
+export interface NotificationPref { inApp: boolean; push: boolean }
+export type NotificationSettings = Record<string, NotificationPref>;
+
+// ---------------------------------------------------------------- team chat
+
+export interface ChatMember { id: string; name: string; email: string }
+export interface ChatChannel {
+  id: string; kind: "channel" | "dm"; name: string; topic: string | null; private: boolean; projectId: string | null; guestAccess: boolean; archived: boolean;
+  members: ChatMember[]; unread: number; mentions: number; lastMessageAt: string | null;
+  lastMessage: { id: string; preview: string; authorName: string } | null; createdAt: string; joined?: boolean;
+}
+export interface ChatMention { type: "member" | "agent" | "channel"; id: string; name: string }
+export interface ChatLink { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string }
+export interface ChatAttachment { id: string; filename: string; contentType: string; size: number }
+export interface ChatMessage {
+  id: string; channelId: string; parentId: string | null; author: { type: "member" | "agent" | "guest"; id: string; name: string };
+  body: string; mentions: ChatMention[]; links: ChatLink[]; attachments: ChatAttachment[];
+  replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string; updatedAt: string;
+}
+export interface ChatPerson { id: string; type: "member" | "agent"; name: string; email: string }
+export interface ChatUnread { total: number; mentions: number; channels: Record<string, { unread: number; mentions: number }> }
+export interface ChatSend { body: string; parentId?: string; attachments?: { filename: string; contentType?: string; contentBase64: string }[] }
 
 /** What a push from the server carries: an event type and an id, nothing else. */
-export type PushType = "message.received" | "approval.requested" | "task.assigned" | "task.commented" | "task.email_reply" | "task.due_soon" | "automation.status" | "automation.email";
+export type PushType = "message.received" | "approval.requested" | "task.assigned" | "task.commented" | "task.email_reply" | "task.due_soon" | "automation.status" | "automation.email"
+  | "chat.mention" | "chat.dm" | "chat.reply" | "goal.updated";
 export interface PushData { type: PushType | string; id: string }
 
 // ---------------------------------------------------------------- kept in step with the API spec
