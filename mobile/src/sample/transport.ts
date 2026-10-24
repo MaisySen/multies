@@ -50,7 +50,6 @@ export class SampleTransport implements Transport {
 
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });
-      case "POST /auth/delete-user": return json({ success: true });
       case "GET /account/me": return json(d.me);
       case "GET /mail/overview": return json({ mailboxes: d.mailboxes });
       case "GET /agents": return json({ agents: d.agents });

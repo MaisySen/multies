@@ -269,7 +269,11 @@ it("portfolio lists projects with health, progress, overdue, time and next due",
 it("settings render", async () => {
   const Settings = require("@/app/(tabs)/settings").default;
   await wrap(<Settings />);
-  expect(await screen.findByText("Delete account")).toBeTruthy();
+  expect(await screen.findByText("Delete my account")).toBeTruthy();
+  await fireEvent.press(screen.getByTestId("delete-account"));
+  expect(mockPush).toHaveBeenCalledWith("/delete-account");
+  // Free app: nothing to buy, no prices and no upgrade or billing buttons (App Store 3.1.1).
+  expect(screen.queryByText(/upgrade|billing|purchase|subscribe|per month|A\$\d/i)).toBeNull();
   await fireEvent.press(screen.getByTestId("meetings"));
   expect(mockPush).toHaveBeenCalledWith("/meetings");
   await fireEvent.press(screen.getByTestId("portfolio-link"));

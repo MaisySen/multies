@@ -62,7 +62,7 @@ export default function Settings() {
       <Row icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
-      <Row icon="external-link" label="Domains, team and billing" onPress={() => open(`${API_BASE}/app`)} />
+      <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(`${API_BASE}/app`)} />
 
       <SectionTitle>Notifications</SectionTitle>
       <Row icon="bell" label={allowed ? "Notifications allowed" : "Turn on notifications"} value={allowed ? "On" : undefined} onPress={turnOnPush} testID="push" />
@@ -81,7 +81,7 @@ export default function Settings() {
 
       <SectionTitle>Account</SectionTitle>
       <Row icon="log-out" label={mode === "sample" ? "Leave the sample workspace" : "Sign out"} onPress={confirmSignOut} testID="sign-out" />
-      <Row icon="user-x" label="Delete account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
+      <Row icon="user-x" label="Delete my account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
 
       <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]}>
         MyMail {Application.nativeApplicationVersion ?? "1.0.0"}{Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ""}

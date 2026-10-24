@@ -18,7 +18,10 @@ export function endpoints(t: Transport) {
     verifyTotp: (code: string, trustDevice: boolean) => t.request<unknown>("POST", "/auth/two-factor/verify-totp", { code, trustDevice }),
     verifyBackupCode: (code: string) => t.request<unknown>("POST", "/auth/two-factor/verify-backup-code", { code }),
     signOut: () => t.request<unknown>("POST", "/auth/sign-out", {}),
-    deleteAccount: (password: string) => t.request<{ success?: boolean }>("POST", "/auth/delete-user", { password }),
+
+    /** Deletes the signed in person's account. The session ends with it. */
+    deleteAccount: (password?: string) =>
+      t.request<{ ok: true; deletedWorkspaces: number }>("DELETE", "/account", password ? { confirm: "DELETE", password } : { confirm: "DELETE" }),
 
     /** A private sample workspace on the server, signed in. Only where the server has demo mode on. */
     startDemo: () => t.request<{ ok: true }>("POST", "/account/demo", {}),

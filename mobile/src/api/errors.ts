@@ -1,5 +1,5 @@
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string) {
+  constructor(public status: number, public code: string, message: string, public details: Record<string, unknown> = {}) {
     super(message);
     this.name = "ApiError";
   }
@@ -16,12 +16,20 @@ const FRIENDLY: Record<string, string> = {
   EMAIL_NOT_VERIFIED: "Verify your email first. Check your inbox for the link.",
 };
 
-/** Reads both error shapes: the app's { error: { code, message } } and Better Auth's { code, message }. */
+/**
+ * Reads every error shape the API uses: the app's { error: { code, message } }, a bare
+ * { error: "code", ...details } and Better Auth's { code, message }.
+ */
 export function toApiError(status: number, body: unknown): ApiError {
-  const b = (body ?? {}) as { error?: { code?: string; message?: string }; code?: string; message?: string };
-  const code = b.error?.code ?? b.code ?? (status === 429 ? "TOO_MANY_REQUESTS" : "error");
-  const message = FRIENDLY[code.toUpperCase()] ?? b.error?.message ?? b.message ?? `Something went wrong (${status}).`;
-  return new ApiError(status, code.toLowerCase(), message);
+  const raw = (body && typeof body === "object" ? body : {}) as Record<string, unknown>;
+  const e = raw.error;
+  const nested = e && typeof e === "object" ? (e as { code?: string; message?: string }) : null;
+  const bare = typeof e === "string" ? e : undefined;
+  const code = nested?.code ?? bare ?? (typeof raw.code === "string" ? raw.code : undefined) ?? (status === 429 ? "TOO_MANY_REQUESTS" : "error");
+  const message = FRIENDLY[code.toUpperCase()] ?? nested?.message ?? (typeof raw.message === "string" ? raw.message : undefined) ?? `Something went wrong (${status}).`;
+  const details: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(raw)) if (k !== "error" && k !== "code" && k !== "message") details[k] = v;
+  return new ApiError(status, code.toLowerCase(), message, details);
 }
 
 export const NETWORK_ERROR = () => new ApiError(0, "network", "Can't reach MyMail. Check your connection.");

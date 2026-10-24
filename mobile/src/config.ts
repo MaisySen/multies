@@ -36,6 +36,7 @@ export const LINKS = {
   privacy: `${API_BASE}/privacy`,
   terms: `${API_BASE}/terms`,
   accountSettings: `${API_BASE}/app/settings/account`,
+  deleteAccount: `${API_BASE}/delete-account`,
   status: `${API_BASE}/status`,
-  support: "mailto:support@mymail.au?subject=MyMail%20app",
+  support: `${API_BASE}/support`,
 };

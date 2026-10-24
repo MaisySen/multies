@@ -24,7 +24,8 @@ interface SessionValue {
   verifyTwoFactor(code: string, opts: { backup: boolean; trustDevice: boolean }): Promise<void>;
   startSample(): Promise<void>;
   signOut(): Promise<void>;
-  deleteAccount(password: string): Promise<void>;
+  /** Deletes the account (live) or clears the sample workspace from this phone. Throws ApiError on failure. */
+  deleteAccount(password?: string): Promise<void>;
   refreshMe(): Promise<void>;
 }
 
@@ -128,7 +129,10 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     },
     async deleteAccount(password) {
       if (mode === "sample") { await clearLocal(); setMode("live"); setStatus("signedOut"); return; }
-      await endpoints(live).deleteAccount(password);
+      await endpoints(live).deleteAccount(password || undefined);
+      // The server removed the account with its push devices and ended the session. Forget this
+      // phone's token and every cached item without calling the server again.
+      await unregisterPush(null).catch(() => {});
       await clearLocal();
       await kv().clear().catch(() => {});
       setStatus("signedOut");
