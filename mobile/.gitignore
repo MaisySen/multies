@@ -5,6 +5,7 @@ dist-web/
 web-build/
 android/
 ios/
+!store/ios/
 *.apk
 *.aab
 *.ipa
@@ -18,3 +19,5 @@ secrets/
 npm-debug.*
 coverage/
 ios-native/.build/
+credentials.json
+credentials/

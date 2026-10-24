@@ -27,17 +27,31 @@
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://mymail.mymail-app.workers.dev",
         "EXPO_PUBLIC_FEATURE_PUSH_SERVER": "1"
+      },
+      "distribution": "store",
+      "channel": "production",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "resourceClass": "default"
       }
+    },
+    "production-local-credentials": {
+      "extends": "production",
+      "credentialsSource": "local"
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+        "appleId": "OWNER_FILL_IN_apple_id_email",
+        "ascAppId": "OWNER_FILL_IN_app_store_connect_app_id",
+        "appleTeamId": "OWNER_FILL_IN_apple_team_id"
       },
       "android": {
         "track": "internal",
+        "releaseStatus": "draft",
         "serviceAccountKeyPath": "./secrets/play-service-account.json"
       }
     }
