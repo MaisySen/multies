@@ -3,7 +3,7 @@
 @import "@fontsource-variable/jetbrains-mono";
 
 /*
- * MyMail design tokens. Apple style: the system font, calm neutral greys, one blue accent, and red,
+ * Multies design tokens. Apple style: the system font, calm neutral greys, one blue accent, and red,
  * amber and green for status only. Light is the default and follows prefers-color-scheme; dark is set
  * below with the same names. Every text colour pair here meets WCAG AA. brand/tokens.json mirrors this.
  */

@@ -26,7 +26,10 @@ export function isUserFacing(file: string) {
   return /^(src\/web\/|docs\/|README\.md$|index\.html$|src\/server\/auth\.ts$|src\/server\/services\/(system-mail|demo)\.ts$|src\/server\/services\/dns\/checks\.ts$|mail-server\/)/.test(file);
 }
 
-export interface Issue { file: string; line: number; rule: "dash" | "slop"; text: string }
+/** The product's old name. People see "Multies"; internal names (the worker, hosts, headers) are not prose. */
+const OLD_NAME = /\bMyMail\b(?![-/])/;
+
+export interface Issue { file: string; line: number; rule: "dash" | "slop" | "name"; text: string }
 
 export function findIssues(file: string, text: string): Issue[] {
   const out: Issue[] = [];
@@ -36,6 +39,7 @@ export function findIssues(file: string, text: string): Issue[] {
     if (DASHES.test(line)) out.push({ file, line: i + 1, rule: "dash", text: line.trim() });
     const m = facing ? line.match(SLOP_RE) : null;
     if (m) out.push({ file, line: i + 1, rule: "slop", text: m[0] });
+    if (facing && OLD_NAME.test(line)) out.push({ file, line: i + 1, rule: "name", text: "MyMail" });
   });
   return out;
 }
