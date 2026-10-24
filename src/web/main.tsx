@@ -7,11 +7,17 @@ import { ApiError } from "./lib/api";
 import { startSentry } from "./lib/sentry";
 import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
+import { applyMeta } from "./components/seo";
+import { AnalyticsBeacon } from "./components/analytics-beacon";
 import "./index.css";
 
 // After first paint, so error tracking never delays the page.
 if ("requestIdleCallback" in window) requestIdleCallback(() => void startSentry(), { timeout: 3000 });
 else setTimeout(() => void startSentry(), 1500);
+
+// Per-page title, description and social tags, on first load and every navigation.
+applyMeta(window.location.pathname);
+router.subscribe((s) => applyMeta(s.location.pathname));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,6 +36,7 @@ createRoot(document.getElementById("root")!).render(
         <RouterProvider router={router} />
       </ErrorBoundary>
       <ThemedToaster />
+      <AnalyticsBeacon />
     </QueryClientProvider>
   </StrictMode>,
 );

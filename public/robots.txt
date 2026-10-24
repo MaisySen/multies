@@ -1,5 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /app
-Disallow: /api/
+Disallow: /api
 Disallow: /invite/
+Disallow: /guest
+
+Sitemap: https://mymail.mymail-app.workers.dev/sitemap.xml

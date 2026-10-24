@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Sparkles } from "lucide-react";
+import { CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/web/components/ui/button";
@@ -14,7 +14,7 @@ import { useStartDemo } from "@/web/lib/demo";
 type AuthAction = (body: Record<string, string>) => Promise<{ twoFactorRedirect?: boolean } | unknown>;
 
 /** Runs a sign-in style action, then lands in the app (or where the person was headed). */
-function useAuthSubmit(action: AuthAction) {
+function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fields, setFields] = useState<Record<string, string>>({});
@@ -31,7 +31,8 @@ function useAuthSubmit(action: AuthAction) {
       if (res?.twoFactorRedirect) { setNeedsSecondFactor(true); return; }
       qc.clear();
       const next = params.get("next");
-      navigate(next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app");
+      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app";
+      navigate(opts.thanks ? `/thanks?from=signup&next=${encodeURIComponent(dest)}` : dest);
     } catch (err) {
       if (err instanceof ApiError && err.fields) setFields(err.fields);
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -90,7 +91,7 @@ function DemoLink() {
   return (
     <>
       <div className="my-6 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
-      <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><Sparkles className="h-4 w-4" /> Explore a demo workspace</Button>
+      <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><Play className="h-4 w-4" /> Explore a demo workspace</Button>
     </>
   );
 }
@@ -250,7 +251,7 @@ export function SignupPage() {
     await api.get("/account/me"); // creates the personal workspace
     if (b.organization.trim()) await api.patch("/org", { name: b.organization.trim() });
     return null;
-  });
+  }, { thanks: true });
   const [params] = useSearchParams();
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

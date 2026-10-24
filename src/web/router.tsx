@@ -62,6 +62,7 @@ const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => 
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
+const ThanksPage = lazy(() => import("./pages/thanks").then((m) => ({ default: m.ThanksPage })));
 const SupportPage = lazy(() => import("./pages/support").then((m) => ({ default: m.SupportPage })));
 const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ default: m.DeleteAccountPage })));
 const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
@@ -154,5 +155,6 @@ export const router = createBrowserRouter([
   // A project guest (a client): the invite link, then the one project they can see.
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />) },
   { path: "/guest", element: publicPage(<GuestProjectPage />) },
+  { path: "/thanks", element: publicPage(<ThanksPage />) },
   { path: "*", element: <NotFound /> },
 ]);

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
-import { Menu as MenuIcon, X } from "lucide-react";
+import { Cookie, Menu as MenuIcon, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
@@ -76,7 +76,8 @@ export function MarketingLayout() {
         <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 sm:grid-cols-2 md:grid-cols-5">
           <div className="space-y-3 md:col-span-2">
             <Logo />
-            <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own. Verified, private, and yours.</p>
+            <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own, with tasks, chat and agents built in.</p>
+            <p className="text-sm text-muted">Questions? <Link to="/support" className="font-medium text-brand-hover hover:underline">Contact support</Link></p>
           </div>
           <div>
             <h2 className="text-[13px] font-medium text-fg">Product</h2>
@@ -108,7 +109,10 @@ export function MarketingLayout() {
             </ul>
           </div>
         </div>
-        <div className="mx-auto max-w-6xl border-t border-line px-5 py-6 text-xs text-subtle">© {new Date().getFullYear()} MyMail, Sydney, Australia. Built for people who own their domain.</div>
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 border-t border-line px-5 py-6 text-xs text-subtle max-sm:pb-28 sm:flex-row sm:items-center sm:justify-between">
+          <span>© {new Date().getFullYear()} MyMail, Sydney, Australia. Built for people who own their domain.</span>
+          <span data-testid="cookie-notice"><Cookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
+        </div>
       </footer>
     </div>
   );
