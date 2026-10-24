@@ -121,7 +121,7 @@
       "package": "au.mymail.app",
       "versionCode": 6,
       "adaptiveIcon": {
-        "backgroundColor": "#0071E3",
+        "backgroundColor": "#1D1D1F",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundImage": "./assets/android-icon-background.png"
@@ -162,7 +162,7 @@
           "backgroundColor": "#FFFFFF",
           "dark": {
             "image": "./assets/splash-icon.png",
-            "backgroundColor": "#000000"
+            "backgroundColor": "#1D1D1F"
           }
         }
       ],
