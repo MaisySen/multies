@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt } from "drizzle-orm";
+import { and, eq, inArray, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
 import { appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
@@ -232,7 +232,10 @@ async function sampleDkimKey(deps: Deps): Promise<{ publicKeyB64: string; privat
 /** Removes sandbox workspaces (and their users) older than the TTL. */
 export async function purgeDemoWorkspaces(deps: Deps) {
   const cutoff = new Date(deps.now().getTime() - DEMO_TTL_MS);
-  const old = await deps.db.select({ id: organizations.id }).from(organizations).where(and(eq(organizations.isDemo, true), lt(organizations.createdAt, cutoff)));
+  // The App Review account is a demo workspace with a password login that must always work.
+  const keep = deps.config.keepDemoOrgIds ?? [];
+  const old = await deps.db.select({ id: organizations.id }).from(organizations)
+    .where(and(eq(organizations.isDemo, true), lt(organizations.createdAt, cutoff), keep.length ? notInArray(organizations.id, keep) : undefined));
   if (!old.length) return 0;
   const ids = old.map((o) => o.id);
   const demoMembers = await deps.db.select({ userId: members.userId }).from(members).where(inArray(members.organizationId, ids));

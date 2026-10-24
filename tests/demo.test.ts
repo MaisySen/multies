@@ -101,4 +101,16 @@ describe("demo mode", () => {
     expect(await ctx.db.query.users.findMany()).toHaveLength(0);
     expect(await ctx.db.query.messages.findMany()).toHaveLength(0);
   });
+
+  it("keeps the App Review workspace listed in KEEP_DEMO_ORG_IDS", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const keep = new Client(ctx.app);
+    await keep.post("/api/account/demo");
+    await new Client(ctx.app).post("/api/account/demo");
+    const keptId = (await keep.get("/api/account/me")).body.organization.id;
+    ctx.deps.config.keepDemoOrgIds = [keptId];
+    ctx.deps.now = () => new Date(Date.now() + 25 * 3600_000);
+    expect(await purgeDemoWorkspaces(ctx.deps)).toBe(1);
+    expect((await ctx.db.query.organizations.findMany()).map((o) => o.id)).toEqual([keptId]);
+  });
 });
