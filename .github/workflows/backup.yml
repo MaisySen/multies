@@ -3,7 +3,7 @@
 # compressed and encrypted with age to a public key; the private key lives offline.
 # Artifacts are kept 30 days. If R2 is enabled on the account and the R2_BUCKET
 # variable is set, the encrypted file is also copied to R2.
-# Restore steps: docs/runbooks/restore.md
+# Restore steps: docs/runbooks/db-backup-restore.md
 name: Backup
 on:
   schedule:
