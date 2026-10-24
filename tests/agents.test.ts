@@ -67,6 +67,14 @@ describe("agent inboxes over the API", () => {
     expect((await api(made.body.apiKey.secret, "GET", "/agents")).body.data).toHaveLength(1);
     // Agent inboxes don't count as mailboxes.
     expect((await c.get("/api/billing")).body.usage).toMatchObject({ mailboxes: 0, agentInboxes: 1 });
+    // An agent key posts in chat under the agent's name, not the key's (dogfood finding F2).
+    const channel = (await api(wsKey, "POST", "/chat/channels", { name: "agents-test" })).body;
+    const channelId = channel.channel?.id ?? channel.id;
+    const post = await api(made.body.apiKey.secret, "POST", `/chat/channels/${channelId}/messages`, { body: "Invoices are in." });
+    expect(post.status).toBe(201);
+    const read = await api(wsKey, "GET", `/chat/channels/${channelId}/messages`);
+    expect(JSON.stringify(read.body)).toContain("Invoice bot");
+    expect(JSON.stringify(read.body)).not.toContain("API key");
     const del = await api(wsKey, "DELETE", `/agents/${made.body.agent.id}`);
     expect(del.body).toEqual({ id: made.body.agent.id, deleted: true });
     expect((await api(wsKey, "GET", "/agents")).body.data).toEqual([]);
