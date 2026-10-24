@@ -18,6 +18,8 @@ export function endpoints(t: Transport) {
     verifyTotp: (code: string, trustDevice: boolean) => t.request<unknown>("POST", "/auth/two-factor/verify-totp", { code, trustDevice }),
     verifyBackupCode: (code: string) => t.request<unknown>("POST", "/auth/two-factor/verify-backup-code", { code }),
     signOut: () => t.request<unknown>("POST", "/auth/sign-out", {}),
+    /** Trades the identity provider's ID token for a Multies session cookie. */
+    exchangeIdToken: (idToken: string, nonce: string) => t.request<{ ok: true }>("POST", "/auth/mobile/exchange", { idToken, nonce }),
 
     /** Deletes the signed in person's account. The session ends with it. */
     deleteAccount: (password?: string) =>

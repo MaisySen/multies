@@ -26,10 +26,19 @@ jest.mock("expo-haptics", () => ({
   impactAsync: jest.fn(async () => {}), notificationAsync: jest.fn(async () => {}),
   ImpactFeedbackStyle: { Medium: "medium" }, NotificationFeedbackType: { Success: "success" },
 }));
-jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})) }));
+jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})), openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })) }));
 jest.mock("expo-document-picker", () => ({ getDocumentAsync: jest.fn(async () => ({ canceled: true, assets: null })) }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn(async () => true) }));
-jest.mock("expo-crypto", () => ({ randomUUID: () => "00000000-0000-4000-8000-000000000000" }));
+jest.mock("expo-crypto", () => {
+  const nodeCrypto = require("crypto");
+  return {
+    randomUUID: () => "00000000-0000-4000-8000-000000000000",
+    getRandomBytes: (n) => new Uint8Array(nodeCrypto.randomBytes(n)),
+    digestStringAsync: async (_alg, s) => nodeCrypto.createHash("sha256").update(s).digest("base64"),
+    CryptoDigestAlgorithm: { SHA256: "SHA-256" },
+    CryptoEncoding: { BASE64: "base64" },
+  };
+});
 jest.mock("lucide-react-native", () => {
   const { Text } = require("react-native");
   const React = require("react");

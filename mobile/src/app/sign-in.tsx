@@ -1,68 +1,62 @@
-import { useRef, useState, type ComponentRef } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { useState } from "react";
+import { ScrollView, Text, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Button, Field, Banner } from "@/components/ui";
+import { Button, Banner } from "@/components/ui";
 import { Logo } from "@/components/logo";
 import { useSession } from "@/lib/session";
-import { EMAIL_RE } from "@/lib/format";
+import { IdpError } from "@/lib/idp";
 import { LINKS, SAMPLE_ONLY } from "@/config";
 import { colors, font, space } from "@/theme";
 
+/**
+ * Sign in and sign up happen on the Multies sign in page in the system browser (email and
+ * password, a one time code, a passkey or a social account, plus two step verification),
+ * then the app holds only its Multies session, in the device's secure storage.
+ */
 export default function SignIn() {
-  const { signIn, startSample } = useSession();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { signInWithIdp, startSample } = useSession();
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const pw = useRef<ComponentRef<typeof TextInput>>(null);
+  const [busy, setBusy] = useState<"signin" | "signup" | null>(null);
 
-  const submit = async () => {
+  const go = async (mode: "signin" | "signup") => {
     setError(null);
-    if (!EMAIL_RE.test(email.trim())) return setError("Enter the email you use for Multies.");
-    if (!password) return setError("Enter your password.");
-    setBusy(true);
+    setBusy(mode);
     try {
-      const r = await signIn(email, password);
-      if (r === "twoFactor") router.push("/two-factor");
+      await signInWithIdp(mode);
     } catch (e) {
-      setError((e as Error).message);
+      if (!(e instanceof IdpError && e.code === "cancelled")) setError((e as Error).message);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg, flexGrow: 1, justifyContent: "center", maxWidth: 480, width: "100%", alignSelf: "center" }} keyboardShouldPersistTaps="handled">
-          <View style={{ alignItems: "flex-start", gap: space.md, marginBottom: space.md }}>
-            <Logo size={52} />
-            <Text style={font.title} accessibilityRole="header">Sign in to Multies</Text>
-            <Text style={font.small}>Your inbox, your team and your AI agents, in your pocket.</Text>
-          </View>
+      <ScrollView contentContainerStyle={{ padding: space.xl, gap: space.lg, flexGrow: 1, justifyContent: "center", maxWidth: 480, width: "100%", alignSelf: "center" }}>
+        <View style={{ alignItems: "flex-start", gap: space.md, marginBottom: space.md }}>
+          <Logo size={52} />
+          <Text style={font.title} accessibilityRole="header">Sign in to Multies</Text>
+          <Text style={font.small}>Your inbox, your team and your AI agents, in your pocket.</Text>
+        </View>
 
-          {SAMPLE_ONLY ? (
-            <Banner tone="brand" icon="info" text="This browser preview runs on sample data. Sign in with your Multies account in the iPhone or Android app." />
-          ) : null}
+        {SAMPLE_ONLY ? (
+          <Banner tone="brand" icon="info" text="This browser preview runs on sample data. Sign in with your Multies account in the iPhone or Android app." />
+        ) : null}
 
-          <Field label="Email" testID="email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address"
-            textContentType="username" returnKeyType="next" onSubmitEditing={() => pw.current?.focus()} placeholder="you@yourbusiness.com.au" editable={!SAMPLE_ONLY} />
-          <Field ref={pw} label="Password" testID="password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password"
-            textContentType="password" returnKeyType="go" onSubmitEditing={submit} editable={!SAMPLE_ONLY} />
-          {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityLiveRegion="assertive" accessibilityRole="alert">{error}</Text> : null}
+        {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityLiveRegion="assertive" accessibilityRole="alert">{error}</Text> : null}
 
-          <Button label="Sign in" onPress={submit} loading={busy} disabled={SAMPLE_ONLY} testID="sign-in" />
-          <Button label="Explore with sample data" variant="secondary" icon="compass" onPress={() => startSample()} testID="sample"
-            accessibilityHint="Opens a made up workspace that lives only on this device" />
+        <Button label="Continue with Multies" onPress={() => go("signin")} loading={busy === "signin"} disabled={SAMPLE_ONLY || busy !== null} testID="sign-in"
+          accessibilityHint="Opens the Multies sign in page" />
+        <Button label="Create account" variant="secondary" onPress={() => go("signup")} loading={busy === "signup"} disabled={SAMPLE_ONLY || busy !== null} testID="sign-up" />
+        <Button label="Explore with sample data" variant="ghost" icon="compass" onPress={() => startSample()} testID="sample"
+          accessibilityHint="Opens a made up workspace that lives only on this device" />
 
-          <View style={{ flexDirection: "row", justifyContent: "space-between", flexWrap: "wrap", gap: space.sm, marginTop: space.sm }}>
-            <Button variant="ghost" label="Forgot password?" onPress={() => WebBrowser.openBrowserAsync(LINKS.forgotPassword)} />
-            <Button variant="ghost" label="Create a free account" onPress={() => WebBrowser.openBrowserAsync(LINKS.signup)} />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <Text style={[font.small, { textAlign: "center", marginTop: space.sm }]}>
+          Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.
+        </Text>
+        <Button variant="ghost" label="Help signing in" onPress={() => WebBrowser.openBrowserAsync(LINKS.support)} />
+      </ScrollView>
     </SafeAreaView>
   );
 }

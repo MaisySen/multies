@@ -9,6 +9,7 @@ import type { Me } from "@/api/types";
 import { JAR_KEY, MODE_KEY } from "./session-keys";
 import { registerPush, unregisterPush } from "./push";
 import { LEGACY_KEY } from "./tasks";
+import { signInAtIdp } from "./idp";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
@@ -21,6 +22,8 @@ interface SessionValue {
   transport: Transport;
   me: Me | null;
   signIn(email: string, password: string): Promise<"done" | "twoFactor">;
+  /** Signs in (or creates an account) on the Multies sign in page in the system browser. */
+  signInWithIdp(mode?: "signin" | "signup"): Promise<void>;
   verifyTwoFactor(code: string, opts: { backup: boolean; trustDevice: boolean }): Promise<void>;
   startSample(): Promise<void>;
   signOut(): Promise<void>;
@@ -101,6 +104,16 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
       await secureStorage.set(MODE_KEY, "live");
       setMe(who); setStatus("signedIn");
       return "done";
+    },
+    async signInWithIdp(mode = "signin") {
+      setMode("live");
+      jarRef.current = {};
+      const { idToken, nonce } = await signInAtIdp(mode);
+      const e = endpoints(live);
+      await e.exchangeIdToken(idToken, nonce); // the session cookie lands in the SecureStore jar
+      const who = await e.me();
+      await secureStorage.set(MODE_KEY, "live");
+      setMe(who); setStatus("signedIn");
     },
     async verifyTwoFactor(code, { backup, trustDevice }) {
       const e = endpoints(live);

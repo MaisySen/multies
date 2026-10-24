@@ -9,6 +9,18 @@ export const API_BASE = (process.env.EXPO_PUBLIC_API_BASE || extra.apiBase || "h
 /** The browser preview can't sign in across sites, so it only offers the sample workspace. */
 export const SAMPLE_ONLY = Platform.OS === "web" || process.env.EXPO_PUBLIC_SAMPLE_ONLY === "1";
 
+/**
+ * Sign in. The app opens the Multies sign in page (the identity provider's Universal Login)
+ * in the system browser as a public native client with PKCE, then trades the ID token for a
+ * Multies session at /api/auth/mobile/exchange. None of these values is a secret.
+ */
+export const IDP = {
+  domain: (process.env.EXPO_PUBLIC_IDP_DOMAIN || "dev-s8n2ciq6co7gzsec.us.auth0.com").replace(/^https?:\/\//, "").replace(/\/$/, ""),
+  clientId: process.env.EXPO_PUBLIC_IDP_CLIENT_ID || "c0Ok2GtCfLW6BSetucyNAmX2qxypUEI0",
+  /** The app.json scheme ("mymail") plus a fixed path; registered as the client's callback. */
+  redirectUri: "mymail://auth/callback",
+};
+
 export const EAS_PROJECT_ID = extra.eas?.projectId ?? process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? null;
 
 /** Reads a build flag. Expo inlines EXPO_PUBLIC_ values only when written out in full, so callers pass process.env.X itself. */

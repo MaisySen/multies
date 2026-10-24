@@ -27,12 +27,21 @@ async function wrap(ui: ReactNode) {
 
 beforeEach(() => { transport = new SampleTransport(); mockPush.mockClear(); mockBack.mockClear(); mockParams = {}; });
 
-it("sign in screen offers sign in and the sample workspace", async () => {
+it("sign in screen opens the Multies sign in page and offers the sample workspace", async () => {
+  const WebBrowser = require("expo-web-browser");
   const SignIn = require("@/app/sign-in").default;
   await wrap(<SignIn />);
   expect(await screen.findByText("Sign in to Multies")).toBeTruthy();
+  expect(screen.queryByTestId("password")).toBeNull();
   await fireEvent.press(screen.getByTestId("sign-in"));
-  expect(await screen.findByText("Enter the email you use for Multies.")).toBeTruthy();
+  await waitFor(() => expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalled());
+  const [url, redirect] = WebBrowser.openAuthSessionAsync.mock.calls[0];
+  expect(url).toContain("/authorize?");
+  expect(url).toContain("code_challenge_method=S256");
+  expect(redirect).toBe("mymail://auth/callback");
+  // Closing the browser is not an error.
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByTestId("sign-up")).toBeTruthy();
   expect(screen.getByLabelText("Explore with sample data")).toBeTruthy();
 });
 
