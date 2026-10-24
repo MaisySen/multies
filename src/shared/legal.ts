@@ -1,16 +1,18 @@
 /**
  * Legal documents. DRAFTS written against the Australian Privacy Principles (Privacy
  * Act 1988), the Spam Act 2003, the Australian Consumer Law and GDPR basics. They must
- * be reviewed by a lawyer before launch; every page says so. Operator details in
- * LEGAL_ENTITY are placeholders the owner fills in.
+ * be reviewed by a lawyer before launch; every page says so. Operator name, ABN and
+ * contact in LEGAL_ENTITY were filled in by the owner on 25 October 2026; the registered
+ * address is still a placeholder.
  */
 export const LEGAL_ENTITY = {
-  name: "[Legal entity name, for example Multies Pty Ltd]",
-  abn: "[ABN]",
+  name: "Fintex Australia Pty Ltd",
+  abn: "60 688 406 108",
   address: "[Registered address], Sydney NSW, Australia",
   privacyEmail: "privacy@multies.si",
   abuseEmail: "abuse@multies.si",
   supportEmail: "support@multies.si",
+  contactEmail: "contact@fintex.au",
 };
 
 export const LEGAL_UPDATED = "23 October 2026";

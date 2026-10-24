@@ -4,7 +4,7 @@ The privacy policy, terms of service, acceptable use policy and data processing 
 
 They are drafts written against the Privacy Act 1988 and the Australian Privacy Principles, the Spam Act 2003, the Australian Consumer Law and GDPR basics, and every page says so. Before launch:
 
-1. Fill in `LEGAL_ENTITY` (company name, ABN, registered address, contact addresses).
+1. Fill in `LEGAL_ENTITY`. Done 25 October 2026: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact contact@fintex.au. Still to fill: the registered address.
 2. Have an Australian lawyer review all four documents, in particular liability, the consumer guarantee wording and the GDPR transfer clauses.
 3. Remove the draft banner in `src/web/pages/legal.tsx` and update `LEGAL_UPDATED`.
 4. Keep the sub processor table (`SUBPROCESSORS`) in step with reality. Adding a provider that touches customer data needs 30 days notice to customers under the DPA.

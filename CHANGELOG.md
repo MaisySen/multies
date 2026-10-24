@@ -10,6 +10,8 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.0 once the parts marked "after the database reset" are switched on.
 
 ### Added
+
+- Legal pages and the trust page name the operator: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact contact@fintex.au (approved by the owner 25 Oct). The registered address is still a placeholder.
 - Undo send (round 15, no migration, no server change): Send holds the message in the browser for 5, 10, 20 or 30 seconds (default 10, saved on the device) with a countdown toast, Undo and Send now. Works for new messages, replies, forwards and drafts. Z or Cmd+Z takes the newest one back, Undo reopens Compose exactly as it was, a failed send reopens it too, and closing the tab during a hold asks first. See docs/undo-send.md.
 - Trust page (round 15): a public page at `/trust` with the data region, the sub processors Multies actually calls, backups, sign in options, encryption and incident history, each line read from the code, config or docs; linked from the footer and the sitemap, and `security.txt` now points its policy at it. See docs/trust-page.md.
 - Domain mail check (round 14, no migration): a public page at `/check` names who hosts a domain's mail today from its MX records, grades SPF and DMARC, and lists the steps to move to Multies without losing mail, with a link to copy. The same check shows on a domain's page in the app until it is verified. `GET /api/check/domain`, read only, no database writes, 20 checks a minute per IP. See docs/domain-check.md.
