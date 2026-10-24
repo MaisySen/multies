@@ -9,7 +9,7 @@ function Body({ block }: { block: Block }) {
   if ("list" in block) return <ul className="list-disc space-y-1.5 pl-5">{block.list.map((li) => <li key={li}>{li}</li>)}</ul>;
   const [head, ...rows] = block.table;
   return (
-    <div className="overflow-x-auto rounded-lg border border-line">
+    <div tabIndex={0} role="region" aria-label={`Table: ${head!.join(", ")}`} className="overflow-x-auto rounded-lg border border-line">
       <table className="w-full text-left text-[13px]">
         <thead className="bg-white/[0.03] text-fg"><tr>{head!.map((h) => <th key={h} scope="col" className="px-3 py-2 font-medium">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-line">{rows.map((r) => <tr key={r[0]}>{r.map((c, i) => <td key={i} className="px-3 py-2 align-top">{c}</td>)}</tr>)}</tbody>

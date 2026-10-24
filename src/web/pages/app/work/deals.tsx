@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { ArrowLeft, Handshake, Plus } from "lucide-react";
+import { ArrowLeft, GripVertical, Handshake, Plus } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -19,14 +19,18 @@ interface Deal { id: string; title: string; stage: string; value: number; positi
 function DealCard({ d }: { d: Deal }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: d.id });
   return (
-    <li ref={setNodeRef} {...attributes} {...listeners} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
+    <li ref={setNodeRef} {...listeners} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
       className={cn("touch-none rounded-lg border border-line bg-elevated p-3", isDragging && "z-10 border-brand/40 shadow-pop")} data-testid="deal-card">
-      <div className="text-[13.5px] font-medium">{d.title}</div>
+      <div className="flex items-start gap-2">
+        <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>
+        <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable deal" aria-label={`Move ${d.title}`}
+          className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><GripVertical className="h-3.5 w-3.5" aria-hidden /></button>
+      </div>
       <div className="mt-1 flex items-center justify-between text-[12px] text-muted">
         <span className="truncate">{d.company?.name ?? d.contact?.name ?? d.contact?.email ?? ""}</span>
         <span className="font-medium tabular-nums text-fg">{aud(d.value)}</span>
       </div>
-      {d.contact && <Link to={`/app/contacts/${d.contact.id}`} onPointerDown={(e) => e.stopPropagation()} className="mt-1 block truncate text-[12px] text-subtle hover:text-fg">{d.contact.email}</Link>}
+      {d.contact && <Link to={`/app/contacts/${d.contact.id}`} onPointerDown={(e) => e.stopPropagation()} className="mt-1 block min-h-6 truncate py-1 text-[12px] text-subtle hover:text-fg">{d.contact.email}</Link>}
     </li>
   );
 }

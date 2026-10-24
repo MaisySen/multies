@@ -158,7 +158,7 @@ export function TimesheetPage() {
         <Card><EmptyState icon={<Timer />} title="No time this week" body="Open a task and press Start timer, or log time by hand. Agents can log time through the API and MCP too." /></Card>
       ) : (
         <>
-          <Card className="overflow-x-auto">
+          <Card className="overflow-x-auto" tabIndex={0} role="region" aria-label="Timesheet">
             <table className="w-full min-w-[720px] text-[13px]" data-testid="timesheet">
               <thead>
                 <tr className="border-b border-line text-left text-[12px] text-subtle">

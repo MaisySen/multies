@@ -4,16 +4,16 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bot, CheckSquare, Flag, Mail, MessageSquare, Plus } from "lucide-react";
+import { Bot, CheckSquare, Flag, GripVertical, Mail, MessageSquare, Plus } from "lucide-react";
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task } from "./data";
 
-export function TaskCard({ t, onOpen, dragging }: { t: Task; onOpen?: () => void; dragging?: boolean }) {
+export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode }) {
   return (
     <div className={cn("group rounded-lg border border-line bg-elevated p-3 text-left shadow-sm transition-colors hover:border-line-strong", dragging && "rotate-1 border-brand/40 shadow-pop")}>
-      <button type="button" onClick={onOpen} className="block w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>
+      <button type="button" onClick={onOpen} className="block min-h-6 w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>
       {t.labels.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-white/[0.06] px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
       )}
@@ -24,10 +24,11 @@ export function TaskCard({ t, onOpen, dragging }: { t: Task; onOpen?: () => void
         {t.source && <Mail className="h-3 w-3" aria-label="From email" />}
         {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><CheckSquare className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
         {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><MessageSquare className="h-3 w-3" />{t.commentCount}</span>}
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-1.5">
           {t.assignee && (t.assignee.type === "agent"
             ? <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-hover" title={`${t.assignee.name} (agent)`}><Bot className="h-3 w-3" /></span>
             : <span title={t.assignee.name}><Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /></span>)}
+          {handle}
         </span>
       </div>
     </div>
@@ -37,9 +38,14 @@ export function TaskCard({ t, onOpen, dragging }: { t: Task; onOpen?: () => void
 function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, data: { statusId: t.statusId } });
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...attributes} {...listeners}
-      className={cn("touch-none", isDragging && "opacity-40")} data-testid="board-card" aria-roledescription="Draggable task">
-      <TaskCard t={t} onOpen={onOpen} />
+    // The card drags by pointer anywhere on it; keyboard and screen reader users get a
+    // separate handle, so the list item itself is not a button wrapping other buttons.
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...listeners}
+      className={cn("touch-none", isDragging && "opacity-40")} data-testid="board-card">
+      <TaskCard t={t} onOpen={onOpen} handle={
+        <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
+          className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><GripVertical className="h-3.5 w-3.5" aria-hidden /></button>
+      } />
     </li>
   );
 }
