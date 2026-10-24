@@ -1089,6 +1089,9 @@ export const chatMessages = sqliteTable("chat_messages", {
   replyCount: integer("reply_count").notNull().default(0),
   lastReplyAt: ts("last_reply_at"),
   editedAt: ts("edited_at"),
+  /** Pinned to the top of its channel (top level messages only), and the name of who pinned it. */
+  pinnedAt: ts("pinned_at"),
+  pinnedBy: text("pinned_by"),
   deletedAt: ts("deleted_at"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
@@ -1116,11 +1119,11 @@ export const notificationPrefs = sqliteTable("notification_prefs", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [primaryKey({ columns: [t.userId, t.orgId] })]);
 
-/** A saved project or task template. The starter gallery lives in code and is not stored. */
+/** A saved project, task or doc template. The starter gallery lives in code and is not stored. */
 export const templates = sqliteTable("templates", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["project", "task"] }).notNull(),
+  kind: text("kind", { enum: ["project", "task", "doc"] }).notNull(),
   name: text("name").notNull(),
   description: text("description").notNull().default(""),
   category: text("category").notNull().default("Custom"),

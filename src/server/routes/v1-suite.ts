@@ -12,7 +12,7 @@ import { changesSince, type SuiteActor } from "../services/suite/common";
 import {
   addComment, createProject, createTask, createTaskFromThread, deleteTask, getProject, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateProject, updateTask,
 } from "../services/suite/tasks";
-import { appendToDoc, createDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
+import { appendToDoc, createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
 import { contactDetail, createDeal, listCompanies, listContacts, listDeals, updateContact, updateDeal, upsertContact } from "../services/suite/contacts";
 import { assigneeOf } from "./suite";
 import { parseFieldFilters } from "../services/suite/fields";
@@ -137,6 +137,10 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/docs/{id}/append", tags: tag("Docs"), summary: "Add text to the end of a doc", security: secured,
     request: { params: Id, ...body(z.object({ text: z.string().min(1).max(200_000) })) }, responses: { 200: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 404: errors[404] } }),
   async (c) => send(c, { doc: await appendToDoc(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").text) }));
+
+  api.openapi(createRoute({ method: "delete", path: "/docs/{id}", tags: tag("Docs"), summary: "Delete a doc", security: secured,
+    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),
+  async (c) => send(c, await deleteDoc(c.var.deps, actor(c), c.req.valid("param").id)));
 
   // ---------------------------------------------------------------- contacts
   api.openapi(createRoute({ method: "get", path: "/contacts", tags: tag("Contacts"), summary: "List or search contacts", security: secured,

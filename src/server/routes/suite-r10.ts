@@ -12,7 +12,7 @@ import { HttpError } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import {
   addMembers, channelMessages, chatPeople, createChannel, deleteMessage, editMessage, getChannel, getMessage, getThread, guestChannels, guestMessages, guestPost, guestThread,
-  joinChannel, leaveChannel, listChannels, markRead, messageToTask, openDm, postMessage, readChatFile, readSignedChatFile, unreadSummary, updateChannel, type GuestViewer,
+  joinChannel, leaveChannel, listChannels, listPins, markRead, pinMessage, messageToTask, openDm, postMessage, readChatFile, readSignedChatFile, unreadSummary, updateChannel, type GuestViewer,
 } from "../services/suite/chat";
 import { deleteTemplate, getTemplate, listTemplates, saveTemplate, useTemplate } from "../services/suite/templates";
 import { addKeyResult, createGoal, deleteGoal, deleteKeyResult, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
@@ -31,7 +31,9 @@ export const KrPatch = KrCreate.partial().omit({ kind: true });
 const Health = z.enum(["on_track", "at_risk", "off_track"]).nullable().optional();
 export const GoalCreate = z.object({ name: z.string().trim().min(1).max(200), description: z.string().max(5000).optional(), ownerId: z.string().max(64).nullable().optional(), parentId: z.string().max(64).nullable().optional(), start: z.string().max(40).nullable().optional(), due: z.string().max(40).nullable().optional(), health: Health, keyResults: z.array(KrCreate).max(20).optional() });
 export const GoalPatch = GoalCreate.partial().omit({ keyResults: true }).extend({ archived: z.boolean().optional() });
-export const TemplateSave = z.object({ kind: z.enum(["project", "task"]), fromProjectId: z.string().max(64).optional(), fromTaskId: z.string().max(64).optional(), name: z.string().max(120).optional(), description: z.string().max(500).optional(), category: z.string().max(40).optional() });
+export const TemplateSave = z.object({ kind: z.enum(["project", "task", "doc"]), fromProjectId: z.string().max(64).optional(), fromTaskId: z.string().max(64).optional(), fromDocId: z.string().max(64).optional(),
+  /** From scratch: { project: { name, description?, color? }, tasks: [...] }, a task { title, notes?, subtasks?, ... } or a doc { title, text }. */
+  data: z.record(z.string(), z.unknown()).optional(), name: z.string().max(120).optional(), description: z.string().max(500).optional(), category: z.string().max(40).optional() });
 export const TemplateUse = z.object({ name: z.string().max(120).optional(), projectId: z.string().max(64).optional(), startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 
 export function decodeAttachments(list: z.infer<typeof ChatAttachment>[] | undefined) {
@@ -80,6 +82,9 @@ export function chatRoutes() {
     .get("/messages/:id/thread", async (c) => c.json(await getThread(c.var.deps, c.var.auth, c.req.param("id"))))
     .patch("/messages/:id", async (c) => c.json({ message: await editMessage(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ body: z.string().min(1).max(20_000) }))).body) }))
     .delete("/messages/:id", async (c) => c.json(await deleteMessage(c.var.deps, c.var.auth, c.req.param("id"))))
+    .post("/messages/:id/pin", async (c) => c.json({ message: await pinMessage(c.var.deps, c.var.auth, c.req.param("id"), true) }))
+    .delete("/messages/:id/pin", async (c) => c.json({ message: await pinMessage(c.var.deps, c.var.auth, c.req.param("id"), false) }))
+    .get("/channels/:id/pins", async (c) => c.json(await listPins(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/messages/:id/task", async (c) => {
       const b = await parseBody(c, MessageToTask.default({}));
       return c.json({ task: await messageToTask(c.var.deps, c.var.auth, c.req.param("id"), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due }) }, 201);
@@ -92,7 +97,7 @@ export function templateRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => {
       const kind = c.req.query("kind");
-      return c.json({ templates: await listTemplates(c.var.deps, c.var.auth.orgId, kind === "project" || kind === "task" ? kind : undefined) });
+      return c.json({ templates: await listTemplates(c.var.deps, c.var.auth.orgId, kind === "project" || kind === "task" || kind === "doc" ? kind : undefined) });
     })
     .post("/", async (c) => c.json({ template: await saveTemplate(c.var.deps, c.var.auth, await parseBody(c, TemplateSave)) }, 201))
     .get("/:id", async (c) => c.json({ template: await getTemplate(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))

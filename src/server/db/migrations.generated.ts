@@ -391,5 +391,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `members` ADD `title` text;",
       "ALTER TABLE `members` ADD `bio` text;"
     ]
+  },
+  {
+    "name": "0023_chat_pins",
+    "statements": [
+      "ALTER TABLE `chat_messages` ADD `pinned_at` integer;",
+      "ALTER TABLE `chat_messages` ADD `pinned_by` text;"
+    ]
   }
 ];

@@ -23,8 +23,8 @@ import { createMeeting, listMeetings } from "../services/suite/meetings";
 import { createField, listFields, type FilterOp } from "../services/suite/fields";
 import { inviteGuest, listGuests } from "../services/suite/guests";
 import { portfolio } from "../services/suite/portfolio";
-import { channelMessages, getThread, listChannels, messageToTask, postMessage } from "../services/suite/chat";
-import { listTemplates, useTemplate } from "../services/suite/templates";
+import { channelMessages, getThread, listChannels, messageToTask, pinMessage, postMessage } from "../services/suite/chat";
+import { listTemplates, saveTemplate, useTemplate, type TemplateKind } from "../services/suite/templates";
 import { createGoal, goalTree, updateKeyResult } from "../services/suite/goals";
 import { listNotifications } from "../services/suite/notify";
 import { updateProject } from "../services/suite/tasks";
@@ -526,15 +526,27 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
   }));
 
   server.registerTool("list_templates", {
-    title: "List project and task templates", annotations: ro,
-    description: "Starter templates (client onboarding, content calendar, sales pipeline, bug tracker) and the workspace's saved ones.",
+    title: "List project, task and doc templates", annotations: ro,
+    description: "Starter templates (client onboarding, content calendar, sales pipeline, bug tracker, meeting notes, project brief) and the workspace's saved ones.",
   }, tool(async () => ({ templates: await listTemplates(deps, a.orgId) })));
 
   server.registerTool("use_template", {
-    title: "Make a project or task from a template", annotations: rw,
-    description: "Creates a project (statuses, custom fields, tasks with due dates from startDate) or, for a task template, a task in projectId.",
+    title: "Make a project, task or doc from a template", annotations: rw,
+    description: "Creates a project (statuses, custom fields, tasks with due dates from startDate), a task in projectId for a task template, or a doc for a doc template.",
     inputSchema: { templateId: z.string(), name: z.string().max(120).optional(), projectId: z.string().optional(), startDate: z.string().optional() },
   }, tool(async (x: { templateId: string; name?: string; projectId?: string; startDate?: string }) => { writable(); return useTemplate(deps, a, x.templateId, x); }));
+
+  server.registerTool("pin_message", {
+    title: "Pin or unpin a chat message", annotations: rw,
+    description: "Pins a top level chat message to the top of its channel (pinned: true) or unpins it (pinned: false). Use it for a channel's welcome, rules or key links.",
+    inputSchema: { messageId: z.string(), pinned: z.boolean().default(true) },
+  }, tool(async (x: { messageId: string; pinned?: boolean }) => { writable(); return { message: await pinMessage(deps, a, x.messageId, x.pinned ?? true) }; }));
+
+  server.registerTool("create_template", {
+    title: "Create a template from scratch", annotations: rw,
+    description: "kind project: data { project: { name, description? }, tasks: [{ title, notes?, priority?, dueInDays?, subtasks? }] }. kind task: data { title, notes?, subtasks? }. kind doc: data { title, text } with one paragraph per line, # headings and - bullets.",
+    inputSchema: { kind: z.enum(["project", "task", "doc"]), name: z.string().max(120).optional(), description: z.string().max(500).optional(), data: z.record(z.string(), z.unknown()) },
+  }, tool(async (x: { kind: TemplateKind; name?: string; description?: string; data: Record<string, unknown> }) => { writable(); return { template: await saveTemplate(deps, a, x) }; }));
 
   server.registerTool("set_task_repeat", {
     title: "Make a task repeat", annotations: rw,

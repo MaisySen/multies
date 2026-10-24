@@ -7,11 +7,11 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
-import { channelMessages, createChannel, getThread, listChannels, messageToTask, postMessage } from "../services/suite/chat";
-import { getTemplate, listTemplates, useTemplate } from "../services/suite/templates";
+import { channelMessages, createChannel, getThread, listChannels, listPins, messageToTask, pinMessage, postMessage, updateChannel } from "../services/suite/chat";
+import { getTemplate, listTemplates, saveTemplate, useTemplate } from "../services/suite/templates";
 import { addKeyResult, createGoal, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
 import { parseAssignee } from "../services/suite/tasks";
-import { ChannelCreate, ChatPost, GoalCreate, GoalPatch, KrCreate, KrPatch, MessageToTask, MessagesQuery, TemplateUse, decodeAttachments } from "./suite-r10";
+import { ChannelCreate, ChannelPatch, ChatPost, GoalCreate, GoalPatch, KrCreate, KrPatch, MessageToTask, MessagesQuery, TemplateSave, TemplateUse, decodeAttachments } from "./suite-r10";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -31,7 +31,7 @@ const jsonBody = async (c: Context<AppEnv>, schema: { parse: (v: unknown) => any
 const pid = (c: Context<AppEnv>) => c.req.param("id") ?? "";
 
 export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
-  const route = (method: "get" | "post" | "patch", path: string, tag: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
+  const route = (method: "get" | "post" | "patch" | "delete", path: string, tag: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
     createRoute({ method, path, tags: [tag], summary, description, security: secured, ...extra, responses: { 200: json("OK."), 201: json("Created."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } });
 
   // ---------------------------------------------------------------- chat
@@ -39,6 +39,14 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { channels: await listChannels(c.var.deps, actor(c)) }));
   api.openapi(route("post", "/chat/channels", "Chat", "Create a public channel", "Body: { name, topic?, projectId?, guestAccess? }. With projectId and guestAccess the project's guests can read and post.", { request: body(ChannelCreate) }),
     async (c) => send(c, { channel: await createChannel(c.var.deps, actor(c), await jsonBody(c, ChannelCreate)) }, 201));
+  api.openapi(route("patch", "/chat/channels/{id}", "Chat", "Update a channel", "Body: { name?, topic?, archived?, projectId?, guestAccess? }. The topic is the channel's purpose line.", { request: { params: Id, ...body(ChannelPatch) } }),
+    async (c) => send(c, { channel: await updateChannel(c.var.deps, actor(c), pid(c), await jsonBody(c, ChannelPatch)) }));
+  api.openapi(route("get", "/chat/channels/{id}/pins", "Chat", "List pinned messages", "The channel's pinned messages, newest pin first (up to 50).", { request: { params: Id } }),
+    async (c) => send(c, await listPins(c.var.deps, actor(c), pid(c))));
+  api.openapi(route("post", "/chat/messages/{id}/pin", "Chat", "Pin a message", "Pins a top level message to the top of its channel. Pinning a pinned message changes nothing.", { request: { params: Id } }),
+    async (c) => send(c, { message: await pinMessage(c.var.deps, actor(c), pid(c), true) }));
+  api.openapi(route("delete", "/chat/messages/{id}/pin", "Chat", "Unpin a message", "Takes the message off the channel's pinned list.", { request: { params: Id } }),
+    async (c) => send(c, { message: await pinMessage(c.var.deps, actor(c), pid(c), false) }));
   api.openapi(route("get", "/chat/channels/{id}/messages", "Chat", "Read a channel", "Top level messages, oldest first. Query: limit, before (a message id) or since (ISO time, for polling). Each message carries mentions, links to tasks, threads and docs, attachments and its reply count.", { request: { params: Id } }),
     async (c) => send(c, await channelMessages(c.var.deps, actor(c), pid(c), MessagesQuery.parse(c.req.query()))));
   api.openapi(route("post", "/chat/channels/{id}/messages", "Chat", "Post a message", "Body: { body, parentId?, attachments?: [{ filename, contentType?, contentBase64 }] }. Markup: <@member:USER_ID> mentions a person, <@agent:AGENT_ID> an agent, <!channel> everyone; <#task:ID>, <#thread:ID> and <#doc:ID> link items. An agent key posts as its agent.", { request: { params: Id, ...body(ChatPost) } }),
@@ -55,11 +63,13 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
     });
 
   // ---------------------------------------------------------------- templates
-  api.openapi(route("get", "/templates", "Templates", "List templates", "The starter gallery (client onboarding, content calendar, sales pipeline, bug tracker) and the workspace's saved project and task templates."),
+  api.openapi(route("get", "/templates", "Templates", "List templates", "The starter gallery (client onboarding, content calendar, sales pipeline, bug tracker, meeting notes, project brief) and the workspace's saved project, task and doc templates."),
     async (c) => send(c, { templates: await listTemplates(c.var.deps, actor(c).orgId) }));
   api.openapi(route("get", "/templates/{id}", "Templates", "Read a template", "The template with its statuses, fields and tasks.", { request: { params: Id } }),
     async (c) => send(c, { template: await getTemplate(c.var.deps, actor(c).orgId, pid(c)) }));
-  api.openapi(route("post", "/templates/{id}/use", "Templates", "Make a project or task from a template", "Body: { name?, projectId? (for a task template), startDate? (YYYY-MM-DD, due dates count from it) }.", { request: { params: Id, ...body(TemplateUse) } }),
+  api.openapi(route("post", "/templates", "Templates", "Create a template", "Body: { kind: project | task | doc, name?, description?, category?, and either data (write it from scratch) or fromProjectId, fromTaskId or fromDocId (save an existing item) }. data for a project: { project: { name, description?, color? }, tasks: [{ title, notes?, priority?, dueInDays?, subtasks? }] }; for a task: { title, notes?, subtasks?, ... }; for a doc: { title, text } (one paragraph per line, # headings, - bullets).", { request: body(TemplateSave) }),
+    async (c) => send(c, { template: await saveTemplate(c.var.deps, actor(c), await jsonBody(c, TemplateSave)) }, 201));
+  api.openapi(route("post", "/templates/{id}/use", "Templates", "Make a project, task or doc from a template", "Body: { name?, projectId? (needed for a task template, optional for a doc), startDate? (YYYY-MM-DD, due dates count from it) }.", { request: { params: Id, ...body(TemplateUse) } }),
     async (c) => send(c, await useTemplate(c.var.deps, actor(c), pid(c), await jsonBody(c, TemplateUse)), 201));
 
   // ---------------------------------------------------------------- goals

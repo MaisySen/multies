@@ -1,6 +1,7 @@
 /**
- * Project and task templates, plus the starter gallery (client onboarding, content calendar,
- * sales pipeline, bug tracker). A project template carries statuses, custom fields and tasks
+ * Project, task and doc templates, plus the starter gallery (client onboarding, content calendar,
+ * sales pipeline, bug tracker, meeting notes, project brief). A template is saved from an
+ * existing item or written from scratch. A project template carries statuses, custom fields and tasks
  * with due dates counted in days from the start date; a task template carries one task with
  * its subtasks. Starters live here in code; saved templates live in the templates table.
  */
@@ -27,8 +28,12 @@ export interface ProjectTemplateData {
   tasks: TemplateTask[];
 }
 export type TaskTemplateData = TemplateTask;
+/** A doc template: a title and a body, either editor JSON (saved from a doc) or plain text. */
+export interface DocTemplateData { title: string; text?: string; content?: unknown }
+export type TemplateKind = "project" | "task" | "doc";
+type TemplateData = ProjectTemplateData | TaskTemplateData | DocTemplateData;
 
-interface Starter { id: string; kind: "project"; name: string; description: string; category: string; data: ProjectTemplateData }
+type Starter = { id: string; name: string; description: string; category: string } & ({ kind: "project"; data: ProjectTemplateData } | { kind: "doc"; data: DocTemplateData });
 
 export const STARTERS: Starter[] = [
   {
@@ -98,19 +103,29 @@ export const STARTERS: Starter[] = [
       ],
     },
   },
+  {
+    id: "starter-meeting-notes", kind: "doc", name: "Meeting notes", category: "Docs",
+    description: "Who came, what was decided and who does what next.",
+    data: { title: "Meeting notes", text: "# Meeting notes\nDate and time:\nPeople:\n# Agenda\n- \n# Decisions\n- \n# Actions\n- Owner, task, due date" },
+  },
+  {
+    id: "starter-project-brief", kind: "doc", name: "Project brief", category: "Docs",
+    description: "One page on the why, the scope, the dates and how you will know it worked.",
+    data: { title: "Project brief", text: "# Why\nThe problem and who has it.\n# Scope\n- In:\n- Out:\n# Dates\n- Start:\n- Launch:\n# Success\nHow we will measure it.\n# Team\n- Owner:" },
+  },
 ];
 
 const notFound = () => new HttpError(404, "not_found", "Template not found.");
 
-function summary(t: { id: string; kind: "project" | "task"; name: string; description: string; category: string; data: ProjectTemplateData | TaskTemplateData }, builtin: boolean) {
-  const taskCount = t.kind === "project" ? (t.data as ProjectTemplateData).tasks.length : 1 + ((t.data as TaskTemplateData).subtasks?.length ?? 0);
+function summary(t: { id: string; kind: TemplateKind; name: string; description: string; category: string; data: TemplateData }, builtin: boolean) {
+  const taskCount = t.kind === "project" ? (t.data as ProjectTemplateData).tasks.length : t.kind === "doc" ? 0 : 1 + ((t.data as TaskTemplateData).subtasks?.length ?? 0);
   return { id: t.id, kind: t.kind, name: t.name, description: t.description, category: t.category, builtin, taskCount };
 }
 
-export async function listTemplates(deps: Deps, orgId: string, kind?: "project" | "task") {
+export async function listTemplates(deps: Deps, orgId: string, kind?: TemplateKind) {
   const rows = await deps.db.select().from(templates).where(and(eq(templates.orgId, orgId), isNull(templates.deletedAt), kind ? eq(templates.kind, kind) : undefined)).orderBy(asc(templates.name));
   const custom = rows.map((r) => summary({ ...r, data: JSON.parse(r.data) }, false));
-  const starters = kind === "task" ? [] : STARTERS.map((s) => summary(s, true));
+  const starters = STARTERS.filter((s) => !kind || s.kind === kind).map((s) => summary(s, true));
   return [...starters, ...custom];
 }
 
@@ -119,7 +134,7 @@ async function load(deps: Deps, orgId: string, id: string) {
   if (s) return { ...s, builtin: true };
   const r = await deps.db.select().from(templates).where(and(eq(templates.orgId, orgId), eq(templates.id, id), isNull(templates.deletedAt))).get();
   if (!r) throw notFound();
-  return { id: r.id, kind: r.kind, name: r.name, description: r.description, category: r.category, data: JSON.parse(r.data) as ProjectTemplateData | TaskTemplateData, builtin: false };
+  return { id: r.id, kind: r.kind, name: r.name, description: r.description, category: r.category, data: JSON.parse(r.data) as TemplateData, builtin: false };
 }
 
 export async function getTemplate(deps: Deps, orgId: string, id: string) {
@@ -130,13 +145,57 @@ export async function getTemplate(deps: Deps, orgId: string, id: string) {
 const addDays = (d: Date, n: number) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
 
 /** Saves a project (statuses, fields, top level tasks and their subtasks) or one task as a template. */
-export async function saveTemplate(deps: Deps, a: SuiteActor, input: { kind: "project" | "task"; fromProjectId?: string; fromTaskId?: string; name?: string; description?: string; category?: string }) {
+export interface TemplateSaveInput {
+  kind: TemplateKind; fromProjectId?: string; fromTaskId?: string; fromDocId?: string;
+  /** Write the template from scratch instead of saving an existing item (checked by scratchData). */
+  data?: Record<string, unknown> | TemplateData;
+  name?: string; description?: string; category?: string;
+}
+
+const badTemplate = (message: string) => new HttpError(422, "validation_failed", message);
+
+/** Checks a template written from scratch and keeps only the fields a template uses. */
+export function scratchData(kind: TemplateKind, raw: unknown): TemplateData {
+  const d = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+  const task = (t: unknown): TemplateTask => {
+    const x = (t && typeof t === "object" ? t : {}) as Record<string, unknown>;
+    const title = text(x.title, 200);
+    if (!title) throw badTemplate("Every task in a template needs a title.");
+    const priority = ["none", "low", "medium", "high", "urgent"].includes(String(x.priority)) ? x.priority as Priority : undefined;
+    const dueInDays = typeof x.dueInDays === "number" && Number.isInteger(x.dueInDays) && x.dueInDays >= 0 && x.dueInDays <= 730 ? x.dueInDays : null;
+    return {
+      title, notes: text(x.notes, 5000) || undefined, priority, dueInDays, status: text(x.status, 60) || undefined,
+      labels: Array.isArray(x.labels) ? x.labels.map((l) => text(l, 40)).filter(Boolean).slice(0, 10) : undefined,
+      subtasks: Array.isArray(x.subtasks) ? x.subtasks.map((s) => text(s, 200)).filter(Boolean).slice(0, 50) : undefined,
+    };
+  };
+  if (kind === "doc") {
+    const title = text(d.title, 200);
+    if (!title) throw badTemplate("A doc template needs a title.");
+    return { title, text: text(d.text, 50_000) };
+  }
+  if (kind === "task") return task(d);
+  const p = (d.project && typeof d.project === "object" ? d.project : {}) as Record<string, unknown>;
+  const name = text(p.name, 80);
+  if (!name) throw badTemplate("A project template needs a project name.");
+  const list = Array.isArray(d.tasks) ? d.tasks : [];
+  if (list.length > 200) throw badTemplate("A project template holds up to 200 tasks.");
+  return { project: { name, description: text(p.description, 1000) || undefined, color: /^#[0-9a-f]{6}$/i.test(String(p.color)) ? String(p.color) : undefined }, tasks: list.map(task) };
+}
+
+export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput) {
   assertWritable(a);
-  let data: ProjectTemplateData | TaskTemplateData;
+  let data: TemplateData;
   let name = input.name?.trim() || "";
+  if (input.data !== undefined) {
+    data = scratchData(input.kind, input.data);
+    name ||= input.kind === "project" ? (data as ProjectTemplateData).project.name : (data as TaskTemplateData | DocTemplateData).title;
+    return insertTemplate(deps, a, input, data, name);
+  }
   const subtasksOf = async (taskId: string) => (await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, taskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.position))).map((s) => s.title);
   if (input.kind === "project") {
-    if (!input.fromProjectId) throw new HttpError(422, "validation_failed", "Pass fromProjectId.");
+    if (!input.fromProjectId) throw new HttpError(422, "validation_failed", "Pass fromProjectId, or data to write the template from scratch.");
     const p = await getProject(deps, a.orgId, input.fromProjectId);
     const statuses = await deps.db.select().from(projectStatuses).where(eq(projectStatuses.projectId, p.id)).orderBy(asc(projectStatuses.position));
     const statusName = new Map(statuses.map((s) => [s.id, s.name]));
@@ -157,6 +216,12 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: { kind: "pr
       tasks: out,
     };
     name ||= p.name;
+  } else if (input.kind === "doc") {
+    if (!input.fromDocId) throw new HttpError(422, "validation_failed", "Pass fromDocId, or data to write the template from scratch.");
+    const { getDoc } = await import("./docs");
+    const doc = await getDoc(deps, a.orgId, input.fromDocId);
+    data = { title: doc.title, content: doc.content };
+    name ||= doc.title;
   } else {
     if (!input.fromTaskId) throw new HttpError(422, "validation_failed", "Pass fromTaskId.");
     const id = await resolveTaskId(deps, a.orgId, input.fromTaskId);
@@ -165,6 +230,10 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: { kind: "pr
     data = { title: t.title, notes: t.notes || undefined, priority: t.priority, labels: JSON.parse(t.labels) as string[], subtasks: await subtasksOf(t.id), repeat: t.repeatRule ? JSON.parse(t.repeatRule) as RepeatRule : null };
     name ||= t.title;
   }
+  return insertTemplate(deps, a, input, data, name);
+}
+
+async function insertTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput, data: TemplateData, name: string) {
   const now = deps.now();
   const id = sortableId("tpl", now.getTime());
   await deps.db.insert(templates).values({ id, orgId: a.orgId, kind: input.kind, name: name.slice(0, 120), description: (input.description ?? "").slice(0, 500), category: (input.category ?? "Custom").slice(0, 40), data: JSON.stringify(data), createdAt: now, updatedAt: now, ...createdBy(a) });
@@ -209,6 +278,13 @@ export async function useTemplate(deps: Deps, a: SuiteActor, id: string, input: 
     const fresh = await getProject(deps, a.orgId, project.id);
     await emitEvent(deps, a.orgId, "template.used", { templateId: t.id, name: t.name, projectId: project.id, tasks: made });
     return { kind: "project" as const, project: fresh, tasks: made };
+  }
+  if (t.kind === "doc") {
+    const d = t.data as DocTemplateData;
+    const { createDoc } = await import("./docs");
+    const doc = await createDoc(deps, a, { title: (input.name?.trim() || d.title).slice(0, 200), ...(d.content !== undefined ? { content: d.content } : { text: d.text ?? "" }), projectId: input.projectId ?? null });
+    await emitEvent(deps, a.orgId, "template.used", { templateId: t.id, name: t.name, docId: doc.id });
+    return { kind: "doc" as const, doc };
   }
   if (!input.projectId) throw new HttpError(422, "validation_failed", "Pass projectId for a task template.");
   const project = await getProject(deps, a.orgId, input.projectId);

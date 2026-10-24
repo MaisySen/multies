@@ -8,7 +8,7 @@
  * - API keys (agents and workspace keys) see public channels only, never DMs or private channels;
  * - a guest sees only channels of their project that are shared with guests (guestAccess).
  */
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { chatChannels, chatFiles, chatMembers, chatMessages, docs, messages, projectGuests, tasks, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
@@ -324,6 +324,7 @@ function presentMessage(m: MessageRow, files: { id: string; filename: string; co
     id: m.id, channelId: m.channelId, parentId: m.parentId, author: { type: m.authorType, id: m.authorId, name: m.authorName },
     body: deleted ? "" : m.body, mentions: deleted ? [] : (JSON.parse(m.mentions) as Mention[]), links: deleted ? [] : (JSON.parse(m.links) as ChatLink[]),
     attachments: deleted ? [] : files, replyCount: m.replyCount, lastReplyAt: iso(m.lastReplyAt), editedAt: iso(m.editedAt), deleted,
+    pinnedAt: deleted ? null : iso(m.pinnedAt), pinnedBy: deleted ? null : m.pinnedBy ?? null,
     createdAt: m.createdAt.toISOString(), updatedAt: m.updatedAt.toISOString(),
   };
 }
@@ -530,6 +531,38 @@ export async function deleteMessage(deps: Deps, a: SuiteActor, id: string) {
   await deps.db.delete(chatFiles).where(eq(chatFiles.messageId, m.id));
   await emitEvent(deps, a.orgId, "chat.message.deleted", { messageId: m.id, channelId: m.channelId });
   return { ok: true };
+}
+
+export const MAX_PINS = 50;
+
+/**
+ * Pins a top level message to the top of its channel, or unpins it. Anyone who can post in the
+ * channel can pin. One write; updatedAt moves so open chats pick the change up when they poll.
+ */
+export async function pinMessage(deps: Deps, a: SuiteActor, id: string, pinned: boolean) {
+  assertWritable(a);
+  const m = await messageRow(deps, a.orgId, id);
+  await visibleChannel(deps, a, m.channelId);
+  if (m.deletedAt) throw notFound("Message");
+  if (m.parentId) throw new HttpError(422, "validation_failed", "Pin the thread's first message instead of a reply.");
+  if (pinned === !!m.pinnedAt) return (await present(deps, [m]))[0];
+  if (pinned) {
+    const n = await deps.db.select({ n: count() }).from(chatMessages).where(and(eq(chatMessages.channelId, m.channelId), isNotNull(chatMessages.pinnedAt), isNull(chatMessages.deletedAt))).get();
+    if ((n?.n ?? 0) >= MAX_PINS) throw new HttpError(422, "too_many_pins", `A channel holds up to ${MAX_PINS} pinned messages. Unpin one first.`);
+  }
+  const now = deps.now();
+  await deps.db.update(chatMessages).set(pinned ? { pinnedAt: now, pinnedBy: actorOf(a).name || "Someone", updatedAt: now } : { pinnedAt: null, pinnedBy: null, updatedAt: now }).where(eq(chatMessages.id, m.id));
+  const out = (await present(deps, [await messageRow(deps, a.orgId, id)]))[0];
+  await emitEvent(deps, a.orgId, "chat.message.updated", { message: out });
+  return out;
+}
+
+/** The pinned messages of a channel, newest pin first. */
+export async function listPins(deps: Deps, a: SuiteActor, channelId: string) {
+  const c = await visibleChannel(deps, a, channelId);
+  const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, c.id), isNotNull(chatMessages.pinnedAt), isNull(chatMessages.deletedAt)))
+    .orderBy(desc(chatMessages.pinnedAt)).limit(MAX_PINS);
+  return { pins: await present(deps, rows) };
 }
 
 export async function markRead(deps: Deps, a: SuiteActor, channelId: string, messageId?: string) {
