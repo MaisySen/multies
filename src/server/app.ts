@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
@@ -23,7 +23,7 @@ import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
-import { v1Routes } from "./routes/v1";
+import { v1ParentVars, v1Routes } from "./routes/v1";
 import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
@@ -36,6 +36,21 @@ import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
+  const notFoundHandler = (c: Context<AppEnv>) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404));
+  const errorHandler = (err: Error, c: Context<AppEnv>) => {
+    if (err instanceof HttpError) {
+      return c.json({ error: { code: err.code, message: err.message, details: err.details } }, err.status);
+    }
+    if (err instanceof APIError) {
+      // Better Auth errors raised from server-side calls (team routes and similar).
+      const body = (err.body ?? {}) as { code?: string; message?: string };
+      const code = body.code === "PLAN_LIMIT" ? "plan_limit" : (body.code ?? "error").toLowerCase();
+      return c.json({ error: { code, message: body.message ?? err.message } }, err.statusCode as 400);
+    }
+    console.error("[api] unhandled", err);
+    const eventId = deps.reportError?.(err, { method: c.req.method, path: c.req.path });
+    return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
+  };
 
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
@@ -182,28 +197,36 @@ export function createApp(deps: Deps) {
   app.route("/api/imports", importRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());
-  app.route("/api/v1", v1Routes());
+  // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
+  // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on
+  // every new isolate. On the Workers Free plan the first request of an isolate pays for
+  // the build, and with it every API call there went over the 10 ms CPU limit and was
+  // answered 503 with an empty body (round 8 and 9 load tests).
+  let v1: ReturnType<typeof v1Routes> | undefined;
+  const v1Handler = (c: Context<AppEnv>) => {
+    if (!v1) {
+      v1 = v1Routes();
+      v1.notFound((c) => c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404));
+      v1.onError(errorHandler);
+    }
+    const url = new URL(c.req.url);
+    url.pathname = url.pathname.slice("/api/v1".length) || "/";
+    const req = new Request(url, c.req.raw);
+    v1ParentVars.set(req, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
+    let ctx: Parameters<ReturnType<typeof v1Routes>["fetch"]>[2];
+    try { ctx = c.executionCtx; } catch { ctx = undefined; }
+    return v1.fetch(req, c.env, ctx);
+  };
+  app.all("/api/v1", v1Handler);
+  app.all("/api/v1/*", v1Handler);
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/deliverability", deliverabilityRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
   app.route("/api/inbound", inboundWebhookRoutes());
 
-  app.notFound((c) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404)));
-  app.onError((err, c) => {
-    if (err instanceof HttpError) {
-      return c.json({ error: { code: err.code, message: err.message, details: err.details } }, err.status);
-    }
-    if (err instanceof APIError) {
-      // Better Auth errors raised from server-side calls (team routes and similar).
-      const body = (err.body ?? {}) as { code?: string; message?: string };
-      const code = body.code === "PLAN_LIMIT" ? "plan_limit" : (body.code ?? "error").toLowerCase();
-      return c.json({ error: { code, message: body.message ?? err.message } }, err.statusCode as 400);
-    }
-    console.error("[api] unhandled", err);
-    const eventId = deps.reportError?.(err, { method: c.req.method, path: c.req.path });
-    return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
-  });
+  app.notFound(notFoundHandler);
+  app.onError(errorHandler);
 
   return app;
 }

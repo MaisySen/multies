@@ -13,6 +13,7 @@ import { StaticResolver } from "../../src/server/services/dns/resolver";
 import { LogOutbound } from "../../src/server/services/mail/outbound";
 import { nullLogger } from "../../src/server/lib/logger";
 import { WEBHOOK_EVENTS } from "../../src/server/services/developer/webhooks";
+import { v1Routes } from "../../src/server/routes/v1";
 
 const db = openSqlite(":memory:");
 await migrate(db);
@@ -20,8 +21,8 @@ const app = createApp({ db, config: loadConfig({ APP_SECRET: "x".repeat(40), DEM
 
 const seen = new Set<string>();
 const api: { method: string; path: string }[] = [];
-for (const r of app.routes) {
-  if (r.method === "ALL" || !r.path.startsWith("/api")) continue;
+for (const r of [...app.routes, ...v1Routes().routes.map((x) => ({ ...x, path: `/api/v1${x.path === "/" ? "" : x.path}` }))]) {
+  if (r.method === "ALL" || !r.path.startsWith("/api") || r.path === "/api/v1/*" || r.path === "/api/v1") continue;
   const key = `${r.method} ${r.path}`;
   if (seen.has(key)) continue;
   seen.add(key);

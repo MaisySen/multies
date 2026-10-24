@@ -130,6 +130,9 @@ const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : nul
 
 // ---------------------------------------------------------------- routes
 
+/** Context the parent app set for a request it hands to the lazily built v1 app (see app.ts). */
+export const v1ParentVars = new WeakMap<Request, { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
+
 export function v1Routes() {
   const api = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
@@ -138,6 +141,16 @@ export function v1Routes() {
         return c.json({ error: { code: "validation_failed", message: issues[0]?.message ?? "Invalid request.", details: issues } }, 422);
       }
     },
+  });
+  api.use("*", async (c, next) => {
+    const parent = v1ParentVars.get(c.req.raw);
+    if (parent) {
+      c.set("deps", parent.deps);
+      c.set("ip", parent.ip);
+      c.set("requestId", parent.requestId);
+      c.set("log", parent.log);
+    }
+    await next();
   });
   api.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", { type: "http", scheme: "bearer", description: "An API key from Settings, Developers. Starts with mm_live_." });
 

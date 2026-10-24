@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
+import { v1Routes } from "@/server/routes/v1";
+
+// The v1 app is built lazily (src/server/app.ts), so its routes are listed from v1Routes().
+const allRoutes = (app: { routes: { method: string; path: string }[] }) => [
+  ...app.routes,
+  ...v1Routes().routes.map((r) => ({ method: r.method, path: `/api/v1${r.path === "/" ? "" : r.path}` })),
+];
 
 // Every API route, called with no session and no key. Only the public allowlist may answer
 // 2xx, and nothing may answer 5xx. Found the v1 fields, guests and portfolio routes running
@@ -16,7 +23,7 @@ describe("authorisation on every endpoint", () => {
     const { app } = await makeTestApp({ DEMO_MODE: "true" });
     const bad: string[] = [];
     let checked = 0;
-    for (const r of app.routes) {
+    for (const r of allRoutes(app)) {
       if (r.method === "ALL" || !r.path.startsWith("/api")) continue;
       const key = `${r.method} ${r.path}`;
       const res = await app.request(fill(r.path), { method: r.method, headers: { "content-type": "application/json", host: "localhost", "x-forwarded-for": `10.9.${checked % 250}.1` }, body: ["GET", "HEAD"].includes(r.method) ? undefined : "{}" });
@@ -24,7 +31,7 @@ describe("authorisation on every endpoint", () => {
       if (res.status >= 500) bad.push(`${res.status} ${key}`);
       else if (res.status < 300 && !PUBLIC_OK.has(key)) bad.push(`${res.status} ${key}`);
     }
-    expect(checked).toBeGreaterThan(250);
+    expect(checked).toBeGreaterThan(300);
     expect(bad).toEqual([]);
   });
 
