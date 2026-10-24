@@ -30,10 +30,11 @@ export default function TabsLayout() {
 
   return (
     <Tabs screenOptions={{
+      headerShown: false,
       headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.fg, headerShadowVisible: false,
       tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.line },
       tabBarActiveTintColor: colors.brand, tabBarInactiveTintColor: colors.subtle,
-      tabBarBadgeStyle: { backgroundColor: colors.brand, color: colors.brandFg, fontWeight: "700" },
+      tabBarBadgeStyle: { backgroundColor: colors.bad, color: "#FFFFFF", fontWeight: "600", fontSize: 11 },
       sceneStyle: { backgroundColor: colors.bg },
     }}>
       <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: ({ color }) => <Icon name="inbox" color={color as string} />, tabBarBadge: unread || undefined, tabBarAccessibilityLabel: unread ? `Inbox, ${unread} unread` : "Inbox" }} />

@@ -4,7 +4,9 @@ import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import * as Application from "expo-application";
 import * as Localization from "expo-localization";
-import { Avatar, Badge, Card, Row, SectionTitle } from "@/components/ui";
+import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle } from "@/components/ui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { useSession } from "@/lib/session";
 import { useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
@@ -19,6 +21,7 @@ export default function Settings() {
   const { me, mode, api, signOut } = useSession();
   const overview = useOverview();
   const inbox = useNotificationCount();
+  const insets = useSafeAreaInsets();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
@@ -43,6 +46,7 @@ export default function Settings() {
 
   return (
     <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl }}>
+      <LargeTitle title="Settings" top={insets.top} />
       <Card style={{ margin: space.lg, flexDirection: "row", gap: space.md, alignItems: "center" }}>
         <Avatar name={me?.user.name || me?.user.email || "?"} size={48} />
         <View style={{ flex: 1, gap: 2 }}>

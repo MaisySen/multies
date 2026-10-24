@@ -32,7 +32,7 @@ export default function Notifications() {
   const list = q.data ? sortNotifications(q.data.notifications) : [];
   const anyUnread = category ? (counts[category] ?? 0) > 0 : unread > 0;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="notifications"
+    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="notifications"
       refreshControl={<RefreshControl refreshing={q.isRefetching} onRefresh={() => { q.refetch(); all.refetch(); }} />}>
       {offline ? <Banner text="You're offline. These are the notifications saved on this phone." /> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg, paddingVertical: space.md }}>

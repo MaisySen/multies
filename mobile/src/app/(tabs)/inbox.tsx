@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { FlatList, RefreshControl, ScrollView, Text, View } from "react-native";
+import { FlatList, RefreshControl, ScrollView, View } from "react-native";
 import { NotificationBell } from "@/components/notification-bell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
-import { Banner, Chip, EmptyState, IconButton, Loading, Button } from "@/components/ui";
+import { Banner, Chip, EmptyState, IconButton, Loading, Button, LargeTitle } from "@/components/ui";
 import { MessageRow } from "@/components/message-row";
 import { useAgents, useMessages, useOverview } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
@@ -55,7 +55,7 @@ export default function Inbox() {
         />
       )}
       <View style={{ position: "absolute", right: space.lg, bottom: space.lg }}>
-        <Button label="Compose" icon="edit-3" onPress={() => router.push("/compose")} testID="compose" style={{ borderRadius: 28, paddingHorizontal: 22, shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 }} />
+        <Button label="Compose" icon="edit-3" onPress={() => router.push("/compose")} testID="compose" style={{ borderRadius: 28, paddingHorizontal: 22, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 }} />
       </View>
     </View>
   );
@@ -65,13 +65,11 @@ function Header({ onSearch }: { onSearch: () => void }) {
   const { me } = useSession();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ paddingTop: insets.top + space.md, paddingHorizontal: space.lg, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.fg, fontSize: 30, fontWeight: "700", letterSpacing: -0.5 }} accessibilityRole="header">Mail</Text>
-        {me?.organization ? <Text style={{ color: colors.subtle, fontSize: 13 }} numberOfLines={1}>{me.organization.name}</Text> : null}
-      </View>
-      <NotificationBell />
-      <IconButton icon="search" label="Search mail" onPress={onSearch} testID="open-search" />
-    </View>
+    <LargeTitle title="Mail" subtitle={me?.organization?.name} top={insets.top} right={(
+      <>
+        <NotificationBell />
+        <IconButton icon="search" label="Search mail" onPress={onSearch} testID="open-search" />
+      </>
+    )} />
   );
 }

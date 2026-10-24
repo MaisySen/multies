@@ -12,7 +12,7 @@ export default function NotificationSettings() {
   if (q.error) return <EmptyState icon="alert-circle" title="Couldn't load your settings" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />;
   const s = q.data;
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="notification-settings">
+    <ScrollView contentInsetAdjustmentBehavior="automatic" style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: space.xxl * 2 }} testID="notification-settings">
       {save.error ? <Banner tone="bad" icon="alert-circle" text={`Couldn't save: ${save.error.message}`} /> : null}
       <Text style={[font.small, { margin: space.lg }]}>Choose what shows in your notifications inbox and what also comes to this phone as a push. Push also needs notifications allowed in Settings.</Text>
       <View style={{ flexDirection: "row", paddingHorizontal: space.lg, paddingBottom: space.sm }}>

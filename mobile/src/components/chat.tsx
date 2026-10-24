@@ -9,6 +9,7 @@ import { bytes } from "@/lib/format";
 import { encodeMentions, filterPeople, insertMention, linkLabel, mentionQuery, messageTime, plainText, segments } from "@/lib/chat";
 import type { ChatAttachment, ChatLink, ChatMessage, ChatPerson } from "@/api/types";
 import { colors, font, radius, space, TOUCH } from "@/theme";
+import { useReduceMotion } from "@/lib/motion";
 
 const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", thread: "mail", doc: "file-text" };
 
@@ -30,7 +31,7 @@ export function LinkChip({ link }: { link: ChatLink }) {
   return (
     <Pressable onPress={() => openLink(link)} accessibilityRole="button" accessibilityLabel={`${kind}: ${label}`} testID={`chip-${link.type}-${link.id}`}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 6, maxWidth: "100%", minHeight: 34, paddingHorizontal: 10, borderRadius: radius.pill,
-        borderWidth: 1, borderColor: "rgba(255,106,61,0.35)", backgroundColor: pressed ? colors.hover : colors.brandSoft })}>
+        borderWidth: 1, borderColor: colors.brandLine, backgroundColor: pressed ? colors.hover : colors.brandSoft })}>
       <Icon name={LINK_ICON[link.type]} size={14} color={colors.brand} />
       <Text style={{ color: colors.fg, fontSize: 14, fontWeight: "500", flexShrink: 1 }} numberOfLines={1}>{label}</Text>
     </Pressable>
@@ -98,6 +99,7 @@ export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, sho
 export function MessageMenu({ m, onClose, onReply, onMakeTask, busy }: {
   m: ChatMessage | null; onClose: () => void; onReply?: (m: ChatMessage) => void; onMakeTask: (m: ChatMessage) => void; busy?: boolean;
 }) {
+  const reduceMotion = useReduceMotion();
   if (!m) return null;
   const item = (icon: IconName, label: string, run: () => void, testID: string) => (
     <Pressable onPress={run} accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={busy}
@@ -107,8 +109,8 @@ export function MessageMenu({ m, onClose, onReply, onMakeTask, busy }: {
     </Pressable>
   );
   return (
-    <Modal transparent animationType="fade" visible onRequestClose={onClose}>
-      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end" }} onPress={onClose} accessibilityLabel="Close menu">
+    <Modal transparent animationType={reduceMotion ? "none" : "slide"} visible onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }} onPress={onClose} accessibilityLabel="Close menu">
         <View style={{ backgroundColor: colors.surface, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingBottom: space.xl, paddingTop: space.sm }} accessibilityViewIsModal>
           <Text style={[font.small, { paddingHorizontal: space.lg, paddingVertical: space.sm }]} numberOfLines={2}>{m.author.name}: {plainText(m)}</Text>
           {item("check-square", busy ? "Making task..." : "Make task", () => onMakeTask(m), "menu-make-task")}

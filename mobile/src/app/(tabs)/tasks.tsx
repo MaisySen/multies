@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
-import { router, Stack } from "expo-router";
-import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, Loading, Segmented } from "@/components/ui";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, LargeTitle, Loading, Segmented } from "@/components/ui";
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
@@ -18,19 +20,20 @@ export default function Tasks() {
   const { update } = useTaskMutations();
   const offline = useOffline();
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } });
   const list = tasks.data ?? [];
   const col = Math.min(width * 0.82, 340);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ headerRight: () => (
-        <View style={{ flexDirection: "row" }}>
+      <LargeTitle title="Tasks" top={insets.top} right={(
+        <>
           <NotificationBell />
           <IconButton icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="open-meetings" />
           <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" />
-        </View>
-      ) }} />
+        </>
+      )} />
       <View style={{ padding: space.lg, paddingBottom: space.sm, gap: space.md }}>
         <TimerChip />
         <Segmented label="Task view" value={view} onChange={setView} options={[{ id: "list", label: "List" }, { id: "board", label: "Board" }]} />

@@ -11,7 +11,8 @@ import { configureNotifications } from "@/lib/push";
 import { extractPushData, routeForPush } from "@/lib/push-events";
 import "@/lib/push-task";
 import { SAMPLE_ONLY } from "@/config";
-import { colors } from "@/theme";
+import { colors, scheme } from "@/theme";
+import { useReduceMotion } from "@/lib/motion";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 if (Platform.OS !== "web") configureNotifications();
@@ -24,7 +25,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
         <SessionProvider initialMode={SAMPLE_ONLY && process.env.EXPO_PUBLIC_AUTO_SAMPLE === "1" ? "sample" : undefined}>
-          <StatusBar style="light" />
+          <StatusBar style={scheme === "light" ? "dark" : "light"} />
           <Navigator client={client} />
         </SessionProvider>
       </QueryClientProvider>
@@ -34,6 +35,7 @@ export default function RootLayout() {
 
 function Navigator({ client }: { client: QueryClient }) {
   const { status, mode } = useSession();
+  const reduceMotion = useReduceMotion();
 
   useEffect(() => { if (status !== "loading") SplashScreen.hideAsync().catch(() => {}); }, [status]);
   // Never show one account's mail to another session.
@@ -61,6 +63,7 @@ function Navigator({ client }: { client: QueryClient }) {
     <Stack screenOptions={{
       headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.fg, headerTitleStyle: { color: colors.fg },
       contentStyle: { backgroundColor: colors.bg }, headerShadowVisible: false, headerBackButtonDisplayMode: "minimal",
+      animation: reduceMotion ? "none" : "default",
     }}>
       <Stack.Protected guard={!signedIn}>
         <Stack.Screen name="sign-in" options={{ headerShown: false }} />
@@ -74,14 +77,14 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="approval/[id]" options={{ title: "Review message" }} />
         <Stack.Screen name="task/[id]" options={{ title: "Task" }} />
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
-        <Stack.Screen name="meetings" options={{ title: "Meetings" }} />
-        <Stack.Screen name="portfolio" options={{ title: "Portfolio" }} />
+        <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
+        <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
         <Stack.Screen name="chat/[id]" options={{ title: "" }} />
         <Stack.Screen name="chat/thread/[id]" options={{ title: "Thread" }} />
         <Stack.Screen name="chat/message/[id]" options={{ title: "" }} />
         <Stack.Screen name="chat/new" options={{ presentation: "modal", title: "New message" }} />
-        <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-        <Stack.Screen name="notification-settings" options={{ title: "Notification settings" }} />
+        <Stack.Screen name="notifications" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Notifications" }} />
+        <Stack.Screen name="notification-settings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Notification settings" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
       </Stack.Protected>
     </Stack>

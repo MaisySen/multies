@@ -1,6 +1,8 @@
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { router, Stack } from "expo-router";
-import { Avatar, Banner, Button, EmptyState, Icon, IconButton, Loading, SectionTitle } from "@/components/ui";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Avatar, Banner, Button, EmptyState, Icon, IconButton, LargeTitle, Loading, SectionTitle } from "@/components/ui";
 import { NotificationBell } from "@/components/notification-bell";
 import { useChatChannels } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
@@ -14,12 +16,13 @@ export default function Chat() {
   const q = useChatChannels();
   const offline = useOffline();
   const { mode } = useSession();
-  const header = <Stack.Screen options={{ headerRight: () => (
-    <View style={{ flexDirection: "row" }}>
+  const insets = useSafeAreaInsets();
+  const header = <LargeTitle title="Chat" top={insets.top} right={(
+    <>
       <NotificationBell />
       <IconButton icon="edit" label="New message" onPress={() => router.push("/chat/new")} testID="new-dm" />
-    </View>
-  ) }} />;
+    </>
+  )} />;
   if (q.isPending) return <>{header}<Loading /></>;
   if (q.error) return <>{header}<EmptyState icon="alert-circle" title="Couldn't load chat" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} /></>;
   const { channels, dms } = groupChannels(q.data);
@@ -66,7 +69,7 @@ function ChannelRow({ c }: { c: ChatChannel }) {
         ) : c.topic ? <Text style={{ color: colors.subtle, fontSize: 14 }} numberOfLines={1}>{c.topic}</Text> : null}
       </View>
       {c.mentions ? (
-        <View style={{ minWidth: 30, height: 22, borderRadius: 11, paddingHorizontal: 7, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" }} testID={`mentions-${c.id}`}>
+        <View style={{ minWidth: 30, height: 22, borderRadius: 11, paddingHorizontal: 7, backgroundColor: colors.brandFill, alignItems: "center", justifyContent: "center" }} testID={`mentions-${c.id}`}>
           <Text style={{ color: colors.brandFg, fontWeight: "700", fontSize: 12 }}>@{c.mentions}</Text>
         </View>
       ) : unread ? (

@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { Alert, FlatList, RefreshControl, Text, View } from "react-native";
-import { Banner, Button, EmptyState, Loading, Segmented } from "@/components/ui";
+import { Banner, Button, EmptyState, LargeTitle, Loading, Segmented } from "@/components/ui";
+import { NotificationBell } from "@/components/notification-bell";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { ApprovalCard } from "@/components/approval-card";
 import { useAgents, useApprovals, useDecide } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { colors, space } from "@/theme";
 
 export default function Approvals() {
+  const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"pending" | "decided">("pending");
   const pending = useApprovals("pending");
   const all = useApprovals("all");
@@ -21,6 +25,7 @@ export default function Approvals() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <LargeTitle title="Approvals" top={insets.top} right={<NotificationBell />} />
       {offline ? <Banner text="Offline. Approve and reject need a connection." /> : null}
       <FlatList
         data={rows ?? []}
