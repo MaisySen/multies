@@ -3,6 +3,7 @@
  * for everything else, D1 as the database. Housekeeping runs opportunistically
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
+import { isKnownPage } from "../shared/known-routes";
 import * as Sentry from "@sentry/cloudflare";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
@@ -178,7 +179,8 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
     ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
-  const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: 200, headers: shell.headers }), headers);
+  // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
+  const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
   res.headers.set("cache-control", "no-cache");
   return res;
 }

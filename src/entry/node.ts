@@ -3,6 +3,7 @@
  *   npm run dev:api   (API on :8787, Vite proxies /api to it)
  *   npm run build && npm start   (one process serves everything)
  */
+import { isKnownPage } from "../shared/known-routes";
 import * as Sentry from "@sentry/node";
 import { S3BodyStore } from "../server/services/storage/body-store";
 import { serve } from "@hono/node-server";
@@ -79,7 +80,7 @@ if (existsSync(webRoot)) {
   app.use("/*", compress());
   app.use("/*", serveStatic({ root: path.relative(process.cwd(), webRoot) }));
   // Read per request so a rebuilt web app is picked up without a restart.
-  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, "index.html"), "utf8"))));
+  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, "index.html"), "utf8"), isKnownPage(c.req.path) ? 200 : 404)));
 }
 
 const port = Number(process.env.PORT ?? 8787);
