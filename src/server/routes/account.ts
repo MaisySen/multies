@@ -7,7 +7,7 @@ import { parseBody, requireAuth } from "../middleware";
 import { accounts, members, organizations, users } from "../db/schema";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
-import { authFor } from "../auth";
+import { authFor, authMode } from "../auth";
 import { verifyPassword } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
@@ -24,7 +24,9 @@ export function accountRoutes() {
   return new Hono<AppEnv>()
     .get("/providers", (c) => {
       const { auth } = c.var.deps.config;
-      return c.json({ google: !!auth.social.google, github: !!auth.social.github, auth0: !!auth.auth0 });
+      const mode = authMode(c.var.deps.config);
+      // idp: the one sign in and sign up page (Universal Login). password: the app's own form.
+      return c.json({ idp: mode.idp, password: mode.localPassword, google: !mode.idp && !!auth.social.google, github: !mode.idp && !!auth.social.github, auth0: mode.idp });
     })
     /** Opens a sandbox workspace with sample data. Only when DEMO_MODE is on. */
     .post("/demo", async (c) => {

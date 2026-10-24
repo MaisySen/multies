@@ -10,11 +10,8 @@
  * those is a dogfood finding in docs/dogfood.md.
  *
  * Usage:
- *   ORG_PASSWORD=... npx tsx scripts/dogfood/org-setup.ts --config scripts/dogfood/example-org.json \
- *     --base http://localhost:8796 [--state /path/state.json] [--merge scripts/dogfood/findings.json] [--dry-run] [--send-invites]
- *
- * --merge adds more config files on top (comma separated): lists are appended, and a project
- * with the same name gets the extra tasks. findings.json files the dogfood findings as tasks.
+ *   ORG_PASSWORD=... npx tsx scripts/dogfood/org-setup.ts --config scripts/dogfood/org.example.json \
+ *     --base http://localhost:8796 [--state /path/state.json] [--dry-run] [--send-invites]
  *
  * Secrets: the founder password comes from ORG_PASSWORD. Keys the run mints (the workspace key
  * and one key per agent) are written to the state file (mode 600, outside the repo by default)
@@ -55,7 +52,6 @@ export async function main() {
   const base = (opt("base") ?? process.env.ORG_BASE_URL ?? "").replace(/\/$/, "");
   if (!configPath || !base) throw new Error("Pass --config <file> and --base <url>.");
   const cfg = JSON.parse(readFileSync(resolve(configPath), "utf8")) as OrgConfig;
-  for (const extra of (opt("merge") ?? "").split(",").filter(Boolean)) mergeConfig(cfg, JSON.parse(readFileSync(resolve(extra), "utf8")));
   const statePath = resolve(opt("state") ?? `${homedir()}/.multies-dogfood/${new URL(base).host}-${slug(cfg.workspace.name)}.json`);
   const run = new Runner(base, cfg, statePath, flag("dry-run"), flag("send-invites"));
   await run.all();
@@ -129,35 +125,24 @@ class Runner {
     this.note(`Done in ${Math.round((Date.now() - t0) / 1000)} s with ${this.writes} create or update calls. State: ${this.statePath}`);
   }
 
-  session = true;
   async signIn() {
     const { email, name } = this.cfg.founder;
     const password = process.env.ORG_PASSWORD;
-    if (process.env.ORG_SESSION_COOKIE) {
-      // A session copied from a browser sign in (for example when password sign in is off and sign in goes through the identity provider).
-      this.cookie = process.env.ORG_SESSION_COOKIE;
-    } else if (!password) {
-      if (!process.env.ORG_API_KEY) throw new Error("Set ORG_PASSWORD (or ORG_SESSION_COOKIE, or ORG_API_KEY for a key only run).");
-      this.session = false;
-      this.note("Key only run: steps that need a session (workspace, invites, templates, channel purpose) are skipped");
-      return;
-    } else try {
+    if (!password) throw new Error("Set ORG_PASSWORD for the founder account.");
+    try {
       await this.http("POST", "/api/auth/sign-in/email", { email, password }, "session");
       this.note(`Signed in as ${email}`);
     } catch (e) {
       if ((e as { status?: number }).status !== 401) throw e;
       if (this.dry) throw new Error(`No account for ${email} yet, and a dry run does not sign up.`, { cause: e });
-      try { await this.http("POST", "/api/auth/sign-up/email", { email, password, name }, "session"); }
-      catch (e2) { throw new Error(`Sign in failed and sign up was refused for ${email} (an account with another password, or password sign in is off). Use ORG_SESSION_COOKIE from a browser sign in. ${(e2 as Error).message}`, { cause: e2 }); }
+      await this.http("POST", "/api/auth/sign-up/email", { email, password, name }, "session");
       this.note(`Signed up ${email}`);
     }
     const me = await this.app("GET", "/api/account/me");
-    if (!me?.user?.id) throw new Error("Not signed in: the session was not accepted.");
     this.me = me.user.id;
   }
 
   async workspace() {
-    if (!this.session) return;
     const name = this.cfg.workspace.name;
     const list = await this.app("GET", "/api/account/workspaces");
     let ws = (list.workspaces as { id: string; name: string }[]).find((w) => w.name === name);
@@ -178,7 +163,6 @@ class Runner {
 
   async apiKey() {
     if (process.env.ORG_API_KEY) { this.state.workspaceKey = process.env.ORG_API_KEY; }
-    if (!this.session) { if (!this.state.workspaceKey) throw new Error("No workspace key."); return; }
     if (this.state.workspaceKey) {
       try { await this.v1("GET", "/projects"); this.note("Workspace key works"); return; } catch { this.note("Stored workspace key no longer works, minting a new one"); }
     }
@@ -190,7 +174,6 @@ class Runner {
   }
 
   async loadMembers() {
-    if (!this.session) return;
     const team = await this.app("GET", "/api/team");
     this.members = (team.members ?? []).map((m: any) => ({ userId: m.userId ?? m.user?.id ?? m.id, email: m.email ?? m.user?.email, name: m.name ?? m.user?.name, role: m.role }));
   }
@@ -233,7 +216,6 @@ class Runner {
   }
 
   async invites() {
-    if (!this.session) return;
     for (const inv of this.cfg.invites ?? []) {
       if (this.members.some((m) => m.email?.toLowerCase() === inv.email.toLowerCase())) { this.note(`${inv.email} is already a member`); continue; }
       if (!this.sendInvites) { this.note(`Invite to ${inv.email} (${inv.role}) skipped: pass --send-invites to send real email`); continue; }
@@ -249,7 +231,7 @@ class Runner {
     if (!r) return undefined;
     const [kind, v] = [r.slice(0, r.indexOf(":")), r.slice(r.indexOf(":") + 1)];
     if (kind === "agent") { const a = this.state.agents[v]; return a ? `agent:${a.id}` : undefined; }
-    if (v === "self") return this.me ? `member:${this.me}` : undefined;
+    if (v === "self") return `member:${this.me}`;
     const m = this.members.find((x) => x.email?.toLowerCase() === v.toLowerCase());
     return m ? `member:${m.userId}` : undefined;
   }
@@ -292,7 +274,7 @@ class Runner {
         this.note(`Created #${ch.name}`);
       }
       // No public route updates a channel (finding), so the purpose of an existing channel is set through the app API.
-      if (this.session && c.id && (c.topic ?? "") !== ch.purpose) { await this.app("PATCH", `/api/chat/channels/${c.id}`, { topic: ch.purpose }); this.note(`  purpose set on #${ch.name}`); }
+      if (c.id && (c.topic ?? "") !== ch.purpose) { await this.app("PATCH", `/api/chat/channels/${c.id}`, { topic: ch.purpose }); this.note(`  purpose set on #${ch.name}`); }
       if (!ch.welcome || !c.id) continue;
       const msgs = arr(await this.v1("GET", `/chat/channels/${c.id}/messages?limit=50`)) as any[];
       if (msgs.some((m) => (m.body ?? "").startsWith(ch.welcome!.slice(0, 40)))) continue;
@@ -319,7 +301,6 @@ class Runner {
     // GET /api/v1/docs answers the API reference page instead of the list (finding F1), so the
     // list falls back to the app route when the public one does not answer JSON.
     const pub = await this.v1("GET", "/docs");
-    if (pub?.raw !== undefined && !this.session) return this.note("Docs skipped: the public docs list does not answer JSON (F1) and there is no session");
     const have = (pub?.raw !== undefined ? arr(await this.app("GET", "/api/docs")) : arr(pub)) as any[];
     for (const d of this.cfg.docs ?? []) {
       if (have.some((x) => x.title === d.title)) { this.note(`Doc ${d.title} exists`); continue; }
@@ -342,7 +323,7 @@ class Runner {
         const title = `Prepare: ${m.title}`;
         const tasks = arr(await this.v1("GET", `/tasks?projectId=${encodeURIComponent(pid)}`)) as any[];
         if (!tasks.some((t) => t.title === title)) {
-          const day = new Intl.DateTimeFormat("en-CA", { timeZone: m.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(when);
+          const day = when.toISOString().slice(0, 10);
           await this.v1("POST", "/tasks", { title, projectId: pid, due: day, assignee: this.ref(m.prepTask.assignee) ?? null, repeat: { freq: "weekly", interval: 1, weekdays: [m.weekday] }, notes: `Agenda and notes for ${m.title}, ${m.time} ${m.timezone}.` });
           this.note(`  weekly prep task: ${title}`);
         }
@@ -351,7 +332,6 @@ class Runner {
   }
 
   async templates(projects: Record<string, string>) {
-    if (!this.session) return this.note("Templates skipped: no session");
     const list = await this.app("GET", "/api/templates");
     const have = (list.templates ?? []) as any[];
     for (const t of this.cfg.templates ?? []) {
@@ -368,18 +348,6 @@ class Runner {
 }
 
 // ---------------------------------------------------------------- helpers
-export function mergeConfig(into: OrgConfig, extra: Partial<OrgConfig>) {
-  for (const [k, v] of Object.entries(extra) as [keyof OrgConfig, unknown][]) {
-    if (!Array.isArray(v)) continue;
-    if (k === "projects") {
-      for (const p of v as NonNullable<OrgConfig["projects"]>) {
-        const same = (into.projects ??= []).find((x) => x.name === p.name);
-        if (same) same.tasks = [...(same.tasks ?? []), ...(p.tasks ?? [])]; else into.projects.push(p);
-      }
-    } else (into as unknown as Record<string, unknown[]>)[k] = [...(((into as unknown as Record<string, unknown[]>)[k]) ?? []), ...v];
-  }
-}
-
 export function slug(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40); }
 function sleep(ms: number) { return new Promise((r) => setTimeout(r, ms)); }
 function safeJson(t: string) { try { return JSON.parse(t); } catch { return { raw: t.slice(0, 200) }; } }

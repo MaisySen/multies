@@ -1,35 +1,40 @@
 /**
- * Authentication is Better Auth (https://better-auth.com): email + password, email
- * verification, password reset, TOTP two-factor with backup codes, organizations with
- * roles and invitations, session management, platform admin, and social / OIDC sign-in
- * (Google, GitHub, Auth0) that switches on when its keys are configured.
+ * Better Auth options for Multies. Better Auth owns the app session (HttpOnly cookies,
+ * rotation, revocation, two-factor, organizations and roles). People sign in through the
+ * identity provider (OIDC Authorization Code with PKCE, see ./providers.ts) when it is
+ * configured; the app's own password form stays available for self host and Node
+ * deployments (AUTH_LOCAL_PASSWORD, see ./config.ts).
  *
- * Multies adds only product glue: its own ID format, its email pipeline for auth
- * emails, plan-based seat limits, per-mailbox access for invited members, and the
- * PBKDF2 password hash (WebCrypto-native, so it is fast on Workers; existing users'
- * hashes keep working).
+ * The rest of the auth module: ./providers.ts (identity provider and social sign in),
+ * ./session.ts (cookies, session lifetime, login method, provider logout), ./linking.ts
+ * (linking an existing account by verified email), ./tokens.ts (ID token checks against
+ * JWKS), ./mobile.ts (the mobile token exchange) and ./guards.ts (route guards).
  */
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { organization } from "better-auth/plugins/organization";
 import { twoFactor } from "better-auth/plugins/two-factor";
 import { admin } from "better-auth/plugins/admin";
-import { genericOAuth, auth0 } from "better-auth/plugins/generic-oauth";
 import { haveIBeenPwned } from "better-auth/plugins/haveibeenpwned";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { lastLoginMethod } from "better-auth/plugins";
-import { clearFailures, lockedUntil, recordFailure } from "./services/lockout";
-import { audit } from "./services/audit";
+import { idpPlugins, socialProviders } from "./providers";
+import { loginMethodFor, resolveLoginMethod, sessionOptions, cookieOptions } from "./session";
+import { accountLinkingOptions, afterAccountLinked } from "./linking";
+import { localPasswordEnabled } from "./config";
+import { multiesAuthPlugin } from "./mobile";
+import { clearFailures, lockedUntil, recordFailure } from "../services/lockout";
+import { audit } from "../services/audit";
 import { and, count, eq, inArray, ne } from "drizzle-orm";
-import type { Deps } from "./context";
-import * as schema from "./db/schema";
-import { hashPassword, newId, randomToken, verifyPassword } from "./lib/crypto";
+import type { Deps } from "../context";
+import * as schema from "../db/schema";
+import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
 import { createElement } from "react";
-import { emailBrand, sendSystemEmail } from "./services/system-mail";
-import { Invite as InviteEmail, Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "./emails";
-import { beforeUserDelete } from "./services/privacy";
-import { HttpError } from "./lib/errors";
-import { getPlan } from "./services/plans";
+import { emailBrand, sendSystemEmail } from "../services/system-mail";
+import { Invite as InviteEmail, Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "../emails";
+import { beforeUserDelete } from "../services/privacy";
+import { HttpError } from "../lib/errors";
+import { getPlan } from "../services/plans";
 
 /** Better Auth endpoints whose success is a security event worth an audit entry. */
 const SECURITY_EVENTS: Record<string, string> = {
@@ -49,16 +54,6 @@ const ID_PREFIX: Record<string, string> = {
   member: "mem", twoFactor: "tfa", rateLimit: "rl",
 };
 
-/** SSO methods a workspace can require: the enterprise OIDC connection and Google Workspace. */
-export const SSO_METHODS = new Set(["auth0", "google"]);
-
-/** How a new session signed in, from the Better Auth endpoint that created it. */
-export function loginMethodFor(path?: string, params?: Record<string, string | undefined>): string {
-  if (!path) return "email";
-  if (path.startsWith("/oauth2/callback/") || path.startsWith("/callback/")) return params?.providerId ?? params?.id ?? path.split("/").pop() ?? "oauth";
-  return "email";
-}
-
 async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
   if (user.email.endsWith(".test")) return;
   const first = user.name.split(" ")[0] || user.name;
@@ -73,7 +68,7 @@ async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
 export function authOptions(deps: Deps) {
   const { config, db } = deps;
   const prod = config.mode === "production";
-  const social = config.auth.social;
+  const localPassword = localPasswordEnabled(config);
 
   return {
     appName: config.appName,
@@ -100,8 +95,7 @@ export function authOptions(deps: Deps) {
       },
     }),
     advanced: {
-      cookiePrefix: "mymail",
-      useSecureCookies: prod,
+      ...cookieOptions(prod),
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip", "x-real-ip", "x-forwarded-for"] },
       database: {
         // Invitation ids double as the invite link, so they get a long random token.
@@ -109,7 +103,9 @@ export function authOptions(deps: Deps) {
       },
     },
     emailAndPassword: {
-      enabled: true,
+      // Off when the identity provider handles passwords, sign up and resets.
+      enabled: localPassword,
+      disableSignUp: !localPassword,
       minPasswordLength: 10,
       maxPasswordLength: 200,
       autoSignIn: true,
@@ -146,12 +142,7 @@ export function authOptions(deps: Deps) {
         });
       },
     },
-    session: {
-      additionalFields: { loginMethod: { type: "string", required: false, input: false } },
-      expiresIn: 30 * 24 * 60 * 60,
-      updateAge: 24 * 60 * 60,
-      freshAge: 15 * 60,
-    },
+    session: sessionOptions(),
     rateLimit: {
       enabled: true,
       storage: "database",
@@ -164,6 +155,7 @@ export function authOptions(deps: Deps) {
         "/two-factor/verify-totp": { window: 60, max: 10 },
         "/two-factor/verify-backup-code": { window: 60, max: 10 },
         "/send-verification-email": { window: 60 * 60, max: 5 },
+        "/mobile/exchange": { window: 60, max: 10 },
       },
     },
     hooks: {
@@ -243,12 +235,14 @@ export function authOptions(deps: Deps) {
         },
       },
     },
-    socialProviders: {
-      ...(social.google ? { google: { clientId: social.google.clientId, clientSecret: social.google.clientSecret } } : {}),
-      ...(social.github ? { github: { clientId: social.github.clientId, clientSecret: social.github.clientSecret } } : {}),
-    },
-    account: { accountLinking: { enabled: true, trustedProviders: ["google", "github", "auth0"] } },
+    socialProviders: socialProviders(config),
+    account: { accountLinking: accountLinkingOptions() },
     databaseHooks: {
+      account: {
+        create: {
+          after: async (account) => { await afterAccountLinked(db, account); },
+        },
+      },
       user: {
         create: {
           // Social sign ups arrive verified, so they get the welcome straight away.
@@ -330,17 +324,11 @@ export function authOptions(deps: Deps) {
       lastLoginMethod({
         storeInDatabase: true,
         beforeStoreCookie: () => false,
-        customResolveMethod: (ctx) => (ctx.path?.startsWith("/oauth2/callback/") ? (ctx.params?.providerId ?? ctx.path.split("/").pop() ?? null) : null),
+        customResolveMethod: resolveLoginMethod,
       }),
-      ...(config.auth.auth0 ? [genericOAuth({ config: [{
-        ...auth0({ ...config.auth.auth0 }),
-        // Auth0 database users have their email as "name"; use the nickname instead.
-        mapProfileToUser: (p) => {
-          const name = typeof p.name === "string" && !p.name.includes("@") ? p.name : String(p.nickname ?? String(p.email ?? "").split("@")[0]);
-          return { name };
-        },
-      }] })] : []),
-      ...(config.auth.breachCheck ? [haveIBeenPwned({ customPasswordCompromisedMessage: "This password has appeared in a data breach. Please choose a different one." })] : []),
+      ...idpPlugins(config),
+      multiesAuthPlugin(deps),
+      ...(config.auth.breachCheck && localPassword ? [haveIBeenPwned({ customPasswordCompromisedMessage: "This password has appeared in a data breach. Please choose a different one." })] : []),
     ],
   } satisfies BetterAuthOptions;
 }

@@ -33,7 +33,14 @@ export interface AppConfig {
   /** Sign-in options beyond email + password. Each turns on when its keys are set. */
   auth: {
     social: { google?: { clientId: string; clientSecret: string }; github?: { clientId: string; clientSecret: string } };
-    auth0?: { domain: string; clientId: string; clientSecret: string };
+    /** The identity provider for people (OIDC, Universal Login). `nativeClientId` is the mobile app's public client. */
+    auth0?: { domain: string; clientId: string; clientSecret: string; nativeClientId?: string };
+    /**
+     * The app's own email and password form. Off by default once the identity provider is
+     * configured (sign up, reset and verification then happen there); on for self host and
+     * Node deployments without it. AUTH_LOCAL_PASSWORD=on|off overrides.
+     */
+    localPassword: boolean;
     /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
     breachCheck: boolean;
   };
@@ -128,6 +135,8 @@ const EnvSchema = z.object({
   AUTH0_DOMAIN: z.string().optional(),
   AUTH0_CLIENT_ID: z.string().optional(),
   AUTH0_CLIENT_SECRET: z.string().optional(),
+  AUTH0_NATIVE_CLIENT_ID: z.string().optional(),
+  AUTH_LOCAL_PASSWORD: z.enum(["on", "off", "true", "false"]).optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
   SENTRY_DSN_API: z.string().optional(),
@@ -229,7 +238,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ...(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? { github: { clientId: env.GITHUB_CLIENT_ID, clientSecret: env.GITHUB_CLIENT_SECRET } } : {}),
       },
       ...(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET
-        ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET } } : {}),
+        ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET, ...(env.AUTH0_NATIVE_CLIENT_ID ? { nativeClientId: env.AUTH0_NATIVE_CLIENT_ID } : {}) } } : {}),
+      localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },
     sentry: {
@@ -289,4 +299,11 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
 function clampRate(v: string | undefined, fallback: number): number {
   const n = v === undefined ? fallback : Number(v);
   return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
+}
+
+/** AUTH_LOCAL_PASSWORD wins; otherwise the password form is on only when there is no identity provider. */
+export function resolveLocalPassword(flag: string | undefined, idpConfigured: boolean): boolean {
+  if (flag === "on" || flag === "true") return true;
+  if (flag === "off" || flag === "false") return false;
+  return !idpConfigured;
 }
