@@ -125,7 +125,7 @@ export function Landing() {
               <ButtonLink to="/agents" variant="secondary">Read the quickstart <ArrowRight className="h-4 w-4" /></ButtonLink>
             </div>
           </div>
-          <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 font-mono text-[12px] leading-relaxed text-fg/85" aria-label="Example: create an agent inbox">{`curl https://mymail.mymail-app.workers.dev/api/v1/agents \\
+          <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 font-mono text-[12px] leading-relaxed text-fg/85" aria-label="Example: create an agent inbox">{`curl https://multies.si/api/v1/agents \\
   -H "Authorization: Bearer $MYMAIL_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{"name": "Invoice bot", "localPart": "invoices"}'

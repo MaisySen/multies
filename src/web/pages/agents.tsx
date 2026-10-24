@@ -4,7 +4,7 @@ import { ButtonLink } from "@/web/components/ui/button";
 import { CopyButton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 
-const BASE = typeof window !== "undefined" ? window.location.origin : "https://mymail.mymail-app.workers.dev";
+const BASE = typeof window !== "undefined" ? window.location.origin : "https://multies.si";
 
 function Code({ code, label }: { code: string; label: string }) {
   return (

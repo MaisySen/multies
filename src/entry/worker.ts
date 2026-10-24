@@ -213,8 +213,19 @@ function withPageMeta(res: Response, path: string): Response {
     .transform(res);
 }
 
+/** www.<domain> answers with a permanent redirect to the same path on the apex. */
+export function wwwRedirect(request: Request): Response | null {
+  const url = new URL(request.url);
+  if (!url.hostname.startsWith("www.")) return null;
+  url.hostname = url.hostname.slice(4);
+  url.protocol = "https:";
+  return new Response(null, { status: 301, headers: { location: url.toString(), "cache-control": "public, max-age=86400" } });
+}
+
 const handler = {
   fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    const www = wwwRedirect(request);
+    if (www) return Promise.resolve(www);
     return withAuthRequestState(() => serve(request, env, ctx));
   },
 

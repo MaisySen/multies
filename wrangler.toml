@@ -1,6 +1,6 @@
 # Multies on Cloudflare Workers + D1, in two environments:
 #
-#   production  (top level)      https://mymail.mymail-app.workers.dev
+#   production  (top level)      https://multies.si (also app.multies.si and https://mymail.mymail-app.workers.dev)
 #   staging     ([env.staging])  https://mymail-staging.mymail-app.workers.dev
 #
 # CI (.github/workflows/ci.yml) deploys every push to main to staging first, runs the
@@ -89,8 +89,9 @@ simple = { limit = 300, period = 60 }
 
 [vars]
 APP_MODE = "production"
-# Until a custom domain is attached, the app lives on its workers.dev address.
-APP_URL = "https://mymail.mymail-app.workers.dev"
+# The app's public address. The workers.dev address keeps working (same Worker, same data);
+# www.multies.si redirects to the apex and app.multies.si serves the app too.
+APP_URL = "https://multies.si"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 SENTRY_TRACES_SAMPLE_RATE = "0.1"

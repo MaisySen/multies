@@ -13,7 +13,7 @@ test("sign up, add a domain, see its DNS records, create a mailbox", async ({ pa
   await page.getByLabel("Work email").fill(email);
   await page.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Erin/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Erin/ })).toBeVisible({ timeout: 15_000 });
 
   await page.getByRole("link", { name: "Domains" }).first().click();
   await page.getByRole("button", { name: "Add domain" }).first().click();

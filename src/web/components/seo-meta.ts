@@ -2,7 +2,7 @@
  * Titles and descriptions for every public page. Pure data, so the Worker can import it to put the same
  * tags into the HTML shell before the app loads. The client applies them on every navigation (main.tsx).
  */
-export const SITE_URL = "https://mymail.mymail-app.workers.dev";
+export const SITE_URL = "https://multies.si";
 export const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export interface PageMeta { title: string; description: string; noindex?: boolean }
