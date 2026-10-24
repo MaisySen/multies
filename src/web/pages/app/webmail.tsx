@@ -91,7 +91,14 @@ export function WebmailPage() {
     open(next?.id ?? null);
   };
   // Undo send (or a failed send) puts the message back into Compose, exactly as it was.
-  useReopenedDrafts<ComposeDraft>((d) => setCompose(d));
+  // If another message is open in Compose, the taken back one waits and opens when that one closes.
+  const waiting = useRef<ComposeDraft[]>([]);
+  useReopenedDrafts<ComposeDraft>((d) => {
+    if (!compose) { setCompose(d); return; }
+    waiting.current.push(d);
+    toast.info("Message taken back", { description: "It opens when you close the message you're writing." });
+  });
+  const closeCompose = () => setCompose(waiting.current.shift() ?? null);
   const startCompose = (d?: Partial<ComposeDraft>) => setCompose({ mailboxId: mailboxId || mailboxes[0]?.id || "", to: "", subject: "", text: "", ...d });
   // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
   // ?compose=name@example.com (from a contact page) opens it addressed to that person.
@@ -217,7 +224,7 @@ export function WebmailPage() {
       </section>
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
-      {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={() => setCompose(null)} />}
+      {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
     </div>
   );
 
