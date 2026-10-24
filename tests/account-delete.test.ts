@@ -38,6 +38,19 @@ describe("delete my account", () => {
     expect((await owner.get("/api/account/me")).status).toBe(200);
   });
 
+  it("deletes a demo sandbox on the confirm word alone, even after the session is no longer fresh", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    ctx.deps.now = () => new Date(Date.now() + 60 * 60_000);
+    const res = await c.call("DELETE", "/api/account", { confirm: "DELETE" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, deletedWorkspaces: 1 });
+    expect(await ctx.db.query.users.findMany()).toHaveLength(0);
+    expect(await ctx.db.query.organizations.findMany()).toHaveLength(0);
+    expect((await c.get("/api/account/me")).status).toBe(401);
+  });
+
   it("is refused without a session", async () => {
     const { app } = await makeTestApp();
     expect((await new Client(app).call("DELETE", "/api/account", { confirm: "DELETE" })).status).toBe(401);

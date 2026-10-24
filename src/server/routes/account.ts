@@ -4,7 +4,8 @@ import { z } from "zod";
 import { and, eq, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { accounts, members, organizations } from "../db/schema";
+import { accounts, members, organizations, users } from "../db/schema";
+import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
 import { authFor } from "../auth";
 import { verifyPassword } from "../lib/crypto";
@@ -94,7 +95,12 @@ export function accountRoutes() {
       if (body.confirm !== "DELETE") throw new HttpError(400, "confirm_required", "Type DELETE to confirm.");
       const cred = await deps.db.select({ password: accounts.password }).from(accounts)
         .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get();
-      if (cred?.password) {
+      // A demo visitor never chose a password (the demo flow sets a random one) and cannot
+      // sign in again, so their sandbox goes on the confirm word alone.
+      const orgs = await deps.db.select({ isDemo: organizations.isDemo }).from(members)
+        .innerJoin(organizations, eq(organizations.id, members.organizationId)).where(eq(members.userId, auth.userId));
+      const demoOnly = orgs.length > 0 && orgs.every((o) => o.isDemo);
+      if (cred?.password && !demoOnly) {
         if (!body.password) throw new HttpError(400, "password_required", "Enter your password to confirm.");
         if (!(await verifyPassword(body.password, cred.password))) throw new HttpError(403, "wrong_password", "That password is incorrect.");
       }
@@ -112,6 +118,13 @@ export function accountRoutes() {
       }
       if (blocking.length) {
         return c.json({ error: { code: "transfer_ownership_first", message: `You are the only owner of ${blocking.join(", ")}, which has other members. Make someone else an owner first.` }, workspaces: blocking }, 409);
+      }
+      if (demoOnly) {
+        const out = await authFor(deps).api.signOut({ headers: c.req.raw.headers, asResponse: true });
+        await beforeUserDelete(deps, auth.userId);
+        await deps.db.delete(users).where(eq(users.id, auth.userId));
+        for (const cookie of out.headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
+        return c.json({ ok: true, deletedWorkspaces: alone });
       }
       const res = await authFor(deps).api.deleteUser({ headers: c.req.raw.headers, body: cred?.password ? { password: body.password } : {}, asResponse: true });
       if (!res.ok) {
