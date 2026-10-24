@@ -106,12 +106,24 @@ export const csrfGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
     let originHost = "";
     try { originHost = new URL(origin).host; } catch { /* invalid origin */ }
     if (!host || originHost !== host) throw new HttpError(403, "bad_origin", "Cross-site request blocked.");
+  } else if (c.req.header("sec-fetch-site") === "cross-site") {
+    // A browser that leaves out Origin still says where the request came from.
+    throw new HttpError(403, "bad_origin", "Cross-site request blocked.");
   }
-  const ct = c.req.header("content-type") ?? "";
   const hasBody = c.req.header("content-length") !== "0" && (m === "POST" || m === "PUT" || m === "PATCH");
-  if (hasBody && !ct.includes("application/json")) throw new HttpError(403, "bad_content_type", "Requests must be JSON.");
+  if (hasBody && !isJsonContentType(c.req.header("content-type"))) throw new HttpError(403, "bad_content_type", "Requests must be JSON.");
   await next();
 };
+
+/**
+ * True only when the media type itself is JSON. "text/plain; x=application/json" is a
+ * CORS-safelisted type that a cross-site page can send without a preflight, so a substring
+ * match is not enough.
+ */
+export function isJsonContentType(header: string | undefined): boolean {
+  const essence = (header ?? "").split(";")[0].trim().toLowerCase();
+  return essence === "application/json" || (essence.startsWith("application/") && essence.endsWith("+json"));
+}
 
 export async function parseBody<T>(c: Context, schema: ZodType<T>): Promise<T> {
   let raw: unknown = {};
