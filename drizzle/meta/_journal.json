@@ -169,6 +169,13 @@
       "when": 1792817294549,
       "tag": "0023_chat_pins",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792829952499,
+      "tag": "0024_domain_provider_auth_hooks",
+      "breakpoints": true
     }
   ]
 }

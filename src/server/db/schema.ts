@@ -169,6 +169,12 @@ export const domains = sqliteTable("domains", {
   lastCheckedAt: ts("last_checked_at"),
   verifiedAt: ts("verified_at"),
   catchAllMailboxId: text("catch_all_mailbox_id"),
+  /** The outbound provider's id for this domain (Resend), once registered for sending and receiving. */
+  providerDomainId: text("provider_domain_id"),
+  /** JSON: the DNS records the provider asks for (DKIM, return path, receiving MX). */
+  providerRecords: text("provider_records"),
+  /** The provider's last word: its status ("verified", "pending"), or why registering failed. */
+  providerStatus: text("provider_status"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("domains_name_uq").on(t.name), index("domains_org_idx").on(t.orgId)]);
 
@@ -188,6 +194,27 @@ export const mailboxes = sqliteTable("mailboxes", {
 }, (t) => [uniqueIndex("mailboxes_address_uq").on(t.address), index("mailboxes_org_idx").on(t.orgId)]);
 
 /** An address that forwards to one or more destinations (internal mailboxes or external addresses). */
+
+/**
+ * A customer app's auth emails sent through Multies (round 13): Supabase's Send Email Hook posts
+ * here, signed with the secret Supabase generated, and Multies sends from one of the workspace's
+ * mailboxes. No SMTP involved.
+ */
+export const authEmailHooks = sqliteTable("auth_email_hooks", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  /** "supabase" today. */
+  kind: text("kind").notNull().default("supabase"),
+  /** The hook secret ("whsec_..."), AES-GCM encrypted with the app secret. */
+  secretEnc: text("secret_enc").notNull(),
+  /** The Supabase project URL that verification links point at (https://<ref>.supabase.co). */
+  supabaseUrl: text("supabase_url").notNull(),
+  /** The product name used in subjects and bodies. */
+  appName: text("app_name").notNull(),
+  lastUsedAt: ts("last_used_at"),
+  createdAt: createdAt(),
+}, (t) => [index("auth_email_hooks_org_idx").on(t.orgId)]);
 export const aliases = sqliteTable("aliases", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),

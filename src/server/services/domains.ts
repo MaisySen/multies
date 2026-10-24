@@ -7,6 +7,7 @@ import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/c
 import { conflict, notFound } from "../lib/errors";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
 import { assertCanCreate } from "./plans";
+import { refreshProviderDomain, registerProviderDomain, removeProviderDomain } from "./mail/provider-domains";
 import type { DnsCheckReport } from "@/shared/dns";
 
 type DomainRow = typeof domains.$inferSelect;
@@ -24,6 +25,11 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
     records: expectedRecords(d, deps.config),
     lastCheck: d.lastCheck ? (JSON.parse(d.lastCheck) as DnsCheckReport) : null,
     counts: counts ?? null,
+    // Outbound and provider-MX inbound for this domain: null when it was never registered with the provider.
+    sending: d.providerStatus ? {
+      status: d.providerStatus.startsWith("error:") ? "error" as const : d.providerStatus === "verified" ? "verified" as const : "pending" as const,
+      detail: d.providerStatus.startsWith("error:") ? d.providerStatus.slice(6).trim() : null,
+    } : null,
   };
 }
 
@@ -66,12 +72,26 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
     dkimPrivateKeyEnc: await encryptSecret(config.appSecret, privateKeyPem),
   };
   await db.insert(domains).values(row);
+  // Customer domains are registered with the outbound provider straight away, so the setup page
+  // shows the provider's DKIM, return path and receiving MX. Sample and platform domains are not.
+  if (!opts.dkimKey && orgId !== "org_platform") {
+    const p = await registerProviderDomain(deps, name);
+    if (p) await db.update(domains).set(p).where(eq(domains.id, row.id!));
+  }
   return getDomain(db, orgId, row.id);
 }
 
 /** Runs a live DNS check and persists the outcome. Returns the report and whether status changed. */
 export async function verifyDomain(deps: Deps, d: DomainRow) {
   const now = deps.now();
+  // Ask the provider to look again first, so the records checked below are its latest ones.
+  // Only domains that went through provider registration (created since round 13) are refreshed.
+  const p = d.providerDomainId || d.providerStatus ? await refreshProviderDomain(deps, d) : null;
+  if (p && (p.providerRecords || p.providerStatus !== d.providerStatus)) {
+    const next = { ...p, providerRecords: p.providerRecords ?? d.providerRecords, providerDomainId: p.providerDomainId ?? d.providerDomainId };
+    await deps.db.update(domains).set(next).where(eq(domains.id, d.id));
+    d = { ...d, ...next };
+  }
   const report = await runDnsChecks(deps.dns, d, deps.config, now);
   const hadLookupErrors = report.records.some((r) => r.status === "error");
   let status: DomainRow["status"] = d.status;
@@ -117,9 +137,11 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, lim
   return results;
 }
 
-export async function deleteDomain(db: DB, orgId: string, id: string) {
+export async function deleteDomain(db: DB, orgId: string, id: string, deps?: Deps) {
   const d = await getDomain(db, orgId, id);
   await db.delete(domains).where(eq(domains.id, d.id));
+  // Free the provider's slot too (its plan counts domains). Best effort.
+  if (deps && d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId);
   return d;
 }
 

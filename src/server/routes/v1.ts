@@ -7,7 +7,9 @@
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { Scalar } from "@scalar/hono-api-reference";
 import type { Context, MiddlewareHandler } from "hono";
+import { and, eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
+import { mailboxes } from "../db/schema";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
@@ -26,6 +28,7 @@ import { registerSuiteR8Routes } from "./v1-suite-r8";
 import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
 import { registerPeopleRoutes } from "./v1-people";
+import { registerAuthHookRoutes } from "./v1-auth-hooks";
 
 // ---------------------------------------------------------------- schemas
 
@@ -80,7 +83,8 @@ const Message = MessageSummary.extend({
 }).openapi("Message");
 
 const SendRequest = z.object({
-  mailboxId: z.string().openapi({ description: "The mailbox to send from.", example: "mbx_8d7c6b5a4f3e2d1c" }),
+  mailboxId: z.string().optional().openapi({ description: "The mailbox to send from. Pass this or `from`.", example: "mbx_8d7c6b5a4f3e2d1c" }),
+  from: z.string().email().optional().openapi({ description: "The address of the mailbox to send from, instead of mailboxId (for example no-reply@yourdomain.com).", example: "no-reply@example.com" }),
   to: z.array(z.string().email()).min(1).max(50).openapi({ example: ["ada@example.com"] }),
   cc: z.array(z.string().email()).max(50).optional(),
   bcc: z.array(z.string().email()).max(50).optional(),
@@ -185,7 +189,7 @@ export function v1Routes() {
   });
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
-  for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
+  for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks", "auth-email-hooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
@@ -310,7 +314,9 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const result = await sendMessage(deps, auth, { ...input, to: input.to.map((a) => a.toLowerCase()), cc: input.cc?.map((a) => a.toLowerCase()), bcc: input.bcc?.map((a) => a.toLowerCase()) });
+    const mailboxId = input.mailboxId ?? (input.from ? (await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, auth.orgId), eq(mailboxes.address, input.from.toLowerCase()))).get())?.id : undefined);
+    if (!mailboxId) throw new HttpError(422, "validation_failed", input.from ? `${input.from} isn't a mailbox in this workspace.` : "Pass mailboxId or from.");
+    const result = await sendMessage(deps, auth, { ...input, mailboxId, to: input.to.map((a) => a.toLowerCase()), cc: input.cc?.map((a) => a.toLowerCase()), bcc: input.bcc?.map((a) => a.toLowerCase()) });
     return c.json(result, 200);
   });
 
@@ -337,6 +343,7 @@ export function v1Routes() {
   });
 
   registerAgentRoutes(api);
+  registerAuthHookRoutes(api);
   registerSuiteRoutes(api);
   registerSuiteR7Routes(api);
   registerSuiteR8Routes(api);

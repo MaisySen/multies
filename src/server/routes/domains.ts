@@ -49,7 +49,7 @@ export function domainRoutes() {
     })
     .delete("/:id", requireAdmin, async (c) => {
       const { auth, deps } = c.var;
-      const d = await deleteDomain(deps.db, auth.orgId, c.req.param("id"));
+      const d = await deleteDomain(deps.db, auth.orgId, c.req.param("id"), deps);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "domain.removed", targetType: "domain", targetId: d.id, metadata: { name: d.name }, ip: c.var.ip });
       return c.json({ ok: true });
     });

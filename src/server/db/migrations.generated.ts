@@ -398,5 +398,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `chat_messages` ADD `pinned_at` integer;",
       "ALTER TABLE `chat_messages` ADD `pinned_by` text;"
     ]
+  },
+  {
+    "name": "0024_domain_provider_auth_hooks",
+    "statements": [
+      "CREATE TABLE `auth_email_hooks` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`kind` text DEFAULT 'supabase' NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`supabase_url` text NOT NULL,\n\t`app_name` text NOT NULL,\n\t`last_used_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `auth_email_hooks_org_idx` ON `auth_email_hooks` (`org_id`);",
+      "ALTER TABLE `domains` ADD `provider_domain_id` text;",
+      "ALTER TABLE `domains` ADD `provider_records` text;",
+      "ALTER TABLE `domains` ADD `provider_status` text;"
+    ]
   }
 ];

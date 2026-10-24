@@ -1,5 +1,5 @@
 /** Shared shapes for DNS setup and verification, used by API and UI. */
-export type DnsRecordId = "ownership" | "mx" | "spf" | "dkim" | "dmarc";
+export type DnsRecordId = "ownership" | "mx" | "spf" | "dkim" | "dmarc" | "return_mx" | "return_spf";
 export type DnsCheckStatus = "pass" | "warn" | "fail" | "error" | "pending";
 
 export interface ExpectedRecord {

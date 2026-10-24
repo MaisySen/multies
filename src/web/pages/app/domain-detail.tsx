@@ -65,13 +65,25 @@ export function DomainDetailPage() {
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />
           <div className="text-fg/85">
             Add these records at your DNS provider, then come back. We pick them up within minutes.
-            <span className="text-muted"> On Cloudflare? Turn on <b className="font-medium text-fg">Email Routing</b> for the zone and it adds the MX and SPF records for you.</span>
+            {d.records.some((r) => r.id === "mx" && /cloudflare/i.test(r.value))
+              ? <span className="text-muted"> On Cloudflare? Turn on <b className="font-medium text-fg">Email Routing</b> for the zone and it adds the MX and SPF records for you.</span>
+              : <span className="text-muted"> Your nameservers stay where they are: these records work at any DNS provider (GoDaddy, Namecheap, Cloudflare and others).</span>}
+          </div>
+        </Card>
+      )}
+
+      {d.sending && (
+        <Card className="mb-6 flex items-start gap-3 p-4 text-sm" data-testid="domain-sending">
+          <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", d.sending.status === "verified" ? "bg-ok" : d.sending.status === "error" ? "bg-bad" : "bg-warn")} aria-hidden />
+          <div>
+            <div className="font-medium">{d.sending.status === "verified" ? "Sending and receiving are ready" : d.sending.status === "error" ? "Sending isn't set up for this domain yet" : "Sending and receiving start once the records below are in"}</div>
+            <p className="mt-0.5 text-xs text-muted">{d.sending.status === "error" ? `The email service said: ${d.sending.detail ?? "no reason given"}. Check DNS now tries again.` : "Mail to any mailbox on this domain lands in this workspace, and mail you send from it is signed with the key below."}</p>
           </div>
         </Card>
       )}
 
       <div className="space-y-3">
-        {d.records.map((r) => <RecordCard key={r.id} record={r} check={checks.get(r.id)} checking={verify.isPending} />)}
+        {d.records.map((r) => <RecordCard key={`${r.id}:${r.host}`} record={r} check={checks.get(r.id)} checking={verify.isPending} />)}
       </div>
       <p className="mt-3 text-xs text-subtle">Last checked {timeAgo(d.lastCheckedAt)}. Some DNS providers want the host without your domain (e.g. <code className="font-mono">_dmarc</code>), others the full name (<code className="font-mono">_dmarc.{d.name}</code>).</p>
 

@@ -31,6 +31,7 @@ import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoute
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
+import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 
@@ -271,6 +272,7 @@ export function createApp(deps: Deps) {
   app.all("/api/v1", v1Handler);
   app.all("/api/v1/*", v1Handler);
   app.route("/api/webhooks/resend", resendWebhookRoutes());
+  app.route("/api/auth-hooks", authHookWebhookRoutes());
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/deliverability", deliverabilityRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());

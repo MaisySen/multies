@@ -36,6 +36,7 @@ export interface Domain {
   records: ExpectedRecord[];
   lastCheck: DnsCheckReport | null;
   counts: { mailboxes: number; aliases: number } | null;
+  sending?: { status: "verified" | "pending" | "error"; detail: string | null } | null;
 }
 
 export interface Mailbox {

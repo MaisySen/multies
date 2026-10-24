@@ -10,6 +10,9 @@ import { deliveries } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { emitEvent } from "../developer/webhooks";
 import { suppress } from "./suppressions";
+import { fetchReceivedEmail } from "../mail/provider-domains";
+import { parseMime } from "../mail/mime";
+import { deliverInbound } from "../mail/delivery";
 
 interface ResendEvent {
   type: string;
@@ -45,7 +48,26 @@ const STATUS: Record<string, "delivered" | "bounced" | "complained" | "delayed" 
 /** A bounce is permanent unless the provider says it is transient. */
 const isHardBounce = (b: ResendEvent["data"]["bounce"]) => !b?.type || /permanent|hard/i.test(b.type);
 
+/**
+ * Mail that arrived through the provider's receiving MX (a customer domain whose DNS is not on
+ * Cloudflare). The webhook carries metadata only, so the raw message is fetched and delivered
+ * exactly like mail from the Cloudflare Email Worker.
+ */
+async function receiveFromProvider(deps: Deps, emailId: string) {
+  const got = await fetchReceivedEmail(deps, emailId);
+  if (!got) return { handled: false as const };
+  if (got.raw.byteLength > deps.config.maxMessageBytes) return { handled: true as const, received: 0, rejected: got.recipients.length };
+  const email = await parseMime(got.raw);
+  let received = 0;
+  for (const rcptTo of got.recipients) {
+    const r = await deliverInbound(deps, { envelopeFrom: got.from, rcptTo, email, sizeBytes: got.raw.byteLength, via: "resend", raw: got.raw });
+    if (r.accepted) received++;
+  }
+  return { handled: true as const, received, rejected: got.recipients.length - received };
+}
+
 export async function handleResendEvent(deps: Deps, event: ResendEvent) {
+  if (event.type === "email.received" && event.data.email_id) return receiveFromProvider(deps, event.data.email_id);
   const status = STATUS[event.type];
   const emailId = event.data.email_id;
   if (!status || !emailId) return { handled: false as const };
