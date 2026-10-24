@@ -25,7 +25,7 @@ const ALL = ["task.created", "task.updated", "task.commented", "contact.created"
 export const CATALOGUE: Connector[] = [
   { id: "slack", name: "Slack", description: "Post updates to a Slack channel through an incoming webhook.", icon: "Hash", format: "slack", events: WORK, urlHint: "https://hooks.slack.com/services/...", help: "In Slack, add the Incoming Webhooks app to a channel and copy its webhook URL." },
   { id: "discord", name: "Discord", description: "Post updates to a Discord channel through a channel webhook.", icon: "MessagesSquare", format: "discord", events: WORK, urlHint: "https://discord.com/api/webhooks/...", help: "In Discord, open channel settings, Integrations, Webhooks, then New Webhook and copy its URL." },
-  { id: "teams", name: "Microsoft Teams", description: "Post updates to a Teams channel through an incoming webhook or a Workflows webhook.", icon: "Users", format: "teams", events: WORK, urlHint: "https://....webhook.office.com/...", help: "In Teams, add an Incoming Webhook (or a Workflows \"post to a channel when a webhook request is received\" flow) and copy its URL." },
+  { id: "teams", name: "Microsoft Teams", description: "Post updates to a Teams channel through a Workflows webhook (sent as an Adaptive Card) or an older incoming webhook.", icon: "Users", format: "teams", events: WORK, urlHint: "https://...logic.azure.com/workflows/...", help: "In Teams, open Workflows, pick \"Post to a channel when a webhook request is received\", choose the channel and copy the URL. An older Incoming Webhook URL works too." },
   { id: "zapier", name: "Zapier", description: "Start a Zap with a Catch Hook trigger and reach thousands of apps.", icon: "Zap", format: "json", events: ALL, urlHint: "https://hooks.zapier.com/hooks/catch/...", help: "In Zapier, create a Zap with Webhooks by Zapier, Catch Hook, and paste its URL here." },
   { id: "make", name: "Make", description: "Start a Make scenario with a custom webhook.", icon: "Workflow", format: "json", events: ALL, urlHint: "https://hook.eu1.make.com/...", help: "In Make, add a Webhooks module, Custom webhook, and copy its address." },
   { id: "n8n", name: "n8n", description: "Start an n8n workflow, cloud or self hosted, with a Webhook node.", icon: "GitBranch", format: "json", events: ALL, urlHint: "https://your-n8n.example.com/webhook/...", help: "In n8n, add a Webhook node set to POST and copy its production URL." },
@@ -60,6 +60,34 @@ export function eventText(e: { type: string; data?: Record<string, unknown> }, a
   const who = d.actor && typeof d.actor === "object" ? str((d.actor as Record<string, unknown>).name) : "";
   const when = e.type.startsWith("booking.") && str(d.startsAt) ? ` at ${str(d.startsAt).replace("T", " ").slice(0, 16)} UTC` : "";
   return `${appName}: ${label}${name ? `: ${ref ? `${ref} ` : ""}${name}` : ""}${when}${who ? ` (by ${who})` : ""}`.slice(0, 1500);
+}
+
+/**
+ * True for a Teams Workflows (Power Automate) webhook URL. Those flows read an Adaptive Card
+ * message; the older Office 365 connector URLs (webhook.office.com) take plain text.
+ */
+export function isTeamsWorkflowsUrl(url: string) {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    return host.endsWith(".logic.azure.com") || host.endsWith(".powerplatform.com") || host.endsWith(".powerautomate.com") || /\/workflows\//i.test(u.pathname);
+  } catch {
+    return false;
+  }
+}
+
+/** The message a Teams Workflows "post to a channel when a webhook request is received" flow expects. */
+export function teamsWorkflowsCard(e: { type: string; data?: Record<string, unknown> }, appName = "Multies", appUrl?: string) {
+  const text = eventText(e, appName);
+  const prefix = `${appName}: `;
+  const body = [
+    { type: "TextBlock", text: LABEL[e.type] ?? e.type, weight: "Bolder", size: "Medium", wrap: true },
+    { type: "TextBlock", text: text.startsWith(prefix) ? text.slice(prefix.length) : text, wrap: true },
+    { type: "TextBlock", text: appName, isSubtle: true, spacing: "Small", size: "Small", wrap: true },
+  ];
+  const card: Record<string, unknown> = { $schema: "http://adaptivecards.io/schemas/adaptive-card.json", type: "AdaptiveCard", version: "1.4", body };
+  if (appUrl && /^https:\/\//.test(appUrl)) card.actions = [{ type: "Action.OpenUrl", title: `Open ${appName}`, url: appUrl }];
+  return { type: "message", attachments: [{ contentType: "application/vnd.microsoft.card.adaptive", contentUrl: null, content: card }] };
 }
 
 export async function listIntegrations(deps: Deps, orgId: string) {

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { eventText, mapFields } from "@/server/services/suite/integrations";
+import { eventText, isTeamsWorkflowsUrl, mapFields } from "@/server/services/suite/integrations";
 import { busyTimes, computeSlots, zonedTime } from "@/server/services/suite/scheduling";
 
 let ctx: Awaited<ReturnType<typeof makeTestApp>>;
@@ -93,6 +93,35 @@ describe("outgoing connectors", () => {
     await m.post(`/api/invites/${invite.body.link.split("/invite/")[1]}/accept`);
     expect((await m.post("/api/connectors", { connector: "slack", url: "https://hooks.slack.com/services/a" })).status).toBe(403);
     expect((await m.get("/api/connectors")).status).toBe(200);
+  });
+});
+
+describe("Teams Workflows", () => {
+  beforeEach(() => setup());
+
+  it("tells Workflows URLs from classic connector URLs", () => {
+    expect(isTeamsWorkflowsUrl("https://prod-12.australiasoutheast.logic.azure.com:443/workflows/abc/triggers/manual/paths/invoke?sig=x")).toBe(true);
+    expect(isTeamsWorkflowsUrl("https://default123.ab.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/abc/triggers/manual/paths/invoke")).toBe(true);
+    expect(isTeamsWorkflowsUrl("https://acme.webhook.office.com/webhookb2/abc/IncomingWebhook/def")).toBe(false);
+    expect(isTeamsWorkflowsUrl("not a url")).toBe(false);
+  });
+
+  it("sends an Adaptive Card to a Workflows URL and plain text to a classic connector", async () => {
+    const wf = await c.post("/api/connectors", { connector: "teams", url: "https://prod-12.australiasoutheast.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?sig=x", events: ["task.created"] });
+    expect(wf.status).toBe(201);
+    await c.post(`/api/connectors/${wf.body.connection.id}/test`);
+    const card = JSON.parse(sent[sent.length - 1].body);
+    expect(card.type).toBe("message");
+    expect(card.attachments[0].contentType).toBe("application/vnd.microsoft.card.adaptive");
+    expect(card.attachments[0].content).toMatchObject({ type: "AdaptiveCard", version: "1.4" });
+    await c.post("/api/tasks", { title: "Call Jo" });
+    const task = JSON.parse(sent[sent.length - 1].body).attachments[0].content;
+    expect(task.body[0].text).toBe("New task");
+    expect(task.body[1].text).toContain("Call Jo");
+
+    const classic = await c.post("/api/connectors", { connector: "teams", url: "https://acme.webhook.office.com/webhookb2/abc/IncomingWebhook/def", events: ["task.created"] });
+    await c.post(`/api/connectors/${classic.body.connection.id}/test`);
+    expect(JSON.parse(sent[sent.length - 1].body)).toEqual({ text: expect.stringContaining("connected") });
   });
 });
 

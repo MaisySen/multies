@@ -151,7 +151,7 @@ async function attempt(deps: Deps, deliveryId: string) {
   const now = deps.now();
   const signature = new Webhook(secret).sign(d.id, now, d.payload);
   // Slack, Discord and Teams take a chat message body, not our event; the signature headers stay for parity.
-  const body = e.format && e.format !== "json" ? await chatBody(e.format, d.payload, deps.config.appName) : d.payload;
+  const body = e.format && e.format !== "json" ? await chatBody(e.format, d.payload, deps.config.appName, e.url, deps.config.appUrl) : d.payload;
   let status: number | null = null;
   let error: string | null = null;
   try {
@@ -284,9 +284,12 @@ export async function pruneDeliveries(deps: Deps) {
 }
 
 /** Turns a stored event into the message body a chat app's incoming webhook expects. */
-async function chatBody(format: Exclude<EndpointFormat, "json">, payload: string, appName: string) {
-  const { eventText } = await import("../suite/integrations");
-  const text = eventText(JSON.parse(payload) as { type: string; data?: Record<string, unknown> }, appName);
+async function chatBody(format: Exclude<EndpointFormat, "json">, payload: string, appName: string, url: string, appUrl: string) {
+  const { eventText, isTeamsWorkflowsUrl, teamsWorkflowsCard } = await import("../suite/integrations");
+  const event = JSON.parse(payload) as { type: string; data?: Record<string, unknown> };
+  // Teams Workflows flows read an Adaptive Card; the classic connector URLs take plain text.
+  if (format === "teams" && isTeamsWorkflowsUrl(url)) return JSON.stringify(teamsWorkflowsCard(event, appName, appUrl));
+  const text = eventText(event, appName);
   if (format === "discord") return JSON.stringify({ content: text.slice(0, 2000), allowed_mentions: { parse: [] } });
   return JSON.stringify({ text });
 }
