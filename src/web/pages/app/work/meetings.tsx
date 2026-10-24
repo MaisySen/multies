@@ -6,6 +6,7 @@ import "@livekit/components-styles";
 import { CalendarClock, Mail, Plus, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
+import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -19,7 +20,7 @@ export interface Meeting {
 }
 interface Join { url: string; token: string; room: string }
 
-const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+const when = zonedDateTime;
 
 function Room({ join, onLeave }: { join: Join; onLeave: () => void }) {
   return (
@@ -72,7 +73,7 @@ export function MeetingsPage() {
 
 function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () => void; onMade: (id: string) => void }) {
   const [title, setTitle] = useState("");
-  const [at, setAt] = useState(() => { const d = new Date(Date.now() + 3600_000); d.setMinutes(0, 0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16); });
+  const [at, setAt] = useState(() => { const d = new Date(Date.now() + 3600_000); d.setUTCMinutes(0, 0, 0); return isoToZonedInput(d); });
   const [duration, setDuration] = useState("30");
   const [guests, setGuests] = useState("");
   const [busy, setBusy] = useState(false);
@@ -80,7 +81,7 @@ function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () 
     setBusy(true);
     try {
       const invitees = guests.split(/[\s,;]+/).map((g) => g.trim()).filter(Boolean);
-      const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: new Date(at).toISOString(), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0 });
+      const r = await api.post<{ meeting: Meeting; invites: { status: string } | null }>("/meetings", { title: title || undefined, startsAt: zonedInputToIso(at), durationMin: Number(duration), invitees, sendInvites: send && invitees.length > 0 });
       if (r.invites?.status === "sent") toast.success("Invites sent");
       onClose(); onMade(r.meeting.id);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
@@ -90,7 +91,7 @@ function ScheduleDialog({ open, onClose, onMade }: { open: boolean; onClose: () 
       <div className="space-y-3">
         <Field label="Title">{(fp) => (<Input {...fp} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Meeting" />)}</Field>
         <div className="grid grid-cols-[1fr_110px] gap-3">
-          <Field label="Starts">{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
+          <Field label={`Starts (${tz()})`}>{(fp) => (<Input {...fp} type="datetime-local" value={at} onChange={(e) => setAt(e.target.value)} />)}</Field>
           <Field label="Minutes">{(fp) => (<Input {...fp} type="number" min={5} max={480} value={duration} onChange={(e) => setDuration(e.target.value)} />)}</Field>
         </div>
         <Field label="Guests" hint="Email addresses, separated by commas. Each gets a calendar invite with the join link.">{(fp) => (<Input {...fp} value={guests} onChange={(e) => setGuests(e.target.value)} placeholder="maria@blueharbor.co" />)}</Field>
