@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, AtSign, Check } from "lucide-react";
 import { toast } from "sonner";
@@ -24,6 +24,27 @@ function deviceId(): string {
   } catch { return ""; }
 }
 
+/** The value once it has stopped changing for `ms`. */
+export function useDebounced<T>(value: T, ms = 400): T {
+  const [v, setV] = useState(value);
+  useEffect(() => { const t = setTimeout(() => setV(value), ms); return () => clearTimeout(t); }, [value, ms]);
+  return v;
+}
+
+export type FreeAddressCheck = { address: string | null; available: boolean; problem: string | null };
+
+/** Whether the typed name can be taken, checked a moment after typing stops (reads only). */
+export function useFreeAddressCheck(localPart: string, enabled: boolean) {
+  const name = useDebounced(localPart.trim().toLowerCase());
+  return useQuery({
+    queryKey: ["free-address", "check", name],
+    queryFn: () => api.get<FreeAddressCheck>(`/free-address/check?localPart=${encodeURIComponent(name)}`),
+    enabled: enabled && name.length >= 3,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
 export function useFreeAddress() {
   return useQuery({ queryKey: freeAddressKey, queryFn: () => api.get<FreeAddressInfo>("/free-address"), staleTime: 60_000 });
 }
@@ -47,6 +68,8 @@ export function FreeAddressCard({ className, compact = false, onDone }: { classN
     onError: (e) => setError(e instanceof ApiError ? e.message : "That didn't work. Try again."),
   });
   const d = info.data;
+  const typed = local ?? (d && d.enabled ? d.suggestion : "");
+  const check = useFreeAddressCheck(typed, !!d && d.enabled && d.available && !d.addresses[0]);
   if (!d || !d.enabled) return null;
   const mine = d.addresses[0];
   if (mine) {
@@ -89,6 +112,11 @@ export function FreeAddressCard({ className, compact = false, onDone }: { classN
             <span className="shrink-0 pr-3 text-[15px] text-subtle">@{d.domain}</span>
           </div>
           {error && <p id="free-local-error" role="alert" className="mt-1.5 text-[13px] text-bad">{error}</p>}
+          {!error && check.data && check.data.address === `${value.trim().toLowerCase()}@${d.domain}` && (
+            check.data.available
+              ? <p className="mt-1.5 flex items-center gap-1 text-[13px] text-ok" data-testid="free-address-available"><Check className="h-3.5 w-3.5" aria-hidden />Available</p>
+              : <p className="mt-1.5 text-[13px] text-bad" data-testid="free-address-unavailable">{check.data.problem}</p>
+          )}
         </div>
         <Button type="submit" loading={claim.isPending}>Get my address</Button>
       </form>

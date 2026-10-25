@@ -159,6 +159,25 @@ async function wasClaimedBefore(deps: Deps, address: string) {
 }
 
 /** Claims a free address for the signed in person's workspace. `ctx` carries the network and device for the abuse limits. */
+/**
+ * Whether a free address can be taken, without taking it (the apps check while the name is typed).
+ * Reads only: the same name rules and taken lookups as a claim, no audit row, no limits counted.
+ */
+export async function checkFreeAddress(deps: Deps, localPart: string): Promise<{ address: string | null; available: boolean; problem: string | null }> {
+  const domainName = deps.config.freeMail.domain;
+  if (!domainName) return { address: null, available: false, problem: "Free addresses aren't offered on this server. Add your own domain instead." };
+  const local = localPart.trim().toLowerCase();
+  const address = `${local}@${domainName}`;
+  const problem = freeLocalPartProblem(local);
+  if (problem) return { address, available: false, problem };
+  const [m, a] = await Promise.all([
+    deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.address, address)).get(),
+    deps.db.select({ id: aliases.id }).from(aliases).where(eq(aliases.address, address)).get(),
+  ]);
+  if (m || a || await wasClaimedBefore(deps, address)) return { address, available: false, problem: `${address} is taken. Try another, for example with your team's name.` };
+  return { address, available: true, problem: null };
+}
+
 export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { localPart: string; displayName?: string }, ctx: { ip?: string | null; deviceId?: string | null } = {}) {
   const domainName = deps.config.freeMail.domain;
   if (!domainName) throw new HttpError(404, "free_mail_off", "Free addresses aren't offered on this server. Add your own domain instead.");

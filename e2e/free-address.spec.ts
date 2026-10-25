@@ -72,7 +72,11 @@ test("a new person in São Paulo is onboarded from the browser, takes a free add
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-email-paths.png`, fullPage: true });
   const input = card.getByLabel("Address");
   await expect(input).toHaveValue(/^fern/);
+  // The name is checked as it is typed: a kept name says why, a free one says Available.
+  await input.fill("admin");
+  await expect(card.getByTestId("free-address-unavailable")).toBeVisible();
   await input.fill(`fern.${stamp}`);
+  await expect(card.getByTestId("free-address-available")).toHaveText("Available");
   await card.getByRole("button", { name: "Get my address" }).click();
   const address = `fern.${stamp}@free.multies.test`;
   await expect(page.getByTestId("free-address-value")).toHaveText(address);

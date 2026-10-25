@@ -195,6 +195,42 @@ describe("free addresses", () => {
   });
 });
 
+describe("checking a free address before claiming it", () => {
+  it("says available, taken, kept or not allowed, reads only", async () => {
+    const ctx = await makeTestApp(FREE);
+    const c = new Client(ctx.app);
+    await verifiedUser(ctx, c);
+    const check = async (n: string) => (await c.get(`/api/free-address/check?localPart=${encodeURIComponent(n)}`)).body;
+    expect(await check("Ada.Acme")).toEqual({ address: "ada.acme@free.test", available: true, problem: null });
+    const before = (await ctx.db.select().from(mailboxes)).length;
+    await check("ada.acme");
+    expect((await ctx.db.select().from(mailboxes)).length).toBe(before);
+    expect((await check("admin")).available).toBe(false);
+    expect((await check("admin")).problem).toBeTruthy();
+    expect((await check("a")).available).toBe(false);
+    expect((await c.post("/api/free-address", { localPart: "ada.acme" })).status).toBe(201);
+    expect(await check("ada.acme")).toMatchObject({ available: false, problem: expect.stringContaining("is taken") });
+    // Removed addresses are never given out again, and the check says so too.
+    const mb = (await ctx.db.select().from(mailboxes).where(eq(mailboxes.address, "ada.acme@free.test")).get())!;
+    await ctx.db.delete(mailboxes).where(eq(mailboxes.id, mb.id));
+    expect((await check("ada.acme")).available).toBe(false);
+  });
+
+  it("is off without a shared domain, needs sign in, and is rate limited", async () => {
+    const off = await makeTestApp();
+    const c0 = new Client(off.app);
+    await verifiedUser(off, c0);
+    expect((await c0.get("/api/free-address/check?localPart=ada")).body).toMatchObject({ available: false, address: null });
+    const ctx = await makeTestApp(FREE);
+    expect((await new Client(ctx.app).get("/api/free-address/check?localPart=ada")).status).toBe(401);
+    const c = new Client(ctx.app);
+    await verifiedUser(ctx, c);
+    let last = 200;
+    for (let i = 0; i < 61; i++) last = (await c.get(`/api/free-address/check?localPart=name${i}`)).status;
+    expect(last).toBe(429);
+  });
+});
+
 describe("free address abuse limits", () => {
   it("one per person, even after deleting it", async () => {
     const ctx = await makeTestApp(FREE);
