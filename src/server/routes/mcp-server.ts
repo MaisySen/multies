@@ -558,11 +558,11 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
 
   server.registerTool("message_to_task", {
     title: "Turn a chat message into a task", annotations: rw,
-    description: "Make a task from a chat message. The task links back to the message and the message shows the task.",
-    inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional() },
-  }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string }) => {
+    description: "Make a task from a chat message. The task links back to the message and the message shows the task. Set triage: true to send it to the Triage queue instead.",
+    inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional(), triage: z.boolean().optional() },
+  }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string; triage?: boolean }) => {
     writable();
-    const t = await messageToTask(deps, a, x.messageId, { title: x.title, projectId: x.projectId, assignee: parseAssignee(x.assignee) });
+    const t = await messageToTask(deps, a, x.messageId, { title: x.title, projectId: x.projectId, assignee: x.triage ? undefined : parseAssignee(x.assignee), triage: x.triage });
     return { task: { id: t.id, ref: t.ref, title: t.title } };
   }));
 

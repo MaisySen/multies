@@ -70,23 +70,43 @@ function Column({ id, title, color, count, children, onAdd }: { id: string; titl
 /** Kanban: columns are the project's statuses. Drag a card to move or reorder it. */
 export const NO_VALUE = "__none";
 
+const EPIC_COLOR = "#5856d6";
+
+/** Round 22: board columns when grouped by epic: each epic (by board order), then "No epic". */
+export function epicColumns(tasks: Pick<Task, "id" | "title" | "type" | "position">[]) {
+  const epics = tasks.filter((t) => t.type === "epic").sort((a, b) => a.position - b.position);
+  return [...epics.map((e) => ({ id: e.id, name: e.title, color: EPIC_COLOR })), { id: NO_VALUE, name: "No epic", color: "#8e8e93" }];
+}
+
+/** The epic column a card sits in: its parent when that parent is one of the columns, else "No epic". */
+export function epicKey(t: Pick<Task, "parentId">, cols: { id: string }[]) {
+  return t.parentId && t.parentId !== NO_VALUE && cols.some((c) => c.id === t.parentId) ? t.parentId : NO_VALUE;
+}
+
 /**
  * Kanban: columns are the project's statuses, or the options of a single select field when
  * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
  */
-export function Board({ project, tasks, onOpen, onMove, onAdd, groupBy }: {
+export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy, byEpic }: {
   project: Project; tasks: Task[]; onOpen: (id: string) => void;
   onMove: (id: string, columnId: string, position: number) => void; onAdd: (columnId: string) => void;
   groupBy?: CustomField;
+  /** Round 22: one column per epic in the project, plus "No epic". Epics themselves are the columns, not cards. */
+  byEpic?: boolean;
 }) {
-  const cols = useMemo(() => groupBy
+  const epicCols = useMemo(() => byEpic ? epicColumns(allTasks) : null, [byEpic, allTasks]);
+  const tasks = useMemo(() => byEpic ? allTasks.filter((t) => t.type !== "epic") : allTasks, [byEpic, allTasks]);
+  const cols = useMemo(() => epicCols
+    ? epicCols
+    : groupBy
     ? [...groupBy.options.map((o) => ({ id: o.id, name: o.label, color: o.color })), { id: NO_VALUE, name: `No ${groupBy.name.toLowerCase()}`, color: "#8e8e93" }]
-    : project.statuses.map((s) => ({ id: s.id, name: s.name, color: s.color })), [groupBy, project.statuses]);
+    : project.statuses.map((s) => ({ id: s.id, name: s.name, color: s.color })), [epicCols, groupBy, project.statuses]);
   const keyOf = useCallback((t: Task) => {
+    if (epicCols) return epicKey(t, epicCols);
     if (!groupBy) return t.statusId;
     const v = t.fields?.[groupBy.id];
     return typeof v === "string" && groupBy.options.some((o) => o.id === v) ? v : NO_VALUE;
-  }, [groupBy]);
+  }, [groupBy, epicCols]);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const [activeId, setActiveId] = useState<string | null>(null);
   // Local column assignment while dragging, so the card shows in the column it hovers.

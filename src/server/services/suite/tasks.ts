@@ -10,7 +10,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, setTaskFieldValues, valuesForTasks, type FieldFilter } from "./fields";
 import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
-import { assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
+import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 
 export type Category = "todo" | "doing" | "done";
@@ -443,6 +443,11 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     entityType: "task", entityId: id, op: "create", verb: source.threadId ? "created_from_email" : "created",
     data: { title, ref: task.ref, ...(source.subject ? { subject: source.subject } : {}) }, event: "task.created", eventData: { task },
   });
+  if (triage) {
+    const { emitEvent } = await import("../developer/webhooks");
+    const by = actorOf(actor);
+    await emitEvent(deps, actor.orgId, "triage.created", { task, source: triage.source, actor: { type: by.type, id: by.id, name: by.name } });
+  }
   if (task.assignee?.type === "member" && task.assignee.id !== actor.userId && !triage) {
     const { notify } = await import("./notify");
     await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: id, title: `${task.ref} assigned to you: ${title}`, actorName: actor.name || actor.email });
