@@ -560,9 +560,10 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0047_r24_formula_fields",
+    "name": "0048_r24_dashboards",
     "statements": [
-      "ALTER TABLE `custom_fields` ADD `config` text;"
+      "CREATE TABLE `dashboards` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`owner_user_id` text,\n\t`shared` integer DEFAULT false NOT NULL,\n\t`layout` text DEFAULT '{\"widgets\":[]}' NOT NULL,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
+      "CREATE INDEX `dashboards_org_idx` ON `dashboards` (`org_id`);"
     ]
   }
 ];

@@ -1088,10 +1088,8 @@ export const customFields = sqliteTable("custom_fields", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] }).notNull(),
+  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] }).notNull(),
   options: text("options").notNull().default("[]"),
-  /** R24.1: formula ({ expression }) and rollup ({ source, field, fn }) settings as JSON. */
-  config: text("config"),
   position: integer("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);
@@ -1583,3 +1581,22 @@ export const calendarSources = sqliteTable("calendar_sources", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
+
+/**
+ * Round 24 (R24.3): dashboards. The widgets live in `layout` (JSON), so saving a dashboard is one row
+ * write; widget data is computed on read and never stored. Private to the owner unless shared.
+ */
+export const dashboards = sqliteTable("dashboards", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  ownerUserId: text("owner_user_id"),
+  shared: integer("shared", { mode: "boolean" }).notNull().default(false),
+  /** JSON: { widgets: DashboardWidget[] } (see services/suite/dashboards.ts). */
+  layout: text("layout").notNull().default('{"widgets":[]}'),
+  createdByType: text("created_by_type", { enum: ["member", "agent", "system"] }).notNull().default("member"),
+  createdById: text("created_by_id"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  version: integer("version").notNull().default(1),
+}, (t) => [index("dashboards_org_idx").on(t.orgId)]);
