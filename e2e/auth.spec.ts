@@ -9,6 +9,7 @@ test("two-factor setup, then sign-in asks for the code", async ({ page }) => {
   await page.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Mona/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/my-work$/);
 
   await page.goto("/app/settings/account");
   await expect(page.getByText("This device")).toBeVisible();
@@ -32,4 +33,5 @@ test("two-factor setup, then sign-in asks for the code", async ({ page }) => {
   await page.getByLabel("Code").fill(totp.generate());
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Mona/ })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/my-work$/);
 });

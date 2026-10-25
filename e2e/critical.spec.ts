@@ -39,6 +39,7 @@ async function signUp(page: Page, name: string, email: string) {
   await page.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: new RegExp(`Good (morning|afternoon|evening), ${name.split(" ")[0]}`) })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/my-work$/);
 }
 
 test("sign up, then confirm the email address from the verification email", async ({ page }) => {

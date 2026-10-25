@@ -105,7 +105,11 @@ it("chat polish (round 20): a reaction add or remove is 2 rows, polls and search
   const call = take() - limiter;
   // Measured 23: one meetings row (5 with its indexes) and one chat message (5), the channel's last
   // message time (4), the caller's read marker (3) and the meeting's activity and change rows.
-  expect(call).toBeLessThanOrEqual(24);
+  // Round 21 adds the channel's call claim (4), so two people pressing Call make one meeting.
+  expect(call).toBeLessThanOrEqual(28);
+  // A second press within a minute joins that call: the claim is refused and nothing is written.
+  await u.post(`/api/chat/channels/${g.id}/call`, {});
+  expect(take() - limiter).toBe(0);
 });
 it("search everything and My Work (round 20) write nothing, for a person and through the services an agent key uses", async () => {
   const ctx = await makeTestApp({ DEMO_MODE: "true" });

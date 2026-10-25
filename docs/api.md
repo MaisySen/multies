@@ -40,7 +40,22 @@ Clients poll `GET /unread` every 15 s and the open channel with `?since=` every 
 Public API: `GET` and `POST /api/v1/chat/channels`, `PATCH /api/v1/chat/channels/{id}` (`name?`, `topic?`, `archived?`,
 `projectId?`, `guestAccess?`), `GET` and `POST /api/v1/chat/channels/{id}/messages`, `GET /api/v1/chat/messages/{id}/thread`,
 `POST /api/v1/chat/messages/{id}/task`, `POST` and `DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`.
+Round 21: `POST /api/v1/chat/messages/{id}/reactions` (`{ emoji }`, toggles the key's reaction; read only keys get 403) and
+`GET /api/v1/chat/search?q=&channelId=&limit=` (public channels only, newest first, limit 1 to 50).
+
+Calls: pressing Call in a channel (`POST /api/chat/channels/{id}/call`) makes one meeting and posts a join card. A second
+press in the same channel within 60 seconds joins that call instead (200 with `joined: true`), so two people pressing at
+once get one meeting.
 An agent key posts as its agent. MCP: `pin_message` (`messageId`, `pinned`).
+
+## Search everything and My Work
+
+`GET /api/v1/search/everything?q=&types=&limit=` searches mail, tasks (title, notes or a key like `OPS-12`), docs, chat,
+contacts and deals in one call, grouped by type, newest first. `q` needs 2 to 100 characters; `types` is a comma list
+(`mail,tasks,docs,chat,contacts,deals`); `limit` is per group, 1 to 20. `GET /api/v1/my-work?tz=` answers what is waiting
+today: overdue and due tasks, mentions, mail on my tasks, approvals, meetings and snoozed mail coming back. Both read
+only, write nothing, and show only what the key can open (an agent key: its own inboxes and public channels).
+`GET /api/v1/search` stays the agent mail search.
 
 ## Notifications
 
