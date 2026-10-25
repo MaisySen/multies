@@ -10,6 +10,8 @@ export class ApiError extends Error {
 interface RequestOptions {
   /** Makes a POST safe to retry: the server replays the first response for the same key. */
   idempotencyKey?: string;
+  /** Extra request headers (for example x-device-id for the free address limits). */
+  headers?: Record<string, string>;
 }
 
 async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
@@ -17,6 +19,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Re
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["content-type"] = "application/json";
   if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+  if (opts.headers) Object.assign(headers, opts.headers);
   // With an idempotency key a dropped connection is retried once, without one it is not.
   const tries = opts.idempotencyKey ? 2 : 1;
   for (let i = 0; i < tries && !res; i++) {

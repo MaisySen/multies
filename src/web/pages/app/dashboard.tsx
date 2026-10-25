@@ -10,6 +10,7 @@ import { formatBytes, timeAgo, tz } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
 import { LOCALE } from "@/shared/locale";
+import { FreeAddressCard } from "@/web/components/free-address";
 
 export function DashboardPage() {
   const me = useMe();
@@ -21,6 +22,7 @@ export function DashboardPage() {
       {error && <Card className="p-6 text-sm text-bad">Couldn't load the overview: {error.message}</Card>}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
+          {data.usage.domains === 0 && <FreeAddressCard />}
           {!data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
             <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />

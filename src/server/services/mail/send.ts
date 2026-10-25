@@ -17,6 +17,9 @@ import "./deliver-job";
 import { maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
 import type { ParsedAttachment } from "./mime";
 
+/** Most recipients one message from a free address can have. */
+export const FREE_MAX_RECIPIENTS = 10;
+
 export interface SendResult {
   messageId: string;
   internal: string[];
@@ -50,7 +53,18 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const recipients = [...new Set([...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].map((a) => a.toLowerCase()))];
   const plan = await getPlan(db, auth.orgId);
   const used = await sentToday(db, auth.orgId, deps.now());
-  const cap = org.sendCapDaily ?? plan.limits.dailySends;
+  // Free addresses share one Multies domain, so they get a smaller daily allowance (FREE_MAIL_DAILY_SENDS).
+  // New workspaces get a smaller allowance still for their first week, and a free address can't mass mail.
+  const freeAddress = domain.orgId === "org_platform" && mb.kind === "person" && !org.isDemo;
+  const newAccount = deps.now().getTime() - new Date(org.createdAt).getTime() < 7 * 86_400_000;
+  const freeCap = newAccount ? Math.min(deps.config.freeMail.newAccountDailySends, deps.config.freeMail.dailySends) : deps.config.freeMail.dailySends;
+  const cap = Math.min(org.sendCapDaily ?? plan.limits.dailySends, freeAddress ? freeCap : Infinity);
+  if (freeAddress && recipients.length > FREE_MAX_RECIPIENTS) {
+    throw badRequest(`A free address can send to up to ${FREE_MAX_RECIPIENTS} people in one message.`);
+  }
+  if (freeAddress && used + recipients.length > cap) {
+    throw planLimit(`Free addresses can send to ${cap} recipients a day${newAccount ? " in their first week" : ""}. It resets at midnight UTC. Add your own domain to send more.`);
+  }
   if (used + recipients.length > cap) {
     throw planLimit(org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends
       ? `This workspace can send to ${cap} recipients a day while its sending is under review. It resets at midnight UTC.`
@@ -72,7 +86,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (externalCount && !org.isDemo) {
     const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
     const verdict = scoreOutbound({ subject: input.subject, text: input.text, html: input.html, recipients: externalCount, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, auth.orgId) });
-    if (verdict.score >= SPAM_HOLD_AT) {
+    // Free addresses share one domain's reputation, so they are held at the lower "flag" score too.
+    if (verdict.score >= SPAM_HOLD_AT || (freeAddress && verdict.score >= SPAM_FLAG_AT)) {
       await recordAbuse(deps, auth.orgId, "outbound_held", verdict.score, verdict.reasons.join("; "));
       await maybeAutoSuspend(deps, auth.orgId, ageDays);
       throw new HttpError(422, "message_held", "This message looks like spam to our filters, so it wasn't sent. Check the reasons, edit the message and try again.", { reasons: verdict.reasons, score: verdict.score });

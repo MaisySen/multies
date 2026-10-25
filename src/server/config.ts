@@ -92,6 +92,13 @@ export interface AppConfig {
    */
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
+  /**
+   * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
+   * (name@FREE_MAIL_DOMAIN) with no domain of its own. One shared domain, already verified with the
+   * outbound provider, so free users never spend the provider's per-account domain slots.
+   * `dailySends` caps recipients a day from a free address, per workspace, to protect the shared domain.
+   */
+  freeMail: { domain?: string; dailySends: number; newAccountDailySends: number; dailyClaims: number };
   /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
   push: { enabled: boolean; expoAccessToken?: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
@@ -194,6 +201,10 @@ const EnvSchema = z.object({
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
+  FREE_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
+  FREE_MAIL_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
+  FREE_MAIL_NEW_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
+  FREE_MAIL_DAILY_CLAIMS: z.string().regex(/^\d+$/).optional(),
   LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
@@ -215,6 +226,20 @@ function hostOf(url: string): string {
 }
 
 /** Builds config from a plain env object (process.env on Node, bindings on Workers). */
+/**
+ * The shared domain for free addresses. It must be a subdomain that is not the app's own host:
+ * the app's domain (multies.si) carries the company's staff addresses and is never handed out.
+ */
+export function freeMailDomain(raw: string | undefined, appUrl: string | undefined): string | undefined {
+  const d = raw?.trim().toLowerCase();
+  if (!d) return undefined;
+  let host = "";
+  try { host = new URL(appUrl ?? "http://localhost").hostname.toLowerCase(); } catch { /* no app URL */ }
+  const apex = host.replace(/^(www|app)\./, "");
+  if (d === host || d === apex) return undefined;
+  return d;
+}
+
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   const env = EnvSchema.parse(raw);
   const mode = env.APP_MODE ?? (env.NODE_ENV === "production" ? "production" : "development");
@@ -299,7 +324,15 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "Multies",
     },
-    agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
+    // Agent inboxes for workspaces with no domain live on the same shared domain as free addresses
+    // unless the deployment names a separate one.
+    agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
+    freeMail: {
+      domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),
+      dailySends: Number(env.FREE_MAIL_DAILY_SENDS ?? 50),
+      newAccountDailySends: Number(env.FREE_MAIL_NEW_DAILY_SENDS ?? 20),
+      dailyClaims: Number(env.FREE_MAIL_DAILY_CLAIMS ?? 300),
+    },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY

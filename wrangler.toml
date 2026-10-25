@@ -102,6 +102,10 @@ SENTRY_TRACES_SAMPLE_RATE = "0.1"
 SECURITY_CONTACT = "mailto:security@multies.si"
 # Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
 SUPPORT_EMAIL = "support@multies.si"
+# Free personal addresses (name@mail.multies.si), docs/runbooks/free-addresses.md. Never the root
+# multies.si: that is the company's own domain, for staff addresses only (owner decision, 25 Oct 2026).
+FREE_MAIL_DOMAIN = "mail.multies.si"
+FREE_MAIL_DAILY_SENDS = "50"
 # The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
 KEEP_DEMO_ORG_IDS = "org_b0kb5ykvrto8w0rm"
 # At most this many new demo workspaces a day. Each costs about 2,000 D1 rows over its life

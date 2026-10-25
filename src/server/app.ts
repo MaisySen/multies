@@ -15,6 +15,7 @@ import { authFor } from "./auth";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
+import { freeAddressRoutes } from "./routes/free-address";
 import { orgRoutes } from "./routes/org";
 import { mailRoutes } from "./routes/mail";
 import { inboundKeyRoutes, inboundWebhookRoutes } from "./routes/inbound";
@@ -196,6 +197,7 @@ export function createApp(deps: Deps) {
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
+  app.route("/api/free-address", freeAddressRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
   app.route("/api/mail", mailRoutes());

@@ -9,7 +9,7 @@
 import { and, asc, count, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, domains, mailboxes, messages, organizations, sendApprovals,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, domains, mailboxes, messages, sendApprovals,
 } from "../../db/schema";
 import { fromB64, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
@@ -129,15 +129,10 @@ async function pickDomain(deps: Deps, orgId: string, domainId?: string) {
   return { domain: await ensureSharedDomain(deps, shared), shared: true };
 }
 
-const PLATFORM_ORG = "org_platform";
-
-/** The platform-owned domain that hosts agent inboxes for workspaces without a domain. */
+/** The platform-owned domain that hosts agent inboxes (and free addresses) for workspaces without a domain. */
 async function ensureSharedDomain(deps: Deps, name: string) {
-  const existing = await deps.db.select().from(domains).where(eq(domains.name, name)).get();
-  if (existing) return existing;
-  await deps.db.insert(organizations).values({ id: PLATFORM_ORG, name: "Multies platform", slug: "mymail-platform" }).onConflictDoNothing();
-  const { createDomain } = await import("../domains");
-  return createDomain(deps, PLATFORM_ORG, name);
+  const { ensurePlatformDomain } = await import("../free-address");
+  return ensurePlatformDomain(deps, name);
 }
 
 export interface CreateAgentInput {
