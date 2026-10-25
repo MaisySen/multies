@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 104 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 107 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -354,3 +354,13 @@ Registered in src/server/routes/mcp-r24-recipes.ts. Listing is read only; turnin
 | --- | --- |
 | `list_automation_recipes` | Ready made automation rules by category (Tasks, Mail, Chat, Meetings, Sprints): key, name, description, the rules each makes, the blanks to fill (channel, project, member, members or text) and whether it is on here; `category` narrows the list |
 | `enable_automation_recipe` | Turns a recipe on with its `blanks` (for example `{ channelId }`, or `{ projectId, memberIds }`): makes its rules as normal automations, or switches them back on; channels must be public channels of this workspace and every id must be this workspace's |
+
+### Docs tree and backlinks (R24.5)
+
+Registered in src/server/routes/mcp-r24-docs.ts. `get_doc_tree` and `get_backlinks` are reads, so read only keys and tokens can call them; `move_doc` needs a write key and writes one row.
+
+| Tool | What it does |
+| --- | --- |
+| `get_doc_tree` | The workspace's docs as a tree of pages and sub pages (id, title, parentId, position, depth, children), at most 6 levels deep; `flat: true` gives one line per page with its depth |
+| `move_doc` | Puts a doc under another page (`parentId`, or null for the top level) and, optionally, right before or after a sibling (`beforeId` or `afterId`); with neither it goes last. A page can't go under itself or its own sub pages |
+| `get_backlinks` | The docs whose body links to a doc or a task (`type` doc or task, `id` an id or a task ref like OPS-12), newest first, each with a short snippet of the text around the link |

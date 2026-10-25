@@ -626,3 +626,36 @@ D1 writes: listing recipes writes nothing; turning a recipe on is about 9 rows p
 activity and change rows). A run is the run count and the rule's run stamp (3) plus its action: a post
 in a channel about 11, a task change about 15. A due_passed run adds the task's once per due date
 marker. A task, chat message or meeting with no matching rules writes nothing more than before.
+
+## Docs page tree and backlinks (R24.5)
+
+Docs form a tree of pages and sub pages, at most 6 levels deep. Each doc has `parentId` (null at the
+top) and `position` (a number that orders it among its siblings). Moving a page writes one row: it gets
+a position halfway between its new neighbours, and siblings are spaced out again only when two
+neighbours have no room left between them. A page can't go under itself or one of its own sub pages
+(422 `cycle`), and a move or a new sub page that would go past 6 levels answers 422 `too_deep`.
+Deleting a page moves its sub pages up to its parent.
+
+Backlinks: when a doc's body is saved, the links inside it are read: links to `/app/docs/<id>`,
+`/app/tasks/<id>`, `/app/tasks?task=<id>` and `/app/tasks?project=<id>` (relative, or on the app's own
+host), mention nodes and page links. Outside links and ids from another workspace are ignored. Only
+the difference from the stored set is written, so a save that did not change the links writes no link
+rows. The co-editing room keeps its own state; the doc row (and so its links) is saved by the leader's
+periodic snapshot through the normal update.
+
+- `GET /api/v1/docs/tree` (app: `GET /api/docs/tree`): `{ tree, count, truncated, maxDepth }`; each
+  node has id, title, parentId, position, projectId, updatedAt, depth and children. At most 2,000 docs.
+- `PATCH /api/v1/docs/{id}/move` (app: `PATCH /api/docs/:id/move`): body `{ parentId?, beforeId? |
+  afterId? | position? }`. `parentId` null is the top level; `beforeId` or `afterId` is a sibling under
+  that parent; with none the page goes last. Needs a full key. Answers `{ doc, renumbered }`.
+- `POST /api/v1/docs` accepts `parentId` to create a sub page (it goes last under that page).
+- `GET /api/v1/docs/{id}/backlinks` and `GET /api/v1/tasks/{id}/backlinks` (a task id or a ref like
+  OPS-12; app: the same paths under `/api`): `{ backlinks: [{ id, title, snippet, projectId, updatedAt }] }`,
+  newest first, at most 100. The snippet is the text of the block that holds the link.
+- Project guests: `GET /api/guest/r24/docs/tree`, `/api/guest/r24/docs/:id/backlinks` and
+  `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
+- Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
+
+D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
+A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
+page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.

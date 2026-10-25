@@ -5,6 +5,7 @@ import { contacts, deals, docs, entityLinks, messages, projects, tasks } from ".
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { link, linked } from "./tasks";
+import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
 interface PMNode { type?: string; text?: string; content?: PMNode[]; attrs?: Record<string, unknown> }
@@ -78,7 +79,7 @@ export function excerptOf(title: string, plain: string): string {
 }
 function presentDoc(d: DocRow, full = false) {
   return {
-    id: d.id, title: d.title, projectId: d.projectId, excerpt: excerptOf(d.title, d.plainText),
+    id: d.id, title: d.title, projectId: d.projectId, parentId: d.parentId, position: d.position, excerpt: excerptOf(d.title, d.plainText),
     ...(full ? { content: JSON.parse(d.content) as PMNode, text: d.plainText } : {}),
     createdBy: { type: d.createdByType, id: d.createdById }, createdAt: d.createdAt.toISOString(), updatedAt: d.updatedAt.toISOString(), version: d.version,
   };
@@ -118,13 +119,15 @@ async function assertLinkTargets(deps: Deps, orgId: string, targets: LinkTarget[
   }
 }
 
-export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[] }) {
+export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }) {
   assertWritable(actor);
   const body = input.content !== undefined ? validDoc(input.content) : docFromText(input.text ?? "");
   await assertLinkTargets(deps, actor.orgId, [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]);
+  const place = await placeNewDoc(deps, actor.orgId, input.parentId); // R24: tree position
   const now = deps.now();
   const id = sortableId("doc", now.getTime());
-  await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), projectId: input.projectId ?? null, ...createdBy(actor), createdAt: now, updatedAt: now });
+  await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), projectId: input.projectId ?? null, ...place, ...createdBy(actor), createdAt: now, updatedAt: now });
+  await syncDocLinks(deps, actor.orgId, id, body); // R24: backlinks
   for (const l of [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]) await link(deps, actor.orgId, { type: "doc", id }, l);
   await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "create", verb: "created", data: { title: input.title }, event: "doc.created", eventData: { id, title: input.title } });
   for (const l of input.links ?? []) if (l.type === "task" || l.type === "contact") await recordWrite(deps, actor, { entityType: l.type, entityId: l.id, op: "update", verb: "doc_linked", data: { docId: id, title: input.title } });
@@ -142,6 +145,7 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
     ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body) } : {}),
     updatedAt: deps.now(), version: d.version + 1,
   }).where(eq(docs.id, id));
+  if (body) await syncDocLinks(deps, actor.orgId, id, body); // R24: only changed links are written
   for (const l of patch.links ?? []) await link(deps, actor.orgId, { type: "doc", id }, l);
   await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "update", version: d.version + 1, verb: "edited", data: {}, event: "doc.updated", eventData: { id, title: patch.title ?? d.title, version: d.version + 1 } });
   return getDoc(deps, actor.orgId, id);
@@ -158,6 +162,7 @@ export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, tex
 export async function deleteDoc(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   await docRow(deps, actor.orgId, id);
+  await liftChildren(deps, actor.orgId, id); // R24: sub pages move up to this page's parent
   await deps.db.update(docs).set({ deletedAt: deps.now(), updatedAt: deps.now() }).where(eq(docs.id, id));
   await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "delete", verb: "deleted" });
   return { ok: true };

@@ -93,6 +93,7 @@ export const DocCreate = z.object({
   content: z.record(z.string(), z.unknown()).optional().openapi({ description: "A Tiptap (ProseMirror) JSON document." }),
   text: z.string().max(200_000).optional().openapi({ description: "Or plain text: one paragraph per line, # headings and - bullets." }),
   projectId: z.string().nullable().optional(), links: z.array(LinkTarget).max(20).optional(),
+  parentId: z.string().max(64).nullable().optional().openapi({ description: "R24: put the new page under this page in the docs tree." }),
 }).openapi("DocCreate");
 export const DocPatch = z.object({
   title: z.string().trim().max(200).optional(), content: z.record(z.string(), z.unknown()).optional(), version: z.number().int().optional(), links: z.array(LinkTarget).max(20).optional(),
