@@ -279,4 +279,16 @@ describe("importing into a project", () => {
     expect(await run.json()).toMatchObject({ created: 3, projectName: "API import" });
     expect((await call(full, "/work-imports/run", { nothing: true })).status).toBe(422);
   });
+
+  it("a project guest (a client) cannot import, even with their guest session", async () => {
+    const { app, c, outbound } = await owner();
+    const p = (await c.post("/api/projects", { name: "Harbour site" })).body.project;
+    await c.post("/api/guests", { projectId: p.id, email: "mia@harbour.coffee", name: "Mia" });
+    const sent = (outbound as unknown as { sent?: { text: string }[] }).sent ?? [];
+    const token = sent.map((x) => x.text).reverse().find((x) => x.includes("/g/"))?.match(/\/g\/([A-Za-z0-9_-]+)/)?.[1];
+    const g = new Client(app);
+    expect((await g.post("/api/guest/accept", { token })).status).toBe(200);
+    expect((await g.post("/api/work-imports/preview", { content: fixture("notion.csv") })).status).toBe(401);
+    expect((await g.post("/api/work-imports/run", { content: fixture("notion.csv"), projectId: p.id })).status).toBe(401);
+  });
 });
