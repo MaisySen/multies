@@ -71,6 +71,7 @@ describe("MCP server", () => {
       "next_task",
       "pin_message",
       "post_message",
+      "react_to_chat_message",
       "read_channel",
       "read_chat_thread",
       "read_doc",
