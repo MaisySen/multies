@@ -35,6 +35,7 @@ describe("MCP server", () => {
     const mcp = await connect(wsKey);
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
+      "add_to_epic",
       "append_to_doc",
       "cancel_scheduled",
       "comment_on_task",
@@ -47,8 +48,8 @@ describe("MCP server", () => {
       "create_incoming_hook",
       "create_task",
       "create_template",
-      "create_triage_item",
       "find_tasks_by_field",
+      "get_epic",
       "get_portfolio",
       "get_report",
       "get_task",
@@ -56,6 +57,7 @@ describe("MCP server", () => {
       "invite_guest",
       "list_channels",
       "list_custom_fields",
+      "list_epics",
       "list_forms",
       "list_goals",
       "list_guests",
@@ -69,7 +71,6 @@ describe("MCP server", () => {
       "list_tasks",
       "list_templates",
       "list_threads",
-      "list_triage",
       "log_time",
       "message_to_task",
       "my_work",
@@ -96,9 +97,6 @@ describe("MCP server", () => {
       "snooze_thread",
       "start_timer",
       "stop_timer",
-      "triage_accept",
-      "triage_decline",
-      "triage_merge",
       "update_key_result",
       "update_task",
       "upsert_contact",

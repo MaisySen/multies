@@ -13,6 +13,7 @@ import { HttpError } from "../lib/errors";
 import { listMailboxes } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
 import type { SearchType } from "../services/search";
+import type { TaskType } from "../services/suite/task-types";
 import { addComment, createTask, createTaskFromThread, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateTask } from "../services/suite/tasks";
 import { appendToDoc, createDoc, getDoc, listDocs } from "../services/suite/docs";
 import { contactDetail, listContacts, upsertContact } from "../services/suite/contacts";
@@ -34,7 +35,7 @@ import {
 } from "../services/agents";
 
 import { registerMailScheduleTools } from "./mcp-mail-schedule";
-import { registerTriageTools } from "./mcp-r21-triage";
+import { registerTaskTypeTools } from "./mcp-r21-types";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -198,7 +199,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerR10Tools(server, deps, actor, writable);
   registerR20ChatTools(server, deps, actor, writable);
   registerMailScheduleTools(server, deps, actor, writable, agentFor, tool);
-  registerTriageTools(server, deps, actor, writable, tool);
+  registerTaskTypeTools(server, deps, actor, writable, tool);
   return server;
 }
 
@@ -208,7 +209,8 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
   const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
   const a = actor as unknown as SuiteActor;
   const assigneeArg = z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).nullable().optional().describe("member:<userId> or agent:<agentId>. Use \"me\" in list_tasks for your own.");
-  const lite = (t: Awaited<ReturnType<typeof listTasks>>[number]) => ({ id: t.id, ref: t.ref, title: t.title, status: t.status, statusName: t.statusName, priority: t.priority, due: t.due, assignee: t.assignee?.name ?? null, labels: t.labels, threadId: t.source?.threadId ?? null, subtasks: t.subtasks });
+  const taskType = z.enum(["task", "story", "bug", "epic"]);
+  const lite = (t: Awaited<ReturnType<typeof listTasks>>[number]) => ({ id: t.id, ref: t.ref, title: t.title, type: t.type, status: t.status, statusName: t.statusName, priority: t.priority, due: t.due, assignee: t.assignee?.name ?? null, labels: t.labels, threadId: t.source?.threadId ?? null, subtasks: t.subtasks });
 
   server.registerTool("list_tasks", {
     title: "List tasks", annotations: ro,
@@ -217,8 +219,9 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
       projectId: z.string().optional(), status: z.enum(["todo", "doing", "done"]).optional(), assignee: z.string().optional(),
       priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), label: z.string().optional(), q: z.string().max(200).optional(),
       threadId: z.string().optional().describe("Tasks made from this email thread."), limit: z.number().int().min(1).max(200).default(50),
+      type: taskType.optional().describe("Only this type."),
     },
-  }, tool(async (x: { projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string; priority?: "none" | "low" | "medium" | "high" | "urgent"; label?: string; q?: string; threadId?: string; limit: number }) =>
+  }, tool(async (x: { projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string; priority?: "none" | "low" | "medium" | "high" | "urgent"; label?: string; q?: string; threadId?: string; limit: number; type?: TaskType }) =>
     ({ tasks: (await listTasks(deps, a, x)).map(lite) })));
 
   server.registerTool("get_task", {
@@ -246,8 +249,9 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
       priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), due: z.string().optional().describe("ISO date, e.g. 2026-10-31."),
       labels: z.array(z.string()).max(20).optional(), parentId: z.string().optional().describe("Make it a subtask."),
       messageId: z.string().optional(), threadId: z.string().optional(),
+      type: taskType.optional().describe("task (default), story, bug or epic. Pass an epic's id as parentId to put the task in that epic."),
     },
-  }, tool(async (x: { title?: string; notes?: string; projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string; labels?: string[]; parentId?: string; messageId?: string; threadId?: string }) => {
+  }, tool(async (x: { title?: string; notes?: string; projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string; labels?: string[]; parentId?: string; messageId?: string; threadId?: string; type?: TaskType }) => {
     writable();
     const assignee = parseAssignee(x.assignee);
     if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }) };
@@ -257,12 +261,13 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 
   server.registerTool("update_task", {
     title: "Update a task", annotations: rw,
-    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title or notes.",
+    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes or type (task, story, bug, epic).",
     inputSchema: {
       id: z.string(), title: z.string().max(300).optional(), notes: z.string().max(50_000).optional(), status: z.enum(["todo", "doing", "done"]).optional(), statusId: z.string().optional(),
       assignee: assigneeArg, priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), due: z.string().nullable().optional(), labels: z.array(z.string()).max(20).optional(),
+      type: taskType.optional().describe("task, story, bug or epic."),
     },
-  }, tool(async (x: { id: string; title?: string; notes?: string; status?: "todo" | "doing" | "done"; statusId?: string; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string | null; labels?: string[] }) => {
+  }, tool(async (x: { id: string; title?: string; notes?: string; status?: "todo" | "doing" | "done"; statusId?: string; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string | null; labels?: string[]; type?: TaskType }) => {
     writable();
     const { id, ...patch } = x;
     return { task: await updateTask(deps, a, id, { ...patch, assignee: parseAssignee(x.assignee) }) };

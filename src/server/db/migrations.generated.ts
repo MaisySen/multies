@@ -479,13 +479,9 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0035_r21_triage",
+    "name": "0036_r21_task_types",
     "statements": [
-      "ALTER TABLE `tasks` ADD `triage_state` text;",
-      "ALTER TABLE `tasks` ADD `triage_source` text;",
-      "ALTER TABLE `projects` ADD `triage` integer DEFAULT false NOT NULL;",
-      "ALTER TABLE `forms` ADD `triage` integer DEFAULT false NOT NULL;",
-      "CREATE INDEX `tasks_org_triage_idx` ON `tasks` (`org_id`,`created_at`) WHERE \"tasks\".\"triage_state\" IS NOT NULL;"
+      "ALTER TABLE `tasks` ADD `type` text DEFAULT 'task' NOT NULL;"
     ]
   }
 ];

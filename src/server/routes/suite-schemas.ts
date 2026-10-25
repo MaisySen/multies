@@ -17,7 +17,6 @@ export const ProjectPatch = z.object({
   archived: z.boolean().optional(), statuses: z.array(StatusInput).min(1).max(20).optional(),
   health: z.enum(["on_track", "at_risk", "off_track"]).nullable().optional().openapi({ description: "Set by hand on the portfolio: on_track, at_risk, off_track, or null for not set." }),
   healthNote: z.string().max(500).optional(), ownerId: z.string().nullable().optional().openapi({ description: "The user id of the project's owner, or null." }),
-  triage: z.boolean().optional().openapi({ description: "R21: new mail and form tasks wait in Triage until someone accepts them." }),
 }).openapi("ProjectPatch");
 
 export const FieldValues = z.record(z.string(), z.union([z.string().max(2000), z.number(), z.boolean(), z.array(z.string().max(200)).max(50), z.null()]))
@@ -50,6 +49,7 @@ export const TaskCreate = z.object({
   source: z.object({ messageId: z.string().optional(), threadId: z.string().optional() }).nullable().optional().openapi({ description: "The email this task is about. The task links to its thread." }),
   fields: FieldValues.optional(),
   repeat: RepeatRule,
+  type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "task (default), story, bug or epic. An item whose parentId is an epic is in that epic." }),
 }).openapi("TaskCreate");
 export const TaskFromEmail = z.object({
   messageId: z.string().optional(), threadId: z.string().optional(),
@@ -63,6 +63,7 @@ export const TaskPatch = z.object({
   parentId: z.string().nullable().optional(), position: z.number().finite().optional(),
   fields: FieldValues.optional(),
   repeat: RepeatRule,
+  type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "task, story, bug or epic. An epic can't have a parent; an epic with items keeps its type." }),
   version: z.number().int().optional().openapi({ description: "Send the version you read to reject the write if someone changed the task since." }),
 }).openapi("TaskPatch");
 export const TaskQuery = z.object({
@@ -72,7 +73,7 @@ export const TaskQuery = z.object({
   parentId: z.string().optional(), includeSubtasks: z.enum(["true", "false"]).optional(), limit: z.coerce.number().int().min(1).max(1000).optional(),
   sort: z.string().max(80).regex(/^(due|priority|title|created|field:[A-Za-z0-9_-]{1,64})$/).optional().openapi({ description: "due, priority, title, created or field:<fieldId>." }),
   dir: z.enum(["asc", "desc"]).optional(),
-  triage: z.enum(["pending"]).optional().openapi({ description: "R21: pending lists only items waiting in Triage; without it they are left out." }),
+  type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "Only this type: task, story, bug or epic." }),
 });
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({

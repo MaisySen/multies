@@ -52,7 +52,7 @@ async function taskCounts(deps: Deps, orgId: string, krs: KrRow[]) {
   const byProject = new Map<string, { total: number; done: number }>();
   if (projectIds.length) {
     const rows = await deps.db.select({ projectId: tasks.projectId, total: sql<number>`count(*)`, done: sql<number>`sum(case when ${tasks.status} = 'done' then 1 else 0 end)` })
-      .from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.projectId, projectIds), isNull(tasks.parentId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId);
+      .from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.projectId, projectIds), isNull(tasks.parentId), isNull(tasks.deletedAt))).groupBy(tasks.projectId);
     for (const r of rows) byProject.set(r.projectId, { total: Number(r.total) || 0, done: Number(r.done) || 0 });
   }
   for (const k of taskKrs) {

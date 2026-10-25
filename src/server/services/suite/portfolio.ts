@@ -21,14 +21,14 @@ export async function portfolio(deps: Deps, orgId: string, opts: { includeArchiv
       total: sql<number>`count(*)`,
       done: sql<number>`sum(case when ${tasks.status} = 'done' then 1 else 0 end)`,
       overdue: sql<number>`sum(case when ${tasks.status} <> 'done' and ${tasks.dueAt} is not null and ${tasks.dueAt} < ${now.getTime()} then 1 else 0 end)`,
-    }).from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.parentId), isNull(tasks.triageState))).groupBy(tasks.projectId),
+    }).from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.parentId))).groupBy(tasks.projectId),
     deps.db.select({ projectId: timeEntries.projectId, seconds: sql<number>`sum(${timeEntries.seconds})` }).from(timeEntries)
       .where(and(eq(timeEntries.orgId, orgId), isNull(timeEntries.deletedAt), isNotNull(timeEntries.projectId))).groupBy(timeEntries.projectId),
     // The earliest open task due from now on, per project (one row per project via a window).
     deps.db.all<{ project_id: string; id: string; number: number; title: string; due_at: number }>(sql`
       select project_id, id, number, title, due_at from (
         select project_id, id, number, title, due_at, row_number() over (partition by project_id order by due_at asc) as rn
-        from tasks where org_id = ${orgId} and deleted_at is null and triage_state is null and status <> 'done' and due_at is not null and due_at >= ${now.getTime()}
+        from tasks where org_id = ${orgId} and deleted_at is null and status <> 'done' and due_at is not null and due_at >= ${now.getTime()}
       ) where rn = 1`),
   ]);
   const c = new Map(counts.map((r) => [r.projectId, r]));

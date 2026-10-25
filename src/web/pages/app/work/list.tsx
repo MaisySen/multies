@@ -6,6 +6,7 @@ import { timeAgo } from "@/web/lib/format";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task } from "./data";
 import { FieldCell, formatValue } from "./fields";
 import { tone } from "@/web/components/app-bits";
+import { TypeIcon } from "./task-type";
 
 /** A sort key for a custom field value: numbers as numbers, select by option order, empty last. */
 function fieldSortKey(f: CustomField, t: Task, people: AssigneeOption[]): string | number {
@@ -36,6 +37,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
       id: "title", header: "Task", accessorFn: (t) => t.title,
       cell: ({ row }) => (
         <div className="flex min-w-0 items-center gap-2">
+          <TypeIcon type={row.original.type} />
           <span className="shrink-0 font-mono text-[11.5px] text-subtle">{row.original.ref}</span>
           <span className={cn("truncate font-medium", row.original.status === "done" && "text-subtle line-through")}>{row.original.title}</span>
           {row.original.source && <Mail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}

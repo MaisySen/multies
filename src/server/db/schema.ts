@@ -759,8 +759,6 @@ export const projects = sqliteTable("projects", {
   healthNote: text("health_note").notNull().default(""),
   /** The person who owns the project (a user id), shown on the portfolio. */
   ownerUserId: text("owner_user_id"),
-  /** R21: new mail and form tasks for this project wait in Triage until someone accepts them. */
-  triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   ...suiteCols(),
 }, (t) => [index("projects_org_idx").on(t.orgId)]);
 
@@ -808,10 +806,8 @@ export const tasks = sqliteTable("tasks", {
   repeatRule: text("repeat_rule"),
   /** Set on tasks brought in from another work tool: a hash of the source and its own id, so a re-run skips them. */
   importKey: text("import_key"),
-  /** R21: "pending" while the task waits in Triage (hidden from lists); null for normal tasks. */
-  triageState: text("triage_state", { enum: ["pending"] }),
-  /** R21: where a triage item came from: mail, form, api or chat. */
-  triageSource: text("triage_source", { enum: ["mail", "form", "api", "chat"] }),
+  /** R21: task, story, bug or epic. An item whose parent is an epic is in that epic (no index of its own). */
+  type: text("type", { enum: ["task", "story", "bug", "epic"] }).notNull().default("task"),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
@@ -820,7 +816,6 @@ export const tasks = sqliteTable("tasks", {
   index("tasks_parent_idx").on(t.parentId),
   uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
   uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
-  index("tasks_org_triage_idx").on(t.orgId, t.createdAt).where(sql`${t.triageState} IS NOT NULL`),
 ]);
 
 export const taskComments = sqliteTable("task_comments", {
@@ -1022,8 +1017,6 @@ export const forms = sqliteTable("forms", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   submitCount: integer("submit_count").notNull().default(0),
   lastSubmitAt: ts("last_submit_at"),
-  /** R21: submissions wait in Triage instead of becoming tasks at once. */
-  triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   ...suiteCols(),
 }, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
 
