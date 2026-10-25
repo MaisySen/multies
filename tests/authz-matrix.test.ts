@@ -14,6 +14,8 @@ const allRoutes = (app: { routes: { method: string; path: string }[] }) => [
 const PUBLIC_OK = new Set([
   "GET /api/account/providers", "GET /api/config", "GET /api/health", "GET /api/status", "GET /api/v1/reference", "GET /api/v1/openapi.json",
   "POST /api/guest/signout", "POST /api/account/demo", "GET /api/fx",
+  // RFC 7009: token revocation answers 200 even for an unknown token (it changes nothing then).
+  "POST /api/oauth/revoke",
 ]);
 
 const fill = (path: string) => path.replace(/:[a-zA-Z]+(\{[^}]*\})?/g, "x1").replace(/\*$/, "x1");

@@ -1,103 +1,180 @@
 # Multies MCP server
 
-Multies runs a Model Context Protocol server, so Claude, ChatGPT (through the OpenAI API), Cursor
-and any MCP client can work an inbox directly.
+Multies runs a Model Context Protocol server, so Claude, ChatGPT, Cursor and any MCP client can work
+in a Multies workspace: mail and agent inboxes, tasks, projects, docs, contacts, chat, meetings and more.
 
 Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. Multies never pays for
 or resells AI model calls. People who want the assistant inside webmail add their own OpenAI,
 Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at rest.
 
-- URL: `https://mymail.mymail-app.workers.dev/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
+- URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Auth: `Authorization: Bearer <key>`.
-  - An **agent key** (made with an agent inbox) acts only as that agent: its inbox, the shared
-    mailboxes it was given, and sends within its daily cap and approval rule.
-  - A **workspace key** sees every agent and mailbox and can create agent inboxes. Sends still go
-    out as an agent (pass `agentId`), so guardrails always apply.
-  - A **read only** workspace key can call the read tools only.
+- Tools: 58 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+
+## Signing in
+
+There are two ways in. Both keep every guardrail: agent approval rules, daily send caps and read only access.
+
+### OAuth: add Multies by its URL (round 20)
+
+Paste `https://multies.si/api/v1/mcp` into the app's "add connector" or "add MCP server" screen.
+The app finds the sign in page on its own, you sign in to Multies, pick a workspace and choose
+"Read and write" or "Read only", and you are done. No key to copy.
+
+- The app works as you, with your role in that workspace. A member's connection can't run the
+  workspace's mail, agents or integrations, the same as in the app.
+- Sends still go out as an agent inbox (pass `agentId`), so approval rules and caps apply.
+- See and disconnect connected apps in Settings, Developers, Connected AI apps. A disconnect takes
+  effect on the app's next request. Admins see every connection in the workspace; members see their own.
+- Standards: OAuth 2.1 authorisation code with PKCE (S256 only), dynamic client registration
+  (RFC 7591), protected resource metadata (RFC 9728) at `/.well-known/oauth-protected-resource`,
+  authorisation server metadata (RFC 8414) at `/.well-known/oauth-authorization-server`, token
+  revocation (RFC 7009). Scopes: `mcp:read`, `mcp:write`.
+- Tokens: access tokens last an hour and are signed, not stored. Refresh tokens last 90 days and
+  rotate on every use. A code used twice ends the connection.
+- An unauthenticated call to the MCP URL answers 401 with a `WWW-Authenticate` header that points
+  at the metadata, which is how clients discover the sign in.
+- OAuth tokens work on the MCP endpoint only. The REST API keeps using API keys.
+
+### API keys
+
+`Authorization: Bearer mm_live_...` from Settings, Developers. API keys keep working exactly as before.
+
+- An **agent key** (made with an agent inbox) acts only as that agent: its inbox, the shared
+  mailboxes it was given, and sends within its daily cap and approval rule.
+- A **workspace key** sees every agent and mailbox and can create agent inboxes. Sends still go
+  out as an agent (pass `agentId`), so guardrails always apply.
+- A **read only** key (or a read only OAuth connection) can call the read tools only.
 
 ## Tools
 
+### Mail and agent inboxes
+
 | Tool | What it does |
 | --- | --- |
-| `list_inboxes` | Agent inboxes (approval rule, sends today) and, for workspace keys, the team's mailboxes |
-| `list_threads` | Recent threads with sender, snippet, unread count and which agents took part |
-| `read_thread` | Every message: new text without quoted history, one-time codes, links, attachments, who wrote it, and replies waiting for approval |
-| `search` | Search subject, sender, recipients and body |
-| `send_email` | Send as an agent. Returns `sent` or `pending_approval` |
-| `reply` | Reply in a thread as an agent, threaded, with a `Re:` subject |
-| `wait_for_email` | Wait up to 50 seconds for new mail, for example a sign up code, and return it parsed |
-| `create_agent_inbox` | Workspace keys only: a new agent with its own address and key |
-| `list_tasks` | Tasks filtered by project, status, assignee (`me`, `none`, `member:<id>`, `agent:<id>`), priority, label, text or thread |
-| `get_task` | One task by id or reference (`TSK-12`): fields, subtasks, comments, the email thread it came from and its history |
-| `next_task` | The most urgent open task assigned to this agent, or null. Agents can loop: take it, do it, comment, mark it done |
-| `create_task` | A task by hand, or from an email with `messageId` or `threadId` |
-| `update_task` | Title, notes, status, dates, priority, labels or assignee |
-| `comment_on_task` | Add a comment, shown with the agent's name |
-| `list_projects` | Projects with their statuses and counts |
-| `search_docs`, `read_doc` | Find docs and read one as plain text |
-| `create_doc`, `append_to_doc` | Write a doc, optionally linked to a task, project or contact, or add to the end of one |
-| `search_contacts`, `contact_timeline` | Find people and companies, and see every thread, task and deal with one person |
-| `upsert_contact` | Add a contact or update their name, phone, job title or notes |
+| `list_inboxes` | List inboxes |
+| `list_threads` | List threads |
+| `read_thread` | Read a thread |
+| `search` | Search mail |
+| `send_email` | Send an email |
+| `reply` | Reply in a thread |
+| `wait_for_email` | Wait for new email |
+| `create_agent_inbox` | Create an agent inbox |
+
+### Tasks and projects
+
+| Tool | What it does |
+| --- | --- |
+| `list_tasks` | List tasks |
+| `get_task` | Get a task |
+| `next_task` | Next task for this agent |
+| `create_task` | Create a task |
+| `update_task` | Update a task |
+| `comment_on_task` | Comment on a task |
+| `list_projects` | List projects |
+| `set_task_blocked_by` | Set a task as blocked by another |
+| `set_task_repeat` | Make a task repeat |
+| `list_custom_fields` | List a project's custom fields |
+| `create_custom_field` | Add a custom field to a project |
+| `set_task_fields` | Set custom field values on a task |
+| `find_tasks_by_field` | Find tasks by a custom field |
+| `get_portfolio` | Portfolio of all projects |
+| `set_project_health` | Set a project's health |
+| `list_guests` | List a project's guests |
+| `invite_guest` | Invite a guest to a project |
+
+### Docs, contacts, forms and templates
+
+| Tool | What it does |
+| --- | --- |
+| `search_docs` | Search docs |
+| `read_doc` | Read a doc |
+| `create_doc` | Create a doc |
+| `append_to_doc` | Add to a doc |
+| `search_contacts` | Search contacts |
+| `contact_timeline` | Contact timeline |
+| `upsert_contact` | Save a contact |
+| `list_forms` | List forms |
+| `create_form` | Create a public form |
+| `list_templates` | List project, task and doc templates |
+| `use_template` | Make a project, task or doc from a template |
+| `create_template` | Create a template from scratch |
+
+### Time, reports, goals and people
+
+| Tool | What it does |
+| --- | --- |
+| `start_timer` | Start a timer on a task |
+| `stop_timer` | Stop the running timer |
+| `log_time` | Log time by hand |
+| `get_timesheet` | Timesheet |
+| `get_report` | Workspace report |
+| `list_goals` | Goals and key results |
+| `create_goal` | Create a goal |
+| `update_key_result` | Record progress on a key result |
+| `list_people` | List people and agents |
+| `list_notifications` | Your notifications |
+
+### Chat
+
+| Tool | What it does |
+| --- | --- |
+| `list_channels` | List chat channels |
+| `read_channel` | Read a chat channel |
+| `read_chat_thread` | Read a chat thread |
+| `post_message` | Post in a chat channel |
+| `pin_message` | Pin or unpin a chat message |
+| `message_to_task` | Turn a chat message into a task |
+
+### Meetings and scheduling
+
+| Tool | What it does |
+| --- | --- |
+| `list_meetings` | List meetings |
+| `schedule_meeting` | Schedule a video meeting |
+| `list_bookings` | List meeting bookings |
+
+### Integrations
+
+| Tool | What it does |
+| --- | --- |
+| `list_integrations` | List integrations |
+| `create_incoming_hook` | Create an incoming webhook |
 
 Agents read only the threads they can open, and anything an agent sends outside Multies still goes
-through its approval rule. A read only key can call the read tools only.
+through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
+the audit log too, rolled up to one entry per agent, thread and hour so a polling agent doesn't fill
+the log (or the database's daily write budget).
 
-Every read and send an agent makes is in the audit log, marked as coming through MCP.
+## Claude (claude.ai and Claude Desktop)
+
+Settings, Connectors, Add custom connector. Name it Multies and paste `https://multies.si/api/v1/mcp`.
+Claude opens the Multies sign in page; allow it and the tools appear.
 
 ## Claude Code
 
 ```sh
-claude mcp add --transport http mymail https://mymail.mymail-app.workers.dev/api/v1/mcp \
-  --header "Authorization: Bearer mm_live_YOUR_AGENT_KEY"
+claude mcp add --transport http multies https://multies.si/api/v1/mcp
 ```
 
-## Claude Desktop
+Claude Code signs in with OAuth the first time you use a Multies tool (`/mcp` shows the status). To use
+an API key instead, add `--header "Authorization: Bearer mm_live_YOUR_KEY"`.
 
-Claude Desktop's custom connectors sign in with OAuth, which Multies doesn't offer yet, so connect
-through the `mcp-remote` bridge. In Settings, Developer, Edit Config (`claude_desktop_config.json`):
+## ChatGPT
 
-```json
-{
-  "mcpServers": {
-    "mymail": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "https://mymail.mymail-app.workers.dev/api/v1/mcp", "--header", "Authorization:${MYMAIL_AUTH}"],
-      "env": { "MYMAIL_AUTH": "Bearer mm_live_YOUR_AGENT_KEY" }
-    }
-  }
-}
-```
+In ChatGPT's connector settings (developer mode), create a connector with the URL
+`https://multies.si/api/v1/mcp` and OAuth authentication. ChatGPT registers itself and sends you to
+the Multies sign in page.
 
-Restart Claude Desktop. The Multies tools appear under the tools menu.
-
-## Cursor
-
-`~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
-
-```json
-{
-  "mcpServers": {
-    "mymail": {
-      "url": "https://mymail.mymail-app.workers.dev/api/v1/mcp",
-      "headers": { "Authorization": "Bearer mm_live_YOUR_AGENT_KEY" }
-    }
-  }
-}
-```
-
-## ChatGPT and the OpenAI API
-
-ChatGPT's connectors in developer mode sign in with OAuth, which Multies doesn't offer yet. With the
-OpenAI API (Responses API or the Agents SDK), use the remote MCP tool with a header:
+With the OpenAI API (Responses API or the Agents SDK), use the remote MCP tool with an API key:
 
 ```js
 const response = await openai.responses.create({
   model: "gpt-5",
   tools: [{
     type: "mcp",
-    server_label: "mymail",
-    server_url: "https://mymail.mymail-app.workers.dev/api/v1/mcp",
+    server_label: "multies",
+    server_url: "https://multies.si/api/v1/mcp",
     headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" },
     require_approval: "never",
   }],
@@ -108,10 +185,41 @@ const response = await openai.responses.create({
 `require_approval` there is OpenAI's own prompt. Multies' approval queue still decides whether a
 send goes out.
 
+## Cursor
+
+`~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project). With only the URL, Cursor signs in with OAuth:
+
+```json
+{
+  "mcpServers": {
+    "multies": { "url": "https://multies.si/api/v1/mcp" }
+  }
+}
+```
+
+Or with a key: add `"headers": { "Authorization": "Bearer mm_live_YOUR_KEY" }`.
+
+## Older clients
+
+Clients without OAuth support can use an API key header, or the `mcp-remote` bridge:
+
+```json
+{
+  "mcpServers": {
+    "multies": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://multies.si/api/v1/mcp", "--header", "Authorization:${MULTIES_AUTH}"],
+      "env": { "MULTIES_AUTH": "Bearer mm_live_YOUR_KEY" }
+    }
+  }
+}
+```
+
 ## Testing it
 
 ```sh
 npx @modelcontextprotocol/inspector
 ```
 
-Choose Streamable HTTP, paste the URL, and add the `Authorization` header.
+Choose Streamable HTTP and paste the URL. The inspector can run the OAuth sign in, or you can add the
+`Authorization` header with a key.

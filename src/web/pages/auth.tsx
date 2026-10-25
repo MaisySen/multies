@@ -34,7 +34,7 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
       if (res?.twoFactorRedirect) { setNeedsSecondFactor(true); return; }
       qc.clear();
       const next = params.get("next");
-      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app";
+      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : "/app";
       navigate(opts.thanks ? `/thanks?from=signup&next=${encodeURIComponent(dest)}` : dest);
     } catch (err) {
       if (err instanceof ApiError && err.fields) setFields(err.fields);
@@ -51,7 +51,7 @@ export function useAuthProviders() {
 }
 
 function safeNext(next: string | null) {
-  return next && (next.startsWith("/app") || next.startsWith("/invite/")) ? next : "/app";
+  return next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : "/app";
 }
 
 /**

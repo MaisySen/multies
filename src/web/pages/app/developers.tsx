@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, Check, KeyRound, Plus, Send, Trash2, Webhook as WebhookIcon } from "lucide-react";
+import { Bot, BookOpen, Check, KeyRound, Plus, Send, Trash2, Webhook as WebhookIcon } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -19,7 +19,12 @@ interface Delivery { id: string; eventType: string; status: "pending" | "deliver
 export function DeveloperSettings() {
   const me = useMe();
   if (me.data?.organization?.role === "member") {
-    return <p className="text-sm text-muted">API keys and webhooks are managed by workspace admins.</p>;
+    return (
+      <div className="space-y-6">
+        <ConnectedApps />
+        <p className="text-sm text-muted">API keys and webhooks are managed by workspace admins.</p>
+      </div>
+    );
   }
   return (
     <div className="space-y-6">
@@ -27,6 +32,7 @@ export function DeveloperSettings() {
         <span className="text-muted">REST API for domains, mailboxes, aliases and mail, with an OpenAPI spec.</span>
         <a href="/api/v1/reference" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><BookOpen className="h-4 w-4" />API reference</a>
       </div>
+      <ConnectedApps />
       <ApiKeys />
       <Webhooks />
     </div>
@@ -200,5 +206,43 @@ function EndpointRow({ e }: { e: Endpoint }) {
         </div>
       )}
     </div>
+  );
+}
+
+interface Grant { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: string; lastUsedAt: string | null; mine: boolean }
+
+/** AI apps (Claude, ChatGPT, Cursor and other MCP clients) signed in with OAuth, round 20. */
+function ConnectedApps() {
+  const qc = useQueryClient();
+  const grants = useQuery({ queryKey: ["oauth-grants"], queryFn: async () => (await api.get<{ grants: Grant[] }>("/oauth/grants")).grants });
+  const revoke = useMutation({
+    mutationFn: (id: string) => api.del(`/oauth/grants/${id}`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["oauth-grants"] }); toast.success("Disconnected"); },
+    onError: (e) => toast.error(e.message),
+  });
+  const mcpUrl = `${window.location.origin}/api/v1/mcp`;
+  return (
+    <Section title="Connected AI apps" description="Add Multies to Claude, ChatGPT, Cursor or any MCP client with this URL. The app asks you to sign in and pick a workspace; no key to copy.">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-elevated px-3 py-2">
+        <code className="min-w-0 flex-1 truncate font-mono text-[13px]" data-testid="mcp-url">{mcpUrl}</code>
+        <CopyButton value={mcpUrl} />
+      </div>
+      <div className="mt-3" data-testid="connected-apps">
+        {grants.isPending ? <Skeleton className="h-12" /> : grants.data?.length ? grants.data.map((g) => (
+          <div key={g.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Bot className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+              <span className="truncate text-sm font-medium">{g.client}</span>
+              {!g.mine && <span className="truncate text-xs text-muted">{g.user.name || g.user.email}</span>}
+              {g.scope === "read" && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">read only</span>}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-subtle">
+              <span>{g.lastUsedAt ? `used ${timeAgo(g.lastUsedAt)}` : `connected ${timeAgo(g.createdAt)}`}</span>
+              <Button size="sm" variant="ghost" aria-label={`Disconnect ${g.client}`} loading={revoke.isPending && revoke.variables === g.id} onClick={() => revoke.mutate(g.id)}>Disconnect</Button>
+            </div>
+          </div>
+        )) : <p className="text-sm text-muted">No AI apps connected yet.</p>}
+      </div>
+    </Section>
   );
 }

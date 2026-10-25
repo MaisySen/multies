@@ -7,6 +7,7 @@ import { PricingPage } from "./pages/pricing";
 import { AgentsDevPage } from "./pages/agents";
 import { EmailVerifiedPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "./pages/auth";
 import { NotFound } from "./pages/not-found";
+import { OAuthAuthorizePage } from "./pages/oauth-authorize";
 import { AppSkeleton } from "./layouts/app-skeleton";
 
 const AppLayout = lazy(() => import("./layouts/app").then((m) => ({ default: m.AppLayout })));
@@ -109,6 +110,7 @@ export const router = createBrowserRouter([
       { path: "/forgot-password", element: <ForgotPasswordPage /> },
       { path: "/reset-password", element: <ResetPasswordPage /> },
       { path: "/email-verified", element: <EmailVerifiedPage /> },
+      { path: "/oauth/authorize", element: <OAuthAuthorizePage /> },
     ],
   },
   {

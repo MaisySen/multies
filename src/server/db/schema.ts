@@ -1319,3 +1319,40 @@ export const bookings = sqliteTable("bookings", {
   cancelledAt: ts("cancelled_at"),
   createdAt: createdAt(),
 }, (t) => [index("bookings_page_idx").on(t.pageId, t.startsAt), index("bookings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("bookings_slot_uq").on(t.pageId, t.slotKey)]);
+
+/**
+ * OAuth clients for the MCP endpoint (round 20): AI apps such as Claude, ChatGPT and Cursor register
+ * themselves (dynamic client registration) and people sign them in to one workspace.
+ */
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  /** JSON array of the redirect URIs the client registered. */
+  redirectUris: text("redirect_uris").notNull(),
+  clientUri: text("client_uri"),
+  createdAt: createdAt(),
+});
+
+/**
+ * One person's sign in of an OAuth client to one workspace. The authorisation code and the refresh
+ * token are kept only as hashes; access tokens are signed and never stored. The row id rides inside
+ * the code and the refresh token, so lookups use the primary key and the table needs one index.
+ */
+export const oauthGrants = sqliteTable("oauth_grants", {
+  id: text("id").primaryKey(),
+  clientId: text("client_id").notNull().references(() => oauthClients.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** `read` or `full`. */
+  scope: text("scope", { enum: ["full", "read"] }).notNull().default("read"),
+  redirectUri: text("redirect_uri").notNull(),
+  codeHash: text("code_hash"),
+  codeChallenge: text("code_challenge"),
+  codeExpiresAt: ts("code_expires_at"),
+  codeUsedAt: ts("code_used_at"),
+  refreshHash: text("refresh_hash"),
+  refreshExpiresAt: ts("refresh_expires_at"),
+  lastUsedAt: ts("last_used_at"),
+  revokedAt: ts("revoked_at"),
+  createdAt: createdAt(),
+}, (t) => [index("oauth_grants_org_idx").on(t.orgId, t.userId)]);

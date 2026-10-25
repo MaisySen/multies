@@ -52,3 +52,30 @@ it("keeps sign in, an idle cron pass and a demo inside their write ceilings", as
   // Measured 967 for the workspace and both seed parts; the purge a day later deletes about as many.
   expect(take()).toBeLessThanOrEqual(1_100);
 });
+
+it("MCP OAuth (round 20): registration, sign in, token exchange and refresh stay small; MCP reads write nothing", async () => {
+  const { pkceChallenge } = await import("@/server/services/developer/oauth");
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const take = meter(ctx.db);
+  const h = { host: "localhost" };
+  const reg = await (await ctx.app.request("/api/oauth/register", { method: "POST", headers: { ...h, "content-type": "application/json" }, body: JSON.stringify({ client_name: "Claude", redirect_uris: ["https://claude.ai/cb"] }) })).json() as { client_id: string };
+  // Measured 5: 1 client row (no index) plus the local rate limit counter (4), which production keeps in a binding.
+  const m1 = take(); expect(m1).toBeLessThanOrEqual(5);
+  const verifier = "x".repeat(50);
+  const request = { client_id: reg.client_id, redirect_uri: "https://claude.ai/cb", response_type: "code", code_challenge: await pkceChallenge(verifier), code_challenge_method: "S256" };
+  const code = new URL((await u.post("/api/oauth/authorize", { decision: "allow", request })).body.redirectTo).searchParams.get("code")!;
+  // Measured 10: the grant row and its one index (2), the audit row and its indexes, and the local app limiter.
+  const m2 = take(); expect(m2).toBeLessThanOrEqual(10);
+  const form = (o: Record<string, string>) => ({ method: "POST", headers: { ...h, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(o).toString() });
+  const t = await (await ctx.app.request("/api/oauth/token", form({ grant_type: "authorization_code", code, client_id: reg.client_id, code_verifier: verifier }))).json() as { access_token: string; refresh_token: string };
+  const m3 = take(); expect(m3).toBeLessThanOrEqual(6); // grant update (2) + local limiter
+  const call = () => ctx.app.request("/api/v1/mcp", { method: "POST", headers: { ...h, authorization: `Bearer ${t.access_token}`, "content-type": "application/json", accept: "application/json, text/event-stream" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
+  for (let i = 0; i < 5; i++) expect((await call()).status).toBe(200);
+  // Measured 15: only the local api limiter (3 a call, a binding in production). The grant's last used was written at the exchange and waits an hour.
+  const mcpWrites = take(); console.log('W mcp', mcpWrites);
+  expect(mcpWrites).toBeLessThanOrEqual(15);
+  await ctx.app.request("/api/oauth/token", form({ grant_type: "refresh_token", refresh_token: t.refresh_token }));
+  const m4 = take(); expect(m4).toBeLessThanOrEqual(6); // rotated refresh hash (2) + local limiter
+});

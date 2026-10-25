@@ -264,7 +264,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
   const collabDoc = collabDocId(url.pathname);
   if (collabDoc) return collabUpgrade(request, env, collabDoc);
-  if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt") {
+  if (url.pathname.startsWith("/api/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to

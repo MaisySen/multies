@@ -16,6 +16,7 @@ import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes } from "../services/addresses";
 import { resolveApiKey } from "../services/developer/api-keys";
+import { resolveOAuthToken } from "../services/developer/oauth";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
 import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } from "../services/domains";
 import { getMessage, getThread, listMessages } from "../services/mail/mailbox-view";
@@ -119,8 +120,21 @@ const secured = [{ bearerAuth: [] }];
 // ---------------------------------------------------------------- auth
 
 const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const auth = await resolveApiKey(c.var.deps, c.req.header("authorization"));
-  if (!auth) throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
+  const header = c.req.header("authorization");
+  const isMcp = c.req.path === "/mcp" || c.req.path.endsWith("/mcp");
+  // OAuth access tokens (round 20) are issued for the MCP endpoint only; API keys work everywhere.
+  const auth = (await resolveApiKey(c.var.deps, header)) ?? (isMcp ? await resolveOAuthToken(c.var.deps, header) : null);
+  if (!auth) {
+    if (isMcp) {
+      // Tells MCP clients where to sign in (RFC 9728): Claude, ChatGPT and Cursor follow this.
+      const origin = new URL(c.req.url).origin;
+      const xfHost = c.req.header("x-forwarded-host");
+      const base = xfHost ? `${c.req.header("x-forwarded-proto") ?? "https"}://${xfHost}` : origin;
+      c.header("WWW-Authenticate", `Bearer resource_metadata="${base}/.well-known/oauth-protected-resource/api/v1/mcp"`);
+      return c.json({ error: { code: "unauthorized", message: "Sign in with OAuth or send an API key: Authorization: Bearer mm_live_..." } }, 401);
+    }
+    throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
+  }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
   if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp")) throw new HttpError(403, "read_only_key", "This API key can only read.");
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");

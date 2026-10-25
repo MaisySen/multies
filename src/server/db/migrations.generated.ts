@@ -449,5 +449,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `messages` ADD `provider_message_id_header` text;",
       "CREATE INDEX `messages_mailbox_provider_msgid_idx` ON `messages` (`mailbox_id`,`provider_message_id_header`);"
     ]
+  },
+  {
+    "name": "0030_r20_mcp_oauth",
+    "statements": [
+      "CREATE TABLE `oauth_clients` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`redirect_uris` text NOT NULL,\n\t`client_uri` text,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE TABLE `oauth_grants` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`client_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`scope` text DEFAULT 'read' NOT NULL,\n\t`redirect_uri` text NOT NULL,\n\t`code_hash` text,\n\t`code_challenge` text,\n\t`code_expires_at` integer,\n\t`code_used_at` integer,\n\t`refresh_hash` text,\n\t`refresh_expires_at` integer,\n\t`last_used_at` integer,\n\t`revoked_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`client_id`) REFERENCES `oauth_clients`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `oauth_grants_org_idx` ON `oauth_grants` (`org_id`,`user_id`);"
+    ]
   }
 ];

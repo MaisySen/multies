@@ -46,21 +46,20 @@ curl ${BASE}/api/v1/threads/$THREAD_ID \\
 ];
 
 const MCP: Record<string, { label: string; code: string; note: string }> = {
-  claudeCode: {
-    label: "Claude Code", note: "Run once in your terminal.",
-    code: `claude mcp add --transport http mymail ${BASE}/api/v1/mcp \\
-  --header "Authorization: Bearer mm_live_YOUR_AGENT_KEY"`,
+  claude: {
+    label: "Claude", note: "claude.ai or Claude Desktop: Settings, Connectors, Add custom connector. Paste the URL, then sign in to Multies and pick a workspace. No key needed.",
+    code: `${BASE}/api/v1/mcp`,
   },
-  claudeDesktop: {
-    label: "Claude Desktop", note: "Settings, Developer, Edit Config. Claude Desktop's connectors sign in with OAuth, which Multies doesn't offer yet, so this uses the mcp-remote bridge.",
-    code: JSON.stringify({ mcpServers: { mymail: { command: "npx", args: ["-y", "mcp-remote", `${BASE}/api/v1/mcp`, "--header", "Authorization:${MYMAIL_AUTH}"], env: { MYMAIL_AUTH: "Bearer mm_live_YOUR_AGENT_KEY" } } } }, null, 2),
+  claudeCode: {
+    label: "Claude Code", note: "Run once in your terminal. Claude Code asks you to sign in to Multies the first time. To use an agent key instead, add --header \"Authorization: Bearer mm_live_YOUR_AGENT_KEY\".",
+    code: `claude mcp add --transport http multies ${BASE}/api/v1/mcp`,
   },
   cursor: {
-    label: "Cursor", note: "~/.cursor/mcp.json, or .cursor/mcp.json in a project.",
-    code: JSON.stringify({ mcpServers: { mymail: { url: `${BASE}/api/v1/mcp`, headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" } } } }, null, 2),
+    label: "Cursor", note: "~/.cursor/mcp.json, or .cursor/mcp.json in a project. Cursor opens the Multies sign in page; or add an Authorization header with an agent key.",
+    code: JSON.stringify({ mcpServers: { multies: { url: `${BASE}/api/v1/mcp` } } }, null, 2),
   },
   openai: {
-    label: "ChatGPT / OpenAI API", note: "ChatGPT's connectors need OAuth, which Multies doesn't offer yet. With the OpenAI API, use the remote MCP tool with a header.",
+    label: "ChatGPT / OpenAI API", note: "In ChatGPT, add a connector with the URL and OAuth sign in. With the OpenAI API, use the remote MCP tool with an agent key header.",
     code: `const response = await openai.responses.create({
   model: "gpt-5",
   tools: [{
@@ -94,7 +93,7 @@ const GUARDRAILS = [
 ];
 
 export function AgentsDevPage() {
-  const [tab, setTab] = useState<keyof typeof MCP>("claudeCode");
+  const [tab, setTab] = useState<keyof typeof MCP>("claude");
   return (
     <>
       <section className="pt-32 sm:pt-40">
@@ -148,7 +147,7 @@ data: {"type":"message.received","data":{"subject":"Your code",
 
       <section className="mx-auto max-w-5xl px-5 py-20" aria-labelledby="mcp">
         <h2 id="mcp" className="text-2xl font-semibold tracking-tight sm:text-3xl">Connect with MCP</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Multies' MCP server runs at <code className="font-mono text-fg">{BASE}/api/v1/mcp</code> (Streamable HTTP). Use an agent key and the client acts as that agent, inside its guardrails.</p>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">Multies' MCP server runs at <code className="font-mono text-fg">{BASE}/api/v1/mcp</code> (Streamable HTTP). Add it by URL and sign in, and the client works as you; or use an agent key and it acts as that agent, inside its guardrails.</p>
         <div className="mt-6 flex flex-wrap gap-1 rounded-lg bg-fill p-0.5 text-sm sm:w-fit" role="tablist" aria-label="MCP clients">
           {Object.entries(MCP).map(([id, m]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id as keyof typeof MCP)}

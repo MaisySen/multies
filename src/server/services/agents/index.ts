@@ -9,8 +9,11 @@
 import { and, asc, count, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
-  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, domains, mailboxes, messages, sendApprovals,
+  agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
 } from "../../db/schema";
+
+/** Agent thread reads are audited once per agent, thread and hour. */
+export const READ_AUDIT_ROLLUP_MS = 60 * 60_000;
 import { fromB64, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
@@ -345,7 +348,12 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
   if (actor.agentId) {
     const { a, mb } = await row(deps, actor.orgId, actor.agentId);
-    await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api" } });
+    // Reads roll up to one audit row per agent, thread and hour (round 20): an agent polling a thread
+    // every minute used to write 3 D1 rows a minute. The row still says who read what and when.
+    const since = new Date(deps.now().getTime() - READ_AUDIT_ROLLUP_MS);
+    const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
+      .where(and(eq(auditLogs.agentId, a.id), gte(auditLogs.createdAt, since), eq(auditLogs.action, "agent.message_read"), eq(auditLogs.targetId, threadId))).limit(1).get();
+    if (!recent) await audit(deps.db, { orgId: actor.orgId, ...agentActor(a, mb), action: "agent.message_read", targetType: "thread", targetId: threadId, metadata: { messages: rows.length, via: actor.sessionId.startsWith("mcp:") ? "mcp" : "api", rollup: "hour" } });
   }
   return {
     id: threadId,

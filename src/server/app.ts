@@ -29,6 +29,7 @@ import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { developerRoutes } from "./routes/developer";
+import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
 import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
@@ -104,14 +105,18 @@ export function createApp(deps: Deps) {
   });
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
   const ipKey = (c: { var: { ip: string } }) => c.var.ip;
+  const oauthLimiter = rateLimit("auth", ipKey);
   app.use("/api/auth/*", rateLimit("auth", ipKey));
   app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));
   app.use("/api/inbound/*", rateLimit("webhooks", ipKey));
+  // OAuth for MCP (round 20): registration and token calls come from AI apps, not from a session.
+  const isOAuthPublic = (p: string) => p === "/api/oauth/register" || p === "/api/oauth/token" || p === "/api/oauth/revoke";
+  app.use("/api/oauth/*", async (c, next) => (isOAuthPublic(c.req.path) && c.req.method === "POST" ? oauthLimiter(c, next) : next()));
   app.use("/api/v1/*", rateLimit("api", (c) => createHash(c.req.header("authorization") ?? c.var.ip), { countReads: true }));
   const appLimiter = rateLimit("app", (c) => c.req.header("cookie")?.match(/mymail\.session_token=([^;.]+)/)?.[1]?.slice(0, 24) ?? c.var.ip);
   app.use("/api/*", async (c, next) => {
     const p = c.req.path;
-    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/")) return next();
+    if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
     if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
     return appLimiter(c, next);
@@ -119,7 +124,7 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
-    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/")) return next();
+    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || isOAuthPublic(p)) return next();
     return csrfGuard(c, next);
   });
 
@@ -212,6 +217,8 @@ export function createApp(deps: Deps) {
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/developer", developerRoutes());
+  app.route("/api/oauth", oauthRoutes());
+  app.route("/.well-known", oauthWellKnownRoutes());
   app.route("/api/agents", agentRoutes());
   app.route("/api/approvals", approvalRoutes());
   app.route("/api/ai", aiRoutes());
