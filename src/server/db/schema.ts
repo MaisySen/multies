@@ -1506,30 +1506,36 @@ export const mailSnippets = sqliteTable("mail_snippets", {
 }, (t) => [index("mail_snippets_org_name_idx").on(t.orgId, t.name)]);
 
 /**
- * Round 23 (R23.2): a call recorded in the browser and transcribed with the workspace's own AI key.
- * Only the text is kept (no audio). Keyed by (org_id, meeting_id, id) WITHOUT ROWID, so the meeting's
- * list reads the primary key and there is no secondary index: a chunk's text appended is 1 row write.
+ * Round 23 (R23.4): a person's calendar feed (/cal/<token>.ics). Only a SHA-256 hash of the token is
+ * kept, with a short hint; resetting replaces the hash so the old address stops at once.
  */
-export const meetingRecordings = sqliteTable("meeting_recordings", {
+export const calendarFeeds = sqliteTable("calendar_feeds", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  meetingId: text("meeting_id").notNull(),
-  id: text("id").notNull(),
-  /** users.id of the member who pressed Record. */
-  startedBy: text("started_by").notNull(),
-  status: text("status", { enum: ["recording", "processing", "done", "failed"] }).notNull().default("recording"),
-  startedAt: ts("started_at").notNull(),
-  endedAt: ts("ended_at"),
-  durationSec: integer("duration_sec").notNull().default(0),
-  /** How many audio chunks were transcribed; the next chunk's sequence number. */
-  chunkCount: integer("chunk_count").notNull().default(0),
-  /** Plain text, capped at 200 KB (a note at the end says when it was cut). */
-  transcript: text("transcript").notNull().default(""),
-  summary: text("summary"),
-  /** JSON [{ text, assignee, due }]. */
-  actionItems: text("action_items").notNull().default("[]"),
-  /** The AI provider that transcribed it (openai or groq). */
-  provider: text("provider"),
-  error: text("error"),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: text("token_hash").notNull(),
+  /** The token's last four characters, to tell two addresses apart. */
+  hint: text("hint").notNull(),
+  includeTasks: integer("include_tasks", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
-  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.id] })]);
+  resetAt: ts("reset_at"),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId] }), uniqueIndex("calendar_feeds_token_uq").on(t.tokenHash)]);
+
+/**
+ * Round 23 (R23.4): other calendars a person reads in Multies (read only, never stored): a connected
+ * mailbox's CalDAV account, or a secret ICS link (encrypted with APP_SECRET, like mail passwords).
+ * Seen only by the person who added it.
+ */
+export const calendarSources = sqliteTable("calendar_sources", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  id: text("id").notNull(),
+  kind: text("kind", { enum: ["caldav", "ics"] }).notNull(),
+  connectionId: text("connection_id").references(() => mailConnections.id, { onDelete: "cascade" }),
+  urlEnc: text("url_enc"),
+  /** CalDAV: JSON [{ url, name, color }] found at discovery, so a view needs no discovery requests. */
+  calendars: text("calendars").notNull().default("[]"),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("#8E8E93"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
