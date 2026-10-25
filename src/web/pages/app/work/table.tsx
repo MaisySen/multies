@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Bot, CalendarDays, Check, FolderInput, Mail, Shapes, Tag, Trash2, UserRound, X, CircleDot } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, CalendarDays, Check, FolderInput, IterationCw, Mail, Shapes, Tag, Trash2, UserRound, X, CircleDot } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -18,6 +18,7 @@ import { tone } from "@/web/components/app-bits";
 import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeOption, type CustomField, type Priority, type Project, type Status, type Task } from "./data";
 import { FieldCell } from "./fields";
 import { TASK_TYPES, TYPE_META, TypeIcon, typeOf, type TaskType } from "./task-type";
+import { useSprints } from "./sprint-fields";
 
 const PRIORITIES: Priority[] = ["urgent", "high", "medium", "low", "none"];
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
@@ -399,7 +400,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
 
 // ---------------------------------------------------------------- the bulk bar
 
-type Pop = "status" | "assignee" | "due" | "labels" | "type" | "project" | null;
+type Pop = "status" | "assignee" | "due" | "labels" | "type" | "sprint" | "project" | null;
 
 function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; projects: Project[]; people: AssigneeOption[]; writes: ReturnType<typeof useTableWrites>; onClear: () => void }) {
   const [pop, setPop] = useState<Pop>(null);
@@ -410,6 +411,23 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
   const barRef = useRef<HTMLDivElement>(null);
   const ids = tasks.map((t) => t.id);
   const one = new Set(tasks.map((t) => t.projectId)).size === 1 ? projects.find((p) => p.id === tasks[0].projectId) : undefined;
+  // Round 21: plan a sprint from the table. Sprint moves go through the sprint routes, which date
+  // the change for the burndown; tasks from several projects can't share one sprint.
+  const qc = useQueryClient();
+  const sprints = useSprints(one?.id);
+  const openSprints = (sprints.data?.sprints ?? []).filter((s) => s.status !== "completed");
+  const toSprint = async (sprintId: string | null) => {
+    setPop(null); setBusy(true);
+    try {
+      if (sprintId) await api.post(`/sprints/${sprintId}/tasks`, { taskIds: ids });
+      else {
+        const bySprint = new Map<string, string[]>();
+        for (const t of tasks) if (t.sprintId) bySprint.set(t.sprintId, [...(bySprint.get(t.sprintId) ?? []), t.id]);
+        for (const [sid, taskIds] of bySprint) await api.post(`/sprints/${sid}/tasks/remove`, { taskIds });
+      }
+      await Promise.all([qc.invalidateQueries({ queryKey: ["tasks"] }), qc.invalidateQueries({ queryKey: ["sprints"] })]);
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+  };
   useEffect(() => {
     if (!pop) return;
     const onDown = (e: MouseEvent) => { if (!barRef.current?.contains(e.target as Node)) setPop(null); };
@@ -489,6 +507,15 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
           {barButton("type", <Shapes className="h-4 w-4" />, "Type")}
           {pop === "type" && panel((["task", "story", "bug"] as const).map((k) => item(k, <><TypeIcon type={k} />{TYPE_META[k].label}</>, () => void run({ type: k }, (t) => ({ ...t, type: k })))), "Set type")}
         </div>
+        {one && openSprints.length > 0 && (
+          <div className="relative">
+            {barButton("sprint", <IterationCw className="h-4 w-4" />, "Sprint")}
+            {pop === "sprint" && panel([
+              ...openSprints.map((s) => item(s.id, <>{s.name}<span className="ml-auto text-xs text-subtle">{s.status === "active" ? "Active" : "Planned"}</span></>, () => void toSprint(s.id))),
+              item("backlog", <span className="text-muted">Backlog</span>, () => void toSprint(null)),
+            ], "Move to sprint")}
+          </div>
+        )}
         <div className="relative">
           {barButton("project", <FolderInput className="h-4 w-4" />, "Move to")}
           {pop === "project" && panel(projects.filter((p) => !p.archived).map((p) => item(p.id, <><span className="h-2 w-2 rounded-full" style={{ background: tone(p.color) }} />{p.name}</>, () => void run({ projectId: p.id }, (t) => ({ ...t, projectId: p.id })))), "Move to project")}

@@ -66,5 +66,16 @@ test("plan, fill, start and complete a sprint, carrying the unfinished task over
   await expect(page.getByRole("combobox", { name: "Sprint" }).locator("option:checked")).toHaveText("Sprint 2");
   await expect(page.getByRole("list", { name: "Sprint tasks" }).getByText("Write launch announcement")).toBeVisible();
   await expect(page.getByRole("list", { name: "Sprint tasks" }).getByText("Design the new pricing page")).toHaveCount(0);
+
+  // Plan from the table: pick two backlog tasks and send them to Sprint 2 in one go.
+  await page.goto(`/app/tasks?view=list&project=${project.id}`);
+  const table = page.getByTestId("task-table");
+  for (const title of ["Set up redirects", "Update help centre links"]) await table.getByRole("row").filter({ hasText: title }).getByRole("checkbox").click();
+  const bar = page.getByTestId("bulk-bar");
+  await expect(bar).toContainText("2 selected");
+  await bar.getByRole("button", { name: "Sprint" }).click();
+  await bar.getByRole("menuitem", { name: /Sprint 2/ }).click();
+  await page.goto(`/app/tasks?view=sprints&project=${project.id}`);
+  for (const title of ["Set up redirects", "Update help centre links"]) await expect(page.getByRole("list", { name: "Sprint tasks" }).getByText(title)).toBeVisible();
   await ctx.close();
 });
