@@ -12,6 +12,11 @@ function analytics(rows: number, calls = { n: 0 }) {
     expect(url).toBe("https://api.cloudflare.com/client/v4/graphql");
     expect((init?.headers as Record<string, string>).authorization).toBe("Bearer tok");
     calls.n++;
+    // Grouped by date with an exact date filter: grouped only by database with date_geq, the live API
+    // answered a stale total (25 Oct: 111 against 13,550).
+    const q = JSON.parse(String(init?.body)).query as string;
+    expect(q).toContain("filter:{date:$d}");
+    expect(q).toContain("dimensions{databaseId date}");
     const half = Math.floor(rows / 2);
     return new Response(JSON.stringify({ data: { viewer: { accounts: [{ d1AnalyticsAdaptiveGroups: [
       { sum: { rowsWritten: half }, dimensions: { databaseId: "prod" } },

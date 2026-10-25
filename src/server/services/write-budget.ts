@@ -40,7 +40,9 @@ export function levelFor(rowsWritten: number, cfg: Deps["config"]["writeBudget"]
   return "ok";
 }
 
-const QUERY = `query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:50,filter:{date_geq:$d}){sum{rowsWritten} dimensions{databaseId}}}}}`;
+// The date is a dimension and an exact filter: grouped only by database with date_geq, the analytics API
+// answered 111 rows for 25 Oct while the same day grouped by date read 13,550 (checked 25 Oct 00:30 UTC).
+const QUERY = `query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:50,filter:{date:$d}){sum{rowsWritten} dimensions{databaseId date}}}}}`;
 
 async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
   const cfg = deps.config.writeBudget;
