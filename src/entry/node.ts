@@ -41,6 +41,7 @@ import { SmtpOutbound, smtpSettingsFrom } from "./smtp-outbound";
 import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
+import { fakeAiAllowed, fakeAiFetch } from "../server/services/ai/fake-fetch";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -62,7 +63,9 @@ const outbound = config.outbound.driver === "resend"
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
 const deps = {
-  db, config, dns, outbound, now: () => new Date(), fetch: globalThis.fetch.bind(globalThis),
+  db, config, dns, outbound, now: () => new Date(),
+  // Round 23: AI_FAKE=1 on a localhost APP_URL answers the AI providers locally (end to end tests only).
+  fetch: fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis),
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
   authenticate: mailauthAuthenticator(),
   bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
