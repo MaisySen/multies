@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { IterationCw } from "lucide-react";
 import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -13,19 +14,21 @@ import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
 import { GuestsDialog } from "./guests";
-import { TaskTable } from "./table";
+import { TaskList } from "./list";
 import { TaskPanel } from "./task-panel";
-import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
 import { tone } from "@/web/components/app-bits";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
+const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
 
 const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
   { id: "board", label: "Board", icon: KanbanSquare },
   { id: "list", label: "List", icon: List },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "timeline", label: "Timeline", icon: GanttChart },
+  { id: "sprints", label: "Sprints", icon: IterationCw },
 ];
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status"] as const;
 
@@ -41,7 +44,7 @@ export function TasksPage() {
   const list = projects.data ?? [];
   // The board needs one project: by default the one with the most open work.
   const busiest = [...list].sort((a, b) => (b.counts.todo + b.counts.doing) - (a.counts.todo + a.counts.doing))[0];
-  const projectId = params.get("project") ?? (view === "board" ? busiest?.id : undefined) ?? "";
+  const projectId = params.get("project") ?? (view === "board" || view === "sprints" ? busiest?.id : undefined) ?? "";
   const project = list.find((p) => p.id === projectId);
   const openId = params.get("task");
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as Record<(typeof FILTER_KEYS)[number], string | undefined>;
@@ -65,6 +68,7 @@ export function TasksPage() {
     setParams((p) => { const n = new URLSearchParams(p); for (const [k, v] of Object.entries(patch)) { if (v) n.set(k, v); else n.delete(k); } return n; }, { replace: true });
   }, [setParams]);
   const open = useCallback((id: string) => set({ task: id }), [set]);
+  const toggle = useCallback((t: Task) => update.mutate({ id: t.id, patch: { status: t.status === "done" ? "todo" : "done" } }), [update]);
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
 
   const saveView = async () => {
@@ -84,7 +88,7 @@ export function TasksPage() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="mr-2 large-title">Tasks</h1>
         <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px]">
-          {view !== "board" && <option value="">All projects</option>}
+          {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
@@ -152,8 +156,10 @@ export function TasksPage() {
             onMove={(id, col, position) => groupField
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
-        ) : view === "list" || (view === "board" && !project) ? (
-          <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
+        ) : view === "sprints" && project ? (
+          <Suspense fallback={<Skeleton className="h-64" />}><SprintsView project={project} onOpen={open} /></Suspense>
+        ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
+          <TaskList tasks={tasks.data ?? []} projects={list} onOpen={open} onToggle={toggle} fields={project ? fields : []} people={people.data ?? []} />
         ) : (
           <Suspense fallback={<Skeleton className="h-96" />}>
             {view === "calendar"

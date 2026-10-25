@@ -49,6 +49,8 @@ export const TaskCreate = z.object({
   source: z.object({ messageId: z.string().optional(), threadId: z.string().optional() }).nullable().optional().openapi({ description: "The email this task is about. The task links to its thread." }),
   fields: FieldValues.optional(),
   repeat: RepeatRule,
+  sprintId: z.string().max(64).nullable().optional().openapi({ description: "Round 21: put the task in a planned or active sprint of its project." }),
+  points: z.number().min(0).max(1000).nullable().optional().openapi({ description: "Round 21: the estimate, in the project's unit (points or hours)." }),
 }).openapi("TaskCreate");
 export const TaskFromEmail = z.object({
   messageId: z.string().optional(), threadId: z.string().optional(),
@@ -62,6 +64,8 @@ export const TaskPatch = z.object({
   parentId: z.string().nullable().optional(), position: z.number().finite().optional(),
   fields: FieldValues.optional(),
   repeat: RepeatRule,
+  sprintId: z.string().max(64).nullable().optional().openapi({ description: "Round 21: move to a sprint of the task's project; null moves it to the backlog." }),
+  points: z.number().min(0).max(1000).nullable().optional().openapi({ description: "Round 21: the estimate, in the project's unit (points or hours); null clears it." }),
   version: z.number().int().optional().openapi({ description: "Send the version you read to reject the write if someone changed the task since." }),
 }).openapi("TaskPatch");
 export const TaskQuery = z.object({

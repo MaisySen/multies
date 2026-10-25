@@ -62,20 +62,6 @@ update: `POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/v1/tasks`, `PATCH 
 Finishing a repeating task makes the next one with the dates moved on and fires `task.recurred`.
 MCP: `set_task_repeat`.
 
-## Bulk task changes (round 21)
-
-Change or delete many tasks in one call, the same rules as one at a time: `POST /api/v1/tasks/bulk`
-with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the app uses
-`POST /api/tasks/bulk` and `POST /api/tasks/bulk-delete`). `ids` are task ids or references like
-`OPS-12`, at most 500 a call (413 above that). `patch` takes any of `status` (todo, doing, done) or
-`statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
-clears), `addLabels`, `removeLabels` and `projectId` (moves the tasks; numbers come from the new
-project and each status maps to the same group there). If any id is not in the workspace nothing is
-changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
-row and one sync feed change, and the action writes one summary activity entry. Webhooks still get
-one `task.updated` (or `task.deleted`) per task. When the daily database write budget is nearly
-used, bulk changes answer 503 and single edits still work. MCP: `bulk_update_tasks`.
-
 ## Templates
 
 Kinds: `project`, `task` and `doc`. A template is saved from an item (`fromProjectId`, `fromTaskId`, `fromDocId`) or
@@ -203,10 +189,25 @@ A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional
 - `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...` and a `VTIMEZONE` for that zone (yearly STANDARD and DAYLIGHT rules from the runtime's zone data, or one STANDARD part for a zone without daylight saving), which older Outlook versions need. Calendar invites carry the same.
 - Meetings come back with `recurrence: { interval, days, until, count, rrule, timezone, summary }` or null. MCP: `schedule_meeting` takes `repeats` (an RRULE), `list_meetings` returns `repeats`.
 
+## Sprints (round 21)
+
+Sprints (cycles) per project: plan them ahead, run one at a time, complete them with the unfinished
+tasks carried to the next sprint or back to the backlog. Tasks in no sprint are the project's backlog.
+Each task has an optional estimate (`points`), counted in points or hours per project.
+The burndown has one entry per day in the person's (or workspace's, or `timeZone`) zone: what was left at
+the end of that day, in points, or in tasks when nothing is estimated, and the ideal line. It is worked out
+on read, so a task change costs no extra write; a completed sprint keeps its final chart.
+
+- Page: Tasks, Sprints view (pick a project).
+- App API: `GET /api/sprints?projectId=`, `GET /api/sprints/backlog?projectId=`, `POST /api/sprints` `{ projectId, name?, goal?, startAt?, endAt? }`, `GET`, `PATCH` and `DELETE /api/sprints/:id` (delete: planned only), `POST /api/sprints/:id/start`, `POST /api/sprints/:id/complete` `{ carryOver: "next" | "backlog" }`, `POST /api/sprints/:id/tasks` and `POST /api/sprints/:id/tasks/remove` `{ taskIds }` (up to 500), `PUT /api/sprints/estimate-unit` `{ projectId, unit: "points" | "hours" }`
+- Public API: `GET` and `POST /api/v1/projects/{id}/sprints`, `GET /api/v1/projects/{id}/backlog`, `GET`, `PATCH` and `DELETE /api/v1/sprints/{id}` (`timeZone` on GET), `POST /api/v1/sprints/{id}/start`, `POST /api/v1/sprints/{id}/complete` `{ carry_over: "next" | "backlog" }`, `POST /api/v1/sprints/{id}/tasks` and `/tasks/remove` `{ taskIds }`, `PUT /api/v1/tasks/{id}/points` `{ points }`. Task create and update also take `sprintId` and `points`.
+- Errors: 409 `sprint_already_active` (complete the running one first), 409 `sprint_completed`, 422 when a sprint ends before it starts or a task is in another project.
+- MCP: `list_sprints`, `get_sprint`, `create_sprint`, `start_sprint`, `complete_sprint`, `add_to_sprint`, `remove_from_sprint`.
+
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.

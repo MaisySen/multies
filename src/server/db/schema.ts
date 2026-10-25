@@ -759,6 +759,8 @@ export const projects = sqliteTable("projects", {
   healthNote: text("health_note").notNull().default(""),
   /** The person who owns the project (a user id), shown on the portfolio. */
   ownerUserId: text("owner_user_id"),
+  /** Round 21: what a task's estimate counts in this project. */
+  estimateUnit: text("estimate_unit", { enum: ["points", "hours"] }).notNull().default("points"),
   ...suiteCols(),
 }, (t) => [index("projects_org_idx").on(t.orgId)]);
 
@@ -806,6 +808,9 @@ export const tasks = sqliteTable("tasks", {
   repeatRule: text("repeat_rule"),
   /** Set on tasks brought in from another work tool: a hash of the source and its own id, so a re-run skips them. */
   importKey: text("import_key"),
+  /** Round 21: the sprint this task is in (null: the project's backlog) and its estimate (points or hours, per project). */
+  sprintId: text("sprint_id"),
+  points: real("points"),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
@@ -814,6 +819,7 @@ export const tasks = sqliteTable("tasks", {
   index("tasks_parent_idx").on(t.parentId),
   uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
   uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
+  index("tasks_sprint_idx").on(t.sprintId).where(sql`${t.sprintId} IS NOT NULL`),
 ]);
 
 export const taskComments = sqliteTable("task_comments", {
@@ -1402,3 +1408,27 @@ export const mailSchedules = sqliteTable("mail_schedules", {
   error: text("error"),
   createdAt: createdAt(),
 }, (t) => [index("mail_schedules_due_idx").on(t.status, t.dueAt)]);
+
+/**
+ * Round 21: sprints (cycles) per project. One active sprint per project at a time. The burndown is
+ * worked out on read from tasks and the activity rows task writes already make; the snapshot holds
+ * the scope at start ({ start: { taskId: points } }) and the frozen chart at complete, so a task
+ * change costs no extra write here. WITHOUT ROWID (drizzle/0034): a row costs 2 writes.
+ */
+export const sprints = sqliteTable("sprints", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  goal: text("goal").notNull().default(""),
+  startAt: ts("start_at").notNull(),
+  endAt: ts("end_at").notNull(),
+  status: text("status", { enum: ["planned", "active", "completed"] }).notNull().default("planned"),
+  startedAt: ts("started_at"),
+  completedAt: ts("completed_at"),
+  /** How many unfinished tasks moved on when the sprint was completed. */
+  carriedOver: integer("carried_over").notNull().default(0),
+  /** JSON, see above. */
+  snapshot: text("snapshot").notNull().default("{}"),
+  ...suiteCols(),
+}, (t) => [index("sprints_org_project_idx").on(t.orgId, t.projectId)]);

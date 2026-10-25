@@ -4,6 +4,7 @@ import { TaskFiles } from "./task-files";
 import { Link, useNavigate } from "react-router";
 import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
+import { SprintFields } from "./sprint-fields";
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -123,6 +124,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <dt className="text-subtle">Labels</dt>
             <dd><Input aria-label="Labels" placeholder="ops, client" value={labels} onChange={(e) => setLabels(e.target.value)}
               onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px]" /></dd>
+            <SprintFields task={t} onSave={(patch) => save(patch)} />
           </dl>
 
           {(q.data!.customFields?.length ?? 0) > 0 && (

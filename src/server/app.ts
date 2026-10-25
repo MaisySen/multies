@@ -29,7 +29,7 @@ import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { mailScheduleRoutes } from "./routes/mail-schedules";
-import { taskBulkRoutes } from "./routes/tasks-bulk";
+import { sprintRoutes } from "./routes/sprints";
 import { developerRoutes } from "./routes/developer";
 import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
@@ -221,6 +221,7 @@ export function createApp(deps: Deps) {
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/mail-schedules", mailScheduleRoutes());
+  app.route("/api/sprints", sprintRoutes());
   app.route("/api/developer", developerRoutes());
   app.route("/api/oauth", oauthRoutes());
   app.route("/.well-known", oauthWellKnownRoutes());
@@ -229,7 +230,6 @@ export function createApp(deps: Deps) {
   app.route("/api/ai", aiRoutes());
   app.route("/api/projects", projectRoutes());
   app.route("/api/tasks", taskRoutes());
-  app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
   app.route("/api/docs", docRoutes());
   app.route("/api/contacts", contactRoutes());
   app.route("/api/companies", companyRoutes());

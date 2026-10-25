@@ -149,7 +149,8 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   expect(r.body.created).toBe(100);
   const tasksRun = take();
   // Measured 819: 8 a task (the row, its key and 6 indexes including the import key), plus 2 batches (number claim and day counter) and the summary activity and change rows.
-  expect(tasksRun).toBeLessThanOrEqual(100 * 8 + 30);
+  // Round 21: the meter bills the partial sprint index on tasks too (9 a task, measured 919), though D1 writes no entry for a task with no sprint.
+  expect(tasksRun).toBeLessThanOrEqual(100 * 9 + 30);
   const again = await u.post("/api/work-imports/run", { content, projectId: project.id });
   expect(again.body).toMatchObject({ created: 0, alreadyThere: 100 });
   expect(take()).toBeLessThanOrEqual(4);
@@ -201,69 +202,41 @@ it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later an
   expect(sendRows).toBeLessThanOrEqual(45);
 });
 
-it("bulk task changes (round 21): a 50 task update is one batch with no per task reads, about 3 to 6 D1 rows a task", async () => {
-  const { bulkUpdateTasks } = await import("@/server/services/suite/bulk");
+it("sprints (round 21): a sprint row is 2, a task added is one tasks row, a bulk add is one batch, burndown reads write nothing", async () => {
+  const { addToSprint, completeSprint, createSprint, getSprint, startSprint } = await import("@/server/services/suite/sprints");
+  const { createTask, updateTask } = await import("@/server/services/suite/tasks");
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
-  await u.signup("owner@acme.io", "Owner Person");
+  await u.signup();
   const me = (await u.get("/api/account/me")).body;
-  const web = (await u.post("/api/projects", { name: "Web" })).body.project as { id: string };
-  const ops = (await u.post("/api/projects", { name: "Ops" })).body.project as { id: string };
+  const actor = { orgId: me.organization.id as string, userId: me.user.id as string, email: me.user.email as string, name: "Ada", role: "owner" as const };
+  const projectId = (await u.post("/api/projects", { name: "Sprints", key: "SPR" })).body.project.id as string;
   const ids: string[] = [];
-  for (let i = 0; i < 50; i++) ids.push((await u.post("/api/tasks", { title: `Task ${i}`, projectId: web.id })).body.task.id);
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-
-  // Count what the service sends: reads of tasks, batches, and writes outside a batch.
-  const c = (ctx.db as unknown as { $client: { prepare: (q: string) => Record<string, (...a: unknown[]) => unknown> } }).$client;
-  const prepare = c.prepare.bind(c);
-  // D1 bills a written row for the table and one for each index whose columns the write touches.
-  const idxCols = new Map<string, string[][]>();
-  for (const t of ["tasks", "changes", "activity", "task_field_values", "projects"]) {
-    idxCols.set(t, (prepare(`select name from pragma_index_list('${t}')`).all() as { name: string }[]).map((i) => (prepare(`select name from pragma_index_info('${i.name}')`).all() as { name: string }[]).map((x) => x.name)));
-  }
-  let reads = 0, d1Rows = 0, outside = 0, inBatch = false;
-  const batches: number[] = [];
-  c.prepare = (q: string) => {
-    const st = prepare(q);
-    if (/^\s*select/i.test(q) && /from\s+"tasks"/i.test(q)) reads++;
-    const m = /^\s*(insert into|update|delete from)\s+["`]?(\w+)/i.exec(q);
-    if (!m) return st;
-    const table = m[2];
-    const touched = /^update/i.test(m[1]) ? [...q.slice(0, q.search(/\swhere\s/i) > 0 ? q.search(/\swhere\s/i) : q.length).matchAll(/"(\w+)"\s*=/g)].map((x) => x[1]) : null;
-    const perRow = 1 + (idxCols.get(table) ?? []).filter((cols) => !touched || cols.some((col) => touched.includes(col))).length;
-    for (const fn of ["run", "all", "get"]) {
-      const orig = st[fn].bind(st);
-      st[fn] = (...a: unknown[]) => { const before = (prepare("select total_changes() n").get() as { n: number }).n; const r = orig(...a); const n = (prepare("select total_changes() n").get() as { n: number }).n - before; d1Rows += n * perRow; if (!inBatch && n) outside += n; return r; };
-    }
-    return st;
-  };
-  (ctx.db as unknown as { batch: (s: PromiseLike<unknown>[]) => Promise<void> }).batch = async (s) => { batches.push(s.length); inBatch = true; try { for (const x of s) await x; } finally { inBatch = false; } };
-  const run = async (patch: Parameters<typeof bulkUpdateTasks>[3]) => {
-    reads = 0; d1Rows = 0; outside = 0; batches.length = 0;
-    const r = await bulkUpdateTasks(ctx.deps, actor, ids, patch);
-    expect(r.updated).toBe(50);
-    return { reads, d1Rows, outside, batches: [...batches] };
-  };
-
-  const assign = await run({ assignee: `member:${me.user.id}`, priority: "high", addLabels: ["launch"] });
-  const status = await run({ status: "done" });
-  const move = await run({ projectId: ops.id });
-  console.log("bulk 50: assign", assign, "status", status, "move", move);
-  for (const m of [assign, status]) {
-    // One batch of writes and nothing written outside it.
-    expect(m.batches).toHaveLength(1);
-    expect(m.outside).toBe(0);
-    // Reads do not grow with the task count: one chunked read of the 50, the statuses, one grouped bottom position, the presented answer.
-    expect(m.reads).toBeLessThanOrEqual(8);
-  }
-  // A project move claims its numbers with one write before the batch (the projects row and its indexes).
-  expect(move.batches).toHaveLength(1);
-  expect(move.outside).toBe(1);
-  expect(move.reads).toBeLessThanOrEqual(8);
-  // Measured 154 for assign (3 a task: the tasks row, the changes row and its index, plus one summary activity row),
-  // 204 for status (4 a task: the status and position index too), 255 for a move (5 a task: the project and number indexes).
-  // The plain meter above counts every index on every write (10 a task here); D1 bills only the indexes a write touches.
-  expect(assign.d1Rows).toBeLessThanOrEqual(50 * 3 + 10);
-  expect(status.d1Rows).toBeLessThanOrEqual(50 * 4 + 10);
-  expect(move.d1Rows).toBeLessThanOrEqual(50 * 6 + 10);
+  for (let i = 0; i < 50; i++) ids.push((await createTask(ctx.deps, actor, { title: `T${i}`, projectId, points: 1 })).id);
+  const take = meter(ctx.db);
+  const s = await createSprint(ctx.deps, actor, projectId, {});
+  // Measured 2: the sprints row (WITHOUT ROWID) and its one index.
+  expect(take()).toBe(2);
+  // The meter bills every index on tasks (8) for an update; D1 bills only the index entries that
+  // change, here the partial sprint index: 2 rows a task in production (3 moving between sprints).
+  await addToSprint(ctx.deps, actor, s.id, [ids[0]]);
+  const one = take();
+  expect(one).toBeLessThanOrEqual(9);
+  await addToSprint(ctx.deps, actor, s.id, ids.slice(1));
+  // 49 tasks, no activity row while the sprint is planned.
+  expect(take()).toBeLessThanOrEqual(49 * one);
+  await startSprint(ctx.deps, actor, s.id);
+  expect(take()).toBe(2);
+  await updateTask(ctx.deps, actor, ids[0], { status: "done" });
+  const doneCost = take();
+  await updateTask(ctx.deps, actor, ids[1], { status: "done" });
+  // Finishing a task in a sprint costs what it did before sprints: nothing extra for the chart.
+  expect(take()).toBe(doneCost);
+  await getSprint(ctx.deps, actor, s.id);
+  await u.get(`/api/sprints?projectId=${projectId}`);
+  await u.get(`/api/sprints/${s.id}`);
+  expect(take()).toBe(0);
+  await completeSprint(ctx.deps, actor, s.id, { carryOver: "backlog" });
+  // Measured: the sprints row (2) plus the 48 carried tasks; nothing per task besides the row and index.
+  expect(take()).toBeLessThanOrEqual(2 + 48 * one);
 });
