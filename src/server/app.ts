@@ -34,7 +34,6 @@ import { sprintRoutes } from "./routes/sprints";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { mailSnippetRoutes } from "./routes/mail-snippets";
-import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
@@ -50,6 +49,7 @@ import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
+import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
@@ -261,7 +261,7 @@ export function createApp(deps: Deps) {
   app.route("/api/forms", formRoutes());
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
-  app.route("/api/meeting-notes", meetingNotesRoutes()); // Round 23: agenda and notes doc, action items
+  app.route("/api/meetings", meetingRecordingRoutes()); // Round 23: recording and transcript
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());

@@ -13,7 +13,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
-import { MeetingNotes } from "./meeting-notes";
+import { RecordingLayer, RecordingSection } from "./meeting-recording";
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -85,6 +85,7 @@ function Room({ join, onLeave }: { join: Join; onLeave: () => void }) {
   return (
     <div data-lk-theme="default" className="h-[calc(100dvh-180px)] min-h-[420px] overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
       <LiveKitRoom serverUrl={join.url} token={join.token} connect video audio onDisconnected={onLeave} style={{ height: "100%" }}>
+        <RecordingLayer join={join} />
         <VideoConference />
       </LiveKitRoom>
     </div>
@@ -209,12 +210,12 @@ export function MeetingPage() {
           </div>
         </Card>
       )}
+      <RecordingSection meetingId={m.id} />
       <div className="mt-4 flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
         <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><Download className="h-4 w-4" />Calendar file</a>
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
       </div>
-      <MeetingNotes meetingId={m.id} />
       {editing && <EditMeetingDialog m={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ["meeting", id] }); void qc.invalidateQueries({ queryKey: ["meetings"] }); }} />}
     </div>
   );

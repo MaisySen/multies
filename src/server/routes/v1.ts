@@ -33,9 +33,9 @@ import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
-import { registerMeetingNotesRoutes } from "./v1-r23-notes";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
+import { registerRecordingRoutes } from "./v1-r23-recordings";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -400,7 +400,6 @@ export function v1Routes() {
   registerThreadCommentRoutes(api); // Round 22: internal notes on threads
   registerR22AssignRoutes(api);
   registerSnippetRoutes(api); // Round 22: saved replies
-  registerMeetingNotesRoutes(api); // Round 23: meeting notes and action items
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
@@ -408,6 +407,7 @@ export function v1Routes() {
   registerPeopleRoutes(api);
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
+  registerRecordingRoutes(api);
   registerMcpRoute(api);
   return api;
 }

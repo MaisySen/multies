@@ -439,26 +439,25 @@ can open (same workspace, a mailbox in their scope), else 404.
 D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
 and render write nothing.
 
-## Meeting notes and action items (round 23)
+## Meeting recordings and transcripts (round 23)
 
-Each meeting can have one agenda and notes doc, made the first time someone opens Notes (or calls
-`POST .../notes`). It starts with the headings Agenda, Notes and Action items, the last holding an
-empty checklist. Two people opening at once get the same doc. A weekly series shares one doc. The doc
-is a normal doc (any member can open and edit it) and shows "Notes for <meeting>" with a link back.
+A member presses Record in a meeting's room; the browser mixes the call's audio and uploads a chunk
+about every 5 minutes and at Stop. Each chunk goes straight on to the workspace's own OpenAI
+(`gpt-4o-mini-transcribe`) or Groq (`whisper-large-v3-turbo`) key; Multies keeps only the text (capped
+at 200 KB), never the audio. At Stop the workspace's AI key writes a short summary with decisions and
+action items, posted once as a chat message from the recorder in the channel the call started from, or
+sent to the attendees who are members as a notification. Without an OpenAI or Groq key, starting answers
+409 `recording_needs_ai_key` (no key) or `recording_needs_transcribe_key` (an Anthropic or OpenRouter
+key). Everyone in the call sees a Recording banner.
 
-Action items are the doc's checklist items, anywhere in it. Each unchecked item gives a title, an
-assignee from "@Full Name", "@First" (when only one person has that first name), "@email" or a mention,
-and a due date from "due Fri", "by Friday", "next Tue", "by 30 Oct", "due Oct 30th", "by 2026-10-30",
-"today" or "tomorrow" (in the series' time zone, else the person's, else the workspace's). Turning them
-into tasks is one request; an item that already became a task is skipped, so pressing twice makes
-nothing new. Each task links back to the meeting. Assignees must be members or agents of the workspace.
-The project is the one given, else the meeting's source task's project, else the workspace's first.
+- App API (cookie session): `GET /api/meetings/:id/recordings` answers `{ recordings, setup }`;
+  `POST /api/meetings/:id/recordings` starts (or joins the live one); `PUT /api/meetings/:id/recordings/:rid/chunks/:seq`
+  `{ audioBase64, mime?, offsetSec?, durationSec? }` (chunks from 0 in order; a chunk already taken answers
+  `duplicate: true`, one that skips ahead is 409 `out_of_order` with `details.expected`; over 24 MB is 413);
+  `POST /api/meetings/:id/recordings/:rid/stop` `{ durationSec? }` (idempotent: the summary is posted once);
+  `DELETE /api/meetings/:id/recordings/:rid`. Only the person who started a recording uploads to it.
+- Public API: `GET /api/v1/meetings/{id}/recordings`. Read only keys can call it.
+- MCP: `get_meeting_transcript`.
 
-- App API: `GET /api/meeting-notes/:meetingId` (reads only; `doc` is null until made), `POST /api/meeting-notes/:meetingId` (makes the doc if missing, answers the same), `POST /api/meeting-notes/:meetingId/action-items` `{ projectId?, items?: [{ key?, title?, assignee?, due? }] }`, `GET /api/meeting-notes/by-doc/:docId` (the meeting a doc is the notes of, or null).
-- Public API: `GET /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/action-items`. Read only keys can read the notes but not make the doc or tasks.
-- MCP: `get_meeting_notes`, `create_action_items`.
-- Another workspace's meeting answers 404; project guests and meeting guests have no workspace session (401).
-
-D1 writes: the doc costs 8 rows once (the doc row and the meeting's doc_id, with their indexes); each
-action item costs its task plus 4 (the meeting_action_items row and the link back); reading the notes
-and a second press write nothing.
+D1 writes: starting is 1 row (WITHOUT ROWID, no secondary index), each chunk is 1 row, Stop is 2 rows
+plus the one chat message (or one notification per attendee); reads and a retried chunk write nothing.
