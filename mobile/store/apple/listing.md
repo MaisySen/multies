@@ -24,9 +24,9 @@ Paste these into App Store Connect. Publisher: Fintex Australia Pty Ltd.
 
 ## URLs
 
-- Support URL: https://multies.sites.tab.bot/support/
+- Support URL: https://multies.si/support/
 - Marketing URL: https://multies.si
-- Privacy policy URL: https://multies.sites.tab.bot/privacy/
+- Privacy policy URL: https://multies.si/privacy/
 
 ## Version 1.8.1
 

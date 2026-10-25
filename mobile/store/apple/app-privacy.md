@@ -2,7 +2,7 @@
 
 Must match the privacy manifest (`ios.privacyManifests` in app.json, copy in store/ios/PrivacyInfo.xcprivacy), store/privacy-policy.md and the code. Change all four together.
 
-Privacy policy URL: https://multies.sites.tab.bot/privacy/
+Privacy policy URL: https://multies.si/privacy/
 
 Tracking: No. No ads, no analytics or advertising SDK, no data brokers.
 

@@ -79,7 +79,7 @@ on each screen of the web build and saves phone sized screenshots.
 
 ## Builds and preview
 
-- Web preview (sample data only): https://mymail-mobile.sites.tab.bot/
+- Web preview (sample data only): https://mobile.preview.multies.si/ (noindex)
 - Android debug-signed APKs come from `npx expo prebuild --platform android` and `cd android && ./gradlew assembleRelease`. Add `-PreactNativeArchitectures=arm64-v8a` for a smaller APK (about 31 MB) that runs on modern phones.
 - Live API check (never commit the values): `MYMAIL_LIVE_EMAIL=... MYMAIL_LIVE_PASSWORD=... npx jest live`
 
@@ -98,4 +98,4 @@ Publisher: Fintex Australia Pty Ltd. Store name Multies. Bundle id and package `
 | [store/](store/) | Single source for listing text, privacy answers, policy and terms |
 | [ci/github/ios-testflight.yml](ci/github/ios-testflight.yml) | TestFlight workflow, ready to copy into `.github/workflows/` |
 
-Public pages: https://multies.sites.tab.bot/privacy/, /terms/, /support/ and /delete-account/.
+Public pages: https://multies.si/privacy/, /terms/, /support/ and /delete-account/.

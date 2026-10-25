@@ -6,7 +6,7 @@ Must match store/privacy-policy.md, store/apple/app-privacy.md and the code. Upd
 | --- | --- |
 | Does the app collect or share any required user data types? | Yes |
 | Is all user data encrypted in transit? | Yes (HTTPS only) |
-| Can users request that their data is deleted? | Yes: in the app (Settings, Delete my account) and at https://multies.sites.tab.bot/delete-account/ |
+| Can users request that their data is deleted? | Yes: in the app (Settings, Delete my account) and at https://multies.si/delete-account/ |
 
 | Data type | Collected | Shared | Ephemeral | Required or optional | Purposes |
 | --- | --- | --- | --- | --- | --- |
@@ -27,8 +27,8 @@ Not shared: mail goes to the recipients a person addresses (user initiated). Clo
 ## As entered in Play Console (25 Oct 2026)
 
 - Account creation methods: username and password, and OAuth (Google, Apple and GitHub through the Multies sign in page).
-- Delete account URL: https://multies.sites.tab.bot/delete-account/
-- Delete data URL (Play asks for it separately; there is no separate page yet): https://multies.sites.tab.bot/privacy/ (the privacy policy, which explains how to delete data without deleting the account). Point it at a dedicated page if one is published.
+- Delete account URL: https://multies.si/delete-account/
+- Delete data URL (Play asks for it separately; there is no separate page yet): https://multies.si/privacy/ (the privacy policy, which explains how to delete data without deleting the account). Point it at a dedicated page if one is published.
 - Can users request that some data is deleted without deleting the account? Yes (workspace owners can export and delete mail in the web app).
 - Content rating: the IARC questionnaire came out 12+ (Play shows it because the app lets users exchange mail and chat), not the Everyone expected in content-rating.md. See that file.
 - Saved in Play Console; not yet sent to Google for review.

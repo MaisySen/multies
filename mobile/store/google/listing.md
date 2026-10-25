@@ -60,7 +60,7 @@ Multies is provided by Fintex Australia Pty Ltd. Support: contact@fintex.au
 
 - Category: Business. Tags: Email, Productivity, Business.
 - Contact email: contact@fintex.au. Website: https://multies.si
-- Privacy policy: https://multies.sites.tab.bot/privacy/
+- Privacy policy: https://multies.si/privacy/
 
 ## App content
 
@@ -68,5 +68,5 @@ Multies is provided by Fintex Australia Pty Ltd. Support: contact@fintex.au
 - App access: some functionality is restricted. Instructions: "Tap Sign in and use the demo account below, or tap Explore with sample data on the sign in screen." Login: App Review demo account in CREDENTIALS.local.md.
 - Target audience: 18 and over. Not designed for children.
 - News: No. Government app: No. Financial features: None. Health: No.
-- Account deletion: people can create an account. Deletion URL: https://multies.sites.tab.bot/delete-account/ (also in the app: Settings, Delete my account).
+- Account deletion: people can create an account. Deletion URL: https://multies.si/delete-account/ (also in the app: Settings, Delete my account).
 - Data safety: data-safety.md. Content rating: content-rating.md. Permissions: permissions.md.

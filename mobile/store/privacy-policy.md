@@ -54,7 +54,7 @@ Multies is a business app for people 18 and over. It is not made for children an
 
 ## Your choices and deleting your data
 
-You can delete your account inside the app: Settings, then Delete my account. This deletes your account and every workspace only you belong to, at once. You can also delete it on the web at https://multies.sites.tab.bot/delete-account/, or email contact@fintex.au and we will delete what we hold for you within 30 days. Workspace owners can export and delete mail in the web app.
+You can delete your account inside the app: Settings, then Delete my account. This deletes your account and every workspace only you belong to, at once. You can also delete it on the web at https://multies.si/delete-account/, or email contact@fintex.au and we will delete what we hold for you within 30 days. Workspace owners can export and delete mail in the web app.
 
 ## Security
 

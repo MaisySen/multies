@@ -11,7 +11,7 @@ This file used to hold every answer for 1.6.0. The store folder is now split so 
 | Play Data safety | google/data-safety.md |
 | Play content rating | google/content-rating.md |
 | Android permissions, read from the built APK | google/permissions.md |
-| Privacy policy, terms, support, account deletion (published at https://multies.sites.tab.bot/) | privacy-policy.md, terms.md, support.md, delete-account.md |
+| Privacy policy, terms, support, account deletion (published at https://multies.si/) | privacy-policy.md, terms.md, support.md, delete-account.md |
 | Owner steps, identifiers, macOS route | ../docs/STORE.md |
 | Screenshots | screenshots/ (play-phone 1080 x 1920, ios-6.9 1320 x 2868, ios-6.5 1284 x 2778) |
 | Icons and feature graphic | icons/, play/ |

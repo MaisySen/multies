@@ -20,10 +20,10 @@ Follows the Fintex publishing playbook (version 1, 24 October 2026). The answers
 
 ## Public pages
 
-- Privacy: https://multies.sites.tab.bot/privacy/
-- Terms: https://multies.sites.tab.bot/terms/
-- Support: https://multies.sites.tab.bot/support/
-- Account deletion: https://multies.sites.tab.bot/delete-account/
+- Privacy: https://multies.si/privacy/
+- Terms: https://multies.si/terms/
+- Support: https://multies.si/support/
+- Account deletion: https://multies.si/delete-account/
 
 The pages on multies.si (/privacy, /terms) are drafts with placeholder company details in the web
 app (`app/src/shared/legal.ts`). Use the pages above in both stores until the web app's pages are
@@ -57,7 +57,7 @@ bundle id registration with the API key, App Store Connect fields through the AP
 2. Create the App Store Connect app record: Name Multies, Primary Language English (Australia),
    Bundle ID au.fintex.multies, SKU multies-ios-1, User Access Full Access.
 3. Give the App Review phone number.
-4. Done: the Fintex Australia Play developer account exists. Its invite to mymail.builder@mail.tab.bot needs a Google account on that address; Google's signup stops at a phone QR check. Either Bidur scans it, invites a Google account he owns, or does steps 5 and 6 himself.
+4. Done: the Fintex Australia Play developer account exists. Play Console access now runs through the owner's own Google account (fintexaustralia@gmail.com); the earlier invite to the build mailbox was never used.
 5. Create the Play app record: App name Multies, English (Australia), App, Free.
 6. Upload the first AAB on the Internal testing track and accept Play App Signing. Release name
    1.8.1 (10).

@@ -17,7 +17,7 @@ The step-by-step owner checklist, with every store answer ready to paste, is in
   this against the `PrivacyInfo.xcprivacy` files in `node_modules`.
 - `ITSAppUsesNonExemptEncryption = false` (only standard HTTPS).
 - In-app account deletion (Settings, Delete my account, calls `DELETE /api/account`) and the web
-  page https://multies.sites.tab.bot/delete-account/.
+  page https://multies.si/delete-account/.
 - No purchases, prices, upgrade or billing buttons anywhere in the app.
 - Android target SDK 36 (Google Play's rule for new apps and updates from 31 August 2026), pinned by
   the config plugin below.
