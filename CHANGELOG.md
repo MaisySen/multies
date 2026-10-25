@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 24: planning depth (25 Oct 2026)
+
+- Formula and rollup fields: two new custom field types. A formula is an expression over a task's fields and built ins (`{Budget} * 1.1`, `if({points} > 5, "big", "small")`, `days_between(today(), {due})`), read by a hand written parser with no eval, limits on length and depth, and a clear "#ERROR" per cell instead of a failed page. A rollup sums, counts, averages or takes the min, max or percent done over subtasks, an epic's items, or a whole project (shown above the task list). Values are computed when tasks are read, so they cost no writes. Migration 0047: `custom_fields.config`.
+- Dashboards: a Dashboards page with widgets for counts, tasks by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week, sprint burndown, goal progress, reply times, mail volume and workload. Each widget can use a saved filter or a project. One click starts a "Team overview" dashboard; widgets drag to reorder. Data is computed on read; saving a layout is one row. Migration 0048: `dashboards`.
+- Automation recipes: 28 ready rules in a Recipes tab (Tasks, Mail, Chat, Meetings, Sprints), turned on in one click or after picking a channel, project or person. The rules engine gains triggers for a new task, a changed assignee, a passed due date, a meeting that ended and a chat keyword, and actions to post in a channel, assign (a person, the project lead or round robin), set status, priority or a label, and add a checklist of subtasks, with a guard against rules that trigger each other.
+- Docs: a page tree beside the docs with sub pages, drag to reorder or nest, and a menu for the keyboard; breadcrumbs; "Linked from" at the bottom of each doc and on tasks; type [[ to link a page or task. Link rows change only when a doc's links change. Migration 0050: `docs.parent_id`, `docs.position`, `doc_links`.
+- Workload: a weekly capacity per person in points or hours, set on their row (owners and admins for anyone, members for themselves). Migration 0051: `workload_capacity`.
+- Meeting notes: type @ in an action item to pick who it is for.
+- API and MCP: REST endpoints for all of the above, and 13 new MCP tools (114 in all).
+
 ### Round 23: meetings that produce work (25 Oct 2026)
 
 - Agenda and notes: each meeting gets one notes doc (Agenda, Notes, Action items), made the first time someone opens Notes and shown inline on the meeting page with a link back from the doc. Checklist items are action items: "@Name" sets the assignee and "due Fri", "by 30 Oct" or "tomorrow" sets the due date, both editable before "Create N tasks" makes them in one request. A second press makes none. Docs now keep checklists. Migration 0043: `meeting_action_items`.
