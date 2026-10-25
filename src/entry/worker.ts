@@ -28,6 +28,7 @@ import type { DocRoomNamespace } from "../server/collab/durable-object";
 export { DocRoom } from "../server/collab/durable-object";
 import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
+import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -72,6 +73,7 @@ async function boot(env: WorkerEnv) {
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
+    liveMail: liveMailDispatcher(env),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -112,14 +114,41 @@ function mailSyncDispatcher(env: WorkerEnv): ((id: string) => Promise<void>) | u
 
 interface DurableObjectStateLike { storage: { get<T>(k: string): Promise<T | undefined>; put(k: string, v: unknown): Promise<void>; setAlarm(t: number): Promise<void> } }
 
+/** Live mail (round 19): opens or extends a connection's live window in its Durable Object. */
+function liveMailDispatcher(env: WorkerEnv): ((id: string, seconds: number) => Promise<LiveTouch>) | undefined {
+  const ns = env.MAIL_SYNC as DurableObjectNamespaceLike | undefined;
+  if (!ns || typeof ns.idFromName !== "function") return undefined;
+  return async (id: string, seconds: number) => {
+    const res = await ns.get(ns.idFromName(id)).fetch(new Request("https://mail-sync/live", { method: "POST", body: JSON.stringify({ id, seconds }) }));
+    if (!res.ok) throw new Error(`live mail answered ${res.status}`);
+    return (await res.json()) as LiveTouch;
+  };
+}
+
+/** The one object that keeps the account's daily live mail allowance (Durable Object wall time). */
+const LIVE_BUDGET_NAME = "live-budget";
+
 /**
  * One per connected mailbox (idFromName(connection id)). A run does one sync pass; when more mail
  * is waiting (the first import) it sets an alarm 20 seconds out, and each alarm is a fresh
  * invocation with its own limits, until the backlog is in.
+ *
+ * Round 19: /live holds the connection's live window (IDLE on the Inbox, see
+ * services/connect/live.ts) while heartbeats arrive; the object named "live-budget" answers /lease
+ * from the account's daily allowance of live minutes.
  */
 export class MailSyncRunner {
+  private live?: LiveMail;
+  private budget?: LiveBudget;
   constructor(private state: DurableObjectStateLike, private env: WorkerEnv) {}
   async fetch(request: Request): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (path === "/lease") return this.lease(request);
+    if (path === "/live") {
+      const { id, seconds } = (await request.json()) as { id: string; seconds?: number };
+      this.live ??= new LiveMail(async () => ({ ...(await getReady(this.env)).deps, dispatchMailSync: undefined }), { lease: (sec) => this.askLease(sec) });
+      return Response.json(await this.live.touch(id, seconds));
+    }
     const { id } = (await request.json()) as { id: string };
     await this.state.storage.put("id", id);
     return Response.json(await this.pass(id));
@@ -127,6 +156,21 @@ export class MailSyncRunner {
   async alarm() {
     const id = await this.state.storage.get<string>("id");
     if (id) await this.pass(id);
+  }
+  private async askLease(seconds: number): Promise<boolean> {
+    const ns = this.env.MAIL_SYNC as DurableObjectNamespaceLike;
+    const res = await ns.get(ns.idFromName(LIVE_BUDGET_NAME)).fetch(new Request("https://mail-sync/lease", { method: "POST", body: JSON.stringify({ seconds }) }));
+    return res.ok && ((await res.json()) as { granted: boolean }).granted;
+  }
+  private async lease(request: Request): Promise<Response> {
+    const { seconds } = (await request.json()) as { seconds: number };
+    const { deps } = await getReady(this.env);
+    this.budget ??= new LiveBudget(deps.config.mailConnect.liveMinutesPerDay, Date.now, {
+      get: () => this.state.storage.get<{ day: string; used: number }>("budget"),
+      put: (v) => this.state.storage.put("budget", v),
+    });
+    const granted = await this.budget.lease(Math.min(Math.max(Number(seconds) || 0, 1), 900));
+    return Response.json({ granted, ...this.budget.usage() });
   }
   private async pass(id: string) {
     const { deps } = await getReady(this.env);

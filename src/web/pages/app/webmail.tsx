@@ -16,6 +16,7 @@ import { cn } from "@/web/lib/cn";
 import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
 import { useReopenedDrafts } from "@/web/lib/undo-send";
+import { useLiveMail } from "@/web/lib/live-mail";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask } from "./work/make-task";
@@ -36,6 +37,7 @@ export function WebmailPage() {
   const qc = useQueryClient();
   const overview = useQuery({ queryKey: qk.overview, queryFn: async () => (await api.get<{ mailboxes: MailboxOverview[] }>("/mail/overview")).mailboxes, refetchInterval: 30_000 });
   const mailboxes = useMemo(() => overview.data ?? [], [overview.data]);
+  useLiveMail(mailboxes.some((m) => m.connected));
   const busiest = [...mailboxes].sort((a, b) => (b.folders.inbox?.total ?? 0) - (a.folders.inbox?.total ?? 0))[0];
   const mailboxId = params.get("mailbox") ?? busiest?.id ?? "";
   const folder = (params.get("folder") ?? "inbox") as View;

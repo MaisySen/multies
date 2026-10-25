@@ -102,6 +102,8 @@ export interface MailboxOverview {
   quotaMb: number;
   kind?: "person" | "agent";
   folders: Partial<Record<Folder, { total: number; unread: number }>>;
+  /** A mailbox connected from another provider (round 18). */
+  connected?: boolean;
 }
 
 export interface Delivery {

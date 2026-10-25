@@ -32,7 +32,7 @@ interface FolderState { path: string; v: string; last: number }
 export interface SyncState { inbox?: FolderState; sent?: FolderState; paths?: FolderPaths }
 
 export interface SyncResult {
-  skipped?: "not_found" | "paused" | "auth_failed" | "budget" | "daily_cap" | "busy";
+  skipped?: "not_found" | "paused" | "auth_failed" | "budget" | "daily_cap" | "busy" | "unchanged";
   stored: number;
   duplicates: number;
   flagsUpdated: number;
@@ -56,7 +56,12 @@ export function parseState(raw: string | null | undefined): SyncState {
 }
 
 /** Runs one sync pass for a connection. Never throws: failures are recorded on the connection. */
-export async function syncConnection(deps: Deps, connectionId: string, opts: { force?: boolean } = {}): Promise<SyncResult> {
+/**
+ * `onlyIfNew` (live mail, round 19): when nothing is queued for the provider and no new UID sits
+ * above the Inbox and Sent cursors, the pass ends without writing anything, so checking often
+ * costs no database writes.
+ */
+export async function syncConnection(deps: Deps, connectionId: string, opts: { force?: boolean; onlyIfNew?: boolean } = {}): Promise<SyncResult> {
   const empty: SyncResult = { stored: 0, duplicates: 0, flagsUpdated: 0, pushed: 0, more: false };
   const c = await deps.db.select().from(mailConnections).where(eq(mailConnections.id, connectionId)).get();
   if (!c) return { ...empty, skipped: "not_found" };
@@ -95,6 +100,16 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
   }
 
   const result: SyncResult = { ...empty };
+  if (opts.onlyIfNew && c.initialDone && state.paths && state.inbox) {
+    try {
+      if (!(await hasWork(deps, c.id, session, state))) {
+        await session.close().catch(() => undefined);
+        return { ...empty, skipped: "unchanged" };
+      }
+    } catch {
+      // Fall through to a normal pass, which records the problem.
+    }
+  }
   try {
     state.paths ??= await session.folders();
     result.pushed = await pushChanges(deps, c, session, state.paths);
@@ -154,6 +169,20 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     await session.close().catch(() => undefined);
   }
   return result;
+}
+
+/** Whether a pass has anything to do: queued changes for the provider, or new UIDs in Inbox or Sent. Reads only. */
+async function hasWork(deps: Deps, connectionId: string, session: ImapSession, state: SyncState) {
+  const queued = await deps.db.select({ id: mailSyncOutbox.id }).from(mailSyncOutbox).where(eq(mailSyncOutbox.connectionId, connectionId)).limit(1).get();
+  if (queued) return true;
+  for (const box of BOXES) {
+    const st = state[box];
+    if (!st) continue;
+    const opened = await session.open(st.path);
+    if (opened.uidValidity !== st.v) return true;
+    if ((await session.uidsAfter(st.last)).length) return true;
+  }
+  return false;
 }
 
 const FOLDER_ACTION: Record<string, keyof FolderPaths> = { archive: "archive", trash: "trash", inbox: "inbox" };

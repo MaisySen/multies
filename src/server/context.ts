@@ -33,6 +33,10 @@ export interface Deps {
   openSocket?: import("./services/connect/socket").SocketOpener;
   /** Opens IMAP sessions for connected mailboxes. Defaults to ImapFlow; tests inject an in-memory server. */
   imap?: import("./services/connect/imap").ImapConnector;
+  /** Watches a connected mailbox's Inbox for new mail (IDLE). Defaults to ImapFlow; tests inject a fake. */
+  imapWatcher?: import("./services/connect/imap").InboxWatcher;
+  /** Opens or extends a connection's live window (its Durable Object on Workers). Without it the window runs in this process. */
+  liveMail?: (connectionId: string, seconds: number) => Promise<import("./services/connect/live").LiveTouch>;
   /** Runs a connected mailbox's sync in its own invocation (a Durable Object on Workers). Without it the sync runs inline. */
   dispatchMailSync?: (connectionId: string) => Promise<void>;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;

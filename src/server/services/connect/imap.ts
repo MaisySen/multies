@@ -126,8 +126,7 @@ class FlowSession implements ImapSession {
   }
 }
 
-/** The default connector: ImapFlow, quiet (it never logs, so no password or mail reaches a log). */
-export const imapflowConnector: ImapConnector = async (server, auth, opts = {}) => {
+function newFlow(server: ServerSettings, auth: ImapAuth, opts: ImapConnectOptions) {
   const timeout = opts.timeoutMs ?? 20_000;
   const client = new ImapFlow({
     host: server.host, port: server.port, secure: server.security === "tls", doSTARTTLS: server.security === "starttls" ? true : undefined,
@@ -137,6 +136,61 @@ export const imapflowConnector: ImapConnector = async (server, auth, opts = {}) 
     ...(opts.allowSelfSigned ? { tls: { rejectUnauthorized: false } } : {}),
   });
   client.on("error", () => { /* surfaced through the awaited call that failed */ });
+  return client;
+}
+
+/** The default connector: ImapFlow, quiet (it never logs, so no password or mail reaches a log). */
+export const imapflowConnector: ImapConnector = async (server, auth, opts = {}) => {
+  const client = newFlow(server, auth, opts);
   await client.connect();
   return new FlowSession(client);
+};
+
+/**
+ * A watch on one folder (round 19, live mail): one IMAP connection that sits in IDLE (RFC 2177), so
+ * the server tells us about new mail the moment it lands. Servers without IDLE are asked with NOOP
+ * every `pollMs` instead. `onNew` runs when the folder grows; `done` settles when the connection ends.
+ */
+export interface InboxWatch {
+  /** True when the server pushes (IDLE); false when we ask it every few seconds. */
+  readonly push: boolean;
+  readonly done: Promise<void>;
+  stop(): Promise<void>;
+}
+export type InboxWatcher = (server: ServerSettings, auth: ImapAuth, opts: ImapConnectOptions & { path?: string; pollMs?: number }, onNew: () => void) => Promise<InboxWatch>;
+
+/** IDLE restarts after this long: under the 29 minutes RFC 2177 allows, and under idle TCP cutoffs on the way. */
+export const IDLE_RESTART_MS = 4 * 60_000;
+
+export const imapflowWatcher: InboxWatcher = async (server, auth, opts, onNew) => {
+  const client = newFlow(server, auth, opts);
+  await client.connect();
+  try {
+    await client.mailboxOpen(opts.path ?? "INBOX", { readOnly: true });
+  } catch (err) {
+    client.close();
+    throw err;
+  }
+  const push = client.capabilities.has("IDLE");
+  // ImapFlow polls with NOOP at min(2 minutes, maxIdleTime) when IDLE is missing.
+  (client as unknown as { maxIdleTime: number }).maxIdleTime = push ? IDLE_RESTART_MS : (opts.pollMs ?? 20_000);
+  client.on("exists", (e: { count: number; prevCount: number }) => { if (e.count > e.prevCount) onNew(); });
+  let stopped = false;
+  const done = (async () => {
+    while (!stopped && client.usable) {
+      const started = Date.now();
+      try { await client.idle(); } catch { break; }
+      // idle() hands back at once when the folder isn't selected any more: don't spin.
+      if (!stopped && Date.now() - started < 100) await new Promise((r) => setTimeout(r, 1000));
+    }
+  })();
+  return {
+    push,
+    done,
+    async stop() {
+      stopped = true;
+      try { await client.logout(); } catch { client.close(); }
+      await done.catch(() => undefined);
+    },
+  };
 };

@@ -4,7 +4,7 @@
  * MailSocket, so the SMTP client is exercised byte for byte. The live test against a real server is
  * tests/connect.live.test.ts.
  */
-import type { FetchedMessage, FolderPaths, ImapConnector, ImapSession } from "@/server/services/connect/imap";
+import type { FetchedMessage, FolderPaths, ImapConnector, ImapSession, InboxWatcher } from "@/server/services/connect/imap";
 import type { MailSocket, SocketOpener } from "@/server/services/connect/socket";
 import { SocketError } from "@/server/services/connect/socket";
 
@@ -30,11 +30,31 @@ export class FakeImapServer {
   }
 
   deliver(user: string, raw: string, opts: { folder?: string; flags?: string[]; date?: Date } = {}) {
-    const f = this.accounts.get(user)!.folders.get(opts.folder ?? "INBOX")!;
+    const path = opts.folder ?? "INBOX";
+    const f = this.accounts.get(user)!.folders.get(path)!;
     const uid = f.uidNext++;
     f.msgs.push({ uid, flags: new Set(opts.flags ?? []), raw, internalDate: opts.date ?? new Date() });
+    for (const w of this.watches) if (w.user === user && w.path === path) w.onNew();
     return uid;
   }
+
+  /** Open watches (live mail, round 19). `idle` false makes the fake server one without IDLE. */
+  watches: { user: string; path: string; onNew: () => void }[] = [];
+  idle = true;
+  watcher: InboxWatcher = async (_server, auth, opts, onNew) => {
+    const acct = this.accounts.get(auth.user);
+    if (this.unreachable) throw new SocketError("unreachable", "connect ECONNREFUSED");
+    if (!acct || acct.password !== auth.secret) throw Object.assign(new Error("Command failed"), { authenticationFailed: true });
+    const w = { user: auth.user, path: opts.path ?? "INBOX", onNew };
+    this.watches.push(w);
+    let end!: () => void;
+    const done = new Promise<void>((r) => { end = r; });
+    return {
+      push: this.idle,
+      done,
+      stop: async () => { this.watches = this.watches.filter((x) => x !== w); end(); },
+    };
+  };
 
   folder(user: string, path: string) { return this.accounts.get(user)!.folders.get(path)!; }
 

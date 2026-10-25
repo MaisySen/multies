@@ -123,6 +123,10 @@ export interface AppConfig {
     initialCap: number;
     /** Minutes between scheduled syncs of one connection. */
     intervalMinutes: number;
+    /** Live mail while Multies is open (IDLE on the Inbox). MAIL_LIVE=off turns it off. */
+    live: boolean;
+    /** Minutes of live windows a day for the whole account (Durable Object wall time on the free plan). */
+    liveMinutesPerDay: number;
     oauth: { enabled: boolean; google?: { clientId: string; clientSecret: string }; microsoft?: { clientId: string; clientSecret: string; tenant: string } };
   };
   /** Xero, for invoice reminders (XERO_CLIENT_ID, XERO_CLIENT_SECRET). Off without both. */
@@ -226,6 +230,8 @@ const EnvSchema = z.object({
   MAIL_SYNC_INITIAL_DAYS: z.string().optional(),
   MAIL_SYNC_INITIAL_CAP: z.string().optional(),
   MAIL_SYNC_INTERVAL_MINUTES: z.string().optional(),
+  MAIL_LIVE: z.string().optional(),
+  MAIL_LIVE_MINUTES_PER_DAY: z.string().optional(),
   MAIL_OAUTH: z.string().optional(),
   GOOGLE_MAIL_CLIENT_ID: z.string().optional(),
   GOOGLE_MAIL_CLIENT_SECRET: z.string().optional(),
@@ -386,6 +392,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         initialDays: num(env.MAIL_SYNC_INITIAL_DAYS, 30),
         initialCap: num(env.MAIL_SYNC_INITIAL_CAP, 200),
         intervalMinutes: num(env.MAIL_SYNC_INTERVAL_MINUTES, 10),
+        live: env.MAIL_LIVE !== "off" && env.MAIL_LIVE !== "0" && env.MAIL_LIVE !== "false",
+        liveMinutesPerDay: num(env.MAIL_LIVE_MINUTES_PER_DAY, 900),
         oauth: {
           enabled: on(env.MAIL_OAUTH),
           google: env.GOOGLE_MAIL_CLIENT_ID && env.GOOGLE_MAIL_CLIENT_SECRET ? { clientId: env.GOOGLE_MAIL_CLIENT_ID, clientSecret: env.GOOGLE_MAIL_CLIENT_SECRET } : undefined,

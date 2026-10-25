@@ -10,6 +10,7 @@ import {
 } from "../services/connect";
 import { ConnectFailed } from "../services/connect/problems";
 import { syncConnection } from "../services/connect/sync";
+import { LIVE_WINDOW_SECONDS, localLiveMail, type LiveMode } from "../services/connect/live";
 import { oauthAvailable, oauthFinish, oauthStart, type OAuthProvider } from "../services/connect/oauth";
 import { PRESET_ORDER } from "@/shared/mail-connect";
 
@@ -38,6 +39,9 @@ export function connectionRoutes() {
   // Each test signs in to a real provider: a few an hour per person keeps this from being used to try passwords.
   const tests = new RateLimiter(10, 15 * 60_000);
   const syncs = new RateLimiter(6, 60_000);
+  // The open app beats every 10 seconds and pokes once a minute; a few spare for tabs and focus changes.
+  const beats = new RateLimiter(20, 60_000);
+  const pokes = new RateLimiter(4, 60_000);
   const guard = (userId: string) => { if (!tests.take(userId)) throw tooMany("Too many tries in a short time. Wait a few minutes, then try again."); };
   const run = async <T>(fn: () => Promise<T>) => {
     try { return await fn(); } catch (err) { if (err instanceof ConnectFailed) throw failed(err.problem); throw err; }
@@ -49,6 +53,31 @@ export function connectionRoutes() {
       oauth: oauthAvailable(c.var.deps),
       connections: await listConnections(c.var.deps, c.var.auth),
     }))
+    /**
+     * Live mail heartbeat (round 19), sent while Multies is open. `poke` opens or extends each
+     * connection's live window; every beat answers each connection's synced count, so the app
+     * refreshes the list as soon as new mail is in. Reads only.
+     */
+    .post("/live", async (c) => {
+      const { deps, auth } = c.var;
+      if (!beats.take(auth.userId)) throw tooMany("Too many live checks. Slow down a little.");
+      const b = await parseBody(c, z.object({ poke: z.boolean().optional() }));
+      const list = (await listConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
+      const modes = new Map<string, LiveMode>();
+      if (b.poke && deps.config.mailConnect.enabled && deps.config.mailConnect.live && pokes.take(auth.userId)) {
+        const touch = deps.liveMail ?? ((id: string, sec: number) => localLiveMail(deps).touch(id, sec));
+        await Promise.all(list.map(async (x) => {
+          try { modes.set(x.id, (await touch(x.id, LIVE_WINDOW_SECONDS)).mode); } catch (err) {
+            deps.log?.warn("mail_live.poke_failed", { connection: x.id, error: (err as Error).message });
+          }
+        }));
+      }
+      return c.json({
+        live: deps.config.mailConnect.live,
+        connections: list.map((x) => ({ id: x.id, mode: modes.get(x.id) ?? null, messagesSynced: x.messagesSynced, lastSyncAt: x.lastSyncAt, status: x.status })),
+        stamp: list.reduce((n, x) => n + x.messagesSynced, 0),
+      }, 200, { "cache-control": "no-store" });
+    })
     .post("/test", async (c) => {
       guard(c.var.auth.userId);
       const b = await parseBody(c, connectBody);

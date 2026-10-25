@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import type { DB } from "../../db";
-import { attachments, mailboxes, messages } from "../../db/schema";
+import { attachments, mailboxes, mailConnections, messages } from "../../db/schema";
 import { notFound } from "../../lib/errors";
 import type { Address, Folder } from "@/shared/mail";
 
@@ -41,10 +41,11 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
     .from(messages).where(eq(messages.orgId, orgId)).groupBy(messages.mailboxId, messages.folder);
+  const connected = new Set((await db.select({ mailboxId: mailConnections.mailboxId }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => r.mailboxId));
   return boxes.map((b) => {
     const folders: Record<string, { total: number; unread: number }> = {};
     for (const c of counts) if (c.mailboxId === b.id) folders[c.folder] = { total: Number(c.total), unread: Number(c.unread ?? 0) };
-    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders };
+    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders, connected: connected.has(b.id) };
   });
 }
 
