@@ -569,35 +569,44 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
 
 D1 writes: reading the workload writes nothing. A move is one task update.
 
-## Docs page tree and backlinks (R24.5)
+## Dashboards (R24.3)
 
-Docs form a tree of pages and sub pages, at most 6 levels deep. Each doc has `parentId` (null at the
-top) and `position` (a number that orders it among its siblings). Moving a page writes one row: it gets
-a position halfway between its new neighbours, and siblings are spaced out again only when two
-neighbours have no room left between them. A page can't go under itself or one of its own sub pages
-(422 `cycle`), and a move or a new sub page that would go past 6 levels answers 422 `too_deep`.
-Deleting a page moves its sub pages up to its parent.
+A dashboard is a named grid of widgets, private to the person who made it or shared with the
+workspace. The widgets are kept in the dashboard row (so saving any number of widget changes is one
+row write) and their numbers are computed when you read them: nothing is stored or cached.
 
-Backlinks: when a doc's body is saved, the links inside it are read: links to `/app/docs/<id>`,
-`/app/tasks/<id>`, `/app/tasks?task=<id>` and `/app/tasks?project=<id>` (relative, or on the app's own
-host), mention nodes and page links. Outside links and ids from another workspace are ignored. Only
-the difference from the stored set is written, so a save that did not change the links writes no link
-rows. The co-editing room keeps its own state; the doc row (and so its links) is saved by the leader's
-periodic snapshot through the normal update.
+Widget: `{ id, type, title, source, groupBy, chart, size, position }`.
 
-- `GET /api/v1/docs/tree` (app: `GET /api/docs/tree`): `{ tree, count, truncated, maxDepth }`; each
-  node has id, title, parentId, position, projectId, updatedAt, depth and children. At most 2,000 docs.
-- `PATCH /api/v1/docs/{id}/move` (app: `PATCH /api/docs/:id/move`): body `{ parentId?, beforeId? |
-  afterId? | position? }`. `parentId` null is the top level; `beforeId` or `afterId` is a sibling under
-  that parent; with none the page goes last. Needs a full key. Answers `{ doc, renumbered }`.
-- `POST /api/v1/docs` accepts `parentId` to create a sub page (it goes last under that page).
-- `GET /api/v1/docs/{id}/backlinks` and `GET /api/v1/tasks/{id}/backlinks` (a task id or a ref like
-  OPS-12; app: the same paths under `/api`): `{ backlinks: [{ id, title, snippet, projectId, updatedAt }] }`,
-  newest first, at most 100. The snippet is the text of the block that holds the link.
-- Project guests: `GET /api/guest/r24/docs/tree`, `/api/guest/r24/docs/:id/backlinks` and
-  `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
-- Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
+- `type`: `count` (a number), `breakdown` (tasks grouped by `groupBy`: `status`, `assignee`, `priority`,
+  `project`, `sprint`, `type` or `label`; by person counts open tasks unless the widget filters a
+  status), `due` (open tasks overdue and due this week, with up to 10 of them), `completed` (tasks done
+  per week over the last 8 weeks), `burndown` (the active sprint of the widget's project), `goals`
+  (progress of the top level goals), `reply_times` (median first response and resolution per mailbox or
+  person over 30 days, `groupBy` `mailbox` or `person`), `mail_volume` (received and sent per day over 14
+  days) and `workload` (open tasks and estimates per person over 4 weeks).
+- `source`: `{ savedViewId }` applies a saved view's project and filters; `{ projectId, filters }` sets
+  them inline (`assignee` as `member:<id>`, `agent:<id>`, `me` or `none`; `status` `todo`, `doing` or
+  `done`; `priority`; `label`; `type`; `q`; `due` as `overdue`, `week` or `none`). Inline filters go on
+  top of a saved view's. `{ mailboxId }` narrows the mail widgets.
+- `chart`: `number`, `bar`, `donut`, `line` or `table`. `size`: 1 or 2 columns.
 
-D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
-A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
-page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.
+Up to 24 widgets a dashboard and 50 dashboards a workspace. Breakdowns return at most 20 groups (the
+rest add up in Other). Tasks are read the way the task list reads them (this workspace, top level,
+not in Triage, not deleted); mail widgets read only the mailboxes you may read. Another workspace's
+saved views, projects and mailboxes are refused when a dashboard is saved (404).
+
+- App API (session): `GET /api/dashboards`, `POST /api/dashboards { name, shared, widgets }` or
+  `{ starter: "team" }` (Team overview: by status, by person, due this week, completed per week),
+  `GET /api/dashboards/:id`, `PATCH /api/dashboards/:id { name, shared, widgets, version }` (the whole
+  widget list in its new order; a stale `version` answers 409), `POST /api/dashboards/:id/widgets`,
+  `DELETE /api/dashboards/:id`, and `GET /api/dashboards/:id/data?tz` for every widget's data in one
+  request: `{ dashboard, timeZone, weekStart, widgets: [{ id, type, data, error }] }`.
+- Public API: the same under `/api/v1/dashboards` (`GET /api/v1/dashboards/{id}/data`). Read only keys
+  can list and read; creating, saving, adding and removing need a full key. A key sees its maker's
+  private dashboards; a dashboard made by an agent key is shared.
+- MCP: `list_dashboards`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
+- Who can change what: the owner changes everything; anyone in the workspace can change a shared
+  dashboard's name and widgets; sharing and removing a shared one is for its owner or an admin.
+
+D1 writes: reading a dashboard's data writes nothing. Creating, saving (any number of widget changes, a
+rename and the share flag together) and removing a dashboard are each one row and its index: 2.

@@ -759,44 +759,35 @@ it("workload (R24.2): reading the workload writes nothing, through the app, the 
   expect(take()).toBeLessThanOrEqual(16);
 });
 
-it("docs tree and backlinks (R24.5): unchanged links write 0 link rows; a link is 2 (row + target index); a move is 1 docs row; tree and backlink reads write nothing", async () => {
+it("dashboards (R24.3): viewing a dashboard's data writes nothing; create, a layout save and a delete are 2 each (one row and its index)", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  await u.post("/api/tasks", { title: "Ship", projectId, due: "2026-11-03T10:00:00Z" });
+  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
   const me = (await u.get("/api/account/me")).body;
   const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const docsSvc = await import("@/server/services/suite/docs");
-  const tree = await import("@/server/services/suite/doc-tree");
-  const a = await docsSvc.createDoc(ctx.deps, actor, { title: "A", text: "" });
-  const b = await docsSvc.createDoc(ctx.deps, actor, { title: "B", text: "" });
-  const c = await docsSvc.createDoc(ctx.deps, actor, { title: "C", text: "" });
-  const body = (...ids: string[]) => ({ type: "doc", content: [{ type: "paragraph", content: ids.map((id) => ({ type: "text", text: id, marks: [{ type: "link", attrs: { href: `/app/docs/${id}` } }] })) }] });
+  const svc = await import("@/server/services/suite/dashboards");
   const take = meter(ctx.db);
-  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id))).toEqual({ added: 1, removed: 0 });
+  const d = await svc.createDashboard(ctx.deps, actor, { starter: "team" });
+  expect(take()).toBe(2); // the row and its org index; no activity rows
+  const widgets = [...d.widgets.reverse(), { type: "breakdown" as const, groupBy: "label" as const }, { type: "goals" as const }, { type: "workload" as const }, { type: "mail_volume" as const }, { type: "reply_times" as const }, { type: "count" as const, source: { projectId } }];
+  await svc.updateDashboard(ctx.deps, actor, d.id, { name: "Team", widgets, shared: true });
+  expect(take()).toBe(2); // ten widgets, a rename and the share flag: one row and its index
+  await svc.addWidget(ctx.deps, actor, d.id, { type: "due" });
   expect(take()).toBe(2);
-  // The leader's snapshot saves again with the same links: no link rows.
-  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id, b.id))).toEqual({ added: 0, removed: 0 });
+  await svc.dashboardData(ctx.deps, actor, d.id);
   expect(take()).toBe(0);
-  await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(c.id));
-  expect(take()).toBe(4); // one out, one in
-  // A whole doc save with unchanged links costs the same as a save of a doc with no links at all.
-  await docsSvc.updateDoc(ctx.deps, actor, b.id, { content: body() });
-  const plain = take();
-  await docsSvc.updateDoc(ctx.deps, actor, a.id, { content: body(c.id) });
-  expect(take()).toBe(plain);
-  // A move: one docs row (the meter counts it with the docs key index and docs_org_idx, as for any docs update).
-  await tree.moveDoc(ctx.deps, actor, b.id, { parentId: a.id });
-  expect(take()).toBe(3);
-  await tree.moveDoc(ctx.deps, actor, c.id, { parentId: a.id, beforeId: b.id });
-  expect(take()).toBe(3);
-  await tree.getDocTree(ctx.deps, { orgId: actor.orgId });
-  await tree.getBacklinks(ctx.deps, { orgId: actor.orgId }, { type: "doc", id: c.id });
-  expect(take()).toBe(0);
-  // Deleting A lifts its two sub pages: 2 docs rows (3 each by the meter) on top of the delete itself.
-  const d = await docsSvc.createDoc(ctx.deps, actor, { title: "D", text: "" });
-  take();
-  await docsSvc.deleteDoc(ctx.deps, actor, d.id);
-  const lone = take();
-  await docsSvc.deleteDoc(ctx.deps, actor, a.id);
-  expect(take()).toBe(lone + 6);
+  await u.get("/api/tasks");
+  const sessionBaseline = take();
+  expect((await u.get(`/api/dashboards/${d.id}/data`)).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(sessionBaseline);
+  const headers = { host: "localhost", authorization: `Bearer ${key}` };
+  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
+  const baseline = take();
+  expect((await ctx.app.request(`/api/v1/dashboards/${d.id}/data`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  await svc.deleteDashboard(ctx.deps, actor, d.id);
+  expect(take()).toBe(2);
 });

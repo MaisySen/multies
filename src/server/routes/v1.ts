@@ -40,7 +40,7 @@ import { registerPresenceRoutes } from "./v1-r22-presence";
 import { registerRecordingRoutes } from "./v1-r23-recordings";
 import { registerCallRoutes } from "./v1-r23-calls";
 import { registerWorkloadRoutes } from "./v1-r24-workload";
-import { registerR24DocRoutes } from "./v1-r24-docs";
+import { registerDashboardRoutes } from "./v1-r24-dashboards";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -232,6 +232,7 @@ export function v1Routes() {
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
   api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
   api.use("/workload", apiKeyAuth); // R24.2: workload
+  api.use("/dashboards/*", apiKeyAuth); // R24.3: dashboards
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -398,7 +399,6 @@ export function v1Routes() {
 
   registerAgentRoutes(api);
   registerAuthHookRoutes(api);
-  registerR24DocRoutes(api); // R24.5: docs tree and backlinks (before /docs/{id})
   registerSuiteRoutes(api);
   registerSuiteR7Routes(api);
   registerSuiteR8Routes(api);
@@ -420,6 +420,7 @@ export function v1Routes() {
   registerRecordingRoutes(api);
   registerCallRoutes(api); // Round 23: call presence
   registerWorkloadRoutes(api); // R24.2: workload
+  registerDashboardRoutes(api); // R24.3: dashboards
   registerMcpRoute(api);
   return api;
 }
