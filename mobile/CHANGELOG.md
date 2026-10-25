@@ -3,6 +3,14 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.2 (Android versionCode 13, iOS build 15), 25 October 2026
+
+- A push saying someone mentioned you on an email thread now opens that mail thread (the server
+  sends the newest message in the thread). If the push has no message, it opens Notifications.
+
+What to test: ask a teammate to mention you in the team notes of a shared inbox thread, then tap
+the push. The thread should open on its newest message.
+
 ## 1.9.1 (Android versionCode 12, iOS build 14), 25 October 2026
 
 - Sign in now opens the Multies sign in page at multies.au.auth0.com (the Multies tenant in

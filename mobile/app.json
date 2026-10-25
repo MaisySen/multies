@@ -3,7 +3,7 @@
     "name": "Multies",
     "slug": "mymail",
     "scheme": "mymail",
-    "version": "1.9.1",
+    "version": "1.9.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -12,7 +12,7 @@
     "primaryColor": "#0071E3",
     "ios": {
       "bundleIdentifier": "au.fintex.multies",
-      "buildNumber": "14",
+      "buildNumber": "15",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -120,7 +120,7 @@
     },
     "android": {
       "package": "au.fintex.multies",
-      "versionCode": 12,
+      "versionCode": 13,
       "adaptiveIcon": {
         "backgroundColor": "#1D1D1F",
         "foregroundImage": "./assets/android-icon-foreground.png",

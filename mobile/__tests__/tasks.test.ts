@@ -125,6 +125,21 @@ describe("server push (data only: type and id)", () => {
     expect(await describePush(a, { type: "task.assigned", id: "tsk_missing" })).toEqual(fallbackText("task.assigned"));
     expect(await describePush(null, { type: "message.received", id: "msg_1" })).toEqual(fallbackText("message.received"));
   });
+  it("opens a mail thread mention on the thread's newest message (mid), in every push shape", async () => {
+    // Android delivers data as a JSON string, iOS as an object: both keep mid.
+    const android = extractPushData({ data: { dataString: JSON.stringify({ type: "thread_mention", id: "thr_2", mid: "msg_1" }) } });
+    expect(android).toEqual({ type: "thread_mention", id: "thr_2", mid: "msg_1" });
+    expect(routeForPush(android!)).toBe("/thread/msg_1");
+    // An empty mid is dropped, so the push opens the notifications inbox instead of a blank thread.
+    const noMid = extractPushData({ type: "thread_mention", id: "thr_2", mid: "" });
+    expect(noMid).toEqual({ type: "thread_mention", id: "thr_2" });
+    expect(routeForPush(noMid!)).toBe("/notifications");
+    expect(routeForPush({ type: "thread_mention", id: "thr_2", mid: "msg a/b" })).toBe("/thread/msg%20a%2Fb");
+    const a = endpoints(new SampleTransport());
+    expect(await describePush(a, { type: "thread_mention", id: "thr_2", mid: "msg_1" })).toMatchObject({ title: "You were mentioned on a thread", body: "Wholesale order for Saturday markets", channel: "mail" });
+    expect(await describePush(a, { type: "thread_mention", id: "thr_2" })).toEqual(fallbackText("thread_mention"));
+    expect(await describePush(a, { type: "thread_mention", id: "thr_2", mid: "msg_missing" })).toEqual(fallbackText("thread_mention"));
+  });
 });
 
 describe("formatting for en-AU", () => {
