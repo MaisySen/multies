@@ -68,7 +68,7 @@ describe("trust page facts", () => {
   });
 
   it("security contact, incidents and route are in place", () => {
-    expect(SECURITY_EMAIL).toBe("security@multies.si");
+    expect(SECURITY_EMAIL).toBe("contact@fintex.au");
     for (const i of INCIDENTS) expect(i.date && i.title && i.impact && i.fix).toBeTruthy();
     expect(isKnownPage("/trust")).toBe(true);
     expect(metaFor("/trust").title).toMatch(/Security/);
@@ -80,5 +80,20 @@ describe("trust page facts", () => {
     const { findIssues } = await import("../scripts/check-copy");
     const text = readFileSync(new URL("../src/shared/trust.ts", import.meta.url), "utf8");
     expect(findIssues("src/shared/trust.ts", text)).toEqual([]);
+  });
+
+  it("uses the company's standard legal line and location, word for word", async () => {
+    const { LEGAL_ENTITY, LEGAL_LINE_TEXT } = await import("../src/shared/legal");
+    expect(LEGAL_LINE_TEXT).toBe("Multies is provided by Fintex Australia Pty Ltd (ABN 60 688 406 108), New South Wales, Australia. Contact: contact@fintex.au.");
+    expect(LEGAL_ENTITY.address).toBe("New South Wales, Australia (NSW 2135)");
+    expect(LEGAL_ENTITY.website).toBe("https://fintex.au");
+  });
+
+  it("shows no internal mailbox or account name in public config or pages", () => {
+    const files = ["../wrangler.toml", "../scripts/build-worker.ts", "../src/shared/legal.ts", "../src/shared/trust.ts", "../src/web/pages/trust.tsx", "../src/web/pages/support.tsx", "../src/web/layouts/marketing.tsx", "../src/web/pages/app/mail-apps.tsx", "../src/server/config.ts"];
+    for (const f of files) {
+      const text = readFileSync(new URL(f, import.meta.url), "utf8");
+      expect(text, f).not.toMatch(/mail\.tab\.bot|wildgamingbk|elisoulaj|nepalidokonetwork|MaisySen/i);
+    }
   });
 });

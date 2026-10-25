@@ -37,7 +37,7 @@ const PROFILES: Record<string, Record<string, string>> = {
     SENTRY_ENVIRONMENT: "preview",
     // The preview host has no cron trigger, so maintenance runs from requests there.
     MAINTENANCE_ON_REQUEST: "true",
-    SECURITY_CONTACT: process.env.SECURITY_CONTACT ?? "mailto:mymail.builder@mail.tab.bot",
+    SECURITY_CONTACT: process.env.SECURITY_CONTACT ?? "mailto:contact@fintex.au",
     RELEASE: release,
   },
 };

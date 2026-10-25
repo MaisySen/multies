@@ -35,7 +35,6 @@ function NotConnected({ missing }: { missing: string[] }) {
           Mail apps connect through Stalwart, an open-source mail server that runs next to Multies.
           Whoever runs this Multies sets {missing.length ? missing.map((m, i) => <span key={m}>{i ? ", " : ""}<code className="font-mono text-[12.5px]">{m}</code></span>) : "the mail server settings"} and this page turns on.
         </p>
-        <a className="mt-3 inline-block text-[13px] font-medium text-brand hover:underline" href="https://github.com/MaisySen/mymail/blob/main/docs/mail-server.md" target="_blank" rel="noreferrer">Setup guide</a>
       </div>
     </Section>
   );

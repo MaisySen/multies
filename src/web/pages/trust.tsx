@@ -4,7 +4,7 @@ import { Activity, Database, DatabaseBackup, KeyRound, Lock, Mail, ShieldCheck, 
 import {
   BACKUPS, DATA_REGION, ENCRYPTION, INCIDENTS, SECURITY_EMAIL, SIGN_IN, SUBPROCESSORS, TRUST_UPDATED, type TrustFact,
 } from "@/shared/trust";
-import { LEGAL_ENTITY } from "@/shared/legal";
+import { LegalLine } from "@/web/components/legal-line";
 
 const card = "rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6";
 
@@ -49,7 +49,7 @@ export function TrustPage() {
       <p className="text-xs uppercase tracking-wide text-subtle">Trust</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Security and data at Multies</h1>
       <p className="mt-3 max-w-2xl text-muted">Where your data lives, who helps us run the service, how it is protected and backed up, and what has gone wrong. Every line here describes how Multies works today.</p>
-      <p className="mt-2 text-sm text-muted">Multies is run by {LEGAL_ENTITY.name}, ABN {LEGAL_ENTITY.abn}. Contact: <a href={`mailto:${LEGAL_ENTITY.contactEmail}`} className="text-brand-hover hover:underline">{LEGAL_ENTITY.contactEmail}</a>.</p>
+      <p className="mt-2 text-sm text-muted"><LegalLine /></p>
       <p className="mt-2 text-xs text-subtle">Last updated {TRUST_UPDATED}</p>
 
       <nav aria-label="On this page" className="mt-8 flex flex-wrap gap-2">

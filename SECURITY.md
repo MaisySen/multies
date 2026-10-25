@@ -6,7 +6,7 @@ Multies holds people's email, chat, tasks and documents, so we take reports seri
 
 Please report privately. Do not open a public issue.
 
-- Email **security@multies.si**. Until mail on multies.si is live, use **mymail.builder@mail.tab.bot** instead; it is also the contact in [`/.well-known/security.txt`](https://multies.si/.well-known/security.txt) for now, and this page will say when security@multies.si takes over.
+- Email **contact@fintex.au** (Fintex Australia Pty Ltd, which provides Multies). It is also the contact in [`/.well-known/security.txt`](https://multies.si/.well-known/security.txt) until security@multies.si is a live mailbox; this page will say when that takes over.
 - Or use GitHub's private vulnerability reporting on this repository (Security tab, "Report a vulnerability").
 
 Include what you found, where, how to reproduce it, and the impact you expect. A proof of concept helps. Do not include other people's data.

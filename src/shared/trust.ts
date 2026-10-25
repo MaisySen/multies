@@ -7,7 +7,9 @@
  */
 
 export const TRUST_UPDATED = "25 October 2026";
-export const SECURITY_EMAIL = "security@multies.si";
+// security@multies.si is not a live mailbox yet (docs/runbooks/multies-si-mailboxes.md has the
+// steps); until it is, security reports go to the company contact from the runbook (company.md).
+export const SECURITY_EMAIL = "contact@fintex.au";
 
 export interface TrustFact { label: string; value: string }
 export interface Subprocessor {

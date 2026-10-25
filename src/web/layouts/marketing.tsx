@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Cookie, Menu as MenuIcon, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
+import { LegalLine } from "@/web/components/legal-line";
 import { ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
@@ -111,7 +112,10 @@ export function MarketingLayout() {
           </div>
         </div>
         <div className="mx-auto flex max-w-6xl flex-col gap-2 border-t border-line px-5 py-6 text-xs text-subtle max-sm:pb-28 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} Multies. Built for small businesses and startups that own their domain.</span>
+          <span className="flex flex-col gap-1">
+            <span>© {new Date().getFullYear()} Multies. Built for small businesses and startups that own their domain.</span>
+            <LegalLine />
+          </span>
           <span data-testid="cookie-notice"><Cookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
         </div>
       </footer>

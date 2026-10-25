@@ -2,18 +2,31 @@
  * Legal documents. DRAFTS written against the Australian Privacy Principles (Privacy
  * Act 1988), the Spam Act 2003, the Australian Consumer Law and GDPR basics. They must
  * be reviewed by a lawyer before launch; every page says so. Operator name, ABN and
- * contact in LEGAL_ENTITY were filled in by the owner on 25 October 2026; the registered
- * address is still a placeholder.
+ * contact in LEGAL_ENTITY were filled in by the owner on 25 October 2026 from the company
+ * runbook (company.md), which also sets the location (no street address) and LEGAL_LINE.
  */
 export const LEGAL_ENTITY = {
   name: "Fintex Australia Pty Ltd",
   abn: "60 688 406 108",
-  address: "[Registered address], Sydney NSW, Australia",
+  acn: "688 406 108",
+  address: "New South Wales, Australia (NSW 2135)",
   privacyEmail: "privacy@multies.si",
   abuseEmail: "abuse@multies.si",
   supportEmail: "support@multies.si",
   contactEmail: "contact@fintex.au",
+  website: "https://fintex.au",
 };
+
+/**
+ * The standard legal line for page footers and the trust page, word for word from the company
+ * runbook. Render it with the company name linked to LEGAL_ENTITY.website (see LegalLine).
+ */
+export const LEGAL_LINE = {
+  before: "Multies is provided by ",
+  company: LEGAL_ENTITY.name,
+  after: ` (ABN ${LEGAL_ENTITY.abn}), New South Wales, Australia. Contact: ${LEGAL_ENTITY.contactEmail}.`,
+};
+export const LEGAL_LINE_TEXT = LEGAL_LINE.before + LEGAL_LINE.company + LEGAL_LINE.after;
 
 export const LEGAL_UPDATED = "23 October 2026";
 
@@ -39,7 +52,7 @@ export const PRIVACY: LegalDoc = {
   summary: "What we collect, why, who we share it with, and how to see, export or delete it.",
   sections: [
     { id: "who", title: "Who we are", body: [
-      `Multies is run by ${E.name}, ABN ${E.abn}, ${E.address} ("we", "us"). We provide email hosting on domains our customers own. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
+      `Multies is run by ${E.name}, ABN ${E.abn}, ACN ${E.acn}, ${E.address} ("we", "us"). We provide email hosting on domains our customers own. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
       `Questions or requests: ${E.privacyEmail}. We answer within 30 days, usually much sooner.`,
     ] },
     { id: "roles", title: "Our two roles", body: [
