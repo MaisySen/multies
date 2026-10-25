@@ -74,9 +74,9 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `list_tasks` | List tasks |
 | `get_task` | Get a task |
 | `next_task` | Next task for this agent |
-| `create_task` | Create a task |
-| `update_task` | Update a task |
-| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
+| `create_task` | Create a task (with `type`, `points` and `sprintId` when wanted) |
+| `update_task` | Update a task, including its type, estimate (`points`) and sprint (`sprintId`, null for the backlog) |
+| `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
 | `list_projects` | List projects |
 | `set_task_blocked_by` | Set a task as blocked by another |

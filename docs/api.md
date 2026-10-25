@@ -84,7 +84,7 @@ with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the a
 `POST /api/tasks/bulk` and `POST /api/tasks/bulk-delete`). `ids` are task ids or references like
 `OPS-12`, at most 500 a call (413 above that). `patch` takes any of `status` (todo, doing, done) or
 `statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
-clears), `addLabels`, `removeLabels` and `projectId` (moves the tasks; numbers come from the new
+clears), `addLabels`, `removeLabels`, `type` (task, story or bug; epics change one at a time) and `projectId` (moves the tasks; numbers come from the new
 project and each status maps to the same group there). If any id is not in the workspace nothing is
 changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
 row and one sync feed change, and the action writes one summary activity entry. Webhooks still get

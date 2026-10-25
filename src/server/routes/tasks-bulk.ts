@@ -21,6 +21,7 @@ export const BulkPatch = z.object({
   dueAt: when, startAt: when,
   addLabels: z.array(label).max(20).optional(), removeLabels: z.array(label).max(20).optional(),
   projectId: z.string().max(80).optional().openapi({ description: "Move the tasks to this project; each status maps to the same group there." }),
+  type: z.enum(["task", "story", "bug"]).optional().openapi({ description: "Round 21: set the type. Epics are changed one at a time." }),
 }).strict().openapi("TaskBulkPatch");
 
 // The cap (500) is the service's, so the answer above it is a plain 413 rather than a schema error.

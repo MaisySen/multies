@@ -75,7 +75,11 @@ test("edits cells in place and changes three tasks at once from the bulk bar", a
   await bar.getByRole("textbox", { name: "Label" }).fill("launch");
   await bar.getByRole("button", { name: "Add label" }).click();
   for (const r of refs.slice(0, 3)) await expect(row(r).getByRole("gridcell", { name: "Labels" })).toContainText("launch");
-  expect(bulkCalls).toHaveLength(2);
+  // Round 21 follow-up: set the type on all three in one call.
+  await bar.getByRole("button", { name: "Type" }).click();
+  await bar.getByRole("menuitem", { name: "Bug" }).click();
+  for (const r of refs.slice(0, 3)) await expect(row(r).getByRole("gridcell", { name: "Type" })).toContainText("Bug");
+  expect(bulkCalls).toHaveLength(3);
 
   mkdirSync("/home/user/tab/files/multies-r21", { recursive: true });
   await page.waitForTimeout(400);

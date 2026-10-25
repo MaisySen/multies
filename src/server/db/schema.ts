@@ -847,7 +847,7 @@ export const savedViews = sqliteTable("saved_views", {
   projectId: text("project_id"),
   userId: text("user_id"),
   name: text("name").notNull(),
-  view: text("view", { enum: ["board", "list", "calendar", "timeline"] }).notNull().default("list"),
+  view: text("view", { enum: ["board", "list", "calendar", "timeline", "sprints"] }).notNull().default("list"),
   /** JSON: { assignee?, status?, priority?, label?, due?, q? } */
   filters: text("filters").notNull().default("{}"),
   ...suiteCols(),

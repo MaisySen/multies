@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Bot, CalendarDays, Check, FolderInput, Mail, Tag, Trash2, UserRound, X, CircleDot } from "lucide-react";
+import { ArrowDown, ArrowUp, Bot, CalendarDays, Check, FolderInput, Mail, Shapes, Tag, Trash2, UserRound, X, CircleDot } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -399,7 +399,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
 
 // ---------------------------------------------------------------- the bulk bar
 
-type Pop = "status" | "assignee" | "due" | "labels" | "project" | null;
+type Pop = "status" | "assignee" | "due" | "labels" | "type" | "project" | null;
 
 function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; projects: Project[]; people: AssigneeOption[]; writes: ReturnType<typeof useTableWrites>; onClear: () => void }) {
   const [pop, setPop] = useState<Pop>(null);
@@ -484,6 +484,10 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
                 </div>
               ) : null; })()}
             </div>, "Labels")}
+        </div>
+        <div className="relative">
+          {barButton("type", <Shapes className="h-4 w-4" />, "Type")}
+          {pop === "type" && panel((["task", "story", "bug"] as const).map((k) => item(k, <><TypeIcon type={k} />{TYPE_META[k].label}</>, () => void run({ type: k }, (t) => ({ ...t, type: k })))), "Set type")}
         </div>
         <div className="relative">
           {barButton("project", <FolderInput className="h-4 w-4" />, "Move to")}

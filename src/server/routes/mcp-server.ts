@@ -256,8 +256,10 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
       labels: z.array(z.string()).max(20).optional(), parentId: z.string().optional().describe("Make it a subtask."),
       messageId: z.string().optional(), threadId: z.string().optional(),
       type: taskType.optional().describe("task (default), story, bug or epic. Pass an epic's id as parentId to put the task in that epic."),
+      points: z.number().min(0).max(1000).optional().describe("The estimate, in the project's unit (points or hours)."),
+      sprintId: z.string().max(64).optional().describe("Put the task in a planned or active sprint of its project (see list_sprints)."),
     },
-  }, tool(async (x: { title?: string; notes?: string; projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string; labels?: string[]; parentId?: string; messageId?: string; threadId?: string; type?: TaskType }) => {
+  }, tool(async (x: { title?: string; notes?: string; projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string; labels?: string[]; parentId?: string; messageId?: string; threadId?: string; type?: TaskType; points?: number; sprintId?: string }) => {
     writable();
     const assignee = parseAssignee(x.assignee);
     if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }) };
@@ -267,13 +269,15 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 
   server.registerTool("update_task", {
     title: "Update a task", annotations: rw,
-    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes or type (task, story, bug, epic).",
+    description: "Change a task: status (todo, doing, done) or a project status id, assignee, priority, due date, labels, title, notes, type (task, story, bug, epic), estimate (points) or sprint (sprintId).",
     inputSchema: {
       id: z.string(), title: z.string().max(300).optional(), notes: z.string().max(50_000).optional(), status: z.enum(["todo", "doing", "done"]).optional(), statusId: z.string().optional(),
       assignee: assigneeArg, priority: z.enum(["none", "low", "medium", "high", "urgent"]).optional(), due: z.string().nullable().optional(), labels: z.array(z.string()).max(20).optional(),
       type: taskType.optional().describe("task, story, bug or epic."),
+      points: z.number().min(0).max(1000).nullable().optional().describe("The estimate in the project's unit; null clears it."),
+      sprintId: z.string().max(64).nullable().optional().describe("Move to a sprint of the task's project; null moves it to the backlog."),
     },
-  }, tool(async (x: { id: string; title?: string; notes?: string; status?: "todo" | "doing" | "done"; statusId?: string; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string | null; labels?: string[]; type?: TaskType }) => {
+  }, tool(async (x: { id: string; title?: string; notes?: string; status?: "todo" | "doing" | "done"; statusId?: string; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string | null; labels?: string[]; type?: TaskType; points?: number | null; sprintId?: string | null }) => {
     writable();
     const { id, ...patch } = x;
     return { task: await updateTask(deps, a, id, { ...patch, assignee: parseAssignee(x.assignee) }) };

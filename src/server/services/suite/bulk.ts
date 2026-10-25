@@ -46,6 +46,8 @@ export interface BulkPatch {
   removeLabels?: string[];
   /** Move to another project: numbers are claimed there and each status maps to the same group. */
   projectId?: string;
+  /** Round 21: task, story or bug. Epics change type one at a time (their rules need the items). */
+  type?: "task" | "story" | "bug";
 }
 
 export interface BulkResult { updated: number; unchanged: number; ids: string[]; tasks: Task[] }
@@ -108,7 +110,7 @@ function caseOn(ids: string[], values: Map<string, unknown>): SQL {
   return sql`case ${tasks.id} ${sql.join(parts, sql` `)} end`;
 }
 
-type Cols = Partial<Pick<TaskRow, "statusId" | "status" | "completedAt" | "position" | "assigneeType" | "assigneeId" | "priority" | "dueAt" | "reminderSentFor" | "startAt" | "labels" | "projectId" | "number">>;
+type Cols = Partial<Pick<TaskRow, "statusId" | "status" | "completedAt" | "position" | "assigneeType" | "assigneeId" | "priority" | "type" | "dueAt" | "reminderSentFor" | "startAt" | "labels" | "projectId" | "number">>;
 
 /**
  * UPDATE statements for a set of per task changes: tasks that change the same columns share
@@ -166,7 +168,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   assertWritable(actor);
   const ids = capIds(idsOrRefs);
   const keys = Object.entries(patch).filter(([, v]) => v !== undefined).map(([k]) => k);
-  if (!keys.length) throw new HttpError(422, "validation_failed", "Say what to change: status, assignee, due date, start date, priority, labels or project.");
+  if (!keys.length) throw new HttpError(422, "validation_failed", "Say what to change: status, assignee, due date, start date, priority, labels, type or project.");
   if (patch.statusId && patch.status) throw new HttpError(422, "validation_failed", "Send status or statusId, not both.");
   const level = await assertBudget(deps);
   const rows = await loadTasks(deps, actor.orgId, ids);
@@ -223,6 +225,10 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
       s.assigneeType = assignee?.type ?? null; s.assigneeId = assignee?.id ?? null;
     }
     if (patch.priority !== undefined && t.priority !== patch.priority) s.priority = patch.priority;
+    if (patch.type !== undefined && (t.type ?? "task") !== patch.type) {
+      if (t.type === "epic") throw new HttpError(422, "epic_type", `${t.id} is an epic. Change an epic's type on its own, from the task.`);
+      s.type = patch.type;
+    }
     if (dueAt !== undefined && (t.dueAt?.getTime() ?? null) !== (dueAt?.getTime() ?? null)) { s.dueAt = dueAt; s.reminderSentFor = null; }
     if (startAt !== undefined && (t.startAt?.getTime() ?? null) !== (startAt?.getTime() ?? null)) s.startAt = startAt;
     if (add.length || remove.size) {
