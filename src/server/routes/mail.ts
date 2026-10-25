@@ -16,6 +16,7 @@ import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
 import { connectionForMailbox, queueRemoteChange, type RemoteAction } from "../services/connect";
 import { localFolderFor, syncConnection } from "../services/connect/sync";
+import { snoozeHiddenCond } from "../services/mail/schedules";
 
 /** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
 const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash", spam: "spam", inbox: "inbox" };
@@ -76,6 +77,8 @@ export function mailRoutes() {
         cursor: q.cursor,
         limit: q.limit,
         scope: await mailboxScope(c.var.deps.db, c.var.auth),
+        // Round 20: a snoozed thread stays out of Inbox until its time.
+        extra: q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined,
       });
       return c.json(result);
     })

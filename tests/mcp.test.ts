@@ -36,6 +36,7 @@ describe("MCP server", () => {
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
       "append_to_doc",
+      "cancel_scheduled",
       "comment_on_task",
       "contact_timeline",
       "create_agent_inbox",
@@ -63,6 +64,7 @@ describe("MCP server", () => {
       "list_notifications",
       "list_people",
       "list_projects",
+      "list_scheduled",
       "list_tasks",
       "list_templates",
       "list_threads",
@@ -79,6 +81,7 @@ describe("MCP server", () => {
       "read_thread",
       "reply",
       "schedule_meeting",
+      "schedule_send",
       "search",
       "search_contacts",
       "search_docs",
@@ -88,6 +91,7 @@ describe("MCP server", () => {
       "set_task_blocked_by",
       "set_task_fields",
       "set_task_repeat",
+      "snooze_thread",
       "start_timer",
       "stop_timer",
       "update_key_result",

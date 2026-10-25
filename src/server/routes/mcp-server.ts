@@ -33,6 +33,8 @@ import {
   createAgent, eventsSince, getAgent, latestEventSeq, listAgents, listThreads, readThread, replyInThread, requestSend, scopeFor, searchMessages, type Actor,
 } from "../services/agents";
 
+import { registerMailScheduleTools } from "./mcp-mail-schedule";
+
 export type Scoped = Actor & { scope?: "full" | "read" };
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
@@ -194,6 +196,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerR11Tools(server, deps, actor, writable);
   registerR10Tools(server, deps, actor, writable);
   registerR20ChatTools(server, deps, actor, writable);
+  registerMailScheduleTools(server, deps, actor, writable, agentFor, tool);
   return server;
 }
 

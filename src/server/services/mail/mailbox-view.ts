@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxes, mailConnections, messages } from "../../db/schema";
 import { notFound } from "../../lib/errors";
@@ -53,7 +53,7 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
 
 const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
 
-export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; remote?: string; search?: string; cursor?: string; limit?: number; scope?: Scope }) {
+export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; remote?: string; search?: string; cursor?: string; limit?: number; scope?: Scope; extra?: SQL }) {
   const limit = Math.min(q.limit ?? 50, 100);
   const conds = [eq(messages.orgId, orgId)];
   const s = inScope(q.scope ?? null);
@@ -69,6 +69,8 @@ export async function listMessages(db: DB, orgId: string, q: { mailboxId?: strin
     conds.push(or(...fields.map((f) => sql`lower(${f}) like ${term} escape '!'`))!);
     if (!q.folder) conds.push(sql`${messages.folder} <> 'trash'`);
   }
+  // Round 20: e.g. snoozed threads hidden from Inbox (services/mail/schedules.ts).
+  if (q.extra) conds.push(q.extra);
   if (q.cursor) {
     const dot = q.cursor.indexOf(".");
     const t = new Date(Number(q.cursor.slice(0, dot)));

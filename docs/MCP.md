@@ -62,6 +62,10 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
 | `create_agent_inbox` | Create an agent inbox |
+| `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
+| `schedule_send` | Send an email later, as an agent; its approval rules apply when it goes |
+| `list_scheduled` | List snoozed threads, scheduled sends and reminders |
+| `cancel_scheduled` | Cancel a scheduled send or reminder, or unsnooze |
 
 ### Tasks and projects
 

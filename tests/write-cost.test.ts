@@ -156,4 +156,44 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   // Measured 66: 5 tasks, 2 comments, 2 new statuses for the board's lists, one batch and the summary.
   const withComments = take();
   expect(withComments).toBeLessThanOrEqual(5 * 8 + 2 * 2 + 30);
+
+it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later and reminders cost 2 rows a step", async () => {
+  const { runMailSchedules } = await import("@/server/services/mail/schedules");
+  const { messages } = await import("@/server/db/schema");
+  const { and, eq } = await import("drizzle-orm");
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const domainId = (await u.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const { body } = await u.get(`/api/domains/${domainId}`);
+  for (const r of body.domain.records) {
+    if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+    else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+  }
+  await u.post(`/api/domains/${domainId}/verify`);
+  const a = (await u.post("/api/mailboxes", { domainId, localPart: "a", displayName: "A" })).body.mailbox;
+  const b = (await u.post("/api/mailboxes", { domainId, localPart: "b", displayName: "B" })).body.mailbox;
+  await u.post("/api/mail/send", { mailboxId: b.id, to: [a.address], subject: "Hi", text: "x" });
+  const msg = (await ctx.db.select().from(messages).where(and(eq(messages.mailboxId, a.id), eq(messages.folder, "inbox"))).get())!;
+  const take = meter(ctx.db);
+  // Idle: nothing scheduled, and then nothing due yet. Reads only.
+  await runMailSchedules(ctx.deps);
+  expect(take()).toBe(0);
+  const at = new Date(Date.now() + 3_600_000).toISOString();
+  await u.post("/api/mail-schedules/snooze", { messageId: msg.id, at });
+  await u.post("/api/mail-schedules/send", { message: { mailboxId: a.id, to: ["bob@example.com"], subject: "Later", text: "x" }, at });
+  take();
+  await runMailSchedules(ctx.deps);
+  await runMaintenance(ctx.deps);
+  take();
+  await runMailSchedules(ctx.deps);
+  // Measured 0: two items waiting, none due.
+  expect(take()).toBe(0);
+  // Due: the snooze comes back (2) and the send is claimed (2) before the normal send path writes its own rows.
+  const due = new Date(Date.now() + 2 * 3_600_000);
+  await runMailSchedules(ctx.deps, { now: due });
+  const sendRows = take();
+  // Measured 43: 4 for the two schedule rows (one returned, one claimed); the rest is the normal send
+  // path the scheduled message goes through (the Sent copy, the delivery log, the audit row, contacts).
+  expect(sendRows).toBeLessThanOrEqual(45);
 });

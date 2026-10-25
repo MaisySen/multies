@@ -466,6 +466,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0032_r20_mail_schedules",
+    "statements": [
+      "CREATE TABLE `mail_schedules` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`user_id` text,\n\t`kind` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`thread_id` text,\n\t`message_id` text,\n\t`due_at` integer NOT NULL,\n\t`payload` text,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
+      "CREATE INDEX `mail_schedules_due_idx` ON `mail_schedules` (`status`,`due_at`);"
+    ]
+  },
+  {
     "name": "0033_r20_chat_reactions",
     "statements": [
       "CREATE TABLE `chat_reactions` (\n\t`message_id` text NOT NULL,\n\t`reactor` text NOT NULL,\n\t`emoji` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`message_id`, `reactor`, `emoji`),\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_messages`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"

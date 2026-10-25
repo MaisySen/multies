@@ -1378,3 +1378,27 @@ export const chatReactions = sqliteTable("chat_reactions", {
   name: text("name").notNull().default(""),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.messageId, t.reactor, t.emoji] })]);
+
+/**
+ * Round 20: snoozed threads, scheduled sends and "remind me if no reply" (services/mail/schedules.ts).
+ * Live items only: a send is deleted as it is claimed, a returned snooze or reminder is deleted when
+ * the person opens it. One index (status, due_at) serves the cron pass, and the table is WITHOUT ROWID
+ * (drizzle/0032), so the text primary key needs no second index: a row costs 2 writes.
+ */
+export const mailSchedules = sqliteTable("mail_schedules", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  /** Who asked (a person, or the agent member behind a key). */
+  userId: text("user_id"),
+  kind: text("kind", { enum: ["snooze", "send", "remind"] }).notNull(),
+  /** pending: waiting for due_at. returned: a snooze or reminder that came back (top of Inbox). failed: a scheduled send that could not go. */
+  status: text("status", { enum: ["pending", "returned", "failed"] }).notNull().default("pending"),
+  threadId: text("thread_id"),
+  messageId: text("message_id"),
+  dueAt: ts("due_at").notNull(),
+  /** JSON: what a scheduled send sends, and as whom. */
+  payload: text("payload"),
+  error: text("error"),
+  createdAt: createdAt(),
+}, (t) => [index("mail_schedules_due_idx").on(t.status, t.dueAt)]);

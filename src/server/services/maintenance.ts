@@ -54,6 +54,8 @@ export async function runMaintenance(deps: Deps) {
   ]);
   // Connected mailboxes: each due one is handed to its own invocation (services/connect/sync.ts).
   const mailSync = await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
+  // Round 20: scheduled sends, snoozes and reminders that are due. Reads first; an idle pass writes nothing.
+  const mailSchedules = await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([
@@ -61,7 +63,7 @@ export async function runMaintenance(deps: Deps) {
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
-  return { ...legacy, jobs: jobsRun, mailSync, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
 /**
