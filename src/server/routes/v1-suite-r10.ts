@@ -56,10 +56,10 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
     });
   api.openapi(route("get", "/chat/messages/{id}/thread", "Chat", "Read a thread", "The top level message and its replies.", { request: { params: Id } }),
     async (c) => send(c, await getThread(c.var.deps, actor(c), pid(c))));
-  api.openapi(route("post", "/chat/messages/{id}/task", "Chat", "Turn a message into a task", "Body: { title?, projectId?, assignee?: member:<id> or agent:<id>, due?, triage? }. The task links back to the message, and the message shows the task. With triage: true it waits in the Triage queue (source chat) until someone accepts it.", { request: { params: Id, ...body(MessageToTask) } }),
+  api.openapi(route("post", "/chat/messages/{id}/task", "Chat", "Turn a message into a task", "Body: { title?, projectId?, assignee?: member:<id> or agent:<id>, due? }. The task links back to the message, and the message shows the task.", { request: { params: Id, ...body(MessageToTask) } }),
     async (c) => {
       const b = await jsonBody(c, MessageToTask);
-      return send(c, { task: await messageToTask(c.var.deps, actor(c), pid(c), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due, triage: b.triage }) }, 201);
+      return send(c, { task: await messageToTask(c.var.deps, actor(c), pid(c), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due }) }, 201);
     });
 
   // ---------------------------------------------------------------- templates

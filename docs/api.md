@@ -279,9 +279,7 @@ verify them and reject old timestamps. Failed deliveries retry with backoff for 
 wait as dead letters you can replay. An endpoint that fails five deliveries in a row is switched off
 and its owners are emailed.
 
-Events (51): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`.
-
-Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms with triage on, incoming hooks, chat or the API); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
+Events (47): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`.
 
 The list lives in `src/server/services/developer/webhooks.ts`.
 
@@ -319,3 +317,22 @@ tasks carry points and otherwise `null`, and `start` and `end`: the earliest sta
 date of its items. Read only keys can read epics but not add or remove items. Adding N items is one
 batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
 MCP: `list_epics`, `get_epic`, `add_to_epic`.
+
+## Internal notes on threads (round 22)
+
+People and agents can leave notes on a shared inbox thread. Notes are team only: they are never part
+of an outgoing message, a reply quote, `GET /threads/{id}`, `read_thread` or anything the sender can
+see. You read them only by asking for them. Access follows the shared inbox: the caller must be able
+to open at least one message of the thread (same workspace, a mailbox in their scope), else 404.
+
+A note is plain text up to 4,000 characters. `@Full Name` or `@email` in the text mentions a
+teammate who can open the thread's mailbox; they get a `thread_mention` notification (category
+mention) that opens `/app/inbox?thread=<id>`. Unknown names and people without access are ignored,
+and the author is never notified. Only the author can edit, for 24 hours (only newly mentioned people
+are notified); the author, an owner or admin, or a workspace key can delete. Agent keys write as their
+agent. Each note costs 1 row and 1 index entry, plus 1 notification row per mentioned person.
+
+- Page: the "Team notes" card under the messages in `/app/inbox?thread=<id>`. Type @ to mention, Cmd or Ctrl+Enter posts.
+- App API: `GET /api/threads/:id/comments` (notes and `mentionable` people), `POST /api/threads/:id/comments` `{ body, mentions? }`, `PATCH /api/threads/:id/comments/:commentId` `{ body, mentions? }`, `DELETE /api/threads/:id/comments/:commentId`, `GET /api/threads/comment-counts?ids=a,b` (up to 100 threads, one grouped read).
+- Public API: `GET /threads/{id}/comments`, `POST /threads/{id}/comments`, `PATCH /threads/{id}/comments/{commentId}`, `DELETE /threads/{id}/comments/{commentId}`. `mentions` takes user ids or emails. Read only keys can list but not write.
+- MCP: `list_thread_comments`, `add_thread_comment`, `delete_thread_comment`.

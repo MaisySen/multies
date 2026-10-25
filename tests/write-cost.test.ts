@@ -381,3 +381,41 @@ it("bulk task changes (round 21): a 50 task update is one batch with no per task
   expect(status.d1Rows).toBeLessThanOrEqual(50 * 4 + 10);
   expect(move.d1Rows).toBeLessThanOrEqual(50 * 6 + 10);
 });
+
+it("thread notes (round 22): a note is its row and one index entry, each mention adds one notification row (3 with its indexes); reads write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const domainId = (await u.post("/api/domains", { name: "acme.io" })).body.domain.id;
+  const { body } = await u.get(`/api/domains/${domainId}`);
+  for (const r of body.domain.records) {
+    if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+    else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+  }
+  await u.post(`/api/domains/${domainId}/verify`);
+  await u.post("/api/mailboxes", { domainId, localPart: "support", displayName: "Support" });
+  const inv = await u.post("/api/team/invites", { email: "admin@acme.io", role: "admin" });
+  const a2 = new Client(ctx.app);
+  await a2.signup("admin@acme.io", "Adam Admin");
+  await a2.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`);
+  const { deliverInbound } = await import("@/server/services/mail/delivery");
+  await deliverInbound(ctx.deps, { envelopeFrom: "grace@example.com", rcptTo: "support@acme.io", sizeBytes: 300, via: "test",
+    email: { messageId: "<wc1@example.com>", from: { address: "grace@example.com", name: "Grace" }, to: [{ address: "support@acme.io" }], cc: [], subject: "Hi", text: "Hello", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} } });
+  const threadId = (await u.get("/api/agents/threads")).body.data[0].id as string;
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const { addComment, editComment, deleteComment, listComments } = await import("@/server/services/mail/thread-comments");
+  const take = meter(ctx.db);
+  const plain = await addComment(ctx.deps, actor, threadId, { body: "Just a note" });
+  // The row and its one index.
+  expect(take()).toBe(2);
+  await addComment(ctx.deps, actor, threadId, { body: "@Adam Admin look @Olive Owner" });
+  // Measured 5: the note (2) plus one notification row and its indexes (3) for Adam; the author is not notified.
+  expect(take()).toBeLessThanOrEqual(5);
+  await listComments(ctx.deps, actor, threadId);
+  expect(take()).toBe(0);
+  await editComment(ctx.deps, actor, threadId, plain.id, { body: "Edited note" });
+  expect(take()).toBeLessThanOrEqual(2);
+  await deleteComment(ctx.deps, actor, threadId, plain.id);
+  expect(take()).toBe(2);
+});

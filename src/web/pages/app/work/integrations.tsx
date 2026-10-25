@@ -23,7 +23,6 @@ const EVENT_LABEL: Record<string, string> = {
   "task.created": "New task", "task.updated": "Task updated", "task.commented": "New comment", "chat.mention": "Chat mention", "form.submitted": "Form submitted",
   "deal.created": "New deal", "deal.updated": "Deal updated", "contact.created": "New contact", "meeting.created": "Meeting scheduled",
   "booking.created": "New booking", "booking.cancelled": "Booking cancelled", "message.received": "New email",
-  "triage.created": "New in Triage", "triage.accepted": "Accepted from Triage",
 };
 const hostOf = (u: string) => { try { return new URL(u).host; } catch { return u; } };
 const time = (s: string) => new Date(s).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });

@@ -31,6 +31,7 @@ import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
 import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
+import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -389,6 +390,7 @@ export function v1Routes() {
   registerSuiteR10Routes(api);
   registerSuiteR11Routes(api);
   registerTriageRoutes(api);
+  registerThreadCommentRoutes(api); // Round 22: internal notes on threads
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);

@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 81 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 84 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -186,6 +186,16 @@ Registered in src/server/routes/mcp-r21-sprints.ts. Read only keys can list and 
 | `complete_sprint` | Complete the active sprint; unfinished tasks carry over to the next sprint or the backlog |
 | `add_to_sprint` | Move up to 500 tasks into a sprint |
 | `remove_from_sprint` | Move tasks back to the backlog |
+
+### Thread notes (round 22)
+
+Registered in src/server/routes/mcp-r22-comments.ts. Internal notes on a mail thread: team only, never part of `read_thread` or any mail that is sent. Read only keys can list; adding and deleting need a key that can write. Agent keys write as their agent.
+
+| Tool | What it does |
+| --- | --- |
+| `list_thread_comments` | A thread's internal notes, oldest first, and the teammates who can be mentioned |
+| `add_thread_comment` | Add a note; "@Full Name" in the text or mentions (user ids or emails) notifies teammates who can open the thread |
+| `delete_thread_comment` | Delete a note (its author, or a workspace key) |
 
 ## Claude (claude.ai and Claude Desktop)
 

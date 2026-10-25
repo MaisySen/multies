@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
+import { CheckSquare, FileText, Hash, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -56,7 +56,7 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, myId, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string }) {
+function Message({ m, onThread, onTask, onEdit, onDelete, onPin, onReact, myId, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   const call = m.deleted ? null : callPath(m.body);
   return (
@@ -89,7 +89,6 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
           <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><MoreHorizontal className="h-4 w-4" aria-hidden /></button>}>
             <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
-            {onTriage && <MenuItem onSelect={onTriage} icon={<Inbox className="h-4 w-4" />}>Send to triage</MenuItem>}
             {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
@@ -243,9 +242,6 @@ export function ChatPage() {
   const makeTask = async (m: ChatMessage) => {
     try { const r = await api.post<{ task: { id: string; ref: string } }>(`/chat/messages/${m.id}/task`, {}); await refresh(); navigate(`/app/tasks?task=${r.task.id}`); } catch (e) { showError(e as Error); }
   };
-  const sendToTriage = async (m: ChatMessage) => {
-    try { await api.post(`/chat/messages/${m.id}/task`, { triage: true }); await refresh(); navigate("/app/triage"); } catch (e) { showError(e as Error); }
-  };
   const edit = async (m: ChatMessage) => {
     const next = window.prompt("Edit message", m.body);
     if (next === null || !next.trim()) return;
@@ -285,7 +281,7 @@ export function ChatPage() {
   };
   const row = (m: ChatMessage, inThread = false) => (
     <Message key={m.id} m={m} inThread={inThread} mine={m.author.type === "member" && m.author.id === myId}
-      onThread={() => openThread(m)} onTask={() => void makeTask(m)} onTriage={() => void sendToTriage(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
+      onThread={() => openThread(m)} onTask={() => void makeTask(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
       onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} />
   );
   const chans = list.filter((c) => c.kind === "channel");

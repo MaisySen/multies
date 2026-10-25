@@ -24,7 +24,7 @@ export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(
 export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional() });
 export const ChannelCreate = z.object({ name: z.string().trim().min(1).max(80), topic: z.string().max(250).optional(), private: z.boolean().optional(), memberIds: z.array(z.string().max(80)).max(200).optional(), projectId: z.string().max(64).nullable().optional(), guestAccess: z.boolean().optional() });
 export const ChannelPatch = z.object({ name: z.string().trim().min(1).max(80).optional(), topic: z.string().max(250).optional(), archived: z.boolean().optional(), guestAccess: z.boolean().optional(), projectId: z.string().max(64).nullable().optional() });
-export const MessageToTask = z.object({ title: z.string().max(300).optional(), projectId: z.string().max(64).optional(), assignee: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).nullable().optional(), due: z.string().max(40).nullable().optional(), triage: z.boolean().optional() });
+export const MessageToTask = z.object({ title: z.string().max(300).optional(), projectId: z.string().max(64).optional(), assignee: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).nullable().optional(), due: z.string().max(40).nullable().optional() });
 export const MessagesQuery = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), since: z.string().max(40).optional() });
 const KrKind = z.enum(["number", "currency", "percent", "tasks"]);
 export const KrCreate = z.object({ name: z.string().trim().min(1).max(200), kind: KrKind.optional(), start: z.number().finite().optional(), target: z.number().finite().optional(), current: z.number().finite().optional(), unit: z.string().max(20).optional(), projectId: z.string().max(64).nullable().optional(), taskIds: z.array(z.string().max(64)).max(500).optional() });
@@ -88,7 +88,7 @@ export function chatRoutes() {
     .get("/channels/:id/pins", async (c) => c.json(await listPins(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/messages/:id/task", async (c) => {
       const b = await parseBody(c, MessageToTask.default({}));
-      return c.json({ task: await messageToTask(c.var.deps, c.var.auth, c.req.param("id"), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due, triage: b.triage }) }, 201);
+      return c.json({ task: await messageToTask(c.var.deps, c.var.auth, c.req.param("id"), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due }) }, 201);
     })
     .get("/files/:id", async (c) => download(await readChatFile(c.var.deps, c.var.auth, c.req.param("id"))));
 }

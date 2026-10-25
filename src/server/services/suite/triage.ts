@@ -9,14 +9,7 @@ import { and, count, eq, isNull } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
-import { actorOf, assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
-import { emitEvent } from "../developer/webhooks";
-
-/** Round 22: triage.* webhook events, beside the task.* events the same actions already send. */
-async function emitTriage(deps: Deps, actor: SuiteActor, type: "triage.accepted" | "triage.declined" | "triage.merged", data: Record<string, unknown>) {
-  const by = actorOf(actor);
-  await emitEvent(deps, actor.orgId, type, { ...data, actor: { type: by.type, id: by.id, name: by.name } });
-}
+import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { createTask, getTask, link, listTasks, updateTask, type Assignee, type Category, type Priority } from "./tasks";
 
 export type TriageSource = "mail" | "form" | "api" | "chat";
@@ -73,9 +66,7 @@ export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, in
   if (input.status !== undefined) patch.status = input.status;
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.due !== undefined) patch.due = input.due;
-  const task = await updateTask(deps, actor, t.id, patch);
-  await emitTriage(deps, actor, "triage.accepted", { task, source: t.triageSource ?? null });
-  return task;
+  return updateTask(deps, actor, t.id, patch);
 }
 
 const NO_REPLY = /^(no[-_.]?reply|do[-_.]?not[-_.]?reply|mailer[-_.]?daemon|postmaster|bounces?|notifications?)([-+_.].*)?@/i;
@@ -121,7 +112,6 @@ export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, i
       reply = { sent: r.delivered, attempted: true, to, ...(r.detail ? { detail: r.detail } : {}) };
     }
   }
-  await emitTriage(deps, actor, "triage.declined", { id: t.id, title: t.title, number: t.number, source: t.triageSource ?? null, ...(reason ? { reason } : {}), replied: reply.sent });
   return { ok: true, id: t.id, reply };
 }
 
@@ -155,9 +145,7 @@ export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, tar
     eventData: { taskId: target.id, comment: { id: commentId, taskId: target.id, body, author: { type: by.createdByType, id: by.createdById, name: actor.name || actor.email }, createdAt: now.toISOString() } },
   });
   await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "triage_merged", data: { into: target.id, title: t.title }, event: "task.deleted", eventData: { id: t.id } });
-  const merged = await getTask(deps, actor, target.id);
-  await emitTriage(deps, actor, "triage.merged", { id: t.id, title: t.title, source: t.triageSource ?? null, into: merged });
-  return { task: merged, merged: t.id };
+  return { task: await getTask(deps, actor, target.id), merged: t.id };
 }
 
 export interface BulkInput { ids: string[]; action: "accept" | "decline"; accept?: AcceptInput; decline?: DeclineInput }

@@ -510,5 +510,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "ALTER TABLE `chat_channels` ADD `call_started_at` integer;"
     ]
+  },
+  {
+    "name": "0040_r22_thread_comments",
+    "statements": [
+      "CREATE TABLE `thread_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`mentions` text DEFAULT '[]' NOT NULL,\n\t`edited_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
+      "CREATE INDEX `thread_comments_thread_idx` ON `thread_comments` (`org_id`,`thread_id`,`created_at`);"
+    ]
   }
 ];

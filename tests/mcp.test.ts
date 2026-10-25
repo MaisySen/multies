@@ -35,6 +35,7 @@ describe("MCP server", () => {
     const mcp = await connect(wsKey);
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
+      "add_thread_comment",
       "add_to_epic",
       "add_to_sprint",
       "append_to_doc",
@@ -53,6 +54,7 @@ describe("MCP server", () => {
       "create_task",
       "create_template",
       "create_triage_item",
+      "delete_thread_comment",
       "find_tasks_by_field",
       "get_epic",
       "get_portfolio",
@@ -77,6 +79,7 @@ describe("MCP server", () => {
       "list_sprints",
       "list_tasks",
       "list_templates",
+      "list_thread_comments",
       "list_threads",
       "list_triage",
       "log_time",
