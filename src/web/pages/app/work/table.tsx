@@ -106,7 +106,7 @@ const PROJECT_COLUMN: TableColumn = {
 };
 
 function fieldColumn(f: CustomField): TableColumn {
-  return { id: `field:${f.id}`, header: f.name, width: "w-[130px]", hideOnPhone: true, render: (t, c) => <FieldCell field={f} value={t.fields?.[f.id]} people={c.people} /> };
+  return { id: `field:${f.id}`, header: f.name, width: "w-[130px]", hideOnPhone: true, render: (t, c) => <FieldCell field={f} value={t.fields?.[f.id]} people={c.people} error={t.fieldErrors?.[f.id]} /> };
 }
 
 // ---------------------------------------------------------------- data: optimistic edits with rollback

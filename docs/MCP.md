@@ -345,12 +345,12 @@ Registered in src/server/routes/mcp-r24-workload.ts. Read only, so read only key
 | --- | --- |
 | `get_workload` | Open tasks and estimates per person (plus Unassigned) per week, Monday first, in points or hours, with a capacity flag (default 20 points or 40 hours a person a week, or pass `capacity`); `overloaded` lists each person and week over capacity, so "who is overloaded next week" is one call with `from` set to next Monday and `weeks` 1; `overdue` holds open tasks due before the range; `includeTasks` adds each cell's tasks |
 
-### Docs tree and backlinks (R24.5)
+### Formula and rollup fields (R24.1)
 
-Registered in src/server/routes/mcp-r24-docs.ts. `get_doc_tree` and `get_backlinks` are reads, so read only keys and tokens can call them; `move_doc` needs a write key and writes one row.
+Registered in src/server/routes/mcp-r24-formulas.ts. `get_computed_fields` is a read, so read only keys and tokens can call it; the two create tools need a write key. Values are computed when read and nothing is stored per task.
 
 | Tool | What it does |
 | --- | --- |
-| `get_doc_tree` | The workspace's docs as a tree of pages and sub pages (id, title, parentId, position, depth, children), at most 6 levels deep; `flat: true` gives one line per page with its depth |
-| `move_doc` | Puts a doc under another page (`parentId`, or null for the top level) and, optionally, right before or after a sibling (`beforeId` or `afterId`); with neither it goes last. A page can't go under itself or its own sub pages |
-| `get_backlinks` | The docs whose body links to a doc or a task (`type` doc or task, `id` an id or a task ref like OPS-12), newest first, each with a short snippet of the text around the link |
+| `get_computed_fields` | With `taskId` (an id or a reference like OPS-12): each formula and rollup field on the task's project with its settings and value; with `projectId`: the project level rollups over its tasks. A value that can't be worked out is `#ERROR` with a plain `error` message |
+| `create_formula_field` | Adds a read only formula field, like `{Budget} * 1.1` or `if({points} > 5, "big", "small")`; field names go in braces, built ins are points, due, start, created, completed, status, priority, title and assignee; functions: if, round, floor, ceil, abs, min, max, sum, concat, len, upper, lower, days_between, today, now, date_add, is_empty, coalesce; up to 500 characters; loops between formulas are refused |
+| `create_rollup_field` | Adds a rollup: `source` subtasks, epic_children (an epic's items and their subtasks) or project (one value over the project, shown in its header); `fn` sum, count, count_done, average, min, max or percent_done; `field` points or a number, currency or formula field (not needed for the count functions) |

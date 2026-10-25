@@ -569,35 +569,44 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
 
 D1 writes: reading the workload writes nothing. A move is one task update.
 
-## Docs page tree and backlinks (R24.5)
+## Formula and rollup fields (R24.1)
 
-Docs form a tree of pages and sub pages, at most 6 levels deep. Each doc has `parentId` (null at the
-top) and `position` (a number that orders it among its siblings). Moving a page writes one row: it gets
-a position halfway between its new neighbours, and siblings are spaced out again only when two
-neighbours have no room left between them. A page can't go under itself or one of its own sub pages
-(422 `cycle`), and a move or a new sub page that would go past 6 levels answers 422 `too_deep`.
-Deleting a page moves its sub pages up to its parent.
+Two more custom field types, both read only and computed when tasks are read, so a list, table,
+board or task read writes nothing for them. Their settings go in `config` on the normal field create
+and update (`POST /api/fields`, `POST /api/v1/projects/{id}/fields`, `PATCH .../fields/{id}`).
 
-Backlinks: when a doc's body is saved, the links inside it are read: links to `/app/docs/<id>`,
-`/app/tasks/<id>`, `/app/tasks?task=<id>` and `/app/tasks?project=<id>` (relative, or on the app's own
-host), mention nodes and page links. Outside links and ids from another workspace are ignored. Only
-the difference from the stored set is written, so a save that did not change the links writes no link
-rows. The co-editing room keeps its own state; the doc row (and so its links) is saved by the leader's
-periodic snapshot through the normal update.
+- `formula`: `config: { expression }`, up to 500 characters, for example `{Budget} * 1.1`,
+  `{points} * 2` or `if(days_between(today(), {due}) < 0, "late", "ok")`. Field names go in braces
+  (any custom field on the same project, by name, any case); built ins: points, due, start, created,
+  completed, status, priority, title, assignee (also usable bare). Operators: + - * / %, = == != <>
+  < > <= >=, and, or, not (&& || !), parentheses. Functions: if, round, floor, ceil, abs, min, max,
+  sum, concat, len, upper, lower, days_between, today, now, date_add (days), is_empty, coalesce.
+  Type rules: + joins text when either side is text; other maths needs numbers and an empty value
+  makes the answer empty; dates are text like 2026-11-02; dividing by 0 is an error. Formulas can read
+  other formulas; a loop is refused when saved and shows as an error if it ever appears. The parser is
+  hand written: no eval, no property access, no loops, a depth limit of 32.
+- `rollup`: `config: { source, fn, field }`. `source` is `subtasks` (the task's direct subtasks; on an
+  epic, its items), `epic_children` (an epic's items and their subtasks) or `project` (one value over
+  the project's live tasks, epics left out, shown in the project header and not as a task column).
+  `fn` is sum, count, count_done, average, min, max or percent_done (0 to 100 by count). `field` is
+  `points` or a number, currency or formula field id or name; count functions need none. Sum of
+  nothing is 0; average, min, max and percent of nothing are empty.
 
-- `GET /api/v1/docs/tree` (app: `GET /api/docs/tree`): `{ tree, count, truncated, maxDepth }`; each
-  node has id, title, parentId, position, projectId, updatedAt, depth and children. At most 2,000 docs.
-- `PATCH /api/v1/docs/{id}/move` (app: `PATCH /api/docs/:id/move`): body `{ parentId?, beforeId? |
-  afterId? | position? }`. `parentId` null is the top level; `beforeId` or `afterId` is a sibling under
-  that parent; with none the page goes last. Needs a full key. Answers `{ doc, renumbered }`.
-- `POST /api/v1/docs` accepts `parentId` to create a sub page (it goes last under that page).
-- `GET /api/v1/docs/{id}/backlinks` and `GET /api/v1/tasks/{id}/backlinks` (a task id or a ref like
-  OPS-12; app: the same paths under `/api`): `{ backlinks: [{ id, title, snippet, projectId, updatedAt }] }`,
-  newest first, at most 100. The snippet is the text of the block that holds the link.
-- Project guests: `GET /api/guest/r24/docs/tree`, `/api/guest/r24/docs/:id/backlinks` and
-  `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
-- Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
+Values appear in each task's `fields` like stored values. A cell that can't be worked out holds
+`"#ERROR"` and the task carries `fieldErrors: { <fieldId>: "message" }`; a read never fails because of
+a formula. Computed fields can't be set, filtered or sorted on (422 `computed_field`).
 
-D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
-A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
-page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.
+- App API: `GET /api/computed/tasks/:id`, `GET /api/computed/projects/:id/rollups`, and
+  `GET /api/computed/preview?projectId&expression&taskId` (the field editor's live preview against the
+  first task, or `taskId`; saves nothing).
+- Public API: `GET /api/v1/tasks/{id}/computed` returns `computed: [{ fieldId, name, type, config,
+  value, error? }]`; `GET /api/v1/projects/{id}/rollups` returns `rollups: [{ id, name, fn, field,
+  fieldName, value, error? }]`, `taskCount` and `truncated` (at most 2,000 tasks are read). Both are
+  reads; read only keys can call them. Another workspace's ids answer 404.
+- MCP: `get_computed_fields`, `create_formula_field`, `create_rollup_field`.
+
+Cost per read: one query for the field definitions, then only when a project has rollups one grouped
+query for the listed tasks' children (plus one for epics' grandchildren and one for the children's
+stored values when needed), at most 5,000 children per request. D1 writes: reading writes nothing;
+defining or changing a formula or rollup field writes its one custom_fields row (plus its index) and
+the activity row, like any field.

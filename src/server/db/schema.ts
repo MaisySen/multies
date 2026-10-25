@@ -863,10 +863,6 @@ export const docs = sqliteTable("docs", {
   /** Plain text of the content, for search and for agents. */
   plainText: text("plain_text").notNull().default(""),
   projectId: text("project_id"),
-  /** R24: the page above this one in the docs tree (null at the top). Read with docs_org_idx, no index of its own. */
-  parentId: text("parent_id"),
-  /** R24: order among siblings, fractional so a move writes one row. */
-  position: real("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
@@ -1092,8 +1088,10 @@ export const customFields = sqliteTable("custom_fields", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] }).notNull(),
+  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] }).notNull(),
   options: text("options").notNull().default("[]"),
+  /** R24.1: formula ({ expression }) and rollup ({ source, field, fn }) settings as JSON. */
+  config: text("config"),
   position: integer("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);
@@ -1585,14 +1583,3 @@ export const calendarSources = sqliteTable("calendar_sources", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
-
-/**
- * R24: links found inside a doc's body (links to /app/docs/<id> or a task, and page links), one row per
- * distinct target, rewritten only when the set changes. Backlinks read doc_links_target_idx. WITHOUT ROWID.
- */
-export const docLinks = sqliteTable("doc_links", {
-  orgId: text("org_id").notNull(),
-  sourceDocId: text("source_doc_id").notNull(),
-  targetType: text("target_type", { enum: ["doc", "task", "project"] }).notNull(),
-  targetId: text("target_id").notNull(),
-}, (t) => [primaryKey({ columns: [t.sourceDocId, t.targetType, t.targetId] }), index("doc_links_target_idx").on(t.targetType, t.targetId)]);

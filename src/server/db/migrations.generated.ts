@@ -560,12 +560,9 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0050_r24_doc_tree",
+    "name": "0047_r24_formula_fields",
     "statements": [
-      "ALTER TABLE `docs` ADD `parent_id` text;",
-      "ALTER TABLE `docs` ADD `position` real DEFAULT 0 NOT NULL;",
-      "CREATE TABLE `doc_links` (\n\t`org_id` text NOT NULL,\n\t`source_doc_id` text NOT NULL,\n\t`target_type` text NOT NULL,\n\t`target_id` text NOT NULL,\n\tPRIMARY KEY(`source_doc_id`, `target_type`, `target_id`)\n) WITHOUT ROWID;",
-      "CREATE INDEX `doc_links_target_idx` ON `doc_links` (`target_type`,`target_id`);"
+      "ALTER TABLE `custom_fields` ADD `config` text;"
     ]
   }
 ];

@@ -759,44 +759,49 @@ it("workload (R24.2): reading the workload writes nothing, through the app, the 
   expect(take()).toBeLessThanOrEqual(16);
 });
 
-it("docs tree and backlinks (R24.5): unchanged links write 0 link rows; a link is 2 (row + target index); a move is 1 docs row; tree and backlink reads write nothing", async () => {
+
+it("formula and rollup fields (R24.1): reading computed values writes nothing; defining a field is one row", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
-  const me = (await u.get("/api/account/me")).body;
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const docsSvc = await import("@/server/services/suite/docs");
-  const tree = await import("@/server/services/suite/doc-tree");
-  const a = await docsSvc.createDoc(ctx.deps, actor, { title: "A", text: "" });
-  const b = await docsSvc.createDoc(ctx.deps, actor, { title: "B", text: "" });
-  const c = await docsSvc.createDoc(ctx.deps, actor, { title: "C", text: "" });
-  const body = (...ids: string[]) => ({ type: "doc", content: [{ type: "paragraph", content: ids.map((id) => ({ type: "text", text: id, marks: [{ type: "link", attrs: { href: `/app/docs/${id}` } }] })) }] });
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const budget = (await u.post("/api/fields", { projectId, name: "Budget", type: "number" })).body.field;
+  const parent = (await u.post("/api/tasks", { title: "Parent", projectId })).body.task;
+  for (const p of [1, 2, 3]) await u.post("/api/tasks", { title: `Sub ${p}`, projectId, parentId: parent.id, points: p });
+  await u.patch(`/api/tasks/${parent.id}`, { fields: { [budget.id]: 10 } });
+  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
   const take = meter(ctx.db);
-  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id))).toEqual({ added: 1, removed: 0 });
-  expect(take()).toBe(2);
-  // The leader's snapshot saves again with the same links: no link rows.
-  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id, b.id))).toEqual({ added: 0, removed: 0 });
-  expect(take()).toBe(0);
-  await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(c.id));
-  expect(take()).toBe(4); // one out, one in
-  // A whole doc save with unchanged links costs the same as a save of a doc with no links at all.
-  await docsSvc.updateDoc(ctx.deps, actor, b.id, { content: body() });
-  const plain = take();
-  await docsSvc.updateDoc(ctx.deps, actor, a.id, { content: body(c.id) });
-  expect(take()).toBe(plain);
-  // A move: one docs row (the meter counts it with the docs key index and docs_org_idx, as for any docs update).
-  await tree.moveDoc(ctx.deps, actor, b.id, { parentId: a.id });
-  expect(take()).toBe(3);
-  await tree.moveDoc(ctx.deps, actor, c.id, { parentId: a.id, beforeId: b.id });
-  expect(take()).toBe(3);
-  await tree.getDocTree(ctx.deps, { orgId: actor.orgId });
-  await tree.getBacklinks(ctx.deps, { orgId: actor.orgId }, { type: "doc", id: c.id });
-  expect(take()).toBe(0);
-  // Deleting A lifts its two sub pages: 2 docs rows (3 each by the meter) on top of the delete itself.
-  const d = await docsSvc.createDoc(ctx.deps, actor, { title: "D", text: "" });
+  // Defining a field: the custom_fields row and its index, plus the activity row.
+  expect((await u.post("/api/fields", { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 1.1" } })).status).toBe(201);
+  expect(take()).toBeLessThanOrEqual(12);
+  await u.post("/api/fields", { projectId, name: "Sub points", type: "rollup", config: { source: "subtasks", fn: "sum", field: "points" } });
+  await u.post("/api/fields", { projectId, name: "Total", type: "rollup", config: { source: "project", fn: "sum", field: "points" } });
   take();
-  await docsSvc.deleteDoc(ctx.deps, actor, d.id);
-  const lone = take();
-  await docsSvc.deleteDoc(ctx.deps, actor, a.id);
-  expect(take()).toBe(lone + 6);
+  // Reads: the list, a task, the computed endpoints and the preview write nothing beyond a plain list read.
+  await u.get(`/api/tasks?projectId=${projectId}&fields=1`);
+  const sessionBaseline = take();
+  const seen: number[] = [];
+  await u.get(`/api/tasks?projectId=${projectId}&includeSubtasks=true`); seen.push(take());
+  await u.get(`/api/tasks/${parent.id}`); seen.push(take());
+  await u.get(`/api/computed/tasks/${parent.id}`); seen.push(take());
+  await u.get(`/api/computed/projects/${projectId}/rollups`); seen.push(take());
+  await u.get(`/api/computed/preview?projectId=${projectId}&expression=${encodeURIComponent("{Budget} * 2")}`); seen.push(take());
+  expect(seen).toEqual([sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline]);
+  const headers = { host: "localhost", authorization: `Bearer ${key}` };
+  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
+  const baseline = take();
+  expect((await ctx.app.request(`/api/v1/projects/${projectId}/rollups`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  expect((await ctx.app.request(`/api/v1/tasks/${parent.id}/computed`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  // The services alone write nothing at all.
+  const { projectRollups } = await import("@/server/services/suite/computed");
+  const { listTasks } = await import("@/server/services/suite/tasks");
+  const me = (await u.get("/api/account/me")).body;
+  take();
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const rows = await listTasks(ctx.deps, actor, { projectId, includeSubtasks: true });
+  expect(rows.find((r) => r.title === "Parent")!.fields).toMatchObject({ [budget.id]: 10 });
+  await projectRollups(ctx.deps, actor, projectId);
+  expect(take()).toBe(0);
 });
