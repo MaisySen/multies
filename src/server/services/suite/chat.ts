@@ -515,7 +515,10 @@ export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, 
   if (who.type === "member" && who.id && !isKey(a) && c.kind === "channel" && !c.isPrivate) {
     await deps.db.insert(chatMembers).values({ channelId: c.id, userId: who.id, orgId: a.orgId, lastReadAt: deps.now(), joinedAt: deps.now() }).onConflictDoNothing();
   }
-  return writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, input);
+  const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, input);
+  // R24.4: chat_message_posted rules (channels only; posts made by rules never come back here).
+  if (c.kind === "channel" && !a.system) await (await import("./automations-r24")).runChatPosted(deps, a, { id: out.id, text: out.body, channelId: c.id, channelName: c.name, author: who.name || "Someone", authorId: who.id });
+  return out;
 }
 
 export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: string) {

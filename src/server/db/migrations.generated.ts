@@ -560,9 +560,9 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0047_r24_formula_fields",
+    "name": "0051_r24_capacity",
     "statements": [
-      "ALTER TABLE `custom_fields` ADD `config` text;"
+      "CREATE TABLE `workload_capacity` (\n\t`org_id` text NOT NULL,\n\t`person` text NOT NULL,\n\t`points` real,\n\t`hours` real,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `person`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
   }
 ];

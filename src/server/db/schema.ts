@@ -950,10 +950,10 @@ export const automations = sqliteTable("automations", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon"] }).notNull(),
+  trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon", "task_created", "assignee_changed", "due_passed", "meeting_ended", "chat_message_posted"] }).notNull(),
   /** JSON: email_received { from?, subjectContains?, mailboxId? }; status_changed { projectId?, toCategory? }; due_soon { hoursBefore } */
   conditions: text("conditions").notNull().default("{}"),
-  action: text("action", { enum: ["create_task", "notify", "assign_thread"] }).notNull(),
+  action: text("action", { enum: ["create_task", "notify", "assign_thread", "post_to_channel", "assign_task", "set_status", "add_label", "set_priority", "create_subtask_checklist"] }).notNull(),
   /** JSON: create_task { projectId, assigneeType?, assigneeId?, priority?, dueInDays? }; notify { to: "assignee" | "creator" | userId } */
   actionConfig: text("action_config").notNull().default("{}"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
@@ -1088,10 +1088,8 @@ export const customFields = sqliteTable("custom_fields", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] }).notNull(),
+  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] }).notNull(),
   options: text("options").notNull().default("[]"),
-  /** R24.1: formula ({ expression }) and rollup ({ source, field, fn }) settings as JSON. */
-  config: text("config"),
   position: integer("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);
@@ -1583,3 +1581,18 @@ export const calendarSources = sqliteTable("calendar_sources", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
+
+/**
+ * Round 24: a stored weekly capacity per person for the workload view. `person` is the assignee
+ * key ("member:<userId>" or "agent:<id>"). Keyed (org_id, person) WITHOUT ROWID with no secondary
+ * index: setting a capacity is 1 row write, and the workload read takes the whole org in one
+ * primary key range read.
+ */
+export const workloadCapacity = sqliteTable("workload_capacity", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  person: text("person").notNull(),
+  points: real("points"),
+  hours: real("hours"),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.person] })]);

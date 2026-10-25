@@ -18,17 +18,15 @@ export interface Task {
   repeat?: { freq: "daily" | "weekly" | "monthly" | "yearly"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string | null; text: string } | null;
   createdBy: { type: string; id: string | null }; createdAt: string; updatedAt: string; version: number;
   fields?: Record<string, FieldValue>;
-  /** R24.1: why a formula or rollup cell shows #ERROR, per field id. */
-  fieldErrors?: Record<string, string>;
   /** R21: task, story, bug or epic. */
   type?: "task" | "story" | "bug" | "epic";
   /** Round 21: the sprint (null: backlog) and the estimate. */
   sprintId?: string | null; points?: number | null;
 }
-export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url" | "formula" | "rollup";
+export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url";
 export type FieldValue = string | number | boolean | string[] | null;
 export interface FieldOption { id: string; label: string; color: string }
-export interface CustomField { id: string; projectId: string; name: string; type: FieldType; options: FieldOption[]; position: number; /** R24.1: formula or rollup settings. */ config?: import("./computed-fields").ComputedConfig }
+export interface CustomField { id: string; projectId: string; name: string; type: FieldType; options: FieldOption[]; position: number }
 export interface TaskFile { id: string; filename: string; contentType: string; sizeBytes: number; uploadedBy: { type: string; name: string }; createdAt: string }
 export interface Comment { id: string; body: string; author: { type: string; id: string | null; name: string }; createdAt: string }
 export interface ActivityEntry { id: string; actor: { type: string; id: string | null; name: string | null }; verb: string; data: Record<string, unknown>; at: string }

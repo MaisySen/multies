@@ -7,10 +7,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { CheckCircle2, Circle, ExternalLink, ListChecks, NotebookPen } from "lucide-react";
+import { Bot, CheckCircle2, Circle, ExternalLink, ListChecks, NotebookPen, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -18,6 +18,7 @@ import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { Card, Skeleton } from "@/web/components/ui/misc";
 import { summaryItemsToAdd } from "@/shared/action-items";
+import { mentionMatches } from "@/web/lib/mention-match";
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 interface ActionItem {
@@ -34,6 +35,28 @@ export interface MeetingNotesView {
 interface Edit { assignee?: string; due?: string }
 
 const NOTES_PROPS = { attributes: { class: "mm-prose mm-notes min-h-[220px] outline-none", "aria-label": "Meeting notes", role: "textbox", "aria-multiline": "true" } };
+interface MentionState { query: string; from: number; to: number; top: number; left: number; matches: Who[]; index: number }
+
+function mentionAt(editor: Editor, people: Who[], prev: MentionState | null): MentionState | null {
+  const sel = editor.state.selection;
+  if (!sel.empty || !people.length) return null;
+  const $from = sel.$from;
+  const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 40), $from.parentOffset, undefined, "\ufffc");
+  const m = /(^|\s)@([^\s@]{0,30})$/.exec(before);
+  if (!m) return null;
+  const query = m[2];
+  const matches = mentionMatches(people, query);
+  const from = sel.from - query.length - 1;
+  let top = 0, left = 0;
+  try {
+    const at = editor.view.coordsAtPos(from);
+    const box = (editor.view.dom as HTMLElement).getBoundingClientRect();
+    top = at.bottom - box.top + 4; left = Math.max(0, at.left - box.left);
+  } catch { /* positions are only for placing the list */ }
+  const index = prev && prev.query === query ? Math.min(prev.index, Math.max(0, matches.length - 1)) : 0;
+  return { query, from, to: sel.from, top, left, matches, index };
+}
+
 const whoKey = (w: Who | null) => (w ? `${w.type}:${w.id}` : "");
 const dayLabel = (d: string) => new Date(`${d.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
 
@@ -63,7 +86,7 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
   }
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" data-testid="meeting-notes">
-      <NotesEditor meetingId={meetingId} doc={n.doc} onSaved={() => void qc.invalidateQueries({ queryKey: key })} />
+      <NotesEditor meetingId={meetingId} doc={n.doc} people={n.people} onSaved={() => void qc.invalidateQueries({ queryKey: key })} />
       <div className="space-y-4">
         <ActionItems meetingId={meetingId} view={n} onDone={(v) => qc.setQueryData(key, v)} />
         <SummaryItems meetingId={meetingId} view={n} onDone={(v) => qc.setQueryData(key, v)} />
@@ -72,12 +95,39 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
   );
 }
 
-function NotesEditor({ meetingId, doc, onSaved }: { meetingId: string; doc: NonNullable<MeetingNotesView["doc"]>; onSaved: () => void }) {
+function NotesEditor({ meetingId, doc, people, onSaved }: { meetingId: string; doc: NonNullable<MeetingNotesView["doc"]>; people: Who[]; onSaved: () => void }) {
   const version = useRef(doc.version);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [state, setState] = useState<"saved" | "saving" | "unsaved">("saved");
   const extensions = useMemo(() => [StarterKit, TaskList, TaskItem.configure({ nested: true })], []);
-  const editor = useEditor({ extensions, content: doc.content as never, editorProps: NOTES_PROPS, immediatelyRender: true, onUpdate: () => { setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 700); } });
+  // The @ mention picker: typing "@" and a few letters lists the people who can be assigned.
+  const [picker, setPicker] = useState<MentionState | null>(null);
+  const pickerRef = useRef<MentionState | null>(null);
+  pickerRef.current = picker;
+  const choose = useRef<(w: Who) => void>(() => {});
+  const editorProps = useMemo(() => ({
+    ...NOTES_PROPS,
+    handleKeyDown: (_v: unknown, e: KeyboardEvent) => {
+      const p = pickerRef.current;
+      if (!p || !p.matches.length) return false;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") { const d = e.key === "ArrowDown" ? 1 : -1; setPicker({ ...p, index: (p.index + d + p.matches.length) % p.matches.length }); return true; }
+      if (e.key === "Enter" || e.key === "Tab") { choose.current(p.matches[p.index]); return true; }
+      if (e.key === "Escape") { setPicker(null); return true; }
+      return false;
+    },
+  }), []);
+  const editor = useEditor({
+    extensions, content: doc.content as never, editorProps, immediatelyRender: true,
+    onUpdate: ({ editor: ed }) => { setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 700); setPicker(mentionAt(ed, people, pickerRef.current)); },
+    onSelectionUpdate: ({ editor: ed }) => setPicker(mentionAt(ed, people, pickerRef.current)),
+    onBlur: () => setTimeout(() => setPicker(null), 150),
+  });
+  choose.current = (w: Who) => {
+    const p = pickerRef.current;
+    if (!editor || !p) return;
+    editor.chain().focus().insertContentAt({ from: p.from, to: p.to }, `@${w.name} `).run();
+    setPicker(null);
+  };
   const save = async (): Promise<void> => {
     if (!editor) return;
     setState("saving");
@@ -108,8 +158,23 @@ function NotesEditor({ meetingId, doc, onSaved }: { meetingId: string; doc: NonN
         <span className="ml-auto text-[12px] text-subtle" role="status" data-testid="notes-state">{state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : "Saved"}</span>
         <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><ExternalLink className="h-3.5 w-3.5" />Open doc</Link>
       </div>
-      <p className="mb-2 text-[12px] text-subtle">Type [ ] and a space for a checklist item. Use @Name and "due Fri" to assign it.</p>
-      <EditorContent editor={editor} />
+      <p className="mb-2 text-[12px] text-subtle">Type [ ] and a space for a checklist item. Type @ to pick who it is for, and "due Fri" for a date.</p>
+      <div className="relative">
+        <EditorContent editor={editor} />
+        {picker && picker.matches.length > 0 && (
+          <ul role="listbox" aria-label="People to mention" data-testid="mention-picker" style={{ top: picker.top, left: picker.left }}
+            className="absolute z-20 max-h-56 w-56 overflow-auto rounded-lg border border-line bg-surface py-1 text-[13px] shadow-pop">
+            {picker.matches.map((w, i) => (
+              <li key={`${w.type}:${w.id}`} role="option" aria-selected={i === picker.index}
+                onMouseDown={(e) => { e.preventDefault(); choose.current(w); }}
+                className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 ${i === picker.index ? "bg-[#0071E3] text-white" : "hover:bg-hover"}`}>
+                {w.type === "agent" ? <Bot className="h-3.5 w-3.5 shrink-0" /> : <UserRound className="h-3.5 w-3.5 shrink-0" />}
+                <span className="truncate">{w.name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Card>
   );
 }

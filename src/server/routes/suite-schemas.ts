@@ -24,18 +24,10 @@ export const FieldValues = z.record(z.string(), z.union([z.string().max(2000), z
   .openapi({ description: "Custom field values by field id (or field name). Text and URL: string. Number and currency (AUD): number. Date: YYYY-MM-DD. Single select: option id or label. Multi select: array of option ids or labels. Person: member:<id> or agent:<id>. Checkbox: true or false. null clears a value.", example: { fld_budget: 1250, fld_client: "Harbour Coffee" } });
 const FieldOptionInput = z.object({ id: z.string().max(40).optional(), label: z.string().trim().min(1).max(60), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() });
 export const FieldCreate = z.object({
-  name: z.string().trim().min(1).max(60), type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"]),
+  name: z.string().trim().min(1).max(60), type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]),
   options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional(),
-  config: z.lazy(() => FieldConfig).optional(),
 }).openapi("FieldCreate");
-export const FieldPatch = z.object({ name: z.string().trim().min(1).max(60).optional(), options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional(), config: z.lazy(() => FieldConfig).optional() }).openapi("FieldPatch");
-/** R24.1: formula ({ expression }) or rollup ({ source, field, fn }) settings. */
-export const FieldConfig = z.object({
-  expression: z.string().max(500).optional().openapi({ description: "Formula: an expression like {Budget} * 1.1 (up to 500 characters)." }),
-  source: z.enum(["subtasks", "epic_children", "project"]).optional().openapi({ description: "Rollup: what to aggregate." }),
-  field: z.string().max(64).nullable().optional().openapi({ description: "Rollup: points, or a number, currency or formula field id." }),
-  fn: z.enum(["sum", "count", "count_done", "average", "min", "max", "percent_done"]).optional(),
-}).openapi("FieldConfig");
+export const FieldPatch = z.object({ name: z.string().trim().min(1).max(60).optional(), options: z.array(FieldOptionInput).max(50).optional(), position: z.number().int().optional() }).openapi("FieldPatch");
 export const GuestInvite = z.object({ email: z.string().trim().email().max(254), name: z.string().trim().max(80).optional(), agentId: z.string().optional() }).openapi("GuestInvite");
 
 export const RepeatRule = z.object({
@@ -122,8 +114,8 @@ export const DealCreate = z.object({
 export const DealPatch = DealCreate.partial().extend({ position: z.number().finite().optional() }).openapi("DealPatch");
 
 export const AutomationCreate = z.object({
-  name: z.string().trim().min(1).max(120), trigger: z.enum(["email_received", "status_changed", "due_soon"]),
-  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify", "assign_thread"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
+  name: z.string().trim().min(1).max(120), trigger: z.enum(["email_received", "status_changed", "due_soon", "task_created", "assignee_changed", "due_passed", "meeting_ended", "chat_message_posted"]),
+  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify", "assign_thread", "post_to_channel", "assign_task", "set_status", "add_label", "set_priority", "create_subtask_checklist"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
   enabled: z.boolean().optional(),
 });
 // R22.5: no defaults on a patch. With them, a patch of only { enabled } reset conditions and actionConfig to {}

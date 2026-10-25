@@ -212,8 +212,7 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSav
     }
     data = {
       project: { name: p.name, description: p.description, color: p.color, statuses: statuses.map((s) => ({ name: s.name, category: s.category as Category, color: s.color })) },
-      // R24.1: formula and rollup fields need their settings and are left out of templates.
-      fields: fields.filter((f) => f.type !== "formula" && f.type !== "rollup").map((f) => ({ name: f.name, type: f.type as NonNullable<ProjectTemplateData["fields"]>[number]["type"], options: f.options ? (JSON.parse(f.options) as { label: string }[]).map((o) => o.label) : undefined })),
+      fields: fields.map((f) => ({ name: f.name, type: f.type as NonNullable<ProjectTemplateData["fields"]>[number]["type"], options: f.options ? (JSON.parse(f.options) as { label: string }[]).map((o) => o.label) : undefined })),
       tasks: out,
     };
     name ||= p.name;

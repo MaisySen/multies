@@ -12,10 +12,9 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
 import type { AssigneeOption, CustomField, FieldType, FieldValue } from "./data";
-import { ComputedCell, ComputedEditor, describeComputed, isComputed, type ComputedConfig } from "./computed-fields";
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
-  text: "Text", number: "Number", currency: "Currency (AUD)", date: "Date", select: "Single select", multiselect: "Multi select", person: "Person", checkbox: "Checkbox", url: "Link", formula: "Formula", rollup: "Rollup",
+  text: "Text", number: "Number", currency: "Currency (AUD)", date: "Date", select: "Single select", multiselect: "Multi select", person: "Person", checkbox: "Checkbox", url: "Link",
 };
 const aud = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
 const num = new Intl.NumberFormat("en-AU", { maximumFractionDigits: 4 });
@@ -37,8 +36,7 @@ export function formatValue(field: CustomField, v: FieldValue | undefined, peopl
 }
 
 /** A compact read-only value for list cells and board cards. */
-export function FieldCell({ field, value, people, error, fields }: { field: CustomField; value: FieldValue | undefined; people?: AssigneeOption[]; error?: string; fields?: CustomField[] }) {
-  if (isComputed(field)) return <ComputedCell field={field} value={value} error={error} fields={fields} />;
+export function FieldCell({ field, value, people }: { field: CustomField; value: FieldValue | undefined; people?: AssigneeOption[] }) {
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) return <span className="text-subtle" aria-label="Empty">-</span>;
   if (field.type === "select" || field.type === "multiselect") {
     const ids = Array.isArray(value) ? value : [String(value)];
@@ -58,7 +56,6 @@ export function FieldInput({ field, value, people, onSave }: { field: CustomFiel
   const [draft, setDraft] = useState<string | null>(null);
   const label = field.name;
   const cls = "h-8 text-[13px]";
-  if (isComputed(field)) return <span aria-label={label}><ComputedCell field={field} value={value} /></span>;
   switch (field.type) {
     case "checkbox":
       return <input type="checkbox" aria-label={label} checked={value === true} onChange={(e) => onSave(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />;
@@ -125,16 +122,14 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
   const [name, setName] = useState("");
   const [type, setType] = useState<FieldType>("text");
   const [options, setOptions] = useState("");
-  const [config, setConfig] = useState<ComputedConfig>({});
   const [busy, setBusy] = useState(false);
   const refresh = () => { void qc.invalidateQueries({ queryKey: ["fields", projectId] }); void qc.invalidateQueries({ queryKey: ["tasks"] }); void qc.invalidateQueries({ queryKey: ["task"] }); };
   const add = async () => {
     if (!name.trim()) return;
     setBusy(true);
     try {
-      await api.post("/fields", { projectId, name, type, ...(type === "select" || type === "multiselect" ? { options: options.split(",").map((x) => x.trim()).filter(Boolean).map((label) => ({ label })) } : {}),
-        ...(type === "formula" ? { config: { expression: config.expression ?? "" } } : type === "rollup" ? { config: { source: config.source ?? "subtasks", fn: config.fn ?? "sum", field: config.field ?? "points" } } : {}) });
-      setName(""); setOptions(""); setConfig({}); refresh();
+      await api.post("/fields", { projectId, name, type, ...(type === "select" || type === "multiselect" ? { options: options.split(",").map((x) => x.trim()).filter(Boolean).map((label) => ({ label })) } : {}) });
+      setName(""); setOptions(""); refresh();
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const patch = async (id: string, body: Record<string, unknown>) => { try { await api.patch(`/fields/${id}`, body); refresh(); } catch (e) { showError(e as Error); } };
@@ -150,7 +145,7 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
             <div className="flex items-center gap-2">
               <GripVertical className="h-4 w-4 text-subtle" aria-hidden />
               <Input aria-label={`Name of ${f.name}`} defaultValue={f.name} onBlur={(e) => e.target.value.trim() && e.target.value !== f.name && patch(f.id, { name: e.target.value })} className="h-8 flex-1 text-[13px]" />
-              <span className="whitespace-nowrap text-[12px] text-subtle" title={isComputed(f) ? describeComputed(f, fields) : undefined}>{FIELD_TYPE_LABEL[f.type]}</span>
+              <span className="whitespace-nowrap text-[12px] text-subtle">{FIELD_TYPE_LABEL[f.type]}</span>
               <Button variant="ghost" size="icon" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => patch(f.id, { position: fields[i - 1].position - 1 })}><ArrowUp className="h-4 w-4" aria-hidden /></Button>
               <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => remove(f)}><Trash2 className="h-4 w-4" /></Button>
             </div>
@@ -162,7 +157,6 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
                   patch(f.id, { options: labels.map((label) => ({ id: f.options.find((o) => o.label === label)?.id, label })) });
                 }} className="mt-2 h-8 text-[12.5px]" />
             )}
-            {isComputed(f) && <ExistingComputed field={f} projectId={projectId} fields={fields} onSave={(c) => patch(f.id, { config: c })} />}
           </li>
         ))}
         {!fields.length && <li className="text-[13px] text-muted">No custom fields yet. Add Budget, Client or Stage below.</li>}
@@ -172,27 +166,12 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
         <Select aria-label="New field type" value={type} onChange={(e) => setType(e.target.value as FieldType)} className="h-9 text-[13px]">
           {(Object.keys(FIELD_TYPE_LABEL) as FieldType[]).map((t) => <option key={t} value={t}>{FIELD_TYPE_LABEL[t]}</option>)}
         </Select>
-        {(type === "formula" || type === "rollup") && (
-          <ComputedEditor type={type} projectId={projectId} fields={fields} value={config} onChange={setConfig} />
-        )}
         {(type === "select" || type === "multiselect") && (
           <Input aria-label="New field options" placeholder="Options, separated by commas" value={options} onChange={(e) => setOptions(e.target.value)} className="h-9 text-[13px] sm:col-span-2" />
         )}
         <Button onClick={add} disabled={busy || !name.trim()} className="sm:col-span-2"><Plus className="h-4 w-4" />Add field</Button>
       </div>
     </Dialog>
-  );
-}
-
-/** A formula or rollup in the field list: edit its settings, saved with a Save button. */
-function ExistingComputed({ field, projectId, fields, onSave }: { field: CustomField; projectId: string; fields: CustomField[]; onSave: (c: ComputedConfig) => void }) {
-  const [draft, setDraft] = useState<ComputedConfig>(field.config ?? {});
-  const changed = JSON.stringify(draft) !== JSON.stringify(field.config ?? {});
-  return (
-    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
-      <ComputedEditor type={field.type as "formula" | "rollup"} projectId={projectId} fields={fields.filter((x) => x.id !== field.id)} value={draft} onChange={setDraft} idPrefix={field.name} />
-      {changed && <Button size="sm" className="sm:col-span-2" onClick={() => onSave(draft)}>Save {field.name}</Button>}
-    </div>
   );
 }
 

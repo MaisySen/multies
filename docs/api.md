@@ -555,7 +555,8 @@ way list views count them. Open tasks due before the range are in `overdue`.
 Each cell carries `count`, `points` and `hours` (each project's estimate unit), `noEstimate` (tasks with
 no estimate), `load` (the sum in the chosen `unit`), `over` and `near` (80% of capacity or more) and
 `tasks` (id, ref, title, project, due, start, status, points, unit). Capacity is a plain default per
-person per week, 20 points or 40 hours, that a request can change with `capacity`; nothing is stored.
+person per week, 20 points or 40 hours, that a request can change with `capacity`. A person's own weekly capacity can be stored (below); each
+person in the answer carries `capacity` and `capacitySource` (`stored`, `default` or `request`).
 At most 2,000 tasks are read, soonest first; `truncated: true` says the answer was cut.
 
 - App API: `GET /api/workload?from&weeks&projectId[]&sprintId&person[]&unit&capacity&tz`. `weeks` is 1
@@ -569,44 +570,59 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
 
 D1 writes: reading the workload writes nothing. A move is one task update.
 
-## Formula and rollup fields (R24.1)
+### Weekly capacity per person (R24)
 
-Two more custom field types, both read only and computed when tasks are read, so a list, table,
-board or task read writes nothing for them. Their settings go in `config` on the normal field create
-and update (`POST /api/fields`, `POST /api/v1/projects/{id}/fields`, `PATCH .../fields/{id}`).
+A stored weekly capacity per person, in points and in hours, used by the workload view instead of the
+default (20 points, 40 hours). Owners and admins set anyone's; a member sets their own. Setting one is
+1 row write; an unchanged value writes nothing.
 
-- `formula`: `config: { expression }`, up to 500 characters, for example `{Budget} * 1.1`,
-  `{points} * 2` or `if(days_between(today(), {due}) < 0, "late", "ok")`. Field names go in braces
-  (any custom field on the same project, by name, any case); built ins: points, due, start, created,
-  completed, status, priority, title, assignee (also usable bare). Operators: + - * / %, = == != <>
-  < > <= >=, and, or, not (&& || !), parentheses. Functions: if, round, floor, ceil, abs, min, max,
-  sum, concat, len, upper, lower, days_between, today, now, date_add (days), is_empty, coalesce.
-  Type rules: + joins text when either side is text; other maths needs numbers and an empty value
-  makes the answer empty; dates are text like 2026-11-02; dividing by 0 is an error. Formulas can read
-  other formulas; a loop is refused when saved and shows as an error if it ever appears. The parser is
-  hand written: no eval, no property access, no loops, a depth limit of 32.
-- `rollup`: `config: { source, fn, field }`. `source` is `subtasks` (the task's direct subtasks; on an
-  epic, its items), `epic_children` (an epic's items and their subtasks) or `project` (one value over
-  the project's live tasks, epics left out, shown in the project header and not as a task column).
-  `fn` is sum, count, count_done, average, min, max or percent_done (0 to 100 by count). `field` is
-  `points` or a number, currency or formula field id or name; count functions need none. Sum of
-  nothing is 0; average, min, max and percent of nothing are empty.
+- App API: `GET /api/workload/capacity` (defaults and every person with their stored values, null when
+  unset) and `PUT /api/workload/capacity` with `{ person: "member:<id>" | "agent:<id>", points?, hours? }`.
+  A number above 0 (up to 10,000) sets it, `null` clears it back to the default, a field left out stays.
+  A person from another workspace answers 404; someone else's capacity without admin rights answers 403.
+- Public API: `GET /api/v1/workload/capacity` and `PUT /api/v1/workload/capacity`, same shapes. Read only
+  keys can read and are refused (403) on PUT.
+- MCP: `set_weekly_capacity`.
 
-Values appear in each task's `fields` like stored values. A cell that can't be worked out holds
-`"#ERROR"` and the task carries `fieldErrors: { <fieldId>: "message" }`; a read never fails because of
-a formula. Computed fields can't be set, filtered or sorted on (422 `computed_field`).
+## Automation recipes (R24.4)
 
-- App API: `GET /api/computed/tasks/:id`, `GET /api/computed/projects/:id/rollups`, and
-  `GET /api/computed/preview?projectId&expression&taskId` (the field editor's live preview against the
-  first task, or `taskId`; saves nothing).
-- Public API: `GET /api/v1/tasks/{id}/computed` returns `computed: [{ fieldId, name, type, config,
-  value, error? }]`; `GET /api/v1/projects/{id}/rollups` returns `rollups: [{ id, name, fn, field,
-  fieldName, value, error? }]`, `taskCount` and `truncated` (at most 2,000 tasks are read). Both are
-  reads; read only keys can call them. Another workspace's ids answer 404.
-- MCP: `get_computed_fields`, `create_formula_field`, `create_rollup_field`.
+Ready made "when this happens, do that" rules, about 28 of them in five groups (Tasks, Mail, Chat,
+Meetings, Sprints), defined in src/shared/automation-recipes.ts. Turning one on makes normal automation
+rows (one per rule of the recipe) with `conditions.recipe` set to the recipe's key, so they show and
+edit like any rule. Each recipe lists its `blanks`: what the person picks (`channel`, `project`,
+`member`, `members` or `text`), sent as `{ blanks: { channelId, projectId, memberIds, from, keyword } }`.
 
-Cost per read: one query for the field definitions, then only when a project has rollups one grouped
-query for the listed tasks' children (plus one for epics' grandchildren and one for the children's
-stored values when needed), at most 5,000 children per request. D1 writes: reading writes nothing;
-defining or changing a formula or rollup field writes its one custom_fields row (plus its index) and
-the activity row, like any field.
+- App API: `GET /api/automations/recipes` answers `{ categories, canManage, recipes: [{ key, category,
+  name, description, icon, rules, blanks, added, on, automationIds }] }`. `POST
+  /api/automations/recipes/:key/enable` with `{ blanks }` (admins only) answers `{ recipe, automations,
+  created }`; a recipe added before is switched back on (`created: false`).
+- Public API: `GET /api/v1/automations/recipes` (read only keys can call it) and `POST
+  /api/v1/automations/recipes/{key}/enable` (a full workspace key; read only and agent keys get 403).
+- MCP: `list_automation_recipes`, `enable_automation_recipe`.
+- Errors: 404 for a key that is not a recipe; 422 when a blank is missing, or names a channel, project
+  or member outside this workspace, or a private or archived channel.
+
+The engine behind them (`POST /api/automations` takes the same values):
+
+- Triggers: `email_received`, `status_changed`, `due_soon` (as before), and `task_created`,
+  `assignee_changed`, `due_passed` (an open task whose due date passed, checked by the 15 minute cron,
+  once per task per due date, paused when the day's D1 write budget reads warn or shed),
+  `meeting_ended` (a meeting marked ended; optional `titleContains`) and `chat_message_posted` (needs
+  `keyword`, matched as a whole word; optional `channelId`; posts made by rules never trigger it).
+- Conditions on task triggers: `projectId`, `priority`, `type`, `label`, `inSprint`, `unassigned`,
+  `category` (the task's current category), and on `status_changed` also `toCategory`, `toStatusId` and
+  `toStatusName` (for example "In review").
+- Actions: `notify` (`to`: assignee, creator, lead, admins or a member id), `create_task`, and
+  `post_to_channel` (`channelId` of a public channel, `message` with `{task.title}`, `{task.ref}`,
+  `{task.url}`, `{assignee}`, `{project}`, `{meeting.title}`, `{message.text}`, `{author}`,
+  `{channel}`, `{email.from}`, `{email.subject}`), `assign_task` (`mode` member with `memberId`, lead
+  for the project's owner, or round_robin over `memberIds`), `set_status` (`statusName`, `statusId` or
+  `category`), `add_label` (`label`), `set_priority` (`priority`) and `create_subtask_checklist`
+  (`items`, 1 to 10 subtasks). Meeting and chat rules can notify, make a task or post.
+- Loops: a rule's own change runs one level deeper and nothing runs past 3 levels; one rule acts on
+  one task at most once a minute. Every run counts against the plan's monthly automation runs.
+
+D1 writes: listing recipes writes nothing; turning a recipe on is about 9 rows per rule (the rule, its
+activity and change rows). A run is the run count and the rule's run stamp (3) plus its action: a post
+in a channel about 11, a task change about 15. A due_passed run adds the task's once per due date
+marker. A task, chat message or meeting with no matching rules writes nothing more than before.
