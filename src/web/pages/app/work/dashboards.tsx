@@ -11,7 +11,8 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ChevronLeft, GripVertical, LayoutDashboard, MoreHorizontal, Pencil, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, GripVertical, LayoutDashboard, MoreHorizontal, Pencil, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import { moveWidget } from "./dashboard-move";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -163,8 +164,10 @@ function DashboardView({ id }: { id: string }) {
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
               <div className="grid gap-4 md:grid-cols-2" data-testid="widget-grid">
-                {widgets.map((w) => (
+                {widgets.map((w, i) => (
                   <WidgetCard key={w.id} w={w} result={byId.get(w.id)} loading={data.isPending}
+                    onMove={(dir) => { const next = moveWidget(widgets, w.id, dir); if (next === widgets) return; setOrder(next); save.mutate({ widgets: next }); }}
+                    canUp={i > 0} canDown={i < widgets.length - 1}
                     onRemove={() => { const next = widgets.filter((x) => x.id !== w.id); setOrder(next); save.mutate({ widgets: next }); }} />
                 ))}
               </div>
@@ -177,7 +180,7 @@ function DashboardView({ id }: { id: string }) {
   );
 }
 
-function WidgetCard({ w, result, loading, onRemove }: { w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void }) {
+function WidgetCard({ w, result, loading, onRemove, onMove, canUp, canDown }: { w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void; onMove: (dir: -1 | 1) => void; canUp: boolean; canDown: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: w.id });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn(w.size === 2 && "md:col-span-2", isDragging && "z-10 opacity-80")}>
@@ -185,7 +188,14 @@ function WidgetCard({ w, result, loading, onRemove }: { w: Widget; result?: Data
         <div className="mb-3 flex items-center gap-1.5">
           <button type="button" {...attributes} {...listeners} aria-label={`Move ${w.title}`} className="-ml-1 cursor-grab rounded p-0.5 text-subtle hover:bg-hover hover:text-fg active:cursor-grabbing"><GripVertical className="h-4 w-4" /></button>
           <h2 className="truncate text-[13px] font-semibold">{w.title}</h2>
-          <button type="button" onClick={onRemove} aria-label={`Remove ${w.title}`} className="ml-auto rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><X className="h-4 w-4" /></button>
+          <div className="ml-auto flex items-center">
+            <Menu trigger={<button type="button" aria-label={`Options for ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><MoreHorizontal className="h-4 w-4" /></button>}>
+              {canUp && <MenuItem icon={<ArrowUp className="h-4 w-4" />} onSelect={() => onMove(-1)}>Move up</MenuItem>}
+              {canDown && <MenuItem icon={<ArrowDown className="h-4 w-4" />} onSelect={() => onMove(1)}>Move down</MenuItem>}
+              <MenuItem danger icon={<Trash2 className="h-4 w-4" />} onSelect={onRemove}>Remove widget</MenuItem>
+            </Menu>
+            <button type="button" onClick={onRemove} aria-label={`Remove ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><X className="h-4 w-4" /></button>
+          </div>
         </div>
         <div className="min-h-0 flex-1">
           {loading || !result ? <Skeleton className="h-40" /> : result.error ? <p className="py-10 text-center text-[13px] text-muted">{result.error}</p> : <WidgetBody w={w} data={result.data} />}
