@@ -77,6 +77,26 @@ describe("reading work tool exports", () => {
     expect(cr[0].due?.toISOString().slice(0, 10)).toBe("2025-10-31");
   });
 
+  it("reads the first sheet of a monday .xlsx export", async () => {
+    const { zipSync, strToU8 } = await import("fflate");
+    const shared = ["Client onboarding", "Name", "Person", "Status", "Date", "New clients", "Welcome call", "Owner Person", "Working on it", "Tom &amp; Jerry"];
+    const sst = `<?xml version="1.0"?><sst count="${shared.length}">${shared.map((s) => `<si><t>${s}</t></si>`).join("")}</sst>`;
+    const c = (ref: string, i: number) => `<c r="${ref}" t="s"><v>${i}</v></c>`;
+    const sheet = `<?xml version="1.0"?><worksheet><sheetData>
+      <row r="1">${c("A1", 0)}</row>
+      <row r="2">${c("A2", 1)}${c("B2", 2)}${c("C2", 3)}${c("D2", 4)}</row>
+      <row r="3">${c("A3", 5)}</row>
+      <row r="4">${c("A4", 6)}${c("B4", 7)}${c("C4", 8)}<c r="D4"><v>46330</v></c></row>
+      <row r="5">${c("A5", 9)}<c r="C5" t="inlineStr"><is><t>Done</t></is></c></row>
+    </sheetData></worksheet>`;
+    const zip = zipSync({ "xl/sharedStrings.xml": strToU8(sst), "xl/worksheets/sheet1.xml": strToU8(sheet) });
+    const t = readTable(`xlsx-base64:${Buffer.from(zip).toString("base64")}`, "board.xlsx");
+    expect(t).toMatchObject({ source: "monday", name: "Client onboarding", headers: ["Name", "Person", "Status", "Date"] });
+    const { rows } = mapRows(t, defaultMapping(t));
+    expect(rows.map((r) => [r.title, r.status, r.category])).toEqual([["Welcome call", "Working on it", "doing"], ["Tom & Jerry", "Done", "done"]]);
+    expect(rows[0].due?.toISOString().slice(0, 10)).toBe("2026-11-04");
+  });
+
   it("reads dates, statuses and priorities the way the tools write them", () => {
     const d = (s: string) => parseLooseDate(s)?.toISOString().slice(0, 10) ?? null;
     expect(d("2026-10-25")).toBe("2026-10-25");
@@ -96,7 +116,8 @@ describe("reading work tool exports", () => {
 
   it("says plainly when a file cannot be read", () => {
     expect(() => readTable('{"hello":1}')).toThrow(/not a Trello board/);
-    expect(() => readTable("PK\u0003\u0004binary", "board.xlsx")).toThrow(/save the board as CSV/);
+    expect(() => readTable("PK\u0003\u0004binary", "board.xls")).toThrow(/Save it as CSV/);
+    expect(() => readTable("xlsx-base64:bm90IGEgemlw")).toThrow(/could not be read/);
   });
 });
 
@@ -178,9 +199,9 @@ describe("importing into a project", () => {
     const ms = Date.now() - t0;
     expect(r).toMatchObject({ created: 300, stopped: null, left: 0, source: "asana" });
     expect(ms).toBeLessThan(10_000);
-    const rows = await deps.db.select().from(tasks).where(eq(tasks.projectId, r.projectId));
+    const rows = await deps.db.select().from(tasks).where(eq(tasks.projectId, r.projectId!));
     expect(rows).toHaveLength(300);
-    const sts = await deps.db.select().from(projectStatuses).where(eq(projectStatuses.projectId, r.projectId));
+    const sts = await deps.db.select().from(projectStatuses).where(eq(projectStatuses.projectId, r.projectId!));
     expect(sts.map((s) => [s.name, s.category])).toEqual(expect.arrayContaining([["Backlog", "todo"], ["In progress", "doing"], ["Review", "doing"], ["Done", "done"]]));
     const byTitle = new Map(rows.map((x) => [x.title, x]));
     for (let i = 0; i < 300; i++) {
@@ -205,7 +226,7 @@ describe("importing into a project", () => {
     now = new Date("2026-10-26T10:00:00Z");
     const next = await runImport(deps, actor, { content });
     expect(next).toMatchObject({ projectId: first.projectId, created: 3, alreadyThere: 2, left: 0, stopped: null });
-    const list = await deps.db.select().from(tasks).where(eq(tasks.projectId, first.projectId));
+    const list = await deps.db.select().from(tasks).where(eq(tasks.projectId, first.projectId!));
     const parent = list.find((t) => t.title === "Write the homepage copy")!;
     expect(list.filter((t) => t.parentId === parent.id)).toHaveLength(2);
   });
@@ -241,5 +262,21 @@ describe("importing into a project", () => {
     expect(theirs.body.projectId).not.toBe(mine.projectId);
     expect((await other.post("/api/work-imports/preview", { content: "Name\n" })).status).toBe(200);
     expect((await other.post("/api/work-imports/preview", { content: '{"x":1}' })).status).toBe(422);
+  });
+
+  it("works on the v1 API with a workspace key, and a read only key cannot import", async () => {
+    const { app, c } = await owner();
+    const full = (await c.post("/api/developer/keys", { name: "Import" })).body.secret as string;
+    const read = (await c.post("/api/developer/keys", { name: "Read", scope: "read" })).body.secret as string;
+    const call = (key: string, path: string, b: unknown) => app.request(`/api/v1${path}`, { method: "POST", headers: { host: "localhost", authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify(b) });
+    const content = fixture("linear.csv");
+    const pv = await call(full, "/work-imports/preview", { content });
+    expect(pv.status).toBe(200);
+    expect(await pv.json()).toMatchObject({ source: "linear", total: 3 });
+    expect((await call(read, "/work-imports/run", { content })).status).toBe(403);
+    const run = await call(full, "/work-imports/run", { content, projectName: "API import" });
+    expect(run.status).toBe(200);
+    expect(await run.json()).toMatchObject({ created: 3, projectName: "API import" });
+    expect((await call(full, "/work-imports/run", { nothing: true })).status).toBe(422);
   });
 });

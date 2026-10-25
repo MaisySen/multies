@@ -5,6 +5,7 @@
  * Pure functions with no database access, so the web preview and the import read the same way.
  */
 import Papa from "papaparse";
+import { strFromU8, unzipSync } from "fflate";
 
 export type WorkSource = "trello" | "asana" | "clickup" | "monday" | "jira" | "linear" | "notion" | "csv";
 export type Category = "todo" | "doing" | "done";
@@ -57,9 +58,10 @@ export function readTable(text: string, fileName = ""): Table {
     if (isTrello(json)) return trelloTable(json);
     throw new ImportFileError("This JSON file is not a Trello board export. For other tools, export a CSV file.");
   }
-  if (/^PK\u0003\u0004/.test(body) || /\.xlsx?$/i.test(fileName)) throw new ImportFileError("Excel files are not read yet. In monday.com or Excel, save the board as CSV and upload that.");
-  const parsed = Papa.parse<string[]>(body, { skipEmptyLines: "greedy" });
-  const all = (parsed.data as string[][]).filter((r) => Array.isArray(r));
+  let all: string[][];
+  if (body.startsWith(XLSX_PREFIX)) all = xlsxRows(body.slice(XLSX_PREFIX.length));
+  else if (body.startsWith("PK\u0003\u0004") || /\.xls$/i.test(fileName)) throw new ImportFileError("This Excel file could not be read. Save it as CSV (or .xlsx) and upload that.");
+  else all = (Papa.parse<string[]>(body, { skipEmptyLines: "greedy" }).data as string[][]).filter((r) => Array.isArray(r));
   if (!all.length) throw new ImportFileError("This file is empty.");
   // monday puts the board name and group names above the header row; take the first row with 3 or more filled cells.
   let h = all.findIndex((r) => r.filter((c) => c.trim()).length >= 3);
@@ -70,6 +72,47 @@ export function readTable(text: string, fileName = ""): Table {
   const source = detectSource(headers);
   const name = h > 0 ? all[0].find((c) => c.trim())?.trim() ?? null : null;
   return { source, headers, rows, scope: "", name };
+}
+
+/** An .xlsx file arrives as this prefix and the file in base64 (the browser reads it as bytes). */
+export const XLSX_PREFIX = "xlsx-base64:";
+
+const XML_ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const unxml = (s: string) => s.replace(/&(#x?[0-9a-f]+|amp|lt|gt|quot|apos);/gi, (_, e: string) =>
+  e[0] === "#" ? String.fromCodePoint(e[1].toLowerCase() === "x" ? Number.parseInt(e.slice(2), 16) : Number(e.slice(1))) : XML_ENTITIES[e.toLowerCase()] ?? "");
+const textOf = (xml: string) => [...xml.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((m) => unxml(m[1])).join("");
+const colIndex = (ref: string) => [...(/^[A-Z]+/.exec(ref)?.[0] ?? "A")].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+
+/** The first sheet of an .xlsx workbook as rows of text (fflate unzips; the sheet XML is simple enough to read directly). */
+export function xlsxRows(base64: string): string[][] {
+  let files: Record<string, Uint8Array>;
+  try {
+    const bin = atob(base64.trim());
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    files = unzipSync(bytes, { filter: (f) => f.name === "xl/sharedStrings.xml" || f.name.startsWith("xl/worksheets/sheet") });
+  } catch { throw new ImportFileError("This Excel file could not be read. Save it as CSV and upload that."); }
+  const sheetName = Object.keys(files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort((a, b) => Number(/\d+/.exec(a)![0]) - Number(/\d+/.exec(b)![0]))[0];
+  if (!sheetName) throw new ImportFileError("This Excel file has no sheet to read.");
+  const shared = files["xl/sharedStrings.xml"] ? [...strFromU8(files["xl/sharedStrings.xml"]).matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => textOf(m[1])) : [];
+  const rows: string[][] = [];
+  for (const rm of strFromU8(files[sheetName]).matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>/g)) {
+    const row: string[] = [];
+    for (const cm of rm[1].matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+      const attrs = cm[1];
+      const inner = cm[2] ?? "";
+      const ref = /\br="([A-Z]+)\d+"/.exec(attrs)?.[1];
+      const type = /\bt="(\w+)"/.exec(attrs)?.[1];
+      const v = /<v>([\s\S]*?)<\/v>/.exec(inner)?.[1] ?? "";
+      const value = type === "s" ? shared[Number(v)] ?? "" : type === "inlineStr" ? textOf(inner) : unxml(v);
+      const at = ref ? colIndex(ref) : row.length;
+      while (row.length < at) row.push("");
+      row[at] = value;
+    }
+    rows.push(row);
+  }
+  const width = Math.max(0, ...rows.map((r) => r.length));
+  return rows.map((r) => [...r, ...Array.from({ length: width - r.length }, () => "")]);
 }
 
 /** A monday group heading (one filled cell, or the header row repeated under each group). */
@@ -216,6 +259,8 @@ export function parseLooseDate(v: string): Date | null {
   let s = v.trim();
   if (!s) return null;
   if (/^\d{11,13}$/.test(s)) return new Date(Number(s));
+  // An Excel date serial (days since 30 December 1899), as .xlsx cells hold dates.
+  if (/^\d{5}(\.\d+)?$/.test(s)) { const n = Math.floor(Number(s)); return n > 20_000 && n < 80_000 ? valid(new Date(Date.UTC(1899, 11, 30, 12) + n * 86_400_000)) : null; }
   let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
   if (m) return utc(+m[1], +m[2], +m[3]);
   if (/^\d{4}-\d{2}-\d{2}[T ]\d/.test(s)) { const d = new Date(s.replace(" ", "T")); return valid(d); }

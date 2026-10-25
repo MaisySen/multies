@@ -124,7 +124,11 @@ export async function previewImport(deps: Deps, actor: SuiteActor, input: FileIn
     source: table.source, sourceLabel: SOURCE_LABELS[table.source], name: table.name,
     headers: uniqueHeaders(table.headers), fields: MAP_FIELDS.map((f) => ({ id: f, label: FIELD_LABELS[f] })), mapping,
     total: rows.length, skipped, alreadyImported: already.size, subtasks: rows.filter((r) => r.parent).length,
-    rows: rows.slice(0, 20).map(present),
+    rows: rows.slice(0, 20).map((r) => {
+      // Show the parent by its title when it is a row in the same file (Trello and Jira refer to it by id).
+      const parent = r.parent ? rows.find((x) => x.externalId === r.parent)?.title ?? r.parent : null;
+      return { ...present(r), parent };
+    }),
     statuses: statusPlan(table, rows, input.content),
     unknownAssignees: unknown.slice(0, 50),
     leftToday: Math.max(0, DAILY_TASK_CAP - used),

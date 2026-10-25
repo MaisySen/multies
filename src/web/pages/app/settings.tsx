@@ -29,6 +29,7 @@ const TABS = [
   { to: "/app/settings/mail", label: "Mail routing" },
   { to: "/app/settings/mail-apps", label: "Mail apps" },
   { to: "/app/settings/developers", label: "Developers" },
+  { to: "/app/settings/import", label: "Import" },
 ];
 
 export function SettingsLayout() {
