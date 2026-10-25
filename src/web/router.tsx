@@ -37,7 +37,6 @@ const formPages = () => import("./pages/app/work/forms");
 const FormsPage = lazy(() => formPages().then((m) => ({ default: m.FormsPage })));
 const PublicFormPage = lazy(() => formPages().then((m) => ({ default: m.PublicFormPage })));
 const ReportsPage = lazy(() => import("./pages/app/work/reports").then((m) => ({ default: m.ReportsPage })));
-const DashboardsPage = lazy(() => import("./pages/app/work/dashboards").then((m) => ({ default: m.DashboardsPage }))); // R24.3
 const meetingPages = () => import("./pages/app/work/meetings");
 const MeetingsPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingsPage })));
 const MeetingPage = lazy(() => meetingPages().then((m) => ({ default: m.MeetingPage })));
@@ -145,8 +144,6 @@ export const router = createBrowserRouter([
       { path: "time", element: page(<TimesheetPage />) },
       { path: "forms", element: page(<FormsPage />) },
       { path: "reports", element: page(<ReportsPage />) },
-      { path: "dashboards", element: page(<DashboardsPage />) }, // R24.3
-      { path: "dashboards/:id", element: page(<DashboardsPage />) },
       { path: "portfolio", element: page(<PortfolioPage />) },
       { path: "chat", element: page(<ChatPage />) },
       { path: "chat/:id", element: page(<ChatPage />) },

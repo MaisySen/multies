@@ -10,8 +10,12 @@ import { agents, customFields, members, projects, taskFieldValues, tasks } from 
 import { HttpError, notFound } from "../../lib/errors";
 import { randomBytes } from "../../lib/crypto";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
+import { normalizeConfig, type ComputedConfig } from "./formula-config";
 
-export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] as const;
+export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] as const;
+/** R24.1: computed on read from other values; nothing is stored per task. */
+export const COMPUTED_TYPES: readonly FieldType[] = ["formula", "rollup"];
+export const isComputedType = (t: string) => t === "formula" || t === "rollup";
 export type FieldType = (typeof FIELD_TYPES)[number];
 export interface FieldOption { id: string; label: string; color: string }
 export type FieldValue = string | number | boolean | string[] | null;
@@ -20,7 +24,8 @@ type FieldRow = typeof customFields.$inferSelect;
 export const OPTION_COLOURS = ["#ff5a36", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0891b2", "#db2777", "#64748b"];
 
 export function presentField(f: FieldRow) {
-  return { id: f.id, projectId: f.projectId, name: f.name, type: f.type as FieldType, options: JSON.parse(f.options) as FieldOption[], position: f.position };
+  const config = f.config ? (JSON.parse(f.config) as ComputedConfig) : undefined;
+  return { id: f.id, projectId: f.projectId, name: f.name, type: f.type as FieldType, options: JSON.parse(f.options) as FieldOption[], position: f.position, ...(config ? { config } : {}) };
 }
 export type Field = ReturnType<typeof presentField>;
 
@@ -65,7 +70,7 @@ async function fieldRow(deps: Deps, orgId: string, id: string) {
   return f;
 }
 
-export interface FieldInput { name: string; type: FieldType; options?: { id?: string; label: string; color?: string }[]; position?: number }
+export interface FieldInput { name: string; type: FieldType; options?: { id?: string; label: string; color?: string }[]; position?: number; /** R24.1: formula or rollup settings. */ config?: unknown }
 
 export async function createField(deps: Deps, actor: SuiteActor, projectId: string, input: FieldInput) {
   assertWritable(actor);
@@ -73,8 +78,10 @@ export async function createField(deps: Deps, actor: SuiteActor, projectId: stri
   const existing = await listFields(deps, actor.orgId, projectId);
   if (existing.length >= 50) throw new HttpError(422, "too_many_fields", "A project can have up to 50 custom fields.");
   const now = deps.now();
+  const name = input.name.trim().slice(0, 60);
+  const config = normalizeConfig(input.type, input.config, name, existing);
   const row = {
-    id: sortableId("fld", now.getTime()), orgId: actor.orgId, projectId, name: input.name.trim().slice(0, 60), type: input.type,
+    id: sortableId("fld", now.getTime()), orgId: actor.orgId, projectId, name, type: input.type, config: config ? JSON.stringify(config) : null,
     options: JSON.stringify(mergeOptions(input.type, input.options ?? (input.type === "select" || input.type === "multiselect" ? [] : undefined))),
     position: input.position ?? (existing.length ? Math.max(...existing.map((f) => f.position)) + 1 : 0),
     ...createdBy(actor), createdAt: now, updatedAt: now,
@@ -93,6 +100,11 @@ export async function updateField(deps: Deps, actor: SuiteActor, id: string, pat
   if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 60) || f.name;
   if (patch.position !== undefined) set.position = patch.position;
   if (patch.options !== undefined) set.options = JSON.stringify(mergeOptions(type, patch.options, JSON.parse(f.options) as FieldOption[]));
+  if (isComputedType(type) && (patch.config !== undefined || patch.name !== undefined)) {
+    const others = (await listFields(deps, actor.orgId, f.projectId)).filter((x) => x.id !== f.id);
+    const cfg = normalizeConfig(type, patch.config ?? (f.config ? JSON.parse(f.config) : {}), set.name ?? f.name, others);
+    set.config = cfg ? JSON.stringify(cfg) : null;
+  }
   await deps.db.update(customFields).set(set).where(eq(customFields.id, f.id));
   const field = presentField(await fieldRow(deps, actor.orgId, f.id));
   if (patch.options !== undefined) await dropMissingOptions(deps, field);
@@ -136,6 +148,7 @@ const bad = (field: Field, msg: string) => new HttpError(422, "invalid_field_val
 
 /** Checks and converts one value for storage. Null, "" and [] clear the value. */
 export async function encodeValue(deps: Deps, orgId: string, field: Field, value: unknown): Promise<{ valueText: string | null; valueNum: number | null } | null> {
+  if (isComputedType(field.type)) throw bad(field, "this field is computed and can't be set.");
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) return null;
   switch (field.type) {
     case "text": {
@@ -283,6 +296,7 @@ export async function fieldFilterConditions(deps: Deps, orgId: string, filters: 
   for (const f of filters) {
     const field = byId.get(f.fieldId);
     if (!field) throw new HttpError(422, "unknown_field", `No field "${f.fieldId}" in this workspace.`);
+    if (isComputedType(field.type)) throw new HttpError(422, "computed_field", `${field.name} is computed when read, so it can't be used as a filter.`);
     const anyValue = sql`(v.value_text is not null or v.value_num is not null)`;
     if (f.op === "empty") { out.push(sql`not ${has(field.id, anyValue)}`); continue; }
     if (f.op === "notempty") { out.push(has(field.id, anyValue)); continue; }
@@ -318,6 +332,7 @@ export async function fieldOrderBy(deps: Deps, orgId: string, fieldId: string, d
   const row = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), eq(customFields.id, fieldId), isNull(customFields.deletedAt))).get();
   if (!row) throw new HttpError(422, "unknown_field", `No field "${fieldId}" in this workspace.`);
   const field = presentField(row);
+  if (isComputedType(field.type)) throw new HttpError(422, "computed_field", `${field.name} is computed when read, so it can't be used to sort.`);
   const col = field.type === "number" || field.type === "currency" || field.type === "checkbox" ? sql.raw("v.value_num") : sql.raw("v.value_text");
   let expr = sql`(select ${col} from task_field_values v where v.task_id = ${tasks.id} and v.field_id = ${field.id})`;
   if (field.type === "select" && field.options.length) {

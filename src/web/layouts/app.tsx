@@ -41,7 +41,6 @@ const nav: NavItem[] = [
   { to: "/app/contacts", label: "Contacts", icon: Contact, group: "work" },
   { to: "/app/time", label: "Timesheet", icon: Timer, group: "work" },
   { to: "/app/forms", label: "Forms", icon: ClipboardList, group: "work" },
-  { to: "/app/dashboards", label: "Dashboards", icon: LayoutDashboard, group: "work" }, // R24.3
   { to: "/app/reports", label: "Reports", icon: BarChart3, group: "work" },
   { to: "/app/portfolio", label: "Portfolio", icon: Briefcase, group: "work" },
   { to: "/app/templates", label: "Templates", icon: LayoutTemplate, group: "work" },

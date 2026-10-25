@@ -13,6 +13,7 @@ import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
+import { isComputed, ProjectRollups, taskFields } from "./computed-fields";
 import { GuestsDialog } from "./guests";
 import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
@@ -52,7 +53,8 @@ export function TasksPage() {
   const openId = params.get("task");
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as Record<(typeof FILTER_KEYS)[number], string | undefined>;
   const fieldDefs = useFields(projectId || undefined);
-  const fields = fieldDefs.data ?? [];
+  const allFields = fieldDefs.data ?? [];
+  const fields = taskFields(allFields); // R24.1: project rollups show in the header, not as columns
   const fieldFilters = [...params.entries()].filter(([k]) => k.startsWith("field."));
   const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
   const groupEpic = view === "board" && params.get("group") === "epic";
@@ -126,6 +128,7 @@ export function TasksPage() {
         </div>
       </div>
 
+      {project && <ProjectRollups projectId={project.id} fields={allFields} />}
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
         <Input aria-label="Search tasks" placeholder="Search tasks" defaultValue={filters.q ?? ""} onKeyDown={(e) => { if (e.key === "Enter") set({ q: (e.target as HTMLInputElement).value || null }); }} className="h-8 w-44! text-[13px]" />
         <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px]">
@@ -149,7 +152,7 @@ export function TasksPage() {
             <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><X className="h-3 w-3" /></button>
           </span>
         ))}
-        {project && <FieldFilterPicker fields={fields} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
+        {project && <FieldFilterPicker fields={fields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
         {view === "board" && project && (
           <Select aria-label="Group board by" value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
             <option value="">Group by status</option>
@@ -169,7 +172,7 @@ export function TasksPage() {
         </Menu>
       </div>
 
-      {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={fields} open onClose={() => setFieldsOpen(false)} />}
+      {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={allFields} open onClose={() => setFieldsOpen(false)} />}
       {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
       {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
       <div className="min-h-0 flex-1">
