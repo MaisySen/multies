@@ -321,3 +321,11 @@ npx @modelcontextprotocol/inspector
 
 Choose Streamable HTTP and paste the URL. The inspector can run the OAuth sign in, or you can add the
 `Authorization` header with a key.
+
+### Calls in chat (round 23)
+
+Registered in src/server/routes/mcp-r23-calls.ts. Read only. Agents can't start calls (people press Call in chat); they can schedule meetings with `create_meeting`. Keys can't open DMs or private channels, so their calls answer not found.
+
+| Tool | What it does |
+| --- | --- |
+| `get_call_status` | Live status of calls: `channelId` for the calls started in a channel in the last 6 hours (live, waiting or ended, who is in each), or `meetingId` for one meeting; `enabled` is false when video is off |

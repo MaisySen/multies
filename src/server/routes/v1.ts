@@ -37,6 +37,7 @@ import { registerMeetingNotesRoutes } from "./v1-r23-notes";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
 import { registerRecordingRoutes } from "./v1-r23-recordings";
+import { registerCallRoutes } from "./v1-r23-calls";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -410,6 +411,7 @@ export function v1Routes() {
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);
+  registerCallRoutes(api); // Round 23: call presence
   registerMcpRoute(api);
   return api;
 }

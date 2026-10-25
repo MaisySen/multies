@@ -303,9 +303,10 @@ export async function sendInvites(deps: Deps, actor: SuiteActor, id: string, opt
 export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean }) {
   const cfg = deps.config.meetings;
   if (!cfg) throw new HttpError(503, "meetings_off", "Video calls aren't switched on for this workspace yet. The guest link and invite still work once they are.");
-  const { AccessToken } = await import("livekit-server-sdk");
+  const { AccessToken, TrackSource } = await import("livekit-server-sdk");
   const at = new AccessToken(cfg.apiKey, cfg.apiSecret, { identity: who.identity, name: who.name, ttl: "6h" });
-  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: who.host });
+  // Round 23: screen share (with its audio) is allowed for everyone in the room, guests included.
+  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true, roomAdmin: who.host, canPublishSources: [TrackSource.CAMERA, TrackSource.MICROPHONE, TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO] });
   return { url: cfg.url, token: await at.toJwt(), room };
 }
 

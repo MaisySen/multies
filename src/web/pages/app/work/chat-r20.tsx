@@ -4,7 +4,7 @@
  * user's content; the controls around them use Lucide icons.
  */
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowDown, Search, SmilePlus, Video, X } from "lucide-react";
 import { api } from "@/web/lib/api";
@@ -12,6 +12,8 @@ import { showError } from "@/web/lib/show-error";
 import { mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
+import { useConfig } from "@/web/lib/queries";
+import { LiveCallCard, openCallDock } from "./call-r23";
 
 export interface Reaction { emoji: string; count: number; reactors: { id: string; name: string }[] }
 
@@ -88,29 +90,24 @@ const CALL_RE = /^Started a call\. Join: (\S*?(\/app\/meetings\/[A-Za-z0-9_-]+))
 /** The meeting page of a call card message, or null for any other message. */
 export const callPath = (body: string) => CALL_RE.exec(body)?.[2] ?? null;
 
-export function CallCard({ path, by, at }: { path: string; by: string; at: string }) {
-  return (
-    <div className="mt-1 flex max-w-sm items-center gap-3 rounded-xl border border-line bg-surface p-3" data-testid="call-card">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand"><Video className="h-4 w-4" aria-hidden /></span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] font-semibold">Call started</p>
-        <p className="truncate text-[12px] text-muted">{by}, {mailDate(at)}</p>
-      </div>
-      <Link to={path} className="inline-flex h-8 items-center rounded-lg bg-brand px-3 text-[13px] font-medium text-brand-fg hover:bg-brand-hover" data-testid="call-join">Join</Link>
-    </div>
-  );
+/** The call card; round 23 adds live presence and the docked window (call-r23.tsx). */
+export function CallCard({ path, by, at, channelId }: { path: string; by: string; at: string; channelId?: string }) {
+  return <LiveCallCard path={path} by={by} at={at} channelId={channelId} />;
 }
 
 /** One tap: makes the meeting, posts the join card, and takes the caller into the call. */
 export function CallButton({ channelId, onStarted }: { channelId: string; onStarted: () => Promise<unknown> | void }) {
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+  const config = useConfig();
   const start = async () => {
     setBusy(true);
     try {
-      const r = await api.post<{ meeting: { id: string } }>(`/chat/channels/${channelId}/call`, {});
+      const r = await api.post<{ meeting: { id: string; title: string; videoEnabled?: boolean } }>(`/chat/channels/${channelId}/call`, {});
       await onStarted();
-      navigate(`/app/meetings/${r.meeting.id}`);
+      // Round 23: with video on, the call docks over the app so chat stays readable; otherwise the meeting page.
+      if (r.meeting.videoEnabled && (config.data as { meetings?: boolean } | undefined)?.meetings) openCallDock({ meetingId: r.meeting.id, title: r.meeting.title, path: `/app/meetings/${r.meeting.id}` });
+      else navigate(`/app/meetings/${r.meeting.id}`);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return <Button variant="ghost" size="icon" aria-label="Start a call" title="Start a call" loading={busy} onClick={() => void start()} data-testid="chat-call"><Video className="h-4 w-4" /></Button>;

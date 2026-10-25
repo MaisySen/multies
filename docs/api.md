@@ -485,3 +485,26 @@ key). Everyone in the call sees a Recording banner.
 
 D1 writes: starting is 1 row (WITHOUT ROWID, no secondary index), each chunk is 1 row, Stop is 2 rows
 plus the one chat message (or one notification per attendee); reads and a retried chunk write nothing.
+
+## Calls in chat (round 23)
+
+A call from a DM rings every other member ("Maya is calling you", in the inbox and on phones through the
+chat category). A call from a channel with up to 8 members rings them too; bigger channels get only the
+join card, so a busy channel doesn't buzz everyone. A second press of Call within 60 seconds joins the
+first call and rings nobody. Room tokens allow camera, microphone, screen share and screen share audio for
+members and guests.
+
+Who is in a call is read from the video service (LiveKit RoomService ListParticipants) and cached in memory
+for about 10 seconds per server instance; open chat views poll every 15 seconds only while a call card from
+the last few hours is on screen. A call is marked ended (meeting status `ended`, `endedAt`) the first time a
+read finds the room empty after people were in it, or when the last person's app leaves: one row update per
+call, never one per poll. Without video keys the routes answer `enabled: false`.
+
+- App API: `GET /api/chat/channels/:id/call` answers `{ enabled, channelId, live: call | null, calls: [{ meetingId, title, channelId, state: live | waiting | ended, participants: [{ name }], count, startedAt, endedAt, durationMin }] }`; `GET /api/chat/calls/:meetingId` (one meeting); `POST /api/chat/calls/:meetingId/left` (the app's leave signal; people only); guests of a shared channel: `GET /api/guest/chat/channels/:id/call`.
+- Public API: `GET /api/v1/chat/channels/{id}/call`, `GET /api/v1/meetings/{id}/call`. Read only keys can read.
+- MCP: `get_call_status`.
+- 404 when the caller can't open the channel: DMs and private channels for non-members and keys, another workspace's ids, a guest outside their shared channel. A meeting started from such a chat follows the chat's rule.
+- Local E2E only: `POST /api/chat/calls/:meetingId/test-room` `{ participants: [{ name }] }` fakes who is in the room when the server runs with `CALLS_TEST_HOOK=true`; `loadConfig` refuses that variable in production and the route answers 404 without it.
+
+D1 writes: presence reads write nothing; a call adds one `call.started` notification per person rung (in place
+of the card's plain DM notification); ending a call is one meeting row update, once.

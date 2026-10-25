@@ -499,7 +499,8 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
     const repliers = (await deps.db.select({ authorId: chatMessages.authorId }).from(chatMessages).where(and(eq(chatMessages.parentId, parent.id), eq(chatMessages.authorType, "member")))).map((r) => r.authorId);
     for (const u of new Set([parent.authorType === "member" ? parent.authorId : null, ...repliers])) if (u) await tell(u, "chat.reply", `${author.name} replied in a thread in ${where}: ${preview}`);
   }
-  if (c.kind === "dm") for (const u of members) await tell(u, "chat.dm", `${author.name}: ${preview}`);
+  // A call card rings the DM through notifyCallStarted (calls.ts) instead of a plain DM notification.
+  if (c.kind === "dm" && !m.body.startsWith("Started a call. Join: ")) for (const u of members) await tell(u, "chat.dm", `${author.name}: ${preview}`);
   const channel = { id: c.id, kind: c.kind, name: c.kind === "dm" ? null : c.name };
   await emitEvent(deps, c.orgId, "chat.message.created", { message: m, channel });
   const agentMentions = m.mentions.filter((x) => x.type === "agent");
