@@ -144,6 +144,23 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 - Public API: `GET` and `PUT /api/v1/scheduling/availability`, `GET /api/v1/scheduling/bookings`, `POST /api/v1/scheduling/bookings/{id}/cancel`
 - Events: `booking.created`, `booking.cancelled`. MCP: `list_bookings` (registered only when scheduling is on).
 
+## Triage (Round 21)
+
+New work can wait in Triage before it becomes a task. A project's `triage` setting (off for existing
+projects) sends tasks made by mail rules, public forms and incoming hooks there; a form's own "Send to
+triage" switch (`triage: true`, on by default for new forms in the app) does the same for that form.
+A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
+My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
+for them). Accept clears the flag in the same task write as any other change; decline soft deletes the
+item and can send the sender a short polite reply (opt in, never to no-reply addresses); merge adds the
+item's notes as a comment on another task, moves its mail thread there when the target has none, and
+deletes the item.
+
+- Page: `/app/triage` (Triage in the nav, with a count). Keys: j and k move, a accepts, d declines, m merges.
+- App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
+- Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
+- MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
+
 ## People and AI agent members
 
 Every member has an optional `title` (up to 80 characters) and `bio` (up to 500), shown in People (Settings, Team) and read by REST and MCP. An AI agent member is a workspace member with `kind: "agent"`: it has no mailbox, takes no seat and no inbox, and works only through its own API keys. Those keys act as the agent member with the member role, so its chat posts, task comments and activity carry its name, and it can't do admin work (domains, mailboxes, webhooks, agent inboxes, integrations). The Free plan includes 10 agent members (Pro 25, Business 100); one more answers 403 `plan_limit`. Mail agents with their own inbox (`/agents`) are listed in People too, as `type: "mail_agent"`.
@@ -188,21 +205,6 @@ A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional
 - `PATCH /api/v1/meetings/{id}` edits the whole series (title, start, length, guests, recurrence).
 - `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...` and a `VTIMEZONE` for that zone (yearly STANDARD and DAYLIGHT rules from the runtime's zone data, or one STANDARD part for a zone without daylight saving), which older Outlook versions need. Calendar invites carry the same.
 - Meetings come back with `recurrence: { interval, days, until, count, rrule, timezone, summary }` or null. MCP: `schedule_meeting` takes `repeats` (an RRULE), `list_meetings` returns `repeats`.
-
-## Sprints (round 21)
-
-Sprints (cycles) per project: plan them ahead, run one at a time, complete them with the unfinished
-tasks carried to the next sprint or back to the backlog. Tasks in no sprint are the project's backlog.
-Each task has an optional estimate (`points`), counted in points or hours per project.
-The burndown has one entry per day in the person's (or workspace's, or `timeZone`) zone: what was left at
-the end of that day, in points, or in tasks when nothing is estimated, and the ideal line. It is worked out
-on read, so a task change costs no extra write; a completed sprint keeps its final chart.
-
-- Page: Tasks, Sprints view (pick a project).
-- App API: `GET /api/sprints?projectId=`, `GET /api/sprints/backlog?projectId=`, `POST /api/sprints` `{ projectId, name?, goal?, startAt?, endAt? }`, `GET`, `PATCH` and `DELETE /api/sprints/:id` (delete: planned only), `POST /api/sprints/:id/start`, `POST /api/sprints/:id/complete` `{ carryOver: "next" | "backlog" }`, `POST /api/sprints/:id/tasks` and `POST /api/sprints/:id/tasks/remove` `{ taskIds }` (up to 500), `PUT /api/sprints/estimate-unit` `{ projectId, unit: "points" | "hours" }`
-- Public API: `GET` and `POST /api/v1/projects/{id}/sprints`, `GET /api/v1/projects/{id}/backlog`, `GET`, `PATCH` and `DELETE /api/v1/sprints/{id}` (`timeZone` on GET), `POST /api/v1/sprints/{id}/start`, `POST /api/v1/sprints/{id}/complete` `{ carry_over: "next" | "backlog" }`, `POST /api/v1/sprints/{id}/tasks` and `/tasks/remove` `{ taskIds }`, `PUT /api/v1/tasks/{id}/points` `{ points }`. Task create and update also take `sprintId` and `points`.
-- Errors: 409 `sprint_already_active` (complete the running one first), 409 `sprint_completed`, 422 when a sprint ends before it starts or a task is in another project.
-- MCP: `list_sprints`, `get_sprint`, `create_sprint`, `start_sprint`, `complete_sprint`, `add_to_sprint`, `remove_from_sprint`.
 
 ## MCP tools
 

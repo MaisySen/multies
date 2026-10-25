@@ -20,7 +20,7 @@ export async function dashboard(deps: Deps, actor: SuiteActor, q: ReportQuery = 
   const now = deps.now();
   const from = new Date(now.getTime() - days * DAY);
   const org = actor.orgId;
-  const base = and(eq(tasks.orgId, org), isNull(tasks.deletedAt), isNull(tasks.parentId), q.projectId ? eq(tasks.projectId, q.projectId) : undefined);
+  const base = and(eq(tasks.orgId, org), isNull(tasks.deletedAt), isNull(tasks.parentId), isNull(tasks.triageState), q.projectId ? eq(tasks.projectId, q.projectId) : undefined);
   const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const [byStatus, byAssignee, overdueRows, doneByDay, createdCount, dealRows, secs, prs] = await Promise.all([
     deps.db.select({ statusId: tasks.statusId, category: tasks.status, n: sql<number>`count(*)` }).from(tasks).where(base).groupBy(tasks.statusId, tasks.status),

@@ -38,7 +38,6 @@ const Task = z.object({
   subtasks: z.object({ total: z.number(), done: z.number() }), commentCount: z.number(), completedAt: z.string().nullable(),
   createdBy: z.object({ type: z.string(), id: z.string().nullable() }), createdAt: z.string(), updatedAt: z.string(), version: z.number().int(),
   fields: z.record(z.string(), z.unknown()).openapi({ description: "Custom field values by field id. See Field for the value types." }),
-  sprintId: z.string().nullable().optional(), points: z.number().nullable().optional(),
 }).openapi("Task");
 const Status = z.object({ id: z.string(), name: z.string(), category: z.enum(["todo", "doing", "done"]), color: z.string(), position: z.number() });
 const Project = z.object({ id: z.string(), name: z.string(), description: z.string(), key: z.string(), color: z.string(), archived: z.boolean(), statuses: z.array(Status), counts: z.record(z.string(), z.number()), createdAt: z.string(), updatedAt: z.string(), version: z.number() }).openapi("Project");

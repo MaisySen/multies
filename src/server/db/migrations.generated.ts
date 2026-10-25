@@ -479,14 +479,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0034_r21_sprints",
+    "name": "0035_r21_triage",
     "statements": [
-      "CREATE TABLE `sprints` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`project_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`goal` text DEFAULT '' NOT NULL,\n\t`start_at` integer NOT NULL,\n\t`end_at` integer NOT NULL,\n\t`status` text DEFAULT 'planned' NOT NULL,\n\t`started_at` integer,\n\t`completed_at` integer,\n\t`carried_over` integer DEFAULT 0 NOT NULL,\n\t`snapshot` text DEFAULT '{}' NOT NULL,\n\t`created_by_type` text DEFAULT 'member' NOT NULL,\n\t`created_by_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`version` integer DEFAULT 1 NOT NULL,\n\t`deleted_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
-      "CREATE INDEX `sprints_org_project_idx` ON `sprints` (`org_id`,`project_id`);",
-      "ALTER TABLE `tasks` ADD `sprint_id` text;",
-      "ALTER TABLE `tasks` ADD `points` real;",
-      "CREATE INDEX `tasks_sprint_idx` ON `tasks` (`sprint_id`) WHERE \"tasks\".\"sprint_id\" IS NOT NULL;",
-      "ALTER TABLE `projects` ADD `estimate_unit` text DEFAULT 'points' NOT NULL;"
+      "ALTER TABLE `tasks` ADD `triage_state` text;",
+      "ALTER TABLE `tasks` ADD `triage_source` text;",
+      "ALTER TABLE `projects` ADD `triage` integer DEFAULT false NOT NULL;",
+      "ALTER TABLE `forms` ADD `triage` integer DEFAULT false NOT NULL;",
+      "CREATE INDEX `tasks_org_triage_idx` ON `tasks` (`org_id`,`created_at`) WHERE \"tasks\".\"triage_state\" IS NOT NULL;"
     ]
   }
 ];
