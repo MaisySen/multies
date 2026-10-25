@@ -10,9 +10,14 @@ import { runMaintenance } from "@/server/services/maintenance";
 function meter(db: unknown) {
   const c = (db as { $client: { prepare: (q: string) => Record<string, (...a: unknown[]) => unknown> } }).$client;
   const idx = new Map<string, number>();
-  for (const r of c.prepare("select tbl_name t, count(*) n from sqlite_master where type='index' group by tbl_name").all() as { t: string; n: number }[]) idx.set(r.t, r.n);
+  // R21: a partial index (CREATE INDEX ... WHERE) only holds the rows its WHERE matches, so a row outside it costs
+  // nothing there. Full indexes count once per written row; a partial index counts the entries that came or went.
+  for (const r of c.prepare("select tbl_name t, count(*) n from sqlite_master where type='index' and (sql is null or sql not like '% WHERE %') group by tbl_name").all() as { t: string; n: number }[]) idx.set(r.t, r.n);
+  const partial = new Map<string, string[]>();
+  for (const r of c.prepare("select tbl_name t, sql from sqlite_master where type='index' and sql like '% WHERE %'").all() as { t: string; sql: string }[]) partial.set(r.t, [...(partial.get(r.t) ?? []), r.sql.slice(r.sql.search(/ WHERE /i) + 7)]);
   const prepare = c.prepare.bind(c);
   const changes = () => (prepare("select total_changes() n").get() as { n: number }).n;
+  const members = (table: string) => (partial.get(table) ?? []).map((w) => (prepare(`select count(*) n from "${table}" where ${w}`).get() as { n: number }).n);
   let total = 0;
   c.prepare = (q: string) => {
     const st = prepare(q);
@@ -20,7 +25,13 @@ function meter(db: unknown) {
     if (!table) return st;
     for (const fn of ["run", "all", "get"]) {
       const orig = st[fn].bind(st);
-      st[fn] = (...a: unknown[]) => { const before = changes(); const r = orig(...a); total += (changes() - before) * (1 + (idx.get(table) ?? 0)); return r; };
+      st[fn] = (...a: unknown[]) => {
+        const before = changes(); const inBefore = members(table);
+        const r = orig(...a);
+        const inAfter = members(table);
+        total += (changes() - before) * (1 + (idx.get(table) ?? 0)) + inAfter.reduce((n, v, i) => n + Math.abs(v - inBefore[i]), 0);
+        return r;
+      };
     }
     return st;
   };
@@ -269,4 +280,38 @@ it("sprints (round 21): a sprint row is 2, a task added is one tasks row, a bulk
   await completeSprint(ctx.deps, actor, s.id, { carryOver: "backlog" });
   // Measured: the sprints row (2) plus the 48 carried tasks; nothing per task besides the row and index.
   expect(take()).toBeLessThanOrEqual(2 + 48 * one);
+});
+it("triage (round 21): accept costs the task update plus its one partial index entry; decline and merge stay small; reads write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const p = (await u.post("/api/projects", { name: "Support" })).body.project as { id: string };
+  await u.patch(`/api/projects/${p.id}`, { triage: true });
+  const plain = (await u.post("/api/tasks", { title: "Normal", projectId: p.id })).body.task as { id: string };
+  const make = async (title: string) => (await u.post("/api/triage", { title, from: "sam@example.com" })).body.item.id as string;
+  const a = await make("A"), b = await make("B"), d = await make("D");
+  const take = meter(ctx.db);
+  await u.post("/api/triage/nope/accept", {});
+  const limiter = take();
+  // A normal task update with the same change, for comparison.
+  await u.patch(`/api/tasks/${plain.id}`, { priority: "high" });
+  const update = take() - limiter;
+  await u.post(`/api/triage/${a}/accept`, { priority: "high" });
+  const accept = take() - limiter;
+  // Exactly one more than the plain update: the triage_state flag leaves the partial index. No other row.
+  expect(accept - update).toBe(1);
+  await u.get("/api/triage"); await u.get("/api/triage/count"); await u.get("/api/tasks");
+  expect(take()).toBe(0);
+  await u.post(`/api/triage/${b}/decline`, { reason: "spam" });
+  const decline = take() - limiter;
+  // Measured 14: the task row and its indexes (8), the partial index entry leaving (1), and the activity and change rows (5).
+  expect(decline).toBeLessThanOrEqual(14);
+  await u.post(`/api/triage/${d}/merge`, { targetId: plain.id });
+  const merge = take() - limiter;
+  // Measured 30: one comment (3), the target's touch and thread (8), the item's delete (9) and two activity and change pairs (10).
+  expect(merge).toBeLessThanOrEqual(30);
+  const insert = take();
+  await make("E");
+  // Measured 17: a normal task insert (the row, its indexes, the project's next number, activity and change) plus one partial index entry.
+  expect(take() - insert - limiter).toBeLessThanOrEqual(17);
 });

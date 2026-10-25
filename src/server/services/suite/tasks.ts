@@ -40,6 +40,7 @@ function presentProject(p: ProjectRow, statuses: StatusRow[], counts?: Record<Ca
     statuses: statuses.filter((s) => s.projectId === p.id).sort((a, b) => a.position - b.position).map(presentStatus),
     counts: counts ?? { todo: 0, doing: 0, done: 0 },
     health: p.health ?? null, healthNote: p.healthNote, ownerId: p.ownerUserId ?? null,
+    triage: !!p.triage,
     createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString(), version: p.version,
   };
 }
@@ -58,7 +59,7 @@ export async function listProjects(deps: Deps, orgId: string, opts: { includeArc
   const [sts, counts] = await Promise.all([
     deps.db.select().from(projectStatuses).where(and(inArray(projectStatuses.projectId, ids), isNull(projectStatuses.deletedAt))),
     deps.db.select({ projectId: tasks.projectId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
-      .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt))).groupBy(tasks.projectId, tasks.status),
+      .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId, tasks.status),
   ]);
   const byProject = new Map<string, Record<Category, number>>();
   for (const c of counts) {
@@ -112,6 +113,8 @@ export async function defaultProject(deps: Deps, actor: SuiteActor) {
 export async function updateProject(deps: Deps, actor: SuiteActor, id: string, patch: {
   name?: string; description?: string; color?: string; archived?: boolean; statuses?: StatusInput[];
   health?: "on_track" | "at_risk" | "off_track" | null; healthNote?: string; ownerId?: string | null;
+  /** R21: send new mail and form tasks to Triage first. */
+  triage?: boolean;
 }) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
@@ -128,6 +131,7 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
     ...(patch.health !== undefined ? { health: patch.health } : {}),
     ...(patch.healthNote !== undefined ? { healthNote: patch.healthNote.slice(0, 500) } : {}),
     ...(patch.ownerId !== undefined ? { ownerUserId: patch.ownerId } : {}),
+    ...(patch.triage !== undefined ? { triage: patch.triage } : {}),
     updatedAt: now, version: p.version + 1,
   }).where(eq(projects.id, id));
   if (patch.statuses) await replaceStatuses(deps, actor, p, patch.statuses);
@@ -242,6 +246,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     sprintId: t.sprintId ?? null, points: t.points ?? null,
     createdBy: { type: t.createdByType, id: t.createdById },
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(), version: t.version,
+    triage: t.triageState ? { state: t.triageState, source: t.triageSource ?? null, from: t.sourceFrom ?? null } : null,
   };
 }
 export type Task = ReturnType<typeof presentTask>;
@@ -257,6 +262,8 @@ export interface TaskFilters {
   type?: TaskType;
   /** Round 21: tasks in this sprint, or null for the backlog (no sprint). */
   sprintId?: string | null;
+  /** R21: "pending" lists only items waiting in Triage; without it they are left out. */
+  triage?: "pending";
 }
 
 const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
@@ -274,6 +281,7 @@ async function orderFor(deps: Deps, orgId: string, f: TaskFilters): Promise<SQL[
 
 export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
   const conds: (SQL | undefined)[] = [eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt)];
+  conds.push(f.triage ? eq(tasks.triageState, f.triage) : isNull(tasks.triageState));
   if (f.projectId) conds.push(eq(tasks.projectId, f.projectId));
   if (f.status) conds.push(eq(tasks.status, f.status));
   if (f.statusId) conds.push(eq(tasks.statusId, f.statusId));
@@ -369,6 +377,8 @@ export interface CreateTaskInput {
   type?: TaskType;
   /** Round 21: a sprint of the same project, and an estimate (points or hours). */
   sprintId?: string | null; points?: number | null;
+  /** R21: land in Triage. "always" does; "if_project" only when the project has Triage on. */
+  triage?: { source: "mail" | "form" | "api" | "chat"; when: "always" | "if_project"; from?: string | null } | null;
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
@@ -400,6 +410,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     source = { threadId: m.threadId, messageId: m.id, from: m.fromName ? `${m.fromName} <${m.fromAddress}>` : m.fromAddress, subject: m.subject };
   }
 
+  const triage = input.triage && !input.parentId && (input.triage.when === "always" || project.triage) ? input.triage : null;
   const now = deps.now();
   // Claim the next number in the project. The unique index on (project, number) guards races.
   const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + 1` }).where(eq(projects.id, project.id)).returning({ n: projects.nextNumber });
@@ -415,6 +426,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     type: input.type ?? "task",
     ...sprintCols,
     ...createdBy(actor), createdAt: now, updatedAt: now,
+    ...(triage ? { triageState: "pending" as const, triageSource: triage.source, sourceFrom: source.from ?? triage.from ?? null } : {}),
   };
   await deps.db.insert(tasks).values(row);
   if (input.fields && Object.keys(input.fields).length) await setTaskFieldValues(deps, actor.orgId, { id, projectId: project.id }, input.fields);
@@ -431,7 +443,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     entityType: "task", entityId: id, op: "create", verb: source.threadId ? "created_from_email" : "created",
     data: { title, ref: task.ref, ...(source.subject ? { subject: source.subject } : {}) }, event: "task.created", eventData: { task },
   });
-  if (task.assignee?.type === "member" && task.assignee.id !== actor.userId) {
+  if (task.assignee?.type === "member" && task.assignee.id !== actor.userId && !triage) {
     const { notify } = await import("./notify");
     await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: id, title: `${task.ref} assigned to you: ${title}`, actorName: actor.name || actor.email });
   }
@@ -446,7 +458,9 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   const fromLine = m.fromName || m.fromAddress;
   const title = input.title?.trim() || cleanSubject(m.subject) || `Follow up with ${fromLine}`;
   const notes = input.notes ?? latestText(m.text).slice(0, 2000);
-  return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId } });
+  // R21: mail turned into tasks by rules lands in Triage when the project has it on.
+  const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : null;
+  return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage });
 }
 
 const normaliseLabels = (l?: string[]) => [...new Set((l ?? []).map((x) => x.trim()).filter(Boolean).map((x) => x.slice(0, 40)))].slice(0, 20);
@@ -462,6 +476,8 @@ export interface UpdateTaskInput {
   type?: TaskType;
   /** Round 21: move to a sprint of the task's project (null: back to the backlog), and the estimate. */
   sprintId?: string | null; points?: number | null;
+  /** R21: null accepts a Triage item in the same write. */
+  triage?: null;
 }
 
 export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string, patch: UpdateTaskInput) {
@@ -520,12 +536,13 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     if (sprintId && sprintId !== t.sprintId) await r21.checkSprintForTask(deps, actor.orgId, projectId, sprintId);
     if (sprintId !== t.sprintId) { set.sprintId = sprintId; changed.sprint = { from: t.sprintId, to: sprintId }; }
   }
+  if (patch.triage === null && t.triageState) { set.triageState = null; changed.triage = "accepted"; }
   await deps.db.update(tasks).set(set).where(eq(tasks.id, t.id));
   if (set.projectId) await clearForeignValues(deps, t.id, set.projectId);
   if (patch.fields && Object.keys(patch.fields).length) changed.fields = await setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId }, patch.fields);
   const task = await getTask(deps, actor, t.id);
   const statusChanged = !!changed.status;
-  const verb = statusChanged ? "moved" : changed.assignee !== undefined ? "assigned" : "updated";
+  const verb = changed.triage ? "triage_accepted" : statusChanged ? "moved" : changed.assignee !== undefined ? "assigned" : "updated";
   if (Object.keys(changed).length || patch.position !== undefined) {
     await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: task.version, verb, data: changed, event: "task.updated", eventData: { task, changed: Object.keys(changed) } });
   }
@@ -801,7 +818,7 @@ export async function assignees(deps: Deps, orgId: string) {
 /** The next task an agent should pick up: assigned to it, not done, most urgent and soonest due first. */
 export async function nextTaskFor(deps: Deps, actor: SuiteActor, agentId: string) {
   const rank = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
-  const row = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt), eq(tasks.assigneeType, "agent"), eq(tasks.assigneeId, agentId), ne(tasks.status, "done")))
+  const row = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt), eq(tasks.assigneeType, "agent"), eq(tasks.assigneeId, agentId), ne(tasks.status, "done"), isNull(tasks.triageState)))
     .orderBy(rank, sql`case when ${tasks.dueAt} is null then 1 else 0 end`, asc(tasks.dueAt), asc(tasks.createdAt)).get();
   if (!row) return null;
   return taskDetail(deps, actor, row.id);

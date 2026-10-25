@@ -8,7 +8,7 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
@@ -230,13 +230,16 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // R21: new mail and form tasks for this project wait in Triage.
+  const [triage, setTriage] = useState(!!(project as (Project & { triage?: boolean }) | null)?.triage);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
   const save = async () => {
     setBusy(true); setError(null);
     const body = { name, statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
-      const r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, body) : await api.post<{ project: Project }>("/projects", body);
+      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.post<{ project: Project }>("/projects", body);
+      if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -266,6 +269,10 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           </ul>
           <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><Plus className="h-3.5 w-3.5" />Add status</Button>
           {project && <p className="mt-2 text-[12px] text-subtle">Removing a status moves its tasks to the first status in the same group.</p>}
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
+          <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">Tasks made from mail rules and forms wait in Triage until someone accepts them.</div></div>
+          <Switch checked={triage} onChange={setTriage} label="Send to triage" />
         </div>
       </div>
     </Dialog>

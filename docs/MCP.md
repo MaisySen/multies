@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 75 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 80 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -139,6 +139,18 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `pin_message` | Pin or unpin a chat message |
 | `message_to_task` | Turn a chat message into a task |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
+
+### Triage
+
+New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
+
+| Tool | What it does |
+| --- | --- |
+| `list_triage` | List items waiting in Triage, newest first, with the count |
+| `triage_accept` | Accept an item as a normal task, optionally setting project, assignee, status, priority and due |
+| `triage_decline` | Decline and delete an item, with an optional reason and an opt in polite reply to the sender |
+| `triage_merge` | Merge an item into an existing task (notes as a comment, mail thread moves over) |
+| `create_triage_item` | Put new work in Triage instead of making a task straight away |
 
 ### Meetings and scheduling
 

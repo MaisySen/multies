@@ -159,6 +159,23 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 - Public API: `GET` and `PUT /api/v1/scheduling/availability`, `GET /api/v1/scheduling/bookings`, `POST /api/v1/scheduling/bookings/{id}/cancel`
 - Events: `booking.created`, `booking.cancelled`. MCP: `list_bookings` (registered only when scheduling is on).
 
+## Triage (Round 21)
+
+New work can wait in Triage before it becomes a task. A project's `triage` setting (off for existing
+projects) sends tasks made by mail rules, public forms and incoming hooks there; a form's own "Send to
+triage" switch (`triage: true`, on by default for new forms in the app) does the same for that form.
+A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
+My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
+for them). Accept clears the flag in the same task write as any other change; decline soft deletes the
+item and can send the sender a short polite reply (opt in, never to no-reply addresses); merge adds the
+item's notes as a comment on another task, moves its mail thread there when the target has none, and
+deletes the item.
+
+- Page: `/app/triage` (Triage in the nav, with a count). Keys: j and k move, a accepts, d declines, m merges.
+- App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
+- Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
+- MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
+
 ## People and AI agent members
 
 Every member has an optional `title` (up to 80 characters) and `bio` (up to 500), shown in People (Settings, Team) and read by REST and MCP. An AI agent member is a workspace member with `kind: "agent"`: it has no mailbox, takes no seat and no inbox, and works only through its own API keys. Those keys act as the agent member with the member role, so its chat posts, task comments and activity carry its name, and it can't do admin work (domains, mailboxes, webhooks, agent inboxes, integrations). The Free plan includes 10 agent members (Pro 25, Business 100); one more answers 403 `plan_limit`. Mail agents with their own inbox (`/agents`) are listed in People too, as `type: "mail_agent"`.

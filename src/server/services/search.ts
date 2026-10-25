@@ -116,7 +116,7 @@ const STATUS_LABEL = { todo: "To do", doing: "In progress", done: "Done" } as co
 async function searchTasks(deps: Deps, orgId: string, term: string, limit: number, projectId?: string): Promise<SearchItem[]> {
   const key = TASK_KEY.exec(term);
   const cols = { id: tasks.id, title: tasks.title, notes: tasks.notes, number: tasks.number, status: tasks.status, projectId: tasks.projectId, updatedAt: tasks.updatedAt, key: projects.key, projectName: projects.name };
-  const base = and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), projectId ? eq(tasks.projectId, projectId) : undefined);
+  const base = and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), projectId ? eq(tasks.projectId, projectId) : undefined);
   const exact = key
     ? await deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
       .where(and(base, eq(projects.orgId, orgId), sql`upper(${projects.key}) = ${key[1].toUpperCase()}`, eq(tasks.number, Number(key[2])))).limit(1)
@@ -320,7 +320,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     if (!me) return [];
     return deps.db.select({ id: tasks.id, title: tasks.title, number: tasks.number, dueAt: tasks.dueAt, projectId: tasks.projectId, key: projects.key, priority: tasks.priority, threadId: tasks.threadId })
       .from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
-      .where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.dueAt), lt(tasks.dueAt, horizon), ne(tasks.status, "done"), isNull(tasks.deletedAt),
+      .where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.dueAt), lt(tasks.dueAt, horizon), ne(tasks.status, "done"), isNull(tasks.deletedAt), isNull(tasks.triageState),
         eq(tasks.assigneeType, me.type), eq(tasks.assigneeId, me.id)))
       .orderBy(asc(tasks.dueAt)).limit(200);
   };
@@ -329,7 +329,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     if (!me) return [];
     const scope = await scopeOf(deps, actor);
     const rows = await deps.db.select({ id: tasks.id, title: tasks.title, threadId: tasks.threadId, messageId: tasks.messageId, sourceFrom: tasks.sourceFrom, sourceSubject: tasks.sourceSubject, updatedAt: tasks.updatedAt })
-      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.threadId), ne(tasks.status, "done"), isNull(tasks.deletedAt), eq(tasks.assigneeType, me.type), eq(tasks.assigneeId, me.id)))
+      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.threadId), ne(tasks.status, "done"), isNull(tasks.deletedAt), isNull(tasks.triageState), eq(tasks.assigneeType, me.type), eq(tasks.assigneeId, me.id)))
       .orderBy(desc(tasks.updatedAt)).limit(20);
     if (!rows.length) return [];
     // Only threads in mailboxes this person can open; the link opens the newest message.

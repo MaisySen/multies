@@ -218,7 +218,7 @@ export async function runDueReminders(deps: Deps) {
     if (budget <= 0) break;
     const c = JSON.parse(r.conditions) as DueConditions;
     const until = new Date(now.getTime() + Number(c.hoursBefore ?? 24) * 3_600_000);
-    const due = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, r.orgId), isNull(tasks.deletedAt), ne(tasks.status, "done"), gte(tasks.dueAt, now), lte(tasks.dueAt, until),
+    const due = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, r.orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), ne(tasks.status, "done"), gte(tasks.dueAt, now), lte(tasks.dueAt, until),
       c.projectId ? eq(tasks.projectId, c.projectId) : undefined)).limit(200);
     for (const t of due) {
       const key = `${r.id}:${t.dueAt!.toISOString()}`;

@@ -243,6 +243,7 @@ async function runAction(deps: Deps, h: HookRow, payload: Record<string, unknown
     const t = await createTask(deps, actor, {
       title: f.title.slice(0, 300), notes: notes?.slice(0, 20_000), projectId: config.projectId, due: f.due ?? null,
       assignee: assigneeId ? { type: "member", id: assigneeId } : null,
+      triage: { source: "api", when: "if_project" },
     });
     return { type: "task", id: t.id };
   }

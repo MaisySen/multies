@@ -79,6 +79,7 @@ const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ de
 const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
 const InvitePage = lazy(() => import("./pages/invite").then((m) => ({ default: m.InvitePage })));
 const MyWorkPage = lazy(() => import("./pages/app/my-work").then((m) => ({ default: m.MyWorkPage })));
+const TriagePage = lazy(() => import("./pages/app/work/triage").then((m) => ({ default: m.TriagePage })));
 
 const page = (node: ReactNode) => <Suspense fallback={null}>{node}</Suspense>;
 /** Public pages hold a full screen while their code loads, so the footer never jumps. */
@@ -121,6 +122,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: page(<DashboardPage />) },
       { path: "my-work", element: page(<MyWorkPage />) },
+      { path: "triage", element: page(<TriagePage />) },
       { path: "domains", element: page(<DomainsPage />) },
       { path: "domains/:id", element: page(<DomainDetailPage />) },
       { path: "mailboxes", element: page(<MailboxesPage />) },

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sun, CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
+import { ListTodo, Sun, CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
@@ -33,6 +33,7 @@ const nav: NavItem[] = [
   { to: "/app/notifications", label: "Notifications", icon: Bell, group: "work" },
   { to: "/app/chat", label: "Chat", icon: MessageCircle, group: "work" },
   { to: "/app/tasks", label: "Tasks", icon: CheckSquare, group: "work" },
+  { to: "/app/triage", label: "Triage", icon: ListTodo, group: "work" },
   { to: "/app/docs", label: "Docs", icon: FileText, group: "work" },
   { to: "/app/meetings", label: "Meetings", icon: Video, group: "work" },
   { to: "/app/goals", label: "Goals", icon: Target, group: "work" },
@@ -75,6 +76,7 @@ export function AppLayout() {
   });
   const pendingCount = approvals.data?.length ?? 0;
   const unreadNotes = useUnreadNotifications(!!me.data?.organization);
+  const triageCount = useQuery({ queryKey: ["triage", "count"], enabled: !!me.data?.organization, refetchInterval: 60_000, queryFn: async () => (await api.get<{ count: number }>("/triage/count")).count });
   const chatUnread = useQuery({ queryKey: ["chat", "unread"], enabled: !!me.data?.organization, refetchInterval: 30_000, queryFn: () => api.get<{ total: number; mentions: number }>("/chat/unread") });
   useEffect(() => setDrawer(false), [loc.pathname]);
   // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
@@ -139,6 +141,7 @@ export function AppLayout() {
             <Icon className="h-4 w-4" />{label}
             {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
             {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
+            {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${triageCount.data} waiting in Triage`}>{triageCount.data}</span>}
             {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
           </NavLink>
           </Fragment>

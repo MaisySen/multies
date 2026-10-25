@@ -17,6 +17,7 @@ export const ProjectPatch = z.object({
   archived: z.boolean().optional(), statuses: z.array(StatusInput).min(1).max(20).optional(),
   health: z.enum(["on_track", "at_risk", "off_track"]).nullable().optional().openapi({ description: "Set by hand on the portfolio: on_track, at_risk, off_track, or null for not set." }),
   healthNote: z.string().max(500).optional(), ownerId: z.string().nullable().optional().openapi({ description: "The user id of the project's owner, or null." }),
+  triage: z.boolean().optional().openapi({ description: "R21: new mail and form tasks wait in Triage until someone accepts them." }),
 }).openapi("ProjectPatch");
 
 export const FieldValues = z.record(z.string(), z.union([z.string().max(2000), z.number(), z.boolean(), z.array(z.string().max(200)).max(50), z.null()]))
@@ -78,6 +79,7 @@ export const TaskQuery = z.object({
   sort: z.string().max(80).regex(/^(due|priority|title|created|field:[A-Za-z0-9_-]{1,64})$/).optional().openapi({ description: "due, priority, title, created or field:<fieldId>." }),
   dir: z.enum(["asc", "desc"]).optional(),
   type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "Only this type: task, story, bug or epic." }),
+  triage: z.enum(["pending"]).optional().openapi({ description: "R21: pending lists only items waiting in Triage; without it they are left out." }),
 });
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({

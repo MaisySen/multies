@@ -761,6 +761,8 @@ export const projects = sqliteTable("projects", {
   ownerUserId: text("owner_user_id"),
   /** Round 21: what a task's estimate counts in this project. */
   estimateUnit: text("estimate_unit", { enum: ["points", "hours"] }).notNull().default("points"),
+  /** R21: new mail and form tasks for this project wait in Triage until someone accepts them. */
+  triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   ...suiteCols(),
 }, (t) => [index("projects_org_idx").on(t.orgId)]);
 
@@ -813,6 +815,10 @@ export const tasks = sqliteTable("tasks", {
   /** Round 21: the sprint this task is in (null: the project's backlog) and its estimate (points or hours, per project). */
   sprintId: text("sprint_id"),
   points: real("points"),
+  /** R21: "pending" while the task waits in Triage (hidden from lists); null for normal tasks. */
+  triageState: text("triage_state", { enum: ["pending"] }),
+  /** R21: where a triage item came from: mail, form, api or chat. */
+  triageSource: text("triage_source", { enum: ["mail", "form", "api", "chat"] }),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
@@ -822,6 +828,7 @@ export const tasks = sqliteTable("tasks", {
   uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
   uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
   index("tasks_sprint_idx").on(t.sprintId).where(sql`${t.sprintId} IS NOT NULL`),
+  index("tasks_org_triage_idx").on(t.orgId, t.createdAt).where(sql`${t.triageState} IS NOT NULL`),
 ]);
 
 export const taskComments = sqliteTable("task_comments", {
@@ -1023,6 +1030,8 @@ export const forms = sqliteTable("forms", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   submitCount: integer("submit_count").notNull().default(0),
   lastSubmitAt: ts("last_submit_at"),
+  /** R21: submissions wait in Triage instead of becoming tasks at once. */
+  triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   ...suiteCols(),
 }, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
 
