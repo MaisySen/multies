@@ -512,10 +512,10 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0040_r22_thread_comments",
+    "name": "0039_r22_thread_state",
     "statements": [
-      "CREATE TABLE `thread_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`mentions` text DEFAULT '[]' NOT NULL,\n\t`edited_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
-      "CREATE INDEX `thread_comments_thread_idx` ON `thread_comments` (`org_id`,`thread_id`,`created_at`);"
+      "CREATE TABLE `mail_thread_state` (\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`assignee_user_id` text,\n\t`assigned_by` text,\n\t`assigned_at` integer,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`done_at` integer,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `thread_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`assignee_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n) WITHOUT ROWID;",
+      "CREATE INDEX `mail_thread_state_assignee_idx` ON `mail_thread_state` (`org_id`,`assignee_user_id`) WHERE \"mail_thread_state\".\"assignee_user_id\" IS NOT NULL;"
     ]
   }
 ];

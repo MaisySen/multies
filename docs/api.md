@@ -318,21 +318,38 @@ date of its items. Read only keys can read epics but not add or remove items. Ad
 batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
 MCP: `list_epics`, `get_epic`, `add_to_epic`.
 
-## Internal notes on threads (round 22)
+## Shared inbox: owners, done and reply times (round 22)
 
-People and agents can leave notes on a shared inbox thread. Notes are team only: they are never part
-of an outgoing message, a reply quote, `GET /threads/{id}`, `read_thread` or anything the sender can
-see. You read them only by asking for them. Access follows the shared inbox: the caller must be able
-to open at least one message of the thread (same workspace, a mailbox in their scope), else 404.
+A shared inbox thread (`messages.thread_id` within a workspace) can have an owner and be marked done.
+Only threads someone touched get a `mail_thread_state` row; every other thread is open and unassigned.
+Every call checks the caller can open the thread (one of its messages is in a mailbox they can open),
+otherwise 404. The assignee must be a workspace member who can open the thread's mailbox (owners and
+admins open every mailbox), otherwise 400. The assignee gets a notification (`thread_assigned`, in the
+Assignments category) unless they assigned themselves.
 
-A note is plain text up to 4,000 characters. `@Full Name` or `@email` in the text mentions a
-teammate who can open the thread's mailbox; they get a `thread_mention` notification (category
-mention) that opens `/app/inbox?thread=<id>`. Unknown names and people without access are ignored,
-and the author is never notified. Only the author can edit, for 24 hours (only newly mentioned people
-are notified); the author, an owner or admin, or a workspace key can delete. Agent keys write as their
-agent. Each note costs 1 row and 1 index entry, plus 1 notification row per mentioned person.
+- Page: the shared inbox (`/app/inbox`) has All, Mine, Unassigned, Assigned to (a person) and Done above
+  the list, the assignee's initials on each row, an Assign menu and Mark done or Reopen in the thread
+  header, and a Reply times card. My Work shows "Mail assigned to you" (open threads, newest first, up to 20).
+- App API: `GET /api/agents/threads?view=open|mine|unassigned|assigned|done|all` (`assignee=<userId>` with
+  assigned or done; open by default; each thread carries `assignee { id, name }` or null and `status`),
+  `GET /api/threads/:id/state` (the state and the people who can open the thread), `POST /api/threads/:id/assign`
+  `{ userId }` or `{ userId: null }`, `POST /api/threads/:id/status` `{ status: open | done }`,
+  `GET /api/threads/stats/replies` (`mailboxId`, `from`, `to`, `groupBy`).
+- Public API: `GET /api/v1/threads?view=...` (open by default), `GET /api/v1/threads/{id}/state`,
+  `POST /api/v1/threads/{id}/assign`, `POST /api/v1/threads/{id}/status`,
+  `GET /api/v1/stats/replies?mailboxId=&from=&to=&groupBy=mailbox|person`. Read only keys can list and read
+  stats but not assign or change status. Agent keys see only their agent's mailboxes.
+- MCP: `assign_thread`, `unassign_thread`, `set_thread_status`, `list_threads_by_view`, `get_reply_stats`.
 
-- Page: the "Team notes" card under the messages in `/app/inbox?thread=<id>`. Type @ to mention, Cmd or Ctrl+Enter posts.
-- App API: `GET /api/threads/:id/comments` (notes and `mentionable` people), `POST /api/threads/:id/comments` `{ body, mentions? }`, `PATCH /api/threads/:id/comments/:commentId` `{ body, mentions? }`, `DELETE /api/threads/:id/comments/:commentId`, `GET /api/threads/comment-counts?ids=a,b` (up to 100 threads, one grouped read).
-- Public API: `GET /threads/{id}/comments`, `POST /threads/{id}/comments`, `PATCH /threads/{id}/comments/{commentId}`, `DELETE /threads/{id}/comments/{commentId}`. `mentions` takes user ids or emails. Read only keys can list but not write.
-- MCP: `list_thread_comments`, `add_thread_comment`, `delete_thread_comment`.
+Reply times are worked out when read (no writes, no table). A thread counts when its first inbound
+message falls in the range (the last 30 days by default, at most 90). First response is the first
+message we sent in the thread after that, credited to the person who sent it (`sent_by_user_id`, so an
+agent reply a person approved counts for that person) or else the agent; resolution runs from the first
+inbound message to `done_at`. Calendar hours, not business hours. Each row has `threads`, `replied`,
+`medianFirstResponseMs`, `averageFirstResponseMs`, `resolved`, `medianResolutionMs`, `averageResolutionMs`;
+`total` covers every thread. At most 2,000 threads are scanned, newest first, and `sampled: true` says
+the answer was cut.
+
+D1 writes: an assign or unassign is 2 rows (the WITHOUT ROWID row and its partial assignee index entry),
+plus 3 for the assignee's notification; a status change is 1; an unchanged assign or status writes nothing;
+views, My Work and reply times write nothing.
