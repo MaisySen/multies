@@ -6,6 +6,13 @@ answers in a few seconds on production.
 
 ## Still open (nice to have, nothing blocks the app)
 
+- Free addresses (build 13): there is no read only availability check, so the app learns that a
+  name is taken or kept when it tries to claim it (the server's words are shown as they come). A
+  `GET /api/free-address/check?localPart=` answering `{ available, problem }` from
+  `freeLocalPartProblem` and the taken checks (reads only, no audit row) would let the field say
+  "available" while typing. The app sends no `x-device-id` with a claim, so the per device daily
+  limit does not apply to phone claims; the per person, per network and daily limits do.
+
 - `GET /api/changes?since=` covers tasks and the suite, not mail. A mail change feed would let the
   app sync only what changed instead of refetching the first page of each folder.
 - Better Auth's `bearer` plugin would let the app use an `Authorization` header instead of a

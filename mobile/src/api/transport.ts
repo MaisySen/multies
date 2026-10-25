@@ -10,6 +10,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Called with 0 to 1 as the request body goes up. Used for files sent from chat. */
   onUploadProgress?: (fraction: number) => void;
+  /** Extra request headers, for example x-device-id on a free address claim. */
+  headers?: Record<string, string>;
 }
 
 /** The parts of a fetch Response the transport reads. */
@@ -74,6 +76,7 @@ export class HttpTransport implements Transport {
     const cookie = cookieHeader(this.jar.get());
     if (cookie) headers.cookie = cookie;
     if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+    for (const [k, v] of Object.entries(opts.headers ?? {})) if (!(k.toLowerCase() in headers)) headers[k.toLowerCase()] = v;
 
     const tries = opts.idempotencyKey || method === "GET" ? 2 : 1;
     let res: Answer | undefined;

@@ -4,6 +4,7 @@ import { cached } from "./offline";
 import { kv } from "./kv";
 import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
+import type { ConnectInput } from "./mail-connect";
 import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
@@ -22,6 +23,8 @@ export const keys = {
   meetings: ["meetings"] as const,
   portfolio: ["portfolio"] as const,
   people: ["people"] as const,
+  connections: ["connections"] as const,
+  freeAddress: ["free-address"] as const,
   chat: ["chat"] as const,
   chatChannels: ["chat", "channels"] as const,
   chatUnread: ["chat", "unread"] as const,
@@ -433,5 +436,50 @@ export function useSaveNotificationSetting() {
     },
     onError: (_e, _v, ctx) => { if (ctx?.before) qc.setQueryData(keys.notificationSettings, ctx.before); },
     onSuccess: (r) => qc.setQueryData(keys.notificationSettings, r),
+  });
+}
+
+// ---------------------------------------------------------------- email addresses
+
+/** Connected mailboxes (IMAP and SMTP), with status and last sync. Never cached on the phone. */
+export function useConnections() {
+  const { api } = useSession();
+  return useQuery({ queryKey: keys.connections, queryFn: () => api.connections() });
+}
+
+/** The free address offer: the shared domain, a suggested name and any address already taken. */
+export function useFreeAddress() {
+  const { api } = useSession();
+  return useQuery({ queryKey: keys.freeAddress, queryFn: () => api.freeAddress(), staleTime: 60_000 });
+}
+
+/** After an address is added or removed, the mailbox list, the inbox and both offers are stale. */
+function refreshAddresses(qc: ReturnType<typeof useQueryClient>) {
+  for (const k of [keys.connections, keys.freeAddress, keys.overview, ["messages"]]) void qc.invalidateQueries({ queryKey: k });
+}
+
+export function useConnectMailbox() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (input: ConnectInput) => api.connect(input), onSuccess: () => refreshAddresses(qc) });
+}
+
+export function useConnectionActions() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  const sync = useMutation({ mutationFn: (id: string) => api.syncConnection(id), onSettled: () => refreshAddresses(qc) });
+  const remove = useMutation({ mutationFn: (id: string) => api.removeConnection(id), onSuccess: () => refreshAddresses(qc) });
+  const reconnect = useMutation({ mutationFn: (v: { id: string; password: string }) => api.reconnect(v.id, v.password), onSuccess: () => refreshAddresses(qc) });
+  return { sync, remove, reconnect };
+}
+
+export function useClaimFreeAddress() {
+  const { api } = useSession();
+  const qc = useQueryClient();
+  return useMutation({
+    // No device id is sent: the server's per person, per network and daily limits still apply, and the
+    // store privacy answers stay as they are (the only device id the app sends is the push token).
+    mutationFn: (localPart: string) => api.claimFreeAddress(localPart),
+    onSuccess: () => refreshAddresses(qc),
   });
 }

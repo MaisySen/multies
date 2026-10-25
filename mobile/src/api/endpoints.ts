@@ -1,4 +1,5 @@
 import type { Transport } from "./transport";
+import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
   Agent, Approval, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
   CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
@@ -100,6 +101,20 @@ export function endpoints(t: Transport) {
     registerPushDevice: (token: string, platform: "ios" | "android") => t.request<{ ok: true; enabled: boolean }>("POST", "/push/devices", { token, platform }),
     unregisterPushDevice: (token: string) => t.request<{ ok: true }>("DELETE", `/push/devices/${encodeURIComponent(token)}`),
     pushDevices: () => t.request<{ enabled: boolean; devices: { token: string; platform: string; lastSeenAt: string }[] }>("GET", "/push/devices"),
+
+    // Email addresses from the phone: connect an existing mailbox (IMAP and SMTP) or take a free address.
+    connections: () => t.request<ConnectionsInfo>("GET", "/connections"),
+    /** Signs in to the provider without saving anything. A failure answers 422 with plain words and the step. */
+    testConnection: (input: ConnectInput) => t.request<unknown>("POST", "/connections/test", input),
+    /** Tests again, saves (password encrypted on the server) and starts the first sync. */
+    connect: (input: ConnectInput) => t.request<{ connection: ConnectionView }>("POST", "/connections", input),
+    syncConnection: (id: string) => t.request<{ result: { stored: number; more: boolean; error: string | null; skipped: string | null }; connection?: ConnectionView }>("POST", `/connections/${encodeURIComponent(id)}/sync`, {}),
+    reconnect: (id: string, password: string) => t.request<{ connection: ConnectionView }>("PUT", `/connections/${encodeURIComponent(id)}`, { password }),
+    /** Stops syncing and deletes the stored password. */
+    removeConnection: (id: string) => t.request<unknown>("DELETE", `/connections/${encodeURIComponent(id)}`),
+    freeAddress: () => t.request<FreeAddressInfo>("GET", "/free-address"),
+    /** Takes a free address. The server checks the name is allowed and free, and its limits. */
+    claimFreeAddress: (localPart: string) => t.request<{ mailbox: { id: string; address: string } }>("POST", "/free-address", { localPart }),
   };
 }
 

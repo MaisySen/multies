@@ -13,7 +13,7 @@ import { useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
-import { API_BASE, LINKS } from "@/config";
+import { LINKS, WEB_PAGES } from "@/config";
 import { colors, font, space } from "@/theme";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
@@ -64,13 +64,13 @@ export default function Settings() {
 
       <SectionTitle>Workspace</SectionTitle>
       <Row icon="briefcase" label="Workspace" value={me?.organization?.name} />
-      <Row icon="inbox" label="Mailboxes" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} />
+      <Row icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
       <Row icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
       <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
-      <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(`${API_BASE}/app`)} />
+      <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
 
       <SectionTitle>Notifications</SectionTitle>
       <Row icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />

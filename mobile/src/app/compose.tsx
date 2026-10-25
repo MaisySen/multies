@@ -59,7 +59,7 @@ export default function Compose() {
     const toList = parseRecipients(to);
     const ccList = parseRecipients(cc);
     const bad = [...toList, ...ccList].find((a) => !EMAIL_RE.test(a));
-    if (!from) return setError("You need a mailbox to send from. Add one on the web first.");
+    if (!from) return setError("You need an email address to send from. Tap Add an email address above.");
     if (!toList.length) return setError("Add at least one recipient.");
     if (bad) return setError(`"${bad}" doesn't look like an email address.`);
     if (!subject.trim() && !text.trim()) return setError("Write a subject or a message first.");
@@ -111,7 +111,12 @@ export default function Compose() {
               {mailboxes.map((m) => <Chip key={m.id} label={m.address} selected={from === m.id} onPress={() => setFrom(m.id)} />)}
             </View>
           </View>
-        ) : mailboxes[0] ? <Text style={{ color: colors.subtle, fontSize: 14 }}>From {mailboxes[0].address}</Text> : null}
+        ) : mailboxes[0] ? <Text style={{ color: colors.subtle, fontSize: 14 }}>From {mailboxes[0].address}</Text> : overview.data ? (
+          <View style={{ backgroundColor: colors.brandSoft, borderRadius: radius.md, padding: space.md, gap: space.sm }} testID="no-mailbox">
+            <Text style={{ color: colors.fg, fontSize: 15 }}>{"You don't have an email address to send from yet. Connect your email or get a free address. It takes a minute."}</Text>
+            <Button label="Add an email address" icon="at-sign" variant="secondary" testID="add-address" onPress={() => router.push("/email-setup")} style={{ alignSelf: "flex-start", minHeight: 36 }} />
+          </View>
+        ) : null}
         <Field label="To" testID="to" value={to} onChangeText={setTo} autoCapitalize="none" keyboardType="email-address" autoComplete="email" placeholder="name@example.com.au" />
         {showCc ? <Field label="Cc" value={cc} onChangeText={setCc} autoCapitalize="none" keyboardType="email-address" /> : (
           <Button variant="ghost" label="Add Cc" icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />

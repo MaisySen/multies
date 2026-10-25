@@ -140,7 +140,7 @@ export function Chip({ label, selected, onPress, count }: { label: string; selec
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityState={{ selected: !!selected }} accessibilityLabel={count ? `${label}, ${count} unread` : label}
       style={[styles.chip, selected && { backgroundColor: colors.brandSoft, borderColor: colors.brandLine }]}>
-      <Text style={{ color: selected ? colors.brand : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
+      <Text style={{ color: selected ? colors.brandHover : colors.muted, fontWeight: "600", fontSize: 14 }}>{label}</Text>
       {count ? <Text style={{ color: selected ? colors.brand : colors.subtle, fontSize: 13 }}>{count}</Text> : null}
     </Pressable>
   );

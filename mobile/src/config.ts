@@ -53,3 +53,12 @@ export const LINKS = {
   status: `${API_BASE}/status`,
   support: "https://multies.si/support/",
 };
+
+/** Web app pages the phone opens in the in-app browser for things set up on the web. */
+export const WEB_PAGES = {
+  /** Domains: adding your own domain needs DNS records, so it stays on the web. */
+  domains: `${API_BASE}/app/domains`,
+  /** Connected accounts on the web, used when this server has mailbox connect switched off. */
+  connections: `${API_BASE}/app/settings/connections`,
+  team: `${API_BASE}/app`,
+};

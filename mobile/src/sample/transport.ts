@@ -7,6 +7,7 @@ import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
 import { samplePortfolio } from "./fields";
 import { samplePeople } from "./people";
 import { chatRoute, sampleChat } from "./chat";
+import { emailRoute, sampleEmail } from "./email";
 
 /**
  * The sample workspace runs entirely on the device with no server. It answers the same paths the
@@ -18,6 +19,7 @@ export class SampleTransport implements Transport {
   private extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
   private seq = 100;
   private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
+  private email = sampleEmail(Date.now());
 
   constructor(private latencyMs = 0) {}
 
@@ -25,6 +27,7 @@ export class SampleTransport implements Transport {
     this.data = sampleData();
     this.extras = sampleExtras(Date.now(), this.data.work, this.data.messages);
     this.chat = sampleChat(Date.now(), this.data.work, this.data.messages);
+    this.email = sampleEmail(Date.now());
   }
 
   async request<T>(method: Method, rawPath: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
@@ -41,6 +44,8 @@ export class SampleTransport implements Transport {
 
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
     if (method === "GET" && path === "/team/people") return json(samplePeople(Date.now()));
+    const mail = emailRoute(this.email, d.mailboxes, method, parts, body);
+    if (mail !== undefined) return json(mail);
     const talk = chatRoute(this.chat, d.work, d.messages, method, parts, params, body);
     if (talk !== undefined) return json(talk);
     const extra = extrasRoute(this.extras, d.work, method, parts, params, body);

@@ -89,6 +89,9 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="notifications" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Notifications" }} />
         <Stack.Screen name="notification-settings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Notification settings" }} />
         <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
+        <Stack.Screen name="email-setup" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Email addresses" }} />
+        <Stack.Screen name="connect-mailbox" options={{ title: "Connect your email" }} />
+        <Stack.Screen name="free-address" options={{ title: "Free address" }} />
       </Stack.Protected>
     </Stack>
     {signedIn && <HeldSendBar />}
