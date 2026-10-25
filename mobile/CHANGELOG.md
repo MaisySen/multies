@@ -3,8 +3,21 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
-## Unreleased (next build after 1.8.1)
+## 1.9.0 (Android versionCode 11, iOS build 13), 25 October 2026
 
+- Email addresses from inside the app (Settings, Email addresses). Three ways, the same as the web:
+  connect an existing mailbox (Gmail, Google Workspace, Outlook.com, Microsoft 365, Yahoo, iCloud,
+  Zoho, Fastmail, GMX or any IMAP and SMTP server: pick the provider or let the address pick it,
+  paste an app password, Test and save; the server signs in before saving and answers in plain words
+  which step failed), take a free name@mail.multies.si address (prefilled suggestion, the server's
+  own words for a taken or kept name and its limits), or add your own domain on the web. Connected
+  accounts show status and last sync with Sync now, Reconnect (new password only) and Remove (deletes
+  the stored password). Calls /api/connections and /api/free-address with the app's own session; no
+  server change. Compose with no address now offers "Add an email address" instead of "Add one on
+  the web first".
+- The app talks to https://multies.si (was the workers.dev host); development builds use
+  https://preview.multies.si. Every link the app opens is on multies.si.
+- The iOS privacy manifest is checked in the prebuild output (ios/Multies/PrivacyInfo.xcprivacy).
 - Store answers in the repo match what was entered on 25 Oct 2026: Play data safety now lists Files and docs (chat attachments) and Diagnostics; App Store Diagnostics is Linked to the user, and the privacy manifest (app.json and store/ios/PrivacyInfo.xcprivacy) says so too. Play's content rating came out IARC 12+, and its delete data URL is the privacy policy for now.
 - Undo send: Send closes Compose and holds the message for 5, 10, 20 or 30 seconds (default 10).
   A bar above the tabs counts down with Undo and Send now; Undo reopens Compose exactly as it was

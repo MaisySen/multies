@@ -3,10 +3,10 @@
 The step-by-step owner checklist, with every store answer ready to paste, is in
 [../store/SUBMISSION.md](../store/SUBMISSION.md). This page covers how the builds are made.
 
-## Ready now (1.8.1, see docs/RELEASES.md)
+## Ready now (1.9.0, see docs/RELEASES.md)
 
-- App name Multies, bundle id and Android package `au.fintex.multies` (was `au.mymail.app` until 24 Oct 2026, never uploaded), version 1.8.1, iOS build 10,
-  Android versionCode 10. iPhone only (`ios.supportsTablet: false`).
+- App name Multies, bundle id and Android package `au.fintex.multies` (was `au.mymail.app` until 24 Oct 2026, never uploaded), version 1.9.0, iOS build 13
+  (EAS keeps the iOS build number remotely), Android versionCode 11. The app talks to https://multies.si. iPhone only (`ios.supportsTablet: false`).
 - Icons (1024x1024 App Store icon with no alpha), adaptive Android icon with foreground, background
   and monochrome layers, splash, notification icon. Expo makes every native size from `assets/`
   at prebuild.
@@ -14,7 +14,8 @@ The step-by-step owner checklist, with every store answer ready to paste, is in
   `ios/Multies/PrivacyInfo.xcprivacy` at prebuild; a copy is in `store/ios/PrivacyInfo.xcprivacy`.
   It declares every required reason API used by the native modules in this app (UserDefaults
   CA92.1, FileTimestamp C617.1 and 0A2A.1, SystemBootTime 35F9.1, DiskSpace E174.1); a test checks
-  this against the `PrivacyInfo.xcprivacy` files in `node_modules`.
+  this against the `PrivacyInfo.xcprivacy` files in `node_modules`. Checked for build 13 in the prebuild output:
+  `npx expo prebuild --platform ios --no-install` writes `ios/Multies/PrivacyInfo.xcprivacy` and adds it to the Xcode project.
 - `ITSAppUsesNonExemptEncryption = false` (only standard HTTPS).
 - In-app account deletion (Settings, Delete my account, calls `DELETE /api/account`) and the web
   page https://multies.si/delete-account/.

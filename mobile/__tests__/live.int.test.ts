@@ -12,7 +12,7 @@ import type { Jar } from "@/lib/cookies";
 
 const email = process.env.MYMAIL_LIVE_EMAIL;
 const password = process.env.MYMAIL_LIVE_PASSWORD;
-const base = process.env.MYMAIL_LIVE_BASE ?? "https://mymail.mymail-app.workers.dev";
+const base = process.env.MYMAIL_LIVE_BASE ?? "https://multies.si";
 const run = email && password ? it : it.skip;
 /** MYMAIL_LIVE_DEMO=1 runs the tasks and push check in a fresh demo workspace (no real data). */
 const runDemo = process.env.MYMAIL_LIVE_DEMO === "1" ? it : it.skip;

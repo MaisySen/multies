@@ -24,7 +24,7 @@ npm run export:web   # static web build in dist/ (sample data only)
 ```
 
 `EXPO_PUBLIC_API_BASE` points a build at another server, for example staging:
-`EXPO_PUBLIC_API_BASE=https://mymail-staging.mymail-app.workers.dev npm start`.
+`EXPO_PUBLIC_API_BASE=https://preview.multies.si npm start`.
 
 ## Build an Android APK on Linux
 

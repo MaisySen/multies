@@ -10,7 +10,7 @@ public final class MyMailClient: @unchecked Sendable {
     private let session: URLSession
     public var onJarChange: ((CookieJar) -> Void)?
 
-    public init(base: URL = URL(string: "https://mymail.mymail-app.workers.dev")!, jar: CookieJar = CookieJar(), session: URLSession = .shared) {
+    public init(base: URL = URL(string: "https://multies.si")!, jar: CookieJar = CookieJar(), session: URLSession = .shared) {
         self.base = base
         self.jar = jar
         self.session = session

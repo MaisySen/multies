@@ -18,10 +18,21 @@ function privacyFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("store config", () => {
-  it("is version 1.8.1, build 10 on both stores", () => {
-    expect(app.version).toBe("1.8.1");
-    expect(app.ios.buildNumber).toBe("10");
-    expect(app.android.versionCode).toBe(10);
+  it("is version 1.9.0, iOS build 13 and Android versionCode 11", () => {
+    expect(app.version).toBe("1.9.0");
+    expect(app.ios.buildNumber).toBe("13");
+    expect(app.android.versionCode).toBe(11);
+    expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version).toBe("1.9.0");
+  });
+
+  it("talks to multies.si in every build profile, never an old preview or workers.dev host", () => {
+    expect(app.extra.apiBase).toBe("https://multies.si");
+    expect(eas.build.production.env.EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
+    expect(eas.build.preview.env.EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
+    expect(eas.build.development.env.EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
+    for (const text of [JSON.stringify(app), JSON.stringify(eas)]) {
+      expect(text).not.toMatch(/tab\.bot|workers\.dev/);
+    }
   });
 
   it("is iPhone only, declares standard encryption only and keeps release signing in prebuild", () => {
@@ -40,6 +51,19 @@ describe("store config", () => {
     expect(used.size).toBeGreaterThan(0);
     for (const cat of used) expect(declared.has(cat)).toBe(true);
     expect(app.ios.privacyManifests.NSPrivacyTracking).toBe(false);
+  });
+
+  it("declares the collected data the App Privacy answers give: nothing tracks, diagnostics linked (round 16)", () => {
+    const types = app.ios.privacyManifests.NSPrivacyCollectedDataTypes as { NSPrivacyCollectedDataType: string; NSPrivacyCollectedDataTypeLinked: boolean; NSPrivacyCollectedDataTypeTracking: boolean }[];
+    for (const t of types) expect(t.NSPrivacyCollectedDataTypeTracking).toBe(false);
+    expect(app.ios.privacyManifests.NSPrivacyTrackingDomains).toEqual([]);
+    const diag = types.find((t) => t.NSPrivacyCollectedDataType === "NSPrivacyCollectedDataTypeOtherDiagnosticData");
+    expect(diag?.NSPrivacyCollectedDataTypeLinked).toBe(true);
+    const reasons = new Map(app.ios.privacyManifests.NSPrivacyAccessedAPITypes.map((a: { NSPrivacyAccessedAPIType: string; NSPrivacyAccessedAPITypeReasons: string[] }) => [a.NSPrivacyAccessedAPIType, a.NSPrivacyAccessedAPITypeReasons]));
+    expect(reasons.get("NSPrivacyAccessedAPICategoryUserDefaults")).toContain("CA92.1");
+    expect(reasons.get("NSPrivacyAccessedAPICategoryFileTimestamp")).toContain("C617.1");
+    expect(reasons.get("NSPrivacyAccessedAPICategorySystemBootTime")).toContain("35F9.1");
+    expect(reasons.get("NSPrivacyAccessedAPICategoryDiskSpace")).toContain("E174.1");
   });
 
   it("keeps the reference copy of the privacy manifest in step with app.json", () => {
