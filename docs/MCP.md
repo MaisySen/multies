@@ -228,13 +228,13 @@ Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens c
 | `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
 | `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
-### Call recordings and transcripts (round 23)
+### Calendar (round 23)
 
-Registered in src/server/routes/mcp-r23-recordings.ts. Read only: read only keys and tokens can call it. Calls are recorded by a person in the meeting room and transcribed with the workspace's own OpenAI or Groq key; Multies keeps the text, not the audio.
+Registered in src/server/routes/mcp-r23-calendar.ts. Read only; nothing is written.
 
 | Tool | What it does |
 | --- | --- |
-| `get_meeting_transcript` | A meeting's recordings, newest first: status (recording, processing, done or failed), who recorded, duration, the summary, action items `[{ text, assignee, due }]` and the transcript (capped at 200 KB; `truncated` says when it was cut) |
+| `list_calendar_events` | Meetings (weekly series expanded) and task due dates between `from` and `to` (at most 100 days). Signed in as a person (OAuth): your meetings, your tasks' due dates and your other calendars (read only, `kind: external`). With a key: every meeting and due date in the workspace |
 
 ## Claude (claude.ai and Claude Desktop)
 

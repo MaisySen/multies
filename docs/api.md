@@ -439,25 +439,36 @@ can open (same workspace, a mailbox in their scope), else 404.
 D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
 and render write nothing.
 
-## Meeting recordings and transcripts (round 23)
 
-A member presses Record in a meeting's room; the browser mixes the call's audio and uploads a chunk
-about every 5 minutes and at Stop. Each chunk goes straight on to the workspace's own OpenAI
-(`gpt-4o-mini-transcribe`) or Groq (`whisper-large-v3-turbo`) key; Multies keeps only the text (capped
-at 200 KB), never the audio. At Stop the workspace's AI key writes a short summary with decisions and
-action items, posted once as a chat message from the recorder in the channel the call started from, or
-sent to the attendees who are members as a notification. Without an OpenAI or Groq key, starting answers
-409 `recording_needs_ai_key` (no key) or `recording_needs_transcribe_key` (an Anthropic or OpenRouter
-key). Everyone in the call sees a Recording banner.
+## Calendar sync (round 23)
 
-- App API (cookie session): `GET /api/meetings/:id/recordings` answers `{ recordings, setup }`;
-  `POST /api/meetings/:id/recordings` starts (or joins the live one); `PUT /api/meetings/:id/recordings/:rid/chunks/:seq`
-  `{ audioBase64, mime?, offsetSec?, durationSec? }` (chunks from 0 in order; a chunk already taken answers
-  `duplicate: true`, one that skips ahead is 409 `out_of_order` with `details.expected`; over 24 MB is 413);
-  `POST /api/meetings/:id/recordings/:rid/stop` `{ durationSec? }` (idempotent: the summary is posted once);
-  `DELETE /api/meetings/:id/recordings/:rid`. Only the person who started a recording uploads to it.
-- Public API: `GET /api/v1/meetings/{id}/recordings`. Read only keys can call it.
-- MCP: `get_meeting_transcript`.
+A person's calendar feed: a secret address, `https://<app>/cal/<token>.ics`, for Google Calendar,
+Apple Calendar or Outlook (Settings > Calendar). It holds their meetings (they made them, are invited
+by email, or the call came from one of their channels or DMs; a weekly series is one event with its
+RRULE and VTIMEZONE) and the due dates of open tasks assigned to them as all day events ("Due: ..."),
+30 days back to 180 days ahead, at most 1,000 items. The token is the only key: only its SHA-256 hash
+and its last four characters are stored. Reset makes a new address and the old one answers 404 at once.
+The feed answers GET and HEAD with `ETag` and `Cache-Control: private, max-age=300`, `If-None-Match`
+gives 304, and it is limited to 30 fetches a minute per token. Serving it writes nothing to the database.
 
-D1 writes: starting is 1 row (WITHOUT ROWID, no secondary index), each chunk is 1 row, Stop is 2 rows
-plus the one chat message (or one notification per attendee); reads and a retried chunk write nothing.
+Other calendars (read only, per person, never shared with the workspace): a connected mailbox's
+CalDAV calendar (Fastmail, iCloud, Zoho, Yahoo, GMX or the mail server's own; same user name and app
+password) or a secret ICS link (Google "Secret address in iCal format", Outlook "Publish calendar").
+The ICS link is stored encrypted and never sent back (only its host). Events are fetched when the
+calendar opens and kept in memory for 5 minutes; none are stored. Private network addresses are refused.
+Gmail and Outlook calendars need their own sign in (coming later); add their ICS link meanwhile.
+
+- App API: `GET|POST|PATCH|DELETE /api/calendar/feed` (POST turns on or resets and answers the address
+  once; PATCH `{ includeTasks }`), `GET /api/calendar/events?from&to` (at most 100 days; meetings, due
+  dates and the person's other calendars, with `errors` per calendar that could not be read),
+  `GET /api/calendar/sources`, `GET /api/calendar/sources/options` (the person's connected mailboxes
+  and whether each offers CalDAV), `POST /api/calendar/sources` `{ kind: "ics", url, name? }` or
+  `{ kind: "caldav", connectionId, url? }`, `PATCH|DELETE /api/calendar/sources/:id` `{ enabled?, name?, color? }`.
+- Public API: `GET /api/v1/calendar/events?from&to` (keys see the workspace's meetings and due dates,
+  no other calendars), `GET /api/v1/calendar/feed` (status of the key's person's feed: `enabled`,
+  `hint`, `includeTasks`; never the address), `POST /api/v1/calendar/feed/reset` (full keys; answers the
+  new address once).
+- MCP: `list_calendar_events`.
+
+D1 writes: turning the feed on is 2 rows (the row and its unique token index), a reset 3 at most, off 2;
+adding, changing or removing another calendar is 1. Fetching the feed and viewing events write nothing.
