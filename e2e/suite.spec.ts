@@ -68,6 +68,8 @@ test("a contact is made automatically from mail, with the thread on their timeli
   await compose.getByLabel("Message").fill("Hi Lena, the quote is attached.");
   await compose.getByRole("button", { name: "Send" }).click();
   await expect(compose).toBeHidden();
+  // Undo send holds the message for a few seconds; send it now instead of waiting (or leaving the page, which asks first).
+  await page.getByTestId("undo-send-toast").getByRole("button", { name: "Send now" }).click();
   await page.goto("/app/contacts");
   await page.getByLabel("Search contacts").fill("lena");
   const row = page.getByTestId("contact-list").getByRole("link", { name: /lena@harbourfresh\.com\.au/ });

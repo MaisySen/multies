@@ -65,6 +65,8 @@ test("send a message from the demo workspace and find it in Sent", async ({ page
   await compose.getByLabel("Message").fill("Sent by the end to end suite.");
   await compose.getByRole("button", { name: "Send" }).click();
   await expect(compose).toBeHidden();
+  // Undo send holds the message for a few seconds; send it now instead of waiting (or leaving the page, which asks first).
+  await page.getByTestId("undo-send-toast").getByRole("button", { name: "Send now" }).click();
   await page.getByRole("navigation", { name: "Folders" }).getByRole("button", { name: /^Sent/ }).click();
   await expect(page.getByText(subject).first()).toBeVisible();
 });
