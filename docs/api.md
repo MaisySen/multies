@@ -279,7 +279,9 @@ verify them and reject old timestamps. Failed deliveries retry with backoff for 
 wait as dead letters you can replay. An endpoint that fails five deliveries in a row is switched off
 and its owners are emailed.
 
-Events (47): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`.
+Events (51): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`.
+
+Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms with triage on, incoming hooks, chat or the API); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
 
 The list lives in `src/server/services/developer/webhooks.ts`.
 
@@ -318,23 +320,21 @@ date of its items. Read only keys can read epics but not add or remove items. Ad
 batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
 MCP: `list_epics`, `get_epic`, `add_to_epic`.
 
-## Thread presence and shared drafts (round 22)
+## Internal notes on threads (round 22)
 
-Live collision warning in the shared inbox: while a thread is open the app beats every 15 seconds
-with `viewing` or `replying` (Compose with a reply open), and everyone else in the thread sees
-"Maya is viewing" or, in amber, "Maya is replying"; Compose shows "Maya is also replying. Send
-anyway?" above Send. Presence lives in memory only (the `ThreadPresence` Durable Object, binding
-`THREAD_PRESENCE`, one per org and thread; an in process map on Node and self host), so a heartbeat
-writes no D1 rows. An entry expires 40 seconds after its last beat; hiding the tab or closing the
-thread leaves at once.
+People and agents can leave notes on a shared inbox thread. Notes are team only: they are never part
+of an outgoing message, a reply quote, `GET /threads/{id}`, `read_thread` or anything the sender can
+see. You read them only by asking for them. Access follows the shared inbox: the caller must be able
+to open at least one message of the thread (same workspace, a mailbox in their scope), else 404.
 
-Draft replies are messages in folder `drafts` that carry the thread id and their author
-(`sent_by_user_id`). The thread shows "Draft by Maya, edited 3 min ago" with a preview; Take over
-makes you the owner (one row update), notifies the previous author once and shows them a note if
-they are in the thread. Saving over a draft somebody else took over answers 409 `draft_taken_over`;
-saving over a draft that changed in another window answers 409 `draft_changed`.
+A note is plain text up to 4,000 characters. `@Full Name` or `@email` in the text mentions a
+teammate who can open the thread's mailbox; they get a `thread_mention` notification (category
+mention) that opens `/app/inbox?thread=<id>`. Unknown names and people without access are ignored,
+and the author is never notified. Only the author can edit, for 24 hours (only newly mentioned people
+are notified); the author, an owner or admin, or a workspace key can delete. Agent keys write as their
+agent. Each note costs 1 row and 1 index entry, plus 1 notification row per mentioned person.
 
-- App API: `GET /api/threads/:id/presence`, `POST /api/threads/:id/presence` `{ clientId, state: viewing | replying }` (answers the same view), `POST /api/threads/:id/presence/leave` `{ clientId }`, `GET /api/threads/:id/drafts`, `POST /api/threads/drafts/:draftId/take-over`. `POST /api/mail/drafts` takes `inReplyToId` to file the draft in that thread.
-- Public API: `GET /api/v1/threads/{id}/presence`, `GET /api/v1/threads/{id}/drafts`, `POST /api/v1/drafts/{id}/take-over`. Read only keys can read; agent keys can't take over a draft.
-- MCP: `get_thread_presence`, `list_thread_drafts`, `take_over_draft`.
-- Every route answers 404 unless the caller can open at least one message of the thread (same workspace, a mailbox in their scope).
+- Page: the "Team notes" card under the messages in `/app/inbox?thread=<id>`. Type @ to mention, Cmd or Ctrl+Enter posts.
+- App API: `GET /api/threads/:id/comments` (notes and `mentionable` people), `POST /api/threads/:id/comments` `{ body, mentions? }`, `PATCH /api/threads/:id/comments/:commentId` `{ body, mentions? }`, `DELETE /api/threads/:id/comments/:commentId`, `GET /api/threads/comment-counts?ids=a,b` (up to 100 threads, one grouped read).
+- Public API: `GET /threads/{id}/comments`, `POST /threads/{id}/comments`, `PATCH /threads/{id}/comments/{commentId}`, `DELETE /threads/{id}/comments/{commentId}`. `mentions` takes user ids or emails. Read only keys can list but not write.
+- MCP: `list_thread_comments`, `add_thread_comment`, `delete_thread_comment`.

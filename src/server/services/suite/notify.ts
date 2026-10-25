@@ -29,6 +29,7 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "automation.status": "status",
   "goal.updated": "status",
   "task.recurred": "status",
+  "thread_mention": "mention",
 };
 export const categoryOf = (type: string): Category => TYPE_CATEGORY[type] ?? "status";
 const typesOf = (c: Category) => Object.entries(TYPE_CATEGORY).filter(([, v]) => v === c).map(([k]) => k);
@@ -77,6 +78,7 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
     case "approval": return "/app/approvals";
     case "message": return `/app/mail?m=${encodeURIComponent(n.entityId)}`;
     case "goal": return `/app/goals?goal=${encodeURIComponent(n.entityId)}`;
+    case "thread": return `/app/inbox?thread=${encodeURIComponent(n.entityId)}`;
     default: return "/app/notifications";
   }
 }

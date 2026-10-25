@@ -1,7 +1,7 @@
 import { assertNotPaymentPaused, maybeUsageAlert } from "../billing/dunning";
 import { emitEvent } from "../developer/webhooks";
 import { suppressedAmong } from "../deliverability/suppressions";
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { domains, mailboxes, messages } from "../../db/schema";
 import { newId } from "../../lib/crypto";
@@ -118,8 +118,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     await db.update(messages).set({ isAnswered: true }).where(and(eq(messages.mailboxId, mb.id), eq(messages.messageIdHeader, inReplyTo)));
   }
   if (input.draftId) {
-    // Round 22: a draft somebody else took over stays theirs.
-    await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), or(isNull(messages.sentByUserId), eq(messages.sentByUserId, auth.userId))));
+    await db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
   }
 
   {

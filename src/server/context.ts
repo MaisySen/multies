@@ -41,8 +41,6 @@ export interface Deps {
   liveWait?: (connectionId: string, ms: number) => Promise<boolean>;
   /** Runs a connected mailbox's sync in its own invocation (a Durable Object on Workers). Without it the sync runs inline. */
   dispatchMailSync?: (connectionId: string) => Promise<void>;
-  /** Round 22: live thread presence rooms (the ThreadPresence Durable Object on Workers). Without it the rooms live in this process. */
-  presence?: import("./collab/thread-presence").PresenceStore;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 

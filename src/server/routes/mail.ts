@@ -17,7 +17,6 @@ import { assertMailboxAccess, mailboxScope } from "../services/team";
 import { connectionForMailbox, queueRemoteChange, type RemoteAction } from "../services/connect";
 import { localFolderFor, syncConnection } from "../services/connect/sync";
 import { snoozeHiddenCond } from "../services/mail/schedules";
-import { checkDraftSave, ownedBy, replyTarget } from "../services/suite/thread-collab";
 
 /** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
 const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash", spam: "spam", inbox: "inbox" };
@@ -184,19 +183,8 @@ export function mailRoutes() {
       await assertMailboxAccess(deps.db, auth, input.mailboxId);
       const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
       if (!mb) throw notFound("Mailbox");
-      // Round 22: a shared draft reply. Saving over a draft somebody else took over, or one that changed
-      // in another window, answers 409 instead of overwriting. The delete is the optimistic check: only
-      // the first of two saves of the same draft finds it.
-      let before: { threadId: string; inReplyTo: string | null } | undefined;
-      if (input.id) {
-        before = await checkDraftSave(deps, auth, input.id, mb.id);
-        const gone = await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts"), ownedBy(auth.userId))).returning({ id: messages.id });
-        if (!gone.length) await checkDraftSave(deps, auth, input.id, mb.id);
-      }
-      // A reply draft stays in its thread, also when it is reopened from Drafts and saved again.
-      const target = (await replyTarget(deps, auth, input.inReplyToId)) ?? (before ? { threadId: before.threadId, messageIdHeader: before.inReplyTo } : null);
+      if (input.id) await deps.db.delete(messages).where(and(eq(messages.id, input.id), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
       const id = await storeMessage(deps.db, {
-        threadId: target?.threadId, inReplyTo: target?.messageIdHeader ?? undefined, sentByUserId: auth.userId,
         bodyStore: deps.bodyStore, orgId: auth.orgId, mailboxId: mb.id, folder: "drafts",
         from: { address: mb.address, name: mb.displayName },
         to: input.to.map((address) => ({ address })), cc: (input.cc ?? []).map((address) => ({ address })), bcc: (input.bcc ?? []).map((address) => ({ address })),

@@ -9,7 +9,7 @@ import { cn } from "@/web/lib/cn";
 import { useAgents } from "./agents";
 import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
-import { ThreadCollab } from "./inbox-presence";
+import { ThreadNotes } from "./inbox-comments";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -80,7 +80,6 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         <button onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden" aria-label="Back to threads"><ArrowLeft className="h-4 w-4" /></button>
         <h2 className="text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
       </div>
-      <ThreadCollab threadId={t.id} />
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (
         <Card key={m.id} className={cn("p-4", m.sentBy.type === "agent" && "border-brand/40")}>
@@ -101,6 +100,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         </Card>
       ))}
       {t.pendingApprovals.map((a) => <ApprovalCard key={a.id} a={a} compact />)}
+      <ThreadNotes threadId={t.id} />
     </div>
   );
 }

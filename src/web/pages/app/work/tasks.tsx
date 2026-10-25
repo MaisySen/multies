@@ -53,6 +53,7 @@ export function TasksPage() {
   const fields = fieldDefs.data ?? [];
   const fieldFilters = [...params.entries()].filter(([k]) => k.startsWith("field."));
   const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
+  const groupEpic = view === "board" && params.get("group") === "epic";
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [epicsOpen, setEpicsOpen] = useState(false);
@@ -63,6 +64,19 @@ export function TasksPage() {
     void deps.refetch();
   }, [deps]);
   const [newTask, setNewTask] = useState<{ statusId?: string } | null>(null);
+  // Round 22: dragging a card between epic columns moves it into that epic (or out of its epic).
+  const moveToEpic = useCallback(async (id: string, col: string, position: number) => {
+    const t = (tasks.data ?? []).find((x) => x.id === id);
+    if (!t) return;
+    const from = t.parentId && (tasks.data ?? []).some((x) => x.id === t.parentId && x.type === "epic") ? t.parentId : null;
+    const to = col === NO_VALUE ? null : col;
+    try {
+      if (to && to !== from) await api.post(`/epics/${to}/items`, { ids: [id] });
+      else if (!to && from) await api.del(`/epics/${from}/items`, { ids: [id] });
+      if (Math.abs(t.position - position) > 1e-9) await api.patch(`/tasks/${id}`, { position });
+    } catch (e) { showError(e as Error); }
+    void qc.invalidateQueries({ queryKey: ["tasks"] });
+  }, [tasks.data, qc]);
   const [editing, setEditing] = useState<Project | "new" | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -134,9 +148,10 @@ export function TasksPage() {
           </span>
         ))}
         {project && <FieldFilterPicker fields={fields} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
-        {view === "board" && project && fields.some((f) => f.type === "select") && (
-          <Select aria-label="Group board by" value={groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
+        {view === "board" && project && (
+          <Select aria-label="Group board by" value={groupEpic ? "epic" : groupField?.id ?? ""} onChange={(e) => set({ group: e.target.value || null })} className="h-8 w-auto! text-[13px]">
             <option value="">Group by status</option>
+            <option value="epic">Group by epic</option>
             {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>Group by {f.name}</option>)}
           </Select>
         )}
@@ -159,8 +174,10 @@ export function TasksPage() {
         {!list.length ? (
           <EmptyState icon={<KanbanSquare />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
         ) : tasks.isPending ? <Skeleton className="h-64" /> : view === "board" && project ? (
-          <Board project={project} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} onAdd={(col) => setNewTask(groupField ? {} : { statusId: col })}
-            onMove={(id, col, position) => groupField
+          <Board project={project} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
+            onMove={(id, col, position) => groupEpic
+              ? void moveToEpic(id, col, position)
+              : groupField
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
         ) : view === "sprints" && project ? (

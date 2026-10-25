@@ -187,15 +187,15 @@ Registered in src/server/routes/mcp-r21-sprints.ts. Read only keys can list and 
 | `add_to_sprint` | Move up to 500 tasks into a sprint |
 | `remove_from_sprint` | Move tasks back to the backlog |
 
-### Thread presence and shared drafts (round 22)
+### Thread notes (round 22)
 
-Registered in src/server/routes/mcp-r22-presence.ts. Read only keys can read; `take_over_draft` needs a key that can write and is refused for agent keys. A thread the key can't open answers not found.
+Registered in src/server/routes/mcp-r22-comments.ts. Internal notes on a mail thread: team only, never part of `read_thread` or any mail that is sent. Read only keys can list; adding and deleting need a key that can write. Agent keys write as their agent.
 
 | Tool | What it does |
 | --- | --- |
-| `get_thread_presence` | Who has a shared inbox thread open right now, and whether each is viewing or replying (entries expire 40 seconds after the last heartbeat) |
-| `list_thread_drafts` | Draft replies saved in a thread: author, last saved, preview |
-| `take_over_draft` | Become the owner of a teammate's draft reply; they are notified once and their next save of it is refused |
+| `list_thread_comments` | A thread's internal notes, oldest first, and the teammates who can be mentioned |
+| `add_thread_comment` | Add a note; "@Full Name" in the text or mentions (user ids or emails) notifies teammates who can open the thread |
+| `delete_thread_comment` | Delete a note (its author, or a workspace key) |
 
 ## Claude (claude.ai and Claude Desktop)
 

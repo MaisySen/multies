@@ -18,8 +18,8 @@ export interface Connector {
   events: string[]; urlHint: string; help: string;
 }
 
-const WORK = ["task.created", "task.updated", "chat.mention", "form.submitted", "deal.created", "booking.created"];
-const ALL = ["task.created", "task.updated", "task.commented", "contact.created", "deal.created", "deal.updated", "form.submitted", "meeting.created", "booking.created", "booking.cancelled", "message.received"];
+const WORK = ["task.created", "task.updated", "chat.mention", "form.submitted", "deal.created", "booking.created", "triage.created"];
+const ALL = ["task.created", "task.updated", "task.commented", "contact.created", "deal.created", "deal.updated", "form.submitted", "meeting.created", "booking.created", "booking.cancelled", "message.received", "triage.created", "triage.accepted"];
 
 /** The no-cost targets. Icons are Lucide names; no third party logos. */
 export const CATALOGUE: Connector[] = [
@@ -45,6 +45,7 @@ const LABEL: Record<string, string> = {
   "deal.created": "New deal", "deal.updated": "Deal updated", "contact.created": "New contact", "meeting.created": "Meeting scheduled",
   "booking.created": "New booking", "booking.cancelled": "Booking cancelled", "message.received": "New email",
   "incoming_hook.received": "Incoming webhook", "webhook.test": "Test",
+  "triage.created": "New in Triage", "triage.accepted": "Accepted from Triage", "triage.declined": "Declined in Triage", "triage.merged": "Merged from Triage",
 };
 
 const str = (v: unknown) => (typeof v === "string" ? v : typeof v === "number" ? String(v) : "");

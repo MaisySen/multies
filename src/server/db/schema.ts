@@ -1445,3 +1445,19 @@ export const sprints = sqliteTable("sprints", {
   snapshot: text("snapshot").notNull().default("{}"),
   ...suiteCols(),
 }, (t) => [index("sprints_org_project_idx").on(t.orgId, t.projectId)]);
+
+/** Round 22 (R22.2): internal notes on a mail thread. Team only: never part of any outgoing mail. */
+export const threadComments = sqliteTable("thread_comments", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  threadId: text("thread_id").notNull(),
+  /** The mailbox the thread lives in, for scoping. */
+  mailboxId: text("mailbox_id").notNull(),
+  authorType: text("author_type", { enum: ["member", "agent"] }).notNull().default("member"),
+  authorId: text("author_id").notNull(),
+  body: text("body").notNull(),
+  /** JSON array of mentioned user ids. */
+  mentions: text("mentions").notNull().default("[]"),
+  editedAt: ts("edited_at"),
+  createdAt: createdAt(),
+}, (t) => [index("thread_comments_thread_idx").on(t.orgId, t.threadId, t.createdAt)]);
