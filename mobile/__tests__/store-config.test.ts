@@ -18,11 +18,11 @@ function privacyFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("store config", () => {
-  it("is version 1.9.0, iOS build 13 and Android versionCode 11", () => {
-    expect(app.version).toBe("1.9.0");
-    expect(app.ios.buildNumber).toBe("13");
-    expect(app.android.versionCode).toBe(11);
-    expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version).toBe("1.9.0");
+  it("is version 1.9.1, iOS build 14 and Android versionCode 12", () => {
+    expect(app.version).toBe("1.9.1");
+    expect(app.ios.buildNumber).toBe("14");
+    expect(app.android.versionCode).toBe(12);
+    expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version).toBe("1.9.1");
   });
 
   it("talks to multies.si in every build profile, never an old preview or workers.dev host", () => {

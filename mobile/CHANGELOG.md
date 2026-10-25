@@ -3,6 +3,16 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.1 (Android versionCode 12, iOS build 14), 25 October 2026
+
+- Sign in now opens the Multies sign in page at multies.au.auth0.com (the Multies tenant in
+  Australia) instead of the old development host. Same account: people sign in with the same email
+  (password accounts set a new password with Forgot password, or use a one time code); the server
+  links the sign in to the existing Multies account by verified email. Older builds keep working.
+- Compose asks gently before sending mail with no subject: "Add a subject? Mail without one is more
+  likely to go to spam." with Add subject (puts the cursor in Subject) and Send anyway. It never
+  blocks the send.
+
 ## 1.9.0 (Android versionCode 11, iOS build 13), 25 October 2026
 
 - Email addresses from inside the app (Settings, Email addresses). Three ways, the same as the web:

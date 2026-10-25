@@ -15,8 +15,8 @@ export const SAMPLE_ONLY = Platform.OS === "web" || process.env.EXPO_PUBLIC_SAMP
  * Multies session at /api/auth/mobile/exchange. None of these values is a secret.
  */
 export const IDP = {
-  domain: (process.env.EXPO_PUBLIC_IDP_DOMAIN || "dev-s8n2ciq6co7gzsec.us.auth0.com").replace(/^https?:\/\//, "").replace(/\/$/, ""),
-  clientId: process.env.EXPO_PUBLIC_IDP_CLIENT_ID || "c0Ok2GtCfLW6BSetucyNAmX2qxypUEI0",
+  domain: (process.env.EXPO_PUBLIC_IDP_DOMAIN || "multies.au.auth0.com").replace(/^https?:\/\//, "").replace(/\/$/, ""),
+  clientId: process.env.EXPO_PUBLIC_IDP_CLIENT_ID || "W6wGvtK6pZYMwLakl3aZrMoOd4mU1fbF",
   /** The app.json scheme ("mymail") plus a fixed path; registered as the client's callback. */
   redirectUri: "mymail://auth/callback",
 };

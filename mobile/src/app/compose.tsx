@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import * as Crypto from "expo-crypto";
@@ -9,6 +9,7 @@ import { useOverview, useThread } from "@/lib/queries";
 import { useSession } from "@/lib/session";
 import { parkDraft, recipientsLabel, sendHold, takeParkedDraft, trackHeld, useUndoSeconds, type HeldDraft } from "@/lib/undo-send";
 import { EMAIL_RE, displayName, parseRecipients, quoteForReply } from "@/lib/format";
+import { askAboutEmptySubject, needsSubjectPrompt } from "@/lib/subject-prompt";
 import { colors, radius, space } from "@/theme";
 
 export default function Compose() {
@@ -28,6 +29,7 @@ export default function Compose() {
   const [to, setTo] = useState(parked?.to ?? params.to ?? "");
   const [cc, setCc] = useState(parked?.cc ?? "");
   const [showCc, setShowCc] = useState(!!parked?.cc);
+  const subjectRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [subject, setSubject] = useState(parked?.subject ?? params.subject ?? "");
   const [text, setText] = useState(parked?.text ?? "");
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +65,8 @@ export default function Compose() {
     if (!toList.length) return setError("Add at least one recipient.");
     if (bad) return setError(`"${bad}" doesn't look like an email address.`);
     if (!subject.trim() && !text.trim()) return setError("Write a subject or a message first.");
+    // A gentle nudge, never a block: mail with no subject is more likely to go to spam.
+    if (needsSubjectPrompt(subject) && Platform.OS !== "web" && !(await askAboutEmptySubject())) return subjectRef.current?.focus();
     // Undo send: close Compose now and post when the hold ends; the bar above the tabs offers Undo.
     const draft: HeldDraft = { mailboxId: from, to, cc, subject, text, inReplyToId: replyTo, forwardOf };
     const input = { mailboxId: from, to: toList, cc: ccList.length ? ccList : undefined, subject: subject.trim(), text, inReplyToId: replyTo };
@@ -121,7 +125,7 @@ export default function Compose() {
         {showCc ? <Field label="Cc" value={cc} onChangeText={setCc} autoCapitalize="none" keyboardType="email-address" /> : (
           <Button variant="ghost" label="Add Cc" icon="plus" onPress={() => setShowCc(true)} style={{ alignSelf: "flex-start", minHeight: 36 }} />
         )}
-        <Field label="Subject" testID="subject" value={subject} onChangeText={setSubject} />
+        <Field ref={subjectRef} label="Subject" testID="subject" value={subject} onChangeText={setSubject} />
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }} nativeID="body-label">Message</Text>
           <TextInput testID="body" value={text} onChangeText={setText} multiline accessibilityLabel="Message" accessibilityLabelledBy="body-label"
