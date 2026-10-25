@@ -7,7 +7,7 @@ import { useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { CheckCircle2, Circle, FileText, LogOut, MessageSquare, X } from "lucide-react";
+import { CheckCircle2, Circle, LogOut, MessageSquare, X } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Logo } from "@/web/components/logo";
@@ -20,6 +20,7 @@ import type { Comment, CustomField, Status, Task, TaskFile } from "./data";
 import { FieldCell } from "./fields";
 import { FileList } from "./task-files";
 import { tone } from "@/web/components/app-bits";
+import { GuestBacklinks, GuestDocTree } from "./guest-docs";
 
 interface Home {
   guest: { id: string; email: string; name: string }; workspace: { name: string };
@@ -50,7 +51,7 @@ export function GuestAcceptPage() {
   );
 }
 
-function DocView({ id, onClose }: { id: string; onClose: () => void }) {
+function DocView({ id, onClose, onOpen }: { id: string; onClose: () => void; onOpen: (id: string) => void }) {
   const q = useQuery({ queryKey: ["guest-doc", id], queryFn: async () => (await api.get<{ doc: { title: string; content: unknown } }>(`/guest/docs/${id}`)).doc });
   const editor = useEditor({ extensions: [StarterKit], editable: false, content: null }, []);
   useEffect(() => { if (editor && q.data) editor.commands.setContent(q.data.content as never); }, [editor, q.data]);
@@ -58,6 +59,7 @@ function DocView({ id, onClose }: { id: string; onClose: () => void }) {
     <Card className="p-5" aria-label="Doc">
       <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{q.data?.title ?? ""}</h2><Button variant="ghost" size="icon" aria-label="Close doc" onClick={onClose}><X className="h-4 w-4" /></Button></div>
       <div className="prose-doc mt-3 text-[14px] leading-relaxed"><EditorContent editor={editor} /></div>
+      <GuestBacklinks id={id} onOpen={onOpen} />
     </Card>
   );
 }
@@ -151,16 +153,11 @@ export function GuestProjectPage() {
               ))}
               {!top.length && <li className="px-3 py-6 text-center text-[13px] text-muted">No tasks yet.</li>}
             </ul>
-            {h.docs.length > 0 && (
-              <div className="mt-4" aria-label="Docs">
-                <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">Docs</h2>
-                <ul className="space-y-1">{h.docs.map((d) => <li key={d.id}><button onClick={() => { setOpenDoc(d.id); setOpenTask(null); }} className="flex items-center gap-2 text-[13px] hover:underline"><FileText className="h-3.5 w-3.5 text-muted" />{d.title}</button></li>)}</ul>
-              </div>
-            )}
+            <GuestDocTree docs={h.docs} openId={openDoc} onOpen={(d) => { setOpenDoc(d); setOpenTask(null); }} />
           </section>
           <div className={cn(!openTask && !openDoc && "hidden lg:block")}>
             {openTask ? <TaskView id={openTask} fields={h.customFields} onClose={() => setOpenTask(null)} />
-              : openDoc ? <DocView id={openDoc} onClose={() => setOpenDoc(null)} />
+              : openDoc ? <DocView id={openDoc} onClose={() => setOpenDoc(null)} onOpen={(d) => { setOpenDoc(d); setOpenTask(null); }} />
                 : <Card className="p-6 text-[13px] text-muted">Pick a task or a doc to open it.</Card>}
           </div>
         </div>
