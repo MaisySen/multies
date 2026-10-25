@@ -514,52 +514,21 @@ it("thread presence and shared drafts (round 22): a heartbeat writes 0 rows; a t
   expect(take() - limiter).toBe(0);
 });
 
-it("R22.5: an assign rule costs the assignment plus its run bookkeeping (round robin pointer adds nothing); replies and reopen checks write nothing", async () => {
+it("saved replies (round 22): create, edit and delete are the row and its one index (2 each); list and render write nothing", async () => {
   const ctx = await makeTestApp();
-  const c = new Client(ctx.app);
-  await c.signup("owner@acme.io", "Olive Owner");
-  const me = (await c.get("/api/account/me")).body;
-  const orgId = me.organization.id as string;
-  const { messages, domains, mailboxes, users, members, automations } = await import("@/server/db/schema");
-  await ctx.db.insert(domains).values({ id: "dom_rr", orgId, name: "acme.io", status: "verified", verificationToken: "x", dkimSelector: "s1", dkimPublicKey: "x", dkimPrivateKeyEnc: "x" });
-  await ctx.db.insert(mailboxes).values({ id: "mbx_rr", orgId, domainId: "dom_rr", localPart: "support", address: "support@acme.io", displayName: "Support", quotaMb: 100 });
-  await ctx.db.insert(users).values([{ id: "usr_a", email: "a@acme.io", name: "Ann" }, { id: "usr_b", email: "b@acme.io", name: "Ben" }]);
-  await ctx.db.insert(members).values([{ id: "mem_a", organizationId: orgId, userId: "usr_a", role: "admin" }, { id: "mem_b", organizationId: orgId, userId: "usr_b", role: "admin" }]);
-  const actor = { orgId, userId: me.user.id, email: "owner@acme.io", name: "Olive Owner", role: "owner" as const };
-  const { eq } = await import("drizzle-orm");
-  const { createAutomation, runEmailAutomations } = await import("@/server/services/suite/automations");
-  const rule = await createAutomation(ctx.deps, actor, { name: "Rota", trigger: "email_received", conditions: { mailboxId: "mbx_rr" }, action: "assign_thread", actionConfig: { mode: "round_robin", userIds: ["usr_a", "usr_b"] } });
-  const mail = async (id: string, thread: string) => {
-    await ctx.db.insert(messages).values({ id, orgId, mailboxId: "mbx_rr", folder: "inbox", threadId: thread, fromAddress: "c@example.com", subject: "Help", date: new Date() });
-    return { messageId: id, threadId: thread, mailboxId: "mbx_rr", from: "c@example.com", subject: "Help" };
-  };
-  const m1 = await mail("msg_rr1", "thr_rr1");
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const { createSnippet, updateSnippet, deleteSnippet, listSnippets, renderSnippetFor } = await import("@/server/services/suite/snippets");
   const take = meter(ctx.db);
-  await runEmailAutomations(ctx.deps, orgId, m1);
-  // Measured 10: the run counter row (with its index), the thread state row and its partial index entry (2), Ann's
-  // notification (3 with its indexes) and the rule's run update (with its index). The pointer rides on that update.
-  const first = take();
-  expect(first).toBeLessThanOrEqual(10);
-  const m2 = await mail("msg_rr2", "thr_rr2");
-  take();
-  await runEmailAutomations(ctx.deps, orgId, m2);
-  expect(take()).toBe(first);
-  expect(JSON.parse((await ctx.db.select().from(automations).where(eq(automations.id, rule.id)).get())!.actionConfig).last).toBe("usr_b");
-  // A reply on a thread the rule already handled: reads only.
-  const reply = await mail("msg_rr3", "thr_rr1");
-  take();
-  await runEmailAutomations(ctx.deps, orgId, reply);
+  const s = await createSnippet(ctx.deps, actor, { name: "Thanks", shortcut: "thanks", body: "Thanks {{first_name}}" });
+  expect(take()).toBe(2);
+  await listSnippets(ctx.deps, actor);
+  await renderSnippetFor(ctx.deps, actor, s.id, { to: "Grace <grace@example.com>" });
   expect(take()).toBe(0);
-  // Reopen on inbound: nothing when open, one row when waiting goes back to open.
-  const { reopenOnInbound } = await import("@/server/services/suite/thread-rules");
-  const { setThreadStatus } = await import("@/server/services/mail/thread-state");
-  await reopenOnInbound(ctx.deps, orgId, "thr_rr1");
-  await reopenOnInbound(ctx.deps, orgId, "thr_none");
-  expect(take()).toBe(0);
-  await setThreadStatus(ctx.deps, actor, "thr_rr1", "waiting");
-  expect(take()).toBe(1);
-  await reopenOnInbound(ctx.deps, orgId, "thr_rr1");
-  expect(take()).toBe(1);
-  for (const v of ["waiting", "open"]) await c.get(`/api/agents/threads?view=${v}`);
-  expect(take()).toBe(0);
+  await updateSnippet(ctx.deps, actor, s.id, { name: "Thank you", body: "Many thanks" });
+  expect(take()).toBeLessThanOrEqual(2);
+  await deleteSnippet(ctx.deps, actor, s.id);
+  expect(take()).toBe(2);
 });

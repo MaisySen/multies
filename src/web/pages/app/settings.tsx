@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ImportSection, XeroSection } from "./import-section";
 import { AiSection } from "./ai-section";
+import { SavedRepliesSection } from "./mail/saved-replies";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
@@ -68,6 +69,7 @@ export function MailSettings() {
   return (
     <div className="space-y-6">
       <UndoSendSection />
+      <SavedRepliesSection Section={Section} />
       <InboundSection />
       <OutboundSection />
       <ImportSection />

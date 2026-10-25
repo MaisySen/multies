@@ -350,10 +350,10 @@ Assignments category) unless they assigned themselves.
 - Page: the shared inbox (`/app/inbox`) has All, Mine, Unassigned, Assigned to (a person) and Done above
   the list, the assignee's initials on each row, an Assign menu and Mark done or Reopen in the thread
   header, and a Reply times card. My Work shows "Mail assigned to you" (open threads, newest first, up to 20).
-- App API: `GET /api/agents/threads?view=open|mine|unassigned|assigned|waiting|done|all` (`assignee=<userId>` with
+- App API: `GET /api/agents/threads?view=open|mine|unassigned|assigned|done|all` (`assignee=<userId>` with
   assigned or done; open by default; each thread carries `assignee { id, name }` or null and `status`),
   `GET /api/threads/:id/state` (the state and the people who can open the thread), `POST /api/threads/:id/assign`
-  `{ userId }` or `{ userId: null }`, `POST /api/threads/:id/status` `{ status: open | waiting | done }`,
+  `{ userId }` or `{ userId: null }`, `POST /api/threads/:id/status` `{ status: open | done }`,
   `GET /api/threads/stats/replies` (`mailboxId`, `from`, `to`, `groupBy`).
 - Public API: `GET /api/v1/threads?view=...` (open by default), `GET /api/v1/threads/{id}/state`,
   `POST /api/v1/threads/{id}/assign`, `POST /api/v1/threads/{id}/status`,
@@ -369,29 +369,6 @@ inbound message to `done_at`. Calendar hours, not business hours. Each row has `
 `medianFirstResponseMs`, `averageFirstResponseMs`, `resolved`, `medianResolutionMs`, `averageResolutionMs`;
 `total` covers every thread. At most 2,000 threads are scanned, newest first, and `sampled: true` says
 the answer was cut.
-
-### Mail rules that assign threads, and Waiting (R22.5)
-
-An automation with trigger `email_received` can use the action `assign_thread`. Its `actionConfig` is
-`{ mode: "person", userId }` or `{ mode: "round_robin", userIds: [...] }` (2 to 20 people, each once).
-It acts only on the first message of a new thread, never on replies, and assigns as a system actor, so
-the assignee gets the usual `thread_assigned` notification. Round robin picks the next person in order
-and skips anyone who left the workspace or can no longer open the thread's mailbox; the rule keeps its
-place in `actionConfig.last`, saved with the run count (no extra write). At save time every person must
-be in the workspace and, when the rule names a mailbox (`conditions.mailboxId`), able to open it, else
-422 with a plain message. Runs count against the plan's automation runs like any other rule.
-
-- App API: `POST /api/automations` and `PATCH /api/automations/:id` accept `action: "assign_thread"`
-  (admins only, as before). Automations are not exposed in the public API or MCP.
-
-Thread status can also be `waiting`: we replied and the customer has the ball. `POST /api/threads/:id/status`
-and `POST /api/v1/threads/{id}/status` take `{ status: open | waiting | done }`; MCP `set_thread_status`
-takes `waiting` too. `view=waiting` (app API, public API and MCP `list_threads_by_view`) lists waiting
-threads (`assignee=` narrows it); the open, mine, unassigned and assigned views leave waiting threads out.
-New inbound mail on a waiting or done thread puts it back to open: one primary key read of the state row
-when the thread has one, and a write only when the status changes. Thread lists carry `lastInboundAt`
-(the newest message not in Sent); the shared inbox shows its age on open rows ("2h", "3d"), amber after
-24 hours, worked out when read. Resolution in reply times still uses `done_at`.
 
 D1 writes: an assign or unassign is 2 rows (the WITHOUT ROWID row and its partial assignee index entry),
 plus 3 for the assignee's notification; a status change is 1; an unchanged assign or status writes nothing;
@@ -416,3 +393,25 @@ saving over a draft that changed in another window answers 409 `draft_changed`.
 - Public API: `GET /api/v1/threads/{id}/presence`, `GET /api/v1/threads/{id}/drafts`, `POST /api/v1/drafts/{id}/take-over`. Read only keys can read; agent keys can't take over a draft.
 - MCP: `get_thread_presence`, `list_thread_drafts`, `take_over_draft`.
 - Every route answers 404 unless the caller can open at least one message of the thread (same workspace, a mailbox in their scope).
+
+## Saved replies (round 22)
+
+Reusable replies with variables, shared with the workspace or kept private (`shared: false`, only the
+author sees it). Variables, case and space tolerant (`{{ First_Name }}` works): `{{first_name}}`,
+`{{name}}`, `{{email}}` (the recipient: the thread's newest inbound sender, or the To address when it
+names someone else), `{{my_name}}`, `{{my_first_name}}`, `{{company}}` (the workspace name),
+`{{mailbox}}` (the sending address), `{{date}}` (today in your time zone, else the workspace's, e.g.
+26 October 2026). A variable with no value becomes empty; an unknown one stays as typed. Name up to 80
+characters, plain text body up to 10,000, optional subject and one word `shortcut` (unique in the
+workspace; typing `/shortcut` then Tab in Compose inserts it).
+
+Members create; the author, or an owner, admin or workspace key, edits and deletes. Another person's
+private reply, and another workspace's ids, answer 404. Rendering for a thread needs a thread the caller
+can open (same workspace, a mailbox in their scope), else 404.
+
+- App API: `GET /api/mail/snippets?q=`, `POST /api/mail/snippets`, `GET|PATCH|DELETE /api/mail/snippets/:id`, `POST /api/mail/snippets/:id/render` `{ threadId?, to?, mailboxId? }` answers `{ subject, body, variables }`.
+- Public API: `GET /api/v1/snippets?q=`, `POST /api/v1/snippets`, `GET|PATCH|DELETE /api/v1/snippets/{id}`, `POST /api/v1/snippets/{id}/render`. Read only keys can list and render (render is a POST that writes nothing) but not create, edit or delete.
+- MCP: `list_snippets`, `render_snippet`, `create_snippet`.
+
+D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
+and render write nothing.

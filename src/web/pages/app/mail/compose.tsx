@@ -9,6 +9,7 @@ import { Button } from "@/web/components/ui/button";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
+import { SavedRepliesButton, useSnippetShortcut } from "./saved-replies";
 import { AlsoReplying, useThreadPresence } from "@/web/lib/thread-presence";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { shouldAskForSubject, SUBJECT_PROMPT } from "@/web/lib/subject-prompt";
@@ -125,6 +126,12 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   // Round 22: while a reply is open, teammates in the thread see "replying".
   const presence = useThreadPresence(d.threadId, "replying");
   const close = () => (dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose());
+  // Round 22: saved replies go in at the cursor; the subject fills only when empty.
+  const applySnippet = (next: { subject: string; text: string }, cursor: number) => {
+    setD((x) => ({ ...x, ...next }));
+    requestAnimationFrame(() => { bodyRef.current?.focus(); bodyRef.current?.setSelectionRange(cursor, cursor); });
+  };
+  const snippetKeys = useSnippetShortcut(d, bodyRef, applySnippet);
 
   return (
     <div role="dialog" aria-label="New message" className={cn(
@@ -159,7 +166,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             <Row label="Bcc"><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Bcc" spellCheck={false} /></Row>
           </>}
           <Row label="Subject"><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
-          <textarea ref={bodyRef} value={d.text} onChange={set("text")} aria-label="Message" className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
+          <textarea ref={bodyRef} value={d.text} onChange={set("text")} onKeyDown={snippetKeys} aria-label="Message" className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
           {askedSubject && !d.subject.trim() && (
             <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-[#0071E3]/[0.06] px-4 py-2 text-[13px]">
               <Info className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden />
@@ -181,6 +188,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
                 </select>
               </label>
               <RemindSelect value={remindDays} onChange={setRemindDays} />
+              <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
             <button type="button" onClick={onClose} className="rounded-md p-2 text-muted hover:bg-hover hover:text-bad" aria-label="Discard"><Trash2 className="h-4 w-4" /></button>
           </div>

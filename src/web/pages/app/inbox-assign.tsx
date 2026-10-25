@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Check, CheckCircle2, CircleDot, Hourglass, UserMinus, UserPlus, UserRound } from "lucide-react";
+import { BarChart3, Check, CheckCircle2, CircleDot, UserMinus, UserPlus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { useMe, useTeam } from "@/web/lib/queries";
@@ -14,10 +14,9 @@ import { Avatar, Card } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 
-export type InboxView = "open" | "mine" | "unassigned" | "assigned" | "waiting" | "done";
-export type ThreadStatus = "open" | "waiting" | "done";
+export type InboxView = "open" | "mine" | "unassigned" | "assigned" | "done";
 export interface ThreadAssignee { id: string; name: string }
-interface ThreadStateOut { threadId: string; status: ThreadStatus; assignee: ThreadAssignee | null; assignedAt: string | null; doneAt: string | null }
+interface ThreadStateOut { threadId: string; status: "open" | "done"; assignee: ThreadAssignee | null; assignedAt: string | null; doneAt: string | null }
 interface StatsRow { key: string; label: string | null; type: string; threads: number; replied: number; medianFirstResponseMs: number | null; medianResolutionMs: number | null; resolved: number }
 interface Stats { from: string; to: string; sampled: boolean; threadsScanned: number; rows: StatsRow[]; total: StatsRow | null }
 
@@ -70,7 +69,6 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
             <option value="">Assigned to...</option>
             {people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
           </select>
-          {seg("waiting", "Waiting")}
           {seg("done", "Done")}
         </div>
         <Button variant={stats ? "secondary" : "ghost"} size="sm" className="ml-auto" onClick={() => setStats(!stats)} aria-pressed={stats}>
@@ -82,32 +80,13 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
   );
 }
 
-/** R22.5: how long the customer has waited since their last message: "45m", "2h", "3d". */
-export function formatAge(ms: number) {
-  const m = Math.max(0, Math.floor(ms / 60_000));
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
-}
-
-/**
- * The assignee on a thread row: initials in a circle, or nothing when unassigned. Open rows also show the
- * age since the last inbound message (amber after 24 hours); waiting rows an hourglass. Worked out on read.
- */
-export function AssigneeChip({ assignee, status, lastInboundAt }: { assignee?: ThreadAssignee | null; status?: ThreadStatus; lastInboundAt?: string | null }) {
-  const ageMs = (status ?? "open") === "open" && lastInboundAt ? Date.now() - new Date(lastInboundAt).getTime() : null;
-  const chip = !!assignee || status === "done" || status === "waiting";
-  if (!chip && ageMs == null) return null;
+/** The assignee on a thread row: initials in a circle, or nothing when unassigned. */
+export function AssigneeChip({ assignee, status }: { assignee?: ThreadAssignee | null; status?: "open" | "done" }) {
+  if (!assignee && status !== "done") return null;
   return (
-    <span className="ml-auto inline-flex items-center gap-1.5">
-      {ageMs != null && <span data-testid="thread-age" title="Since the customer last wrote" className={cn("text-[11px] font-medium tabular-nums", ageMs >= 86_400_000 ? "text-[#B25000]" : "text-subtle")}>{formatAge(ageMs)}</span>}
-      {chip && (
-        <span className="inline-flex items-center gap-1.5" data-testid="thread-assignee">
-          {status === "waiting" && <Hourglass className="h-3.5 w-3.5 text-subtle" aria-label="Waiting on the customer" />}
-          {status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-label="Done" />}
-          {assignee && <span title={`Assigned to ${assignee.name}`}><Avatar label={initials(assignee.name)} className="h-5 w-5 text-[9px]" /><span className="sr-only">Assigned to {assignee.name}</span></span>}
-        </span>
-      )}
+    <span className="ml-auto inline-flex items-center gap-1.5" data-testid="thread-assignee">
+      {status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-label="Done" />}
+      {assignee && <span title={`Assigned to ${assignee.name}`}><Avatar label={initials(assignee.name)} className="h-5 w-5 text-[9px]" /><span className="sr-only">Assigned to {assignee.name}</span></span>}
     </span>
   );
 }
@@ -128,8 +107,8 @@ export function ThreadAssignControls({ threadId }: { threadId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
   const status = useMutation({
-    mutationFn: (s: ThreadStatus) => api.post<{ state: ThreadStateOut }>(`/threads/${threadId}/status`, { status: s }),
-    onSuccess: (r) => { refresh(); toast.success(r.state.status === "done" ? "Marked done" : r.state.status === "waiting" ? "Waiting on the customer" : "Reopened"); },
+    mutationFn: (s: "open" | "done") => api.post<{ state: ThreadStateOut }>(`/threads/${threadId}/status`, { status: s }),
+    onSuccess: (r) => { refresh(); toast.success(r.state.status === "done" ? "Marked done" : "Reopened"); },
     onError: (e: Error) => toast.error(e.message),
   });
   if (!q.data) return null;
@@ -149,10 +128,9 @@ export function ThreadAssignControls({ threadId }: { threadId: string }) {
         ))}
         {state.assignee && <MenuItem icon={<UserMinus />} onSelect={() => assign.mutate(null)}>Unassign</MenuItem>}
       </Menu>
-      {state.status === "open"
-        ? <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("waiting")} title="We replied; the customer has the ball. New mail from them reopens it."><Hourglass className="h-4 w-4" aria-hidden />Waiting</Button>
-        : <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("open")}><CircleDot className="h-4 w-4" aria-hidden />Reopen</Button>}
-      {state.status !== "done" && <Button variant="secondary" size="sm" loading={status.isPending} onClick={() => status.mutate("done")}><CheckCircle2 className="h-4 w-4" aria-hidden />Mark done</Button>}
+      {state.status === "done"
+        ? <Button variant="ghost" size="sm" loading={status.isPending} onClick={() => status.mutate("open")}><CircleDot className="h-4 w-4" aria-hidden />Reopen</Button>
+        : <Button variant="secondary" size="sm" loading={status.isPending} onClick={() => status.mutate("done")}><CheckCircle2 className="h-4 w-4" aria-hidden />Mark done</Button>}
     </div>
   );
 }

@@ -276,7 +276,7 @@ describe("R22 REST and MCP", () => {
     expect(stats.status).toBe(200);
     expect(stats.body.rows[0]).toMatchObject({ key: `person:${ownerId}`, threads: 1 });
     expect((await api(key, "POST", "/threads/nope/assign", { userId: null })).status).toBe(404);
-    expect((await api(key, "POST", "/threads/r1/status", { status: "snoozed" })).status).toBe(422);
+    expect((await api(key, "POST", "/threads/r1/status", { status: "waiting" })).status).toBe(422);
   });
 
   it("MCP tools assign, list by view, set status and read stats; read only keys can't write", async () => {

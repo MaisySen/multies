@@ -55,7 +55,7 @@ Rules run inside Multies and never call an AI model.
 
 | Trigger | Conditions | Actions |
 | --- | --- | --- |
-| `email_received` | `from` (an address or `@domain`), `subjectContains`, `mailboxId` | `create_task` (project, assignee, priority, due in N days), `notify`, or `assign_thread` (a person or round robin; first message of a new thread only, see api.md) |
+| `email_received` | `from` (an address or `@domain`), `subjectContains`, `mailboxId` | `create_task` (project, assignee, priority, due in N days) or `notify` |
 | `status_changed` | `toCategory` (`todo`, `doing`, `done`) | `notify` the assignee, the creator, the admins or a person |
 | `due_soon` | `hoursBefore` | `notify` |
 

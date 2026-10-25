@@ -10,14 +10,14 @@ import { useAgents } from "./agents";
 import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
 import { NoteCount, ThreadNotes, useNoteCounts } from "./inbox-comments";
-import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee, type ThreadStatus } from "./inbox-assign";
+import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee } from "./inbox-assign";
 import { ThreadCollab } from "./inbox-presence";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
   from: { address: string; name?: string }; lastSentBy: { type: "agent" | "person" | "external"; agentId?: string; name?: string | null };
   agentsInvolved: { agentId: string; name: string | null }[]; pendingApprovals: number;
-  assignee?: ThreadAssignee | null; status?: ThreadStatus; lastInboundAt?: string | null;
+  assignee?: ThreadAssignee | null; status?: "open" | "done";
 }
 interface ThreadMessage {
   id: string; direction: "inbound" | "outbound"; from: { address: string; name?: string }; to: { address: string }[]; subject: string; date: string;
@@ -60,7 +60,7 @@ export function TeamInboxPage() {
                         <span className="truncate font-mono text-subtle">{boxName(t.mailboxId)}</span>
                         {t.agentsInvolved.map((a) => <Badge key={a.agentId} tone="brand"><Bot className="h-3 w-3" aria-hidden />{a.name ?? "Agent"}{t.lastSentBy.type === "agent" && t.lastSentBy.agentId === a.agentId ? " replied" : ""}</Badge>)}
                         {t.pendingApprovals > 0 && <Badge tone="warn">Reply waiting for approval</Badge>}
-                        <AssigneeChip assignee={t.assignee} status={t.status} lastInboundAt={t.lastInboundAt} />
+                        <AssigneeChip assignee={t.assignee} status={t.status} />
                         <NoteCount n={noteCounts[t.id]} />
                       </div>
                     </button>
