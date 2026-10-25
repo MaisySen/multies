@@ -19,6 +19,7 @@ import { sendMessageSchema, type SendMessageInput } from "@/shared/schemas";
 import { zonedDate, zonedTime, validTimezone } from "../suite/scheduling";
 import { presentListItem } from "./mailbox-view";
 import { mailboxScope } from "../team";
+import { setSnoozedProvider, type MyWorkItem } from "../search";
 
 export type ScheduleKind = "snooze" | "send" | "remind";
 export type SnoozePreset = "later_today" | "tomorrow" | "next_week";
@@ -398,3 +399,24 @@ async function sendScheduled(deps: Deps, r: Row) {
   }
   return result;
 }
+
+/**
+ * My Work's "Snoozed mail coming back" (R20.4): the person's own snoozes that return inside the window,
+ * in mailboxes they can still open. Reads only.
+ */
+export async function snoozedComingBack(deps: Deps, actor: ScheduleActor, window: { from: Date; to: Date }): Promise<MyWorkItem[]> {
+  if (!actor.userId) return [];
+  const scope = await scopeOf(deps, actor);
+  const rows = (await deps.db.select().from(mailSchedules)
+    .where(and(eq(mailSchedules.status, "pending"), gt(mailSchedules.dueAt, window.from), lte(mailSchedules.dueAt, window.to), eq(mailSchedules.orgId, actor.orgId), eq(mailSchedules.kind, "snooze"), eq(mailSchedules.userId, actor.userId)))
+    .orderBy(asc(mailSchedules.dueAt)).limit(20)).filter((r) => inScope(scope, r.mailboxId));
+  const ids = rows.map((r) => r.messageId).filter((x): x is string => !!x);
+  const msgs = ids.length ? await deps.db.select({ id: messages.id, subject: messages.subject, fromName: messages.fromName, fromAddress: messages.fromAddress, mailboxId: messages.mailboxId }).from(messages).where(inArray(messages.id, ids)) : [];
+  const byId = new Map(msgs.map((m) => [m.id, m]));
+  return rows.flatMap((r) => {
+    const m = byId.get(r.messageId ?? "");
+    if (!m) return [];
+    return [{ id: r.id, title: m.subject || "(no subject)", subtitle: m.fromName || m.fromAddress || "", url: `/app/mail?mailbox=${m.mailboxId}&folder=inbox&m=${m.id}`, at: r.dueAt.toISOString() }];
+  });
+}
+setSnoozedProvider((deps, actor, window) => snoozedComingBack(deps, { orgId: actor.orgId, userId: actor.userId, role: actor.role ?? "member", agentId: actor.agentId, apiKeyId: actor.apiKeyId, scope: actor.scope }, window));

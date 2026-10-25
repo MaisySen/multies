@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 61 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 65 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 

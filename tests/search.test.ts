@@ -348,7 +348,7 @@ describe("My Work", () => {
     expect(await tableExists(ctx.deps, "mail_schedules_not_here")).toBe(false);
     setSnoozedProvider(async () => [{ id: "m1", title: "Back from snooze", subtitle: "Grace", url: "/app/mail?m=m1", at: new Date().toISOString() }]);
     expect((await c.get("/api/my-work?tz=UTC")).body.snoozed).toHaveLength(1);
-    setSnoozedProvider(async (deps) => { await deps.db.run((await import("drizzle-orm")).sql`select * from mail_schedules`); return []; });
+    setSnoozedProvider(async (deps) => { await deps.db.run((await import("drizzle-orm")).sql`select * from mail_schedules_not_here`); return []; });
     expect((await c.get("/api/my-work?tz=UTC")).body.snoozed).toBeNull();
     const me = (await c.get("/api/account/me")).body;
     const direct = await myWork(ctx.deps, { orgId: me.organization.id, userId: ownerId, email: "owner@acme.io", name: "Olive", role: "owner" }, { timeZone: "UTC", snoozed: null });

@@ -106,6 +106,7 @@ it("chat polish (round 20): a reaction add or remove is 2 rows, polls and search
   // Measured 23: one meetings row (5 with its indexes) and one chat message (5), the channel's last
   // message time (4), the caller's read marker (3) and the meeting's activity and change rows.
   expect(call).toBeLessThanOrEqual(24);
+});
 it("search everything and My Work (round 20) write nothing, for a person and through the services an agent key uses", async () => {
   const ctx = await makeTestApp({ DEMO_MODE: "true" });
   const d = new Client(ctx.app);
@@ -130,6 +131,7 @@ it("search everything and My Work (round 20) write nothing, for a person and thr
   await searchEverything(ctx.deps, { kind: "actor", actor: { ...actor, agentId: "agt_none", apiKeyId: "key_x", scope: "read" } }, "launch", { types: ["tasks", "docs", "chat", "contacts", "deals"] });
   await myWork(ctx.deps, { ...actor, apiKeyId: "key_x", scope: "read" });
   expect(take()).toBe(0);
+});
 it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run of the same file writes nothing", async () => {
   const { readFileSync } = await import("node:fs");
   const { join } = await import("node:path");
@@ -156,6 +158,7 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   // Measured 66: 5 tasks, 2 comments, 2 new statuses for the board's lists, one batch and the summary.
   const withComments = take();
   expect(withComments).toBeLessThanOrEqual(5 * 8 + 2 * 2 + 30);
+});
 
 it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later and reminders cost 2 rows a step", async () => {
   const { runMailSchedules } = await import("@/server/services/mail/schedules");

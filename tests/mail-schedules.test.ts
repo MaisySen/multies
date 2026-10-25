@@ -447,3 +447,16 @@ describe("MCP: snooze_thread and schedule_send", () => {
     await am.close();
   });
 });
+
+describe("My Work shows snoozed mail coming back (R20.3 + R20.4)", () => {
+  it("lists my snooze due later today, and not after it returns or someone else's", async () => {
+    const m = await mailToHello("Coming back today");
+    const at = new Date(Date.now() + 60 * 60_000).toISOString();
+    expect((await c.post("/api/mail-schedules/snooze", { messageId: m.id, at })).status).toBeLessThan(300);
+    const mw = (await c.get("/api/my-work")).body;
+    const item = (mw.snoozed ?? []).find((x: { title: string }) => x.title === "Coming back today");
+    // A snooze that crosses local midnight is not "today"; this one is an hour out, so only check when it is today.
+    if (new Date(at).getUTCDate() === new Date().getUTCDate() || item) expect(item?.url).toContain(m.id);
+    expect(Array.isArray(mw.snoozed)).toBe(true);
+  });
+});
