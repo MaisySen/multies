@@ -462,3 +462,26 @@ The project is the one given, else the meeting's source task's project, else the
 D1 writes: the doc costs 8 rows once (the doc row and the meeting's doc_id, with their indexes); each
 action item costs its task plus 4 (the meeting_action_items row and the link back); reading the notes
 and a second press write nothing.
+
+## Meeting recordings and transcripts (round 23)
+
+A member presses Record in a meeting's room; the browser mixes the call's audio and uploads a chunk
+about every 5 minutes and at Stop. Each chunk goes straight on to the workspace's own OpenAI
+(`gpt-4o-mini-transcribe`) or Groq (`whisper-large-v3-turbo`) key; Multies keeps only the text (capped
+at 200 KB), never the audio. At Stop the workspace's AI key writes a short summary with decisions and
+action items, posted once as a chat message from the recorder in the channel the call started from, or
+sent to the attendees who are members as a notification. Without an OpenAI or Groq key, starting answers
+409 `recording_needs_ai_key` (no key) or `recording_needs_transcribe_key` (an Anthropic or OpenRouter
+key). Everyone in the call sees a Recording banner.
+
+- App API (cookie session): `GET /api/meetings/:id/recordings` answers `{ recordings, setup }`;
+  `POST /api/meetings/:id/recordings` starts (or joins the live one); `PUT /api/meetings/:id/recordings/:rid/chunks/:seq`
+  `{ audioBase64, mime?, offsetSec?, durationSec? }` (chunks from 0 in order; a chunk already taken answers
+  `duplicate: true`, one that skips ahead is 409 `out_of_order` with `details.expected`; over 24 MB is 413);
+  `POST /api/meetings/:id/recordings/:rid/stop` `{ durationSec? }` (idempotent: the summary is posted once);
+  `DELETE /api/meetings/:id/recordings/:rid`. Only the person who started a recording uploads to it.
+- Public API: `GET /api/v1/meetings/{id}/recordings`. Read only keys can call it.
+- MCP: `get_meeting_transcript`.
+
+D1 writes: starting is 1 row (WITHOUT ROWID, no secondary index), each chunk is 1 row, Stop is 2 rows
+plus the one chat message (or one notification per attendee); reads and a retried chunk write nothing.

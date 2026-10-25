@@ -43,6 +43,7 @@ import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerAssignTools } from "./mcp-r22-assign";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
+import { registerRecordingTools } from "./mcp-r23-recordings";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -216,6 +217,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerPresenceTools(server, deps, actor, writable, tool);
   registerSnippetTools(server, deps, actor, writable, tool);
   registerMeetingNotesTools(server, deps, actor, writable, tool); // Round 23: meeting notes
+  registerRecordingTools(server, deps, actor, writable, tool);
   return server;
 }
 

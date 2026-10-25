@@ -236,6 +236,13 @@ Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can 
 | --- | --- |
 | `get_meeting_notes` | A meeting's title, time and attendees with its notes doc as plain structure: agenda lines, notes lines, and action items (title, assignee, due date, and the task once made). `doc` is null before anyone took notes; `summary` is null unless a recording summary exists |
 | `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
+### Call recordings and transcripts (round 23)
+
+Registered in src/server/routes/mcp-r23-recordings.ts. Read only: read only keys and tokens can call it. Calls are recorded by a person in the meeting room and transcribed with the workspace's own OpenAI or Groq key; Multies keeps the text, not the audio.
+
+| Tool | What it does |
+| --- | --- |
+| `get_meeting_transcript` | A meeting's recordings, newest first: status (recording, processing, done or failed), who recorded, duration, the summary, action items `[{ text, assignee, due }]` and the transcript (capped at 200 KB; `truncated` says when it was cut) |
 
 ## Claude (claude.ai and Claude Desktop)
 

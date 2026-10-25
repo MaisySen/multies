@@ -61,6 +61,7 @@ describe("MCP server", () => {
       "find_tasks_by_field",
       "get_epic",
       "get_meeting_notes",
+      "get_meeting_transcript",
       "get_portfolio",
       "get_reply_stats",
       "get_report",

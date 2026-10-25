@@ -1517,3 +1517,32 @@ export const meetingActionItems = sqliteTable("meeting_action_items", {
   taskId: text("task_id").notNull(),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.itemKey] })]);
+
+/**
+ * Round 23 (R23.2): a call recorded in the browser and transcribed with the workspace's own AI key.
+ * Only the text is kept (no audio). Keyed by (org_id, meeting_id, id) WITHOUT ROWID, so the meeting's
+ * list reads the primary key and there is no secondary index: a chunk's text appended is 1 row write.
+ */
+export const meetingRecordings = sqliteTable("meeting_recordings", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  meetingId: text("meeting_id").notNull(),
+  id: text("id").notNull(),
+  /** users.id of the member who pressed Record. */
+  startedBy: text("started_by").notNull(),
+  status: text("status", { enum: ["recording", "processing", "done", "failed"] }).notNull().default("recording"),
+  startedAt: ts("started_at").notNull(),
+  endedAt: ts("ended_at"),
+  durationSec: integer("duration_sec").notNull().default(0),
+  /** How many audio chunks were transcribed; the next chunk's sequence number. */
+  chunkCount: integer("chunk_count").notNull().default(0),
+  /** Plain text, capped at 200 KB (a note at the end says when it was cut). */
+  transcript: text("transcript").notNull().default(""),
+  summary: text("summary"),
+  /** JSON [{ text, assignee, due }]. */
+  actionItems: text("action_items").notNull().default("[]"),
+  /** The AI provider that transcribed it (openai or groq). */
+  provider: text("provider"),
+  error: text("error"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.id] })]);

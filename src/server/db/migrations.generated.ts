@@ -544,5 +544,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "CREATE TABLE `meeting_action_items` (\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`item_key` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `item_key`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0044_r23_meeting_recordings",
+    "statements": [
+      "CREATE TABLE `meeting_recordings` (\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`started_by` text NOT NULL,\n\t`status` text DEFAULT 'recording' NOT NULL,\n\t`started_at` integer NOT NULL,\n\t`ended_at` integer,\n\t`duration_sec` integer DEFAULT 0 NOT NULL,\n\t`chunk_count` integer DEFAULT 0 NOT NULL,\n\t`transcript` text DEFAULT '' NOT NULL,\n\t`summary` text,\n\t`action_items` text DEFAULT '[]' NOT NULL,\n\t`provider` text,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
+    ]
   }
 ];

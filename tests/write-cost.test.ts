@@ -617,3 +617,40 @@ it("meeting notes (round 23): the notes doc is its row plus the meeting's doc_id
   await meetingNotes(ctx.deps, actor, m.id);
   expect(take()).toBe(0);
 });
+
+it("recording a call (round 23): start is 1 row, each chunk's text is 1 UPDATE, Stop is 2 rows plus the one chat message; reads write nothing", async () => {
+  const ctx = await makeTestApp();
+  ctx.deps.fetch = (async (u: RequestInfo | URL) => String(u).endsWith("/audio/transcriptions")
+    ? Response.json({ text: "We ship on Friday." })
+    : Response.json({ choices: [{ message: { content: JSON.stringify({ summary: "Ship Friday.", decisions: [], actionItems: [] }) } }] })) as typeof fetch;
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  await u.put("/api/ai/key", { provider: "openai", apiKey: "sk-test-0123456789abcdefWXYZ" });
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const g = ((await u.get("/api/chat/channels")).body.channels as { id: string; name: string }[]).find((x) => x.name === "general")!;
+  const mid = (await u.post(`/api/chat/channels/${g.id}/call`, {})).body.meeting.id;
+  const { startRecording, appendChunk, listRecordings, stopRecording } = await import("@/server/services/suite/meeting-recordings");
+  const { postMessage } = await import("@/server/services/suite/chat");
+  const take = meter(ctx.db);
+  const rid = (await startRecording(ctx.deps, actor, mid)).recording.id;
+  expect(take()).toBe(1);
+  const audio = new Uint8Array([1, 2, 3, 4]);
+  await appendChunk(ctx.deps, actor, mid, rid, { seq: 0, audio, mime: "audio/webm" });
+  expect(take()).toBe(1);
+  await appendChunk(ctx.deps, actor, mid, rid, { seq: 1, audio, mime: "audio/webm" });
+  expect(take()).toBe(1);
+  // A retried chunk and every read: nothing.
+  await appendChunk(ctx.deps, actor, mid, rid, { seq: 1, audio, mime: "audio/webm" });
+  await listRecordings(ctx.deps, actor, mid);
+  expect(take()).toBe(0);
+  // Stop: the claim and the summary (2) plus the chat message, at what any post costs.
+  await stopRecording(ctx.deps, actor, mid, rid, {});
+  const stopCost = take();
+  await postMessage(ctx.deps, actor, g.id, { body: "A plain message for comparison" });
+  const plainMessage = take();
+  expect(stopCost).toBe(2 + plainMessage);
+  // A second Stop writes nothing.
+  await stopRecording(ctx.deps, actor, mid, rid, {});
+  expect(take()).toBe(0);
+});
