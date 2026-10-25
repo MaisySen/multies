@@ -10,18 +10,26 @@ import { cn } from "@/web/lib/cn";
  * calendars (a connected mailbox's CalDAV account or an ICS link), read only, drawn muted with the
  * calendar's name. Fetched for the visible month; the server keeps them in memory for a few minutes.
  */
-interface ExternalEvent { id: string; kind: string; title: string; start: string; end: string; allDay: boolean; sourceId: string | null; sourceName: string | null; color: string | null }
+interface ExternalEvent { id: string; kind: string; title: string; start: string; end: string; allDay: boolean; sourceId: string | null; sourceName: string | null; color: string | null; url?: string | null }
+
+/** The in-app path of an event's link (meetings carry an absolute app URL). */
+export function appPath(url: string | null | undefined) {
+  if (!url) return null;
+  try { const u = new URL(url, "http://x"); return u.pathname.startsWith("/app/") ? `${u.pathname}${u.search}` : null; } catch { return null; }
+}
 interface Source { id: string; name: string; color: string; enabled: boolean }
 
 export function useOtherCalendars() {
   const [range, setRange] = useState<{ from: string; to: string } | null>(null);
   const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const [showMeetings, setShowMeetings] = useState(true);
   const sources = useQuery({ queryKey: ["calendar", "sources"], queryFn: () => api.get<{ data: Source[] }>("/calendar/sources").then((r) => r.data), staleTime: 60_000 });
   const enabled = (sources.data ?? []).filter((s) => s.enabled);
   const events = useQuery({
     queryKey: ["calendar", "events", range?.from, range?.to],
     queryFn: () => api.get<{ events: ExternalEvent[]; errors: { name: string; message: string }[] }>(`/calendar/events?from=${encodeURIComponent(range!.from)}&to=${encodeURIComponent(range!.to)}`),
-    enabled: !!range && enabled.length > 0, staleTime: 120_000,
+    // Round 23: the person's Multies meetings show here too, so the events are read even with no other calendar.
+    enabled: !!range, staleTime: 120_000,
   });
   const list = (events.data?.events ?? []).filter((e) => e.kind === "external" && e.sourceId && !hidden.has(e.sourceId));
   const fcEvents = list.map((e) => ({
@@ -29,13 +37,24 @@ export function useOtherCalendars() {
     backgroundColor: "var(--color-fill)", borderColor: e.color ?? "#8E8E93", textColor: "var(--color-muted)",
     classNames: ["mm-external-event"], extendedProps: { readOnly: true, sourceName: e.sourceName },
   }));
+  const meetings = showMeetings ? (events.data?.events ?? []).filter((e) => e.kind === "meeting").map((e) => ({
+    id: `mtg:${e.id}`, title: e.title, start: e.start, end: e.end, allDay: false, editable: false,
+    backgroundColor: "#0071E3", borderColor: "#0071E3", textColor: "#FFFFFF",
+    classNames: ["mm-meeting-event"], extendedProps: { readOnly: true, href: appPath(e.url) },
+  })) : [];
   const toggle = (id: string) => setHidden((h) => { const n = new Set(h); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  return { setRange, events: fcEvents, sources: enabled, hidden, toggle, errors: events.data?.errors ?? [], loading: events.isFetching };
+  return { setRange, events: [...meetings, ...fcEvents], meetingCount: meetings.length, showMeetings, toggleMeetings: () => setShowMeetings((v) => !v), sources: enabled, hidden, toggle, errors: events.data?.errors ?? [], loading: events.isFetching };
 }
 
 export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOtherCalendars> }) {
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 px-1 text-[12.5px]" data-testid="other-calendars">
+      <button type="button" onClick={layer.toggleMeetings} aria-pressed={layer.showMeetings} aria-label={`${layer.showMeetings ? "Hide" : "Show"} meetings`} data-testid="calendar-meetings-toggle"
+        className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors", layer.showMeetings ? "border-line bg-fill text-fg" : "border-line text-subtle")}>
+        <span className="size-2 rounded-full" style={{ background: layer.showMeetings ? "#0071E3" : "transparent", boxShadow: "inset 0 0 0 1.5px #0071E3" }} aria-hidden />
+        Meetings
+        {layer.showMeetings ? <Eye className="size-3.5 text-muted" /> : <EyeOff className="size-3.5" />}
+      </button>
       <span className="font-medium text-muted">Other calendars</span>
       {layer.sources.map((s) => {
         const off = layer.hidden.has(s.id);

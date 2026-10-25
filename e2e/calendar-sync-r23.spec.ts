@@ -124,6 +124,7 @@ test("calendar feed with a meeting, reset, and a calendar link shown read only o
   await expect(cal.getByText("Grandma visits")).toBeVisible({ timeout: 15_000 });
   await expect(cal.getByText("School pickup").first()).toBeVisible();
   await expect(cal.getByText("Send Harbour Coffee the quote")).toBeVisible();
+  await expect(cal.getByText("Pricing review with Grace")).toBeVisible();
   if (live) await expect(cal.getByText("Team standup (Stalwart)")).toBeVisible({ timeout: 15_000 });
   // Read only: clicking it opens nothing.
   await cal.getByText("Grandma visits").click();
@@ -133,4 +134,10 @@ test("calendar feed with a meeting, reset, and a calendar link shown read only o
   // Toggle the layer off.
   await bar.getByRole("button", { name: "Hide Family" }).click();
   await expect(cal.getByText("Grandma visits")).toHaveCount(0);
+  // Multies meetings show on the calendar too: a toggle hides them, and a click opens the meeting.
+  await bar.getByRole("button", { name: "Hide meetings" }).click();
+  await expect(cal.getByText("Pricing review with Grace")).toHaveCount(0);
+  await bar.getByRole("button", { name: "Show meetings" }).click();
+  await cal.getByText("Pricing review with Grace").click();
+  await expect(page).toHaveURL(/\/app\/meetings\/mtg_/);
 });

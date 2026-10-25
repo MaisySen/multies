@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 23: meetings that produce work (25 Oct 2026)
+
+- Agenda and notes: each meeting gets one notes doc (Agenda, Notes, Action items), made the first time someone opens Notes and shown inline on the meeting page with a link back from the doc. Checklist items are action items: "@Name" sets the assignee and "due Fri", "by 30 Oct" or "tomorrow" sets the due date, both editable before "Create N tasks" makes them in one request. A second press makes none. Docs now keep checklists. Migration 0043: `meeting_action_items`.
+- Recording and transcript with the workspace's own OpenAI or Groq key: Record in a call mixes everyone's audio in the browser, sends 5 minute chunks to the provider and keeps only the text. Everyone in the call, guests included, sees a red Recording banner. Stop summarises the call with the workspace's model and posts the summary, decisions and action items to the call's channel or DM (or notifies the attendees). Without a key, a setup prompt links to Settings, AI. The summary's action items show on the meeting notes with one click to make them tasks. Migration 0044: `meeting_recordings`.
+- Calls in chat: a call in a DM (one to one or group) rings the other members, and so does a channel of up to 8 people. Screen share is granted to members and guests. The call card and the chat header show who is in the call with Join, then "Call ended" with its length, read from the call service with no write per check. Calls open in a docked window so chat stays in view.
+- Calendar sync: a personal calendar feed (/cal/<token>.ics) for Google, Apple or Outlook with your meetings and due dates, in Settings, Calendar, with Reset link and Turn off. Other calendars come in read only: CalDAV from a connected mailbox where the provider offers it (Fastmail, iCloud, Zoho, Yahoo, GMX and more) or any secret ICS link, shown on the work calendar beside due dates and your meetings. Migration 0046: `calendar_feeds`, `calendar_sources`.
+- A "mentioned you on a thread" push now carries the thread's newest message, so the phone app can open the thread (the app change ships in the next store build).
+- MCP has 100 tools. New: get_meeting_notes, create_action_items, get_meeting_transcript, get_call_status and list_calendar_events, with matching REST endpoints.
+
 ### Round 22: the shared inbox works as a team (25 Oct 2026)
 
 - Assign a shared inbox thread to a person, with All, Mine, Unassigned, Assigned to, Waiting and Done views, Mark done and Reopen. The assignee is notified, and open assigned mail shows in My Work. New mail on a Waiting or Done thread opens it again. Open rows show the age since the last customer message (amber after 24 hours). Migration 0039: `mail_thread_state` (one row per touched thread, one partial index).
