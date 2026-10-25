@@ -239,6 +239,13 @@
       "when": 1792950000000,
       "tag": "0033_r20_chat_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1793000000000,
+      "tag": "0036_r21_task_types",
+      "breakpoints": true
     }
   ]
 }

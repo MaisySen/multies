@@ -477,5 +477,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "CREATE TABLE `chat_reactions` (\n\t`message_id` text NOT NULL,\n\t`reactor` text NOT NULL,\n\t`emoji` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`message_id`, `reactor`, `emoji`),\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_messages`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
     ]
+  },
+  {
+    "name": "0036_r21_task_types",
+    "statements": [
+      "ALTER TABLE `tasks` ADD `type` text DEFAULT 'task' NOT NULL;"
+    ]
   }
 ];
