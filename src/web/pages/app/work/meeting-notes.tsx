@@ -4,21 +4,26 @@
  * doc are action items; "@Name" and "due Fri" in an item fill the assignee and due date, both of
  * which can be changed here before the tasks are made.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import type { EditorView } from "@tiptap/pm/view";
+import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import { Bot, CheckCircle2, Circle, ExternalLink, ListChecks, NotebookPen, UserRound } from "lucide-react";
 import { toast } from "sonner";
-import { api, ApiError } from "@/web/lib/api";
+import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { Card, Skeleton } from "@/web/components/ui/misc";
 import { summaryItemsToAdd } from "@/shared/action-items";
 import { mentionMatches } from "@/web/lib/mention-match";
+import { useMe } from "@/web/lib/queries";
+import { tone } from "@/web/components/app-bits";
+import { colourFor, type CollabSession, type Peer } from "./doc-collab";
+import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSession } from "./collab-editor";
+import { collabMode, editingLabel, initialsOf } from "./collab-logic";
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 interface ActionItem {
@@ -95,30 +100,59 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
   );
 }
 
-function NotesEditor({ meetingId, doc, people, onSaved }: { meetingId: string; doc: NonNullable<MeetingNotesView["doc"]>; people: Who[]; onSaved: () => void }) {
-  const version = useRef(doc.version);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [state, setState] = useState<"saved" | "saving" | "unsaved">("saved");
-  const extensions = useMemo(() => [StarterKit, TaskList, TaskItem.configure({ nested: true })], []);
+/** Opens the notes doc's room (the same room as the doc page), then the editor: live when it answers, else the single editor. */
+function NotesEditor(props: { meetingId: string; doc: NonNullable<MeetingNotesView["doc"]>; people: Who[]; onSaved: () => void }) {
+  const collab = useCollabSession(props.doc.id);
+  if (!collab) return <Card className="p-5" data-testid="notes-connecting"><Skeleton className="h-[260px]" /></Card>;
+  return <NotesBody key={`${props.doc.id}:${collabMode(collab.session)}`} {...props} session={collab.session} />;
+}
+
+/** Who else has the notes open: small avatars in their caret colour and "Maya is editing". */
+function NotesPresence({ peers }: { peers: Peer[] }) {
+  const label = editingLabel(peers.map((x) => x.name));
+  return (
+    <div className="mb-2 flex items-center gap-2" data-testid="notes-presence" aria-label={label}>
+      <div className="flex -space-x-1.5">
+        {peers.slice(0, 4).map((x) => (
+          <span key={x.clientId} data-testid="notes-peer" title={x.name}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[10.5px] font-semibold text-white ring-2 ring-surface"
+            style={{ background: tone(x.color) }}>{initialsOf(x.name)}</span>
+        ))}
+      </div>
+      <span className="text-[12px] text-muted">{label}</span>
+    </div>
+  );
+}
+
+function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: string; doc: NonNullable<MeetingNotesView["doc"]>; people: Who[]; onSaved: () => void; session: CollabSession | null }) {
+  const me = useMe();
+  const userName = me.data?.user.name || me.data?.user.email || "Someone";
+  const userColour = colourFor(me.data?.user.id ?? userName);
+  // Stable options: a new extensions array or editorProps object makes Tiptap redraw the shared doc.
+  const extensions = useMemo(() => docExtensions(session), [session]);
   // The @ mention picker: typing "@" and a few letters lists the people who can be assigned.
   const [picker, setPicker] = useState<MentionState | null>(null);
   const pickerRef = useRef<MentionState | null>(null);
   pickerRef.current = picker;
   const choose = useRef<(w: Who) => void>(() => {});
+  const onUpdate = useRef(() => {});
   const editorProps = useMemo(() => ({
     ...NOTES_PROPS,
-    handleKeyDown: (_v: unknown, e: KeyboardEvent) => {
+    handleKeyDown: (v: EditorView, e: KeyboardEvent) => {
       const p = pickerRef.current;
-      if (!p || !p.matches.length) return false;
+      if (!p || !p.matches.length) return session ? liveKeyDown(v, e) : false;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") { const d = e.key === "ArrowDown" ? 1 : -1; setPicker({ ...p, index: (p.index + d + p.matches.length) % p.matches.length }); return true; }
       if (e.key === "Enter" || e.key === "Tab") { choose.current(p.matches[p.index]); return true; }
       if (e.key === "Escape") { setPicker(null); return true; }
-      return false;
+      return session ? liveKeyDown(v, e) : false;
     },
-  }), []);
+    ...(session ? { handleDOMEvents: liveDomEvents } : {}),
+  }), [session]);
   const editor = useEditor({
-    extensions, content: doc.content as never, editorProps, immediatelyRender: true,
-    onUpdate: ({ editor: ed }) => { setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), 700); setPicker(mentionAt(ed, people, pickerRef.current)); },
+    extensions, editorProps, immediatelyRender: true,
+    // Live: the room is the content, so no content key at all.
+    ...(session ? {} : { content: doc.content as never }),
+    onUpdate: ({ editor: ed, transaction }) => { onUpdate.current(); if (!isChangeOrigin(transaction)) setPicker(mentionAt(ed, people, pickerRef.current)); },
     onSelectionUpdate: ({ editor: ed }) => setPicker(mentionAt(ed, people, pickerRef.current)),
     onBlur: () => setTimeout(() => setPicker(null), 150),
   });
@@ -128,36 +162,31 @@ function NotesEditor({ meetingId, doc, people, onSaved }: { meetingId: string; d
     editor.chain().focus().insertContentAt({ from: p.from, to: p.to }, `@${w.name} `).run();
     setPicker(null);
   };
-  const save = async (): Promise<void> => {
-    if (!editor) return;
-    setState("saving");
-    try {
-      const r = await api.patch<{ doc: { version: number } }>(`/docs/${doc.id}`, { content: editor.getJSON(), version: version.current });
-      version.current = r.doc.version;
+  // The same save loop as the doc page: live, only the leader saves; solo, every change with the row version.
+  const { state, peers, schedule } = useCollabDoc({
+    doc, session, editor, delayMs: 700, user: { name: userName, color: userColour },
+    onSaved: () => onSaved(),
+    // Another person's save reached the room: the action items card reads the row again.
+    onRemoteSaved: () => onSaved(),
+    onSoloConflict: async ({ setState, setVersion, editor: ed }) => {
+      // Someone saved the doc elsewhere: load theirs.
+      const row = (await api.get<{ doc: { content: Record<string, unknown>; version: number } }>(`/docs/${doc.id}`)).doc;
+      setVersion(row.version);
+      ed.commands.setContent(row.content as never, { emitUpdate: false });
       setState("saved");
-      onSaved();
-    } catch (e) {
-      if (e instanceof ApiError && e.code === "version_conflict") {
-        // Someone saved the doc elsewhere: load theirs.
-        const row = (await api.get<{ doc: { content: Record<string, unknown>; version: number } }>(`/docs/${doc.id}`)).doc;
-        version.current = row.version;
-        editor.commands.setContent(row.content as never, { emitUpdate: false });
-        setState("saved");
-        toast.message("The notes changed elsewhere, so the latest version is shown.");
-        return;
-      }
-      setState("unsaved");
-      showError(e as Error);
-    }
-  };
-  useEffect(() => () => clearTimeout(timer.current), []);
+      toast.message("The notes changed elsewhere, so the latest version is shown.");
+    },
+  });
+  onUpdate.current = schedule;
   return (
     <Card className="p-5">
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-[13px] font-semibold">Agenda and notes</h2>
+        {session && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-subtle" data-testid="notes-live"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>}
         <span className="ml-auto text-[12px] text-subtle" role="status" data-testid="notes-state">{state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : "Saved"}</span>
         <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><ExternalLink className="h-3.5 w-3.5" />Open doc</Link>
       </div>
+      {session && peers.length > 0 && <NotesPresence peers={peers} />}
       <p className="mb-2 text-[12px] text-subtle">Type [ ] and a space for a checklist item. Type @ to pick who it is for, and "due Fri" for a date.</p>
       <div className="relative">
         <EditorContent editor={editor} />

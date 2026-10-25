@@ -11,7 +11,6 @@ import { HttpError, notFound } from "../../lib/errors";
 import { randomBytes } from "../../lib/crypto";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { normalizeConfig, type ComputedConfig } from "./formula-config";
-import { renameReferences } from "./formula-rename";
 
 export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] as const;
 /** R24.1: computed on read from other values; nothing is stored per task. */
@@ -107,25 +106,10 @@ export async function updateField(deps: Deps, actor: SuiteActor, id: string, pat
     set.config = cfg ? JSON.stringify(cfg) : null;
   }
   await deps.db.update(customFields).set(set).where(eq(customFields.id, f.id));
-  if (set.name !== undefined && set.name !== f.name) await renameInFormulas(deps, actor.orgId, f.projectId, f.id, f.name, set.name);
   const field = presentField(await fieldRow(deps, actor.orgId, f.id));
   if (patch.options !== undefined) await dropMissingOptions(deps, field);
   await recordWrite(deps, actor, { entityType: "custom_field", entityId: field.id, op: "update", version: f.version + 1, verb: "updated", data: { name: field.name }, event: "custom_field.updated", eventData: { field } });
   return field;
-}
-
-/** R24 polish: formulas on the project that read the old name are rewritten to the new one (one write per changed formula). */
-async function renameInFormulas(deps: Deps, orgId: string, projectId: string, fieldId: string, oldName: string, newName: string) {
-  const rows = await deps.db.select().from(customFields)
-    .where(and(eq(customFields.orgId, orgId), eq(customFields.projectId, projectId), eq(customFields.type, "formula"), isNull(customFields.deletedAt)));
-  for (const r of rows) {
-    if (r.id === fieldId || !r.config) continue;
-    const cfg = JSON.parse(r.config) as { expression?: string };
-    if (typeof cfg.expression !== "string") continue;
-    const expression = renameReferences(cfg.expression, oldName, newName);
-    if (expression === cfg.expression) continue;
-    await deps.db.update(customFields).set({ config: JSON.stringify({ ...cfg, expression }), version: r.version + 1, updatedAt: deps.now() }).where(eq(customFields.id, r.id));
-  }
 }
 
 /** Values that point at a removed option are cleared, so filters and the board stay honest. */
