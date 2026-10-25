@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 17: monitoring and tools (25 Oct 2026)
+
+- A D1 "internal error" blip counts as transient in maintenance: the step is skipped with a warning and runs again on the next pass, instead of paging Sentry (MYMAIL-API-P, Q, S, T, one second on 25 Oct 02:45 UTC).
+- The dogfood org setup script estimates database rows before writing, stops at --max-writes and can skip whole steps (docs/dogfood.md).
+
 ### Round 17: only what is live is shown (25 Oct 2026)
 
 - Stripe test mode and the test card number show to platform admins only; customers see "Paid add-ons aren't on sale yet" without operator instructions.

@@ -70,7 +70,7 @@ export async function runMaintenance(deps: Deps) {
 export function isTransientDbError(err: unknown): boolean {
   for (let e: unknown = err, depth = 0; e && depth < 4; e = (e as { cause?: unknown }).cause, depth++) {
     const text = `${(e as { code?: string }).code ?? ""} ${(e as Error).message ?? ""}`;
-    if (/SQLITE_BUSY|SQLITE_LOCKED|database is locked|no such table|D1_ERROR.*(overloaded|reset|timed out|Network connection lost)|storage caused object to be reset/i.test(text)) return true;
+    if (/SQLITE_BUSY|SQLITE_LOCKED|database is locked|no such table|D1_ERROR.*(overloaded|reset|timed out|Network connection lost|internal error)|storage caused object to be reset/i.test(text)) return true;
   }
   return false;
 }
