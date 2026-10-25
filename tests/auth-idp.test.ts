@@ -2,7 +2,8 @@ import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
 import { makeTestApp, Client } from "./helpers";
-import { loadConfig, resolveLocalPassword } from "@/server/config";
+import { legacyIdp, loadConfig, resolveLocalPassword } from "@/server/config";
+import { unverifiedIssuer } from "@/server/auth/mobile";
 import { authMode, idpIssuer, idpLogoutUrl, mayLinkByEmail, verifyIdToken } from "@/server/auth";
 import { setJwksForTests } from "@/server/auth/tokens";
 import { accounts, users } from "@/server/db/schema";
@@ -208,5 +209,58 @@ describe("existing accounts and the password flag", () => {
     const res = await ctx.app.request("/api/auth/logout/idp", { headers: { host: "localhost" } });
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toMatch(/\/login$/);
+  });
+});
+
+describe("previous tenant for older phone app builds (round 19)", () => {
+  const LEGACY = "multies-old.us.auth0.com";
+  const LEGACY_ISS = `https://${LEGACY}/`;
+  let legacyKey: CryptoKey;
+  beforeAll(async () => {
+    const kp = await generateKeyPair("RS256", { extractable: true });
+    legacyKey = kp.privateKey as CryptoKey;
+    const pub = { ...(await exportJWK(kp.publicKey)), kid: "old1", alg: "RS256", use: "sig" };
+    setJwksForTests(LEGACY, createLocalJWKSet({ keys: [pub] }) as never);
+  });
+  async function legacyToken(claims: Record<string, unknown>, aud = "old-native") {
+    const now = Math.floor(Date.now() / 1000);
+    return new SignJWT({ email_verified: true, ...claims }).setProtectedHeader({ alg: "RS256", kid: "old1" })
+      .setIssuer(LEGACY_ISS).setAudience(aud).setSubject(String(claims.sub)).setIssuedAt(now - 5).setExpirationTime(now + 600).sign(legacyKey);
+  }
+  const LEGACY_ENV = { AUTH0_LEGACY_DOMAIN: `https://${LEGACY}/`, AUTH0_LEGACY_NATIVE_CLIENT_ID: "old-native" };
+
+  it("reads the legacy tenant only with a domain and a client id", () => {
+    expect(legacyIdp({})).toEqual({});
+    expect(legacyIdp({ AUTH0_LEGACY_DOMAIN: LEGACY })).toEqual({});
+    expect(legacyIdp(LEGACY_ENV)).toEqual({ legacy: { domain: LEGACY, audience: ["old-native"] } });
+    expect(legacyIdp({ ...LEGACY_ENV, AUTH0_LEGACY_CLIENT_ID: "old-web" }).legacy?.audience).toEqual(["old-native", "old-web"]);
+  });
+
+  it("accepts an older build's token from the previous tenant and lands on the same Multies account", async () => {
+    const ctx = await makeTestApp({ ...IDP, ...LEGACY_ENV });
+    const newPhone = new Client(ctx.app);
+    const a = await newPhone.post("/api/auth/mobile/exchange", { idToken: await idToken({ sub: "auth0|new-sub", email: "bo@acme.io" }, { aud: "native-client" }) });
+    expect(a.status).toBe(200);
+    const oldPhone = new Client(ctx.app);
+    const b = await oldPhone.post("/api/auth/mobile/exchange", { idToken: await legacyToken({ sub: "auth0|old-sub", email: "bo@acme.io" }) });
+    expect(b.status).toBe(200);
+    expect(b.body.user.id).toBe(a.body.user.id);
+  });
+
+  it("refuses the previous tenant's tokens when it is not configured, for another client, or signed by another key", async () => {
+    const off = new Client((await makeTestApp(IDP)).app);
+    expect((await off.post("/api/auth/mobile/exchange", { idToken: await legacyToken({ sub: "auth0|x", email: "x@acme.io" }) })).status).toBe(401);
+    const on = new Client((await makeTestApp({ ...IDP, ...LEGACY_ENV })).app);
+    expect((await on.post("/api/auth/mobile/exchange", { idToken: await legacyToken({ sub: "auth0|x", email: "x@acme.io" }, "someone-else") })).status).toBe(401);
+    // Claims the old issuer but is signed with the current tenant's key: the old tenant's keys refuse it.
+    const forged = await idToken({ sub: "auth0|x", email: "x@acme.io" }, { iss: LEGACY_ISS, aud: "old-native" });
+    expect((await on.post("/api/auth/mobile/exchange", { idToken: forged })).status).toBe(401);
+  });
+
+  it("reads the issuer only to pick the tenant", () => {
+    expect(unverifiedIssuer("a.b")).toBeNull();
+    expect(unverifiedIssuer("x")).toBeNull();
+    const body = btoa(JSON.stringify({ iss: LEGACY_ISS })).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+    expect(unverifiedIssuer(`h.${body}.s`)).toBe(LEGACY_ISS);
   });
 });

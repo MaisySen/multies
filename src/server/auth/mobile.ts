@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Deps } from "../context";
 import { IDP_ID, displayName, idpLogoutUrl } from "./providers";
 import { IdTokenError, verifyIdToken } from "./tokens";
+import { idpIssuer } from "./config";
 
 /**
  * Two endpoints Multies adds to Better Auth, served under /api/auth:
@@ -33,7 +34,11 @@ export function multiesAuthPlugin(deps: Deps) {
         const audience = [idp.nativeClientId, idp.clientId].filter((x): x is string => !!x);
         let claims;
         try {
-          claims = await verifyIdToken(ctx.body.idToken, { domain: idp.domain, audience, nonce: ctx.body.nonce });
+          // Older app builds still sign in on the previous tenant: its tokens are checked against that tenant's keys and clients.
+          const legacy = idp.legacy && unverifiedIssuer(ctx.body.idToken) === idpIssuer(idp.legacy.domain) ? idp.legacy : null;
+          claims = legacy
+            ? await verifyIdToken(ctx.body.idToken, { domain: legacy.domain, audience: legacy.audience, nonce: ctx.body.nonce })
+            : await verifyIdToken(ctx.body.idToken, { domain: idp.domain, audience, nonce: ctx.body.nonce });
         } catch (err) {
           if (err instanceof IdTokenError) {
             deps.log?.warn("auth.mobile_exchange_refused", { reason: err.reason });
@@ -60,4 +65,16 @@ export function multiesAuthPlugin(deps: Deps) {
       }),
     },
   } satisfies BetterAuthPlugin;
+}
+
+/** The token's issuer before verification, only to choose which tenant verifies it. Never trusted on its own. */
+export function unverifiedIssuer(token: string): string | null {
+  const part = token.split(".")[1];
+  if (!part) return null;
+  try {
+    const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=")));
+    return typeof json.iss === "string" ? json.iss : null;
+  } catch {
+    return null;
+  }
 }
