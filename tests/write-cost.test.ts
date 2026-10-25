@@ -903,3 +903,49 @@ it("dashboards (R24.3): viewing a dashboard's data writes nothing; create, a lay
   await svc.deleteDashboard(ctx.deps, actor, d.id);
   expect(take()).toBe(2);
 });
+
+it("formula and rollup fields (R24.1): reading computed values writes nothing; defining a field is one row", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const budget = (await u.post("/api/fields", { projectId, name: "Budget", type: "number" })).body.field;
+  const parent = (await u.post("/api/tasks", { title: "Parent", projectId })).body.task;
+  for (const p of [1, 2, 3]) await u.post("/api/tasks", { title: `Sub ${p}`, projectId, parentId: parent.id, points: p });
+  await u.patch(`/api/tasks/${parent.id}`, { fields: { [budget.id]: 10 } });
+  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
+  const take = meter(ctx.db);
+  // Defining a field: the custom_fields row and its index, plus the activity row.
+  expect((await u.post("/api/fields", { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 1.1" } })).status).toBe(201);
+  expect(take()).toBeLessThanOrEqual(12);
+  await u.post("/api/fields", { projectId, name: "Sub points", type: "rollup", config: { source: "subtasks", fn: "sum", field: "points" } });
+  await u.post("/api/fields", { projectId, name: "Total", type: "rollup", config: { source: "project", fn: "sum", field: "points" } });
+  take();
+  // Reads: the list, a task, the computed endpoints and the preview write nothing beyond a plain list read.
+  await u.get(`/api/tasks?projectId=${projectId}&fields=1`);
+  const sessionBaseline = take();
+  const seen: number[] = [];
+  await u.get(`/api/tasks?projectId=${projectId}&includeSubtasks=true`); seen.push(take());
+  await u.get(`/api/tasks/${parent.id}`); seen.push(take());
+  await u.get(`/api/computed/tasks/${parent.id}`); seen.push(take());
+  await u.get(`/api/computed/projects/${projectId}/rollups`); seen.push(take());
+  await u.get(`/api/computed/preview?projectId=${projectId}&expression=${encodeURIComponent("{Budget} * 2")}`); seen.push(take());
+  expect(seen).toEqual([sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline]);
+  const headers = { host: "localhost", authorization: `Bearer ${key}` };
+  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
+  const baseline = take();
+  expect((await ctx.app.request(`/api/v1/projects/${projectId}/rollups`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  expect((await ctx.app.request(`/api/v1/tasks/${parent.id}/computed`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  // The services alone write nothing at all.
+  const { projectRollups } = await import("@/server/services/suite/computed");
+  const { listTasks } = await import("@/server/services/suite/tasks");
+  const me = (await u.get("/api/account/me")).body;
+  take();
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const rows = await listTasks(ctx.deps, actor, { projectId, includeSubtasks: true });
+  expect(rows.find((r) => r.title === "Parent")!.fields).toMatchObject({ [budget.id]: 10 });
+  await projectRollups(ctx.deps, actor, projectId);
+  expect(take()).toBe(0);
+});

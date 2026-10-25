@@ -50,6 +50,7 @@ import { registerWorkloadTools } from "./mcp-r24-workload";
 import { registerRecipeTools } from "./mcp-r24-recipes";
 import { registerR24DocTools } from "./mcp-r24-docs";
 import { registerDashboardTools } from "./mcp-r24-dashboards";
+import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -229,6 +230,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerRecipeTools(server, deps, actor, writable, tool); // R24.4: automation recipes
   registerR24DocTools(server, deps, actor, writable, tool); // R24.5: docs tree and backlinks
   registerDashboardTools(server, deps, actor, writable, tool); // R24.3: dashboards
+  registerFormulaTools(server, deps, actor, writable, tool); // R24.1: formula and rollup fields
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   return server;
 }

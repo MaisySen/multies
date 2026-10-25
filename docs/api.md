@@ -702,3 +702,45 @@ saved views, projects and mailboxes are refused when a dashboard is saved (404).
 
 D1 writes: reading a dashboard's data writes nothing. Creating, saving (any number of widget changes, a
 rename and the share flag together) and removing a dashboard are each one row and its index: 2.
+
+## Formula and rollup fields (R24.1)
+
+Two more custom field types, both read only and computed when tasks are read, so a list, table,
+board or task read writes nothing for them. Their settings go in `config` on the normal field create
+and update (`POST /api/fields`, `POST /api/v1/projects/{id}/fields`, `PATCH .../fields/{id}`).
+
+- `formula`: `config: { expression }`, up to 500 characters, for example `{Budget} * 1.1`,
+  `{points} * 2` or `if(days_between(today(), {due}) < 0, "late", "ok")`. Field names go in braces
+  (any custom field on the same project, by name, any case); built ins: points, due, start, created,
+  completed, status, priority, title, assignee (also usable bare). Operators: + - * / %, = == != <>
+  < > <= >=, and, or, not (&& || !), parentheses. Functions: if, round, floor, ceil, abs, min, max,
+  sum, concat, len, upper, lower, days_between, today, now, date_add (days), is_empty, coalesce.
+  Type rules: + joins text when either side is text; other maths needs numbers and an empty value
+  makes the answer empty; dates are text like 2026-11-02; dividing by 0 is an error. Formulas can read
+  other formulas; a loop is refused when saved and shows as an error if it ever appears. The parser is
+  hand written: no eval, no property access, no loops, a depth limit of 32.
+- `rollup`: `config: { source, fn, field }`. `source` is `subtasks` (the task's direct subtasks; on an
+  epic, its items), `epic_children` (an epic's items and their subtasks) or `project` (one value over
+  the project's live tasks, epics left out, shown in the project header and not as a task column).
+  `fn` is sum, count, count_done, average, min, max or percent_done (0 to 100 by count). `field` is
+  `points` or a number, currency or formula field id or name; count functions need none. Sum of
+  nothing is 0; average, min, max and percent of nothing are empty.
+
+Values appear in each task's `fields` like stored values. A cell that can't be worked out holds
+`"#ERROR"` and the task carries `fieldErrors: { <fieldId>: "message" }`; a read never fails because of
+a formula. Computed fields can't be set, filtered or sorted on (422 `computed_field`).
+
+- App API: `GET /api/computed/tasks/:id`, `GET /api/computed/projects/:id/rollups`, and
+  `GET /api/computed/preview?projectId&expression&taskId` (the field editor's live preview against the
+  first task, or `taskId`; saves nothing).
+- Public API: `GET /api/v1/tasks/{id}/computed` returns `computed: [{ fieldId, name, type, config,
+  value, error? }]`; `GET /api/v1/projects/{id}/rollups` returns `rollups: [{ id, name, fn, field,
+  fieldName, value, error? }]`, `taskCount` and `truncated` (at most 2,000 tasks are read). Both are
+  reads; read only keys can call them. Another workspace's ids answer 404.
+- MCP: `get_computed_fields`, `create_formula_field`, `create_rollup_field`.
+
+Cost per read: one query for the field definitions, then only when a project has rollups one grouped
+query for the listed tasks' children (plus one for epics' grandchildren and one for the children's
+stored values when needed), at most 5,000 children per request. D1 writes: reading writes nothing;
+defining or changing a formula or rollup field writes its one custom_fields row (plus its index) and
+the activity row, like any field.

@@ -1092,8 +1092,10 @@ export const customFields = sqliteTable("custom_fields", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"] }).notNull(),
+  type: text("type", { enum: ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] }).notNull(),
   options: text("options").notNull().default("[]"),
+  /** R24.1: formula ({ expression }) and rollup ({ source, field, fn }) settings as JSON. */
+  config: text("config"),
   position: integer("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("custom_fields_project_idx").on(t.projectId, t.position)]);

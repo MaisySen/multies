@@ -43,6 +43,7 @@ import { registerWorkloadRoutes } from "./v1-r24-workload";
 import { registerAutomationRecipeRoutes } from "./v1-r24-recipes";
 import { registerR24DocRoutes } from "./v1-r24-docs";
 import { registerDashboardRoutes } from "./v1-r24-dashboards";
+import { registerFormulaRoutes } from "./v1-r24-formulas";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -427,6 +428,7 @@ export function v1Routes() {
   registerWorkloadRoutes(api); // R24.2: workload
   registerAutomationRecipeRoutes(api); // R24.4: automation recipes
   registerDashboardRoutes(api); // R24.3: dashboards
+  registerFormulaRoutes(api); // R24.1: formula and rollup fields
   registerMcpRoute(api);
   return api;
 }

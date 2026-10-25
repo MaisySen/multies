@@ -12,7 +12,7 @@ import { TypeIcon } from "./task-type";
 function fieldSortKey(f: CustomField, t: Task, people: AssigneeOption[]): string | number {
   const v = t.fields?.[f.id];
   if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length)) return f.type === "number" || f.type === "currency" ? Number.MAX_SAFE_INTEGER : "\uffff";
-  if (f.type === "number" || f.type === "currency") return Number(v);
+  if (f.type === "number" || f.type === "currency" || typeof v === "number") return Number(v);
   if (f.type === "checkbox") return v ? 0 : 1;
   if (f.type === "select") return String(f.options.findIndex((o) => o.id === v)).padStart(3, "0");
   return formatValue(f, v, people).toLowerCase();
@@ -57,7 +57,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     { id: "project", header: "Project", accessorFn: (t) => pname.get(t.projectId)?.name ?? "", cell: ({ getValue }) => <span className="whitespace-nowrap text-muted">{String(getValue())}</span> },
     ...fields.map<ColumnDef<Task>>((f) => ({
       id: `field:${f.id}`, header: f.name, sortUndefined: "last", accessorFn: (t) => fieldSortKey(f, t, people),
-      cell: ({ row }) => <FieldCell field={f} value={row.original.fields?.[f.id]} people={people} />,
+      cell: ({ row }) => <FieldCell field={f} value={row.original.fields?.[f.id]} people={people} error={row.original.fieldErrors?.[f.id]} fields={fields} />,
     })),
     { id: "updated", header: "Updated", accessorFn: (t) => t.updatedAt, cell: ({ row }) => <span className="whitespace-nowrap text-subtle">{timeAgo(row.original.updatedAt)}</span> },
   ], [pname, onToggle, fields, people]);

@@ -8,6 +8,7 @@ import type { Deps } from "../../context";
 import { agents, docs, entityLinks, members, messages, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
+import { computeForRows } from "./computed";
 import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, setTaskFieldValues, valuesForTasks, type FieldFilter } from "./fields";
 import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
@@ -210,7 +211,17 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     if (s.status === "done") m.done += Number(s.n);
     subtasks.set(s.parentId!, m);
   }
+  // R24.1: formula and rollup values, computed on read (no writes).
+  const stMap = new Map(sts.map((s) => [s.id, s.name]));
+  const usMap = new Map(us.map((u) => [u.id, u.name]));
+  const agMap = new Map(ags.map((a) => [a.id, a.name]));
+  const fieldErrors = await computeForRows(deps, orgId, rows, fieldValues, {
+    status: (r) => stMap.get(r.statusId),
+    assignee: (r) => (r.assigneeId ? (r.assigneeType === "agent" ? agMap.get(r.assigneeId) : usMap.get(r.assigneeId)) ?? null : null),
+    person: (v) => (v.startsWith("member:") ? usMap.get(v.slice(7)) : v.startsWith("agent:") ? agMap.get(v.slice(6)) : undefined),
+  });
   return {
+    fieldErrors,
     statuses: new Map(sts.map((s) => [s.id, s])),
     members: new Map(us.map((u) => [u.id, u])),
     agents: new Map(ags.map((a) => [a.id, a])),
@@ -241,6 +252,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     subtasks: l.subtasks.get(t.id) ?? { total: 0, done: 0 },
     commentCount: l.comments.get(t.id) ?? 0,
     fields: l.fields.get(t.id) ?? {},
+    ...(l.fieldErrors.get(t.id) ? { fieldErrors: l.fieldErrors.get(t.id) } : {}),
     repeat: t.repeatRule ? { ...(JSON.parse(t.repeatRule) as RepeatRule), text: describeRule(JSON.parse(t.repeatRule) as RepeatRule) } : null,
     completedAt: iso(t.completedAt),
     sprintId: t.sprintId ?? null, points: t.points ?? null,

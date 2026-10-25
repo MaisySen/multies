@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { FieldInput } from "./fields";
+import { taskFields } from "./computed-fields";
 import { TaskFiles } from "./task-files";
 import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
@@ -135,7 +136,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           {(q.data!.customFields?.length ?? 0) > 0 && (
             <section className="mt-4" aria-label="Custom fields">
               <dl className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
-                {q.data!.customFields!.map((f) => (
+                {taskFields(q.data!.customFields!).map((f) => (
                   <Fragment key={f.id}>
                     <dt className="truncate text-subtle" title={f.name}>{f.name}</dt>
                     <dd><FieldInput field={f} value={t.fields?.[f.id]} people={people.data ?? []} onSave={(v) => save({ fields: { [f.id]: v } })} /></dd>
