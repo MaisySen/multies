@@ -13,6 +13,13 @@
  *   ORG_PASSWORD=... npx tsx scripts/dogfood/org-setup.ts --config scripts/dogfood/example-org.json \
  *     --base http://localhost:8796 [--state /path/state.json] [--merge scripts/dogfood/findings.json] [--dry-run] [--send-invites]
  *
+ * --dry-run reads only and prints every call it would make, then an estimate of the database rows
+ * the run would cost against the server's daily write budget. With ORG_SESSION_COOKIE and
+ * ORG_API_KEY set it writes nothing at all (a password sign in adds one session row).
+ * --max-writes N (default 400) stops a live run before more create or update calls than that; a
+ * re-run continues where it stopped. --skip docs,templates leaves whole steps out
+ * (projects, channels, goals, docs, meetings, templates).
+ *
  * --merge adds more config files on top (comma separated): lists are appended, and a project
  * with the same name gets the extra tasks. findings.json files the dogfood findings as tasks.
  *
@@ -45,6 +52,44 @@ export interface OrgConfig {
   templates?: { name: string; kind?: "task" | "doc"; description?: string; category?: string; project?: string; title: string; notes: string }[];
 }
 
+// ---------------------------------------------------------------- write estimate
+/**
+ * Database rows one API call costs, roughly (the item itself, its activity line, its audit row,
+ * labels and members it brings), read off the routes' inserts on 25 Oct 2026 and checked against
+ * a local run of example-org.json (64 calls wrote 180 rows; a re-run wrote 1, its sign in session). Enough to see whether a run fits in the day's write budget.
+ */
+export const ROW_COST: Record<string, number> = {
+  workspace: 4, key: 2, agent: 5, invite: 2, domain: 3, project: 3, task: 3, channel: 3, message: 2, pin: 1,
+  goal: 2, keyResult: 2, doc: 3, meeting: 3, template: 2, update: 2, other: 4,
+};
+
+/** Which kind of item a create or update call makes, from its method and path. */
+export function kindOf(method: string, path: string): string {
+  const p = path.replace(/^\/api(\/v1)?/, "").split("?")[0];
+  if (method !== "POST") return "update";
+  if (/^\/account\/workspaces$/.test(p)) return "workspace";
+  if (/\/keys$|\/api-keys$/.test(p)) return "key";
+  if (/^\/agents/.test(p)) return "agent";
+  if (/invit/.test(p)) return "invite";
+  if (/^\/domains$/.test(p)) return "domain";
+  if (/^\/projects$/.test(p)) return "project";
+  if (/^\/tasks$/.test(p)) return "task";
+  if (/^\/chat\/channels$/.test(p)) return "channel";
+  if (/\/pin$/.test(p)) return "pin";
+  if (/\/messages$/.test(p)) return "message";
+  if (/key-?results$/.test(p)) return "keyResult";
+  if (/^\/goals$/.test(p)) return "goal";
+  if (/^\/docs$/.test(p)) return "doc";
+  if (/^\/meetings$/.test(p)) return "meeting";
+  if (/^\/templates$/.test(p)) return "template";
+  return "other";
+}
+
+/** Rows a planned run costs: the calls by kind times their cost. */
+export function estimateRows(planned: Record<string, number>): number {
+  return Object.entries(planned).reduce((n, [k, c]) => n + c * (ROW_COST[k] ?? ROW_COST.other), 0);
+}
+
 interface State { base: string; workspaceId?: string; workspaceKey?: string; agents: Record<string, { id: string; member?: boolean; keyId?: string; secret?: string; address?: string }> }
 
 // ---------------------------------------------------------------- args
@@ -60,13 +105,19 @@ export async function main() {
   for (const extra of (opt("merge") ?? "").split(",").filter(Boolean)) mergeConfig(cfg, JSON.parse(readFileSync(resolve(extra), "utf8")));
   const statePath = resolve(opt("state") ?? `${homedir()}/.multies-dogfood/${new URL(base).host}-${slug(cfg.workspace.name)}.json`);
   const run = new Runner(base, cfg, statePath, flag("dry-run"), flag("send-invites"));
+  run.maxWrites = Number(opt("max-writes", "400"));
+  run.skip = new Set((opt("skip") ?? "").split(",").filter(Boolean));
   await run.all();
 }
 
 class Runner {
   cookie = "";
   state: State;
-  writes = 0; // create or update calls, a rough proxy for the rows a run costs
+  writes = 0; // create or update calls made
+  planned: Record<string, number> = {}; // create or update calls by kind, made or (in a dry run) planned
+  maxWrites = 400; // a live run stops before more create or update calls than this (--max-writes)
+  skip = new Set<string>(); // whole steps left out (--skip docs,templates)
+  fresh = false; // a dry run for a workspace that doesn't exist yet: nothing to read, everything is planned from the config
   log: string[] = [];
   members: { userId: string; email: string; name: string; role: string }[] = [];
   me = "";
@@ -89,7 +140,12 @@ class Runner {
     if (auth === "key") headers.authorization = `Bearer ${key ?? this.state.workspaceKey}`;
     if (auth === "session" && this.cookie) headers.cookie = this.cookie;
     const mutating = method !== "GET";
-    if (mutating && this.dry && !path.startsWith("/api/auth/")) { this.note(`  dry run: ${method} ${path}`); return { dry: true }; }
+    if (mutating && !path.startsWith("/api/auth/")) {
+      const kind = kindOf(method, path);
+      this.planned[kind] = (this.planned[kind] ?? 0) + 1;
+      if (this.dry) { this.note(`  dry run: ${method} ${path}`); return { dry: true }; }
+      if (this.writes >= this.maxWrites) throw new Error(`Stopped before ${method} ${path}: this run reached --max-writes ${this.maxWrites}. Re-run to continue; finished items are skipped.`);
+    }
     for (let attempt = 0; attempt < 6; attempt++) {
       const res = await fetch(this.base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), redirect: "manual" });
       const set = res.headers.getSetCookie?.() ?? [];
@@ -117,18 +173,48 @@ class Runner {
     await this.signIn();
     await this.workspace();
     await this.apiKey();
+    if (this.fresh) { this.planFromConfig(); return this.report(t0); }
     await this.loadMembers();
     await this.domain();
     await this.agents();
     await this.invites();
-    const projects = await this.projects();
-    await this.channels();
-    await this.goals(projects);
-    await this.docs(projects);
-    await this.meetings(projects);
-    await this.templates();
+    const projects = this.skip.has("projects") ? {} : await this.projects();
+    if (!this.skip.has("channels")) await this.channels();
+    if (!this.skip.has("goals")) await this.goals(projects);
+    if (!this.skip.has("docs")) await this.docs(projects);
+    if (!this.skip.has("meetings")) await this.meetings(projects);
+    if (!this.skip.has("templates")) await this.templates();
     this.save();
-    this.note(`Done in ${Math.round((Date.now() - t0) / 1000)} s with ${this.writes} create or update calls. State: ${this.statePath}`);
+    await this.report(t0);
+  }
+
+  /** Every item in the config as a planned create, for a dry run of a brand new workspace. */
+  planFromConfig() {
+    const c = this.cfg;
+    const add = (kind: string, n: number) => { if (n) this.planned[kind] = (this.planned[kind] ?? 0) + n; };
+    add("domain", c.workspace.domain && c.agents?.length ? 1 : 0);
+    add("agent", c.agents?.length ?? 0);
+    add("invite", this.sendInvites ? c.invites?.length ?? 0 : 0);
+    if (!this.skip.has("projects")) { add("project", c.projects?.length ?? 0); add("task", (c.projects ?? []).reduce((n, p) => n + (p.tasks?.length ?? 0), 0)); }
+    if (!this.skip.has("channels")) { add("channel", c.channels?.length ?? 0); add("message", (c.channels ?? []).filter((ch) => ch.welcome).length); add("pin", (c.channels ?? []).filter((ch) => ch.welcome).length); }
+    if (!this.skip.has("goals")) { add("goal", c.goals?.length ?? 0); add("keyResult", (c.goals ?? []).reduce((n, g) => n + (g.keyResults?.length ?? 0), 0)); }
+    if (!this.skip.has("docs")) add("doc", c.docs?.length ?? 0);
+    if (!this.skip.has("meetings")) { add("meeting", c.meetings?.length ?? 0); add("task", (c.meetings ?? []).filter((m) => m.prepTask).length); }
+    if (!this.skip.has("templates")) add("template", c.templates?.length ?? 0);
+    this.note("Dry run for a new workspace: planned from the config.");
+  }
+
+  /** The write estimate against the server's own daily write budget (its public /api/health). */
+  async report(t0: number) {
+    const calls = Object.values(this.planned).reduce((a, b) => a + b, 0);
+    const rows = estimateRows(this.planned);
+    const kinds = Object.entries(this.planned).map(([k, n]) => `${n} ${k}`).join(", ") || "nothing";
+    let budget = "";
+    try {
+      const h = await (await fetch(`${this.base}/api/health`)).json() as { writes?: { today: number; budget: number } };
+      if (h.writes) budget = ` The server has used ${h.writes.today} of ${h.writes.budget} writes today, so this is about ${Math.round((rows / Math.max(1, h.writes.budget - h.writes.today)) * 100)} percent of what is left.`;
+    } catch { /* health not reachable */ }
+    this.note(`${this.dry ? "Dry run: would make" : `Done in ${Math.round((Date.now() - t0) / 1000)} s with`} ${calls} create or update calls (${kinds}), about ${rows} database rows.${budget} State: ${this.statePath}`);
   }
 
   session = true;
@@ -185,6 +271,7 @@ class Runner {
       try { await this.v1("GET", "/projects"); this.note("Workspace key works"); return; } catch { this.note("Stored workspace key no longer works, minting a new one"); }
     }
     const out = await this.app("POST", "/api/developer/keys", { name: "Org setup script", scope: "full" });
+    if (out?.dry) { this.fresh = true; return; }
     this.state.workspaceKey = out.secret ?? out.key ?? out.apiKey?.secret;
     if (!this.state.workspaceKey) throw new Error("The key answer carried no secret.");
     this.save();
@@ -300,7 +387,13 @@ class Runner {
       ids[p.name] = proj.id;
       const owner = this.ref(p.owner);
       if (owner?.startsWith("member:") && proj.ownerId !== owner.slice(7)) { await this.v1("PATCH", `/projects/${proj.id}`, { ownerId: owner.slice(7) }); this.note(`  owner set on ${p.name}`); }
-      if (!p.tasks?.length || this.dry && !proj.id) continue;
+      if (!p.tasks?.length) continue;
+      if (this.dry && !proj.id) {
+        // A project this dry run would create: every task in it would be created too.
+        this.planned.task = (this.planned.task ?? 0) + p.tasks.length;
+        this.note(`  dry run: ${p.tasks.length} tasks in ${p.name}`);
+        continue;
+      }
       const tasks = (await this.v1("GET", `/projects/${proj.id}`).then((d) => d.tasks).catch(() => null)) ?? arr(await this.v1("GET", `/tasks?projectId=${encodeURIComponent(proj.id)}&includeSubtasks=true`));
       const titles = new Set((tasks as any[]).map((t) => t.title));
       for (const t of p.tasks) {
