@@ -12,4 +12,6 @@ Category: Utility, Productivity, Communication or Other.
 | Is the app a web browser or search engine? | No |
 | Is the app primarily a news app? | No |
 
-Expected: Everyone, PEGI 3, G, with a Users Interact note. Answer again if features change.
+Expected before submitting: Everyone, PEGI 3, G, with a Users Interact note.
+
+Result (submitted in Play Console on 25 Oct 2026): IARC 12+. The answers above were entered as written; the higher rating comes from users being able to exchange mail and chat with each other. Answer again if features change.

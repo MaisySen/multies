@@ -5,6 +5,7 @@ Android, CFBundleShortVersionString on iOS).
 
 ## Unreleased (next build after 1.8.1)
 
+- Store answers in the repo match what was entered on 25 Oct 2026: Play data safety now lists Files and docs (chat attachments) and Diagnostics; App Store Diagnostics is Linked to the user, and the privacy manifest (app.json and store/ios/PrivacyInfo.xcprivacy) says so too. Play's content rating came out IARC 12+, and its delete data URL is the privacy policy for now.
 - Undo send: Send closes Compose and holds the message for 5, 10, 20 or 30 seconds (default 10).
   A bar above the tabs counts down with Undo and Send now; Undo reopens Compose exactly as it was
   (recipients, subject, body, the reply it belongs to). A failed send reopens it too. VoiceOver and
