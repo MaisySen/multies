@@ -69,9 +69,13 @@ describe("formula fields", () => {
     expect(zero.fieldErrors?.[ratio.id]).toMatch(/Division by zero/);
     expect(rows.find((r) => r.title === "Fine")!.fields[ratio.id]).toBe(25);
     expect(rows.find((r) => r.title === "Fine")!.fieldErrors).toBeUndefined();
-    // A renamed field breaks the formula into a readable error, not a crash.
+    // R24 polish: a rename rewrites the formula, so it keeps working.
     await c.patch(`/api/fields/${budget.id}`, { name: "Spend" });
-    expect((await byTitle("Fine")).fieldErrors?.[ratio.id]).toMatch(/no field called \{Budget\}/);
+    expect((await byTitle("Fine")).fields[ratio.id]).toBe(25);
+    expect((await byTitle("Fine")).fieldErrors).toBeUndefined();
+    // A removed field breaks the formula into a readable error, not a crash.
+    await c.del(`/api/fields/${budget.id}`);
+    expect((await byTitle("Fine")).fieldErrors?.[ratio.id]).toMatch(/no field called \{Spend\}/);
   });
 
   it("refuses bad formulas and loops when defining, and catches loops that appear later", async () => {

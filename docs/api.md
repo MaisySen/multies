@@ -744,3 +744,14 @@ query for the listed tasks' children (plus one for epics' grandchildren and one 
 stored values when needed), at most 5,000 children per request. D1 writes: reading writes nothing;
 defining or changing a formula or rollup field writes its one custom_fields row (plus its index) and
 the activity row, like any field.
+
+## Round 24 polish
+
+- Renaming a custom field (`PATCH /api/v1/fields/{id}` with a new `name`) rewrites `{Old Name}` references in the
+  same project's formula fields to `{New Name}`, in any case, braced or bare. One extra custom_fields write per formula
+  that changed; none when no formula reads the field.
+- `POST /api/v1/tasks/bulk` with an `assignee` runs the workspace's `assignee_changed` automations for the reassigned
+  tasks, at most 50 rule runs per request. When any ran or were skipped the answer carries
+  `automationRuns: { runs, skipped }` (skipped: over the cap, or paused while the daily write budget reads warn or shed).
+- A call started from chat that ends because the last person left runs `meeting_ended` automations once.
+- MCP `create_custom_field` also takes `formula` (with `config: { expression }`) and `rollup` (with `config: { source, fn, field }`).
