@@ -35,6 +35,7 @@ import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
+import { workImportRoutes } from "./routes/work-imports";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
@@ -249,6 +250,7 @@ export function createApp(deps: Deps) {
   app.route("/api/guest/search", guestSearchRoutes());
   app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
+  app.route("/api/work-imports", workImportRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly

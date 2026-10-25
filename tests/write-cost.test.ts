@@ -130,4 +130,30 @@ it("search everything and My Work (round 20) write nothing, for a person and thr
   await searchEverything(ctx.deps, { kind: "actor", actor: { ...actor, agentId: "agt_none", apiKeyId: "key_x", scope: "read" } }, "launch", { types: ["tasks", "docs", "chat", "contacts", "deals"] });
   await myWork(ctx.deps, { ...actor, apiKeyId: "key_x", scope: "read" });
   expect(take()).toBe(0);
+it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run of the same file writes nothing", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Owner Person");
+  const project = (await u.post("/api/projects", { name: "Web" })).body.project as { id: string };
+  const lines = ["Task ID,Name,Section/Column,Assignee Email,Due Date,Parent task"];
+  for (let i = 0; i < 100; i++) lines.push(`${9000 + i},Task ${i},${["To do", "In progress", "Done"][i % 3]},owner@acme.io,2026-11-0${(i % 9) + 1},${i % 2 ? `Task ${i - 1}` : ""}`);
+  const content = lines.join("\n");
+  const take = meter(ctx.db);
+  await u.post("/api/work-imports/preview", { content });
+  expect(take()).toBeLessThanOrEqual(4); // reads only; the local rate limiter at most
+  const r = await u.post("/api/work-imports/run", { content, projectId: project.id });
+  expect(r.body.created).toBe(100);
+  const tasksRun = take();
+  // Measured 819: 8 a task (the row, its key and 6 indexes including the import key), plus 2 batches (number claim and day counter) and the summary activity and change rows.
+  expect(tasksRun).toBeLessThanOrEqual(100 * 8 + 30);
+  const again = await u.post("/api/work-imports/run", { content, projectId: project.id });
+  expect(again.body).toMatchObject({ created: 0, alreadyThere: 100 });
+  expect(take()).toBeLessThanOrEqual(4);
+  const trello = readFileSync(join(__dirname, "fixtures/import/trello.json"), "utf8");
+  await u.post("/api/work-imports/run", { content: trello, projectId: project.id });
+  // Measured 66: 5 tasks, 2 comments, 2 new statuses for the board's lists, one batch and the summary.
+  const withComments = take();
+  expect(withComments).toBeLessThanOrEqual(5 * 8 + 2 * 2 + 30);
 });

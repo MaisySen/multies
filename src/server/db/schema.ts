@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 
 const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
@@ -803,6 +804,8 @@ export const tasks = sqliteTable("tasks", {
   reminderSentFor: text("reminder_sent_for"),
   /** JSON repeat rule ({ freq, interval, weekdays?, monthDay?, until? }); finishing the task makes the next one. */
   repeatRule: text("repeat_rule"),
+  /** Set on tasks brought in from another work tool: a hash of the source and its own id, so a re-run skips them. */
+  importKey: text("import_key"),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
@@ -810,6 +813,7 @@ export const tasks = sqliteTable("tasks", {
   index("tasks_org_due_idx").on(t.orgId, t.dueAt),
   index("tasks_parent_idx").on(t.parentId),
   uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
+  uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
 ]);
 
 export const taskComments = sqliteTable("task_comments", {

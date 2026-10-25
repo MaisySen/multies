@@ -459,6 +459,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0031_r20_work_import",
+    "statements": [
+      "ALTER TABLE `tasks` ADD `import_key` text;",
+      "CREATE UNIQUE INDEX `tasks_org_import_key_uq` ON `tasks` (`org_id`,`import_key`) WHERE `import_key` IS NOT NULL;"
+    ]
+  },
+  {
     "name": "0033_r20_chat_reactions",
     "statements": [
       "CREATE TABLE `chat_reactions` (\n\t`message_id` text NOT NULL,\n\t`reactor` text NOT NULL,\n\t`emoji` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`message_id`, `reactor`, `emoji`),\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_messages`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
