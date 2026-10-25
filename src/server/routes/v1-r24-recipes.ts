@@ -32,7 +32,6 @@ export function registerAutomationRecipeRoutes(api: OpenAPIHono<AppEnv>) {
     },
     responses: { 200: json("The rules made or switched on."), 401: err("Missing or invalid API key."), 403: err("A read only key, or an agent key."), 404: err("No such recipe."), 422: err("A blank is missing or names something outside this workspace.") },
   }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async (c) => {
     const body = (await c.req.json().catch(() => ({}))) as { blanks?: Record<string, unknown> };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

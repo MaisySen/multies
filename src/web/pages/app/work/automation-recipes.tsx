@@ -88,7 +88,7 @@ export function RecipesTab({ rules, onEditRule }: { rules: RuleLike[]; onEditRul
                         <p className="mt-1 text-[13px] text-muted">{r.description}</p>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center gap-2">
+                    <div className="mt-auto flex items-center gap-2 pt-4">
                       {r.added ? (
                         <>
                           {r.on ? <Badge tone="ok" dot>On</Badge> : <Badge>Off</Badge>}
