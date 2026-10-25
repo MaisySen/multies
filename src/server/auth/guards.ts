@@ -8,6 +8,7 @@ import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
 import { SSO_METHODS } from "./session";
+import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -43,7 +44,13 @@ export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthCon
   let requireSso = found?.requireSso ?? false;
   if (!member) {
     const orgId = newId("org");
-    await db.insert(organizations).values({ id: orgId, name: `${s.user.name.split("@")[0].split(" ")[0] || "My"}'s workspace`, slug: orgId });
+    // No zone is assumed: UTC until onboarding saves the person's own (from their browser). The
+    // country starts from the edge's guess (Cloudflare's CF-IPCountry) when it is a real country.
+    const edgeCountry = (headers.get("cf-ipcountry") ?? "").toUpperCase();
+    await db.insert(organizations).values({
+      id: orgId, name: `${s.user.name.split("@")[0].split(" ")[0] || "My"}'s workspace`, slug: orgId,
+      timezone: DEFAULT_TIMEZONE, country: isCountry(edgeCountry) ? edgeCountry : DEFAULT_COUNTRY,
+    });
     const memberId = newId("mem");
     await db.insert(members).values({ id: memberId, organizationId: orgId, userId: s.user.id, role: "owner" });
     member = (await db.select().from(members).where(eq(members.id, memberId)).get())!;

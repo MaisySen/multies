@@ -141,7 +141,7 @@ export async function savePage(deps: Deps, actor: SuiteActor, input: PageInput) 
   if (!/^[a-z0-9][a-z0-9-]{2,39}$/.test(slug)) throw new HttpError(422, "validation_failed", "Use 3 to 40 letters, numbers or dashes for the link.");
   const taken = await deps.db.select({ id: schedulingPages.id }).from(schedulingPages).where(eq(schedulingPages.slug, slug)).get();
   if (taken && taken.id !== existing?.id) throw new HttpError(409, "slug_taken", "That link is taken. Try another.");
-  const timezone = input.timezone ?? existing?.timezone ?? "Australia/Sydney";
+  const timezone = input.timezone ?? existing?.timezone ?? (await deps.db.select({ tz: organizations.timezone }).from(organizations).where(eq(organizations.id, actor.orgId)).get())?.tz ?? "UTC";
   if (!validTimezone(timezone)) throw new HttpError(422, "validation_failed", "Choose a valid time zone.");
   const slotMin = input.slotMin ?? existing?.slotMin ?? 30;
   if (!(SLOT_LENGTHS as readonly number[]).includes(slotMin)) throw new HttpError(422, "validation_failed", "Slots are 15, 30, 45 or 60 minutes.");

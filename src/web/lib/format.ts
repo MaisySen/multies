@@ -1,8 +1,17 @@
 import { DEFAULT_TIMEZONE, LOCALE } from "@/shared/locale";
 
-/** Dates show in the workspace's time zone (Settings, General). Set once the workspace loads. */
-let displayTimeZone = DEFAULT_TIMEZONE;
-export function setDisplayTimeZone(tz: string | null | undefined) {
+/** The browser's own time zone, when it says. */
+export function browserTimeZone(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
+/**
+ * Dates show in the person's own time zone: the one they saved (onboarding, Account settings),
+ * else their browser's, else the workspace's. Set once the account loads.
+ */
+let displayTimeZone = browserTimeZone() ?? DEFAULT_TIMEZONE;
+export function setDisplayTimeZone(...candidates: (string | null | undefined)[]) {
+  const tz = candidates.find((t): t is string => !!t);
   if (tz) displayTimeZone = tz;
 }
 export const tz = () => displayTimeZone;

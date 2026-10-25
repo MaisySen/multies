@@ -9,7 +9,7 @@ import { audit, listAudit } from "../services/audit";
 import { getAddons, getOrg, getPlan, overLimits, usage } from "../services/plans";
 import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, forbidden, HttpError } from "../lib/errors";
-import { COUNTRIES, isTimeZone } from "@/shared/locale";
+import { isCountry, isTimeZone } from "@/shared/locale";
 
 export function orgRoutes() {
   return new Hono<AppEnv>()
@@ -24,7 +24,7 @@ export function orgRoutes() {
       const input = await parseBody(c, z.object({
         name: z.string().trim().min(1).max(100).optional(),
         timezone: z.string().refine(isTimeZone, "Unknown time zone.").optional(),
-        country: z.enum(COUNTRIES).optional(),
+        country: z.string().refine(isCountry, "Pick a country from the list.").optional(),
       }));
       const { auth, deps } = c.var;
       const before = await getOrg(deps.db, auth.orgId);

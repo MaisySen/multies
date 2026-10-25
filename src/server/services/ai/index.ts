@@ -161,11 +161,12 @@ const money = (n: number, currency = "AUD") => new Intl.NumberFormat("en-AU", { 
 
 /** A reminder for an unpaid invoice, from a fixed template. No AI and no key needed. */
 export function invoiceChase(input: InvoiceChaseInput, today = new Date()) {
-  const due = new Date(`${input.dueDate}T00:00:00+10:00`);
+  // The due date is a calendar date: read and shown as that date, in no particular zone.
+  const due = new Date(`${input.dueDate}T00:00:00Z`);
   const days = Math.max(0, Math.floor((today.getTime() - due.getTime()) / 86_400_000));
   const stage = input.stage ?? (days > 30 ? "final" : days > 14 ? "firm" : "friendly");
   const amount = money(input.amount, input.currency);
-  const dueText = due.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "Australia/Sydney" });
+  const dueText = due.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
   const name = input.customerName.split(/\s+/)[0];
   const pay = input.paymentDetails?.trim() ? `\n\nPayment details:\n${input.paymentDetails.trim()}` : "";
   const sign = `\n\n${stage === "friendly" ? "Thanks" : "Regards"},\n${input.senderName ? `${input.senderName}\n` : ""}${input.businessName}`;

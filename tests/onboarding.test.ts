@@ -1,19 +1,93 @@
 import { describe, it, expect } from "vitest";
+import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
+import { organizations, users } from "@/server/db/schema";
+import { COUNTRIES, cleanLocale, countryFromLocale, guessCountry, isCountry, isTimeZone, COUNTRY_CURRENCY } from "@/shared/locale";
+import { invoiceChase } from "@/server/services/ai";
 
-describe("onboarding checklist", () => {
-  it("tracks setup steps and can be hidden", async () => {
+describe("locale helpers", () => {
+  it("knows every ISO country, zone and language tag", () => {
+    expect(COUNTRIES.length).toBe(249);
+    for (const c of ["BR", "NP", "FR", "AU", "US", "IN", "JP", "ZA"]) expect(isCountry(c)).toBe(true);
+    expect(isCountry("XX")).toBe(false);
+    expect(isTimeZone("America/Sao_Paulo")).toBe(true);
+    expect(isTimeZone("Mars/Olympus")).toBe(false);
+    expect(cleanLocale("pt-br")).toBe("pt-BR");
+    expect(cleanLocale("not a tag!")).toBeNull();
+    expect(countryFromLocale("pt-BR")).toBe("BR");
+    expect(countryFromLocale("ne")).toBeNull();
+    expect(guessCountry("ne", "Asia/Kathmandu")).toBe("NP");
+    expect(guessCountry("fr-FR", "Europe/Paris")).toBe("FR");
+    expect(COUNTRY_CURRENCY.BR).toBe("BRL");
+  });
+
+  it("an invoice due date is shown as that date anywhere", () => {
+    const out = invoiceChase({ customerName: "Ana Souza", amount: 100, dueDate: "2026-10-01", invoiceNumber: "7", businessName: "Souza Design" }, new Date("2026-10-02T12:00:00Z"));
+    expect(out.text).toContain("1 October 2026");
+  });
+});
+
+describe("onboarding", () => {
+  it("a new workspace takes the country from the edge and no fixed zone; onboarding is asked once", async () => {
+    const ctx = await makeTestApp();
+    const c = new Client(ctx.app);
+    const up = await c.call("POST", "/api/auth/sign-up/email", { name: "Ana Souza", email: "ana@example.com", password: "a-strong-password" }, { "cf-ipcountry": "BR" });
+    expect(up.status).toBe(200);
+    const me = (await c.call("GET", "/api/account/me", undefined, { "cf-ipcountry": "BR" })).body;
+    expect(me.organization).toMatchObject({ timezone: "UTC", country: "BR", onboarded: false });
+    expect(me.user).toMatchObject({ timezone: null, locale: null });
+    expect(me.onboarding).toEqual({ needed: true, workspace: true });
+
+    const bad = await c.post("/api/account/onboarding", { name: "Ana", timezone: "Mars/Olympus", locale: "pt-BR" });
+    expect(bad.status).toBe(422);
+    expect((await c.post("/api/account/onboarding", { name: "", timezone: "America/Sao_Paulo", locale: "pt-BR" })).status).toBe(422);
+    expect((await c.post("/api/account/onboarding", { name: "Ana", timezone: "America/Sao_Paulo", locale: "pt-BR", country: "XX" })).status).toBe(422);
+
+    const ok = await c.post("/api/account/onboarding", { name: "Ana Souza", timezone: "America/Sao_Paulo", locale: "pt-br", company: "Souza Design", country: "BR", workspaceTimezone: "America/Sao_Paulo" });
+    expect(ok.status).toBe(200);
+    const after = (await c.get("/api/account/me")).body;
+    expect(after.user).toMatchObject({ name: "Ana Souza", timezone: "America/Sao_Paulo", locale: "pt-BR" });
+    expect(after.organization).toMatchObject({ name: "Souza Design", country: "BR", timezone: "America/Sao_Paulo", onboarded: true });
+    expect(after.onboarding).toEqual({ needed: false, workspace: false });
+
+    // Changing the person's own zone later leaves the workspace's alone.
+    expect((await c.patch("/api/account/preferences", { timezone: "Europe/Paris", locale: "fr-FR" })).status).toBe(200);
+    expect((await c.patch("/api/account/preferences", { timezone: "Nowhere/Land" })).status).toBe(422);
+    const later = (await c.get("/api/account/me")).body;
+    expect(later.user).toMatchObject({ timezone: "Europe/Paris", locale: "fr-FR" });
+    expect(later.organization.timezone).toBe("America/Sao_Paulo");
+  });
+
+  it("a member saves only their own zone and language, never the workspace's", async () => {
+    const ctx = await makeTestApp();
+    const owner = new Client(ctx.app);
+    await owner.signup("owner@example.com", "Owner One");
+    const orgId = (await owner.get("/api/account/me")).body.organization.id;
+    const member = new Client(ctx.app);
+    await member.signup("kiran@example.com", "Kiran");
+    const kiran = (await ctx.db.select().from(users).where(eq(users.email, "kiran@example.com")).get())!;
+    const { members, sessions } = await import("@/server/db/schema");
+    await ctx.db.insert(members).values({ id: "mem_k", organizationId: orgId, userId: kiran.id, role: "member" });
+    await ctx.db.update(sessions).set({ activeOrganizationId: orgId }).where(eq(sessions.userId, kiran.id));
+    const me = (await member.get("/api/account/me")).body;
+    expect(me.organization.id).toBe(orgId);
+    expect(me.onboarding).toEqual({ needed: true, workspace: false });
+    expect((await member.post("/api/account/onboarding", { name: "Kiran", timezone: "Asia/Kathmandu", locale: "ne", company: "Taken over", country: "NP" })).status).toBe(200);
+    const org = (await ctx.db.select().from(organizations).where(eq(organizations.id, orgId)).get())!;
+    expect(org.name).not.toBe("Taken over");
+    expect(org.country).not.toBe("NP");
+    expect((await member.get("/api/account/me")).body.user.timezone).toBe("Asia/Kathmandu");
+  });
+
+  it("a workspace made later starts in its creator's zone", async () => {
     const ctx = await makeTestApp();
     const c = new Client(ctx.app);
     await c.signup();
-    let d = (await c.get("/api/dashboard")).body;
-    expect(d.onboarding).toEqual({ dismissed: false, steps: { domainAdded: false, domainVerified: false, mailboxCreated: false, inboundConnected: false, firstSend: false, teamInvited: false } });
-    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
-    await c.post("/api/mailboxes", { domainId, localPart: "ada", displayName: "Ada" });
-    await c.post("/api/team/invites", { email: "max@acme.io", role: "member" });
-    d = (await c.get("/api/dashboard")).body;
-    expect(d.onboarding.steps).toMatchObject({ domainAdded: true, mailboxCreated: true, teamInvited: true, domainVerified: false });
-    expect((await c.post("/api/dashboard/onboarding/dismiss", {})).status).toBe(200);
-    expect((await c.get("/api/dashboard")).body.onboarding.dismissed).toBe(true);
+    await c.post("/api/account/onboarding", { name: "Ada", timezone: "Europe/Paris", locale: "fr-FR", country: "FR" });
+    const made = await c.post("/api/account/workspaces", { name: "Side project" });
+    expect(made.status).toBeLessThan(300);
+    const me = (await c.get("/api/account/me")).body;
+    expect(me.organization.name).toBe("Side project");
+    expect(me.organization).toMatchObject({ timezone: "Europe/Paris", country: "FR" });
   });
 });

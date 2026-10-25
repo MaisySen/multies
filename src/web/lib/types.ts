@@ -5,8 +5,10 @@ import type { Address, AuthResults, Folder } from "@/shared/mail";
 export type { Plan, PlanId, DnsCheckReport, ExpectedRecord, Address, Folder };
 
 export interface Me {
-  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean };
-  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string; requireSso?: boolean } | null;
+  user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean; timezone?: string | null; locale?: string | null };
+  organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string; requireSso?: boolean; onboarded?: boolean } | null;
+  /** A short one time onboarding: the person's zone and language, and the workspace's name, country and zone for its admins. */
+  onboarding?: { needed: boolean; workspace: boolean };
   session?: { loginMethod: string; ssoBlocked: boolean };
   /** The person has a Multies password (an email and password account); Auth0-only people do not. */
   hasPassword?: boolean;

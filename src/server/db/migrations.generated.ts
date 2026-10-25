@@ -414,5 +414,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "DROP INDEX `companies_org_idx`;"
     ]
+  },
+  {
+    "name": "0026_user_timezone_locale",
+    "statements": [
+      "ALTER TABLE `users` ADD `timezone` text;",
+      "ALTER TABLE `users` ADD `locale` text;"
+    ]
   }
 ];

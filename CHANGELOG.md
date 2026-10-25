@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 17: global onboarding, everyone's own time zone (25 Oct 2026)
+
+- New people get a short onboarding before the app: name, company, country (all 249 ISO countries), time zone and language, filled in from the browser; the workspace part only for its owner or admins. Then three ways to get email working: a free @mail.multies.si address, connect existing email (copy mail in today), or your own domain, or straight into tasks, chat and meetings. Email and password sign up saves the same details from the browser.
+- Each person has their own time zone and language (`users.timezone`, `users.locale`, migration 0026), changeable in Settings. Dates show in the person's zone, then the browser's, then the workspace's. New workspaces start in UTC with the country from the edge, never Sydney; a later workspace takes its creator's zone. Hard coded Sydney removed from timesheets, meetings, booking pages, invoice reminders, the portfolio and the status page.
+- Pricing shows an approximate price in the visitor's currency (daily central bank rates, cached, no writes) with a note that billing is in A$.
+- The status page no longer breaks on browsers that refuse a combined date style and zone name.
+
 ### Round 17: free personal addresses on mail.multies.si (25 Oct 2026)
 
 - Anyone can take a free personal address name@mail.multies.si (owner decision, 25 Oct 2026, 9:32 PM Sydney), shown on the overview and on Mailboxes for workspaces without a domain. Never on the root multies.si: the config refuses the app's own domain. Kept names (role and system words, whole or as any part, and "multies" or "fintex" anywhere), confirmed emails only, never sample workspaces. Abuse limits: one per person, 3 a day per network and per device, a daily ceiling for the server; free addresses send to 50 recipients a day (20 in the first week), at most 10 in one message, and are held for spam from the lower score. API: `GET`/`POST /api/free-address`, `POST /api/v1/free-address`. DNS: DKIM, return path, DMARC (quarantine) and Cloudflare MX on mail.multies.si; docs/runbooks/free-addresses.md.

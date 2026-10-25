@@ -55,7 +55,7 @@ export const ReportQuery = z.object({ projectId: z.string().optional(), days: z.
 
 async function orgTimeZone(c: { var: AppEnv["Variables"] }) {
   const o = await c.var.deps.db.select({ tz: organizations.timezone }).from(organizations).where(eq(organizations.id, c.var.auth.orgId)).get();
-  return o?.tz ?? "Australia/Sydney";
+  return o?.tz ?? "UTC";
 }
 
 export function timeRoutes() {

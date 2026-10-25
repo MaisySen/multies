@@ -11,6 +11,8 @@ import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap, type AuthProviders } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
+import { browserTimeZone } from "@/web/lib/format";
+import { cleanLocale, guessCountry } from "@/shared/locale";
 
 type AuthAction = (body: Record<string, string>) => Promise<{ twoFactorRedirect?: boolean } | unknown>;
 
@@ -373,7 +375,13 @@ function LocalSignup({ idp }: { idp: boolean }) {
   const { submit, loading, error, fields } = useAuthSubmit(async (b) => {
     await unwrap(authClient.signUp.email({ name: b.name, email: b.email, password: b.password, callbackURL: "/email-verified" }));
     await api.get("/account/me"); // creates the personal workspace
-    if (b.organization.trim()) await api.patch("/org", { name: b.organization.trim() });
+    // This form is the onboarding for email and password accounts: the browser fills in the zone, language and country.
+    const zone = browserTimeZone() ?? "UTC";
+    const locale = cleanLocale(navigator.language) ?? "en";
+    await api.post("/account/onboarding", {
+      name: b.name, timezone: zone, locale, workspaceTimezone: zone,
+      company: b.organization.trim() || undefined, country: guessCountry(locale, zone) ?? undefined,
+    }).catch(() => undefined);
     return null;
   }, { thanks: true });
   const [params] = useSearchParams();

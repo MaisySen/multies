@@ -240,7 +240,7 @@ export async function taskTime(deps: Deps, actor: SuiteActor, taskIdOrRef: strin
 export async function timesheet(deps: Deps, actor: SuiteActor, f: EntryFilters & { timeZone?: string } = {}) {
   const { from, to } = rangeOf(f, deps.now());
   const entries = await listEntries(deps, actor, { ...f, from: from.toISOString(), to: to.toISOString(), taskId: undefined });
-  const tz = f.timeZone || "Australia/Sydney";
+  const tz = f.timeZone || "UTC";
   const dayOf = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   const days: string[] = [];
   for (let t = from.getTime(); t < to.getTime() && days.length < 62; t += DAY) { const d = dayOf(new Date(t)); if (!days.includes(d)) days.push(d); }

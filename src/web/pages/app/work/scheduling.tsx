@@ -18,9 +18,9 @@ interface Booking { id: string; startsAt: string; durationMin: number; name: str
 const DAYS: [Day, string][] = [["mon", "Monday"], ["tue", "Tuesday"], ["wed", "Wednesday"], ["thu", "Thursday"], ["fri", "Friday"], ["sat", "Saturday"], ["sun", "Sunday"]];
 const ZONES = (() => {
   const fn = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
-  return fn ? fn("timeZone") : ["Australia/Sydney", "Australia/Melbourne", "Australia/Brisbane", "Australia/Perth", "Pacific/Auckland", "Asia/Singapore", "Asia/Kolkata", "Europe/London", "Europe/Berlin", "America/New_York", "America/Los_Angeles", "UTC"];
+  return fn ? fn("timeZone") : ["UTC", "America/New_York", "America/Los_Angeles", "America/Sao_Paulo", "Europe/London", "Europe/Berlin", "Asia/Kolkata", "Asia/Kathmandu", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney", "Pacific/Auckland"];
 })();
-const localZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "Australia/Sydney";
+const localZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const fmt = (s: string) => new Date(s).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 const WEEKDAYS: [string, string] = ["09:00", "17:00"];
 

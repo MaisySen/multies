@@ -18,7 +18,8 @@ import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
-import { initials, setDisplayTimeZone } from "@/web/lib/format";
+import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
+import { Onboarding } from "@/web/pages/app/onboarding";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
@@ -74,8 +75,8 @@ export function AppLayout() {
   const unreadNotes = useUnreadNotifications(!!me.data?.organization);
   const chatUnread = useQuery({ queryKey: ["chat", "unread"], enabled: !!me.data?.organization, refetchInterval: 30_000, queryFn: () => api.get<{ total: number; mentions: number }>("/chat/unread") });
   useEffect(() => setDrawer(false), [loc.pathname]);
-  // Assigned during render so the first paint already uses the workspace's zone.
-  setDisplayTimeZone(me.data?.organization?.timezone);
+  // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
+  setDisplayTimeZone(me.data?.user?.timezone, browserTimeZone(), me.data?.organization?.timezone);
 
   if (me.isPending) return <AppSkeleton />;
   if (me.error) {
@@ -102,6 +103,7 @@ export function AppLayout() {
       </div>
     );
   }
+  if (me.data.onboarding?.needed) return <Onboarding me={me.data} />;
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {

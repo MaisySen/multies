@@ -45,22 +45,46 @@ export async function receive(to: string, subject: string) {
   return rejected;
 }
 
-test("a new person with no domain takes a free address, sends out and receives", async ({ page }) => {
+const SHOTS = process.env.R17_SHOTS;
+
+// A person in São Paulo with a Brazilian Portuguese browser.
+test.use({ locale: "pt-BR", timezoneId: "America/Sao_Paulo" });
+
+test("a new person in São Paulo is onboarded from the browser, takes a free address, sends out and receives", async ({ page }) => {
   const stamp = Date.now().toString(36);
   await signInFresh(page, `free-${stamp}@example.com`, `Fern ${stamp}`);
-  // Onboarding first, when the workspace is new: finish it with what the browser already filled in.
-  const onboarding = page.getByRole("heading", { name: "Welcome to Multies" });
-  if (await onboarding.isVisible().catch(() => false)) await page.getByRole("button", { name: /Continue|Save and continue/ }).click();
+  // Onboarding: everything is filled in from the browser.
+  await expect(page.getByRole("heading", { name: "Welcome to Multies" })).toBeVisible();
+  await expect(page.getByLabel("Your name")).toHaveValue(`Fern ${stamp}`);
+  await expect(page.getByLabel("Country")).toHaveValue("BR");
+  await expect(page.getByLabel("Time zone")).toHaveValue("America/Sao_Paulo");
+  await expect(page.getByLabel("Language")).toHaveValue("pt-BR");
+  await page.getByLabel("Company or team").fill("Fern Studio");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/1-onboarding.png`, fullPage: true });
+  await page.getByRole("button", { name: "Continue" }).click();
 
-  await page.goto(`${BASE}/app/mailboxes`);
+  // Three ways to get email working.
+  await expect(page.getByRole("heading", { name: "How do you want to use email?" })).toBeVisible();
+  await expect(page.getByTestId("path-connect")).toContainText("Connect your existing email");
+  await expect(page.getByTestId("path-domain")).toContainText("Use your own domain");
   const card = page.getByTestId("free-address");
-  await expect(card).toBeVisible();
+  await expect(card).toContainText("Get a free @free.multies.test address");
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-email-paths.png`, fullPage: true });
   const input = card.getByLabel("Address");
   await expect(input).toHaveValue(/^fern/);
   await input.fill(`fern.${stamp}`);
   await card.getByRole("button", { name: "Get my address" }).click();
   const address = `fern.${stamp}@free.multies.test`;
   await expect(page.getByTestId("free-address-value")).toHaveText(address);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/3-free-address.png`, fullPage: true });
+  await page.getByRole("button", { name: "Go to Multies" }).click();
+  // Onboarding is done; the app greets them in their own zone, and it is not asked again.
+  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Fern/ })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Welcome to Multies" })).toHaveCount(0);
+  const me = await page.evaluate(async () => (await fetch("/api/account/me")).json());
+  expect(me.user.timezone).toBe("America/Sao_Paulo");
+  expect(me.organization).toMatchObject({ name: "Fern Studio", country: "BR", timezone: "America/Sao_Paulo" });
 
   // Send to the outside world from the new address.
   await page.goto(`${BASE}/app/mail?compose=1`);

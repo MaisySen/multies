@@ -262,7 +262,7 @@ export async function sendInvites(deps: Deps, actor: SuiteActor, id: string, opt
   if (!invitees.length) throw new HttpError(422, "no_guests", "Add at least one guest email first.");
   const org = await deps.db.select({ name: organizations.name, timezone: organizations.timezone }).from(organizations).where(eq(organizations.id, actor.orgId)).get();
   const guestUrl = `${deps.config.appUrl}/m/${m.guestToken}`;
-  const when = new Intl.DateTimeFormat("en-AU", { timeZone: org?.timezone ?? "Australia/Sydney", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(m.startsAt);
+  const when = new Intl.DateTimeFormat("en-AU", { timeZone: org?.timezone ?? "UTC", weekday: "long", day: "numeric", month: "long", year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(m.startsAt);
   const series = seriesOf(m);
   const subject = `Invitation: ${m.title}`;
   const whenText = series ? `${when}\n${series.summary}` : when;

@@ -16,12 +16,32 @@ import { audit } from "../services/audit";
 import { createDemoWorkspace } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
+import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
 
 /**
  * Product-level account endpoints. Sign-up, sign-in, sessions, 2FA, password reset
  * and email verification are Better Auth's, served under /api/auth.
  */
 const FRESH_SESSION_MS = 15 * 60_000;
+
+const readOrgMeta = (raw: string | null | undefined): Record<string, unknown> => {
+  try { return raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { return {}; }
+};
+const zone = z.string().max(64).refine(isTimeZone, "Unknown time zone.");
+const localeTag = z.string().max(35).transform((v, ctx) => {
+  const clean = cleanLocale(v);
+  if (!clean) { ctx.addIssue({ code: "custom", message: "Unknown language." }); return z.NEVER; }
+  return clean;
+});
+const onboardingSchema = z.object({
+  name: z.string().trim().min(1, "Enter your name.").max(100),
+  timezone: zone,
+  locale: localeTag,
+  company: z.string().trim().max(100).optional(),
+  country: z.string().refine(isCountry, "Pick a country from the list.").optional(),
+  workspaceTimezone: zone.optional(),
+});
+const preferencesSchema = z.object({ timezone: zone.optional(), locale: localeTag.optional() });
 
 export function accountRoutes() {
   const resendLimiter = new RateLimiter(3, 10 * 60_000);
@@ -86,14 +106,47 @@ export function accountRoutes() {
     .use("*", requireAuth)
     .get("/me", async (c) => {
       const { auth } = c.var;
-      const org = await c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get();
+      const [org, prefs] = await Promise.all([
+        c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
+        c.var.deps.db.select({ timezone: users.timezone, locale: users.locale }).from(users).where(eq(users.id, auth.userId)).get(),
+      ]);
+      const workspaceOnboarded = !!readOrgMeta(org?.metadata).onboardedAt;
       return c.json({
-        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin" },
-        organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso } : null,
+        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin", timezone: prefs?.timezone ?? null, locale: prefs?.locale ?? null },
+        organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso, onboarded: workspaceOnboarded } : null,
+        // A short onboarding once per person (their zone and language), plus the workspace's name, country and zone for its owner or admins.
+        onboarding: {
+          needed: !!org && !org.isDemo && !prefs?.timezone,
+          workspace: !!org && !org.isDemo && !workspaceOnboarded && auth.role !== "member",
+        },
         session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },
         hasPassword: !!(await c.var.deps.db.select({ password: accounts.password }).from(accounts)
           .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get())?.password,
       });
+    })
+    .post("/onboarding", async (c) => {
+      const input = await parseBody(c, onboardingSchema);
+      const { auth, deps } = c.var;
+      const org = await deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get();
+      if (!org) throw notFound("Workspace");
+      await deps.db.update(users).set({ name: input.name, timezone: input.timezone, locale: input.locale }).where(eq(users.id, auth.userId));
+      // The workspace's own name, country and zone: its owner or admins, once (later changes are in Settings).
+      if (auth.role !== "member" && !org.isDemo && (input.company || input.country || input.workspaceTimezone)) {
+        await deps.db.update(organizations).set({
+          ...(input.company ? { name: input.company } : {}),
+          ...(input.country ? { country: input.country } : {}),
+          timezone: input.workspaceTimezone ?? input.timezone,
+          metadata: JSON.stringify({ ...readOrgMeta(org.metadata), onboardedAt: deps.now().toISOString() }),
+        }).where(eq(organizations.id, org.id));
+      }
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "account.onboarded", metadata: { timezone: input.timezone, locale: input.locale, country: input.country ?? null }, ip: c.var.ip });
+      return c.json({ ok: true });
+    })
+    .patch("/preferences", async (c) => {
+      const input = await parseBody(c, preferencesSchema);
+      const { auth, deps } = c.var;
+      await deps.db.update(users).set({ ...(input.timezone ? { timezone: input.timezone } : {}), ...(input.locale ? { locale: input.locale } : {}) }).where(eq(users.id, auth.userId));
+      return c.json({ ok: true });
     })
     .get("/workspaces", async (c) => {
       return c.json({ workspaces: await listWorkspaces(c.var.deps.db, c.var.auth.userId), currentId: c.var.auth.orgId });

@@ -8,6 +8,7 @@ import { showError } from "@/web/lib/show-error";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
+import { shortDate } from "@/web/lib/format";
 import { hoursText } from "./time";
 import { tone } from "@/web/components/app-bits";
 
@@ -24,7 +25,7 @@ export const HEALTH: Record<Health, { label: string; cls: string }> = {
   at_risk: { label: "At risk", cls: "bg-warn/15 text-warn" },
   off_track: { label: "Off track", cls: "bg-bad/15 text-bad" },
 };
-const day = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", timeZone: "Australia/Sydney" });
+const day = { format: (d: Date) => shortDate(d, { day: "numeric", month: "short" }) };
 
 export function PortfolioPage() {
   const [archived, setArchived] = useState(false);

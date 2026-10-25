@@ -18,6 +18,10 @@ export const users = sqliteTable("users", {
   banExpires: ts("ban_expires"),
   /** How the person last signed in ("email", "auth0", "google", ...), from Better Auth's lastLoginMethod plugin. */
   lastLoginMethod: text("last_login_method"),
+  /** The person's own IANA time zone (onboarding, from the browser); times they see use it. Null until set. */
+  timezone: text("timezone"),
+  /** The person's language as a BCP 47 tag ("pt-BR"); formats dates and numbers. Null until set. */
+  locale: text("locale"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().default(new Date(0)).$defaultFn(() => new Date()).$onUpdate(() => new Date()),
 }, (t) => [uniqueIndex("users_email_uq").on(t.email)]);
@@ -31,6 +35,7 @@ export const organizations = sqliteTable("organizations", {
   metadata: text("metadata"),
   plan: text("plan", { enum: ["starter", "pro", "business"] }).notNull().default("starter"),
   /** IANA zone used to show dates to the team. */
+  // The column default stays as first made (changing it rebuilds the table); every insert sets the zone.
   timezone: text("timezone").notNull().default("Australia/Sydney"),
   /** ISO 3166-1 alpha-2; used as the billing country default. */
   country: text("country").notNull().default("AU"),

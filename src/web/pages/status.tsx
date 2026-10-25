@@ -74,7 +74,7 @@ export function StatusPage() {
           </ul>
           {s.history && <UptimeHistory history={s.history} />}
           <p className="mt-6 text-xs text-subtle">
-            Checked {new Date(s.checkedAt).toLocaleString(LOCALE, { dateStyle: "medium", timeStyle: "medium", timeZone: "Australia/Sydney" })} Sydney time. Refreshes every minute.
+            Checked {new Date(s.checkedAt).toLocaleString(LOCALE, { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short" })}, your time. Refreshes every minute.
           </p>
         </>
       )}

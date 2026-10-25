@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/web/lib/api";
 import { Minus, Plus } from "lucide-react";
 import { PlanCards } from "@/web/components/plan-cards";
 import { ADDON_ORDER, ADDONS, PLANS, chargeFor, effectiveLimits, formatPlanPrice, type AddonId, type AddonQuantities } from "@/shared/plans";
@@ -7,6 +9,18 @@ import { LOCALE } from "@/shared/locale";
 
 /** Google Workspace Business Starter, per user a month on an annual plan (Google's Australian price list, read 23 October 2026). */
 const GOOGLE_STARTER_AUD = 9.9;
+
+const countryParam = () => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("country"));
+
+/** The price in the visitor's own currency, approximate and for display only. Billing stays in A$. */
+function LocalPrice({ aud }: { aud: number }) {
+  const fx = useQuery({ queryKey: ["fx"], staleTime: 3600_000, retry: false,
+    queryFn: () => api.get<{ currency: string; rate: number | null; date?: string | null }>(`/fx${countryParam() ? `?country=${encodeURIComponent(countryParam()!)}` : ""}`) });
+  if (!fx.data?.rate || fx.data.currency === "AUD") return null;
+  let local: string;
+  try { local = new Intl.NumberFormat(undefined, { style: "currency", currency: fx.data.currency, maximumFractionDigits: 0 }).format(aud * fx.data.rate); } catch { return null; }
+  return <p className="mt-1 text-sm text-muted" data-testid="local-price">About {local}. You're billed in Australian dollars (A$); your bank sets the final amount.</p>;
+}
 
 const FAQ: { q: string; a: string }[] = [
   { q: "Is Free really free forever?", a: "Yes. One domain, three mailboxes for three people, 3 GB, mail apps and three agent inboxes, with no card and no trial clock. The limits are in our terms, and if they ever change, existing free workspaces keep what they have." },
@@ -86,6 +100,7 @@ function Calculator() {
             <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums" aria-live="polite">
               {charge.amount === 0 ? "A$0" : formatPlanPrice(charge.amount)}<span className="text-base font-normal text-subtle"> {charge.amount === 0 ? "forever" : charge.interval === "year" ? "a year" : "a month"}</span>
             </p>
+            {charge.amount > 0 && <LocalPrice aud={charge.amount} />}
             <p className="mt-3 text-sm text-muted">
               {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB and {limits.agentInboxes} agent inboxes. AI is yours to bring, free.
             </p>

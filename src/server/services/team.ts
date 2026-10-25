@@ -14,6 +14,7 @@ import { authFor } from "../auth";
 import { addonHint, getPlan } from "./plans";
 import { isHosted } from "./mail/delivery";
 import { removeAgentMember } from "./people";
+import { DEFAULT_TIMEZONE } from "@/shared/locale";
 
 export type Role = "owner" | "admin" | "member";
 
@@ -259,6 +260,12 @@ export async function createWorkspace(deps: Deps, auth: AuthContext, headers: He
   const slug = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "workspace"}-${crypto.randomUUID().slice(0, 8)}`;
   const org = await authFor(deps).api.createOrganization({ headers, body: { name, slug } });
   if (!org) throw new HttpError(500, "internal", "The workspace could not be created.");
+  // A new workspace starts in its creator's own zone and the country of the workspace they came from, never a fixed default.
+  const [me, from] = await Promise.all([
+    deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, auth.userId)).get(),
+    deps.db.select({ country: organizations.country, tz: organizations.timezone }).from(organizations).where(eq(organizations.id, auth.orgId)).get(),
+  ]);
+  await deps.db.update(organizations).set({ timezone: me?.tz ?? from?.tz ?? DEFAULT_TIMEZONE, ...(from?.country ? { country: from.country } : {}) }).where(eq(organizations.id, org.id));
   await deps.db.update(sessions).set({ activeOrganizationId: org.id, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
   return org.id;
 }

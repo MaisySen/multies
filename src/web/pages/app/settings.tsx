@@ -17,7 +17,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LOCALE } from "@/shared/locale";
+import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LANGUAGES, LOCALE, cleanLocale } from "@/shared/locale";
 
 const TABS = [
   { to: "/app/settings", label: "General", end: true },
@@ -52,6 +52,7 @@ export function SettingsLayout() {
 export function GeneralSettings() {
   return (
     <div className="space-y-6">
+      <PreferencesSection />
       <WorkspaceSection />
       <AiSection />
       <XeroSection />
@@ -138,6 +139,53 @@ export function Section({ id, title, description, children }: { id?: string; tit
   );
 }
 
+/** The person's own time zone and language. Every date in the app shows in their zone. */
+function PreferencesSection() {
+  const me = useMe();
+  const qc = useQueryClient();
+  const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [timezone, setTimezone] = useState<string>("");
+  const [locale, setLocale] = useState<string>("");
+  useEffect(() => {
+    if (!me.data) return;
+    setTimezone(me.data.user.timezone ?? own ?? me.data.organization?.timezone ?? DEFAULT_TIMEZONE);
+    setLocale(me.data.user.locale ?? cleanLocale(navigator.language) ?? "en");
+  }, [me.data, own]);
+  const zones = useMemo(() => {
+    const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [DEFAULT_TIMEZONE];
+    return own && all.includes(own) ? [own, ...all.filter((z) => z !== own)] : all;
+  }, [own]);
+  const names = useMemo(() => { try { return new Intl.DisplayNames([locale || "en", "en"], { type: "language" }); } catch { return null; } }, [locale]);
+  const langs = useMemo(() => (LANGUAGES as readonly string[]).includes(locale) || !locale ? [...LANGUAGES] : [locale, ...LANGUAGES], [locale]);
+  const m = useMutation({
+    mutationFn: () => api.patch("/account/preferences", { timezone, locale }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.me }); toast.success("Saved."); },
+    onError: (e) => showError(e),
+  });
+  const dirty = !!me.data && (timezone !== (me.data.user.timezone ?? "") || locale !== (me.data.user.locale ?? ""));
+  return (
+    <Section id="preferences" title="Your time zone and language" description="Just for you. Chat, mail, meetings and reminders show in your zone, wherever your team is.">
+      {me.isPending ? <Skeleton className="h-10 max-w-md" /> : (
+        <form className="grid max-w-xl gap-4 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+          <Field label="Your time zone">{(p) => (
+            <Select {...p} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+            </Select>
+          )}</Field>
+          <Field label="Your language" hint="Multies is in English for now. This sets dates and numbers.">{(p) => (
+            <Select {...p} value={locale} onChange={(e) => setLocale(e.target.value)}>
+              {langs.map((l) => <option key={l} value={l}>{names?.of(l) ?? l}</option>)}
+            </Select>
+          )}</Field>
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="secondary" loading={m.isPending} disabled={!dirty}>Save</Button>
+          </div>
+        </form>
+      )}
+    </Section>
+  );
+}
+
 function WorkspaceSection() {
   const org = useOrg();
   const qc = useQueryClient();
@@ -152,8 +200,9 @@ function WorkspaceSection() {
   }, [org.data]);
   const zones = useMemo(() => {
     const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [DEFAULT_TIMEZONE];
-    const au = all.filter((z) => z.startsWith("Australia/"));
-    return [...au, ...all.filter((z) => !z.startsWith("Australia/"))];
+    // The browser's own zone first, then every zone.
+    const own = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return own && all.includes(own) ? [own, ...all.filter((z) => z !== own)] : all;
   }, []);
   const regionName = useMemo(() => new Intl.DisplayNames([LOCALE], { type: "region" }), []);
   const o = org.data?.organization;
@@ -175,7 +224,7 @@ function WorkspaceSection() {
           )}</Field>
           <Field label="Country">{(p) => (
             <Select {...p} value={country} onChange={(e) => setCountry(e.target.value)}>
-              {COUNTRIES.map((c) => <option key={c} value={c}>{regionName.of(c) ?? c}</option>)}
+              {[...COUNTRIES].map((c) => ({ c, n: regionName.of(c) ?? c })).sort((a, b) => a.n.localeCompare(b.n)).map(({ c, n }) => <option key={c} value={c}>{n}</option>)}
             </Select>
           )}</Field>
           <div className="sm:col-span-2">
