@@ -49,7 +49,7 @@ Out of scope: findings from automated scanners without a working exploit, missin
 
 ## Disclosure process
 
-1. You report privately to security@multies.si.
+1. You report privately to contact@fintex.au.
 2. We acknowledge within 2 business days and agree a severity with you (CVSS 4.0).
 3. We fix it on a private branch, add a regression test, and deploy within the targets above.
 4. We tell you when the fix is live and agree a disclosure date with you, normally within 90 days of your report, or sooner once the fix is deployed.

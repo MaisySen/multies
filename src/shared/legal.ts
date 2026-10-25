@@ -10,9 +10,11 @@ export const LEGAL_ENTITY = {
   abn: "60 688 406 108",
   acn: "688 406 108",
   address: "New South Wales, Australia (NSW 2135)",
-  privacyEmail: "privacy@multies.si",
-  abuseEmail: "abuse@multies.si",
-  supportEmail: "support@multies.si",
+  // privacy@, abuse@ and support@multies.si are not read mailboxes yet (docs/runbooks/multies-si-mailboxes.md),
+  // so every public contact uses the company address from the runbook until they are routed into an inbox.
+  privacyEmail: "contact@fintex.au",
+  abuseEmail: "contact@fintex.au",
+  supportEmail: "contact@fintex.au",
   contactEmail: "contact@fintex.au",
   website: "https://fintex.au",
 };
@@ -28,7 +30,7 @@ export const LEGAL_LINE = {
 };
 export const LEGAL_LINE_TEXT = LEGAL_LINE.before + LEGAL_LINE.company + LEGAL_LINE.after;
 
-export const LEGAL_UPDATED = "23 October 2026";
+export const LEGAL_UPDATED = "25 October 2026";
 
 export type Block = string | { list: string[] } | { table: string[][] };
 export interface LegalSection { id: string; title: string; body: Block[] }
