@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 107 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 111 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -364,3 +364,14 @@ Registered in src/server/routes/mcp-r24-docs.ts. `get_doc_tree` and `get_backlin
 | `get_doc_tree` | The workspace's docs as a tree of pages and sub pages (id, title, parentId, position, depth, children), at most 6 levels deep; `flat: true` gives one line per page with its depth |
 | `move_doc` | Puts a doc under another page (`parentId`, or null for the top level) and, optionally, right before or after a sibling (`beforeId` or `afterId`); with neither it goes last. A page can't go under itself or its own sub pages |
 | `get_backlinks` | The docs whose body links to a doc or a task (`type` doc or task, `id` an id or a task ref like OPS-12), newest first, each with a short snippet of the text around the link |
+
+### Dashboards (R24.3)
+
+Registered in src/server/routes/mcp-r24-dashboards.ts. `list_dashboards` and `get_dashboard_data` read, so read only keys and tokens can call them and they write nothing; `create_dashboard` and `add_dashboard_widget` need a full key or token. A private dashboard is seen only by its owner (a key acts for the person who made it); a dashboard made by an agent key is shared.
+
+| Tool | What it does |
+| --- | --- |
+| `list_dashboards` | Dashboards you can open (shared ones and your own) with their widget counts |
+| `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person; a widget whose saved filter was removed carries an `error` |
+| `create_dashboard` | Make a dashboard with up to 24 widgets, or `starter: "team"` for Team overview (by status, by person, due this week, completed per week); private unless `shared` |
+| `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`) |

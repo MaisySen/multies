@@ -870,3 +870,36 @@ it("docs tree and backlinks (R24.5): unchanged links write 0 link rows; a link i
   await docsSvc.deleteDoc(ctx.deps, actor, a.id);
   expect(take()).toBe(lone + 6);
 });
+
+it("dashboards (R24.3): viewing a dashboard's data writes nothing; create, a layout save and a delete are 2 each (one row and its index)", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  await u.post("/api/tasks", { title: "Ship", projectId, due: "2026-11-03T10:00:00Z" });
+  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const svc = await import("@/server/services/suite/dashboards");
+  const take = meter(ctx.db);
+  const d = await svc.createDashboard(ctx.deps, actor, { starter: "team" });
+  expect(take()).toBe(2); // the row and its org index; no activity rows
+  const widgets = [...d.widgets.reverse(), { type: "breakdown" as const, groupBy: "label" as const }, { type: "goals" as const }, { type: "workload" as const }, { type: "mail_volume" as const }, { type: "reply_times" as const }, { type: "count" as const, source: { projectId } }];
+  await svc.updateDashboard(ctx.deps, actor, d.id, { name: "Team", widgets, shared: true });
+  expect(take()).toBe(2); // ten widgets, a rename and the share flag: one row and its index
+  await svc.addWidget(ctx.deps, actor, d.id, { type: "due" });
+  expect(take()).toBe(2);
+  await svc.dashboardData(ctx.deps, actor, d.id);
+  expect(take()).toBe(0);
+  await u.get("/api/tasks");
+  const sessionBaseline = take();
+  expect((await u.get(`/api/dashboards/${d.id}/data`)).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(sessionBaseline);
+  const headers = { host: "localhost", authorization: `Bearer ${key}` };
+  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
+  const baseline = take();
+  expect((await ctx.app.request(`/api/v1/dashboards/${d.id}/data`, { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  await svc.deleteDashboard(ctx.deps, actor, d.id);
+  expect(take()).toBe(2);
+});

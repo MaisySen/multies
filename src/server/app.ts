@@ -34,6 +34,7 @@ import { sprintRoutes } from "./routes/sprints";
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { docTreeRoutes, guestDocTreeRoutes, taskBacklinkRoutes } from "./routes/doc-tree";
+import { savedDashboardRoutes } from "./routes/dashboards";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { mailSnippetRoutes } from "./routes/mail-snippets";
@@ -242,6 +243,7 @@ export function createApp(deps: Deps) {
   app.route("/api/mail-schedules", mailScheduleRoutes());
   app.route("/api/sprints", sprintRoutes());
   app.route("/api/workload", workloadRoutes()); // R24.2: workload view
+  app.route("/api/dashboards", savedDashboardRoutes()); // R24.3: dashboards
   app.route("/api/triage", triageRoutes());
   app.route("/api/threads", threadCommentRoutes()); // Round 22: internal notes on shared inbox threads
   app.route("/api/threads", threadStateRoutes()); // Round 22: assign, done, reply times

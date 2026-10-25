@@ -659,3 +659,46 @@ periodic snapshot through the normal update.
 D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
 A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
 page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.
+
+## Dashboards (R24.3)
+
+A dashboard is a named grid of widgets, private to the person who made it or shared with the
+workspace. The widgets are kept in the dashboard row (so saving any number of widget changes is one
+row write) and their numbers are computed when you read them: nothing is stored or cached.
+
+Widget: `{ id, type, title, source, groupBy, chart, size, position }`.
+
+- `type`: `count` (a number), `breakdown` (tasks grouped by `groupBy`: `status`, `assignee`, `priority`,
+  `project`, `sprint`, `type` or `label`; by person counts open tasks unless the widget filters a
+  status), `due` (open tasks overdue and due this week, with up to 10 of them), `completed` (tasks done
+  per week over the last 8 weeks), `burndown` (the active sprint of the widget's project), `goals`
+  (progress of the top level goals), `reply_times` (median first response and resolution per mailbox or
+  person over 30 days, `groupBy` `mailbox` or `person`), `mail_volume` (received and sent per day over 14
+  days) and `workload` (open tasks and estimates per person over 4 weeks).
+- `source`: `{ savedViewId }` applies a saved view's project and filters; `{ projectId, filters }` sets
+  them inline (`assignee` as `member:<id>`, `agent:<id>`, `me` or `none`; `status` `todo`, `doing` or
+  `done`; `priority`; `label`; `type`; `q`; `due` as `overdue`, `week` or `none`). Inline filters go on
+  top of a saved view's. `{ mailboxId }` narrows the mail widgets.
+- `chart`: `number`, `bar`, `donut`, `line` or `table`. `size`: 1 or 2 columns.
+
+Up to 24 widgets a dashboard and 50 dashboards a workspace. Breakdowns return at most 20 groups (the
+rest add up in Other). Tasks are read the way the task list reads them (this workspace, top level,
+not in Triage, not deleted); mail widgets read only the mailboxes you may read. Another workspace's
+saved views, projects and mailboxes are refused when a dashboard is saved (404).
+
+- App API (session): `GET /api/dashboards`, `POST /api/dashboards { name, shared, widgets }` or
+  `{ starter: "team" }` (Team overview: by status, by person, due this week, completed per week),
+  `GET /api/dashboards/:id`, `PATCH /api/dashboards/:id { name, shared, widgets, version }` (the whole
+  widget list in its new order; a stale `version` answers 409), `POST /api/dashboards/:id/widgets`,
+  `DELETE /api/dashboards/:id`, and `GET /api/dashboards/:id/data?tz` for every widget's data in one
+  request: `{ dashboard, timeZone, weekStart, widgets: [{ id, type, data, error }] }`.
+- Public API: the same under `/api/v1/dashboards` (`GET /api/v1/dashboards/{id}/data`). Read only keys
+  can list and read; creating, saving, adding and removing need a full key. A key sees its maker's
+  private dashboards; an agent key acts as its agent and sees shared dashboards only, and a dashboard
+  it makes is shared.
+- MCP: `list_dashboards`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
+- Who can change what: the owner changes everything; anyone in the workspace can change a shared
+  dashboard's name and widgets; sharing and removing a shared one is for its owner or an admin.
+
+D1 writes: reading a dashboard's data writes nothing. Creating, saving (any number of widget changes, a
+rename and the share flag together) and removing a dashboard are each one row and its index: 2.

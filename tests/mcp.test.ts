@@ -35,6 +35,7 @@ describe("MCP server", () => {
     const mcp = await connect(wsKey);
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
+      "add_dashboard_widget",
       "add_thread_comment",
       "add_to_epic",
       "add_to_sprint",
@@ -48,6 +49,7 @@ describe("MCP server", () => {
       "create_action_items",
       "create_agent_inbox",
       "create_custom_field",
+      "create_dashboard",
       "create_doc",
       "create_form",
       "create_goal",
@@ -62,6 +64,7 @@ describe("MCP server", () => {
       "find_tasks_by_field",
       "get_backlinks",
       "get_call_status",
+      "get_dashboard_data",
       "get_doc_tree",
       "get_epic",
       "get_meeting_notes",
@@ -79,6 +82,7 @@ describe("MCP server", () => {
       "list_calendar_events",
       "list_channels",
       "list_custom_fields",
+      "list_dashboards",
       "list_epics",
       "list_forms",
       "list_goals",
