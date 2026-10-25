@@ -18,6 +18,7 @@ import { notify } from "./notify";
 import { assignees, createTask, link } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { reactionsFor } from "./chat-reaction-summary";
+import { inChunks } from "../../lib/sql-chunks";
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -313,8 +314,8 @@ function timingSafeEqualStr(a: string, b: string) {
 async function filesFor(deps: Deps, messageIds: string[]) {
   const out = new Map<string, { id: string; filename: string; contentType: string; size: number; url: string }[]>();
   if (!messageIds.length) return out;
-  const rows = await deps.db.select({ id: chatFiles.id, orgId: chatFiles.orgId, messageId: chatFiles.messageId, filename: chatFiles.filename, contentType: chatFiles.contentType, size: chatFiles.sizeBytes })
-    .from(chatFiles).where(inArray(chatFiles.messageId, messageIds)).orderBy(asc(chatFiles.id));
+  const rows = (await inChunks(messageIds, (ids) => deps.db.select({ id: chatFiles.id, orgId: chatFiles.orgId, messageId: chatFiles.messageId, filename: chatFiles.filename, contentType: chatFiles.contentType, size: chatFiles.sizeBytes })
+    .from(chatFiles).where(inArray(chatFiles.messageId, ids)))).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const r of rows) { const l = out.get(r.messageId) ?? []; l.push({ id: r.id, filename: r.filename, contentType: r.contentType, size: r.size, url: await signedFileUrl(deps, r.orgId, r.id) }); out.set(r.messageId, l); }
   return out;
 }

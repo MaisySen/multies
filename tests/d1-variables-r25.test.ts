@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client, D1_MAX_VARIABLES } from "./helpers";
-import { inChunks, SQL_IN_CHUNK } from "@/server/services/suite/tasks";
+import { inChunks, chunkIds, SQL_IN_CHUNK } from "@/server/lib/sql-chunks";
 
 /**
  * Round 25, Sentry MYMAIL-API-V: GET /api/tasks failed on prod with "too many SQL variables" once a list held more
@@ -28,8 +28,10 @@ describe("D1 variable limit", () => {
 
   it("inChunks splits an id list into chunks under the limit and joins the rows", async () => {
     const seen: number[] = [];
-    const rows = await inChunks(Array.from({ length: 200 }, (_, i) => String(i)), async (c) => { seen.push(c.length); return c; });
-    expect(rows).toHaveLength(200);
+    const rows = await inChunks(Array.from({ length: 250 }, (_, i) => String(i)), async (c) => { seen.push(c.length); return c; });
+    expect(rows).toHaveLength(250);
+    expect(seen).toEqual([90, 90, 70]);
+    expect(chunkIds([1, 2, 3], 2)).toEqual([[1, 2], [3]]);
     expect(Math.max(...seen)).toBeLessThanOrEqual(SQL_IN_CHUNK);
     expect(await inChunks([], async () => { throw new Error("no query for no ids"); })).toEqual([]);
   });

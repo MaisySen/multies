@@ -26,6 +26,7 @@ import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
+import { chunkIds, inChunks, SQL_IN_CHUNK } from "../../lib/sql-chunks";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -311,11 +312,14 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
     .orderBy(desc(grouped.last)).limit(limit + 1);
   const rows = page.slice(0, limit);
   const latest = rows.length
-    ? await deps.db.select().from(messages).where(and(eq(messages.orgId, orgId), inArray(messages.threadId, rows.map((r) => r.threadId)), scopeCond(scope))).orderBy(desc(messages.date))
+    // D1: at most 100 variables a statement, so thread ids go in chunks (leaving room for the mailbox scope).
+    ? (await Promise.all(chunkIds(rows.map((r) => r.threadId), Math.max(10, SQL_IN_CHUNK - (scope?.length ?? 0)))
+        .map((ids) => deps.db.select().from(messages).where(and(eq(messages.orgId, orgId), inArray(messages.threadId, ids), scopeCond(scope))))))
+        .flat().sort((a, b) => Number(b.date) - Number(a.date))
     : [];
   const pending = rows.length
-    ? await deps.db.select({ threadId: sendApprovals.threadId, n: count() }).from(sendApprovals)
-        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inArray(sendApprovals.threadId, rows.map((r) => r.threadId)))).groupBy(sendApprovals.threadId)
+    ? await inChunks(rows.map((r) => r.threadId), (ids) => deps.db.select({ threadId: sendApprovals.threadId, n: count() }).from(sendApprovals)
+        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inArray(sendApprovals.threadId, ids))).groupBy(sendApprovals.threadId))
     : [];
   const names = await agentNames(deps, orgId);
   const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));

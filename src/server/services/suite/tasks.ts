@@ -14,6 +14,7 @@ import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
+import { inChunks, SQL_IN_CHUNK } from "../../lib/sql-chunks";
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -190,16 +191,7 @@ export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
 
 export interface Assignee { type: "member" | "agent"; id: string }
 
-/** Bound variables per IN list: D1 refuses a query with more than 100 (the other conditions need a few). */
-export const SQL_IN_CHUNK = 90;
-
-/** Runs `q` once per chunk of `ids` (in parallel) and joins the rows. No ids, no query. */
-export async function inChunks<T>(ids: string[], q: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
-  if (!ids.length) return [];
-  const parts: string[][] = [];
-  for (let i = 0; i < ids.length; i += SQL_IN_CHUNK) parts.push(ids.slice(i, i + SQL_IN_CHUNK));
-  return (await Promise.all(parts.map(q))).flat();
-}
+export { inChunks, SQL_IN_CHUNK };
 
 /** Names for assignees and statuses, loaded once per response. */
 async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
