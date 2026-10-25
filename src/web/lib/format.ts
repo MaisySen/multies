@@ -101,9 +101,3 @@ export function initials(nameOrEmail: string): string {
   const parts = base.split(/[\s._-]+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
-
-/** "morning", "afternoon" or "evening" in the person's own zone. */
-export function dayPart(now = new Date()) {
-  const h = Number(now.toLocaleString("en-AU", { hour: "numeric", hourCycle: "h23", timeZone: tz() }));
-  return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
-}

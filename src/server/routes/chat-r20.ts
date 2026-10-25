@@ -20,10 +20,7 @@ export function chatR20Routes() {
     .post("/messages/:id/reactions", async (c) => c.json(await toggleReaction(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, ReactionToggle)).emoji)))
     .get("/search", async (c) => c.json(await searchChat(c.var.deps, c.var.auth, parseQuery(c, ChatSearchQuery))))
     .get("/channels/:id/first-unread", async (c) => c.json(await firstUnread(c.var.deps, c.var.auth, c.req.param("id"))))
-    .post("/channels/:id/call", async (c) => {
-      const out = await startChannelCall(c.var.deps, c.var.auth, c.req.param("id"));
-      return c.json(out, out.joined ? 200 : 201);
-    });
+    .post("/channels/:id/call", async (c) => c.json(await startChannelCall(c.var.deps, c.var.auth, c.req.param("id")), 201));
 }
 
 export function guestChatR20Routes() {

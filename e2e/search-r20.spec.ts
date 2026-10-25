@@ -60,7 +60,7 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   console.log("search ms on the seeded demo", JSON.stringify(times), "my work ms", mw.tookMs);
 
   await page.goto("/app");
-  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening)/ })).toBeVisible({ timeout: 15_000 });
   let dialog = await openSearch(page, "harbor");
   for (const type of ["tasks", "docs", "chat"]) await expect(dialog.getByTestId(`search-group-${type}`)).toBeVisible();
   mkdirSync("/home/user/tab/files/multies-r20", { recursive: true });
@@ -99,8 +99,7 @@ test("Cmd+K finds a word in a doc, a task and a chat message and opens each; My 
   // My Work: first in the nav, my task due today is there and opens.
   await page.getByRole("link", { name: "My Work" }).first().click();
   await expect(page).toHaveURL(/\/app\/my-work/);
-  await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening)/ })).toBeVisible();
-  await expect(page.getByText("My Work", { exact: true }).last()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "My Work" })).toBeVisible();
   const due = page.getByTestId("mywork-due");
   await expect(due.getByText("Call Blue Harbor about invoices")).toBeVisible();
   await page.screenshot({ path: "/home/user/tab/files/multies-r20/my-work.png", fullPage: true });

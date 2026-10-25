@@ -20,7 +20,7 @@ export function InvitePage() {
   const invite = useQuery({ queryKey: ["invite", token], queryFn: async () => (await api.get<{ invite: InviteView }>(`/invites/${token}`)).invite, retry: false });
   const accept = useMutation({
     mutationFn: () => api.post(`/invites/${token}/accept`),
-    onSuccess: () => { qc.clear(); navigate("/app/my-work"); },
+    onSuccess: () => { qc.clear(); navigate("/app"); },
   });
   const next = encodeURIComponent(`/invite/${token}`);
 

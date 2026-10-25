@@ -36,6 +36,7 @@ describe("MCP server", () => {
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
       "append_to_doc",
+      "bulk_update_tasks",
       "cancel_scheduled",
       "comment_on_task",
       "contact_timeline",

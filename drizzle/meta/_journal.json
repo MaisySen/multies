@@ -239,13 +239,6 @@
       "when": 1792950000000,
       "tag": "0033_r20_chat_reactions",
       "breakpoints": true
-    },
-    {
-      "idx": 38,
-      "version": "6",
-      "when": 1793000000000,
-      "tag": "0038_r21_call_dedupe",
-      "breakpoints": true
     }
   ]
 }

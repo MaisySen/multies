@@ -84,7 +84,6 @@ test("a new person in São Paulo is onboarded from the browser, takes a free add
   await page.getByRole("button", { name: "Go to Multies" }).click();
   // Onboarding is done; the app greets them in their own zone, and it is not asked again.
   await expect(page.getByRole("heading", { name: /^Good (morning|afternoon|evening), Fern/ })).toBeVisible();
-  await expect(page).toHaveURL(/\/app\/my-work$/);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Welcome to Multies" })).toHaveCount(0);
   const me = await page.evaluate(async () => (await fetch("/api/account/me")).json());

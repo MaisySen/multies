@@ -1,1 +1,0 @@
-ALTER TABLE `chat_channels` ADD `call_started_at` integer;

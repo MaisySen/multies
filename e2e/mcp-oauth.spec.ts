@@ -32,7 +32,6 @@ test("an MCP client adds Multies by URL, the person allows it, and the tools lis
   await page.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Olivia/ })).toBeVisible({ timeout: 15_000 });
-  await expect(page).toHaveURL(/\/app\/my-work$/);
 
   const mcpUrl = new URL("/api/v1/mcp", baseURL);
   const redirect = new URL("/oauth-e2e-callback", baseURL).toString();

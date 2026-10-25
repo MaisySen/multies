@@ -30,7 +30,7 @@ import { registerSuiteR8Routes } from "./v1-suite-r8";
 import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
 import { registerWorkImportRoutes } from "./v1-work-import";
-import { registerR21Routes } from "./v1-r21";
+import { registerTaskBulkRoutes } from "./v1-tasks-bulk";
 import { registerPeopleRoutes } from "./v1-people";
 import { registerAuthHookRoutes } from "./v1-auth-hooks";
 
@@ -382,7 +382,7 @@ export function v1Routes() {
   registerSuiteR10Routes(api);
   registerSuiteR11Routes(api);
   registerWorkImportRoutes(api);
-  registerR21Routes(api, apiKeyAuth);
+  registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
   registerMcpRoute(api);
   return api;

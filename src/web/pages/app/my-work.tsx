@@ -5,8 +5,6 @@ import { AlarmClock, AtSign, CalendarClock, CheckSquare, ClipboardCheck, Inbox, 
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useMyWork, type MyWorkItem } from "@/web/lib/search";
-import { useMe } from "@/web/lib/queries";
-import { dayPart } from "@/web/lib/format";
 
 function Section({ title, icon, items, empty, tone, testId }: { title: string; icon: ReactNode; items: MyWorkItem[]; empty: string; tone?: "danger"; testId: string }) {
   return (
@@ -34,14 +32,12 @@ function Section({ title, icon, items, empty, tone, testId }: { title: string; i
 
 export function MyWorkPage() {
   const q = useMyWork();
-  const me = useMe();
-  const first = me.data?.user.name.split(" ")[0];
   const w = q.data;
   const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
   const day = w ? new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : "";
   return (
     <div>
-      <PageHeader eyebrow="My Work" title={`Good ${dayPart()}${first ? `, ${first}` : ""}`} description={w ? `What is waiting on you today, ${day}.` : "What is waiting on you today."}
+      <PageHeader title="My Work" description={w ? `What is waiting on you today, ${day}.` : "What is waiting on you today."}
         actions={<Link to="/app/tasks" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted hover:bg-elevated hover:text-fg">All tasks</Link>} />
       {q.isPending ? <div className="grid gap-4 md:grid-cols-2"><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /></div> : q.isError || !w ? (
         <EmptyState icon={<Sun />} title="My Work didn't load" body="Check your connection and try again in a moment." />

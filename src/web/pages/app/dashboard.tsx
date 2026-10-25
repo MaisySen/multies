@@ -6,7 +6,7 @@ import { api } from "@/web/lib/api";
 import { Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { ButtonLink } from "@/web/components/ui/button";
 import { DomainStatusBadge, describeAudit } from "@/web/components/app-bits";
-import { dayPart, formatBytes, timeAgo } from "@/web/lib/format";
+import { formatBytes, timeAgo, tz } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
 import { LOCALE } from "@/shared/locale";
@@ -18,7 +18,7 @@ export function DashboardPage() {
   const first = me.data?.user.name.split(" ")[0];
   return (
     <>
-      <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><Inbox className="h-4 w-4" />Open mail</ButtonLink>} />
+      <PageHeader title={`Good ${greeting()}${first ? `, ${first}` : ""}`} description="Here's how mail is flowing across your workspace." actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><Inbox className="h-4 w-4" />Open mail</ButtonLink>} />
       {error && <Card className="p-6 text-sm text-bad">Couldn't load the overview: {error.message}</Card>}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
@@ -79,6 +79,11 @@ export function DashboardPage() {
       )}
     </>
   );
+}
+
+function greeting() {
+  const h = Number(new Date().toLocaleString("en-AU", { hour: "numeric", hourCycle: "h23", timeZone: tz() }));
+  return h < 12 ? "morning" : h < 18 ? "afternoon" : "evening";
 }
 
 function Stat({ icon, label, value, sub, used, max, note }: { icon: React.ReactNode; label: string; value: string; sub: string; used: number; max: number; note?: React.ReactNode }) {

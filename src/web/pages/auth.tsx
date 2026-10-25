@@ -14,9 +14,6 @@ import { useStartDemo } from "@/web/lib/demo";
 import { browserTimeZone } from "@/web/lib/format";
 import { cleanLocale, guessCountry } from "@/shared/locale";
 
-/** Where people land after signing in (round 21): My Work, what is waiting on them today. */
-export const HOME = "/app/my-work";
-
 type AuthAction = (body: Record<string, string>) => Promise<{ twoFactorRedirect?: boolean } | unknown>;
 
 /** Runs a sign-in style action, then lands in the app (or where the person was headed). */
@@ -37,7 +34,7 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
       if (res?.twoFactorRedirect) { setNeedsSecondFactor(true); return; }
       qc.clear();
       const next = params.get("next");
-      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : HOME;
+      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : "/app";
       navigate(opts.thanks ? `/thanks?from=signup&next=${encodeURIComponent(dest)}` : dest);
     } catch (err) {
       if (err instanceof ApiError && err.fields) setFields(err.fields);
@@ -54,7 +51,7 @@ export function useAuthProviders() {
 }
 
 function safeNext(next: string | null) {
-  return next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : HOME;
+  return next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : "/app";
 }
 
 /**
@@ -349,7 +346,7 @@ export function EmailVerifiedPage() {
           <p className="mt-1 text-sm text-muted">Your address is verified.</p>
         </>
       )}
-      <Link to={HOME} className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Open Multies</Link>
+      <Link to="/app" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Open Multies</Link>
     </div>
   );
 }

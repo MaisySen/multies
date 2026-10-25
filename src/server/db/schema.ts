@@ -1155,8 +1155,6 @@ export const chatChannels = sqliteTable("chat_channels", {
   /** For a DM: the sorted user ids joined by commas, so the same people always get the same DM. */
   dmKey: text("dm_key"),
   lastMessageAt: ts("last_message_at"),
-  /** Round 21: the last call started here, so two people pressing Call at once join one meeting. */
-  callStartedAt: ts("call_started_at"),
   ...suiteCols(),
 }, (t) => [index("chat_channels_org_idx").on(t.orgId, t.kind), uniqueIndex("chat_channels_dm_uq").on(t.orgId, t.dmKey)]);
 
