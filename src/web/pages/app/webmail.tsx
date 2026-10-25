@@ -21,8 +21,9 @@ import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provi
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask } from "./work/make-task";
+import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
 
-type View = Folder | "starred" | `f:${string}`;
+type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "starred", label: "Starred", icon: Star },
@@ -63,7 +64,7 @@ export function WebmailPage() {
 
   const list = useInfiniteQuery({
     queryKey: ["mail", "list", mailboxId, folder, q],
-    enabled: !!mailboxId,
+    enabled: !!mailboxId && (!!q || !isScheduleView(folder)),
     initialPageParam: "",
     queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null }>(
       `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(pageParam ? { cursor: pageParam } : {}) })}`,
@@ -71,7 +72,14 @@ export function WebmailPage() {
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
   });
-  const items = useMemo(() => list.data?.pages.flatMap((p) => p.messages) ?? [], [list.data]);
+  // Round 20: snoozed threads and reminders that came back sit on top of Inbox, marked, until opened.
+  const returned = useScheduleList("returned", mailboxId, folder === "inbox" && !q);
+  const returnedItems = useMemo(() => (folder === "inbox" && !q ? returned.data ?? [] : []), [returned.data, folder, q]);
+  const items = useMemo(() => {
+    const all = list.data?.pages.flatMap((p) => p.messages) ?? [];
+    const lifted = new Set(returnedItems.map((r) => r.threadId));
+    return lifted.size ? all.filter((m) => !lifted.has(m.threadId)) : all;
+  }, [list.data, returnedItems]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
   const act = useMutation({
@@ -102,6 +110,19 @@ export function WebmailPage() {
     toast.info("Message taken back", { description: "It opens when you close the message you're writing." });
   });
   const closeCompose = () => setCompose(waiting.current.shift() ?? null);
+  const openReturned = (it: ScheduleItem) => {
+    if (!it.messageId) return;
+    void api.post("/mail-schedules/opened", { messageId: it.messageId }).then(() => qc.invalidateQueries({ queryKey: ["mail", "schedules"] }));
+    open(it.messageId);
+  };
+  // Edit a scheduled send: it comes out of Scheduled and back into Compose, to send or schedule again.
+  const editScheduled = async (it: ScheduleItem) => {
+    if (!it.send) return;
+    try { await api.del(`/mail-schedules/${it.id}`); } catch (e) { showError(e as Error); return; }
+    void qc.invalidateQueries({ queryKey: ["mail"] });
+    setCompose({ mailboxId: it.mailboxId, to: it.send.to.join(", "), cc: it.send.cc.join(", ") || undefined, bcc: it.send.bcc.join(", ") || undefined, subject: it.send.subject, text: it.send.text, inReplyToId: it.send.inReplyToId ?? undefined });
+    toast.info("Taken out of Scheduled", { description: "Edit it, then send it or schedule it again." });
+  };
   const startCompose = (d?: Partial<ComposeDraft>) => setCompose({ mailboxId: mailboxId || mailboxes[0]?.id || "", to: "", subject: "", text: "", ...d });
   // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
   // ?compose=name@example.com (from a contact page) opens it addressed to that person.
@@ -169,6 +190,12 @@ export function WebmailPage() {
               </button>
             );
           })}
+          {SCHEDULE_VIEWS.map(({ id, label, icon: Icon }) => (
+            <button key={id} onClick={() => setParam({ folder: id, m: null, q: null })} aria-current={!q && folder === id ? "page" : undefined}
+              className={cn("flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13.5px] transition-colors", !q && folder === id ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
+              <Icon className="h-4 w-4" />{label}
+            </button>
+          ))}
           {mb.connectionId && <ProviderFolderNav connectionId={mb.connectionId} current={q ? "" : folder} onPick={(key) => setParam({ folder: key, m: null, q: null })} />}
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
@@ -184,6 +211,7 @@ export function WebmailPage() {
           <select aria-label="Folder" value={q ? "search" : folder} onChange={(e) => setParam({ folder: e.target.value === "inbox" ? null : e.target.value, m: null, q: null })} className="h-9 rounded-lg border border-line bg-surface px-2 text-[13px] md:hidden">
             {q && <option value="search">Search</option>}
             {FOLDER_UI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+            {SCHEDULE_VIEWS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
           </select>
           <form className="relative flex-1" role="search" onSubmit={(e) => { e.preventDefault(); setParam({ q: search.trim() || null, m: null }); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
@@ -194,10 +222,12 @@ export function WebmailPage() {
           <button className="rounded-lg border border-line p-2 text-muted md:hidden" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
         </div>
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
-          <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
+          <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {isScheduleView(folder) && !q ? <ScheduleListView view={folder} mailboxId={mailboxId} onOpen={open} onEdit={(it) => void editScheduled(it)} /> : <>
+          <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
               <EmptyState icon={q ? <Search /> : <Inbox />} title={q ? "No matches" : folder === "inbox" ? "Inbox zero" : "Nothing here"}
@@ -210,6 +240,7 @@ export function WebmailPage() {
               </ul>
             )}
           {list.hasNextPage && <div className="p-3"><Button variant="ghost" className="w-full" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Load more</Button></div>}
+          </>}
         </div>
       </section>
 
@@ -297,6 +328,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
       <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3">
         <button onClick={onBack} className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg md:hidden" aria-label="Back to list"><ArrowLeft className="h-4 w-4" /></button>
         {m.folder !== "sent" && m.folder !== "drafts" && <>
+          <SnoozeMenu messageId={m.id} onDone={onBack} />
           <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><Archive /></IconBtn>
           <IconBtn label={m.folder === "spam" ? "Not spam" : "Report spam"} onClick={() => onMove(m.folder === "spam" ? "inbox" : "spam")}><Ban /></IconBtn>
         </>}

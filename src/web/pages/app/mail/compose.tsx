@@ -11,6 +11,8 @@ import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { shouldAskForSubject, SUBJECT_PROMPT } from "@/web/lib/subject-prompt";
+import { zonedDateTime } from "@/web/lib/format";
+import { RemindSelect, SendLaterMenu, type When } from "./schedules";
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -23,7 +25,7 @@ export interface ComposeDraft {
   draftId?: string;
 }
 
-type SendResult = { internal: string[]; external: { address: string; status: string; detail?: string }[] };
+type SendResult = { messageId?: string; internal: string[]; external: { address: string; status: string; detail?: string }[] };
 
 /** The outcome toast after a held message has been posted. */
 function reportSent(r: SendResult) {
@@ -60,9 +62,11 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
+  // Round 20: "remind me if no reply" (days, 0 is off) and send later, both through the same hold as Send.
+  const [remindDays, setRemindDays] = useState(0);
   // Send holds the message in the browser for a few seconds (Undo send), then posts it.
   // Compose closes at once; the hold lives outside this component, so it keeps counting after it unmounts.
-  const send = (anyway = false) => {
+  const send = (anyway = false, later?: When) => {
     if (!d.to.trim()) { toRef.current?.focus(); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
@@ -70,17 +74,37 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];
     // One key per held message: a retried post can never deliver twice.
     const key = `send_${crypto.randomUUID()}`;
+    const message = {
+      mailboxId: snapshot.mailboxId, to: splitAddrs(snapshot.to), cc: splitAddrs(snapshot.cc), bcc: splitAddrs(snapshot.bcc),
+      subject: snapshot.subject, text: snapshot.text, inReplyToId: snapshot.inReplyToId, draftId: snapshot.draftId,
+    };
+    const remind = remindDays;
+    if (later) {
+      // Send later: the same hold (Undo still works), then the message waits in Scheduled.
+      holdMessage<{ dueAt: string }>({
+        seconds: undoSeconds,
+        to,
+        send: () => api.post<{ dueAt: string }>("/mail-schedules/send", { message, ...later, ...(remind ? { remindDays: remind } : {}) }),
+        onSent: (r) => { void qc.invalidateQueries({ queryKey: ["mail"] }); toast.success(`Scheduled for ${zonedDateTime(r.dueAt)}`, { description: "Find it in Scheduled to edit or cancel it." }); },
+        onError: (e) => { toast.error(e instanceof ApiError ? e.message : "Couldn't schedule it.", { description: "Your message is back in Compose." }); reopenDraft(snapshot, "failed"); },
+        onUndo: () => reopenDraft(snapshot, "undo"),
+      });
+      onClose();
+      return;
+    }
     holdMessage({
       seconds: undoSeconds,
       to,
-      send: () => api.post<SendResult>("/mail/send", {
-        mailboxId: snapshot.mailboxId, to: splitAddrs(snapshot.to), cc: splitAddrs(snapshot.cc), bcc: splitAddrs(snapshot.bcc),
-        subject: snapshot.subject, text: snapshot.text, inReplyToId: snapshot.inReplyToId, draftId: snapshot.draftId,
-      }, { idempotencyKey: key }),
+      send: () => api.post<SendResult>("/mail/send", message, { idempotencyKey: key }),
       onSent: (r) => {
         void qc.invalidateQueries({ queryKey: ["mail"] });
         void qc.invalidateQueries({ queryKey: ["dashboard"] });
         reportSent(r);
+        if (remind && r.messageId) {
+          void api.post("/mail-schedules/remind", { messageId: r.messageId, days: remind })
+            .then(() => toast.success(`We'll bring it back if nobody replies in ${remind} day${remind > 1 ? "s" : ""}`))
+            .catch((e: Error) => showError(e));
+        }
       },
       onError: (e) => {
         toast.error(e instanceof ApiError ? e.message : "Couldn't send.", { description: "Your message is back in Compose." });
@@ -142,6 +166,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
           <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
             <div className="flex items-center gap-2">
               <Button type="submit" disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>
+              <SendLaterMenu disabled={!d.to.trim()} onPick={(when) => send(true, when)} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover" title="How long you have to undo after pressing Send">
                 <Undo2 className="h-3.5 w-3.5" aria-hidden />
@@ -149,6 +174,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
                 </select>
               </label>
+              <RemindSelect value={remindDays} onChange={setRemindDays} />
             </div>
             <button type="button" onClick={onClose} className="rounded-md p-2 text-muted hover:bg-hover hover:text-bad" aria-label="Discard"><Trash2 className="h-4 w-4" /></button>
           </div>
