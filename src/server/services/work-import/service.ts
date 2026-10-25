@@ -11,6 +11,7 @@
  * At most 2,000 tasks per workspace per UTC day; the import stops cleanly at the cap, at the write
  * budget's warn level, or near its time limit, and running it again carries on where it stopped.
  */
+import { invalidateStatuses } from "../suite/read-cache";
 import { and, eq, inArray, max, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, changes, members, projects, projectStatuses, taskComments, tasks, usageCounters, users } from "../../db/schema";
@@ -196,6 +197,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     let pos = Math.max(-1, ...statuses.map((s) => s.position));
     const add = missing.map((s, i) => ({ id: sortableId("sts", now.getTime() + i), orgId: actor.orgId, projectId: projectId!, name: s.name, category: s.category, color: COLORS[s.category], position: ++pos, ...createdBy(actor), createdAt: now, updatedAt: now }));
     await deps.db.insert(projectStatuses).values(add);
+    invalidateStatuses(deps, actor.orgId); // R25 read cache
     statuses.push(...add.map((s) => ({ id: s.id, name: s.name, category: s.category, color: s.color, position: s.position })));
   }
   const statusFor = (r: ImportRow) => {

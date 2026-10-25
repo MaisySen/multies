@@ -55,7 +55,8 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
   const list = useSprints(project.id);
   const refresh = useRefreshSprints(project.id);
   const sprints = useMemo(() => list.data?.sprints ?? [], [list.data]);
-  const [picked, setPicked] = useState<string | null>(null);
+  // MB-62: ?sprint=<id> in the address opens that sprint (the API gives each sprint this link).
+  const [picked, setPicked] = useState<string | null>(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("sprint")));
   const fallback = sprints.find((s) => s.status === "active") ?? sprints.find((s) => s.status === "planned") ?? sprints[sprints.length - 1];
   const current = sprints.find((s) => s.id === picked) ?? fallback;
   useEffect(() => { if (picked && !sprints.some((s) => s.id === picked)) setPicked(null); }, [picked, sprints]);

@@ -586,5 +586,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "CREATE TABLE `workload_capacity` (\n\t`org_id` text NOT NULL,\n\t`person` text NOT NULL,\n\t`points` real,\n\t`hours` real,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `person`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0052_r25_perf_indexes",
+    "statements": [
+      "-- R25 API speed: two composite indexes that REPLACE existing ones, so a row insert writes the same number of index rows as before.\n-- messages: the inbox list filters on org and folder and sorts by date; (org_id) alone made it read every message in the workspace.\nDROP INDEX IF EXISTS `messages_org_idx`;",
+      "CREATE INDEX `messages_org_folder_date_idx` ON `messages` (`org_id`,`folder`,`date`);",
+      "-- tasks: the same leading columns as tasks_org_project_idx plus status, deleted_at and triage_state, so the per project counts\n-- (projects list, sidebar) are answered from the index alone instead of reading every task row.\nDROP INDEX IF EXISTS `tasks_org_project_idx`;",
+      "CREATE INDEX `tasks_org_project_cover_idx` ON `tasks` (`org_id`,`project_id`,`status_id`,`position`,`status`,`deleted_at`,`triage_state`);"
+    ]
   }
 ];

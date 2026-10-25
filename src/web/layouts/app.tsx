@@ -24,6 +24,7 @@ import { Onboarding } from "@/web/pages/app/onboarding";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
+import { prefetchWhenIdle } from "@/web/lib/prefetch";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -81,6 +82,8 @@ export function AppLayout() {
   const triageCount = useQuery({ queryKey: ["triage", "count"], enabled: !!me.data?.organization, refetchInterval: 60_000, queryFn: async () => (await api.get<{ count: number }>("/triage/count")).count });
   const chatUnread = useQuery({ queryKey: ["chat", "unread"], enabled: !!me.data?.organization, refetchInterval: 30_000, queryFn: () => api.get<{ total: number; mentions: number }>("/chat/unread") });
   useEffect(() => setDrawer(false), [loc.pathname]);
+  // R25: the likely next pages load once the browser is idle (links warm their own page on hover, see main.tsx).
+  useEffect(() => prefetchWhenIdle(), []);
   // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
   setDisplayTimeZone(me.data?.user?.timezone, browserTimeZone(), me.data?.organization?.timezone);
 

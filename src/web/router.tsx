@@ -3,13 +3,20 @@ import { createBrowserRouter } from "react-router";
 import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
-import { PricingPage } from "./pages/pricing";
-import { AgentsDevPage } from "./pages/agents";
-import { EmailVerifiedPage, ForgotPasswordPage, LoginPage, ResetPasswordPage, SignupPage } from "./pages/auth";
 import { NotFound } from "./pages/not-found";
-import { OAuthAuthorizePage } from "./pages/oauth-authorize";
 import { AppSkeleton } from "./layouts/app-skeleton";
 
+// R25: sign-in and the other public pages load on their own, so the landing page carries none of the
+// auth client and the app carries none of the marketing pages.
+const PricingPage = lazy(() => import("./pages/pricing").then((m) => ({ default: m.PricingPage })));
+const AgentsDevPage = lazy(() => import("./pages/agents").then((m) => ({ default: m.AgentsDevPage })));
+const authPages = () => import("./pages/auth");
+const LoginPage = lazy(() => authPages().then((m) => ({ default: m.LoginPage })));
+const SignupPage = lazy(() => authPages().then((m) => ({ default: m.SignupPage })));
+const ForgotPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ResetPasswordPage })));
+const EmailVerifiedPage = lazy(() => authPages().then((m) => ({ default: m.EmailVerifiedPage })));
+const OAuthAuthorizePage = lazy(() => import("./pages/oauth-authorize").then((m) => ({ default: m.OAuthAuthorizePage })));
 const AppLayout = lazy(() => import("./layouts/app").then((m) => ({ default: m.AppLayout })));
 const AdminPage = lazy(() => import("./pages/app/admin").then((m) => ({ default: m.AdminPage })));
 const DashboardPage = lazy(() => import("./pages/app/dashboard").then((m) => ({ default: m.DashboardPage })));
@@ -92,8 +99,8 @@ export const router = createBrowserRouter([
     element: <MarketingLayout />,
     children: [
       { path: "/", element: <Landing /> },
-      { path: "/pricing", element: <PricingPage /> },
-      { path: "/agents", element: <AgentsDevPage /> },
+      { path: "/pricing", element: publicPage(<PricingPage />) },
+      { path: "/agents", element: publicPage(<AgentsDevPage />) },
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },
@@ -109,13 +116,13 @@ export const router = createBrowserRouter([
   {
     element: <AuthLayout />,
     children: [
-      { path: "/login", element: <LoginPage /> },
-      { path: "/signup", element: <SignupPage /> },
+      { path: "/login", element: publicPage(<LoginPage />) },
+      { path: "/signup", element: publicPage(<SignupPage />) },
       { path: "/invite/:token", element: page(<InvitePage />) },
-      { path: "/forgot-password", element: <ForgotPasswordPage /> },
-      { path: "/reset-password", element: <ResetPasswordPage /> },
-      { path: "/email-verified", element: <EmailVerifiedPage /> },
-      { path: "/oauth/authorize", element: <OAuthAuthorizePage /> },
+      { path: "/forgot-password", element: publicPage(<ForgotPasswordPage />) },
+      { path: "/reset-password", element: publicPage(<ResetPasswordPage />) },
+      { path: "/email-verified", element: publicPage(<EmailVerifiedPage />) },
+      { path: "/oauth/authorize", element: publicPage(<OAuthAuthorizePage />) },
     ],
   },
   {

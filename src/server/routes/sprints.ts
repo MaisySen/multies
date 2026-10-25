@@ -12,8 +12,10 @@ import {
 import { HttpError } from "../lib/errors";
 
 const dateish = z.string().max(40);
-export const SprintCreate = z.object({ projectId: z.string().min(1).max(64), name: z.string().max(80).optional(), goal: z.string().max(2000).optional(), startAt: dateish.optional(), endAt: dateish.optional() });
-export const SprintPatch = z.object({ name: z.string().max(80).optional(), goal: z.string().max(2000).optional(), startAt: dateish.optional(), endAt: dateish.optional(), version: z.number().int().optional() });
+// startDate and endDate are accepted as other names for startAt and endAt (MB-54).
+const dateAliases = { startDate: dateish.optional(), endDate: dateish.optional() };
+export const SprintCreate = z.object({ projectId: z.string().min(1).max(64), name: z.string().max(80).optional(), goal: z.string().max(2000).optional(), startAt: dateish.optional(), endAt: dateish.optional(), ...dateAliases });
+export const SprintPatch = z.object({ name: z.string().max(80).optional(), goal: z.string().max(2000).optional(), startAt: dateish.optional(), endAt: dateish.optional(), ...dateAliases, version: z.number().int().optional() });
 export const SprintComplete = z.object({ carryOver: z.enum(["next", "backlog"]).optional(), carry_over: z.enum(["next", "backlog"]).optional(), timeZone: z.string().max(64).optional() });
 export const SprintTasks = z.object({ taskIds: z.array(z.string().min(1).max(64)).min(1).max(MAX_SPRINT_TASKS) });
 export const EstimateUnit = z.object({ projectId: z.string().min(1).max(64), unit: z.enum(["points", "hours"]) });

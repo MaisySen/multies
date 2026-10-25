@@ -763,3 +763,20 @@ Saved views (the filters behind a board, list, calendar, timeline, sprints or wo
 - `GET /api/v1/views?projectId=` lists shared views and the key owner's own.
 - `POST /api/v1/views` with `{ "name": "Build board", "view": "sprints", "projectId": "prj_...", "filters": { "status": "doing" }, "shared": true }` answers 201 with the view. Shared unless `shared` is false. One row written. Read only keys get 403, a project outside the workspace 404, bad input 422.
 - `DELETE /api/v1/views/{id}` removes it; tasks are not touched.
+
+
+## Round 25: fixes found by Haajir
+
+- `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53).
+- `GET /api/v1/projects/{id}/tasks`: a project's tasks, the same filters as `GET /api/v1/tasks?projectId={id}` (MB-52).
+- Sprints: `startDate` and `endDate` are accepted as names for `startAt` and `endAt`. A date with no time (`2026-11-01`) is that calendar day in the workspace's time zone: a start is its first moment, an end its last, on create and on `PATCH` alike. A new sprint with no dates starts today (or the day after the last sprint) in that zone (MB-54, MB-55).
+- Every sprint object carries `url`, the page that opens that sprint (`/app/tasks?project=<id>&view=sprints&sprint=<id>`) (MB-62).
+- `POST /api/v1/epics/{id}/items` and `DELETE` take `taskIds` as well as `ids` (MB-56).
+- `PATCH /api/v1/docs/{id}` takes `text` (plain text, `#` headings and `-` bullets) to replace the body, as create does (MB-58).
+- `PATCH /api/v1/threads/{id}` with `{ status?, userId? }` (`assigneeId` also accepted): owner and status in one call (MB-59).
+- `POST /api/v1/messages` takes `replyTo`, the address replies should go to (MB-61).
+- `POST /api/v1/auth-email-hooks` answers with `hook.setup`, the Supabase steps besides the URL, including the SMTP placeholder and rate limit without which Supabase stays at 2 auth emails an hour (MB-57).
+
+## Conditional GETs (R25)
+
+A few read only session GETs send a weak `ETag` and answer `304 Not Modified` (no body) when the request's `If-None-Match` matches: `/api/config` (`Cache-Control: public, no-cache`, it holds no account data) and `/api/team/people`, `/api/tasks/assignees`, `/api/projects`, `/api/chat/channels` (`Cache-Control: private, no-cache`, `Vary: Cookie, Authorization`). Every one of them revalidates on each use, so a change is never hidden; response shapes are unchanged. All other `/api/*` responses keep `Cache-Control: no-store`.

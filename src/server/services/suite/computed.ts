@@ -10,12 +10,13 @@
  */
 import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { customFields, projects, tasks } from "../../db/schema";
+import { projects, tasks } from "../../db/schema";
 import { notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { isComputedType, listFields, presentField, valuesForTasks, type Field, type FieldValue } from "./fields";
 import { evaluate, FormulaError, parse, tidy, type FValue, type Node } from "./formula";
 import { isProjectRollup, type FormulaConfig, type RollupConfig } from "./formula-config";
+import { orgFieldDefs } from "./read-cache";
 
 type TaskRow = typeof tasks.$inferSelect;
 export const CHILD_CAP = 5000;
@@ -154,14 +155,14 @@ async function liveChildren(deps: Deps, orgId: string, parentIds: string[], cap:
 
 /** Field definitions for these projects, in their display order. */
 async function defsFor(deps: Deps, orgId: string, projectIds: string[]) {
+  // R25: the workspace's live definitions come from the short read cache (one query per TTL, not per list).
+  const want = new Set(projectIds);
+  const rows = (await orgFieldDefs(deps, orgId)).filter((r) => want.has(r.projectId));
   const by = new Map<string, Field[]>();
-  for (const ids of chunk(projectIds)) {
-    const rows = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inArray(customFields.projectId, ids), isNull(customFields.deletedAt)));
-    for (const r of rows.sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime())) {
-      const list = by.get(r.projectId) ?? [];
-      list.push(presentField(r));
-      by.set(r.projectId, list);
-    }
+  for (const r of [...rows].sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime())) {
+    const list = by.get(r.projectId) ?? [];
+    list.push(presentField(r));
+    by.set(r.projectId, list);
   }
   return by;
 }

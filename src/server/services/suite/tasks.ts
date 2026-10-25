@@ -13,6 +13,7 @@ import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, se
 import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
+import { invalidateStatuses, orgStatuses } from "./read-cache";
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -99,6 +100,7 @@ export async function createProject(deps: Deps, actor: SuiteActor, input: { name
   await deps.db.insert(projectStatuses).values(list.map((s, i) => ({
     id: sortableId("sts", now.getTime() + i), orgId: actor.orgId, projectId: id, name: s.name.trim(), category: s.category, color: s.color ?? "#8a8f98", position: i, ...createdBy(actor), createdAt: now, updatedAt: now,
   })));
+  invalidateStatuses(deps, actor.orgId); // R25 read cache
   await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "create", verb: "created", data: { name: input.name }, event: "project.created", eventData: { id, name: input.name } });
   return getProject(deps, actor.orgId, id);
 }
@@ -171,6 +173,7 @@ async function replaceStatuses(deps: Deps, actor: SuiteActor, p: ProjectRow, lis
     await deps.db.update(tasks).set({ statusId: target.id, status: target.category, updatedAt: now }).where(eq(tasks.statusId, gone.id));
     await deps.db.update(projectStatuses).set({ deletedAt: now, updatedAt: now }).where(eq(projectStatuses.id, gone.id));
   }
+  invalidateStatuses(deps, p.orgId); // R25 read cache
 }
 
 export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
@@ -194,7 +197,7 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const agentIds = [...new Set(rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!))];
   const parentIds = rows.map((r) => r.id);
   const [sts, us, ags, subs, cms, prs, fieldValues] = await Promise.all([
-    statusIds.length ? deps.db.select().from(projectStatuses).where(inArray(projectStatuses.id, statusIds)) : [],
+    statusIds.length ? orgStatuses(deps, orgId).then((all) => { const want = new Set(statusIds); return all.filter((s) => want.has(s.id)); }) : [], // R25 read cache
     memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
     agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, agentIds), eq(agents.orgId, orgId))) : [],
     parentIds.length ? deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)

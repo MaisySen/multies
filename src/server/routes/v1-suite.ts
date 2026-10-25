@@ -63,6 +63,12 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
     request: { query: TaskQuery }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
   async (c) => { const q = c.req.valid("query"); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
 
+  // MB-52: the nested path most REST clients try first; same filters as GET /tasks.
+  api.openapi(createRoute({ method: "get", path: "/projects/{id}/tasks", tags: tag("Tasks"), summary: "List a project's tasks", security: secured,
+    description: "The same as GET /tasks?projectId={id}, with the same filters.",
+    request: { params: z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) }), query: TaskQuery.omit({ projectId: true }) }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
+  async (c) => { const q = c.req.valid("query"); await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
+
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
     description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task.",
     request: body(TaskCreate), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 422: errors[422] } }),

@@ -23,10 +23,11 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.endsWith("/oauth/token")) {
     const body = new URLSearchParams(String(init?.body ?? ""));
     if (!body.get("code_verifier")) return json({ error: "invalid_grant" });
-    const { nonce, email, name } = JSON.parse(Buffer.from(body.get("code") ?? "", "base64url").toString("utf8")) as { nonce: string; email: string; name?: string };
+    // Round 25: the code may also name the subject (google-oauth2|..., windowslive|...) and email_verified, as Google or Microsoft through the provider would.
+    const { nonce, email, name, sub, email_verified } = JSON.parse(Buffer.from(body.get("code") ?? "", "base64url").toString("utf8")) as { nonce: string; email: string; name?: string; sub?: string; email_verified?: boolean };
     const now = Math.floor(Date.now() / 1000);
-    const idToken = await new SignJWT({ email, email_verified: true, name: name ?? "Pat Example", nonce })
-      .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISS).setAudience("e2e-web").setSubject(`auth0|${email}`)
+    const idToken = await new SignJWT({ email, email_verified: email_verified ?? true, name: name ?? "Pat Example", nonce })
+      .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISS).setAudience("e2e-web").setSubject(sub ?? `auth0|${email}`)
       .setIssuedAt(now).setExpirationTime(now + 600).sign(kp.privateKey);
     return json({ access_token: "e2e", id_token: idToken, token_type: "Bearer", expires_in: 600 });
   }
@@ -41,6 +42,8 @@ Object.assign(process.env, {
   PORT: process.env.PORT ?? "8790", APP_URL: process.env.APP_URL ?? "http://localhost:8790",
   // Free addresses on a made up shared domain (e2e/free-address.spec.ts).
   FREE_MAIL_DOMAIN: process.env.FREE_MAIL_DOMAIN ?? "free.multies.test",
+  // Round 25: the Google and Microsoft buttons (e2e/social-login-r25.spec.ts).
+  AUTH0_SOCIAL_CONNECTIONS: process.env.AUTH0_SOCIAL_CONNECTIONS ?? "google-oauth2,windowslive",
 });
 await import("../../src/entry/node");
 

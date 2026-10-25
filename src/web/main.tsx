@@ -11,6 +11,12 @@ import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
 import { AnalyticsBeacon } from "./components/analytics-beacon";
 import "./index.css";
+import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
+
+// R25: start the opened page's code now, beside the app frame, instead of after the frame has loaded,
+// and warm a page's code when a link to it is hovered, touched or focused.
+prefetchRoute(window.location.pathname);
+prefetchOnIntent();
 
 // After first paint, so error tracking never delays the page.
 if ("requestIdleCallback" in window) requestIdleCallback(() => void startSentry(), { timeout: 3000 });

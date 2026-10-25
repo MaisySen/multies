@@ -134,11 +134,12 @@ export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: s
   return getDoc(deps, actor.orgId, id);
 }
 
-export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; version?: number; links?: LinkTarget[] }) {
+export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; links?: LinkTarget[] }) {
   assertWritable(actor);
   const d = await docRow(deps, actor.orgId, id);
   if (patch.version !== undefined && patch.version !== d.version) throw new HttpError(409, "version_conflict", "This doc changed since you opened it. Reload to see the latest.");
-  const body = patch.content !== undefined ? validDoc(patch.content) : undefined;
+  // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).
+  const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? docFromText(patch.text) : undefined;
   await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
   await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),

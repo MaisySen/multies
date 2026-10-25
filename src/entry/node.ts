@@ -82,6 +82,8 @@ const webRoot = path.resolve("dist/web");
 if (existsSync(webRoot)) {
   // gzip or brotli for the app's static files (Workers compress at the edge).
   app.use("/*", compress());
+  // R25: hashed build files never change, so browsers keep them a year (the Worker does the same).
+  app.use("/assets/*", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", "public, max-age=31536000, immutable"); });
   app.use("/*", serveStatic({ root: path.relative(process.cwd(), webRoot) }));
   // Read per request so a rebuilt web app is picked up without a restart.
   app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, "index.html"), "utf8"), isKnownPage(c.req.path) ? 200 : 404)));

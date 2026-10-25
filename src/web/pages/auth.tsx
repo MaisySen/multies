@@ -11,6 +11,7 @@ import { api, ApiError } from "@/web/lib/api";
 import { authClient, unwrap, type AuthProviders } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
+import { SocialSignInButtons } from "@/web/components/social-sign-in";
 import { browserTimeZone } from "@/web/lib/format";
 import { cleanLocale, guessCountry } from "@/shared/locale";
 
@@ -82,6 +83,8 @@ function IdentityButtons({ mode, showDivider }: { mode: "signin" | "signup"; sho
     <div className="mt-6 space-y-2">
       <Button className="w-full" size="lg" loading={busy === primary} onClick={() => go(primary)} data-testid="idp-primary">{label[primary]}</Button>
       <Button variant="secondary" className="w-full" loading={busy === secondary} onClick={() => go(secondary)} data-testid="idp-secondary">{secondary === "signup" ? "Create account" : "Sign in instead"}</Button>
+      {/* Round 25: Google and Microsoft straight through the identity provider, when this deployment turns them on. */}
+      <div className="pt-2"><SocialSignInButtons callbackURL={safeNext(params.get("next"))} loginHint={params.get("email") ?? undefined} /></div>
       <p className="pt-1 text-center text-xs text-subtle">Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.</p>
       {showDivider && <div className="flex items-center gap-3 pt-2 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or use your password<span className="h-px flex-1 bg-line" /></div>}
     </div>
@@ -193,6 +196,7 @@ export function LoginPage() {
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
       {oauthFailed && <div className="mt-4"><FormError message={params.get("error_description") || "That sign in didn't complete. Please try again."} /></div>}
       {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
+      {params.getAll("error").includes("account_not_linked") && <div className="mt-4" data-testid="social-not-linked"><FormError message="This email already has a Multies account, and that provider did not confirm the address. Continue with Multies and sign in with your email instead." /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
       {idp && !password && <p className="mt-4 text-center text-xs text-muted" data-testid="moved-sign-in">Forgot your password? <Link to="/forgot-password" className="font-medium text-[#0071E3] hover:underline">Set a new one</Link></p>}
       {!idp && <SocialButtons />}

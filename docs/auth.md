@@ -117,6 +117,7 @@ password storage once the form is off.
 | `AUTH0_DOMAIN` | Tenant domain, for example `dev-s8n2ciq6co7gzsec.us.auth0.com` (later `login.multies.si`) |
 | `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET` | The Regular Web Application "Multies" (secret: `wrangler secret put`) |
 | `AUTH0_NATIVE_CLIENT_ID` | The Native application "Multies Mobile"; turns on `/api/auth/mobile/exchange` |
+| `AUTH0_SOCIAL_CONNECTIONS` | Round 25: `google-oauth2,windowslive` shows "Continue with Google" and "Continue with Microsoft" on sign in and sign up (each starts the provider with that connection). Unset: no buttons. See docs/runbooks/social-login.md |
 | `AUTH_LOCAL_PASSWORD` | `on` or `off`, see above |
 | `TRUST_PROXY` | `true` to believe forwarded client addresses |
 | `PASSWORD_BREACH_CHECK` | Breach check for local passwords (only while the password form is on) |

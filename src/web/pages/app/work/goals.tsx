@@ -45,7 +45,7 @@ export function GoalsPage() {
   const goal = (g: Goal, depth: number) => {
     const h = g.health ?? g.suggestedHealth;
     return (
-      <li key={g.id} className={cn(depth > 0 && "ml-4 border-l border-line pl-4")} data-testid="goal">
+      <li key={g.id} className={cn(depth > 0 && "ml-1 border-l border-line pl-3 sm:ml-4 sm:pl-4")} data-testid="goal">
         <Card className="mb-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
@@ -54,7 +54,7 @@ export function GoalsPage() {
             </div>
             <div className="flex items-center gap-3">
               <select aria-label={`Health of ${g.name}`} value={g.health ?? ""} onChange={(e) => void setHealth(g, e.target.value)}
-                className={cn("h-7 rounded-md border-0 px-2 text-[12.5px] font-medium", h ? HEALTH[h].cls : "bg-fill text-muted")}>
+                className={cn("h-10 rounded-md border-0 px-2 text-[12.5px] font-medium sm:h-7", h ? HEALTH[h].cls : "bg-fill text-muted")}>
                 <option value="">{g.suggestedHealth ? `${HEALTH[g.suggestedHealth].label} (suggested)` : "Not set"}</option>
                 {(Object.keys(HEALTH) as Health[]).map((x) => <option key={x} value={x}>{HEALTH[x].label}</option>)}
               </select>
@@ -64,11 +64,11 @@ export function GoalsPage() {
           {g.keyResults.length > 0 && (
             <ul className="mt-3 space-y-1.5">
               {g.keyResults.map((k) => (
-                <li key={k.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-fill/60 px-3 py-2 text-[13.5px]">
-                  <span className="min-w-0 flex-1">{k.name}</span>
+                <li key={k.id} data-testid="key-result" className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 rounded-md bg-fill/60 px-3 py-2 text-[13.5px] sm:flex sm:flex-wrap sm:justify-between">
+                  <span className="col-span-2 min-w-0 break-words sm:flex-1" data-testid="key-result-name">{k.name}</span>
                   <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : k.target < k.start ? `${val(k, k.current)}, down to ${val(k, k.target)}` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
                   {k.kind !== "tasks" && <Button variant="ghost" size="sm" onClick={() => void setCurrent(k)}>Update</Button>}
-                  <Bar value={k.progress} label={`${k.name} progress`} />
+                  <div className="col-span-2 sm:col-span-1"><Bar value={k.progress} label={`${k.name} progress`} /></div>
                 </li>
               ))}
             </ul>

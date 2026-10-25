@@ -55,12 +55,12 @@ function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
 function Column({ id, title, color, count, children, onAdd }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${id}`, data: { statusId: id } });
   return (
-    <section aria-label={title} data-testid={`column-${title}`} className={cn("flex w-[280px] shrink-0 flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
+    <section aria-label={title} data-testid={`column-${title}`} className={cn("flex w-[min(280px,85vw)] shrink-0 snap-start flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
       <header className="flex items-center gap-2 px-3 py-2.5">
         <span className="h-2 w-2 rounded-full" style={{ background: tone(color) }} aria-hidden />
         <h2 className="text-[13px] font-semibold">{title}</h2>
         <span className="text-[12px] text-subtle tabular-nums">{count}</span>
-        <button onClick={onAdd} className="ml-auto rounded p-1 text-subtle hover:bg-elevated hover:text-fg" aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
+        <button onClick={onAdd} className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1" aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
       </header>
       <ul ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">{children}</ul>
     </section>
@@ -156,7 +156,7 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverrides({}); }}>
-      <div className="flex h-full gap-3 overflow-x-auto pb-4" data-testid="board">
+      <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-4 sm:snap-none" data-testid="board">
         {cols.map((s) => (
           <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}>
             <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>

@@ -60,6 +60,7 @@ import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
+import { installHttpCache } from "./lib/http-cache";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 /** Presence heartbeats and leaves (round 22): memory only, never a D1 write. */
@@ -125,6 +126,7 @@ export function createApp(deps: Deps) {
     await next();
     if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
   });
+  installHttpCache(app); // R25 API speed: ETag and 304 for a few read only GETs (src/server/lib/http-cache.ts)
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
   const ipKey = (c: { var: { ip: string } }) => c.var.ip;
   const oauthLimiter = rateLimit("auth", ipKey);
@@ -166,7 +168,7 @@ export function createApp(deps: Deps) {
 
   // Health: the database must be reachable and fully migrated (migrations run at deploy time).
   let schemaCurrent = false;
-  app.get("/api/health", async (c) => {
+  const health = async (c: Context<AppEnv>) => {
     try {
       if (!schemaCurrent) {
         const pending = await pendingMigrations(migrationDriver((deps.db as unknown as { $client: unknown }).$client));
@@ -181,7 +183,12 @@ export function createApp(deps: Deps) {
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }
-  });
+  };
+  app.get("/api/health", health);
+  // Uptime monitors try /health and /healthz first (MB-53): same JSON answer, never the HTML 404 page.
+  app.get("/health", health);
+  app.get("/healthz", health);
+
   // RFC 9116: where to report a vulnerability.
   app.get("/.well-known/security.txt", (c) => {
     const expires = new Date(Date.UTC(new Date().getUTCFullYear() + 1, 0, 1)).toISOString();
@@ -214,6 +221,8 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
+      socialConnections: deps.config.auth.socialConnections ?? [],
       // A browser DSN is public by design (it can only submit events).
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }

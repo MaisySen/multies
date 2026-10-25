@@ -21,6 +21,7 @@ import { burndownFor, sprintZone } from "./sprints";
 import { goalTree } from "./goals";
 import { getWorkload } from "./workload";
 import { replyStats } from "../mail/thread-state";
+import { dateFormat } from "../../lib/intl-cache";
 
 const DAY = 86_400_000;
 export const MAX_WIDGETS = 24;
@@ -256,7 +257,7 @@ interface Ctx {
 }
 
 function zoneOffset(t: number, tz: string) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const p = Object.fromEntries(dateFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
     .formatToParts(new Date(t)).map((x) => [x.type, x.value]));
   return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second)) - Math.floor(t / 1000) * 1000;
 }

@@ -10,6 +10,16 @@ import { createAuthHook, deleteAuthHook, listAuthHooks } from "../services/mail/
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
 const json = (description: string) => ({ description, content: { "application/json": { schema: z.record(z.string(), z.unknown()) } } });
+/**
+ * MB-57: the steps a Supabase project needs besides the hook URL. Without a custom SMTP host Supabase
+ * keeps its 2 emails an hour limit even though the hook sends the mail, and the third signup in an
+ * hour fails. Returned with every new hook so the caller sees it where they set the hook up.
+ */
+export const AUTH_HOOK_SETUP = [
+  "In Supabase: Authentication, Hooks, Send Email Hook (HTTPS): paste hook.url and enable it.",
+  "Authentication, Emails, SMTP Settings: turn on custom SMTP with a placeholder host such as smtp.hook-only.invalid (port 587, any user and password). Nothing is sent there while the hook is on, but without it Supabase allows only 2 auth emails an hour and signups fail.",
+  "Authentication, Rate Limits: set the email rate limit to what you need, for example 30 an hour.",
+] as const;
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) });
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const auth = (c: Context<AppEnv>) => c.var.auth as any;
@@ -32,7 +42,7 @@ export function registerAuthHookRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("post", "/auth-email-hooks", "Send a Supabase project's auth emails through Multies",
     "Body: { from, secret, supabaseUrl, appName? }. Returns the hook URL to paste into Supabase (Authentication, Hooks, Send Email Hook, HTTPS). Needs a workspace key.",
     { request: { body: { required: true, content: { "application/json": { schema: AuthHookBody } } } } }),
-  async (c) => send(c, { hook: await createAuthHook(c.var.deps, auth(c), AuthHookBody.parse(await c.req.json().catch(() => ({})))) }, 201));
+  async (c) => send(c, { hook: { ...(await createAuthHook(c.var.deps, auth(c), AuthHookBody.parse(await c.req.json().catch(() => ({}))))), setup: AUTH_HOOK_SETUP } }, 201));
   api.openapi(route("delete", "/auth-email-hooks/{id}", "Remove an auth email hook", "Calls to its URL fail from then on.", { request: { params: Id } }),
     async (c) => send(c, { deleted: await deleteAuthHook(c.var.deps, auth(c), c.req.param("id") ?? "") }));
 }

@@ -344,6 +344,13 @@
       "when": 1793000051000,
       "tag": "0051_r24_capacity",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "6",
+      "when": 1793000052000,
+      "tag": "0052_r25_perf_indexes",
+      "breakpoints": true
     }
   ]
 }

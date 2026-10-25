@@ -23,6 +23,11 @@ const send = (c: Context<AppEnv>, data: unknown) => c.json(data as any, 200) as 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const jsonBody = async (c: Context<AppEnv>, schema: { parse: (v: unknown) => any }) => schema.parse(await c.req.json().catch(() => ({})));
 const pid = (c: Context<AppEnv>) => c.req.param("id") ?? "";
+const ThreadPatch = z.object({
+  status: StatusBody.shape.status.optional(),
+  userId: z.string().max(64).nullable().optional(),
+  assigneeId: z.string().max(64).nullable().optional(),
+});
 const ListQuery = z.object({
   mailboxId: z.string().max(64).optional(),
   before: z.string().max(40).optional(),
@@ -30,7 +35,7 @@ const ListQuery = z.object({
 }).merge(ThreadViewQuery);
 
 export function registerR22AssignRoutes(api: OpenAPIHono<AppEnv>) {
-  const route = (method: "get" | "post", path: string, tag: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
+  const route = (method: "get" | "post" | "patch", path: string, tag: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
     createRoute({ method, path, tags: [tag], summary, description, security: [{ bearerAuth: [] }], ...extra, responses: { 200: json("OK."), 400: err("The assignee can't take this thread."), 401: err("Missing or invalid API key."), 403: err("The key can't do this."), 404: err("Not found."), 422: err("Validation failed.") } });
 
   api.openapi(route("get", "/threads", "Shared inbox", "List threads by view",
@@ -46,6 +51,16 @@ export function registerR22AssignRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { state: await assignThread(c.var.deps, actor(c), pid(c), (await jsonBody(c, AssignBody)).userId) }));
   api.openapi(route("post", "/threads/{id}/status", "Shared inbox", "Mark a thread done, waiting or reopen it", "Body: { status: open | waiting | done }. New inbound mail puts a waiting or done thread back to open.", { request: { params: Id, ...body(StatusBody) } }),
     async (c) => send(c, { state: await setThreadStatus(c.var.deps, actor(c), pid(c), (await jsonBody(c, StatusBody)).status) }));
+  // MB-59: PATCH like every other resource. Same rules as the two POST endpoints, in one call.
+  api.openapi(route("patch", "/threads/{id}", "Shared inbox", "Update a thread's owner or status", "Body: { status?: open | waiting | done, userId?: string | null } (assigneeId is accepted as another name for userId). Returns { state }.", { request: { params: Id, ...body(ThreadPatch) } }),
+    async (c) => {
+      const b = await jsonBody(c, ThreadPatch);
+      const userId = b.userId !== undefined ? b.userId : b.assigneeId;
+      if (userId === undefined && b.status === undefined) return c.json({ error: { code: "validation_failed", message: "Pass status, userId or both." } }, 422);
+      let state = userId !== undefined ? await assignThread(c.var.deps, actor(c), pid(c), userId) : undefined;
+      if (b.status !== undefined) state = await setThreadStatus(c.var.deps, actor(c), pid(c), b.status);
+      return send(c, { state });
+    });
   api.openapi(route("get", "/stats/replies", "Shared inbox", "Reply times",
     "Query: mailboxId, from, to (ISO dates; the last 30 days by default, at most 90), groupBy (mailbox or person). Per row: threads, replied, medianFirstResponseMs, averageFirstResponseMs, resolved, medianResolutionMs, averageResolutionMs; total sums every thread. Calendar hours. At most 2,000 threads are scanned, newest first; sampled: true says the answer was cut."),
   async (c) => send(c, await replyStats(c.var.deps, actor(c), StatsQuery.parse(c.req.query()))));

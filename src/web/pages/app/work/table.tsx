@@ -51,7 +51,7 @@ export interface TableColumn {
 export const TABLE_COLUMNS: TableColumn[] = [
   {
     id: "key", header: "Key", width: "w-[88px]", sortKey: (t) => `${t.ref.split("-")[0]}-${String(t.number).padStart(8, "0")}`,
-    render: (t) => <span className="font-mono text-[11.5px] text-subtle">{t.ref}</span>,
+    render: (t) => <span className="whitespace-nowrap font-mono text-[11.5px] text-subtle">{t.ref}</span>,
   },
   {
     id: "type", header: "Type", width: "w-[96px]", editor: "type", hideOnPhone: true, sortKey: (t) => TASK_TYPES.indexOf(typeOf(t)),

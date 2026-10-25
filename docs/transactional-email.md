@@ -81,7 +81,16 @@ toward the plan's daily sending limit, and a copy is kept in the mailbox's Sent 
    The answer carries `hook.url` (`https://multies.si/api/auth-hooks/supabase/ahk_...`). The secret is
    stored encrypted and never shown again.
 3. Paste `hook.url` into the Supabase hook and enable it. From then on Supabase sends no auth email
-   itself, so its built in mailer's limit (2 an hour, team addresses only) no longer applies.
+   itself.
+4. **Raise Supabase's email rate limit, or signups fail.** With no custom SMTP host set, Supabase keeps
+   its built in limit of 2 auth emails an hour even when the hook does the sending, and the third
+   signup in an hour fails with `429 over_email_send_rate_limit` (found by Haajir, MB-57). In
+   Authentication, Emails, SMTP Settings, turn on custom SMTP and enter a placeholder host such as
+   `smtp.hook-only.invalid` (port 587, any user and password; nothing is sent there while the hook is
+   on). Then in Authentication, Rate Limits, set "Rate limit for sending emails" to what you need
+   (for example 30 an hour). With the Management API: `PATCH /v1/projects/<ref>/config/auth` with
+   `{"smtp_host":"smtp.hook-only.invalid","smtp_port":"587","smtp_user":"hook","smtp_pass":"<any>","smtp_admin_email":"no-reply@yourdomain","rate_limit_email_sent":30}`.
+   The POST answer above repeats this as `hook.setup`.
 
 What Multies sends: a plain, clean email in the app's name with the confirmation link
 (`<supabaseUrl>/auth/v1/verify?token=<token_hash>&type=<type>&redirect_to=<redirect_to>`) and the

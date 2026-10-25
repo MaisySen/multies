@@ -19,7 +19,20 @@ const body = (schema: any) => ({ body: { required: true, content: { "application
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) });
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const send = (c: Context<AppEnv>, data: unknown, status: 200 | 201 = 200) => c.json(data as any, status) as any;
+const withUrl = (c: Context<AppEnv>, data: unknown): unknown => {
+  // MB-62: every sprint object carries url, the page that opens that sprint.
+  const app = c.var.deps.config.appUrl.replace(/\/$/, "");
+  const fix = (s: unknown) => (s && typeof s === "object" && typeof (s as { path?: unknown }).path === "string" ? { ...(s as object), url: app + (s as { path: string }).path } : s);
+  if (!data || typeof data !== "object") return data;
+  const d = data as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...d };
+  if (d.sprint) out.sprint = fix(d.sprint);
+  if (Array.isArray(d.sprints)) out.sprints = d.sprints.map(fix);
+  if ((d as { id?: unknown }).id && typeof d.id === "string" && d.id.startsWith("spr_")) return fix(out);
+  return out;
+};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const send = (c: Context<AppEnv>, data: unknown, status: 200 | 201 = 200) => c.json(withUrl(c, data) as any, status) as any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const jsonBody = async (c: Context<AppEnv>, schema: { parse: (v: unknown) => any }) => schema.parse(await c.req.json().catch(() => ({})));
 const pid = (c: Context<AppEnv>) => c.req.param("id") ?? "";

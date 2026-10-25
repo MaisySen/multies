@@ -12,6 +12,7 @@ import { randomBytes } from "../../lib/crypto";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { normalizeConfig, type ComputedConfig } from "./formula-config";
 import { renameReferences } from "./formula-rename";
+import { invalidateFieldDefs } from "./read-cache";
 
 export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] as const;
 /** R24.1: computed on read from other values; nothing is stored per task. */
@@ -88,6 +89,7 @@ export async function createField(deps: Deps, actor: SuiteActor, projectId: stri
     ...createdBy(actor), createdAt: now, updatedAt: now,
   };
   await deps.db.insert(customFields).values(row);
+  invalidateFieldDefs(deps, actor.orgId); // R25 read cache
   const field = presentField({ ...row, version: 1, deletedAt: null } as FieldRow);
   await recordWrite(deps, actor, { entityType: "custom_field", entityId: field.id, op: "create", verb: "created", data: { name: field.name, type: field.type }, event: "custom_field.created", eventData: { field } });
   return field;
@@ -107,6 +109,7 @@ export async function updateField(deps: Deps, actor: SuiteActor, id: string, pat
     set.config = cfg ? JSON.stringify(cfg) : null;
   }
   await deps.db.update(customFields).set(set).where(eq(customFields.id, f.id));
+  invalidateFieldDefs(deps, f.orgId); // R25 read cache
   if (set.name !== undefined && set.name !== f.name) await renameInFormulas(deps, actor.orgId, f.projectId, f.id, f.name, set.name);
   const field = presentField(await fieldRow(deps, actor.orgId, f.id));
   if (patch.options !== undefined) await dropMissingOptions(deps, field);
@@ -125,6 +128,7 @@ async function renameInFormulas(deps: Deps, orgId: string, projectId: string, fi
     const expression = renameReferences(cfg.expression, oldName, newName);
     if (expression === cfg.expression) continue;
     await deps.db.update(customFields).set({ config: JSON.stringify({ ...cfg, expression }), version: r.version + 1, updatedAt: deps.now() }).where(eq(customFields.id, r.id));
+    invalidateFieldDefs(deps, orgId); // R25 read cache
   }
 }
 
@@ -152,6 +156,7 @@ export async function deleteField(deps: Deps, actor: SuiteActor, id: string) {
   const f = await fieldRow(deps, actor.orgId, id);
   const now = deps.now();
   await deps.db.update(customFields).set({ deletedAt: now, updatedAt: now, version: f.version + 1 }).where(eq(customFields.id, f.id));
+  invalidateFieldDefs(deps, f.orgId); // R25 read cache
   await deps.db.delete(taskFieldValues).where(eq(taskFieldValues.fieldId, f.id));
   await recordWrite(deps, actor, { entityType: "custom_field", entityId: f.id, op: "delete", version: f.version + 1, verb: "deleted", data: { name: f.name }, event: "custom_field.deleted", eventData: { field: presentField(f) } });
   return { ok: true as const };

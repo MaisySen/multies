@@ -23,6 +23,8 @@ export interface PublicConfig {
   billingEnabled: boolean;
   /** Booking pages (SCHEDULING_ENABLED). */
   scheduling?: boolean;
+  /** Round 25: identity provider connections shown as sign in buttons ("google-oauth2", "windowslive"). */
+  socialConnections?: string[];
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

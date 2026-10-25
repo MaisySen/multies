@@ -21,8 +21,10 @@ import { and, asc, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { assertWritable, createdBy, iso, parseDate, sortableId, actorOf, type SuiteActor } from "./common";
+import { assertWritable, createdBy, iso, sortableId, actorOf, type SuiteActor } from "./common";
+import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from "./sprint-dates";
 import { listTasks, resolveTaskId, type Task } from "./tasks";
+import { dateFormat, dayInZone } from "../../lib/intl-cache";
 
 export type SprintStatus = "planned" | "active" | "completed";
 type SprintRow = typeof sprints.$inferSelect;
@@ -51,11 +53,18 @@ export interface Burndown {
 
 const parseSnap = (s: string): Snapshot => { try { return JSON.parse(s) as Snapshot; } catch { return {}; } };
 
+function addDays(day: string, n: number) {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 export function presentSprint(s: SprintRow) {
   return {
     id: s.id, projectId: s.projectId, name: s.name, goal: s.goal, status: s.status,
     startAt: iso(s.startAt)!, endAt: iso(s.endAt)!, startedAt: iso(s.startedAt), completedAt: iso(s.completedAt),
     carriedOver: s.carriedOver, createdAt: iso(s.createdAt)!, updatedAt: iso(s.updatedAt)!, version: s.version,
+    // MB-62: a link that opens this sprint (the API adds the site origin as url).
+    path: `/app/tasks?project=${encodeURIComponent(s.projectId)}&view=sprints&sprint=${encodeURIComponent(s.id)}`,
   };
 }
 export type Sprint = ReturnType<typeof presentSprint>;
@@ -90,7 +99,7 @@ export function cleanPoints(v: number | null | undefined): number | null | undef
 
 function validZone(tz: string | null | undefined) {
   if (!tz) return null;
-  try { new Intl.DateTimeFormat("en", { timeZone: tz }); return tz; } catch { return null; }
+  try { dateFormat("en", { timeZone: tz }); return tz; } catch { return null; }
 }
 
 /** The zone that draws day lines: the one asked for, else the person's, else the workspace's. */
@@ -106,7 +115,7 @@ export async function sprintZone(deps: Deps, actor: SuiteActor, tz?: string | nu
 
 /** The calendar day (YYYY-MM-DD) of a moment in a zone. */
 export function dayIn(d: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return dayInZone(d, timeZone); // R25: one cached formatter per zone
 }
 const nextDay = (day: string) => new Date(Date.parse(`${day}T00:00:00Z`) + DAY).toISOString().slice(0, 10);
 
@@ -131,17 +140,21 @@ export async function listSprints(deps: Deps, actor: SuiteActor, projectId: stri
   };
 }
 
-export interface SprintInput { name?: string; goal?: string; startAt?: string; endAt?: string }
+export interface SprintInput { name?: string; goal?: string; startAt?: string; endAt?: string; startDate?: string; endDate?: string }
 
-export async function createSprint(deps: Deps, actor: SuiteActor, projectId: string, input: SprintInput) {
+export async function createSprint(deps: Deps, actor: SuiteActor, projectId: string, given: SprintInput) {
   assertWritable(actor);
+  const input = sprintDateAliases(given);
   const p = await projectOf(deps, actor.orgId, projectId);
   const existing = await deps.db.select({ name: sprints.name, endAt: sprints.endAt }).from(sprints)
     .where(and(eq(sprints.orgId, actor.orgId), eq(sprints.projectId, p.id), isNull(sprints.deletedAt)));
   const last = existing.reduce<Date | null>((m, s) => (!m || s.endAt > m ? s.endAt : m), null);
-  // The next sprint starts the day after the last one ends; the first one starts today.
-  const startAt = parseDate(input.startAt) ?? new Date((Math.floor((last ? last.getTime() : deps.now().getTime() - DAY) / DAY) + 1) * DAY);
-  const endAt = parseDate(input.endAt) ?? new Date(startAt.getTime() + DEFAULT_SPRINT_DAYS * DAY - 1);
+  // The next sprint starts the day after the last one ends; the first one starts today. Days are
+  // the workspace's (or person's) calendar days, and a date with no time means that whole day (MB-54).
+  const zone = await sprintZone(deps, actor);
+  const startDay = last ? addDays(dayIn(last, zone), 1) : todayIn(deps.now(), zone);
+  const startAt = sprintDate(input.startAt, "start", zone) ?? startOfDayIn(startDay, zone);
+  const endAt = sprintDate(input.endAt, "end", zone) ?? endOfDayIn(addDays(dayIn(startAt, zone), DEFAULT_SPRINT_DAYS - 1), zone);
   if (endAt.getTime() <= startAt.getTime()) throw new HttpError(422, "validation_failed", "A sprint has to end after it starts.");
   if (endAt.getTime() - startAt.getTime() > 92 * DAY) throw new HttpError(422, "validation_failed", "A sprint can be at most 3 months long.");
   const n = existing.length + 1;
@@ -155,8 +168,9 @@ export async function createSprint(deps: Deps, actor: SuiteActor, projectId: str
   return presentSprint(row as SprintRow);
 }
 
-export async function updateSprint(deps: Deps, actor: SuiteActor, id: string, patch: SprintInput & { version?: number }) {
+export async function updateSprint(deps: Deps, actor: SuiteActor, id: string, given: SprintInput & { version?: number }) {
   assertWritable(actor);
+  const patch = sprintDateAliases(given);
   const s = await sprintRow(deps, actor.orgId, id);
   if (patch.version !== undefined && patch.version !== s.version) throw new HttpError(409, "version_conflict", "Someone else changed this sprint. Reload and try again.");
   const set: Partial<typeof sprints.$inferInsert> = {};
@@ -166,8 +180,10 @@ export async function updateSprint(deps: Deps, actor: SuiteActor, id: string, pa
     set.name = name;
   }
   if (patch.goal !== undefined) set.goal = patch.goal.slice(0, 2000);
-  const startAt = patch.startAt !== undefined ? parseDate(patch.startAt) : s.startAt;
-  const endAt = patch.endAt !== undefined ? parseDate(patch.endAt) : s.endAt;
+  // MB-55: a date only end is the end of that day here too, the same as on create.
+  const zone = patch.startAt !== undefined || patch.endAt !== undefined ? await sprintZone(deps, actor) : "UTC";
+  const startAt = patch.startAt !== undefined ? sprintDate(patch.startAt, "start", zone) : s.startAt;
+  const endAt = patch.endAt !== undefined ? sprintDate(patch.endAt, "end", zone) : s.endAt;
   if (!startAt || !endAt) throw new HttpError(422, "validation_failed", "A sprint needs a start and an end.");
   if (endAt.getTime() <= startAt.getTime()) throw new HttpError(422, "validation_failed", "A sprint has to end after it starts.");
   if (s.status === "completed" && (patch.startAt !== undefined || patch.endAt !== undefined)) throw new HttpError(409, "sprint_completed", "A completed sprint keeps its dates.");
@@ -338,12 +354,18 @@ export async function burndownFor(deps: Deps, actor: SuiteActor, s: SprintRow, o
   }
   // Current values for every task that was ever in scope, and their estimate changes.
   const rows: { id: string; status: string; points: number | null; completedAt: Date | null; createdAt: Date; sprintId: string | null }[] = [];
-  for (const part of chunk([...ids], 90)) {
-    rows.push(...await deps.db.select({ id: tasks.id, status: tasks.status, points: tasks.points, completedAt: tasks.completedAt, createdAt: tasks.createdAt, sprintId: tasks.sprintId })
-      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part), isNull(tasks.deletedAt))));
+  // R25: the chunks (D1 takes at most 100 bound values a query) run side by side, then are read in order.
+  const parts = await Promise.all(chunk([...ids], 90).map((part) => Promise.all([
+    deps.db.select({ id: tasks.id, status: tasks.status, points: tasks.points, completedAt: tasks.completedAt, createdAt: tasks.createdAt, sprintId: tasks.sprintId })
+      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part), isNull(tasks.deletedAt))),
+    s.status === "active"
+      ? deps.db.select({ entityId: activity.entityId, data: activity.data, createdAt: activity.createdAt }).from(activity)
+        .where(and(eq(activity.entityType, "task"), inArray(activity.entityId, part), gte(activity.createdAt, new Date(startMs)), like(activity.data, "%\"points\"%")))
+      : Promise.resolve([]),
+  ])));
+  for (const [taskRows, ptsRows] of parts) {
+    rows.push(...taskRows);
     if (s.status === "active") {
-      const ptsRows = await deps.db.select({ entityId: activity.entityId, data: activity.data, createdAt: activity.createdAt }).from(activity)
-        .where(and(eq(activity.entityType, "task"), inArray(activity.entityId, part), gte(activity.createdAt, new Date(startMs)), like(activity.data, "%\"points\"%")));
       for (const r of ptsRows) {
         const p = (JSON.parse(r.data) as { points?: { from: number | null; to: number | null } }).points;
         if (p) push(r.entityId, { at: r.createdAt.getTime(), kind: "pts", pts: p.to, from: p.from });

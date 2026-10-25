@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseSocialConnections, type SocialConnection } from "./auth/social-connections";
 
 /** Where a DNS lookup goes. `doh` works everywhere (incl. Workers); `node` uses the OS resolver. */
 export type DnsResolverKind = "doh" | "node";
@@ -39,6 +40,8 @@ export interface AppConfig {
       /** A previous tenant: the mobile exchange still accepts its ID tokens (older app builds) until this is unset. */
       legacy?: { domain: string; audience: string[] };
     };
+    /** Round 25: the provider connections shown as "Continue with Google / Microsoft" buttons (AUTH0_SOCIAL_CONNECTIONS). Empty without the identity provider. */
+    socialConnections: SocialConnection[];
     /** A machine-to-machine Auth0 client for the Management API (delete a person, resend a verification email). Optional. */
     auth0Management?: { domain: string; clientId: string; clientSecret: string };
     /**
@@ -190,6 +193,8 @@ const EnvSchema = z.object({
   AUTH0_LEGACY_CLIENT_ID: z.string().optional(),
   AUTH0_MGMT_CLIENT_ID: z.string().optional(),
   AUTH0_MGMT_CLIENT_SECRET: z.string().optional(),
+  /** Round 25: "google-oauth2,windowslive" shows those buttons on sign in and sign up. Unset: none. */
+  AUTH0_SOCIAL_CONNECTIONS: z.string().optional(),
   AUTH_LOCAL_PASSWORD: z.enum(["on", "off", "true", "false"]).optional(),
   TRUST_PROXY: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
@@ -337,6 +342,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET, ...(env.AUTH0_NATIVE_CLIENT_ID ? { nativeClientId: env.AUTH0_NATIVE_CLIENT_ID } : {}), ...legacyIdp(env) } } : {}),
       ...(env.AUTH0_DOMAIN && env.AUTH0_MGMT_CLIENT_ID && env.AUTH0_MGMT_CLIENT_SECRET
         ? { auth0Management: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_MGMT_CLIENT_ID, clientSecret: env.AUTH0_MGMT_CLIENT_SECRET } } : {}),
+      socialConnections: env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET ? parseSocialConnections(env.AUTH0_SOCIAL_CONNECTIONS) : [],
       trustProxy: env.TRUST_PROXY === "true" || env.TRUST_PROXY === "1",
       localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",

@@ -20,6 +20,7 @@ import { TaskPanel } from "./task-panel";
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind } from "./data";
 import { tone } from "@/web/components/app-bits";
+import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
@@ -44,7 +45,8 @@ export function TasksPage() {
   const qc = useQueryClient();
   const { update, create } = useTaskMutations();
   // Phones open the list: a board's second column runs off a narrow screen (dogfood finding).
-  const view = (params.get("view") as ViewKind) || (typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches ? "list" : "board");
+  // R25 (DF-10): the address, then this device's last pick, then List on phones and Board elsewhere.
+  const view = pickTaskView({ param: params.get("view"), stored: readStoredTaskView(), phone: isPhoneWidth() }) as ViewKind;
   const list = projects.data ?? [];
   // The board needs one project: by default the one with the most open work.
   const busiest = [...list].sort((a, b) => (b.counts.todo + b.counts.doing) - (a.counts.todo + a.counts.doing))[0];
@@ -118,13 +120,13 @@ export function TasksPage() {
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
             {VIEWS.map((v) => (
-              <button key={v.id} role="tab" aria-selected={view === v.id} aria-label={v.label} onClick={() => set({ view: v.id })}
-                className={cn("inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px]", view === v.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
+              <button key={v.id} role="tab" aria-selected={view === v.id} aria-label={v.label} onClick={() => { storeTaskView(v.id); set({ view: v.id }); }}
+                className={cn("inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] sm:min-h-0 sm:min-w-0", view === v.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
                 <v.icon className="h-3.5 w-3.5" /><span className="hidden sm:inline">{v.label}</span>
               </button>
             ))}
           </div>
-          <Button onClick={() => setNewTask({})}><Plus className="h-4 w-4" />New task</Button>
+          <Button onClick={() => setNewTask({})} aria-label="New task" className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><Plus className="h-4 w-4" /><span className="hidden min-[400px]:inline">New task</span></Button>
         </div>
       </div>
 

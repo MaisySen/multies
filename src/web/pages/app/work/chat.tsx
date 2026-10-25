@@ -13,6 +13,8 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
+import { composerHint, isPhoneWidth, isTouchOnly } from "@/web/lib/phone";
+import { useProjects } from "./data";
 import { CallHeaderStatus } from "./call-r23";
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
@@ -160,6 +162,9 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
   const [picked, setPicked] = useState<Person[]>([]);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  // R25 (DF-10): no keyboard hints on touch screens or phone widths, and a real project key as the sample.
+  const projects = useProjects();
+  const hint = composerHint({ touch: isTouchOnly() || isPhoneWidth(), projectKey: projects.data?.find((p) => !p.archived)?.key });
   const query = text.match(/(?:^|\s)@([\w.-]*)$/)?.[1];
   const matches = query === undefined ? [] : people.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
   const pick = (p: Person) => { setText((t) => t.replace(/@([\w.-]*)$/, `@${p.name} `)); setPicked((l) => [...l.filter((x) => x.id !== p.id), p]); };
@@ -190,7 +195,7 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
         <Button variant="ghost" size="icon" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
         <Button type="submit" size="icon" aria-label="Send" loading={busy}><Send className="h-4 w-4" /></Button>
       </div>
-      <p className="mt-1 text-[11.5px] text-subtle">Enter to send, Shift Enter for a new line. Type @ to mention, or a task ref like OPS-12 to link it.</p>
+      <p className="mt-1 text-[11.5px] text-subtle" data-testid="composer-hint">{hint}</p>
     </form>
   );
 }
@@ -318,7 +323,7 @@ export function ChatPage() {
         {current ? (
           <>
             <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-              <Link to="/app/chat" className="text-[13px] text-muted sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}>Back</Link>
+              <Link to="/app/chat" className="-my-2 inline-flex min-h-10 items-center px-1 text-[13px] text-muted sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}>Back</Link>
               <h2 className="truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
               {current.guestAccess && <span className="rounded bg-ok/15 px-1.5 text-[11.5px] text-ok">shared with guests</span>}
               <span className="truncate text-[12.5px] text-subtle">{current.topic}</span>

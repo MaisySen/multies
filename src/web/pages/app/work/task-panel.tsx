@@ -81,14 +81,14 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         {project && <span className="truncate text-[12.5px] text-muted">in {project.name}</span>}
         <div className="ml-auto flex items-center gap-1">
           {t && (
-            <Menu trigger={<button className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
+            <Menu trigger={<button className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
               <MenuItem icon={<FileText />} onSelect={newDoc}>New doc for this task</MenuItem>
               <MenuItem icon={<Video />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
               <MenuItem icon={<FileText />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
               <MenuItem icon={<Trash2 />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
-          <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg" aria-label="Close task"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="Close task"><X className="h-4 w-4" /></button>
         </div>
       </div>
       {!t ? (

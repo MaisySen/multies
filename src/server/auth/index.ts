@@ -10,3 +10,4 @@ export { authMode, localPasswordEnabled, idpIssuer, type AuthMode } from "./conf
 export { idpLogoutUrl, IDP_ID } from "./providers";
 export { verifyIdToken, IdTokenError } from "./tokens";
 export { mayLinkByEmail } from "./linking";
+export { parseSocialConnections, socialAuthorizeParams, providerEmailVerified, connectionOfSubject, SOCIAL_CONNECTIONS, type SocialConnection } from "./social-connections";

@@ -53,7 +53,7 @@ export async function runDeliver(deps: Deps, payload: unknown) {
     const res = await outbound.send({
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
       subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@${mb.address.split("@")[1] ?? "multies.si"}>`,
-      inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined,
+      inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined, replyTo: m.replyTo ?? undefined,
       attachments: await outboundAttachments(atts, deps),
     });
     await deps.db.update(deliveries).set({ status: res.status, provider: res.provider, providerMessageId: res.providerMessageId ?? null, detail: res.detail ?? "Delivered after a retry." })

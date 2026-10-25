@@ -142,7 +142,7 @@ function GettingStarted({ data }: { data: Dashboard }) {
           <h2 className="text-sm font-semibold">Get set up</h2>
           <p className="text-xs text-muted">{doneCount} of {steps.length} done</p>
         </div>
-        <button onClick={() => dismiss.mutate()} className="rounded-md px-2 py-1 text-xs text-subtle hover:bg-hover hover:text-fg">Hide</button>
+        <button onClick={() => dismiss.mutate()} className="min-h-10 rounded-md px-3 text-xs text-subtle hover:bg-hover hover:text-fg sm:min-h-0 sm:px-2 sm:py-1">Hide</button>
       </div>
       <div className="h-0.5 bg-line" aria-hidden><div className="h-full bg-brand transition-[width] duration-500" style={{ width: `${(doneCount / steps.length) * 100}%` }} /></div>
       <ol className="grid sm:grid-cols-2 lg:grid-cols-3">

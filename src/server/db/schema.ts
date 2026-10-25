@@ -273,7 +273,8 @@ export const messages = sqliteTable("messages", {
 }, (t) => [
   index("messages_mailbox_folder_idx").on(t.mailboxId, t.folder, t.date),
   index("messages_thread_idx").on(t.threadId),
-  index("messages_org_idx").on(t.orgId),
+  // R25 (0052): replaces messages_org_idx (org_id); the org prefix still serves org only lookups.
+  index("messages_org_folder_date_idx").on(t.orgId, t.folder, t.date),
   // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
   index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
   index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader),
@@ -821,7 +822,8 @@ export const tasks = sqliteTable("tasks", {
   triageSource: text("triage_source", { enum: ["mail", "form", "api", "chat"] }),
   ...suiteCols(),
 }, (t) => [
-  index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
+  // R25 (0052): replaces tasks_org_project_idx with the same leading columns plus three, so counts read the index only.
+  index("tasks_org_project_cover_idx").on(t.orgId, t.projectId, t.statusId, t.position, t.status, t.deletedAt, t.triageState),
   index("tasks_org_thread_idx").on(t.orgId, t.threadId),
   index("tasks_org_due_idx").on(t.orgId, t.dueAt),
   index("tasks_parent_idx").on(t.parentId),

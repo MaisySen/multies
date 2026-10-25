@@ -25,6 +25,7 @@ import { HttpError } from "../lib/errors";
 import { scopeOf, type SuiteActor } from "./suite/common";
 import { plainText } from "./suite/chat";
 import { linkFor } from "./suite/notify";
+import { dateFormat, dayInZone } from "../lib/intl-cache";
 
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
@@ -285,14 +286,14 @@ export async function tableExists(deps: Deps, name: string) {
 
 /** The calendar day (YYYY-MM-DD) of a moment in a time zone. */
 export function dayIn(d: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  return dayInZone(d, timeZone); // R25: one cached formatter per zone
 }
 /** A due date stored as a plain date is midnight UTC: its day is the UTC date, whatever the zone. */
 const dueDay = (d: Date, timeZone: string) => (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 ? d.toISOString().slice(0, 10) : dayIn(d, timeZone));
 
 function validZone(tz: string | null | undefined) {
   if (!tz) return null;
-  try { new Intl.DateTimeFormat("en", { timeZone: tz }); return tz; } catch { return null; }
+  try { dateFormat("en", { timeZone: tz }); return tz; } catch { return null; }
 }
 
 async function zoneOf(deps: Deps, actor: SuiteActor, tz?: string | null) {
@@ -383,7 +384,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
       .sort((x, y) => x.startsAt.localeCompare(y.startsAt))
       .slice(0, 20)
       .map((m) => {
-        const time = new Intl.DateTimeFormat("en-AU", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(m.startsAt));
+        const time = dateFormat("en-AU", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(m.startsAt));
         return { id: m.id, title: m.title, subtitle: `${time}, ${m.durationMin} min`, url: `/app/meetings/${encodeURIComponent(m.id.split(":")[0])}`, at: m.startsAt };
       });
   };

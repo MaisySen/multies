@@ -1,5 +1,6 @@
 import { genericOAuth, auth0 } from "better-auth/plugins/generic-oauth";
 import type { AppConfig } from "../config";
+import { providerEmailVerified } from "./social-connections";
 
 /** The provider id; it is also the last segment of the callback path /api/auth/callback/auth0. */
 export const IDP_ID = "auth0";
@@ -26,7 +27,8 @@ export function idpProviderConfig(config: Pick<AppConfig, "auth">) {
     // Logout at the provider goes through /api/auth/logout/idp (its /v2/logout with returnTo),
     // so sign out stays a plain JSON call for the web and mobile clients.
     disableProviderLogout: true,
-    mapProfileToUser: (p: Record<string, unknown>) => ({ name: displayName(p) }),
+    // Round 25: Google and Microsoft sign ins come through here too; only a verified email may link (social-connections.ts).
+    mapProfileToUser: (p: Record<string, unknown>) => ({ name: displayName(p), emailVerified: providerEmailVerified(p) }),
   };
 }
 

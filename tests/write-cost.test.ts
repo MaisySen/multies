@@ -2,6 +2,7 @@ import { it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { runMaintenance } from "@/server/services/maintenance";
 import { deliverInbound } from "@/server/services/mail/delivery";
+import { fakeIdpR25, R25_IDP, socialSignIn } from "./fake-idp-r25"; // R25 social sign in
 
 /**
  * Write costs in D1 terms: D1 bills a written row once for the table and once for every index on it,
@@ -995,4 +996,53 @@ it("bulk assignee recipes (R24 polish): a bulk reassign writes the same with no 
   expect(withRule).toBeGreaterThan(none);
   // Each run is the action (a task update) plus the rule's run count: bounded per task.
   expect(withRule - none).toBeLessThanOrEqual(5 * 25);
+});
+
+it("R25: a Google sign in that links to an existing account, and the next one, stay inside their write ceilings", async () => {
+  const idp = await fakeIdpR25();
+  const ctx = await makeTestApp({ ...R25_IDP, APP_URL: "http://localhost", AUTH_LOCAL_PASSWORD: "on", AUTH0_SOCIAL_CONNECTIONS: "google-oauth2" });
+  const local = new Client(ctx.app);
+  const email = await local.signup();
+  await (ctx.db as unknown as { $client: { prepare: (q: string) => { run: (...a: unknown[]) => unknown } } }).$client.prepare("update users set email_verified = 1 where email = ?").run(email);
+  const take = meter(ctx.db);
+  // Measured 19 (25 Oct 2026): the verification row Better Auth keeps for the round trip (written, then deleted),
+  // the linked account row, the session row and the user's updated_at. No new user, member or org rows.
+  const first = await socialSignIn(ctx.app, idp, "google-oauth2", { sub: "google-oauth2|w1", email, email_verified: true });
+  expect(first.cb.status).toBe(302);
+  const linkCost = take();
+  expect(linkCost).toBeLessThanOrEqual(22);
+  // Measured 19: the next Google sign in refreshes the account tokens instead of adding the link.
+  await socialSignIn(ctx.app, idp, "google-oauth2", { sub: "google-oauth2|w1", email, email_verified: true });
+  const repeatCost = take();
+  expect(repeatCost).toBeLessThanOrEqual(linkCost);
+});
+
+it("API speed (R25): 0052 swaps two indexes for composites, so a task or message row costs the same as before; the cached and 304 reads write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const c = (ctx.db as unknown as { $client: { prepare: (q: string) => { all: () => unknown[] } } }).$client;
+  const full = (t: string) => (c.prepare(`select name from sqlite_master where type='index' and tbl_name='${t}' and (sql is null or sql not like '% WHERE %')`).all() as { name: string }[]).map((r) => r.name).sort();
+  // Same number of full indexes as before 0052 (one replaced on each table): 6 each, primary key included, as on main.
+  expect(full("messages")).toContain("messages_org_folder_date_idx");
+  expect(full("messages")).not.toContain("messages_org_idx");
+  expect(full("messages").length).toBe(6);
+  expect(full("tasks")).toContain("tasks_org_project_cover_idx");
+  expect(full("tasks")).not.toContain("tasks_org_project_idx");
+  expect(full("tasks").length).toBe(6);
+  const { createTask } = await import("@/server/services/suite/tasks");
+  await createTask(ctx.deps, actor, { title: "Warm up", projectId });
+  const take = meter(ctx.db);
+  await createTask(ctx.deps, actor, { title: "Ship it", projectId });
+  expect(take()).toBe(16) // measured on main 93dc6c7 before 0052: also 16;
+  // The read cache, the intl cache and the ETag path add no writes.
+  for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
+    expect((await u.get(p)).status, p).toBe(200);
+  }
+  const tag = (await ctx.app.request("/api/projects", { headers: { host: "localhost", cookie: u.cookie } })).headers.get("etag")!;
+  expect((await u.call("GET", "/api/projects", undefined, { "if-none-match": tag })).status).toBe(304);
+  expect(take()).toBe(0);
 });

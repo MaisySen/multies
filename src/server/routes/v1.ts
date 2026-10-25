@@ -114,6 +114,7 @@ const SendRequest = z.object({
   text: z.string().max(1_000_000).default("").openapi({ example: "Hi Ada, your invoice is attached." }),
   html: z.string().max(2_000_000).optional(),
   inReplyToId: z.string().optional().openapi({ description: "A message id to reply to; threading headers are set for you." }),
+  replyTo: z.string().email().optional().openapi({ description: "Where replies go, for example support@yourdomain.com when sending from no-reply@.", example: "support@example.com" }),
 }).openapi("SendRequest");
 
 const SendResult = z.object({

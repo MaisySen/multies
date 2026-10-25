@@ -20,7 +20,13 @@ const send = (c: Context<AppEnv>, data: unknown) => c.json(data as any, 200) as 
 
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" }, example: "OPS-7" }) });
 const Query = z.object({ project: z.string().max(64).optional().openapi({ description: "Only epics in this project (its id)." }) });
-const Items = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(MAX_EPIC_BATCH).openapi({ description: "Task ids or references (OPS-12), up to 100." }) }).openapi("EpicItems");
+// MB-56: taskIds is accepted too, the name sprints use for the same list.
+const ItemIds = z.array(z.string().min(1).max(64)).min(1).max(MAX_EPIC_BATCH);
+const Items = z.object({
+  ids: ItemIds.optional().openapi({ description: "Task ids or references (OPS-12), up to 100." }),
+  taskIds: ItemIds.optional().openapi({ description: "Same as ids (the name the sprint endpoints use)." }),
+}).refine((b) => !!(b.ids ?? b.taskIds), { message: "Pass ids (or taskIds): the task ids or references.", path: ["ids"] }).openapi("EpicItems");
+const itemIds = (b: { ids?: string[]; taskIds?: string[] }) => (b.ids ?? b.taskIds)!;
 
 export function registerEpicRoutes(api: OpenAPIHono<AppEnv>) {
   const tags = ["Epics"];
@@ -38,11 +44,11 @@ export function registerEpicRoutes(api: OpenAPIHono<AppEnv>) {
     description: "Puts tasks, stories or bugs in the epic (sets their parent). An item already in another epic moves. Epics can't go in an epic. One batch: each item costs its own row write.",
     request: { params: Id, body: { required: true, content: { "application/json": { schema: Items } } } },
     responses: { 200: json("{ epic, items, moved }"), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, await addToEpic(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").ids)));
+  async (c) => send(c, await addToEpic(c.var.deps, actor(c), c.req.valid("param").id, itemIds(c.req.valid("json")))));
 
   api.openapi(createRoute({ method: "delete", path: "/epics/{id}/items", tags, summary: "Take items out of an epic", security: secured,
     description: "Clears the parent of these items when it is this epic. Items in another epic are left alone.",
     request: { params: Id, body: { required: true, content: { "application/json": { schema: Items } } } },
     responses: { 200: json("{ epic, items, moved }"), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, await removeFromEpic(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").ids)));
+  async (c) => send(c, await removeFromEpic(c.var.deps, actor(c), c.req.valid("param").id, itemIds(c.req.valid("json")))));
 }

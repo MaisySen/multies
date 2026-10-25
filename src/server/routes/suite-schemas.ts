@@ -105,6 +105,7 @@ export const DocCreate = z.object({
 }).openapi("DocCreate");
 export const DocPatch = z.object({
   title: z.string().trim().max(200).optional(), content: z.record(z.string(), z.unknown()).optional(), version: z.number().int().optional(), links: z.array(LinkTarget).max(20).optional(),
+  text: z.string().max(200_000).optional().openapi({ description: "Or plain text that replaces the whole body: one paragraph per line, # headings and - bullets." }),
 }).openapi("DocPatch");
 
 export const ContactCreate = z.object({

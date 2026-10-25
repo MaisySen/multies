@@ -68,6 +68,8 @@ export const sendMessageSchema = z.object({
   html: z.string().max(2_000_000).optional(),
   inReplyToId: z.string().optional(),
   draftId: z.string().optional(),
+  // MB-61: where replies go (for example a support inbox when sending from no-reply@).
+  replyTo: emailSchema.optional(),
 });
 
 export const saveDraftSchema = sendMessageSchema.extend({

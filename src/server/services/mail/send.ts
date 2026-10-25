@@ -111,7 +111,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
 
   const sentId = await storeMessage(db, {
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
-    from, to: toList, cc: ccList, bcc: bccList, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
+    from, to: toList, cc: ccList, bcc: bccList, replyTo: input.replyTo, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
     sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null, bodyStore: deps.bodyStore,
   });
   if (inReplyTo) {
@@ -141,7 +141,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       sizeBytes: input.text.length + (input.html?.length ?? 0) + 512,
       via: "internal",
       email: {
-        messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, subject: input.subject,
+        messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo: input.replyTo, subject: input.subject,
         text: input.text, html: input.html, date: now, attachments: atts, authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
       },
     });
@@ -174,7 +174,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     try {
       const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
       const sent = await outbound.send({
-        from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc),
+        from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc), replyTo: input.replyTo,
         subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
         attachments: atts,
       });
