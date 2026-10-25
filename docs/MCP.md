@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 104 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 103 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -345,12 +345,11 @@ Registered in src/server/routes/mcp-r24-workload.ts. Read only, so read only key
 | --- | --- |
 | `get_workload` | Open tasks and estimates per person (plus Unassigned) per week, Monday first, in points or hours, with a capacity flag (default 20 points or 40 hours a person a week, or pass `capacity`); `overloaded` lists each person and week over capacity, so "who is overloaded next week" is one call with `from` set to next Monday and `weeks` 1; `overdue` holds open tasks due before the range; `includeTasks` adds each cell's tasks |
 
-### Formula and rollup fields (R24.1)
+### Automation recipes (R24.4)
 
-Registered in src/server/routes/mcp-r24-formulas.ts. `get_computed_fields` is a read, so read only keys and tokens can call it; the two create tools need a write key. Values are computed when read and nothing is stored per task.
+Registered in src/server/routes/mcp-r24-recipes.ts. Listing is read only; turning a recipe on needs a full workspace key (read only keys and tokens and agent keys are refused, like turning on a rule in the app, which is for admins).
 
 | Tool | What it does |
 | --- | --- |
-| `get_computed_fields` | With `taskId` (an id or a reference like OPS-12): each formula and rollup field on the task's project with its settings and value; with `projectId`: the project level rollups over its tasks. A value that can't be worked out is `#ERROR` with a plain `error` message |
-| `create_formula_field` | Adds a read only formula field, like `{Budget} * 1.1` or `if({points} > 5, "big", "small")`; field names go in braces, built ins are points, due, start, created, completed, status, priority, title and assignee; functions: if, round, floor, ceil, abs, min, max, sum, concat, len, upper, lower, days_between, today, now, date_add, is_empty, coalesce; up to 500 characters; loops between formulas are refused |
-| `create_rollup_field` | Adds a rollup: `source` subtasks, epic_children (an epic's items and their subtasks) or project (one value over the project, shown in its header); `fn` sum, count, count_done, average, min, max or percent_done; `field` points or a number, currency or formula field (not needed for the count functions) |
+| `list_automation_recipes` | Ready made automation rules by category (Tasks, Mail, Chat, Meetings, Sprints): key, name, description, the rules each makes, the blanks to fill (channel, project, member, members or text) and whether it is on here; `category` narrows the list |
+| `enable_automation_recipe` | Turns a recipe on with its `blanks` (for example `{ channelId }`, or `{ projectId, memberIds }`): makes its rules as normal automations, or switches them back on; channels must be public channels of this workspace and every id must be this workspace's |

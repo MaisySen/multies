@@ -23,9 +23,8 @@ const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "
 
 const Field = z.object({
   id: z.string(), projectId: z.string(), name: z.string(),
-  type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"]),
+  type: z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]),
   options: z.array(z.object({ id: z.string(), label: z.string(), color: z.string() })), position: z.number(),
-  config: z.record(z.string(), z.unknown()).optional().openapi({ description: "R24.1: formula or rollup settings." }),
 }).openapi("Field", { description: "A custom field on a project. Currency is AUD. Values are set on tasks with PATCH /tasks/{id} { fields: { <fieldId>: value } }." });
 const Guest = z.object({
   id: z.string(), projectId: z.string(), email: z.string(), name: z.string(), status: z.enum(["pending", "active", "revoked"]),

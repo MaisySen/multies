@@ -759,49 +759,51 @@ it("workload (R24.2): reading the workload writes nothing, through the app, the 
   expect(take()).toBeLessThanOrEqual(16);
 });
 
-
-it("formula and rollup fields (R24.1): reading computed values writes nothing; defining a field is one row", async () => {
+it("automation recipes (R24.4): listing writes nothing; turning one on is one automation row with its activity; a run is the action plus the run count; due_passed idle writes nothing", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
-  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
-  const budget = (await u.post("/api/fields", { projectId, name: "Budget", type: "number" })).body.field;
-  const parent = (await u.post("/api/tasks", { title: "Parent", projectId })).body.task;
-  for (const p of [1, 2, 3]) await u.post("/api/tasks", { title: `Sub ${p}`, projectId, parentId: parent.id, points: p });
-  await u.patch(`/api/tasks/${parent.id}`, { fields: { [budget.id]: 10 } });
-  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
-  const take = meter(ctx.db);
-  // Defining a field: the custom_fields row and its index, plus the activity row.
-  expect((await u.post("/api/fields", { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 1.1" } })).status).toBe(201);
-  expect(take()).toBeLessThanOrEqual(12);
-  await u.post("/api/fields", { projectId, name: "Sub points", type: "rollup", config: { source: "subtasks", fn: "sum", field: "points" } });
-  await u.post("/api/fields", { projectId, name: "Total", type: "rollup", config: { source: "project", fn: "sum", field: "points" } });
-  take();
-  // Reads: the list, a task, the computed endpoints and the preview write nothing beyond a plain list read.
-  await u.get(`/api/tasks?projectId=${projectId}&fields=1`);
-  const sessionBaseline = take();
-  const seen: number[] = [];
-  await u.get(`/api/tasks?projectId=${projectId}&includeSubtasks=true`); seen.push(take());
-  await u.get(`/api/tasks/${parent.id}`); seen.push(take());
-  await u.get(`/api/computed/tasks/${parent.id}`); seen.push(take());
-  await u.get(`/api/computed/projects/${projectId}/rollups`); seen.push(take());
-  await u.get(`/api/computed/preview?projectId=${projectId}&expression=${encodeURIComponent("{Budget} * 2")}`); seen.push(take());
-  expect(seen).toEqual([sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline, sessionBaseline]);
-  const headers = { host: "localhost", authorization: `Bearer ${key}` };
-  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
-  const baseline = take();
-  expect((await ctx.app.request(`/api/v1/projects/${projectId}/rollups`, { headers })).status).toBe(200);
-  expect(take()).toBeLessThanOrEqual(baseline);
-  expect((await ctx.app.request(`/api/v1/tasks/${parent.id}/computed`, { headers })).status).toBe(200);
-  expect(take()).toBeLessThanOrEqual(baseline);
-  // The services alone write nothing at all.
-  const { projectRollups } = await import("@/server/services/suite/computed");
-  const { listTasks } = await import("@/server/services/suite/tasks");
   const me = (await u.get("/api/account/me")).body;
-  take();
   const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const rows = await listTasks(ctx.deps, actor, { projectId, includeSubtasks: true });
-  expect(rows.find((r) => r.title === "Parent")!.fields).toMatchObject({ [budget.id]: 10 });
-  await projectRollups(ctx.deps, actor, projectId);
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const channelId = (await u.post("/api/chat/channels", { name: "engineering" })).body.channel.id;
+  const { listRecipes, enableRecipe } = await import("@/server/services/suite/automation-recipes");
+  const { runDuePassed } = await import("@/server/services/suite/automations-r24");
+  const { createTask, updateTask } = await import("@/server/services/suite/tasks");
+  const take = meter(ctx.db);
+  await listRecipes(ctx.deps, actor);
+  await u.get("/api/automations/recipes");
+  expect(await runDuePassed(ctx.deps)).toEqual({ fired: 0, paused: false });
+  expect(take()).toBe(0);
+  // A task with no rules on costs what it cost before (the rules read writes nothing).
+  await createTask(ctx.deps, actor, { title: "Baseline", projectId, priority: "urgent" });
+  const plainCreate = take();
+  await enableRecipe(ctx.deps, actor, "urgent_post_channel", { channelId });
+  const enableCost = take();
+  // Measured 9: the automation row (1 index), its activity and change rows.
+  expect(enableCost).toBeLessThanOrEqual(10);
+  await createTask(ctx.deps, actor, { title: "Server down", projectId, priority: "urgent" });
+  const runCost = take() - plainCreate;
+  // Measured 14: the run count, the rule's run stamp, and the chat message with its channel stamp and activity.
+  expect(runCost).toBeLessThanOrEqual(16);
+  // set_priority on a created bug: the run count, the rule's row, and one task update.
+  await enableRecipe(ctx.deps, actor, "customer_label_priority");
+  take();
+  await createTask(ctx.deps, actor, { title: "Plain", projectId });
+  const plain2 = take();
+  await createTask(ctx.deps, actor, { title: "Customer", projectId, labels: ["customer"] });
+  const prioCost = take() - plain2;
+  // Measured 18: the run count, the rule's run stamp, and one task update with its activity and change rows.
+  expect(prioCost).toBeLessThanOrEqual(20);
+  // due_passed: the marker on the task plus the run.
+  await enableRecipe(ctx.deps, actor, "due_passed_notify");
+  const late = await createTask(ctx.deps, actor, { title: "Late", projectId, due: new Date(Date.now() - 3600_000).toISOString() });
+  await updateTask(ctx.deps, actor, late.id, { assignee: null });
+  take();
+  await runDuePassed(ctx.deps);
+  const dueCost = take();
+  // Measured 12: the once per due date marker on the task (its indexes), the run count and the rule's run stamp.
+  expect(dueCost).toBeLessThanOrEqual(14);
+  await runDuePassed(ctx.deps);
   expect(take()).toBe(0);
 });
