@@ -45,8 +45,12 @@ const all = (p: DeliverJobPayload) => [...p.to, ...p.cc, ...p.bcc];
 export async function runDeliver(deps: Deps, payload: unknown) {
   const p = payload as DeliverJobPayload;
   const { m, mb, atts } = await load(deps, p);
+  // A connected mailbox retries through its own provider's SMTP, like its first try.
+  const { connectionForMailbox } = await import("../connect");
+  const conn = await connectionForMailbox(deps, mb.id);
+  const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
   try {
-    const res = await deps.outbound.send({
+    const res = await outbound.send({
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
       subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@mymail>`,
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined,

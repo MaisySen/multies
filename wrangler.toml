@@ -63,9 +63,19 @@ migrations_table = "d1_migrations"
 name = "DOC_ROOMS"
 class_name = "DocRoom"
 
+# Connected mailbox sync: one object per connection, so each sync pass is its own invocation
+# (src/entry/worker.ts MailSyncRunner). SQLite backend, on the Free plan like DocRoom.
+[[durable_objects.bindings]]
+name = "MAIL_SYNC"
+class_name = "MailSyncRunner"
+
 [[migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
+
+[[migrations]]
+tag = "v2-mail-sync"
+new_sqlite_classes = ["MailSyncRunner"]
 
 # Edge rate limits (Workers rate limiting API). Without these bindings the app
 # falls back to a shared counter in D1. Limits match src/server/lib/rate-limit.ts.
@@ -155,9 +165,17 @@ migrations_table = "d1_migrations"
 name = "DOC_ROOMS"
 class_name = "DocRoom"
 
+[[env.staging.durable_objects.bindings]]
+name = "MAIL_SYNC"
+class_name = "MailSyncRunner"
+
 [[env.staging.migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
+
+[[env.staging.migrations]]
+tag = "v2-mail-sync"
+new_sqlite_classes = ["MailSyncRunner"]
 
 [[env.staging.ratelimits]]
 name = "RL_AUTH"

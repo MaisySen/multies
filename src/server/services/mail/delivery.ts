@@ -33,7 +33,8 @@ export async function routeRecipient(db: DB, address: string): Promise<Recipient
   const domain = await db.select().from(domains).where(eq(domains.name, domainOf(addr))).get();
   if (!domain) return { kind: "none" };
   const mailbox = await db.select().from(mailboxes).where(eq(mailboxes.address, addr)).get();
-  if (mailbox) return { kind: "mailbox", mailbox, domain };
+  // A connected mailbox (an address at another provider) sits on the shared connected row, not this domain: mail for it goes out over the internet.
+  if (mailbox && mailbox.domainId === domain.id) return { kind: "mailbox", mailbox, domain };
   const alias = await db.select().from(aliases).where(and(eq(aliases.address, addr), eq(aliases.enabled, true))).get();
   if (alias) return { kind: "alias", alias, domain };
   if (domain.catchAllMailboxId) {

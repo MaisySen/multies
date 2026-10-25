@@ -262,12 +262,17 @@ export const messages = sqliteTable("messages", {
   /** Who wrote an outgoing message: an AI agent (agents.id) or a person (users.id). */
   sentByAgentId: text("sent_by_agent_id"),
   sentByUserId: text("sent_by_user_id"),
+  /** For a connected mailbox (mail_connections): which remote folder ("inbox" or "sent") and IMAP UID the copy came from. */
+  remoteBox: text("remote_box"),
+  remoteUid: integer("remote_uid"),
   date: ts("date").notNull(),
   createdAt: createdAt(),
 }, (t) => [
   index("messages_mailbox_folder_idx").on(t.mailboxId, t.folder, t.date),
   index("messages_thread_idx").on(t.threadId),
   index("messages_org_idx").on(t.orgId),
+  // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
+  index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
 ]);
 
 export const attachments = sqliteTable("attachments", {
@@ -666,6 +671,53 @@ export const importJobs = sqliteTable("import_jobs", {
   finishedAt: ts("finished_at"),
   createdAt: createdAt(),
 }, (t) => [index("import_jobs_org_idx").on(t.orgId), index("import_jobs_status_idx").on(t.status)]);
+
+/**
+ * A person's existing mailbox at another provider (round 18), connected over IMAP and SMTP.
+ * The mail shows in a Multies mailbox (mailbox_id) on the shared "connected" domain row, synced
+ * on a schedule; replies go out through the provider's own SMTP. The app password (or the OAuth
+ * refresh token) is AES-GCM encrypted with the app secret and deleted with the row.
+ */
+export const mailConnections = sqliteTable("mail_connections", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  email: text("email").notNull(),
+  username: text("username").notNull(),
+  imapHost: text("imap_host").notNull(),
+  imapPort: integer("imap_port").notNull(),
+  imapSecurity: text("imap_security", { enum: ["tls", "starttls"] }).notNull(),
+  smtpHost: text("smtp_host").notNull(),
+  smtpPort: integer("smtp_port").notNull(),
+  smtpSecurity: text("smtp_security", { enum: ["tls", "starttls"] }).notNull(),
+  authKind: text("auth_kind", { enum: ["password", "oauth"] }).notNull().default("password"),
+  secretEnc: text("secret_enc").notNull(),
+  savesSent: integer("saves_sent", { mode: "boolean" }).notNull().default(false),
+  status: text("status", { enum: ["active", "syncing", "auth_failed", "error", "paused"] }).notNull().default("active"),
+  lastError: text("last_error"),
+  lastSyncAt: ts("last_sync_at"),
+  nextSyncAt: ts("next_sync_at"),
+  initialDone: integer("initial_done", { mode: "boolean" }).notNull().default(false),
+  /** JSON: per folder UIDVALIDITY and last UID seen, plus the Sent, Archive and Trash paths. */
+  syncState: text("sync_state").notNull().default("{}"),
+  messagesSynced: integer("messages_synced").notNull().default(0),
+  /** Messages stored today (UTC, `day`), for the per connection daily cap. */
+  messagesToday: integer("messages_today").notNull().default(0),
+  day: text("day"),
+  createdByUserId: text("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("mail_connections_mailbox_uq").on(t.mailboxId), index("mail_connections_org_idx").on(t.orgId), index("mail_connections_due_idx").on(t.status, t.nextSyncAt)]);
+
+/** Read, star and move changes made in Multies on synced mail, waiting to be applied at the provider. */
+export const mailSyncOutbox = sqliteTable("mail_sync_outbox", {
+  id: text("id").primaryKey(),
+  connectionId: text("connection_id").notNull().references(() => mailConnections.id, { onDelete: "cascade" }),
+  remoteBox: text("remote_box").notNull(),
+  remoteUid: integer("remote_uid").notNull(),
+  action: text("action", { enum: ["seen", "unseen", "flag", "unflag", "archive", "trash", "inbox"] }).notNull(),
+  createdAt: createdAt(),
+}, (t) => [index("mail_sync_outbox_conn_idx").on(t.connectionId)]);
 
 
 // ---------------------------------------------------------------- suite: work management, docs, contacts

@@ -29,7 +29,8 @@ export default defineConfig({
     },
     {
       // The same app with the identity provider on, its endpoints faked in process (e2e/auth-idp.spec.ts).
-      command: `rm -rf .data/e2e-idp.db .data/e2e-idp-outbox && PORT=${IDP_PORT} DATABASE_PATH=.data/e2e-idp.db OUTBOX_DIR=.data/e2e-idp-outbox TRUST_PROXY=true APP_URL=http://localhost:${IDP_PORT} npx tsx e2e/support/idp-server.ts`,
+      // Connected mailbox E2E reaches the local test mail server (self-signed, 127.0.0.1): allowed here only, never in production.
+      command: `rm -rf .data/e2e-idp.db .data/e2e-idp-outbox && PORT=${IDP_PORT} DATABASE_PATH=.data/e2e-idp.db OUTBOX_DIR=.data/e2e-idp-outbox TRUST_PROXY=true MAIL_CONNECT_ALLOW_SELF_SIGNED=true MAIL_CONNECT_ALLOW_PRIVATE_HOSTS=true APP_URL=http://localhost:${IDP_PORT} npx tsx e2e/support/idp-server.ts`,
       url: `http://localhost:${IDP_PORT}/api/health`,
       reuseExistingServer: false,
     },

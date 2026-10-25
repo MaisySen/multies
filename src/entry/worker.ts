@@ -26,6 +26,8 @@ import type { DocRoomNamespace } from "../server/collab/durable-object";
 
 /** The doc co-editing room (a Durable Object), exported for the DOC_ROOMS binding. */
 export { DocRoom } from "../server/collab/durable-object";
+import { workerSocketOpener } from "./worker-socket";
+import { syncConnection } from "../server/services/connect/sync";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -68,6 +70,8 @@ async function boot(env: WorkerEnv) {
       });
     } : undefined,
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
+    openSocket: workerSocketOpener,
+    dispatchMailSync: mailSyncDispatcher(env),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -88,6 +92,48 @@ function peerAwareFetch(env: WorkerEnv): typeof fetch {
     if (peer && typeof peer.fetch === "function" && host && new URL(req.url).hostname === host) return peer.fetch(req);
     return fetch(req);
   }) as typeof fetch;
+}
+
+interface DurableObjectNamespaceLike { idFromName(name: string): unknown; get(id: unknown): Fetcher }
+
+/**
+ * Each connected mailbox syncs in its own Durable Object invocation (MAIL_SYNC binding), so one
+ * mailbox's messages never use up the request budget of the cron run or of another mailbox. Hosts
+ * without the binding run the pass inline.
+ */
+function mailSyncDispatcher(env: WorkerEnv): ((id: string) => Promise<void>) | undefined {
+  const ns = env.MAIL_SYNC as DurableObjectNamespaceLike | undefined;
+  if (!ns || typeof ns.idFromName !== "function") return undefined;
+  return async (id: string) => {
+    const res = await ns.get(ns.idFromName(id)).fetch(new Request("https://mail-sync/run", { method: "POST", body: JSON.stringify({ id }) }));
+    if (!res.ok) throw new Error(`mail sync answered ${res.status}`);
+  };
+}
+
+interface DurableObjectStateLike { storage: { get<T>(k: string): Promise<T | undefined>; put(k: string, v: unknown): Promise<void>; setAlarm(t: number): Promise<void> } }
+
+/**
+ * One per connected mailbox (idFromName(connection id)). A run does one sync pass; when more mail
+ * is waiting (the first import) it sets an alarm 20 seconds out, and each alarm is a fresh
+ * invocation with its own limits, until the backlog is in.
+ */
+export class MailSyncRunner {
+  constructor(private state: DurableObjectStateLike, private env: WorkerEnv) {}
+  async fetch(request: Request): Promise<Response> {
+    const { id } = (await request.json()) as { id: string };
+    await this.state.storage.put("id", id);
+    return Response.json(await this.pass(id));
+  }
+  async alarm() {
+    const id = await this.state.storage.get<string>("id");
+    if (id) await this.pass(id);
+  }
+  private async pass(id: string) {
+    const { deps } = await getReady(this.env);
+    const r = await syncConnection({ ...deps, dispatchMailSync: undefined }, id);
+    if (r.more && !r.skipped) await this.state.storage.setAlarm(Date.now() + 20_000);
+    return { stored: r.stored, more: r.more, skipped: r.skipped ?? null };
+  }
 }
 
 /** A Cloudflare rate limiting binding, when wrangler.toml declares one. */

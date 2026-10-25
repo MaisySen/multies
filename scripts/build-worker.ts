@@ -10,7 +10,8 @@
  * and they end up inside _worker.js only, which the host never serves as a file.
  * Never point it at a file that is committed.
  */
-import { build } from "esbuild";
+import { build, type BuildOptions, type Plugin } from "esbuild";
+import { builtinModules } from "node:module";
 import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
@@ -71,7 +72,25 @@ rmSync(path.join(out, "index.html"));
 // Browser source maps go to Sentry (CI uploads them from dist/web), not to the public.
 for (const f of readdirSync(path.join(out, "assets"))) if (f.endsWith(".map")) rmSync(path.join(out, "assets", f));
 
-await build({
+// Libraries written for Node (ImapFlow, Nodemailer's composer) import or require bare built-ins ("net",
+// "tls", "events"); on Workers those come from nodejs_compat under their node: names. An ESM bundle has no
+// require(), so esbuild's require shim would throw "Dynamic require of node:events is not supported" at
+// startup (seen in wrangler dev, 25 Oct 2026). The first pass finds which built-ins are required; the
+// banner imports them statically and gives the bundle a require() that hands them out.
+const builtinNames = new Set(builtinModules.filter((m) => !m.startsWith("_") && !m.includes("/") && m !== "module" && m !== "punycode"));
+const required = new Set<string>();
+const nodeBuiltins: Plugin = {
+  name: "node-builtins",
+  setup(b) {
+    b.onResolve({ filter: /^(node:)?[a-z_]+(\/[a-z_]+)?$/ }, (args) => {
+      const bare = args.path.replace(/^node:/, "");
+      if (!builtinNames.has(bare.split("/")[0])) return undefined;
+      if (args.kind === "require-call") required.add(bare);
+      return { path: `node:${bare}`, external: true };
+    });
+  },
+};
+const options = (banner: string): BuildOptions => ({
   entryPoints: [path.join(root, "src/entry/worker.ts")],
   outfile: path.join(out, "_worker.js"),
   bundle: true,
@@ -79,8 +98,9 @@ await build({
   platform: "browser",
   target: "es2022",
   conditions: ["worker", "browser"],
-  // Node built-ins come from the runtime (nodejs_compat), not the bundle.
-  external: ["node:*"],
+  external: ["node:*", "cloudflare:*"],
+  plugins: [nodeBuiltins],
+  banner: { js: banner },
   minify: true,
   // Production builds keep an external map for Sentry and wrangler (never served).
   sourcemap: profile === "preview" ? false : "external",
@@ -88,6 +108,15 @@ await build({
   define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml) },
   logLevel: "warning",
 });
+await build({ ...options(""), write: false });
+const names = [...required].sort();
+const banner = names.length ? [
+  ...names.map((n, i) => `import * as __nb${i} from "node:${n}";`),
+  `const __nodeBuiltins = { ${names.map((n, i) => `${JSON.stringify(n)}: __nb${i}`).join(", ")} };`,
+  "const require = (n) => { const m = __nodeBuiltins[String(n).replace(/^node:/, \"\")]; if (!m) throw new Error(\"Module not available on Workers: \" + n); return m.default ?? m; };",
+].join("\n") : "";
+await build(options(banner));
+if (names.length) console.log(`node built-ins required by bundled libraries: ${names.join(", ")}`);
 
 // Never serve the server bundle, its source map or the hosting declaration as static files.
 writeFileSync(path.join(out, ".assetsignore"), "_worker.js\n_worker.js.map\ntab-site.json\n.assetsignore\n");

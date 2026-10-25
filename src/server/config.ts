@@ -105,6 +105,26 @@ export interface AppConfig {
   bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
   importRunnerToken?: string;
+  /**
+   * Connecting an existing mailbox over IMAP and SMTP (round 18). On unless MAIL_CONNECT=off.
+   * allowSelfSigned and allowPrivateHosts are for the local test mail server and are refused in production.
+   * OAuth for Google and Microsoft stays off until MAIL_OAUTH=on and the provider's client id and secret are set.
+   */
+  mailConnect: {
+    enabled: boolean;
+    allowSelfSigned: boolean;
+    allowPrivateHosts: boolean;
+    /** Messages fetched per sync pass, per connection. */
+    batch: number;
+    /** Messages stored per connection per day (UTC). */
+    dailyCap: number;
+    /** The first sync copies this many days back, at most `initialCap` messages per folder. */
+    initialDays: number;
+    initialCap: number;
+    /** Minutes between scheduled syncs of one connection. */
+    intervalMinutes: number;
+    oauth: { enabled: boolean; google?: { clientId: string; clientSecret: string }; microsoft?: { clientId: string; clientSecret: string; tenant: string } };
+  };
   /** Xero, for invoice reminders (XERO_CLIENT_ID, XERO_CLIENT_SECRET). Off without both. */
   xero?: { clientId: string; clientSecret: string };
   /** Video meetings through LiveKit (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET). Off without all three. */
@@ -198,6 +218,20 @@ const EnvSchema = z.object({
   BODY_STORE_ACCESS_KEY_ID: z.string().optional(),
   BODY_STORE_SECRET_ACCESS_KEY: z.string().optional(),
   IMPORT_RUNNER_TOKEN: z.string().min(24).optional(),
+  MAIL_CONNECT: z.string().optional(),
+  MAIL_CONNECT_ALLOW_SELF_SIGNED: z.string().optional(),
+  MAIL_CONNECT_ALLOW_PRIVATE_HOSTS: z.string().optional(),
+  MAIL_SYNC_BATCH: z.string().optional(),
+  MAIL_SYNC_DAILY_CAP: z.string().optional(),
+  MAIL_SYNC_INITIAL_DAYS: z.string().optional(),
+  MAIL_SYNC_INITIAL_CAP: z.string().optional(),
+  MAIL_SYNC_INTERVAL_MINUTES: z.string().optional(),
+  MAIL_OAUTH: z.string().optional(),
+  GOOGLE_MAIL_CLIENT_ID: z.string().optional(),
+  GOOGLE_MAIL_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_MAIL_CLIENT_ID: z.string().optional(),
+  MICROSOFT_MAIL_CLIENT_SECRET: z.string().optional(),
+  MICROSOFT_MAIL_TENANT: z.string().optional(),
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
@@ -335,6 +369,32 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
+    mailConnect: (() => {
+      const on = (v: string | undefined) => v === "1" || v === "true" || v === "on";
+      const testOnly = (key: string, v: string | undefined) => {
+        if (!on(v)) return false;
+        if (mode === "production") throw new ConfigError(`${key} is for the local test mail server only and can't be on in production.`);
+        return true;
+      };
+      const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) && Number(v) > 0 ? Math.floor(Number(v)) : d);
+      return {
+        enabled: env.MAIL_CONNECT !== "off" && env.MAIL_CONNECT !== "0" && env.MAIL_CONNECT !== "false",
+        allowSelfSigned: testOnly("MAIL_CONNECT_ALLOW_SELF_SIGNED", env.MAIL_CONNECT_ALLOW_SELF_SIGNED),
+        allowPrivateHosts: testOnly("MAIL_CONNECT_ALLOW_PRIVATE_HOSTS", env.MAIL_CONNECT_ALLOW_PRIVATE_HOSTS),
+        batch: Math.min(num(env.MAIL_SYNC_BATCH, 25), 100),
+        dailyCap: num(env.MAIL_SYNC_DAILY_CAP, 500),
+        initialDays: num(env.MAIL_SYNC_INITIAL_DAYS, 30),
+        initialCap: num(env.MAIL_SYNC_INITIAL_CAP, 200),
+        intervalMinutes: num(env.MAIL_SYNC_INTERVAL_MINUTES, 10),
+        oauth: {
+          enabled: on(env.MAIL_OAUTH),
+          google: env.GOOGLE_MAIL_CLIENT_ID && env.GOOGLE_MAIL_CLIENT_SECRET ? { clientId: env.GOOGLE_MAIL_CLIENT_ID, clientSecret: env.GOOGLE_MAIL_CLIENT_SECRET } : undefined,
+          microsoft: env.MICROSOFT_MAIL_CLIENT_ID && env.MICROSOFT_MAIL_CLIENT_SECRET
+            ? { clientId: env.MICROSOFT_MAIL_CLIENT_ID, clientSecret: env.MICROSOFT_MAIL_CLIENT_SECRET, tenant: env.MICROSOFT_MAIL_TENANT || "common" }
+            : undefined,
+        },
+      };
+    })(),
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,

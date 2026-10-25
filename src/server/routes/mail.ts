@@ -14,6 +14,19 @@ import { badRequest, notFound, tooMany } from "../lib/errors";
 import { RateLimiter } from "../lib/rate-limit";
 import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
+import { queueRemoteChange, type RemoteAction } from "../services/connect";
+
+/** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
+const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash" };
+
+/** The provider side of a single message edit: read, star and folder moves. */
+function remoteActionsFor(patch: { isRead?: boolean; isStarred?: boolean; folder?: string }, m: { isRead: boolean; isStarred: boolean; folder: string }): RemoteAction[] {
+  const out: RemoteAction[] = [];
+  if (patch.isRead !== undefined && patch.isRead !== m.isRead) out.push(patch.isRead ? "seen" : "unseen");
+  if (patch.isStarred !== undefined && patch.isStarred !== m.isStarred) out.push(patch.isStarred ? "flag" : "unflag");
+  if (patch.folder && patch.folder !== m.folder && (patch.folder === "archive" || patch.folder === "trash")) out.push(patch.folder);
+  return out;
+}
 
 const folderParam = z.enum(["inbox", "sent", "drafts", "archive", "spam", "trash", "starred"]).optional();
 
@@ -45,7 +58,10 @@ export function mailRoutes() {
     .get("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
-      if (!m.isRead) await db.update(messages).set({ isRead: true }).where(and(eq(messages.threadId, m.threadId), eq(messages.mailboxId, m.mailboxId)));
+      if (!m.isRead) {
+        await db.update(messages).set({ isRead: true }).where(and(eq(messages.threadId, m.threadId), eq(messages.mailboxId, m.mailboxId)));
+        await queueRemoteChange(c.var.deps, [m], "seen");
+      }
       if (m.folder === "drafts") {
         const draft = presentMessage(m);
         return c.json({ message: draft, thread: [draft] });
@@ -59,6 +75,7 @@ export function mailRoutes() {
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (patch.folder && (m.folder === "sent" || m.folder === "drafts")) throw badRequest("Sent messages and drafts can only be deleted.");
       await db.update(messages).set(patch).where(eq(messages.id, m.id));
+      for (const action of remoteActionsFor(patch, m)) await queueRemoteChange(c.var.deps, [m], action);
       return c.json({ ok: true });
     })
     .post("/messages/bulk", async (c) => {
@@ -78,13 +95,18 @@ export function mailRoutes() {
       }[action];
       if (action === "delete") await deleteMessagesPermanently(db, rows);
       else await db.update(messages).set(set).where(inArray(messages.id, own));
+      const remote = BULK_REMOTE[action];
+      if (remote) await queueRemoteChange(c.var.deps, rows.filter((r) => r.folder !== "sent" && r.folder !== "drafts"), remote);
       return c.json({ updated: own.length });
     })
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (m.folder === "trash" || m.folder === "drafts") await deleteMessagesPermanently(db, [m]);
-      else await db.update(messages).set({ folder: "trash" }).where(eq(messages.id, m.id));
+      else {
+        await db.update(messages).set({ folder: "trash" }).where(eq(messages.id, m.id));
+        await queueRemoteChange(c.var.deps, [m], "trash");
+      }
       return c.json({ ok: true, permanent: m.folder === "trash" || m.folder === "drafts" });
     })
     .get("/attachments/:id", async (c) => {

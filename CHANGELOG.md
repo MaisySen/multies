@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 18: connect your existing mailbox (25 Oct 2026)
+
+- Connect Gmail, Google Workspace, Outlook.com, Microsoft 365, Yahoo, iCloud, Zoho, Fastmail, GMX or any IMAP and SMTP mailbox with an app password, from onboarding or Settings, Connected accounts. The connection is tested before anything is saved, with plain words for a wrong password, a missing app password, IMAP turned off or a server that can't be reached. The password is stored encrypted and deleted with the connection.
+- Sync: the last 30 days first (at most 200 Inbox and 100 Sent messages), then new mail every 10 to 15 minutes, or on Sync now. Read, star, archive and trash go both ways for recent Inbox mail. Each connection syncs in its own Durable Object (MAIL_SYNC), in one database batch per pass, deduplicated by Message-ID, capped per day, and paused while the D1 write budget reads warn or shed (migration 0027: `mail_connections`, `mail_sync_outbox`, `messages.remote_box`, `messages.remote_uid`, index on `messages(mailbox_id, message_id_header)`).
+- Replies from a connected address go out through that provider's own SMTP, never Multies' sender, and land in its Sent folder (copied there with IMAP APPEND where the provider doesn't do it).
+- Sign in with Google or Microsoft is built behind MAIL_OAUTH (off) until the owner finishes the providers' reviews (docs/runbooks/mail-oauth.md).
+- Terms of service: the service section describes what is live (connect your mailbox, a free mail.multies.si address, your own domain) instead of IMAP and SMTP access.
+- Demo workspaces create their sample mailboxes and aliases in two inserts: POST /api/account/demo went from 116 queries to 64 (Sentry MYMAIL-API-H and M).
+
 ### Round 17: monitoring and tools (25 Oct 2026)
 
 - A D1 "internal error" blip counts as transient in maintenance: the step is skipped with a warning and runs again on the next pass, instead of paging Sentry (MYMAIL-API-P, Q, S, T, one second on 25 Oct 02:45 UTC).

@@ -52,6 +52,8 @@ export async function runMaintenance(deps: Deps) {
     // Reads the account's D1 writes today from analytics (no database write) and alerts past 60%.
     step("write_budget", () => checkWriteBudget(deps)),
   ]);
+  // Connected mailboxes: each due one is handed to its own invocation (services/connect/sync.ts).
+  const mailSync = await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([
@@ -59,7 +61,7 @@ export async function runMaintenance(deps: Deps) {
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
-  return { ...legacy, jobs: jobsRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+  return { ...legacy, jobs: jobsRun, mailSync, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
 /**

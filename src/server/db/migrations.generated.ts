@@ -421,5 +421,19 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `users` ADD `timezone` text;",
       "ALTER TABLE `users` ADD `locale` text;"
     ]
+  },
+  {
+    "name": "0027_r18_mail_connections",
+    "statements": [
+      "CREATE TABLE `mail_connections` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`email` text NOT NULL,\n\t`username` text NOT NULL,\n\t`imap_host` text NOT NULL,\n\t`imap_port` integer NOT NULL,\n\t`imap_security` text NOT NULL,\n\t`smtp_host` text NOT NULL,\n\t`smtp_port` integer NOT NULL,\n\t`smtp_security` text NOT NULL,\n\t`auth_kind` text DEFAULT 'password' NOT NULL,\n\t`secret_enc` text NOT NULL,\n\t`saves_sent` integer DEFAULT false NOT NULL,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`last_error` text,\n\t`last_sync_at` integer,\n\t`next_sync_at` integer,\n\t`initial_done` integer DEFAULT false NOT NULL,\n\t`sync_state` text DEFAULT '{}' NOT NULL,\n\t`messages_synced` integer DEFAULT 0 NOT NULL,\n\t`messages_today` integer DEFAULT 0 NOT NULL,\n\t`day` text,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`mailbox_id`) REFERENCES `mailboxes`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE UNIQUE INDEX `mail_connections_mailbox_uq` ON `mail_connections` (`mailbox_id`);",
+      "CREATE INDEX `mail_connections_org_idx` ON `mail_connections` (`org_id`);",
+      "CREATE INDEX `mail_connections_due_idx` ON `mail_connections` (`status`,`next_sync_at`);",
+      "CREATE TABLE `mail_sync_outbox` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`connection_id` text NOT NULL,\n\t`remote_box` text NOT NULL,\n\t`remote_uid` integer NOT NULL,\n\t`action` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`connection_id`) REFERENCES `mail_connections`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_sync_outbox_conn_idx` ON `mail_sync_outbox` (`connection_id`);",
+      "ALTER TABLE `messages` ADD `remote_box` text;",
+      "ALTER TABLE `messages` ADD `remote_uid` integer;",
+      "CREATE INDEX `messages_mailbox_msgid_idx` ON `messages` (`mailbox_id`,`message_id_header`);"
+    ]
   }
 ];

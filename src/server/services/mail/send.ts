@@ -46,7 +46,13 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const org = await getOrg(db, auth.orgId);
   assertNotPaymentPaused(org, deps.now());
   if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", `This workspace is suspended, so it can't send mail. ${org.suspendedReason ?? ""} Contact support to review it.`.trim());
-  if (domain.status !== "verified" && !org.isDemo) {
+  // A connected mailbox (an address at another provider) sends through that provider's own SMTP.
+  const { connectionForMailbox } = await import("../connect");
+  const conn = await connectionForMailbox(deps, mb.id);
+  if (conn?.status === "auth_failed") {
+    throw new HttpError(409, "connection_auth_failed", `${mb.address} stopped accepting its password. Reconnect it in Settings, Connected accounts, then send again.`);
+  }
+  if (!conn && domain.status !== "verified" && !org.isDemo) {
     throw new HttpError(409, "domain_unverified", `Verify ${domain.name} before sending from it, so your mail isn't rejected as spoofed.`);
   }
 
@@ -55,7 +61,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const used = await sentToday(db, auth.orgId, deps.now());
   // Free addresses share one Multies domain, so they get a smaller daily allowance (FREE_MAIL_DAILY_SENDS).
   // New workspaces get a smaller allowance still for their first week, and a free address can't mass mail.
-  const freeAddress = domain.orgId === "org_platform" && mb.kind === "person" && !org.isDemo;
+  const freeAddress = !conn && domain.orgId === "org_platform" && mb.kind === "person" && !org.isDemo;
   const newAccount = deps.now().getTime() - new Date(org.createdAt).getTime() < 7 * 86_400_000;
   const freeCap = newAccount ? Math.min(deps.config.freeMail.newAccountDailySends, deps.config.freeMail.dailySends) : deps.config.freeMail.dailySends;
   const cap = Math.min(org.sendCapDaily ?? plan.limits.dailySends, freeAddress ? freeCap : Infinity);
@@ -82,7 +88,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   }
 
   // Spam heuristics on mail that leaves the platform (services/abuse.ts).
-  const externalCount = (await Promise.all(recipients.map((r) => isHosted(db, r)))).filter((h) => !h).length;
+  const externalCount = conn ? recipients.length : (await Promise.all(recipients.map((r) => isHosted(db, r)))).filter((h) => !h).length;
   if (externalCount && !org.isDemo) {
     const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
     const verdict = scoreOutbound({ subject: input.subject, text: input.text, html: input.html, recipients: externalCount, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, auth.orgId) });
@@ -96,7 +102,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   }
 
   const now = deps.now();
-  const messageIdHeader = extra.messageIdHeader ?? `<${newId("m").slice(2)}.${now.getTime().toString(36)}@${domain.name}>`;
+  const messageIdHeader = extra.messageIdHeader ?? `<${newId("m").slice(2)}.${now.getTime().toString(36)}@${conn ? conn.email.split("@")[1] : domain.name}>`;
   const atts = extra.attachments ?? [];
   const from = { address: mb.address, name: mb.displayName };
   const toList = input.to.map((address) => ({ address }));
@@ -124,7 +130,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const result: SendResult = { messageId: sentId, internal: [], external: [] };
   const internal: string[] = [];
   const external: string[] = [];
-  for (const r of recipients) ((await isHosted(db, r)) ? internal : external).push(r);
+  // Mail from a connected address always goes through its provider, so the Sent copy lives there too.
+  for (const r of recipients) ((!conn && (await isHosted(db, r))) ? internal : external).push(r);
 
   for (const rcpt of internal) {
     const r = await deliverInbound(deps, {
@@ -164,7 +171,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     const ext = new Set(external);
     const only = (list: string[] | undefined) => (list ?? []).map((a) => a.toLowerCase()).filter((a) => ext.has(a));
     try {
-      const sent = await deps.outbound.send({
+      const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
+      const sent = await outbound.send({
         from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc),
         subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
         attachments: atts,

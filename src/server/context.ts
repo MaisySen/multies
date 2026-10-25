@@ -29,6 +29,12 @@ export interface Deps {
   log?: Logger;
   /** S3 compatible storage for large attachments (BODY_STORE_*). */
   bodyStore?: import("./services/storage/body-store").BodyStore;
+  /** Opens TCP or TLS connections to mail servers (connected mailboxes). Workers inject cloudflare:sockets; Node uses node:net. */
+  openSocket?: import("./services/connect/socket").SocketOpener;
+  /** Opens IMAP sessions for connected mailboxes. Defaults to ImapFlow; tests inject an in-memory server. */
+  imap?: import("./services/connect/imap").ImapConnector;
+  /** Runs a connected mailbox's sync in its own invocation (a Durable Object on Workers). Without it the sync runs inline. */
+  dispatchMailSync?: (connectionId: string) => Promise<void>;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;
 }
 

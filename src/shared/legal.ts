@@ -132,7 +132,9 @@ export const TERMS: LegalDoc = {
       `These terms are between ${E.name}, ABN ${E.abn} ("we") and the person or business that creates a Multies account ("you"). By creating an account you agree to them, to the Acceptable use policy, and, where we process personal information for you, to the Data Processing Agreement. If you accept for a business, you confirm you can bind it.`,
     ] },
     { id: "service", title: "The service", body: [
-      "Multies hosts email on domains you own: mailboxes, aliases, webmail, IMAP and SMTP access, an API and webhooks. You must own or control each domain you add and keep its DNS records in place.",
+      "Multies gives you email in three ways: connect a mailbox you already have at another provider, take a free personal address on mail.multies.si, or host mailboxes and aliases on a domain you own. Around your email it offers webmail, tasks, chat, meetings, an API and webhooks.",
+      "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. Your mail stays at your provider.",
+      "When you add your own domain, you must own or control it and keep its DNS records in place.",
       "We aim for 99.9% monthly availability for mail delivery and the API, measured on our status page. This is a target, not a guarantee, unless your plan includes a written service level.",
     ] },
     { id: "accounts", title: "Accounts", body: [

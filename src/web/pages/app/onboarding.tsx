@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { ArrowRight, AtSign, Globe, Mail, MessagesSquare } from "lucide-react";
+import { ArrowRight, AtSign, CircleCheck, Globe, Mail, MessagesSquare } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
@@ -11,6 +11,8 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Logo } from "@/web/components/logo";
 import { LegalLine } from "@/web/components/legal-line";
 import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
+import { ConnectMailboxForm, useConnections } from "@/web/components/connect-mailbox";
+import type { ConnectionView } from "@/shared/mail-connect";
 import { browserTimeZone } from "@/web/lib/format";
 import { COUNTRIES, LANGUAGES, cleanLocale, guessCountry, isCountry } from "@/shared/locale";
 
@@ -125,9 +127,10 @@ export function Onboarding({ me }: { me: Me }) {
 /** Three ways to get email working, or skip: tasks, chat and meetings work without any email. */
 function EmailPaths({ onDone }: { onDone: () => void }) {
   const free = useFreeAddress();
-  // Copying mail in needs the import runner; until a server has it, this path says "coming soon" and links nowhere.
-  const imports = useQuery({ queryKey: ["imports"], retry: false, queryFn: () => api.get<{ enabled: boolean }>("/imports") });
-  const canImport = !!imports.data?.enabled;
+  const connections = useConnections();
+  const canConnect = !!connections.data?.enabled;
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useState<ConnectionView | null>(null);
   const domain = free.data?.enabled ? free.data.domain : null;
   return (
     <div className="mt-8 space-y-4">
@@ -143,14 +146,20 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-connect">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><Mail className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="flex items-center gap-2 font-semibold">Connect your existing email{!canImport && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Coming soon</span>}</h2>
-          {canImport ? (
-            <>
-              <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho or any IMAP server. Today you can copy your mail into Multies with an app password. Live two way sync and sending as that address are being built next.</p>
-              <Link to="/app/settings/mail#import" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Copy my mail in <ArrowRight className="h-3.5 w-3.5" /></Link>
-            </>
+          <h2 className="flex items-center gap-2 font-semibold">Connect your existing email{!canConnect && connections.isFetched && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Not on this server</span>}</h2>
+          {connected ? (
+            <div className="mt-1.5 flex flex-wrap items-center gap-3" data-testid="connect-done">
+              <span className="inline-flex items-center gap-1.5 text-sm text-ok"><CircleCheck className="h-4 w-4" aria-hidden />{connected.email} is connected. Recent mail is coming in now.</span>
+              <Link to={`/app/mail?mailbox=${connected.mailboxId}`} onClick={onDone} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Open inbox <ArrowRight className="h-3.5 w-3.5" /></Link>
+            </div>
           ) : (
-            <p className="mt-0.5 text-sm text-muted">Use your Gmail, Outlook, Yahoo, iCloud, Zoho or any other mailbox inside Multies, with your real address. We're building it now. Take a free address or add your domain in the meantime.</p>
+            <>
+              <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any IMAP mailbox, with your real address. Mail syncs both ways and replies go out through your own provider.</p>
+              {canConnect && !connecting && (
+                <button type="button" onClick={() => setConnecting(true)} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline" data-testid="path-connect-open">Connect my email <ArrowRight className="h-3.5 w-3.5" /></button>
+              )}
+              {canConnect && connecting && <ConnectMailboxForm className="mt-4" oauth={connections.data?.oauth} onConnected={setConnected} />}
+            </>
           )}
         </div>
       </Card>

@@ -1,18 +1,17 @@
 import { and, eq, inArray, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
-import { appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
+import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
 import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { sql } from "drizzle-orm";
 import { authFor } from "../auth";
-import { createAlias, createMailbox } from "./addresses";
 import { createDomain } from "./domains";
 import { deliverInbound } from "./mail/delivery";
 import { makeSnippet } from "./mail/mime";
 import type { ParsedEmail } from "./mail/mime";
 import type { AuthContext } from "../context";
 import { listMailboxes } from "./addresses";
-import { setAddons } from "./plans";
+import { getPlan, setAddons } from "./plans";
 import "./suite/demo-seed";
 import { enqueue } from "./jobs";
 import { approveSend, createAgent, listThreads, replyInThread } from "./agents";
@@ -84,14 +83,20 @@ export async function createDemoWorkspace(deps: Deps) {
     }),
   }).where(eq(domains.id, domain.id));
 
-  const mk = (localPart: string, displayName: string) => createMailbox(deps.db, orgId, { domainId: domain.id, localPart, displayName });
-  const boxes = await Promise.all([mk("founders", "Alex Rivera"), mk("support", "Northwind Support"), mk("billing", "Northwind Billing"), mk("hello", "Northwind")]);
+  // The four sample mailboxes and two aliases go in as two inserts. Through createMailbox and createAlias
+  // each one re-read the domain, the plan and the add-ons and checked its address: the same handful of
+  // queries six times over (Sentry MYMAIL-API-H and M, N+1 on POST /api/account/demo). The domain is new
+  // and random, so the addresses are free, and the mailbox pack set above covers four mailboxes.
+  const plan = await getPlan(deps.db, orgId);
+  const mk = (localPart: string, displayName: string) => ({
+    id: newId("mbx"), orgId, domainId: domain.id, localPart, address: `${localPart}@${domain.name}`, displayName, quotaMb: plan.limits.storagePerMailboxMb,
+  });
+  const boxes = [mk("founders", "Alex Rivera"), mk("support", "Northwind Support"), mk("billing", "Northwind Billing"), mk("hello", "Northwind")];
+  await deps.db.insert(mailboxes).values(boxes);
   const [founders] = boxes;
   const boxFor = (localPart: string) => boxes.find((b) => b.localPart === localPart)!;
-  await Promise.all([
-    createAlias(deps.db, orgId, { domainId: domain.id, localPart: "sales", destinations: [founders.address, "alex.rivera@gmail.example"] }),
-    createAlias(deps.db, orgId, { domainId: domain.id, localPart: "team", destinations: [founders.address, `support@${domain.name}`] }),
-  ]);
+  const alias = (localPart: string, destinations: string[]) => ({ id: newId("als"), orgId, domainId: domain.id, localPart, address: `${localPart}@${domain.name}`, destinations: JSON.stringify(destinations) });
+  await deps.db.insert(aliases).values([alias("sales", [founders.address, "alex.rivera@gmail.example"]), alias("team", [founders.address, `support@${domain.name}`])]);
 
   const now = deps.now().getTime();
   // Sample mail is written straight into the mailboxes in one batch rather than through
