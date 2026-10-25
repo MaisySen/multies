@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
 import { deliver } from "../email-worker/src/index";
-import { domains, organizations, users } from "@/server/db/schema";
+import { domains, mailboxes, organizations, users } from "@/server/db/schema";
 import { freeLocalPartProblem, suggestFreeLocalPart, ensurePlatformDomain, PLATFORM_ORG } from "@/server/services/free-address";
 import { createInboundKey } from "@/server/services/mail/inbound-keys";
 import { recheckStaleDomains } from "@/server/services/domains";
@@ -126,6 +126,20 @@ describe("free addresses", () => {
     const unverified = new Client(ctx.app);
     await unverified.signup(undefined, "Eve", "Evil");
     expect((await unverified.post("/api/free-address", { localPart: "eve.evil" })).status).toBe(403);
+  });
+
+  it("a deleted free address is never given to someone else", async () => {
+    const ctx = await makeTestApp(FREE);
+    const a = new Client(ctx.app);
+    await verifiedUser(ctx, a);
+    expect((await a.post("/api/free-address", { localPart: "gone.acme" })).status).toBe(201);
+    await ctx.db.delete(mailboxes).where(eq(mailboxes.address, "gone.acme@free.test"));
+    const b = new Client(ctx.app);
+    await verifiedUser(ctx, b, "Gone Again", "Other");
+    const again = await b.post("/api/free-address", { localPart: "gone.acme" });
+    expect(again.status).toBe(409);
+    expect(again.body.error.message).toMatch(/taken/);
+    expect((await b.post("/api/free-address", { localPart: "gone.other" })).status).toBe(201);
   });
 
   it("a workspace key can take one through the public API", async () => {

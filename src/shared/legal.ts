@@ -54,7 +54,7 @@ export const PRIVACY: LegalDoc = {
   summary: "What we collect, why, who we share it with, and how to see, export or delete it.",
   sections: [
     { id: "who", title: "Who we are", body: [
-      `Multies is run by ${E.name}, ABN ${E.abn}, ACN ${E.acn}, ${E.address} ("we", "us"). We provide email hosting on domains our customers own. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
+      `Multies is run by ${E.name}, ABN ${E.abn}, ACN ${E.acn}, ${E.address} ("we", "us"). We provide email for businesses and people: hosting on domains our customers own, free personal addresses on mail.multies.si, and connections to mailboxes people already have at other providers. This policy explains how we handle personal information under the Privacy Act 1988 (Cth) and the Australian Privacy Principles (APPs), and, for people in the European Economic Area or the United Kingdom, under the GDPR.`,
       `Questions or requests: ${E.privacyEmail}. We answer within 30 days, usually much sooner.`,
     ] },
     { id: "roles", title: "Our two roles", body: [
@@ -66,11 +66,30 @@ export const PRIVACY: LegalDoc = {
         "Account: name, email address, password hash (never the password itself), two factor settings, sign in method.",
         "Workspace: domains, mailboxes, aliases, members and roles, settings, API keys (stored hashed), webhook endpoints.",
         "Mail: messages you send and receive, attachments, folders and flags, and delivery records (sender, recipient, time, result).",
+        "Connected mailboxes: the address, the provider's server names, and the app password or sign in you give us, stored encrypted. We also keep a copy of the synced mail (see Connected mailboxes below).",
+        "Free addresses: the name you choose on mail.multies.si, and, to stop abuse, a record of each claim with the network and a random device id from your browser.",
         "Billing: plan, invoices and the Stripe customer id. Card details go straight to Stripe and never reach our servers.",
         "Security and usage: IP address, browser and device for each session, an audit log of changes, and request logs kept for 30 days.",
         "Support: what you send us when you contact us.",
       ] },
       "We do not buy personal information, and we do not collect sensitive information (as defined in the Privacy Act) on purpose. Mail you receive may contain it; we treat all mail content as confidential.",
+    ] },
+    { id: "connected", title: "Connected mailboxes", body: [
+      "You can connect a mailbox you already have at another provider, such as Gmail, Outlook, Yahoo, iCloud, Zoho or your own server.",
+      { list: [
+        "Password: the app password (or sign in) you give us is encrypted before it is stored, is never shown again, never written to logs, and never shared. We use it only to sync that mailbox and to send mail from it when you ask us to. When you remove the connection, we delete it straight away.",
+        "Synced mail: we copy that mailbox's messages (and their read, starred and folder state) into your workspace, so you can read, search and reply in Multies. That copy is stored and protected like all other mail in your workspace, and the original stays at your provider. Removing the connection deletes our copy; nothing is deleted at your provider.",
+        "Sending: mail you send from a connected address goes out through that provider's own servers, so it never passes through our outbound email provider.",
+        "Your provider's own privacy policy still applies to the mail it holds.",
+      ] },
+    ] },
+    { id: "free-address", title: "Free addresses on mail.multies.si", body: [
+      { list: [
+        "Mail to your free address is received and stored by us in your workspace, and mail you send from it goes out through our outbound email provider (listed below).",
+        "Automated checks score outbound messages for spam, and we limit how much each free address can send. No person reads your mail unless you ask us to in a support request, or the law requires it.",
+        "To stop abuse we keep a record of each claim (the address, the time, the network and a random device id). Each person can claim one free address.",
+        "If you delete the address or your account, its mail is deleted like any other mail, and the address is not given to anyone else.",
+      ] },
     ] },
     { id: "use", title: "Why we use it", body: [
       { table: [
@@ -99,12 +118,14 @@ export const PRIVACY: LegalDoc = {
       { list: [
         "Account and workspace data: while your account is open.",
         "Mail: until you or your workspace delete it.",
+        "Connected mailbox passwords: until you remove the connection, then deleted straight away. Synced copies of its mail: until you remove the connection or delete them.",
+        "Free address claim records: for the life of the account, so the one address per person limit holds.",
         "After you delete your account or workspace: removed from the live database straight away, and from encrypted backups within 30 days.",
         "Request logs: 30 days. Audit logs: for the life of the workspace. Invoices: 7 years, as Australian tax law requires.",
       ] },
     ] },
     { id: "security", title: "Security", body: [
-      "Data is encrypted in transit (TLS) and at rest. Passwords are hashed, signing keys and secrets are encrypted, sign in has lockout and optional two factor authentication, and every change is in an audit log. See our security policy at /.well-known/security.txt to report a problem.",
+      "Data is encrypted in transit (TLS) and at rest. Passwords are hashed; signing keys, secrets and connected mailbox passwords are encrypted; sign in has lockout and optional two factor authentication, and every change is in an audit log. See our security policy at /.well-known/security.txt to report a problem.",
       "If a data breach is likely to cause serious harm, we will notify you and the Office of the Australian Information Commissioner (OAIC) under the Notifiable Data Breaches scheme, and, where the GDPR applies, the relevant authority within 72 hours.",
     ] },
     { id: "rights", title: "Your rights", body: [
@@ -133,7 +154,7 @@ export const TERMS: LegalDoc = {
     ] },
     { id: "service", title: "The service", body: [
       "Multies gives you email in three ways: connect a mailbox you already have at another provider, take a free personal address on mail.multies.si, or host mailboxes and aliases on a domain you own. Around your email it offers webmail, tasks, chat, meetings, an API and webhooks.",
-      "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. Your mail stays at your provider.",
+      "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. The original mail stays at your provider; the copy we sync into your workspace is deleted when you remove the connection. Our Privacy policy explains how we handle both.",
       "When you add your own domain, you must own or control it and keep its DNS records in place.",
       "We aim for 99.9% monthly availability for mail delivery and the API, measured on our status page. This is a target, not a guarantee, unless your plan includes a written service level.",
     ] },

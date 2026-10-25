@@ -148,6 +148,16 @@ async function assertClaimAllowed(deps: Deps, userId: string, ctx: { ip?: string
   }
 }
 
+/**
+ * A free address is never given to a second person, even after it was deleted, so mail meant for
+ * the first owner (password resets, replies) can't reach someone else. Read only: the claim's audit row.
+ */
+async function wasClaimedBefore(deps: Deps, address: string) {
+  const row = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
+    .where(and(eq(auditLogs.action, CLAIM_ACTION), like(auditLogs.metadata, `%"address":"${address.replace(/[%_"\\]/g, "")}"%`))).get();
+  return Boolean(row);
+}
+
 /** Claims a free address for the signed in person's workspace. `ctx` carries the network and device for the abuse limits. */
 export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { localPart: string; displayName?: string }, ctx: { ip?: string | null; deviceId?: string | null } = {}) {
   const domainName = deps.config.freeMail.domain;
@@ -167,7 +177,7 @@ export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { l
     deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.address, address)).get(),
     deps.db.select({ id: aliases.id }).from(aliases).where(eq(aliases.address, address)).get(),
   ]);
-  if (m || a) throw conflict(`${address} is taken. Try another, for example with your team's name.`);
+  if (m || a || await wasClaimedBefore(deps, address)) throw conflict(`${address} is taken. Try another, for example with your team's name.`);
   const plan = await getPlan(deps.db, auth.orgId);
   const id = newId("mbx");
   const displayName = (input.displayName?.trim() || auth.name || local).slice(0, 120);

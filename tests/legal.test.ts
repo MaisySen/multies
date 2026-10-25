@@ -15,4 +15,22 @@ describe("legal pages", () => {
     for (const doc of Object.values(LEGAL_DOCS)) expect(new Set(doc.sections.map((s) => s.id)).size).toBe(doc.sections.length);
   });
 
+  it("privacy policy covers connected mailboxes and free addresses, consistent with the terms", () => {
+    const privacy = JSON.stringify(LEGAL_DOCS.privacy);
+    const terms = JSON.stringify(LEGAL_DOCS.terms);
+    const ids = LEGAL_DOCS.privacy.sections.map((s) => s.id);
+    expect(ids).toContain("connected");
+    expect(ids).toContain("free-address");
+    expect(privacy).toMatch(/encrypted before it is stored/);
+    expect(privacy).toMatch(/only to sync that mailbox and to send mail from it/);
+    expect(privacy).toMatch(/When you remove the connection, we delete it straight away/);
+    expect(privacy).toMatch(/copy that mailbox's messages[^"]*into your workspace/);
+    expect(privacy).toMatch(/mail\.multies\.si/);
+    expect(privacy).toMatch(/not given to anyone else/);
+    // The terms say the same three things about connected mailbox passwords.
+    expect(terms).toMatch(/stor\w+ it encrypted/);
+    expect(terms).toMatch(/only to sync and send/);
+    expect(terms).toMatch(/delete it when you remove the connection/);
+    expect(terms).toMatch(/Privacy policy/);
+  });
 });
