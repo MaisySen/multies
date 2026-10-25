@@ -1,3 +1,4 @@
+import { useMe } from "@/web/lib/queries";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, KeyRound, MonitorSmartphone, Plus, Trash2 } from "lucide-react";
@@ -27,14 +28,15 @@ export function MailAppsSettings() {
 }
 
 function NotConnected({ missing }: { missing: string[] }) {
+  const me = useMe();
   return (
-    <Section title="Mail apps" description="Read and send from Outlook, Apple Mail, Thunderbird or your phone over IMAP and SMTP.">
+    <Section title="Mail apps" description="Outlook, Apple Mail, Thunderbird and phone apps.">
       <div className="text-sm">
-        <p className="font-medium">This server has no mail server connected yet.</p>
-        <p className="mt-1 text-muted">
-          Mail apps connect through Stalwart, an open-source mail server that runs next to Multies.
-          Whoever runs this Multies sets {missing.length ? missing.map((m, i) => <span key={m}>{i ? ", " : ""}<code className="font-mono text-[12.5px]">{m}</code></span>) : "the mail server settings"} and this page turns on.
-        </p>
+        <p className="font-medium">Coming soon</p>
+        <p className="mt-1 text-muted">Reading and sending from mail apps isn't available yet. Use Multies in your browser on any device for now; it works on phones too.</p>
+        {me.data?.user.platformAdmin && (
+          <p className="mt-2 text-[12px] text-subtle">Operator: this needs the Stalwart mail server{missing.length ? ` (${missing.join(", ")})` : ""}.</p>
+        )}
       </div>
     </Section>
   );

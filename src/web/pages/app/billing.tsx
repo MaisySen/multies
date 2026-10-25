@@ -48,6 +48,7 @@ export function BillingSettings() {
   const invoices = useQuery({ queryKey: ["billing", "invoices"], queryFn: async () => (await api.get<{ invoices: Invoice[] }>("/billing/invoices")).invoices, enabled: !!billing.data?.enabled });
   const isOwner = me.data?.organization?.role === "owner";
   const isDemo = !!me.data?.organization?.isDemo;
+  const platformAdmin = !!me.data?.user.platformAdmin;
 
   useEffect(() => {
     const r = params.get("checkout");
@@ -118,13 +119,14 @@ export function BillingSettings() {
         <div className="flex items-start gap-3 rounded-xl border border-line-strong bg-elevated/60 p-4" role="status">
           <PlugZap className="mt-0.5 h-5 w-5 shrink-0 text-brand-hover" />
           <div className="text-sm">
-            <div className="font-medium">Billing isn't connected on this deployment</div>
-            <p className="mt-0.5 text-muted">Add-ons apply instantly and nothing is charged. Payments turn on when the operator adds Stripe keys ({b.missing.join(", ")}).</p>
+            <div className="font-medium">Paid add-ons aren't on sale yet</div>
+            <p className="mt-0.5 text-muted">Add-ons apply instantly and nothing is charged for now.{platformAdmin && b.missing.length ? ` Operator: set ${b.missing.join(", ")} to take payments.` : ""}</p>
           </div>
         </div>
       )}
       {isDemo && b.enabled && <p className="text-sm text-muted">Demo workspaces add and remove add-ons freely; nothing is charged.</p>}
-      {paidFlow && b.testMode && (
+      {/* Test mode is the operator's business: only platform admins see it. */}
+      {paidFlow && b.testMode && platformAdmin && (
         <p className="rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn" role="status">Stripe test mode. Checkout takes test cards only (4242 4242 4242 4242, any future date, any CVC). Nothing is charged.</p>
       )}
 

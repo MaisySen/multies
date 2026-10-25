@@ -50,7 +50,7 @@ export function FormsPage() {
           ))}
         </Card>
       )}
-      {q.data && <p className="mt-3 text-[12px] text-subtle">{q.data.turnstile ? "Spam protection: Cloudflare Turnstile, a hidden trap field and a limit per sender." : "Spam protection: a hidden trap field, a minimum fill time and a limit per sender. Add Cloudflare Turnstile keys to the server for a checkbox check too."}</p>}
+      {q.data && <p className="mt-3 text-[12px] text-subtle">{q.data.turnstile ? "Spam protection: a human check, a hidden trap field and a limit per sender." : "Spam protection: a hidden trap field, a minimum fill time and a limit per sender."}</p>}
       {editing && <FormEditor initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
       {viewing && <Answers id={viewing} onClose={() => setViewing(null)} />}
     </div>

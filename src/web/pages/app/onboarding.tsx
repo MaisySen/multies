@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ArrowRight, AtSign, Globe, Mail, MessagesSquare } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
@@ -125,6 +125,9 @@ export function Onboarding({ me }: { me: Me }) {
 /** Three ways to get email working, or skip: tasks, chat and meetings work without any email. */
 function EmailPaths({ onDone }: { onDone: () => void }) {
   const free = useFreeAddress();
+  // Copying mail in needs the import runner; until a server has it, this path says "coming soon" and links nowhere.
+  const imports = useQuery({ queryKey: ["imports"], retry: false, queryFn: () => api.get<{ enabled: boolean }>("/imports") });
+  const canImport = !!imports.data?.enabled;
   const domain = free.data?.enabled ? free.data.domain : null;
   return (
     <div className="mt-8 space-y-4">
@@ -140,9 +143,15 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-connect">
         <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><Mail className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold">Connect your existing email</h2>
-          <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho or any IMAP server. Today you can copy your mail into Multies with an app password. Live two way sync and sending as that address are being built next.</p>
-          <Link to="/app/settings/mail#import" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Copy my mail in <ArrowRight className="h-3.5 w-3.5" /></Link>
+          <h2 className="flex items-center gap-2 font-semibold">Connect your existing email{!canImport && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Coming soon</span>}</h2>
+          {canImport ? (
+            <>
+              <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho or any IMAP server. Today you can copy your mail into Multies with an app password. Live two way sync and sending as that address are being built next.</p>
+              <Link to="/app/settings/mail#import" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Copy my mail in <ArrowRight className="h-3.5 w-3.5" /></Link>
+            </>
+          ) : (
+            <p className="mt-0.5 text-sm text-muted">Use your Gmail, Outlook, Yahoo, iCloud, Zoho or any other mailbox inside Multies, with your real address. We're building it now. Take a free address or add your domain in the meantime.</p>
+          )}
         </div>
       </Card>
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-domain">

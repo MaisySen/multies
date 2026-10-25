@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 17: only what is live is shown (25 Oct 2026)
+
+- Stripe test mode and the test card number show to platform admins only; customers see "Paid add-ons aren't on sale yet" without operator instructions.
+- Pricing and the landing page no longer promise mail apps over IMAP and SMTP, or imports, which aren't switched on in production. Mail apps settings say "Coming soon" (the Stalwart note is for platform admins), and onboarding marks "Connect your existing email" as coming soon until imports are on.
+- Forms no longer tell customers to add Turnstile keys to the server.
+- The sidebar group everyone sees is called Workspace, not Admin.
+
 ### Round 17: global onboarding, everyone's own time zone (25 Oct 2026)
 
 - New people get a short onboarding before the app: name, company, country (all 249 ISO countries), time zone and language, filled in from the browser; the workspace part only for its owner or admins. Then three ways to get email working: a free @mail.multies.si address, connect existing email (copy mail in today), or your own domain, or straight into tasks, chat and meetings. Email and password sign up saves the same details from the browser.

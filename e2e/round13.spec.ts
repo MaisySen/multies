@@ -20,7 +20,7 @@ test.afterAll(async () => { await ctx?.close(); });
 test("sidebar: grouped into Work, Mail and Admin, with Shared inbox under Mail", async () => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const nav = page.getByRole("navigation", { name: "App" });
-  await expect(nav.getByTestId("nav-group")).toHaveText(["Work", "Mail", "Admin"]);
+  await expect(nav.getByTestId("nav-group")).toHaveText(["Work", "Mail", "Workspace"]);
   await expect(nav.getByRole("link", { name: "Shared inbox" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Team inbox" })).toHaveCount(0);
 });

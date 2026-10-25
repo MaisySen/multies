@@ -6,7 +6,7 @@ import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 
 const features = [
-  { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail, plus Outlook, Apple Mail and Thunderbird over IMAP." },
+  { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail that works on any device." },
   { title: "Inboxes for your AI agents", body: "Give an agent its own address with one API call. It reads mail as clean JSON, with one-time codes and links pulled out, and replies in the thread." },
   { title: "You approve what agents send", body: "By default every message an agent writes waits for a person. Set daily caps and allowed recipients, and see every action in the audit log." },
   { title: "Bring your own AI", body: "Connect Claude, ChatGPT or any agent through MCP, free. The built-in MCP server reads, searches and replies, scoped to one agent's key." },

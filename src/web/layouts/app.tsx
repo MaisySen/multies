@@ -53,7 +53,8 @@ const nav: NavItem[] = [
   { to: "/app/activity", label: "Activity", icon: Activity, group: "admin" },
   { to: "/app/settings", label: "Settings", icon: Settings, group: "admin" },
 ];
-const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Admin" } as const;
+// "Workspace", not "Admin": everyone sees this group (settings, people, billing); the operator's console is gated separately.
+const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;
 
 /** The booking page sits under Meetings when the server has scheduling switched on. */
 const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: CalendarClock, group: "work" as const }] : [n]));
