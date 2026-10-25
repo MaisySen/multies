@@ -29,7 +29,7 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   const project = await demo(page);
   await page.goto(`/app/tasks?project=${project.id}&view=list`);
   // The demo's fields show as columns.
-  await expect(page.getByTestId("task-list").getByRole("columnheader", { name: "Budget" })).toBeVisible();
+  await expect(page.getByTestId("task-table").getByRole("columnheader", { name: "Budget" })).toBeVisible();
   await page.getByRole("button", { name: "Fields" }).click();
   const dialog = page.getByRole("dialog", { name: "Custom fields" });
   await dialog.getByLabel("New field name").fill("Region");
@@ -59,7 +59,7 @@ test("add a custom field, set it on a task and filter the list by it", async ({ 
   await picker.getByRole("button", { name: "Apply" }).click();
   await expect(page).toHaveURL(/field\./);
   await expect(page.getByText("Region is VIC")).toBeVisible();
-  const rows = page.getByTestId("task-list").locator("tbody tr");
+  const rows = page.getByTestId("task-table").locator("tbody tr");
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText("Check SPF");
 });

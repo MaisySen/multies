@@ -94,6 +94,6 @@ test("an epic with two tasks shows 50 percent once one is done; a bug shows its 
   await page.screenshot({ path: "/home/user/tab/files/multies-r21/types.png" });
 
   await page.goto(`/app/tasks?view=list&project=${project.id}&type=bug`);
-  await expect(page.getByTestId("task-list").getByText("App closes when the camera opens")).toBeVisible();
-  await expect(page.getByTestId("task-list").getByText("Push notification copy")).toHaveCount(0);
+  await expect(page.getByTestId("task-table").getByText("App closes when the camera opens")).toBeVisible();
+  await expect(page.getByTestId("task-table").getByText("Push notification copy")).toHaveCount(0);
 });
