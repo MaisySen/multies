@@ -11,9 +11,16 @@ on:
 permissions:
   contents: read
 
+# A newer push supersedes an older scan on the same ref.
+concurrency:
+  group: security-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   semgrep:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 19 October 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     container:
       image: semgrep/semgrep
     steps:
@@ -22,7 +29,8 @@ jobs:
         run: semgrep scan --metrics=off --error --config p/owasp-top-ten --config p/typescript --config p/react --config p/nodejsscan --config p/secrets
 
   gitleaks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

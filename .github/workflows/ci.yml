@@ -1,21 +1,44 @@
 name: CI
+# Minutes: this repository is private on a free GitHub account (2,000 Linux minutes a month for
+# all private repos). Every push runs only the fast checks the builders run locally before a push
+# (npm ci, audit, tsc, eslint, copy check, Vale, unit tests). The slow half (build, Playwright E2E,
+# Lighthouse) runs on pull requests, nightly, on demand, and whenever a deploy is asked for.
+# Deploys are manual by default (Run workflow), because production is deployed by hand
+# (docs/runbooks/deploy.md); set the repository variable AUTO_DEPLOY=true to deploy on every push.
 on:
   push:
     branches: [main]
+    # Docs only pushes skip CI; the copy check and Vale run locally before every push and again
+    # on the next push that touches code.
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - ".zap/**"
+      - "brand/**"
   pull_request:
+  schedule:
+    - cron: "0 16 * * *" # 03:00 in Sydney (AEDT): the slow checks once a night
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy to staging, then production, after the checks pass"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+# A newer push supersedes an older run on the same ref. Deploy jobs keep their own queues below.
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
+
 jobs:
   check:
-    runs-on: ubuntu-latest
-    # A hung runner step otherwise holds the deploy queue for GitHub's six hour default.
-    timeout-minutes: 30
-    # A newer push supersedes an older check; deploys keep their own queue below.
-    concurrency:
-      group: check-${{ github.ref }}
-      cancel-in-progress: true
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 19 October 2026 (runner-images issue 14748).
+    runs-on: ubuntu-24.04
+    # A hung runner step otherwise holds the queue for GitHub's six hour default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -44,29 +67,47 @@ jobs:
         with:
           name: coverage
           path: coverage/
-          retention-days: 14
+          retention-days: 7
+
+  e2e:
+    # Slow checks: never on a plain push unless pushes deploy (AUTO_DEPLOY=true).
+    if: github.event_name != 'push' || vars.AUTO_DEPLOY == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
       - run: npm run build && npm run build:worker
       # The runner image already carries Chrome's system libraries, so only the browser is
       # downloaded. --with-deps went through a slow apt mirror and timed out twice.
       - run: npx playwright install chromium
         timeout-minutes: 5
+      # The connected mailbox spec skips itself here (no STALWART_TEST_* on the runner).
       - name: End to end tests (Playwright)
         run: npm run test:e2e
-        timeout-minutes: 10
+        timeout-minutes: 12
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: failure()
         with:
           name: playwright-report
           path: playwright-report/
-          retention-days: 14
+          retention-days: 7
       - name: Lighthouse CI (performance, accessibility and best practice budgets)
         run: npm run lhci
         timeout-minutes: 10
 
   deploy-staging:
-    needs: check
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    needs: [check, e2e]
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.deploy) ||
+       (github.event_name == 'push' && vars.AUTO_DEPLOY == 'true'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     concurrency: staging
     environment:
       name: staging
@@ -110,7 +151,8 @@ jobs:
 
   deploy-production:
     needs: deploy-staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     concurrency: production
     environment:
       name: production

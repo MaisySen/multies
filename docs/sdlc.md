@@ -33,7 +33,9 @@ Details and counts: [testing.md](testing.md).
 
 ## Deploy flow
 
-Manual while GitHub Actions has no minutes (until 1 November 2026). Full steps in
+Manual. CI runs the fast checks on every push and deploys only when asked (Run workflow with
+"deploy" ticked, or `AUTO_DEPLOY=true`); while the GitHub account has a billing block its jobs do
+not start. Full steps in
 [runbooks/deploy.md](runbooks/deploy.md):
 
 1. Build from a clean checkout with `RELEASE` set.

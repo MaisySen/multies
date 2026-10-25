@@ -1,8 +1,11 @@
 # Deploy
 
-Deploys are manual while GitHub Actions has no minutes (until 1 November 2026). The steps are the
-same as the CI workflow (`.github/workflows/ci.yml`): staging first, then the same commit to
-production. The Cloudflare and Sentry tokens are in "CREDENTIALS (owner email v7)"; export them in
+Deploys are manual. GitHub Actions jobs on this repository do not start while the GitHub account
+has a billing block (since 24 October 2026, 00:07 UTC; only the account owner can clear it under
+Settings, Billing and licensing). Once Actions runs again, CI deploys only when asked: Actions, CI,
+Run workflow, with "deploy" ticked, or on every push if the repository variable `AUTO_DEPLOY` is
+`true`. The steps below are the same as the CI workflow (`.github/workflows/ci.yml`): staging
+first, then the same commit to production. The Cloudflare and Sentry tokens are in "CREDENTIALS (owner email v7)"; export them in
 your shell, never write them into the repo.
 
 ## Before you start
