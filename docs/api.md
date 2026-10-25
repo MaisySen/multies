@@ -439,25 +439,26 @@ can open (same workspace, a mailbox in their scope), else 404.
 D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
 and render write nothing.
 
-## Calls in chat (round 23)
+## Meeting notes and action items (round 23)
 
-A call from a DM rings every other member ("Maya is calling you", in the inbox and on phones through the
-chat category). A call from a channel with up to 8 members rings them too; bigger channels get only the
-join card, so a busy channel doesn't buzz everyone. A second press of Call within 60 seconds joins the
-first call and rings nobody. Room tokens allow camera, microphone, screen share and screen share audio for
-members and guests.
+Each meeting can have one agenda and notes doc, made the first time someone opens Notes (or calls
+`POST .../notes`). It starts with the headings Agenda, Notes and Action items, the last holding an
+empty checklist. Two people opening at once get the same doc. A weekly series shares one doc. The doc
+is a normal doc (any member can open and edit it) and shows "Notes for <meeting>" with a link back.
 
-Who is in a call is read from the video service (LiveKit RoomService ListParticipants) and cached in memory
-for about 10 seconds per server instance; open chat views poll every 15 seconds only while a call card from
-the last few hours is on screen. A call is marked ended (meeting status `ended`, `endedAt`) the first time a
-read finds the room empty after people were in it, or when the last person's app leaves: one row update per
-call, never one per poll. Without video keys the routes answer `enabled: false`.
+Action items are the doc's checklist items, anywhere in it. Each unchecked item gives a title, an
+assignee from "@Full Name", "@First" (when only one person has that first name), "@email" or a mention,
+and a due date from "due Fri", "by Friday", "next Tue", "by 30 Oct", "due Oct 30th", "by 2026-10-30",
+"today" or "tomorrow" (in the series' time zone, else the person's, else the workspace's). Turning them
+into tasks is one request; an item that already became a task is skipped, so pressing twice makes
+nothing new. Each task links back to the meeting. Assignees must be members or agents of the workspace.
+The project is the one given, else the meeting's source task's project, else the workspace's first.
 
-- App API: `GET /api/chat/channels/:id/call` answers `{ enabled, channelId, live: call | null, calls: [{ meetingId, title, channelId, state: live | waiting | ended, participants: [{ name }], count, startedAt, endedAt, durationMin }] }`; `GET /api/chat/calls/:meetingId` (one meeting); `POST /api/chat/calls/:meetingId/left` (the app's leave signal; people only); guests of a shared channel: `GET /api/guest/chat/channels/:id/call`.
-- Public API: `GET /api/v1/chat/channels/{id}/call`, `GET /api/v1/meetings/{id}/call`. Read only keys can read.
-- MCP: `get_call_status`.
-- 404 when the caller can't open the channel: DMs and private channels for non-members and keys, another workspace's ids, a guest outside their shared channel. A meeting started from such a chat follows the chat's rule.
-- Local E2E only: `POST /api/chat/calls/:meetingId/test-room` `{ participants: [{ name }] }` fakes who is in the room when the server runs with `CALLS_TEST_HOOK=true`; `loadConfig` refuses that variable in production and the route answers 404 without it.
+- App API: `GET /api/meeting-notes/:meetingId` (reads only; `doc` is null until made), `POST /api/meeting-notes/:meetingId` (makes the doc if missing, answers the same), `POST /api/meeting-notes/:meetingId/action-items` `{ projectId?, items?: [{ key?, title?, assignee?, due? }] }`, `GET /api/meeting-notes/by-doc/:docId` (the meeting a doc is the notes of, or null).
+- Public API: `GET /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/action-items`. Read only keys can read the notes but not make the doc or tasks.
+- MCP: `get_meeting_notes`, `create_action_items`.
+- Another workspace's meeting answers 404; project guests and meeting guests have no workspace session (401).
 
-D1 writes: presence reads write nothing; a call adds one `call.started` notification per person rung (in place
-of the card's plain DM notification); ending a call is one meeting row update, once.
+D1 writes: the doc costs 8 rows once (the doc row and the meeting's doc_id, with their indexes); each
+action item costs its task plus 4 (the meeting_action_items row and the link back); reading the notes
+and a second press write nothing.

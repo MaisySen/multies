@@ -583,44 +583,37 @@ it("saved replies (round 22): create, edit and delete are the row and its one in
   expect(take()).toBe(2);
 });
 
-it("calls in chat (round 23): presence polls write nothing; a DM call rings each member with one notification; the end is one meeting update, once", async () => {
+it("meeting notes (round 23): the notes doc is its row plus the meeting's doc_id (8 with indexes); an action item costs its task plus 4 (claim row, link back); reads and a second press write nothing", async () => {
   const ctx = await makeTestApp();
-  const { meetings } = await import("@/server/db/schema");
-  const { eq } = await import("drizzle-orm");
-  const { clearCallCache } = await import("@/server/services/suite/calls");
-  clearCallCache();
-  const rooms = new Map<string, { identity: string; name: string; joinedAt: null }[]>();
-  ctx.deps.callRooms = { list: async (room) => rooms.get(room) ?? [] };
-  let clock = new Date("2026-10-20T00:00:00.000Z").getTime();
-  ctx.deps.now = () => new Date((clock += 20_000));
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
-  const invite = await u.post("/api/team/invites", { email: "mate@acme.io", role: "member" });
-  const m = new Client(ctx.app);
-  await m.signup("mate@acme.io", "Sam Mate", "");
-  await m.post(`/api/invites/${invite.body.link.split("/invite/")[1]}/accept`);
-  const mateId = (await m.get("/api/account/me")).body.user.id;
-  const dm = (await u.post("/api/chat/dms", { userIds: [mateId] })).body.channel;
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const { ensureNotesDoc, meetingNotes, createActionItems } = await import("@/server/services/suite/meeting-notes");
+  const { createTask } = await import("@/server/services/suite/tasks");
+  const { appendActionItem } = await import("@/shared/action-items");
+  const m = (await u.post("/api/meetings", { title: "Sync", startsAt: "2026-10-27T00:00:00Z" })).body.meeting;
+  await createTask(ctx.deps, actor, { title: "warm up the default project" });
   const take = meter(ctx.db);
-  const plain = await u.post(`/api/chat/channels/${dm.id}/messages`, { body: "hello" });
-  expect(plain.status).toBe(201);
-  const messageCost = take();
-  const call = (await u.post(`/api/chat/channels/${dm.id}/call`, {})).body;
-  const callCost = take();
-  // Measured 18 for a plain DM message (with its chat.dm notification) and 33 for a DM call: the meeting, the
-  // card, the channel's call claim and one call.started notification in place of the card's chat.dm one.
-  expect(messageCost).toBeLessThanOrEqual(20);
-  expect(callCost).toBeLessThanOrEqual(36);
-  const room = (await ctx.db.select({ room: meetings.room }).from(meetings).where(eq(meetings.id, call.meeting.id)).get())!.room;
-  for (let i = 0; i < 5; i++) await m.get(`/api/chat/channels/${dm.id}/call`);
-  rooms.set(room, [{ identity: "a", name: "Olive Owner", joinedAt: null }]);
-  for (let i = 0; i < 5; i++) await u.get(`/api/chat/channels/${dm.id}/call`);
+  await meetingNotes(ctx.deps, actor, m.id);
   expect(take()).toBe(0);
-  rooms.set(room, []);
-  for (let i = 0; i < 5; i++) await u.get(`/api/chat/channels/${dm.id}/call`);
-  // Measured 5: the meeting row and its 4 indexes by the meter's rule (D1 skips indexes whose columns didn't change), once.
-  expect(take()).toBe(5);
-  // A late "left" from the last client finds the call ended and writes nothing but the local rate limit counter (a binding in production).
-  await u.post(`/api/chat/calls/${call.meeting.id}/left`, {});
-  expect(take()).toBeLessThanOrEqual(4);
+  // Measured 8: the doc row with its index (2) and the meetings row with its three indexes (4), plus 2 for the docs table's other index entries.
+  const docId = await ensureNotesDoc(ctx.deps, actor, m.id);
+  expect(take()).toBeLessThanOrEqual(8);
+  await ensureNotesDoc(ctx.deps, actor, m.id);
+  await meetingNotes(ctx.deps, actor, m.id);
+  expect(take()).toBe(0);
+  // The doc edits themselves are ordinary doc saves; measure from here.
+  const d = (await u.get(`/api/docs/${docId}`)).body.doc;
+  await u.patch(`/api/docs/${docId}`, { content: appendActionItem(appendActionItem(d.content, "One"), "Two"), version: d.version });
+  take();
+  await createTask(ctx.deps, actor, { title: "Baseline" });
+  const taskCost = take(); // measured 16
+  const r = await createActionItems(ctx.deps, actor, m.id, {});
+  expect(r.created).toHaveLength(2);
+  // Measured per item: the task (as createTask) + 4: the claim row (meeting_action_items, counted with its primary key entry) and the link back (entity_links row and index).
+  expect(take()).toBeLessThanOrEqual(2 * (taskCost + 4));
+  await createActionItems(ctx.deps, actor, m.id, {});
+  await meetingNotes(ctx.deps, actor, m.id);
+  expect(take()).toBe(0);
 });

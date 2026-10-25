@@ -1504,3 +1504,16 @@ export const mailSnippets = sqliteTable("mail_snippets", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("mail_snippets_org_name_idx").on(t.orgId, t.name)]);
+
+/**
+ * Round 23 (R23.1): which action items of a meeting's notes doc already became tasks, so "Create tasks"
+ * never makes the same one twice. item_key is a hash of the item's normalised text. One row per item and
+ * no secondary index (the primary key serves every lookup): 1 write per converted item.
+ */
+export const meetingActionItems = sqliteTable("meeting_action_items", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  meetingId: text("meeting_id").notNull(),
+  itemKey: text("item_key").notNull(),
+  taskId: text("task_id").notNull(),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.itemKey] })]);

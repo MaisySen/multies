@@ -295,6 +295,13 @@
       "when": 1793000000000,
       "tag": "0042_r23_meeting_links",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1793000000000,
+      "tag": "0043_r23_meeting_notes",
+      "breakpoints": true
     }
   ]
 }

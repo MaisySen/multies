@@ -13,8 +13,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
-import { useJoinFromDock } from "./call-r23";
-import { CallRoomExtras } from "./call-dock-r23";
+import { MeetingNotes } from "./meeting-notes";
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -78,16 +77,15 @@ function RepeatFields({ value, onChange, startDay }: { value: RepeatState; onCha
     </div>
   );
 }
-interface Join { url: string; token: string; room: string; meeting?: { id: string } }
+interface Join { url: string; token: string; room: string }
 
 const when = zonedDateTime;
 
 function Room({ join, onLeave }: { join: Join; onLeave: () => void }) {
   return (
-    <div data-lk-theme="default" className="relative h-[calc(100dvh-180px)] min-h-[420px] overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
+    <div data-lk-theme="default" className="h-[calc(100dvh-180px)] min-h-[420px] overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
       <LiveKitRoom serverUrl={join.url} token={join.token} connect video audio onDisconnected={onLeave} style={{ height: "100%" }}>
         <VideoConference />
-        <CallRoomExtras meetingId={join.meeting?.id} />
       </LiveKitRoom>
     </div>
   );
@@ -178,7 +176,6 @@ export function MeetingPage() {
     setBusy(true);
     try { setJoin(await api.post<Join>(`/meetings/${id}/join`, {})); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23
   const invite = async () => {
     try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? "Invites sent" : "Invites are waiting for approval"); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
@@ -217,6 +214,7 @@ export function MeetingPage() {
         <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><Download className="h-4 w-4" />Calendar file</a>
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
       </div>
+      <MeetingNotes meetingId={m.id} />
       {editing && <EditMeetingDialog m={m} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); void qc.invalidateQueries({ queryKey: ["meeting", id] }); void qc.invalidateQueries({ queryKey: ["meetings"] }); }} />}
     </div>
   );

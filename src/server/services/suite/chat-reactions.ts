@@ -20,7 +20,6 @@ import { HttpError } from "../../lib/errors";
 import { actorOf, assertWritable, type SuiteActor } from "./common";
 import { getChannel, guestChannel, plainText, postMessage, presentedMessage, visibleChannel, type ChatLink, type GuestViewer, type Mention } from "./chat";
 import { reactionsFor, type ReactionSummary } from "./chat-reaction-summary";
-import { notifyCallStarted } from "./calls";
 
 /** Distinct emoji one message can carry. */
 export const MAX_EMOJI_PER_MESSAGE = 20;
@@ -176,7 +175,6 @@ export async function startChannelCall(deps: Deps, a: SuiteActor, channelId: str
   // Guests of a shared channel can't open the app's meeting page, so their link rides along.
   const body = `${CALL_PREFIX}${meeting.joinUrl}${c.guestAccess ? `\nGuests join here: ${meeting.guestUrl}` : ""}`;
   const message = await postMessage(deps, a, c.id, { body });
-  await notifyCallStarted(deps, a, c, message.id); // Round 23: ring the DM or small channel once
   return { meeting: { id: meeting.id, title: meeting.title, joinUrl: meeting.joinUrl, videoEnabled: meeting.videoEnabled }, message, joined: false };
 }
 
