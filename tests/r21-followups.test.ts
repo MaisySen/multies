@@ -73,6 +73,12 @@ describe("saved views and epics with estimates", () => {
     expect(r.body.view.view).toBe("sprints");
   });
 
+  it("saves a view on Workload (round 23 extra)", async () => {
+    const r = await c.post("/api/tasks/views", { projectId, name: "Team load", view: "workload", filters: {} });
+    expect(r.status).toBe(201);
+    expect(r.body.view.view).toBe("workload");
+  });
+
   it("weights epic progress by estimates once tasks carry points", async () => {
     const epic = await task("Launch epic", { type: "epic" });
     const big = await task("Big", { points: 8 });

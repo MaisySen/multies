@@ -14,7 +14,9 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Calls in chat: a call in a DM (one to one or group) rings the other members, and so does a channel of up to 8 people. Screen share is granted to members and guests. The call card and the chat header show who is in the call with Join, then "Call ended" with its length, read from the call service with no write per check. Calls open in a docked window so chat stays in view.
 - Calendar sync: a personal calendar feed (/cal/<token>.ics) for Google, Apple or Outlook with your meetings and due dates, in Settings, Calendar, with Reset link and Turn off. Other calendars come in read only: CalDAV from a connected mailbox where the provider offers it (Fastmail, iCloud, Zoho, Yahoo, GMX and more) or any secret ICS link, shown on the work calendar beside due dates and your meetings. Migration 0046: `calendar_feeds`, `calendar_sources`.
 - A "mentioned you on a thread" push now carries the thread's newest message, so the phone app can open the thread (the app change ships in the next store build).
-- MCP has 100 tools. New: get_meeting_notes, create_action_items, get_meeting_transcript, get_call_status and list_calendar_events, with matching REST endpoints.
+- Workload view (from the round 24 list): a Workload tab on the tasks page shows each person's open tasks and estimates per week (points or hours) against a weekly capacity, with an Overdue column and an Unassigned row. Drag a task to another person to reassign it, or to another week to move its due date. Reading it writes nothing. Saved views can be Workload views.
+- Settings, Calendar takes an optional CalDAV address for a custom mail server.
+- MCP has 101 tools. New: get_meeting_notes, create_action_items, get_meeting_transcript, get_call_status, list_calendar_events and get_workload, with matching REST endpoints.
 
 ### Round 22: the shared inbox works as a team (25 Oct 2026)
 

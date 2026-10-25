@@ -83,7 +83,7 @@ export const TaskQuery = z.object({
 });
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({
-  projectId: z.string().nullable().optional(), name: z.string().trim().min(1).max(60), view: z.enum(["board", "list", "calendar", "timeline", "sprints"]),
+  projectId: z.string().nullable().optional(), name: z.string().trim().min(1).max(60), view: z.enum(["board", "list", "calendar", "timeline", "sprints", "workload"]),
   filters: z.record(z.string(), z.string().max(200)).default({}), shared: z.boolean().optional(),
 });
 

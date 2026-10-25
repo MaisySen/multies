@@ -790,7 +790,7 @@ export async function listViews(deps: Deps, actor: SuiteActor, projectId?: strin
   return rows.map((v) => ({ id: v.id, projectId: v.projectId, name: v.name, view: v.view, filters: JSON.parse(v.filters) as Record<string, string>, shared: !v.userId }));
 }
 
-export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: "board" | "list" | "calendar" | "timeline" | "sprints"; filters: Record<string, string>; shared?: boolean }) {
+export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: "board" | "list" | "calendar" | "timeline" | "sprints" | "workload"; filters: Record<string, string>; shared?: boolean }) {
   assertWritable(actor);
   if (input.projectId) await projectRow(deps, actor.orgId, input.projectId);
   const now = deps.now();
