@@ -53,6 +53,7 @@ import { registerEpicRoutes } from "./v1-r21-types";
 import { registerTaskBulkRoutes } from "./v1-tasks-bulk";
 import { registerPeopleRoutes } from "./v1-people";
 import { registerAuthHookRoutes } from "./v1-auth-hooks";
+import { registerInviteRoutes } from "./v1-r25-invites"; // R25 (DF-7)
 
 // ---------------------------------------------------------------- schemas
 
@@ -235,6 +236,7 @@ export function v1Routes() {
   api.use("/epics/*", apiKeyAuth);
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);
+  api.use("/invites/*", apiKeyAuth, workspaceKeyOnly); // R25 (DF-7): agent and agent member keys can't invite
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
@@ -441,6 +443,7 @@ export function v1Routes() {
   registerEpicRoutes(api);
   registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
+  registerInviteRoutes(api); // R25 (DF-7): invite members with a workspace key
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

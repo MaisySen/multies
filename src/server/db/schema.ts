@@ -355,6 +355,9 @@ export const invitations = sqliteTable("invitations", {
   inviterId: text("inviter_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   /** JSON string[] of mailbox ids a member will be able to open once they join. */
   mailboxIds: text("mailbox_ids"),
+  /** R25 (DF-4): the title and bio the new member starts with; copied to their member row on accept. */
+  title: text("title"),
+  bio: text("bio"),
   createdAt: createdAt(),
 }, (t) => [index("invitations_org_idx").on(t.organizationId), index("invitations_email_idx").on(t.email)]);
 

@@ -203,6 +203,11 @@ Every member has an optional `title` (up to 80 characters) and `bio` (up to 500)
 | DELETE | `/api/v1/agent-members/{id}` | Removes the member and revokes its keys. What it posted stays under its name. |
 | GET, POST | `/api/v1/agent-members/{id}/keys` | List keys, or make another (`{ name?, scope? }`). |
 | DELETE | `/api/v1/agent-members/{id}/keys/{keyId}` | Revokes one key. |
+| GET | `/api/v1/invites` | Pending invitations, newest first, with `role`, `mailboxIds`, `title` and `bio`. Members who joined are in `/people`. |
+| POST | `/api/v1/invites` | `{ email, role?, mailboxIds?, title?, bio? }` (`role` is `member` or `admin`). Sends the invitation email and returns `{ id, link, emailed }`. The title and bio become the member's own when they join. The key acts as its creator: an admin invite needs a key made by the owner, the plan's seats apply (403 `plan_limit`), an address already in the workspace answers 409, and the same address again renews its pending invitation. Agent keys, agent member keys and read only keys get 403. Nobody is invited as owner; transfer ownership once they have joined. |
+| DELETE | `/api/v1/invites/{id}` | Revokes a pending invitation; another workspace's, an accepted or a revoked one answers 404. |
+
+Creating a workspace and minting its first API key stay sign up steps in the app (a key can't make the workspace it belongs to).
 
 In the app the same actions live under `/api/team/people` and `/api/team/agents`. MCP: `list_people` (optional `kind`).
 

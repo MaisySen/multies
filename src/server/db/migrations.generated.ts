@@ -609,5 +609,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R25 (MB-60): per hook branding for auth emails (logo, colour, reply-to, footer, per type text, second language) as JSON. NULL keeps the round 13 email. No index.\nALTER TABLE `auth_email_hooks` ADD `branding` text;"
     ]
+  },
+  {
+    "name": "0055_r25_invite_title_bio",
+    "statements": [
+      "-- DF-4 (R25): an invitation can carry the title and bio the new member starts with. Nullable, no index\n-- (read with the invitation row that accepting already loads). Existing invitations keep null.\nALTER TABLE `invitations` ADD `title` text;",
+      "ALTER TABLE `invitations` ADD `bio` text;"
+    ]
   }
 ];

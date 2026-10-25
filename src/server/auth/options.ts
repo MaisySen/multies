@@ -31,7 +31,8 @@ import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
 import { createElement } from "react";
 import { emailBrand, sendSystemEmail } from "../services/system-mail";
-import { Invite as InviteEmail, Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "../emails";
+import { Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "../emails";
+import { sendInviteEmail } from "../services/invite-email";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
 import { getPlan } from "../services/plans";
@@ -285,15 +286,9 @@ export function authOptions(deps: Deps) {
         },
         schema: { invitation: { additionalFields: { mailboxIds: { type: "string", required: false, input: true } } } },
         sendInvitationEmail: async (data) => {
-          await sendSystemEmail(deps, {
-            to: data.email, orgId: data.organization.id,
-            subject: `${data.inviter.user.name} invited you to ${data.organization.name} on ${config.appName}`,
-            template: "invite", element: createElement(InviteEmail, {
-              brand: emailBrand(deps), inviter: data.inviter.user.name, inviterEmail: data.inviter.user.email,
-              workspace: data.organization.name, role: data.role, url: `${config.appUrl}/invite/${data.id}`,
-            }),
-            text: `${data.inviter.user.name} (${data.inviter.user.email}) invited you to join the ${data.organization.name} workspace on ${config.appName} as ${data.role === "admin" ? "an admin" : "a member"}.\n\nThis invitation expires in 7 days.`,
-            action: { label: "Accept invitation", url: `${config.appUrl}/invite/${data.id}` },
+          await sendInviteEmail(deps, {
+            id: data.id, email: data.email, role: data.role, organization: { id: data.organization.id, name: data.organization.name },
+            inviter: { name: data.inviter.user.name, email: data.inviter.user.email },
           });
         },
         organizationHooks: {

@@ -201,9 +201,11 @@ function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: b
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
   const [ids, setIds] = useState<string[]>([]);
+  const [title, setTitle] = useState("");
+  const [bio, setBio] = useState("");
   const invite = useMutation({
-    mutationFn: () => api.post<InviteCreated>("/team/invites", { email, role, mailboxIds: role === "member" ? ids : [] }),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onCreated({ ...r, email: email.toLowerCase() }); setEmail(""); setIds([]); setRole("member"); },
+    mutationFn: () => api.post<InviteCreated>("/team/invites", { email, role, mailboxIds: role === "member" ? ids : [], ...(title.trim() ? { title } : {}), ...(bio.trim() ? { bio } : {}) }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onCreated({ ...r, email: email.toLowerCase() }); setEmail(""); setIds([]); setRole("member"); setTitle(""); setBio(""); },
   });
   const err = invite.error instanceof ApiError ? invite.error : null;
   return (
@@ -220,6 +222,8 @@ function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: b
             </Select>
           )}
         </Field>
+        <Field label="Title" hint="Optional. Shown in People once they join.">{(p) => <Input {...p} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Head of Product" />}</Field>
+        <Field label="Bio" hint="Optional. They can change both later.">{(p) => <Textarea {...p} rows={2} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} />}</Field>
         {role === "member" && (
           <div className="space-y-1.5">
             <div className="text-[13px] font-medium text-fg/90">Mailbox access</div>
@@ -296,7 +300,7 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><Mail className="h-3.5 w-3.5" /></div>
         <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{inv.email}</div>
+          <div className="truncate text-sm font-medium">{inv.email}{inv.title && <span className="font-normal text-muted"> · {inv.title}</span>}</div>
           <div className="text-xs text-muted">{inv.expired ? "Expired" : `Expires ${timeAgo(inv.expiresAt)}`}{inv.invitedByName ? ` · invited by ${inv.invitedByName}` : ""}</div>
         </div>
       </div>

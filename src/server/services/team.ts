@@ -8,13 +8,14 @@ import { and, count, desc, eq, inArray, max, ne } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
 import { accounts, invitations, mailboxAccess, mailboxes, members, organizations, sessions, users } from "../db/schema";
-import { verifyPassword } from "../lib/crypto";
+import { randomToken, verifyPassword } from "../lib/crypto";
 import { badRequest, conflict, forbidden, HttpError, notFound, planLimit } from "../lib/errors";
 import { authFor } from "../auth";
 import { addonHint, getPlan } from "./plans";
 import { isHosted } from "./mail/delivery";
 import { removeAgentMember } from "./people";
 import { DEFAULT_TIMEZONE } from "@/shared/locale";
+import { sendInviteEmail } from "./invite-email";
 
 export type Role = "owner" | "admin" | "member";
 
@@ -102,6 +103,7 @@ export async function listInvites(db: DB, orgId: string, now: Date) {
   return rows.map(({ inv, inviter }) => ({
     id: inv.id, email: inv.email, role: (inv.role ?? "member") as "admin" | "member",
     mailboxIds: JSON.parse(inv.mailboxIds ?? "[]") as string[], invitedByName: inviter,
+    title: inv.title ?? null, bio: inv.bio ?? null,
     createdAt: inv.createdAt, expiresAt: inv.expiresAt, expired: inv.expiresAt <= now,
   }));
 }
@@ -110,28 +112,93 @@ export function inviteLink(deps: Deps, id: string) {
   return `${deps.config.appUrl}/invite/${id}`;
 }
 
-/** Creates (or re-issues) an invitation through Better Auth. The link is always returned to the inviter. */
-export async function createInvite(deps: Deps, auth: AuthContext, headers: Headers, input: { email: string; role: "admin" | "member"; mailboxIds: string[] }) {
+export interface InviteInput { email: string; role: "admin" | "member"; mailboxIds: string[]; title?: string | null; bio?: string | null }
+
+const INVITE_TTL_MS = 7 * 24 * 60 * 60_000;
+/** True for an API key or OAuth caller: there is no Better Auth session to act through. */
+const viaKey = (auth: AuthContext) => auth.sessionId.startsWith("apikey:") || auth.sessionId.startsWith("oauth:");
+const cleanText = (v: string | null | undefined, max: number) => (v === undefined ? undefined : (v ?? "").trim().slice(0, max) || null);
+
+/**
+ * Creates (or re-issues) an invitation. In the app it goes through Better Auth with the
+ * person's session; with an API key (POST /api/v1/invites) there is no session, so the same
+ * checks run here and the row and email are written directly, as the key's creator.
+ * R25 (DF-4): an invitation can carry a title and bio, copied to the member row on accept.
+ * The link is always returned to the inviter.
+ */
+export async function createInvite(deps: Deps, auth: AuthContext, headers: Headers, input: InviteInput) {
   const { db } = deps;
   const email = input.email.trim().toLowerCase();
-  if (input.role === "admin" && auth.role !== "owner") throw forbidden("Only the workspace owner can invite admins.");
+  const key = viaKey(auth);
+  // A workspace key acts with the admin role; inviting an admin needs the key's creator to be the owner.
+  let inviterRole: Role = auth.role;
+  if (key) {
+    if (!auth.userId) throw forbidden("This key's creator is no longer in the workspace. Create a new key to invite people.");
+    const creator = await db.select({ role: members.role }).from(members).where(and(eq(members.organizationId, auth.orgId), eq(members.userId, auth.userId))).get();
+    if (!creator) throw forbidden("This key's creator is no longer in the workspace. Create a new key to invite people.");
+    inviterRole = creator.role;
+  }
+  if (input.role === "admin" && inviterRole !== "owner") throw forbidden("Only the workspace owner can invite admins.");
   const existing = await db.select({ id: users.id }).from(members).innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.organizationId, auth.orgId), eq(users.email, email))).get();
   if (existing) throw conflict(`${email} is already in this workspace.`);
   if (input.role === "member") await validMailboxIds(db, auth.orgId, input.mailboxIds);
   const plan = await getPlan(db, auth.orgId);
   const used = await seatsUsed(db, auth.orgId, deps.now());
-  const reinvite = await db.select({ id: invitations.id }).from(invitations)
+  const reinvite = await db.select().from(invitations)
     .where(and(eq(invitations.organizationId, auth.orgId), eq(invitations.email, email), eq(invitations.status, "pending"))).get();
   if (used.members + used.pendingInvites - (reinvite ? 1 : 0) >= plan.limits.seats) {
     throw planLimit(`Your workspace includes ${plan.limits.seats} seats, and they're all taken or invited. ${addonHint("seats")}`);
   }
-  const inv = await authFor(deps).api.createInvitation({
-    headers,
-    body: { email, role: input.role, organizationId: auth.orgId, resend: true, mailboxIds: JSON.stringify(input.role === "member" ? input.mailboxIds : []) },
-  });
+  const mailboxIds = JSON.stringify(input.role === "member" ? input.mailboxIds : []);
+  const title = cleanText(input.title, 80);
+  const bio = cleanText(input.bio, 500);
+  let id: string;
+  if (key) {
+    id = await issueInviteDirect(deps, auth, { email, role: input.role, mailboxIds, title, bio }, reinvite);
+  } else {
+    const inv = await authFor(deps).api.createInvitation({
+      headers,
+      body: { email, role: input.role, organizationId: auth.orgId, resend: true, mailboxIds },
+    });
+    id = inv.id;
+    // Better Auth keeps a re-issued invitation's old role and mailboxes and has no title or bio
+    // field, so set what this call asked for (one write, and only when something differs).
+    const want: Partial<typeof invitations.$inferInsert> = {};
+    if (reinvite && (reinvite.role ?? "member") !== input.role) want.role = input.role;
+    if (reinvite && (reinvite.mailboxIds ?? "[]") !== mailboxIds) want.mailboxIds = mailboxIds;
+    if (title !== undefined && title !== (reinvite?.title ?? null)) want.title = title;
+    if (bio !== undefined && bio !== (reinvite?.bio ?? null)) want.bio = bio;
+    if (Object.keys(want).length) await db.update(invitations).set(want).where(eq(invitations.id, id));
+  }
   const emailed = deps.outbound.name !== "log" || (await isHosted(db, email));
-  return { id: inv.id, link: inviteLink(deps, inv.id), emailed, emailDetail: emailed ? undefined : "Email delivery isn't connected on this deployment." };
+  return { id, link: inviteLink(deps, id), emailed, emailDetail: emailed ? undefined : "Email delivery isn't connected on this deployment." };
+}
+
+/** The API key path of createInvite: what Better Auth's createInvitation does, written directly. */
+async function issueInviteDirect(deps: Deps, auth: AuthContext, v: { email: string; role: "admin" | "member"; mailboxIds: string; title?: string | null; bio?: string | null }, reinvite: typeof invitations.$inferSelect | undefined) {
+  const { db } = deps;
+  const expiresAt = new Date(deps.now().getTime() + INVITE_TTL_MS);
+  let id: string;
+  if (reinvite) {
+    id = reinvite.id;
+    await db.update(invitations).set({
+      expiresAt, role: v.role, mailboxIds: v.mailboxIds,
+      ...(v.title !== undefined ? { title: v.title } : {}), ...(v.bio !== undefined ? { bio: v.bio } : {}),
+    }).where(eq(invitations.id, id));
+  } else {
+    id = randomToken(24);
+    await db.insert(invitations).values({
+      id, organizationId: auth.orgId, email: v.email, role: v.role, status: "pending", expiresAt, inviterId: auth.userId,
+      mailboxIds: v.mailboxIds, title: v.title ?? null, bio: v.bio ?? null, createdAt: deps.now(),
+    });
+  }
+  const [org, inviter] = await Promise.all([
+    db.select({ id: organizations.id, name: organizations.name }).from(organizations).where(eq(organizations.id, auth.orgId)).get(),
+    db.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, auth.userId)).get(),
+  ]);
+  await sendInviteEmail(deps, { id, email: v.email, role: v.role, organization: org!, inviter: inviter ?? { name: org!.name, email: auth.email } });
+  return id;
 }
 
 export async function getInvite(db: DB, orgId: string, id: string) {
@@ -142,7 +209,9 @@ export async function getInvite(db: DB, orgId: string, id: string) {
 
 export async function revokeInvite(deps: Deps, auth: AuthContext, headers: Headers, id: string) {
   const inv = await getInvite(deps.db, auth.orgId, id);
-  await authFor(deps).api.cancelInvitation({ headers, body: { invitationId: id } });
+  // An API key has no session for Better Auth: cancel the row the same way it would.
+  if (viaKey(auth)) await deps.db.update(invitations).set({ status: "canceled" }).where(and(eq(invitations.id, id), eq(invitations.organizationId, auth.orgId)));
+  else await authFor(deps).api.cancelInvitation({ headers, body: { invitationId: id } });
   return inv;
 }
 
@@ -171,6 +240,10 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
   if (inv.email !== auth.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
   await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: id } });
+  // R25 (DF-4): the title and bio the invitation carried start the new member's profile.
+  if (inv.title || inv.bio) {
+    await db.update(members).set({ title: inv.title, bio: inv.bio }).where(and(eq(members.organizationId, inv.organizationId), eq(members.userId, auth.userId)));
+  }
   await db.update(sessions).set({ activeOrganizationId: inv.organizationId, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
   const org = (await db.select().from(organizations).where(eq(organizations.id, inv.organizationId)).get())!;
   return { orgId: org.id, orgName: org.name, role: inv.role ?? "member" };

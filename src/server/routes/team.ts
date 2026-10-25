@@ -12,11 +12,15 @@ import { RateLimiter } from "../lib/rate-limit";
 import { tooMany } from "../lib/errors";
 import { agentMemberCount, createAgentMember, createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
 
-const inviteSchema = z.object({
+export const InviteBody = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
   role: z.enum(["admin", "member"]).default("member"),
   mailboxIds: z.array(z.string()).max(500).default([]),
+  /** R25 (DF-4): the title and bio the new member starts with. */
+  title: z.string().max(80).nullable().optional(),
+  bio: z.string().max(500).nullable().optional(),
 });
+const inviteSchema = InviteBody;
 export const ProfileBody = z.object({
   title: z.string().max(80).nullable().optional(),
   bio: z.string().max(500).nullable().optional(),
@@ -60,7 +64,7 @@ export function teamRoutes() {
       if (!inviteLimiter.take(auth.orgId)) throw tooMany("Too many invitations in the last hour.");
       const input = await parseBody(c, inviteSchema);
       const res = await createInvite(deps, auth, c.req.raw.headers, input);
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "member.invited", targetType: "invitation", targetId: res.id, metadata: { email: input.email, role: input.role }, ip: c.var.ip });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "member.invited", targetType: "invitation", targetId: res.id, metadata: { email: input.email, role: input.role, ...(input.title ? { title: input.title } : {}) }, ip: c.var.ip });
       return c.json(res, 201);
     })
     .post("/invites/:id/resend", requireAdmin, async (c) => {

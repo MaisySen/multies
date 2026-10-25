@@ -5,9 +5,9 @@
  *
  * Idempotent: every item is found by name first and only created when missing, so a re-run
  * costs a handful of reads and no writes. It talks to the public REST API (/api/v1) with a
- * workspace API key. A few steps have no public route yet and use the app API with a
- * session (sign in, create the workspace, mint the first key, invites, templates); each of
- * those is a dogfood finding in docs/dogfood.md.
+ * workspace API key. Creating the workspace and minting its first key are sign up steps and
+ * use the app API with a session (sign in, create the workspace, mint the first key); invites
+ * go through POST /api/v1/invites since R25 (DF-7) and carry the person's title.
  *
  * Usage:
  *   ORG_PASSWORD=... npx tsx scripts/dogfood/org-setup.ts --config scripts/dogfood/example-org.json \
@@ -110,7 +110,7 @@ export async function main() {
   await run.all();
 }
 
-class Runner {
+export class Runner {
   cookie = "";
   state: State;
   writes = 0; // create or update calls made
@@ -248,8 +248,16 @@ class Runner {
     if (!this.session) return;
     const name = this.cfg.workspace.name;
     const list = await this.app("GET", "/api/account/workspaces");
-    let ws = (list.workspaces as { id: string; name: string }[]).find((w) => w.name === name);
-    if (!ws) {
+    const all = list.workspaces as { id: string; name: string; role?: string }[];
+    let ws = all.find((w) => w.name === name);
+    // DF-12: a new account's only workspace is the empty one sign up made. Name that one instead of
+    // creating a second, so the account doesn't keep an empty workspace beside the real one.
+    const only = all.length === 1 && all[0].id === list.currentId && all[0].role === "owner" && /'s workspace$/.test(all[0].name) ? all[0] : undefined;
+    if (!ws && only && (await this.app("GET", "/api/account/me"))?.organization?.onboarded === false) {
+      await this.app("PATCH", "/api/org", { name });
+      ws = { id: only.id, name };
+      this.note(`Named the sign up workspace ${name}`);
+    } else if (!ws) {
       const out = await this.app("POST", "/api/account/workspaces", { name });
       ws = { id: out.id, name };
       this.note(`Created workspace ${name}`);
@@ -351,14 +359,19 @@ class Runner {
   }
 
   async invites() {
-    if (!this.session) return;
     for (const inv of this.cfg.invites ?? []) {
       if (this.members.some((m) => m.email?.toLowerCase() === inv.email.toLowerCase())) { this.note(`${inv.email} is already a member`); continue; }
       if (!this.sendInvites) { this.note(`Invite to ${inv.email} (${inv.role}) skipped: pass --send-invites to send real email`); continue; }
-      const team = await this.app("GET", "/api/team");
-      if ((team.invites ?? []).some((i: any) => i.email?.toLowerCase() === inv.email.toLowerCase())) { this.note(`Invite to ${inv.email} already pending`); continue; }
-      await this.app("POST", "/api/team/invites", { email: inv.email, role: inv.role });
-      this.note(`Invited ${inv.email} as ${inv.role}`);
+      // R25 (DF-7): invites go through the public API with the workspace key, title included.
+      const pending = await this.v1("GET", "/invites");
+      if ((pending?.invites ?? []).some((i: any) => i.email?.toLowerCase() === inv.email.toLowerCase())) { this.note(`Invite to ${inv.email} already pending`); continue; }
+      try {
+        await this.v1("POST", "/invites", { email: inv.email, role: inv.role, ...(inv.title ? { title: inv.title } : {}) });
+        this.note(`Invited ${inv.email} as ${inv.role}`);
+      } catch (e) {
+        if (!/already in this workspace/.test((e as Error).message)) throw e;
+        this.note(`${inv.email} is already a member`);
+      }
     }
   }
 

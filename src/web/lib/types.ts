@@ -181,6 +181,9 @@ export interface PendingInvite {
   role: "admin" | "member";
   mailboxIds: string[];
   invitedByName: string | null;
+  /** R25 (DF-4): the title and bio the invite carries, copied to the member on accept. */
+  title?: string | null;
+  bio?: string | null;
   expiresAt: string;
   createdAt: string;
   expired: boolean;

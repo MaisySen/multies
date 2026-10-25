@@ -20,6 +20,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Branded auth emails for the Supabase hook: logo, colour, Reply-To, footer, per type text and an optional second language block, with `PATCH` and a preview endpoint (MCP `update_auth_email_hook`). Migration 0054.
 - Fixed: task lists over 100 tasks failed on the database's 100 variable limit (seen from the iOS app). Tests now run with the same limit.
 - Mobile 1.9.2 (iOS build 15, Android 13): a "mentioned you on a thread" notification opens the thread.
+- Invitations carry a title and bio (the invite dialog and the API), and the new member starts with them. Invite, list and revoke with a workspace key: `GET`, `POST /api/v1/invites`, `DELETE /api/v1/invites/{id}`. Inviting the same address again now takes the new role. Migration 0055. Haajir HQ findings 12 and 15 (last workspace used, grouped sidebar) have guard tests; the org setup script names a new account's empty workspace instead of making a second one.
 
 ### Round 24: planning depth (25 Oct 2026)
 
