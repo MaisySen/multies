@@ -569,44 +569,44 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
 
 D1 writes: reading the workload writes nothing. A move is one task update.
 
-## Dashboards (R24.3)
+## Formula and rollup fields (R24.1)
 
-A dashboard is a named grid of widgets, private to the person who made it or shared with the
-workspace. The widgets are kept in the dashboard row (so saving any number of widget changes is one
-row write) and their numbers are computed when you read them: nothing is stored or cached.
+Two more custom field types, both read only and computed when tasks are read, so a list, table,
+board or task read writes nothing for them. Their settings go in `config` on the normal field create
+and update (`POST /api/fields`, `POST /api/v1/projects/{id}/fields`, `PATCH .../fields/{id}`).
 
-Widget: `{ id, type, title, source, groupBy, chart, size, position }`.
+- `formula`: `config: { expression }`, up to 500 characters, for example `{Budget} * 1.1`,
+  `{points} * 2` or `if(days_between(today(), {due}) < 0, "late", "ok")`. Field names go in braces
+  (any custom field on the same project, by name, any case); built ins: points, due, start, created,
+  completed, status, priority, title, assignee (also usable bare). Operators: + - * / %, = == != <>
+  < > <= >=, and, or, not (&& || !), parentheses. Functions: if, round, floor, ceil, abs, min, max,
+  sum, concat, len, upper, lower, days_between, today, now, date_add (days), is_empty, coalesce.
+  Type rules: + joins text when either side is text; other maths needs numbers and an empty value
+  makes the answer empty; dates are text like 2026-11-02; dividing by 0 is an error. Formulas can read
+  other formulas; a loop is refused when saved and shows as an error if it ever appears. The parser is
+  hand written: no eval, no property access, no loops, a depth limit of 32.
+- `rollup`: `config: { source, fn, field }`. `source` is `subtasks` (the task's direct subtasks; on an
+  epic, its items), `epic_children` (an epic's items and their subtasks) or `project` (one value over
+  the project's live tasks, epics left out, shown in the project header and not as a task column).
+  `fn` is sum, count, count_done, average, min, max or percent_done (0 to 100 by count). `field` is
+  `points` or a number, currency or formula field id or name; count functions need none. Sum of
+  nothing is 0; average, min, max and percent of nothing are empty.
 
-- `type`: `count` (a number), `breakdown` (tasks grouped by `groupBy`: `status`, `assignee`, `priority`,
-  `project`, `sprint`, `type` or `label`; by person counts open tasks unless the widget filters a
-  status), `due` (open tasks overdue and due this week, with up to 10 of them), `completed` (tasks done
-  per week over the last 8 weeks), `burndown` (the active sprint of the widget's project), `goals`
-  (progress of the top level goals), `reply_times` (median first response and resolution per mailbox or
-  person over 30 days, `groupBy` `mailbox` or `person`), `mail_volume` (received and sent per day over 14
-  days) and `workload` (open tasks and estimates per person over 4 weeks).
-- `source`: `{ savedViewId }` applies a saved view's project and filters; `{ projectId, filters }` sets
-  them inline (`assignee` as `member:<id>`, `agent:<id>`, `me` or `none`; `status` `todo`, `doing` or
-  `done`; `priority`; `label`; `type`; `q`; `due` as `overdue`, `week` or `none`). Inline filters go on
-  top of a saved view's. `{ mailboxId }` narrows the mail widgets.
-- `chart`: `number`, `bar`, `donut`, `line` or `table`. `size`: 1 or 2 columns.
+Values appear in each task's `fields` like stored values. A cell that can't be worked out holds
+`"#ERROR"` and the task carries `fieldErrors: { <fieldId>: "message" }`; a read never fails because of
+a formula. Computed fields can't be set, filtered or sorted on (422 `computed_field`).
 
-Up to 24 widgets a dashboard and 50 dashboards a workspace. Breakdowns return at most 20 groups (the
-rest add up in Other). Tasks are read the way the task list reads them (this workspace, top level,
-not in Triage, not deleted); mail widgets read only the mailboxes you may read. Another workspace's
-saved views, projects and mailboxes are refused when a dashboard is saved (404).
+- App API: `GET /api/computed/tasks/:id`, `GET /api/computed/projects/:id/rollups`, and
+  `GET /api/computed/preview?projectId&expression&taskId` (the field editor's live preview against the
+  first task, or `taskId`; saves nothing).
+- Public API: `GET /api/v1/tasks/{id}/computed` returns `computed: [{ fieldId, name, type, config,
+  value, error? }]`; `GET /api/v1/projects/{id}/rollups` returns `rollups: [{ id, name, fn, field,
+  fieldName, value, error? }]`, `taskCount` and `truncated` (at most 2,000 tasks are read). Both are
+  reads; read only keys can call them. Another workspace's ids answer 404.
+- MCP: `get_computed_fields`, `create_formula_field`, `create_rollup_field`.
 
-- App API (session): `GET /api/dashboards`, `POST /api/dashboards { name, shared, widgets }` or
-  `{ starter: "team" }` (Team overview: by status, by person, due this week, completed per week),
-  `GET /api/dashboards/:id`, `PATCH /api/dashboards/:id { name, shared, widgets, version }` (the whole
-  widget list in its new order; a stale `version` answers 409), `POST /api/dashboards/:id/widgets`,
-  `DELETE /api/dashboards/:id`, and `GET /api/dashboards/:id/data?tz` for every widget's data in one
-  request: `{ dashboard, timeZone, weekStart, widgets: [{ id, type, data, error }] }`.
-- Public API: the same under `/api/v1/dashboards` (`GET /api/v1/dashboards/{id}/data`). Read only keys
-  can list and read; creating, saving, adding and removing need a full key. A key sees its maker's
-  private dashboards; a dashboard made by an agent key is shared.
-- MCP: `list_dashboards`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
-- Who can change what: the owner changes everything; anyone in the workspace can change a shared
-  dashboard's name and widgets; sharing and removing a shared one is for its owner or an admin.
-
-D1 writes: reading a dashboard's data writes nothing. Creating, saving (any number of widget changes, a
-rename and the share flag together) and removing a dashboard are each one row and its index: 2.
+Cost per read: one query for the field definitions, then only when a project has rollups one grouped
+query for the listed tasks' children (plus one for epics' grandchildren and one for the children's
+stored values when needed), at most 5,000 children per request. D1 writes: reading writes nothing;
+defining or changing a formula or rollup field writes its one custom_fields row (plus its index) and
+the activity row, like any field.
