@@ -513,3 +513,22 @@ it("thread presence and shared drafts (round 22): a heartbeat writes 0 rows; a t
   // Taking over a draft you already own writes nothing.
   expect(take() - limiter).toBe(0);
 });
+
+it("saved replies (round 22): create, edit and delete are the row and its one index (2 each); list and render write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const { createSnippet, updateSnippet, deleteSnippet, listSnippets, renderSnippetFor } = await import("@/server/services/suite/snippets");
+  const take = meter(ctx.db);
+  const s = await createSnippet(ctx.deps, actor, { name: "Thanks", shortcut: "thanks", body: "Thanks {{first_name}}" });
+  expect(take()).toBe(2);
+  await listSnippets(ctx.deps, actor);
+  await renderSnippetFor(ctx.deps, actor, s.id, { to: "Grace <grace@example.com>" });
+  expect(take()).toBe(0);
+  await updateSnippet(ctx.deps, actor, s.id, { name: "Thank you", body: "Many thanks" });
+  expect(take()).toBeLessThanOrEqual(2);
+  await deleteSnippet(ctx.deps, actor, s.id);
+  expect(take()).toBe(2);
+});

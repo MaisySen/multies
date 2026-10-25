@@ -393,3 +393,25 @@ saving over a draft that changed in another window answers 409 `draft_changed`.
 - Public API: `GET /api/v1/threads/{id}/presence`, `GET /api/v1/threads/{id}/drafts`, `POST /api/v1/drafts/{id}/take-over`. Read only keys can read; agent keys can't take over a draft.
 - MCP: `get_thread_presence`, `list_thread_drafts`, `take_over_draft`.
 - Every route answers 404 unless the caller can open at least one message of the thread (same workspace, a mailbox in their scope).
+
+## Saved replies (round 22)
+
+Reusable replies with variables, shared with the workspace or kept private (`shared: false`, only the
+author sees it). Variables, case and space tolerant (`{{ First_Name }}` works): `{{first_name}}`,
+`{{name}}`, `{{email}}` (the recipient: the thread's newest inbound sender, or the To address when it
+names someone else), `{{my_name}}`, `{{my_first_name}}`, `{{company}}` (the workspace name),
+`{{mailbox}}` (the sending address), `{{date}}` (today in your time zone, else the workspace's, e.g.
+26 October 2026). A variable with no value becomes empty; an unknown one stays as typed. Name up to 80
+characters, plain text body up to 10,000, optional subject and one word `shortcut` (unique in the
+workspace; typing `/shortcut` then Tab in Compose inserts it).
+
+Members create; the author, or an owner, admin or workspace key, edits and deletes. Another person's
+private reply, and another workspace's ids, answer 404. Rendering for a thread needs a thread the caller
+can open (same workspace, a mailbox in their scope), else 404.
+
+- App API: `GET /api/mail/snippets?q=`, `POST /api/mail/snippets`, `GET|PATCH|DELETE /api/mail/snippets/:id`, `POST /api/mail/snippets/:id/render` `{ threadId?, to?, mailboxId? }` answers `{ subject, body, variables }`.
+- Public API: `GET /api/v1/snippets?q=`, `POST /api/v1/snippets`, `GET|PATCH|DELETE /api/v1/snippets/{id}`, `POST /api/v1/snippets/{id}/render`. Read only keys can list and render (render is a POST that writes nothing) but not create, edit or delete.
+- MCP: `list_snippets`, `render_snippet`, `create_snippet`.
+
+D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
+and render write nothing.

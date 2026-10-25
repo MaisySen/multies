@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 92 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 95 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -217,6 +217,16 @@ Registered in src/server/routes/mcp-r22-presence.ts. Read only keys can read; `t
 | `get_thread_presence` | Who has a shared inbox thread open right now, and whether each is viewing or replying (entries expire 40 seconds after the last heartbeat) |
 | `list_thread_drafts` | Draft replies saved in a thread: author, last saved, preview |
 | `take_over_draft` | Become the owner of a teammate's draft reply; they are notified once and their next save of it is refused |
+
+### Saved replies (round 22)
+
+Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens can list and render; `create_snippet` needs a key that can write. Agent keys see shared replies and their own and save as their agent. Variables: `{{first_name}}`, `{{name}}`, `{{email}}` (the recipient), `{{my_name}}`, `{{my_first_name}}`, `{{company}}`, `{{mailbox}}`, `{{date}}`; unknown ones stay as typed.
+
+| Tool | What it does |
+| --- | --- |
+| `list_snippets` | The workspace's saved replies (shared ones plus your private ones), by name, with shortcut, subject and body; `q` filters |
+| `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
+| `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
 ## Claude (claude.ai and Claude Desktop)
 

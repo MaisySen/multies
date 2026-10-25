@@ -1483,3 +1483,20 @@ export const mailThreadState = sqliteTable("mail_thread_state", {
   primaryKey({ columns: [t.orgId, t.threadId] }),
   index("mail_thread_state_assignee_idx").on(t.orgId, t.assigneeUserId).where(sql`${t.assigneeUserId} IS NOT NULL`),
 ]);
+
+/** Round 22 (R22.4b): saved replies (snippets) with {{variables}}, shared per workspace or kept private by the author. */
+export const mailSnippets = sqliteTable("mail_snippets", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** Optional "/shortcut" word, unique in the workspace when set (checked by the service, no extra index). */
+  shortcut: text("shortcut"),
+  subject: text("subject"),
+  body: text("body").notNull(),
+  /** False: only the author sees it. */
+  shared: integer("shared", { mode: "boolean" }).notNull().default(true),
+  /** A user id, or an agent id when an agent key made it. */
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("mail_snippets_org_name_idx").on(t.orgId, t.name)]);
