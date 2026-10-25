@@ -89,6 +89,10 @@ export async function refreshProviderDomain(deps: Deps, d: { name: string; provi
   if (!usesProviderDomains(deps)) return null;
   if (!d.providerDomainId) return registerProviderDomain(deps, d.name);
   try {
+    // A verify request puts the provider's domain back to "pending" while it looks again, so a domain
+    // the provider already shows as verified is read, not re-verified (25 Oct: haajir.xyz).
+    const before = await call(deps, "GET", `/domains/${d.providerDomainId}`);
+    if (before.ok && before.json.status === "verified") return stateFrom(before.json);
     await call(deps, "POST", `/domains/${d.providerDomainId}/verify`);
     const one = await call(deps, "GET", `/domains/${d.providerDomainId}`);
     if (one.ok) return stateFrom(one.json);

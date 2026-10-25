@@ -73,6 +73,13 @@ describe("customer domains on any DNS provider (round 13)", () => {
     expect(v.body.domain.status).toBe("verified");
     expect(v.body.domain.sending.status).toBe("verified");
     expect(p.calls).toEqual(expect.arrayContaining(["POST /domains", "POST /domains/rd_1/verify", "GET /domains/rd_1"]));
+    // Once the provider shows the domain as verified, a later check reads it and does not ask it to verify
+    // again (a verify request would put it back to pending).
+    const verifies = () => p.calls.filter((x) => x === "POST /domains/rd_1/verify").length;
+    const before = verifies();
+    const again = await c.post(`/api/domains/${d.id}/verify`);
+    expect(again.body.domain.sending.status).toBe("verified");
+    expect(verifies()).toBe(before);
 
     for (const localPart of ["support", "hello", "no-reply"]) {
       const mb = await c.post("/api/mailboxes", { domainId: d.id, localPart, displayName: localPart === "no-reply" ? "Haajir" : `Haajir ${localPart}` });
