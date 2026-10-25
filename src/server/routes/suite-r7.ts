@@ -30,7 +30,6 @@ export const FormCreate = z.object({
   name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact"]).optional(),
   projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(30).optional(),
   successMessage: z.string().max(500).optional(), enabled: z.boolean().optional(),
-  triage: z.boolean().optional(),
 });
 export const FormPatch = FormCreate.partial();
 

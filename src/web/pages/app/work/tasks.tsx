@@ -1,13 +1,13 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
+import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Mountain, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
+import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
@@ -15,6 +15,7 @@ import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
 import { GuestsDialog } from "./guests";
 import { TaskList } from "./list";
 import { TaskPanel } from "./task-panel";
+import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
 import { tone } from "@/web/components/app-bits";
 
@@ -27,7 +28,7 @@ const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "timeline", label: "Timeline", icon: GanttChart },
 ];
-const FILTER_KEYS = ["q", "assignee", "priority", "label", "status"] as const;
+const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
 export function TasksPage() {
   const [params, setParams] = useSearchParams();
@@ -51,6 +52,7 @@ export function TasksPage() {
   const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
+  const [epicsOpen, setEpicsOpen] = useState(false);
   const tasks = useTasks({ projectId: projectId || undefined, ...filters, ...Object.fromEntries(fieldFilters) }, { enabled: !projects.isPending });
   const deps = useQuery({ queryKey: ["task-deps", projectId], enabled: view === "timeline", queryFn: async () => (await api.get<{ links: { from: string; to: string }[] }>(`/tasks/dependencies${projectId ? `?projectId=${projectId}` : ""}`)).links });
   const addLink = useCallback(async (blocker: string, blocked: string) => {
@@ -91,6 +93,7 @@ export function TasksPage() {
         {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
         {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" />Fields</Button>}
         {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" />Guests</Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><Mountain className="h-4 w-4" />Epics</Button>}
         <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Project</Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
@@ -117,6 +120,10 @@ export function TasksPage() {
         </Select>
         <Select aria-label="Status filter" value={filters.status ?? ""} onChange={(e) => set({ status: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Any status</option><option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
+        </Select>
+        <Select aria-label="Type filter" value={filters.type ?? ""} onChange={(e) => set({ type: e.target.value || null })} className="h-8 w-auto! text-[13px]">
+          <option value="">Any type</option>
+          {TASK_TYPES.map((k) => <option key={k} value={k}>{TYPE_META[k].label}</option>)}
         </Select>
         {fieldFilters.map(([k, v]) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
@@ -145,6 +152,7 @@ export function TasksPage() {
 
       {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={fields} open onClose={() => setFieldsOpen(false)} />}
       {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
+      {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
       <div className="min-h-0 flex-1">
         {!list.length ? (
           <EmptyState icon={<KanbanSquare />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
@@ -180,17 +188,19 @@ function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { p
   const [assignee, setAssignee] = useState("");
   const [due, setDue] = useState("");
   const [priority, setPriority] = useState<Priority>("none");
+  const [type, setType] = useState<TaskType>("task");
   const [busy, setBusy] = useState(false);
   const p = projects.find((x) => x.id === pid);
   const submit = async () => {
     if (!title.trim()) return;
     setBusy(true);
-    try { await onCreate({ title, projectId: pid || undefined, statusId: sid || undefined, assignee: assignee || null, due: due || null, priority }); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { await onCreate({ title, projectId: pid || undefined, statusId: sid || undefined, assignee: assignee || null, due: due || null, priority, type }); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
     <Dialog open onClose={onClose} title="New task" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!title.trim()} onClick={submit}>Create task</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
         <Field label="Title">{(f) => <Input {...f} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />}</Field>
+        <TypePicker value={type} onChange={setType} />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Project">{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
           <Field label="Status">{(f) => <Select {...f} value={sid} onChange={(e) => setSid(e.target.value)}><option value="">{p?.statuses[0]?.name ?? "First status"}</option>{p?.statuses.slice(1).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</Select>}</Field>
@@ -215,16 +225,13 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // R21: new mail and form tasks for this project wait in Triage.
-  const [triage, setTriage] = useState(!!(project as (Project & { triage?: boolean }) | null)?.triage);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
   const save = async () => {
     setBusy(true); setError(null);
     const body = { name, statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
-      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.post<{ project: Project }>("/projects", body);
-      if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
+      const r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, body) : await api.post<{ project: Project }>("/projects", body);
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -254,10 +261,6 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           </ul>
           <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><Plus className="h-3.5 w-3.5" />Add status</Button>
           {project && <p className="mt-2 text-[12px] text-subtle">Removing a status moves its tasks to the first status in the same group.</p>}
-        </div>
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
-          <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">Tasks made from mail rules and forms wait in Triage until someone accepts them.</div></div>
-          <Switch checked={triage} onChange={setTriage} label="Send to triage" />
         </div>
       </div>
     </Dialog>

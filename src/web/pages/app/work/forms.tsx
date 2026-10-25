@@ -14,7 +14,7 @@ import { useAssignees, useProjects } from "./data";
 
 type FieldType = "text" | "email" | "textarea" | "phone" | "select" | "number" | "date";
 interface FormField { id?: string; label: string; type: FieldType; required?: boolean; options?: string[]; placeholder?: string }
-interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; submitCount: number; lastSubmitAt: string | null }
+interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; submitCount: number; lastSubmitAt: string | null }
 interface Submission { id: string; data: Record<string, string>; entityType: string | null; entityId: string | null; createdAt: string }
 
 const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", number: "Number", date: "Date" };
@@ -67,7 +67,7 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
   const move = (i: number, d: number) => { const next = [...fields]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); setF({ ...f, fields: next }); };
   const save = async () => {
     setBusy(true);
-    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: x.type === "select" ? x.options : undefined })), ...(f.target !== "contact" ? { triage: f.triage ?? !f.id } : {}) };
+    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: x.type === "select" ? x.options : undefined })) };
     try { if (f.id) await api.patch(`/forms/${f.id}`, body); else await api.post("/forms", body); onSaved(); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const remove = async () => { if (!f.id) return; try { await api.del(`/forms/${f.id}`); onSaved(); } catch (e) { showError(e as Error); } };
@@ -103,12 +103,6 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
           </ul>
           <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { label: "New question", type: "text" }] })}><Plus className="h-3.5 w-3.5" />Add field</Button>
         </div>
-        {f.target !== "contact" && (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
-            <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">New answers wait in Triage until someone accepts them.</div></div>
-            <Switch checked={f.triage ?? !f.id} onChange={(v) => setF({ ...f, triage: v })} label="Send to triage" />
-          </div>
-        )}
         <Field label="Thank-you message">{(fp) => (<Input {...fp} value={f.successMessage ?? "Thanks, we got it. We'll be in touch."} onChange={(e) => setF({ ...f, successMessage: e.target.value })} />)}</Field>
       </div>
     </Dialog>

@@ -674,3 +674,10 @@ export async function guestPost(deps: Deps, g: GuestViewer, channelId: string, i
   const actor: SuiteActor = { orgId: g.orgId, userId: "", email: "", name: g.name, system: false };
   return writeMessage(deps, actor, c, { type: "guest", id: g.guestId, name: `${g.name} (guest)` }, { ...input, body });
 }
+
+/** Round 21: one message as the app shows it, or null when it is gone (a call's join card). */
+export async function presentedMessage(deps: Deps, orgId: string, id: string) {
+  const m = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.orgId, orgId), eq(chatMessages.id, id))).get();
+  if (!m || m.deletedAt) return null;
+  return (await present(deps, [m]))[0] ?? null;
+}

@@ -18,7 +18,7 @@ import type { Deps } from "../../context";
 import { chatChannels, chatMembers, chatMessages, chatReactions } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { actorOf, assertWritable, type SuiteActor } from "./common";
-import { getChannel, guestChannel, plainText, postMessage, visibleChannel, type ChatLink, type GuestViewer, type Mention } from "./chat";
+import { getChannel, guestChannel, plainText, postMessage, presentedMessage, visibleChannel, type ChatLink, type GuestViewer, type Mention } from "./chat";
 import { reactionsFor, type ReactionSummary } from "./chat-reaction-summary";
 
 /** Distinct emoji one message can carry. */
@@ -157,11 +157,49 @@ export async function startChannelCall(deps: Deps, a: SuiteActor, channelId: str
   if (isKey(a) || !a.userId) throw new HttpError(403, "forbidden", "People start calls from chat. Agents can schedule meetings with create_meeting.");
   const c = await visibleChannel(deps, a, channelId);
   if (c.archived) throw new HttpError(409, "archived", "This channel is archived. Unarchive it to start a call.");
+  // Round 21: two people pressing Call at once join one meeting. One UPDATE claims the channel's
+  // call slot when no call started here in the last CALL_DEDUPE_MS; whoever loses the claim gets
+  // the call that won (its join card, found by time). Cost: the chat_channels row for the claim.
+  const now = deps.now();
+  const since = new Date(now.getTime() - CALL_DEDUPE_MS);
+  const claimed = await deps.db.update(chatChannels).set({ callStartedAt: now })
+    .where(and(eq(chatChannels.id, c.id), eq(chatChannels.orgId, a.orgId), sql`(${chatChannels.callStartedAt} is null or ${chatChannels.callStartedAt} <= ${since.getTime()})`))
+    .returning({ id: chatChannels.id });
+  if (!claimed.length) {
+    const existing = await recentCall(deps, a, c.id, since);
+    if (existing) return existing;
+  }
   const title = c.kind === "dm" ? `Call with ${(await getChannel(deps, a, c.id)).name}` : `#${c.name} call`;
   const { createMeeting } = await import("./meetings");
   const { meeting } = await createMeeting(deps, a, { title, durationMin: 60 });
   // Guests of a shared channel can't open the app's meeting page, so their link rides along.
   const body = `${CALL_PREFIX}${meeting.joinUrl}${c.guestAccess ? `\nGuests join here: ${meeting.guestUrl}` : ""}`;
   const message = await postMessage(deps, a, c.id, { body });
-  return { meeting: { id: meeting.id, title: meeting.title, joinUrl: meeting.joinUrl, videoEnabled: meeting.videoEnabled }, message };
+  return { meeting: { id: meeting.id, title: meeting.title, joinUrl: meeting.joinUrl, videoEnabled: meeting.videoEnabled }, message, joined: false };
+}
+
+/** Presses of Call in the same channel within this window join the first call. */
+export const CALL_DEDUPE_MS = 60_000;
+
+/**
+ * The call that won the claim: the newest join card posted in the channel since the window
+ * opened. The winner may still be making it, so this waits up to about 3 seconds. Null when the
+ * claimed call never finished or its card or meeting is gone, so the caller starts a fresh one.
+ */
+async function recentCall(deps: Deps, a: SuiteActor, channelId: string, since: Date) {
+  for (let i = 0; i < 12; i++) {
+    const card = await deps.db.select({ id: chatMessages.id, body: chatMessages.body }).from(chatMessages)
+      .where(and(eq(chatMessages.orgId, a.orgId), eq(chatMessages.channelId, channelId), isNull(chatMessages.parentId), gt(chatMessages.createdAt, since), isNull(chatMessages.deletedAt), sql`${chatMessages.body} like ${CALL_PREFIX + "%"}`))
+      .orderBy(desc(chatMessages.createdAt)).limit(1).get();
+    const meetingId = card?.body.match(/\/app\/meetings\/([A-Za-z0-9_]+)/)?.[1];
+    if (card && meetingId) {
+      const { getMeeting } = await import("./meetings");
+      const meeting = await getMeeting(deps, a, meetingId).catch(() => null);
+      const message = await presentedMessage(deps, a.orgId, card.id);
+      if (!meeting || !message) return null;
+      return { meeting: { id: meeting.id, title: meeting.title, joinUrl: meeting.joinUrl, videoEnabled: meeting.videoEnabled }, message, joined: true };
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return null;
 }

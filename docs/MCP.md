@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 70 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 68 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -88,6 +88,13 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `set_project_health` | Set a project's health |
 | `list_guests` | List a project's guests |
 | `invite_guest` | Invite a guest to a project |
+| `list_epics` | List epics with progress: done of total, percent, points when tasks carry points (round 21, registered in src/server/routes/mcp-r21-types.ts) |
+| `get_epic` | One epic with its items and progress (round 21) |
+| `add_to_epic` | Put tasks, stories or bugs in an epic, or take them out with `remove: true` (round 21) |
+
+Task types (round 21): `create_task`, `update_task` and `list_tasks` take `type`: `task` (the default),
+`story`, `bug` or `epic`. An item whose parent is an epic is in that epic. An epic can't have a parent,
+an item with a parent can't become an epic, and an epic that still has items keeps its type.
 
 ### Docs, contacts, forms and templates
 
@@ -132,18 +139,6 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `pin_message` | Pin or unpin a chat message |
 | `message_to_task` | Turn a chat message into a task |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
-
-### Triage
-
-New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
-
-| Tool | What it does |
-| --- | --- |
-| `list_triage` | List items waiting in Triage, newest first, with the count |
-| `triage_accept` | Accept an item as a normal task, optionally setting project, assignee, status, priority and due |
-| `triage_decline` | Decline and delete an item, with an optional reason and an opt in polite reply to the sender |
-| `triage_merge` | Merge an item into an existing task (notes as a comment, mail thread moves over) |
-| `create_triage_item` | Put new work in Triage instead of making a task straight away |
 
 ### Meetings and scheduling
 

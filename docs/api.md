@@ -40,7 +40,22 @@ Clients poll `GET /unread` every 15 s and the open channel with `?since=` every 
 Public API: `GET` and `POST /api/v1/chat/channels`, `PATCH /api/v1/chat/channels/{id}` (`name?`, `topic?`, `archived?`,
 `projectId?`, `guestAccess?`), `GET` and `POST /api/v1/chat/channels/{id}/messages`, `GET /api/v1/chat/messages/{id}/thread`,
 `POST /api/v1/chat/messages/{id}/task`, `POST` and `DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`.
+Round 21: `POST /api/v1/chat/messages/{id}/reactions` (`{ emoji }`, toggles the key's reaction; read only keys get 403) and
+`GET /api/v1/chat/search?q=&channelId=&limit=` (public channels only, newest first, limit 1 to 50).
+
+Calls: pressing Call in a channel (`POST /api/chat/channels/{id}/call`) makes one meeting and posts a join card. A second
+press in the same channel within 60 seconds joins that call instead (200 with `joined: true`), so two people pressing at
+once get one meeting.
 An agent key posts as its agent. MCP: `pin_message` (`messageId`, `pinned`).
+
+## Search everything and My Work
+
+`GET /api/v1/search/everything?q=&types=&limit=` searches mail, tasks (title, notes or a key like `OPS-12`), docs, chat,
+contacts and deals in one call, grouped by type, newest first. `q` needs 2 to 100 characters; `types` is a comma list
+(`mail,tasks,docs,chat,contacts,deals`); `limit` is per group, 1 to 20. `GET /api/v1/my-work?tz=` answers what is waiting
+today: overdue and due tasks, mentions, mail on my tasks, approvals, meetings and snoozed mail coming back. Both read
+only, write nothing, and show only what the key can open (an agent key: its own inboxes and public channels).
+`GET /api/v1/search` stays the agent mail search.
 
 ## Notifications
 
@@ -144,23 +159,6 @@ No paid calendar APIs and no phone spend. A booking costs two inserts; a slot ca
 - Public API: `GET` and `PUT /api/v1/scheduling/availability`, `GET /api/v1/scheduling/bookings`, `POST /api/v1/scheduling/bookings/{id}/cancel`
 - Events: `booking.created`, `booking.cancelled`. MCP: `list_bookings` (registered only when scheduling is on).
 
-## Triage (Round 21)
-
-New work can wait in Triage before it becomes a task. A project's `triage` setting (off for existing
-projects) sends tasks made by mail rules, public forms and incoming hooks there; a form's own "Send to
-triage" switch (`triage: true`, on by default for new forms in the app) does the same for that form.
-A triage item is a task row with `triage_state = 'pending'`: it keeps its number, and lists, boards,
-My Work, search, reports, the portfolio and counts leave it out (`GET /api/tasks?triage=pending` asks
-for them). Accept clears the flag in the same task write as any other change; decline soft deletes the
-item and can send the sender a short polite reply (opt in, never to no-reply addresses); merge adds the
-item's notes as a comment on another task, moves its mail thread there when the target has none, and
-deletes the item.
-
-- Page: `/app/triage` (Triage in the nav, with a count). Keys: j and k move, a accepts, d declines, m merges.
-- App API: `GET /api/triage` (`projectId`, `limit`), `GET /api/triage/count`, `POST /api/triage`, `GET /api/triage/:id`, `POST /api/triage/:id/accept` `{ projectId?, assignee?, statusId?, status?, priority?, due? }`, `POST /api/triage/:id/decline` `{ reason?, reply?, message? }`, `POST /api/triage/:id/merge` `{ targetId }`, `POST /api/triage/bulk` `{ ids (up to 100), action: accept | decline, accept?, decline? }`
-- Public API: the same under `/api/v1/triage` (`GET /triage`, `GET /triage/count`, `POST /triage`, `GET /triage/{id}`, `POST /triage/{id}/accept`, `POST /triage/{id}/decline`, `POST /triage/{id}/merge`, `POST /triage/bulk`). Read only keys can list but not change anything.
-- MCP: `list_triage`, `triage_accept`, `triage_decline`, `triage_merge`, `create_triage_item`.
-
 ## People and AI agent members
 
 Every member has an optional `title` (up to 80 characters) and `bio` (up to 500), shown in People (Settings, Team) and read by REST and MCP. An AI agent member is a workspace member with `kind: "agent"`: it has no mailbox, takes no seat and no inbox, and works only through its own API keys. Those keys act as the agent member with the member role, so its chat posts, task comments and activity carry its name, and it can't do admin work (domains, mailboxes, webhooks, agent inboxes, integrations). The Free plan includes 10 agent members (Pro 25, Business 100); one more answers 403 `plan_limit`. Mail agents with their own inbox (`/agents`) are listed in People too, as `type: "mail_agent"`.
@@ -244,3 +242,32 @@ The list lives in `src/server/services/developer/webhooks.ts`.
 - `POST /api/inbound/cloudflare`: mail from the inbound Email Worker, signed with an inbound key (Settings, Inbound; `/api/inbound-keys`).
 - `POST /api/webhooks/resend`: delivery, bounce and complaint events, verified with the Resend signing secret.
 - `POST /api/webhooks/stripe`: billing events, verified with the Stripe signature.
+
+## Task types and epics (round 21)
+
+Every task has a `type`: `task` (the default), `story`, `bug` or `epic`. Set it on create or update
+(`POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/v1/tasks`, `PATCH /api/v1/tasks/{id}`) and
+filter by it: `GET /api/v1/tasks?type=bug`. A repeating task repeats with its type.
+
+An epic groups work through the parent link: an item whose `parentId` is an epic is in that epic.
+The list and board show an epic's items (they are top level work); subtasks of a story, task or bug
+stay subtasks. Rules:
+
+- An epic has no parent: it can't be a subtask or sit inside another epic (`epic_in_epic`).
+- A story, task or bug is in at most one epic. Adding it to another epic moves it.
+- An item with a parent can't become an epic until it is taken out (`epic_has_parent`).
+- An epic that still has items keeps its type until they are moved out (`epic_has_items`).
+
+Endpoints (the app uses the same shapes under `/api/epics` with the session cookie):
+
+- `GET /api/v1/epics?project=<projectId>`: epics with `progress`.
+- `GET /api/v1/epics/{id}`: one epic (id or reference) with `progress` and its `items`.
+- `POST /api/v1/epics/{id}/items` with `{ "ids": [...] }` (up to 100 ids or references): puts them in the epic. Answers `{ epic, items, moved }`.
+- `DELETE /api/v1/epics/{id}/items` with `{ "ids": [...] }`: takes them out (only items in this epic).
+
+`progress` is worked out when read (no writes): `done`, `total` and `percent` over the epic's items
+and their subtasks, `items` and `subtasks` counted apart, `points` (`{ done, total, percent }`) when
+tasks carry points and otherwise `null`, and `start` and `end`: the earliest start and latest due
+date of its items. Read only keys can read epics but not add or remove items. Adding N items is one
+batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
+MCP: `list_epics`, `get_epic`, `add_to_epic`.

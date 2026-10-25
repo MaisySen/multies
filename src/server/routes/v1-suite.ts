@@ -33,6 +33,7 @@ const Task = z.object({
   id: z.string(), ref: z.string().openapi({ example: "OPS-12" }), projectId: z.string(), number: z.number().int(), title: z.string(), notes: z.string(),
   statusId: z.string(), statusName: z.string(), statusColor: z.string(), status: z.enum(["todo", "doing", "done"]),
   assignee: Assignee, assigneeId: z.string().nullable(), priority: z.enum(["none", "low", "medium", "high", "urgent"]), labels: z.array(z.string()),
+  type: z.enum(["task", "story", "bug", "epic"]).openapi({ description: "task, story, bug or epic." }),
   start: z.string().nullable(), due: z.string().nullable(), parentId: z.string().nullable(), position: z.number(),
   source: z.object({ threadId: z.string().nullable(), messageId: z.string().nullable(), from: z.string(), subject: z.string() }).nullable(),
   subtasks: z.object({ total: z.number(), done: z.number() }), commentCount: z.number(), completedAt: z.string().nullable(),

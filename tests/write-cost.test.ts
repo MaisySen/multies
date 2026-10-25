@@ -10,14 +10,9 @@ import { runMaintenance } from "@/server/services/maintenance";
 function meter(db: unknown) {
   const c = (db as { $client: { prepare: (q: string) => Record<string, (...a: unknown[]) => unknown> } }).$client;
   const idx = new Map<string, number>();
-  // R21: a partial index (CREATE INDEX ... WHERE) only holds the rows its WHERE matches, so a row outside it costs
-  // nothing there. Full indexes count once per written row; a partial index counts the entries that came or went.
-  for (const r of c.prepare("select tbl_name t, count(*) n from sqlite_master where type='index' and (sql is null or sql not like '% WHERE %') group by tbl_name").all() as { t: string; n: number }[]) idx.set(r.t, r.n);
-  const partial = new Map<string, string[]>();
-  for (const r of c.prepare("select tbl_name t, sql from sqlite_master where type='index' and sql like '% WHERE %'").all() as { t: string; sql: string }[]) partial.set(r.t, [...(partial.get(r.t) ?? []), r.sql.slice(r.sql.search(/ WHERE /i) + 7)]);
+  for (const r of c.prepare("select tbl_name t, count(*) n from sqlite_master where type='index' group by tbl_name").all() as { t: string; n: number }[]) idx.set(r.t, r.n);
   const prepare = c.prepare.bind(c);
   const changes = () => (prepare("select total_changes() n").get() as { n: number }).n;
-  const members = (table: string) => (partial.get(table) ?? []).map((w) => (prepare(`select count(*) n from "${table}" where ${w}`).get() as { n: number }).n);
   let total = 0;
   c.prepare = (q: string) => {
     const st = prepare(q);
@@ -25,13 +20,7 @@ function meter(db: unknown) {
     if (!table) return st;
     for (const fn of ["run", "all", "get"]) {
       const orig = st[fn].bind(st);
-      st[fn] = (...a: unknown[]) => {
-        const before = changes(); const inBefore = members(table);
-        const r = orig(...a);
-        const inAfter = members(table);
-        total += (changes() - before) * (1 + (idx.get(table) ?? 0)) + inAfter.reduce((n, v, i) => n + Math.abs(v - inBefore[i]), 0);
-        return r;
-      };
+      st[fn] = (...a: unknown[]) => { const before = changes(); const r = orig(...a); total += (changes() - before) * (1 + (idx.get(table) ?? 0)); return r; };
     }
     return st;
   };
@@ -116,7 +105,11 @@ it("chat polish (round 20): a reaction add or remove is 2 rows, polls and search
   const call = take() - limiter;
   // Measured 23: one meetings row (5 with its indexes) and one chat message (5), the channel's last
   // message time (4), the caller's read marker (3) and the meeting's activity and change rows.
-  expect(call).toBeLessThanOrEqual(24);
+  // Round 21 adds the channel's call claim (4), so two people pressing Call make one meeting.
+  expect(call).toBeLessThanOrEqual(28);
+  // A second press within a minute joins that call: the claim is refused and nothing is written.
+  await u.post(`/api/chat/channels/${g.id}/call`, {});
+  expect(take() - limiter).toBe(0);
 });
 it("search everything and My Work (round 20) write nothing, for a person and through the services an agent key uses", async () => {
   const ctx = await makeTestApp({ DEMO_MODE: "true" });
@@ -212,37 +205,29 @@ it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later an
   expect(sendRows).toBeLessThanOrEqual(45);
 });
 
-it("triage (round 21): accept costs the task update plus its one partial index entry; decline and merge stay small; reads write nothing", async () => {
+it("task types and epics (round 21): a type change is a normal task update; adding N items to an epic is one batch", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup();
-  const p = (await u.post("/api/projects", { name: "Support" })).body.project as { id: string };
-  await u.patch(`/api/projects/${p.id}`, { triage: true });
-  const plain = (await u.post("/api/tasks", { title: "Normal", projectId: p.id })).body.task as { id: string };
-  const make = async (title: string) => (await u.post("/api/triage", { title, from: "sam@example.com" })).body.item.id as string;
-  const a = await make("A"), b = await make("B"), d = await make("D");
+  const projectId = (await u.post("/api/projects", { name: "Epics" })).body.project.id;
+  const epic = (await u.post("/api/tasks", { title: "Epic", projectId, type: "epic" })).body.task;
+  const ids: string[] = [];
+  for (let i = 0; i < 5; i++) ids.push((await u.post("/api/tasks", { title: `Item ${i}`, projectId })).body.task.id);
   const take = meter(ctx.db);
-  await u.post("/api/triage/nope/accept", {});
-  const limiter = take();
-  // A normal task update with the same change, for comparison.
-  await u.patch(`/api/tasks/${plain.id}`, { priority: "high" });
-  const update = take() - limiter;
-  await u.post(`/api/triage/${a}/accept`, { priority: "high" });
-  const accept = take() - limiter;
-  // Exactly one more than the plain update: the triage_state flag leaves the partial index. No other row.
-  expect(accept - update).toBe(1);
-  await u.get("/api/triage"); await u.get("/api/triage/count"); await u.get("/api/tasks");
+  await u.patch(`/api/tasks/${ids[0]}`, { title: "Item renamed" });
+  const titleWrites = take();
+  await u.patch(`/api/tasks/${ids[0]}`, { type: "bug" });
+  const typeWrites = take();
+  // Setting a type costs what any other field change costs: the task row and its indexes, plus the activity and change entries.
+  expect(typeWrites).toBe(titleWrites);
+  await u.post(`/api/epics/${epic.id}/items`, { ids });
+  const addWrites = take();
+  // Measured 57 for 5 items: each task row with its indexes (8) and its change entry (2), one activity entry on the epic (4),
+  // and the local rate limit counter (3), which production keeps in a binding. A type change measured 17 (8 + 2 + 4 + 3).
+  expect(addWrites).toBeLessThanOrEqual(5 * 10 + 4 + 3);
+  // Reading epics and their progress writes nothing.
+  await u.get(`/api/epics?project=${projectId}`); await u.get(`/api/epics/${epic.id}`); await u.get(`/api/tasks?projectId=${projectId}&type=bug`);
   expect(take()).toBe(0);
-  await u.post(`/api/triage/${b}/decline`, { reason: "spam" });
-  const decline = take() - limiter;
-  // Measured 14: the task row and its indexes (8), the partial index entry leaving (1), and the activity and change rows (5).
-  expect(decline).toBeLessThanOrEqual(14);
-  await u.post(`/api/triage/${d}/merge`, { targetId: plain.id });
-  const merge = take() - limiter;
-  // Measured 30: one comment (3), the target's touch and thread (8), the item's delete (9) and two activity and change pairs (10).
-  expect(merge).toBeLessThanOrEqual(30);
-  const insert = take();
-  await make("E");
-  // Measured 17: a normal task insert (the row, its indexes, the project's next number, activity and change) plus one partial index entry.
-  expect(take() - insert - limiter).toBeLessThanOrEqual(17);
+  await u.call("DELETE", `/api/epics/${epic.id}/items`, { ids: ids.slice(0, 2) });
+  expect(take()).toBeLessThanOrEqual(2 * 10 + 4 + 3);
 });
