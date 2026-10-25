@@ -135,11 +135,23 @@ Each item has a test that says when it is done.
 
 ### Horizon 1: this week, to public launch
 
-**1. Free addresses on a Multies domain.** Every workspace gets name@yourteam.multies.si (or a shorter sending domain) the moment it is made, with send and receive.
+**Owner decision, 25 October 2026, 9:29 to 9:32 PM Sydney.** Customers never get an address on multies.si: the root domain is the company's own, for staff addresses (support@, hello@, security@ and the rest). The email model is three paths, offered in onboarding:
+- A. Connect an existing mailbox from any provider (Gmail, Outlook or Microsoft 365, Yahoo, iCloud, Zoho, or any IMAP and SMTP server), with OAuth where the provider offers it and an app password otherwise: sync, send as that address, the person's real address.
+- A. Or bring their own custom domain, with guided DNS setup (live since round 13).
+- B. Or take a free personal address name@mail.multies.si (a subdomain, never the root).
+- With none of these, tasks, chat and meetings work straight away, with a clear "Connect your email" step.
+
+**1. Free personal addresses on mail.multies.si.** Anyone can take name@mail.multies.si, with send and receive, reserved names, sign up abuse limits (per person, network, device and day), smaller send limits for new accounts and spam checks before sending.
 Done when: a stranger with no domain signs up and sends and receives a real email within 2 minutes, on web and phone.
+Status 25 Oct (round 17): live on web, release 98879473fe4e. Live checked with one real send and receive, then the test address was deleted. Phone apps not checked. docs/runbooks/free-addresses.md.
+
+**1b. Connect an existing mailbox (path A).** IMAP and SMTP with an app password first (any provider; Workers can open TLS sockets), then OAuth for Gmail and Microsoft 365. Two way sync, send as that address with its own SMTP or API so SPF and DKIM pass as the person's own domain.
+Done when: a Yahoo and an iCloud account sync both ways and a reply sent from Multies arrives as the person's real address. Gmail OAuth needs Google's restricted scope review (owner, weeks); Microsoft needs a verified publisher.
+Status 25 Oct: not started. Onboarding shows it as "Coming soon"; the old IMAP import is not switched on in production either.
 
 **2. Lift the domain ceiling.** Move customer domains to a sending plan that allows many domains (the provider sells 100 more domains as an add on on paid plans), or send through a provider without a per domain cap.
 Done when: 10 test domains can be added in staging without an error, and the limit is shown on the status page.
+Status 25 Oct (round 17): the free way is live. A full plan queues a domain ("In the queue for a sending slot") instead of failing, it still receives mail, and the oldest queued domain takes the next free slot by itself. mail.multies.si took the last of the 3 free slots, so new customer domains queue until the sending plan is raised (owner, card). docs/runbooks/domain-cap.md.
 
 **3. Fix account deletion.** Settings delete uses the same server path as the delete page, needs no password for Auth0 users, shows errors, and also deletes the person in Auth0.
 Done when: an Auth0 user deletes from Settings on web, iOS and Android, and the Auth0 user is gone (Management API read returns 404).
@@ -149,21 +161,25 @@ Done when: a new sign up never sees the word "didn't complete".
 
 **5. Short onboarding.** Ask name, company, country and time zone (prefilled from the browser), then offer: free address, add your domain, or import Gmail or Outlook.
 Done when: a workspace made from São Paulo shows America/Sao_Paulo times everywhere, and the greeting uses the person's name.
+Status 25 Oct (round 17): live, release da06358e302d. Name, company, country (all 249), time zone and language from the browser; per person zone everywhere; then the three email paths. Local E2E signs up from São Paulo. Translations are horizon 2 (item 11).
 
 **6. Branded login and email.** login.multies.si custom domain on Auth0, Multies logo, and Auth0 emails sent through our own sender as no-reply@multies.si without click tracking.
 Done when: the sign up page address bar shows multies.si and the verify email passes SPF, DKIM and DMARC as multies.si.
 
 **7. Stop selling what is not live.** Hide IMAP and SMTP from pricing and status until it works; remove operator text (STALWART_URL, Turnstile keys) and the Admin link for non operators.
 Done when: no customer facing page names a server setting.
+Status 25 Oct (round 17): live, release 659981b7aef2. Legal terms still mention IMAP and SMTP access (owner to approve a terms change).
 
 **8. Payments live, or no checkout.** Either switch Stripe to live mode (owner identity and bank details needed), or hide add ons and say "Free during launch".
 Done when: no real customer ever sees a test card number.
+Status 25 Oct (round 17): the test mode banner and card number show to platform admins only; customers see "Paid add-ons aren't on sale yet". Live mode needs the owner's Stripe identity and bank details.
 
 **9. Raise the write ceiling.** Move Cloudflare to the paid Workers plan (about US$5 a month, unverified, check the Cloudflare pricing page), keep the write guard, and cut setup writes.
 Done when: the account cap is far above daily use and one workspace setup writes under 1,500 rows.
 
 **10. Backups and CI green.** Fix the failing CI on main and the nightly backup (2 runs ever, the last failed on 24 October), or move backups to a Cloudflare cron so they do not depend on GitHub minutes.
 Done when: 7 nightly backups in a row succeed and one restore to staging is tested.
+Status 25 Oct (round 17): CI jobs never start because the GitHub account's payment failed or its spending limit is reached (owner, GitHub billing). The suite is green locally (446 unit, 59 E2E). The org setup script now estimates its writes in a dry run and stops at --max-writes.
 
 ### Horizon 2: next 30 days
 
