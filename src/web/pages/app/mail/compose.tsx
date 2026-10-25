@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Minus, Send, Trash2, Undo2, X } from "lucide-react";
+import { Info, Minus, Send, Trash2, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -10,6 +10,7 @@ import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
+import { shouldAskForSubject, SUBJECT_PROMPT } from "@/web/lib/subject-prompt";
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -51,6 +52,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const qc = useQueryClient();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const toRef = useRef<HTMLInputElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const [askedSubject, setAskedSubject] = useState(false);
   useEffect(() => { (initial.to ? bodyRef : toRef).current?.focus(); if (initial.to) bodyRef.current?.setSelectionRange(0, 0); }, [initial.to]);
   const set = (k: keyof ComposeDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setD((x) => ({ ...x, [k]: e.target.value }));
   const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text;
@@ -59,8 +62,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   // Send holds the message in the browser for a few seconds (Undo send), then posts it.
   // Compose closes at once; the hold lives outside this component, so it keeps counting after it unmounts.
-  const send = () => {
+  const send = (anyway = false) => {
     if (!d.to.trim()) { toRef.current?.focus(); return; }
+    // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
+    if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
     const snapshot = d;
     const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];
     // One key per held message: a retried post can never deliver twice.
@@ -124,8 +129,16 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             <Row label="Cc"><input value={d.cc ?? ""} onChange={set("cc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Cc" spellCheck={false} /></Row>
             <Row label="Bcc"><input value={d.bcc ?? ""} onChange={set("bcc")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="Bcc" spellCheck={false} /></Row>
           </>}
-          <Row label="Subject"><input value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
+          <Row label="Subject"><input ref={subjectRef} value={d.subject} onChange={set("subject")} className="h-9 w-full bg-transparent text-sm font-medium outline-none" aria-label="Subject" /></Row>
           <textarea ref={bodyRef} value={d.text} onChange={set("text")} aria-label="Message" className="min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-[14.5px] leading-relaxed outline-none placeholder:text-subtle" placeholder="Write your message…" />
+          {askedSubject && !d.subject.trim() && (
+            <div role="status" data-testid="subject-prompt" className="flex shrink-0 flex-wrap items-center gap-2 border-t border-line bg-[#0071E3]/[0.06] px-4 py-2 text-[13px]">
+              <Info className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden />
+              <span className="min-w-0 flex-1">{SUBJECT_PROMPT}</span>
+              <button type="button" className="rounded-md px-2 py-1 font-medium text-[#0071E3] hover:bg-hover" onClick={() => subjectRef.current?.focus()}>Add subject</button>
+              <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>Send anyway</button>
+            </div>
+          )}
           <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
             <div className="flex items-center gap-2">
               <Button type="submit" disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>

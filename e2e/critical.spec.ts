@@ -71,6 +71,27 @@ test("send a message from the demo workspace and find it in Sent", async ({ page
   await expect(page.getByText(subject).first()).toBeVisible();
 });
 
+test("an empty subject gets a gentle prompt that never blocks the send", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
+  await page.goto("/app/mail?compose=1");
+  const compose = page.getByRole("dialog", { name: "New message" });
+  const body = `No subject ${Date.now()}`;
+  await compose.getByLabel("To").fill("someone@example.com");
+  await compose.getByLabel("Message").fill(body);
+  await compose.getByRole("button", { name: "Send" }).click();
+  const prompt = compose.getByTestId("subject-prompt");
+  await expect(prompt).toContainText("Add a subject? Mail without one is more likely to go to spam.");
+  if (process.env.R19_SHOTS) await page.screenshot({ path: `${process.env.R19_SHOTS}/5-subject-prompt.png` });
+  await prompt.getByRole("button", { name: "Add subject" }).click();
+  await expect(compose.getByLabel("Subject")).toBeFocused();
+  await prompt.getByRole("button", { name: "Send anyway" }).click();
+  await expect(compose).toBeHidden();
+  await expect(page.getByTestId("undo-send-toast")).toBeVisible();
+  await page.getByTestId("undo-send-toast").getByRole("button", { name: "Send now" }).click();
+});
+
 test("start on Free, then buy an add-on and see the new limits", async ({ page }) => {
   await signUp(page, "Paula Plan", `plan-${Date.now()}@example.com`);
   await page.goto("/app/settings/billing");

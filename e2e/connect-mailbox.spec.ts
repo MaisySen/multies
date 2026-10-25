@@ -132,7 +132,8 @@ test("connect a mailbox from onboarding, read its mail, reply as that address, m
   await expect(row).toContainText("Connected");
   await expect(row).toContainText("last sync");
   await row.getByRole("button", { name: `Sync ${user} now` }).click();
-  await expect(page.getByText(/new message/).first()).toBeVisible({ timeout: 15_000 });
+  // Live mail (round 19) may already have copied it while the mail view was open: then Sync now is "Up to date".
+  await expect(page.getByText(/new message|Up to date/).first()).toBeVisible({ timeout: 15_000 });
   // Two from before, one that arrived later; the copy of our own send is the same message (same Message-ID) and is not stored twice.
   await expect(row).toContainText("3 messages");
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/2-connected-accounts.png`, fullPage: true });

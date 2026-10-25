@@ -46,12 +46,11 @@ export function ProviderFolderNav({ connectionId, current, onPick }: { connectio
     onSuccess: (r) => qc.setQueryData(["mail", "provider-folders", connectionId], r),
     onError: (e) => showError(e),
   });
-  // The box ticks at once; the server's answer (or an error) settles it.
+  // The box ticks at once and stays ticked while the server answers (a refetch meanwhile can't untick it).
+  const [pending, setPending] = useState<Record<string, boolean>>({});
   const setSync = (path: string, sync: boolean) => {
-    const key = ["mail", "provider-folders", connectionId];
-    const before = qc.getQueryData<ProviderFolders>(key);
-    if (before) qc.setQueryData(key, { ...before, folders: before.folders.map((f) => (f.path === path ? { ...f, synced: sync } : f)) });
-    toggle.mutate({ path, sync });
+    setPending((p) => ({ ...p, [path]: sync }));
+    toggle.mutate({ path, sync }, { onSettled: () => setPending((p) => { const n = { ...p }; delete n[path]; return n; }) });
   };
   const own = (data?.folders ?? []).filter((f) => !f.role);
   const synced = own.filter((f) => f.synced);
@@ -76,7 +75,7 @@ export function ProviderFolderNav({ connectionId, current, onPick }: { connectio
             {own.map((f) => (
               <li key={f.key}>
                 <label className="flex cursor-pointer items-center gap-2 rounded-md px-1 py-1 text-[13px] hover:bg-hover">
-                  <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={f.synced}
+                  <input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={pending[f.path] ?? f.synced}
                     onChange={(e) => setSync(f.path, e.target.checked)} />
                   <span className="truncate">{f.path}</span>
                 </label>
