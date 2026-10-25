@@ -31,6 +31,8 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     return json({ access_token: "e2e", id_token: idToken, token_type: "Bearer", expires_in: 600 });
   }
   if (url.endsWith("/userinfo")) return json({});
+  // The provider's public change password endpoint (DF-19 "Email me a reset link"); it answers the same for any address.
+  if (url.endsWith("/dbconnections/change_password")) return new Response("We've just sent you an email to reset your password.", { status: 200 });
   return new Response("not found", { status: 404 });
 }) as typeof fetch;
 

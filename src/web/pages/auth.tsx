@@ -194,6 +194,7 @@ export function LoginPage() {
       {oauthFailed && <div className="mt-4"><FormError message={params.get("error_description") || "That sign in didn't complete. Please try again."} /></div>}
       {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
+      {idp && !password && <p className="mt-4 text-center text-xs text-muted" data-testid="moved-sign-in">Forgot your password? <Link to="/forgot-password" className="font-medium text-[#0071E3] hover:underline">Set a new one</Link></p>}
       {!idp && <SocialButtons />}
       {password && (
         <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>
@@ -244,8 +245,41 @@ const card = "rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdr
 
 export function ForgotPasswordPage() {
   const providers = useAuthProviders();
-  if (providers.data && !providers.data.password) return <ManagedAtSignIn title="Reset your password" body="Choose Continue with Multies, enter your email, then pick Forgot password. We'll email you a link." />;
+  if (providers.data && !providers.data.password) return <MovedSignInReset />;
   return <LocalForgotPassword />;
+}
+
+/**
+ * One click reset for password accounts on the hosted sign in. Since DF-19 a password set before
+ * the sign in move on 25 October 2026 works again (the identity provider checks it against the old
+ * tenant once, then keeps it); this page is for anyone who forgot theirs.
+ */
+function MovedSignInReset() {
+  const [params] = useSearchParams();
+  const [email, setEmail] = useState(params.get("email") ?? "");
+  const send = useMutation({ mutationFn: () => api.post("/account/password-reset-link", { email }) });
+  if (send.isSuccess) {
+    return (
+      <div className={card} data-testid="reset-sent">
+        <MailCheck className="h-6 w-6 text-[#0071E3]" />
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">Check your email</h1>
+        <p className="mt-1 text-sm text-muted">If an account with a password exists for <b className="font-medium text-fg">{email}</b>, a link to set a new password is on its way. Then sign in with Continue with Multies.</p>
+        <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
+      </div>
+    );
+  }
+  return (
+    <div className={card}>
+      <h1 className="text-xl font-semibold tracking-tight">Reset your password</h1>
+      <p className="mt-1 text-sm text-muted">Enter the email you sign in with and we will send a link to set a new password. Your workspace and data stay as they are.</p>
+      <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); send.mutate(); }} noValidate>
+        <FormError message={send.error?.message ?? null} />
+        <Field label="Email">{(p) => <Input {...p} type="email" autoComplete="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus required />}</Field>
+        <Button type="submit" className="w-full" size="lg" loading={send.isPending} disabled={!email}>Email me a reset link</Button>
+      </form>
+      <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
+    </div>
+  );
 }
 
 /** Password, reset and verification steps that happen on the sign in page when the identity provider is on. */

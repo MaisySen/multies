@@ -49,5 +49,20 @@ export async function resendAuth0Verification(m: Mgmt, email: string): Promise<{
   return { sent: true };
 }
 
+/**
+ * Asks the identity provider to email a password reset link for a password account with this
+ * address (its public change password endpoint, which answers the same whether or not the address
+ * has an account). Used by "Email me a reset link" after the sign in move on 25 October 2026:
+ * people who set a password before then set a new one here.
+ */
+export async function sendAuth0PasswordReset(idp: { domain: string; clientId: string }, email: string): Promise<void> {
+  const res = await fetch(`https://${idp.domain}/dbconnections/change_password`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ client_id: idp.clientId, email: email.toLowerCase(), connection: "Username-Password-Authentication" }),
+  });
+  if (!res.ok) throw new Error(`auth0 change_password ${res.status}`);
+}
+
 /** For tests: forget the cached token. */
 export function resetAuth0TokenCache() { cached = null; }

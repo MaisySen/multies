@@ -6,7 +6,7 @@ import { and, count, eq, gt, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { accounts, members, organizations, sessions, users } from "../db/schema";
-import { deleteAuth0User, resendAuth0Verification } from "../services/auth0-management";
+import { deleteAuth0User, resendAuth0Verification, sendAuth0PasswordReset } from "../services/auth0-management";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
 import { authFor, authMode } from "../auth";
@@ -23,6 +23,13 @@ import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
  * and email verification are Better Auth's, served under /api/auth.
  */
 const FRESH_SESSION_MS = 15 * 60_000;
+
+/** True when the person existed before the workspace finished onboarding (DF-21). */
+export function personPredates(createdAt: Date | null | undefined, onboardedAt: unknown): boolean {
+  if (!createdAt || typeof onboardedAt !== "string") return false;
+  const done = Date.parse(onboardedAt);
+  return Number.isFinite(done) && createdAt.getTime() < done;
+}
 
 const readOrgMeta = (raw: string | null | undefined): Record<string, unknown> => {
   try { return raw ? JSON.parse(raw) as Record<string, unknown> : {}; } catch { return {}; }
@@ -45,6 +52,7 @@ const preferencesSchema = z.object({ timezone: zone.optional(), locale: localeTa
 
 export function accountRoutes() {
   const resendLimiter = new RateLimiter(3, 10 * 60_000);
+  const resetLinkLimiter = new RateLimiter(3, 10 * 60_000);
   const demoLimiter = new RateLimiter(5, 60 * 60_000);
   return new Hono<AppEnv>()
     .get("/providers", (c) => {
@@ -103,20 +111,45 @@ export function accountRoutes() {
       }
       return c.json({ ok: true });
     })
+    /**
+     * Emails a password reset link from the identity provider (one click on the sign in and
+     * Forgot password pages). Sign in moved to a new identity tenant on 25 October 2026, so a
+     * password set before then no longer works there; this is how those people set a new one.
+     * Always answers the same, so it never tells anyone whether an address has an account.
+     */
+    .post("/password-reset-link", async (c) => {
+      const { email } = await parseBody(c, z.object({ email: z.string().trim().toLowerCase().email("Enter the email you sign in with.").max(254) }));
+      if (!resetLinkLimiter.take(`${c.var.ip}|${email}`)) throw tooMany();
+      const idp = c.var.deps.config.auth.auth0;
+      if (!idp) throw new HttpError(503, "reset_unavailable", "Password resets for this sign in aren't available here. Use Forgot password on the sign in page.");
+      try {
+        await sendAuth0PasswordReset(idp, email);
+      } catch (err) {
+        c.var.deps.log?.error("account.password_reset_link_failed", { error: String(err) });
+        throw new HttpError(502, "reset_failed", "We couldn't send the email just now. Try again in a minute.");
+      }
+      return c.json({ ok: true });
+    })
     .use("*", requireAuth)
     .get("/me", async (c) => {
       const { auth } = c.var;
       const [org, prefs] = await Promise.all([
         c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
-        c.var.deps.db.select({ timezone: users.timezone, locale: users.locale }).from(users).where(eq(users.id, auth.userId)).get(),
+        c.var.deps.db.select({ timezone: users.timezone, locale: users.locale, createdAt: users.createdAt }).from(users).where(eq(users.id, auth.userId)).get(),
       ]);
-      const workspaceOnboarded = !!readOrgMeta(org?.metadata).onboardedAt;
+      const onboardedAt = readOrgMeta(org?.metadata).onboardedAt;
+      const workspaceOnboarded = !!onboardedAt;
+      // DF-21: a person who already runs an onboarded workspace (its owner or an admin), or who was
+      // in it before it was onboarded, is not asked for their name and zone again (for example after
+      // a sign in move gives them a new sign in identity). They use the workspace zone until they
+      // set their own in Settings.
+      const established = workspaceOnboarded && (auth.role !== "member" || personPredates(prefs?.createdAt, onboardedAt));
       return c.json({
-        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin", timezone: prefs?.timezone ?? null, locale: prefs?.locale ?? null },
+        user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin", timezone: prefs?.timezone ?? (established ? org?.timezone ?? null : null), locale: prefs?.locale ?? null },
         organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso, onboarded: workspaceOnboarded } : null,
         // A short onboarding once per person (their zone and language), plus the workspace's name, country and zone for its owner or admins.
         onboarding: {
-          needed: !!org && !org.isDemo && !prefs?.timezone,
+          needed: !!org && !org.isDemo && !prefs?.timezone && !established,
           workspace: !!org && !org.isDemo && !workspaceOnboarded && auth.role !== "member",
         },
         session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },

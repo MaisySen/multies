@@ -91,3 +91,48 @@ describe("onboarding", () => {
     expect(me.organization).toMatchObject({ timezone: "Europe/Paris", country: "FR" });
   });
 });
+
+describe("DF-21: onboarding is not asked again of an established person", () => {
+  it("an owner of an onboarded workspace whose zone is missing is not asked again and uses the workspace zone", async () => {
+    const ctx = await makeTestApp();
+    const c = new Client(ctx.app);
+    await c.signup("founder@example.com", "Founder");
+    await c.post("/api/account/onboarding", { name: "Founder", timezone: "Australia/Sydney", locale: "en-AU", company: "Haajir HQ", country: "AU", workspaceTimezone: "Australia/Sydney" });
+    // A sign in move gives the person a fresh identity; their own zone is gone, the workspace's is not.
+    await ctx.db.update(users).set({ timezone: null, locale: null }).where(eq(users.email, "founder@example.com"));
+    const me = (await c.get("/api/account/me")).body;
+    expect(me.organization.onboarded).toBe(true);
+    expect(me.onboarding).toEqual({ needed: false, workspace: false });
+    expect(me.user.timezone).toBe("Australia/Sydney");
+  });
+
+  it("a member who joins after onboarding is still asked once; one who was there before is not", async () => {
+    const ctx = await makeTestApp();
+    const owner = new Client(ctx.app);
+    await owner.signup("owner2@example.com", "Owner Two");
+    const orgId = (await owner.get("/api/account/me")).body.organization.id;
+    const early = new Client(ctx.app);
+    await early.signup("early@example.com", "Early");
+    await ctx.db.update(users).set({ createdAt: new Date("2026-01-01T00:00:00Z") }).where(eq(users.email, "early@example.com"));
+    await owner.post("/api/account/onboarding", { name: "Owner Two", timezone: "Europe/Paris", locale: "fr-FR", company: "Acme", country: "FR", workspaceTimezone: "Europe/Paris" });
+    const late = new Client(ctx.app);
+    await late.signup("late@example.com", "Late");
+    const { members, sessions } = await import("@/server/db/schema");
+    for (const email of ["early@example.com", "late@example.com"]) {
+      const u = (await ctx.db.select().from(users).where(eq(users.email, email)).get())!;
+      await ctx.db.insert(members).values({ id: `mem_${u.id}`, organizationId: orgId, userId: u.id, role: "member" });
+      await ctx.db.update(sessions).set({ activeOrganizationId: orgId }).where(eq(sessions.userId, u.id));
+    }
+    expect((await early.get("/api/account/me")).body.onboarding).toEqual({ needed: false, workspace: false });
+    expect((await late.get("/api/account/me")).body.onboarding).toEqual({ needed: true, workspace: false });
+  });
+
+  it("personPredates reads the stored onboarding time", async () => {
+    const { personPredates } = await import("@/server/routes/account");
+    expect(personPredates(new Date("2026-10-01T00:00:00Z"), "2026-10-02T00:00:00.000Z")).toBe(true);
+    expect(personPredates(new Date("2026-10-03T00:00:00Z"), "2026-10-02T00:00:00.000Z")).toBe(false);
+    expect(personPredates(null, "2026-10-02T00:00:00.000Z")).toBe(false);
+    expect(personPredates(new Date(), undefined)).toBe(false);
+    expect(personPredates(new Date(), "not a date")).toBe(false);
+  });
+});

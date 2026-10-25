@@ -755,3 +755,11 @@ the activity row, like any field.
   `automationRuns: { runs, skipped }` (skipped: over the cap, or paused while the daily write budget reads warn or shed).
 - A call started from chat that ends because the last person left runs `meeting_ended` automations once.
 - MCP `create_custom_field` also takes `formula` (with `config: { expression }`) and `rollup` (with `config: { source, fn, field }`).
+
+## Saved views (DF-20)
+
+Saved views (the filters behind a board, list, calendar, timeline, sprints or workload view) can be made with an API key, not only in the app.
+
+- `GET /api/v1/views?projectId=` lists shared views and the key owner's own.
+- `POST /api/v1/views` with `{ "name": "Build board", "view": "sprints", "projectId": "prj_...", "filters": { "status": "doing" }, "shared": true }` answers 201 with the view. Shared unless `shared` is false. One row written. Read only keys get 403, a project outside the workspace 404, bad input 422.
+- `DELETE /api/v1/views/{id}` removes it; tasks are not touched.

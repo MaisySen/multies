@@ -5,7 +5,8 @@ import globals from "globals";
 
 export default tseslint.config(
   // mobile/ is the Expo app, merged from the mobile branch, with its own lint and tests.
-  { ignores: ["dist", ".wrangler", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile"] },
+  // deploy/auth0: scripts that run inside the identity provider (its globals, not ours); tests/auth0-legacy-migration.test.ts runs them.
+  { ignores: ["dist", ".wrangler", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile", "deploy/auth0"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

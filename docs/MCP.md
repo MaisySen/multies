@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 114 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 117 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -385,3 +385,13 @@ Registered in src/server/routes/mcp-r24-formulas.ts. `get_computed_fields` is a 
 | `get_computed_fields` | With `taskId` (an id or a reference like OPS-12): each formula and rollup field on the task's project with its settings and value; with `projectId`: the project level rollups over its tasks. A value that can't be worked out is `#ERROR` with a plain `error` message |
 | `create_formula_field` | Adds a read only formula field, like `{Budget} * 1.1` or `if({points} > 5, "big", "small")`; field names go in braces, built ins are points, due, start, created, completed, status, priority, title and assignee; functions: if, round, floor, ceil, abs, min, max, sum, concat, len, upper, lower, days_between, today, now, date_add, is_empty, coalesce; up to 500 characters; loops between formulas are refused |
 | `create_rollup_field` | Adds a rollup: `source` subtasks, epic_children (an epic's items and their subtasks) or project (one value over the project, shown in its header); `fn` sum, count, count_done, average, min, max or percent_done; `field` points or a number, currency or formula field (not needed for the count functions) |
+
+### Saved views (DF-20)
+
+Registered in src/server/routes/mcp-views.ts. `list_saved_views` is a read, so read only keys and tokens can call it; the other two need a full key or token. The same views are on REST as GET /api/v1/views, POST /api/v1/views and DELETE /api/v1/views/{id}.
+
+| Tool | What it does |
+| --- | --- |
+| `list_saved_views` | Saved views you can open (shared ones and your own), optionally for one project: id, name, view type and filters |
+| `create_saved_view` | Save a view of tasks: `view` board, list, calendar, timeline, sprints or workload, an optional `projectId`, and `filters` (assignee, status, priority, label, type, due, q); shared unless `shared` is false. One row written |
+| `delete_saved_view` | Remove a saved view by id; tasks are not touched |

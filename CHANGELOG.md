@@ -16,6 +16,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Workload: a weekly capacity per person in points or hours, set on their row (owners and admins for anyone, members for themselves). Migration 0051: `workload_capacity`.
 - Meeting notes: type @ in an action item to pick who it is for.
 - API and MCP: REST endpoints for all of the above, and 13 new MCP tools (114 in all).
+- Meeting notes: live co-editing. Two people in the same notes see each other's typing and cursors through the doc room, with the same save loop as docs (and the plain save when the live link is down).
+- Formulas: renaming a field rewrites `{Old Name}` in the project's formulas, so they keep working. MCP create_custom_field takes formula and rollup types.
+- Recipes: "when a meeting ends" fires when a call empties; bulk edits fire "assignee changed"; at most 50 rule runs per request, paused at the write budget warning.
+- Dashboards: Move up and Move down in each widget's menu. Guests see a project's page tree and "Linked from".
+- Sign in (DF-19): passwords set before the sign in move on 25 October work again. The new sign in checks a password it does not have yet against the old one, once, then keeps it; Forgot password finds people who were only on the old one. The sign in page has a one click "Set a new one".
+- Onboarding (DF-21): an owner or admin of a workspace that is already set up, or a member who was there before it was, is not asked for their name and zone again; they use the workspace zone until they set their own.
+- Saved views in the API (DF-20): GET, POST and DELETE /api/v1/views, and MCP list_saved_views, create_saved_view and delete_saved_view (117 tools), so agents can set up boards for people.
 
 ### Round 23: meetings that produce work (25 Oct 2026)
 
