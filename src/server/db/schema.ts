@@ -1506,36 +1506,14 @@ export const mailSnippets = sqliteTable("mail_snippets", {
 }, (t) => [index("mail_snippets_org_name_idx").on(t.orgId, t.name)]);
 
 /**
- * Round 23 (R23.4): a person's calendar feed (/cal/<token>.ics). Only a SHA-256 hash of the token is
- * kept, with a short hint; resetting replaces the hash so the old address stops at once.
+ * Round 23 (R23.1): which action items of a meeting's notes doc already became tasks, so "Create tasks"
+ * never makes the same one twice. item_key is a hash of the item's normalised text. One row per item and
+ * no secondary index (the primary key serves every lookup): 1 write per converted item.
  */
-export const calendarFeeds = sqliteTable("calendar_feeds", {
+export const meetingActionItems = sqliteTable("meeting_action_items", {
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  tokenHash: text("token_hash").notNull(),
-  /** The token's last four characters, to tell two addresses apart. */
-  hint: text("hint").notNull(),
-  includeTasks: integer("include_tasks", { mode: "boolean" }).notNull().default(true),
+  meetingId: text("meeting_id").notNull(),
+  itemKey: text("item_key").notNull(),
+  taskId: text("task_id").notNull(),
   createdAt: createdAt(),
-  resetAt: ts("reset_at"),
-}, (t) => [primaryKey({ columns: [t.orgId, t.userId] }), uniqueIndex("calendar_feeds_token_uq").on(t.tokenHash)]);
-
-/**
- * Round 23 (R23.4): other calendars a person reads in Multies (read only, never stored): a connected
- * mailbox's CalDAV account, or a secret ICS link (encrypted with APP_SECRET, like mail passwords).
- * Seen only by the person who added it.
- */
-export const calendarSources = sqliteTable("calendar_sources", {
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  id: text("id").notNull(),
-  kind: text("kind", { enum: ["caldav", "ics"] }).notNull(),
-  connectionId: text("connection_id").references(() => mailConnections.id, { onDelete: "cascade" }),
-  urlEnc: text("url_enc"),
-  /** CalDAV: JSON [{ url, name, color }] found at discovery, so a view needs no discovery requests. */
-  calendars: text("calendars").notNull().default("[]"),
-  name: text("name").notNull(),
-  color: text("color").notNull().default("#8E8E93"),
-  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
-  createdAt: createdAt(),
-}, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
+}, (t) => [primaryKey({ columns: [t.orgId, t.meetingId, t.itemKey] })]);

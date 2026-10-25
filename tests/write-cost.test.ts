@@ -583,35 +583,37 @@ it("saved replies (round 22): create, edit and delete are the row and its one in
   expect(take()).toBe(2);
 });
 
-it("calendar sync (round 23): feed on 2, reset at most 3, off 2; other calendars 1 each; serving the feed and viewing events write nothing", async () => {
-  const ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Home\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\nSUMMARY:Dentist\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
-  const ctx = await makeTestApp({}, { fetch: (async () => new Response(ics)) as typeof fetch });
+it("meeting notes (round 23): the notes doc is its row plus the meeting's doc_id (8 with indexes); an action item costs its task plus 4 (claim row, link back); reads and a second press write nothing", async () => {
+  const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
   const me = (await u.get("/api/account/me")).body;
   const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const cal = await import("@/server/services/suite/calendar-sync");
-  await u.post("/api/meetings", { title: "Sync", startsAt: "2026-11-03T01:00:00Z" });
+  const { ensureNotesDoc, meetingNotes, createActionItems } = await import("@/server/services/suite/meeting-notes");
+  const { createTask } = await import("@/server/services/suite/tasks");
+  const { appendActionItem } = await import("@/shared/action-items");
+  const m = (await u.post("/api/meetings", { title: "Sync", startsAt: "2026-10-27T00:00:00Z" })).body.meeting;
+  await createTask(ctx.deps, actor, { title: "warm up the default project" });
   const take = meter(ctx.db);
-  const on = await cal.resetFeed(ctx.deps, actor);
-  expect(take()).toBe(2);
-  await cal.serveFeed(ctx.deps, on.url.split("/cal/")[1].replace(".ics", ""));
-  await cal.feedStatus(ctx.deps, actor);
-  await cal.listCalendarEvents(ctx.deps, actor, { from: "2026-11-01", to: "2026-12-01" });
+  await meetingNotes(ctx.deps, actor, m.id);
   expect(take()).toBe(0);
-  const res = await ctx.app.request(new URL(on.url).pathname, { headers: { host: "localhost" } });
-  expect(res.status).toBe(200);
+  // Measured 8: the doc row with its index (2) and the meetings row with its three indexes (4), plus 2 for the docs table's other index entries.
+  const docId = await ensureNotesDoc(ctx.deps, actor, m.id);
+  expect(take()).toBeLessThanOrEqual(8);
+  await ensureNotesDoc(ctx.deps, actor, m.id);
+  await meetingNotes(ctx.deps, actor, m.id);
   expect(take()).toBe(0);
-  await cal.resetFeed(ctx.deps, actor);
-  expect(take()).toBeLessThanOrEqual(3);
-  const s = await cal.addIcsSource(ctx.deps, actor, { url: "https://calendar.example.com/secret.ics" });
-  expect(take()).toBe(1);
-  await cal.listCalendarEvents(ctx.deps, actor, { from: "2026-11-01", to: "2026-12-01" });
+  // The doc edits themselves are ordinary doc saves; measure from here.
+  const d = (await u.get(`/api/docs/${docId}`)).body.doc;
+  await u.patch(`/api/docs/${docId}`, { content: appendActionItem(appendActionItem(d.content, "One"), "Two"), version: d.version });
+  take();
+  await createTask(ctx.deps, actor, { title: "Baseline" });
+  const taskCost = take(); // measured 16
+  const r = await createActionItems(ctx.deps, actor, m.id, {});
+  expect(r.created).toHaveLength(2);
+  // Measured per item: the task (as createTask) + 4: the claim row (meeting_action_items, counted with its primary key entry) and the link back (entity_links row and index).
+  expect(take()).toBeLessThanOrEqual(2 * (taskCost + 4));
+  await createActionItems(ctx.deps, actor, m.id, {});
+  await meetingNotes(ctx.deps, actor, m.id);
   expect(take()).toBe(0);
-  await cal.updateSource(ctx.deps, actor, s.id, { enabled: false });
-  expect(take()).toBe(1);
-  await cal.removeSource(ctx.deps, actor, s.id);
-  expect(take()).toBe(1);
-  await cal.disableFeed(ctx.deps, actor);
-  expect(take()).toBe(2);
 });

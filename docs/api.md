@@ -439,36 +439,26 @@ can open (same workspace, a mailbox in their scope), else 404.
 D1 writes: create, edit and delete are 2 rows each (the WITHOUT ROWID row and its one index entry); list
 and render write nothing.
 
+## Meeting notes and action items (round 23)
 
-## Calendar sync (round 23)
+Each meeting can have one agenda and notes doc, made the first time someone opens Notes (or calls
+`POST .../notes`). It starts with the headings Agenda, Notes and Action items, the last holding an
+empty checklist. Two people opening at once get the same doc. A weekly series shares one doc. The doc
+is a normal doc (any member can open and edit it) and shows "Notes for <meeting>" with a link back.
 
-A person's calendar feed: a secret address, `https://<app>/cal/<token>.ics`, for Google Calendar,
-Apple Calendar or Outlook (Settings > Calendar). It holds their meetings (they made them, are invited
-by email, or the call came from one of their channels or DMs; a weekly series is one event with its
-RRULE and VTIMEZONE) and the due dates of open tasks assigned to them as all day events ("Due: ..."),
-30 days back to 180 days ahead, at most 1,000 items. The token is the only key: only its SHA-256 hash
-and its last four characters are stored. Reset makes a new address and the old one answers 404 at once.
-The feed answers GET and HEAD with `ETag` and `Cache-Control: private, max-age=300`, `If-None-Match`
-gives 304, and it is limited to 30 fetches a minute per token. Serving it writes nothing to the database.
+Action items are the doc's checklist items, anywhere in it. Each unchecked item gives a title, an
+assignee from "@Full Name", "@First" (when only one person has that first name), "@email" or a mention,
+and a due date from "due Fri", "by Friday", "next Tue", "by 30 Oct", "due Oct 30th", "by 2026-10-30",
+"today" or "tomorrow" (in the series' time zone, else the person's, else the workspace's). Turning them
+into tasks is one request; an item that already became a task is skipped, so pressing twice makes
+nothing new. Each task links back to the meeting. Assignees must be members or agents of the workspace.
+The project is the one given, else the meeting's source task's project, else the workspace's first.
 
-Other calendars (read only, per person, never shared with the workspace): a connected mailbox's
-CalDAV calendar (Fastmail, iCloud, Zoho, Yahoo, GMX or the mail server's own; same user name and app
-password) or a secret ICS link (Google "Secret address in iCal format", Outlook "Publish calendar").
-The ICS link is stored encrypted and never sent back (only its host). Events are fetched when the
-calendar opens and kept in memory for 5 minutes; none are stored. Private network addresses are refused.
-Gmail and Outlook calendars need their own sign in (coming later); add their ICS link meanwhile.
+- App API: `GET /api/meeting-notes/:meetingId` (reads only; `doc` is null until made), `POST /api/meeting-notes/:meetingId` (makes the doc if missing, answers the same), `POST /api/meeting-notes/:meetingId/action-items` `{ projectId?, items?: [{ key?, title?, assignee?, due? }] }`, `GET /api/meeting-notes/by-doc/:docId` (the meeting a doc is the notes of, or null).
+- Public API: `GET /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/action-items`. Read only keys can read the notes but not make the doc or tasks.
+- MCP: `get_meeting_notes`, `create_action_items`.
+- Another workspace's meeting answers 404; project guests and meeting guests have no workspace session (401).
 
-- App API: `GET|POST|PATCH|DELETE /api/calendar/feed` (POST turns on or resets and answers the address
-  once; PATCH `{ includeTasks }`), `GET /api/calendar/events?from&to` (at most 100 days; meetings, due
-  dates and the person's other calendars, with `errors` per calendar that could not be read),
-  `GET /api/calendar/sources`, `GET /api/calendar/sources/options` (the person's connected mailboxes
-  and whether each offers CalDAV), `POST /api/calendar/sources` `{ kind: "ics", url, name? }` or
-  `{ kind: "caldav", connectionId, url? }`, `PATCH|DELETE /api/calendar/sources/:id` `{ enabled?, name?, color? }`.
-- Public API: `GET /api/v1/calendar/events?from&to` (keys see the workspace's meetings and due dates,
-  no other calendars), `GET /api/v1/calendar/feed` (status of the key's person's feed: `enabled`,
-  `hint`, `includeTasks`; never the address), `POST /api/v1/calendar/feed/reset` (full keys; answers the
-  new address once).
-- MCP: `list_calendar_events`.
-
-D1 writes: turning the feed on is 2 rows (the row and its unique token index), a reset 3 at most, off 2;
-adding, changing or removing another calendar is 1. Fetching the feed and viewing events write nothing.
+D1 writes: the doc costs 8 rows once (the doc row and the meeting's doc_id, with their indexes); each
+action item costs its task plus 4 (the meeting_action_items row and the link back); reading the notes
+and a second press write nothing.

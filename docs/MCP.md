@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 96 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 97 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -228,13 +228,14 @@ Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens c
 | `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
 | `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
-### Calendar (round 23)
+### Meeting notes (round 23)
 
-Registered in src/server/routes/mcp-r23-calendar.ts. Read only; nothing is written.
+Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can read the notes; `create_action_items` needs a key that can write. Agent keys create tasks as their agent.
 
 | Tool | What it does |
 | --- | --- |
-| `list_calendar_events` | Meetings (weekly series expanded) and task due dates between `from` and `to` (at most 100 days). Signed in as a person (OAuth): your meetings, your tasks' due dates and your other calendars (read only, `kind: external`). With a key: every meeting and due date in the workspace |
+| `get_meeting_notes` | A meeting's title, time and attendees with its notes doc as plain structure: agenda lines, notes lines, and action items (title, assignee, due date, and the task once made). `doc` is null before anyone took notes; `summary` is null unless a recording summary exists |
+| `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
 
 ## Claude (claude.ai and Claude Desktop)
 

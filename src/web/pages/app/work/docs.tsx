@@ -8,6 +8,7 @@ import { TextSelection } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
+import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -19,6 +20,7 @@ import { cn } from "@/web/lib/cn";
 import { useMe } from "@/web/lib/queries";
 import { colourFor, connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
 import { tone } from "@/web/components/app-bits";
+import { MeetingNotesBacklink } from "./meeting-notes";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -143,11 +145,11 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   // reconfigure the view, which redraws the shared document and drops the cursor.
   const extensions = useMemo(() => (session
     ? [
-        StarterKit.configure({ undoRedo: false }),
+        StarterKit.configure({ undoRedo: false }), TaskList, TaskItem.configure({ nested: true }),
         Collaboration.configure({ document: session.ydoc, field: FIELD }),
         CollaborationCaret.configure({ provider: session.provider, user: { name: "Someone", color: "#e8590c" }, render: renderCaret }),
       ]
-    : [StarterKit]), [session]);
+    : [StarterKit, TaskList, TaskItem.configure({ nested: true })]), [session]);
   const editor = useEditor({
     extensions,
     // No content key at all in a live session: the room is the content, and an option
@@ -287,6 +289,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
         onBlur={() => void saveTitle()}
         className="w-full bg-transparent text-[26px] font-semibold tracking-tight outline-none" placeholder="Untitled" />
+      <MeetingNotesBacklink docId={doc.id} />
       {doc.links.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {doc.links.map((l) => (

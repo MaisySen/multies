@@ -33,7 +33,7 @@ import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
-import { registerCalendarRoutes } from "./v1-r23-calendar";
+import { registerMeetingNotesRoutes } from "./v1-r23-notes";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
 import { registerWorkImportRoutes } from "./v1-work-import";
@@ -225,7 +225,6 @@ export function v1Routes() {
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
-  api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -401,7 +400,7 @@ export function v1Routes() {
   registerThreadCommentRoutes(api); // Round 22: internal notes on threads
   registerR22AssignRoutes(api);
   registerSnippetRoutes(api); // Round 22: saved replies
-  registerCalendarRoutes(api); // Round 23: calendar events and feed
+  registerMeetingNotesRoutes(api); // Round 23: meeting notes and action items
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
