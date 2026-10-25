@@ -100,6 +100,18 @@ describe("D1 write budget", () => {
     expect((await c.get("/api/config")).status).toBe(200);
     const health = await c.get("/api/health");
     expect(health.body.writes).toMatchObject({ today: 60_000, budget: 100_000, level: "warn" });
+    // Round 22: presence heartbeats write nothing, so the guard lets them through (here to the auth check).
+    expect((await c.post("/api/threads/thr_1/presence", { clientId: "a", state: "viewing" })).status).toBe(401);
+    expect((await c.post("/api/threads/thr_1/presence/leave", { clientId: "a" })).status).toBe(401);
+    expect((await c.post("/api/threads/thr_1/comments", { body: "x" })).status).toBe(503);
+  });
+
+  it("matches only presence paths as write free", async () => {
+    const { PRESENCE_PATH } = await import("@/server/app");
+    expect(PRESENCE_PATH.test("/api/threads/thr_1/presence")).toBe(true);
+    expect(PRESENCE_PATH.test("/api/threads/thr_1/presence/leave")).toBe(true);
+    expect(PRESENCE_PATH.test("/api/threads/thr_1/comments")).toBe(false);
+    expect(PRESENCE_PATH.test("/api/threads/a/b/presence")).toBe(false);
   });
 });
 

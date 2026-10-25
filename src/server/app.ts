@@ -53,6 +53,9 @@ import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
+/** Presence heartbeats and leaves (round 22): memory only, never a D1 write. */
+export const PRESENCE_PATH = /^\/api\/threads\/[^/]+\/presence(\/leave)?$/;
+
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
   const notFoundHandler = (c: Context<AppEnv>) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404));
@@ -144,6 +147,8 @@ export function createApp(deps: Deps) {
   if (deps.config.writeBudget.strict) {
     app.use("/api/*", async (c, next) => {
       if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS" || c.req.path === "/api/health") return next();
+      // Round 22: presence heartbeats live in memory and write nothing, so they keep working.
+      if (PRESENCE_PATH.test(c.req.path)) return next();
       const r = await writeBudget(deps);
       if (r.level === "warn" || r.level === "shed") return c.json(READ_ONLY_BODY, 503, { "retry-after": "3600" });
       return next();
