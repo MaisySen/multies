@@ -33,12 +33,12 @@ const Task = z.object({
   id: z.string(), ref: z.string().openapi({ example: "OPS-12" }), projectId: z.string(), number: z.number().int(), title: z.string(), notes: z.string(),
   statusId: z.string(), statusName: z.string(), statusColor: z.string(), status: z.enum(["todo", "doing", "done"]),
   assignee: Assignee, assigneeId: z.string().nullable(), priority: z.enum(["none", "low", "medium", "high", "urgent"]), labels: z.array(z.string()),
-  type: z.enum(["task", "story", "bug", "epic"]).openapi({ description: "task, story, bug or epic." }),
   start: z.string().nullable(), due: z.string().nullable(), parentId: z.string().nullable(), position: z.number(),
   source: z.object({ threadId: z.string().nullable(), messageId: z.string().nullable(), from: z.string(), subject: z.string() }).nullable(),
   subtasks: z.object({ total: z.number(), done: z.number() }), commentCount: z.number(), completedAt: z.string().nullable(),
   createdBy: z.object({ type: z.string(), id: z.string().nullable() }), createdAt: z.string(), updatedAt: z.string(), version: z.number().int(),
   fields: z.record(z.string(), z.unknown()).openapi({ description: "Custom field values by field id. See Field for the value types." }),
+  sprintId: z.string().nullable().optional(), points: z.number().nullable().optional(),
 }).openapi("Task");
 const Status = z.object({ id: z.string(), name: z.string(), category: z.enum(["todo", "doing", "done"]), color: z.string(), position: z.number() });
 const Project = z.object({ id: z.string(), name: z.string(), description: z.string(), key: z.string(), color: z.string(), archived: z.boolean(), statuses: z.array(Status), counts: z.record(z.string(), z.number()), createdAt: z.string(), updatedAt: z.string(), version: z.number() }).openapi("Project");

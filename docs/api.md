@@ -189,6 +189,21 @@ A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional
 - `GET /api/v1/meetings/{id}/ics` (and `/api/meetings/{id}/ics` in the app) gives the .ics; a series carries its `RRULE` with `DTSTART;TZID=...` and a `VTIMEZONE` for that zone (yearly STANDARD and DAYLIGHT rules from the runtime's zone data, or one STANDARD part for a zone without daylight saving), which older Outlook versions need. Calendar invites carry the same.
 - Meetings come back with `recurrence: { interval, days, until, count, rrule, timezone, summary }` or null. MCP: `schedule_meeting` takes `repeats` (an RRULE), `list_meetings` returns `repeats`.
 
+## Sprints (round 21)
+
+Sprints (cycles) per project: plan them ahead, run one at a time, complete them with the unfinished
+tasks carried to the next sprint or back to the backlog. Tasks in no sprint are the project's backlog.
+Each task has an optional estimate (`points`), counted in points or hours per project.
+The burndown has one entry per day in the person's (or workspace's, or `timeZone`) zone: what was left at
+the end of that day, in points, or in tasks when nothing is estimated, and the ideal line. It is worked out
+on read, so a task change costs no extra write; a completed sprint keeps its final chart.
+
+- Page: Tasks, Sprints view (pick a project).
+- App API: `GET /api/sprints?projectId=`, `GET /api/sprints/backlog?projectId=`, `POST /api/sprints` `{ projectId, name?, goal?, startAt?, endAt? }`, `GET`, `PATCH` and `DELETE /api/sprints/:id` (delete: planned only), `POST /api/sprints/:id/start`, `POST /api/sprints/:id/complete` `{ carryOver: "next" | "backlog" }`, `POST /api/sprints/:id/tasks` and `POST /api/sprints/:id/tasks/remove` `{ taskIds }` (up to 500), `PUT /api/sprints/estimate-unit` `{ projectId, unit: "points" | "hours" }`
+- Public API: `GET` and `POST /api/v1/projects/{id}/sprints`, `GET /api/v1/projects/{id}/backlog`, `GET`, `PATCH` and `DELETE /api/v1/sprints/{id}` (`timeZone` on GET), `POST /api/v1/sprints/{id}/start`, `POST /api/v1/sprints/{id}/complete` `{ carry_over: "next" | "backlog" }`, `POST /api/v1/sprints/{id}/tasks` and `/tasks/remove` `{ taskIds }`, `PUT /api/v1/tasks/{id}/points` `{ points }`. Task create and update also take `sprintId` and `points`.
+- Errors: 409 `sprint_already_active` (complete the running one first), 409 `sprint_completed`, 422 when a sprint ends before it starts or a task is in another project.
+- MCP: `list_sprints`, `get_sprint`, `create_sprint`, `start_sprint`, `complete_sprint`, `add_to_sprint`, `remove_from_sprint`.
+
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
@@ -227,32 +242,3 @@ The list lives in `src/server/services/developer/webhooks.ts`.
 - `POST /api/inbound/cloudflare`: mail from the inbound Email Worker, signed with an inbound key (Settings, Inbound; `/api/inbound-keys`).
 - `POST /api/webhooks/resend`: delivery, bounce and complaint events, verified with the Resend signing secret.
 - `POST /api/webhooks/stripe`: billing events, verified with the Stripe signature.
-
-## Task types and epics (round 21)
-
-Every task has a `type`: `task` (the default), `story`, `bug` or `epic`. Set it on create or update
-(`POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/v1/tasks`, `PATCH /api/v1/tasks/{id}`) and
-filter by it: `GET /api/v1/tasks?type=bug`. A repeating task repeats with its type.
-
-An epic groups work through the parent link: an item whose `parentId` is an epic is in that epic.
-The list and board show an epic's items (they are top level work); subtasks of a story, task or bug
-stay subtasks. Rules:
-
-- An epic has no parent: it can't be a subtask or sit inside another epic (`epic_in_epic`).
-- A story, task or bug is in at most one epic. Adding it to another epic moves it.
-- An item with a parent can't become an epic until it is taken out (`epic_has_parent`).
-- An epic that still has items keeps its type until they are moved out (`epic_has_items`).
-
-Endpoints (the app uses the same shapes under `/api/epics` with the session cookie):
-
-- `GET /api/v1/epics?project=<projectId>`: epics with `progress`.
-- `GET /api/v1/epics/{id}`: one epic (id or reference) with `progress` and its `items`.
-- `POST /api/v1/epics/{id}/items` with `{ "ids": [...] }` (up to 100 ids or references): puts them in the epic. Answers `{ epic, items, moved }`.
-- `DELETE /api/v1/epics/{id}/items` with `{ "ids": [...] }`: takes them out (only items in this epic).
-
-`progress` is worked out when read (no writes): `done`, `total` and `percent` over the epic's items
-and their subtasks, `items` and `subtasks` counted apart, `points` (`{ done, total, percent }`) when
-tasks carry points and otherwise `null`, and `start` and `end`: the earliest start and latest due
-date of its items. Read only keys can read epics but not add or remove items. Adding N items is one
-batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
-MCP: `list_epics`, `get_epic`, `add_to_epic`.

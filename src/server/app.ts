@@ -29,7 +29,7 @@ import { inviteRoutes, teamRoutes } from "./routes/team";
 import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { mailScheduleRoutes } from "./routes/mail-schedules";
-import { epicRoutes } from "./routes/suite-r21-types";
+import { sprintRoutes } from "./routes/sprints";
 import { developerRoutes } from "./routes/developer";
 import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
@@ -221,6 +221,7 @@ export function createApp(deps: Deps) {
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/mail-schedules", mailScheduleRoutes());
+  app.route("/api/sprints", sprintRoutes());
   app.route("/api/developer", developerRoutes());
   app.route("/api/oauth", oauthRoutes());
   app.route("/.well-known", oauthWellKnownRoutes());
@@ -256,7 +257,6 @@ export function createApp(deps: Deps) {
   app.route("/api/work-imports", workImportRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());
-  app.route("/api/epics", epicRoutes());
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
   // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on
   // every new isolate. On the Workers Free plan the first request of an isolate pays for
