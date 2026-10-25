@@ -32,7 +32,7 @@ import { mailScheduleRoutes } from "./routes/mail-schedules";
 import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { workloadRoutes } from "./routes/workload";
-import { automationRecipeRoutes } from "./routes/automation-recipes";
+import { docTreeRoutes, guestDocTreeRoutes, taskBacklinkRoutes } from "./routes/doc-tree";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { mailSnippetRoutes } from "./routes/mail-snippets";
@@ -252,13 +252,14 @@ export function createApp(deps: Deps) {
   app.route("/api/approvals", approvalRoutes());
   app.route("/api/ai", aiRoutes());
   app.route("/api/projects", projectRoutes());
+  app.route("/api/tasks", taskBacklinkRoutes()); // R24.5: GET /api/tasks/:id/backlinks
   app.route("/api/tasks", taskRoutes());
   app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
+  app.route("/api/docs", docTreeRoutes()); // R24.5: tree, move, backlinks (before /:id)
   app.route("/api/docs", docRoutes());
   app.route("/api/contacts", contactRoutes());
   app.route("/api/companies", companyRoutes());
   app.route("/api/deals", dealRoutes());
-  app.route("/api/automations/recipes", automationRecipeRoutes()); // R24.4: automation recipes
   app.route("/api/automations", automationRoutes());
   app.route("/api/notifications", notificationRoutes());
   app.route("/api/push", pushRoutes());
@@ -279,6 +280,7 @@ export function createApp(deps: Deps) {
   app.route("/api/search", searchRoutes());
   app.route("/api/my-work", myWorkRoutes());
   app.route("/api/guest/search", guestSearchRoutes());
+  app.route("/api/guest/r24", guestDocTreeRoutes()); // R24.5: a guest's page tree and backlinks
   app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
   app.route("/api/work-imports", workImportRoutes());

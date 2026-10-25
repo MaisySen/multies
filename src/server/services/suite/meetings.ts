@@ -203,8 +203,6 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   await deps.db.update(meetings).set(set).where(eq(meetings.id, id));
   await recordWrite(deps, actor, { entityType: "meeting", entityId: id, op: "update", version: m.version + 1, verb: "meeting.updated", data: { status: patch.status },
     event: "meeting.updated", eventData: { id, status: set.status ?? m.status } });
-  // R24.4: meeting_ended rules, once when a meeting is marked ended.
-  if (patch.status === "ended" && m.status !== "ended") await (await import("./automations-r24")).runMeetingEnded(deps, actor, { id, title: set.title ?? m.title });
   return out(deps, await meetingRow(deps, actor.orgId, id));
 }
 

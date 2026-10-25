@@ -93,6 +93,7 @@ export const DocCreate = z.object({
   content: z.record(z.string(), z.unknown()).optional().openapi({ description: "A Tiptap (ProseMirror) JSON document." }),
   text: z.string().max(200_000).optional().openapi({ description: "Or plain text: one paragraph per line, # headings and - bullets." }),
   projectId: z.string().nullable().optional(), links: z.array(LinkTarget).max(20).optional(),
+  parentId: z.string().max(64).nullable().optional().openapi({ description: "R24: put the new page under this page in the docs tree." }),
 }).openapi("DocCreate");
 export const DocPatch = z.object({
   title: z.string().trim().max(200).optional(), content: z.record(z.string(), z.unknown()).optional(), version: z.number().int().optional(), links: z.array(LinkTarget).max(20).optional(),
@@ -114,8 +115,8 @@ export const DealCreate = z.object({
 export const DealPatch = DealCreate.partial().extend({ position: z.number().finite().optional() }).openapi("DealPatch");
 
 export const AutomationCreate = z.object({
-  name: z.string().trim().min(1).max(120), trigger: z.enum(["email_received", "status_changed", "due_soon", "task_created", "assignee_changed", "due_passed", "meeting_ended", "chat_message_posted"]),
-  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify", "assign_thread", "post_to_channel", "assign_task", "set_status", "add_label", "set_priority", "create_subtask_checklist"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
+  name: z.string().trim().min(1).max(120), trigger: z.enum(["email_received", "status_changed", "due_soon"]),
+  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify", "assign_thread"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
   enabled: z.boolean().optional(),
 });
 // R22.5: no defaults on a patch. With them, a patch of only { enabled } reset conditions and actionConfig to {}
