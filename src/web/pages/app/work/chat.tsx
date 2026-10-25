@@ -13,6 +13,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
+import { CallHeaderStatus } from "./call-r23";
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -71,7 +72,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
         </div>
-        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} /> : <Body m={m} />}
+        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} channelId={m.channelId} /> : <Body m={m} />}
         {m.attachments.length > 0 && (
           <ul className="mt-1.5 flex flex-wrap gap-2">
             {m.attachments.map((f) => (
@@ -322,6 +323,7 @@ export function ChatPage() {
               {current.guestAccess && <span className="rounded bg-ok/15 px-1.5 text-[11.5px] text-ok">shared with guests</span>}
               <span className="truncate text-[12.5px] text-subtle">{current.topic}</span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
+                <CallHeaderStatus channelId={current.id} />
                 <ChatSearch channelId={current.id} onOpen={openResult} />
                 {!current.archived && <CallButton channelId={current.id} onStarted={refresh} />}
               </div>

@@ -24,6 +24,7 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "approval.requested": "approval",
   "task.due_soon": "due_soon",
   "chat.dm": "chat",
+  "call.started": "chat",
   "task.email_reply": "email",
   "automation.email": "email",
   "message.received": "email",

@@ -228,14 +228,6 @@ Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens c
 | `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
 | `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
-### Calendar (round 23)
-
-Registered in src/server/routes/mcp-r23-calendar.ts. Read only; nothing is written.
-
-| Tool | What it does |
-| --- | --- |
-| `list_calendar_events` | Meetings (weekly series expanded) and task due dates between `from` and `to` (at most 100 days). Signed in as a person (OAuth): your meetings, your tasks' due dates and your other calendars (read only, `kind: external`). With a key: every meeting and due date in the workspace |
-
 ## Claude (claude.ai and Claude Desktop)
 
 Settings, Connectors, Add custom connector. Name it Multies and paste `https://multies.si/api/v1/mcp`.
@@ -313,3 +305,11 @@ npx @modelcontextprotocol/inspector
 
 Choose Streamable HTTP and paste the URL. The inspector can run the OAuth sign in, or you can add the
 `Authorization` header with a key.
+
+### Calls in chat (round 23)
+
+Registered in src/server/routes/mcp-r23-calls.ts. Read only. Agents can't start calls (people press Call in chat); they can schedule meetings with `create_meeting`. Keys can't open DMs or private channels, so their calls answer not found.
+
+| Tool | What it does |
+| --- | --- |
+| `get_call_status` | Live status of calls: `channelId` for the calls started in a channel in the last 6 hours (live, waiting or ended, who is in each), or `meetingId` for one meeting; `enabled` is false when video is off |

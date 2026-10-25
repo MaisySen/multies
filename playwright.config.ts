@@ -23,7 +23,7 @@ export default defineConfig({
   use: { baseURL: process.env.E2E_BASE_URL ?? `http://localhost:${PORT}` },
   webServer: process.env.E2E_BASE_URL ? undefined : [
     {
-      command: `rm -rf .data/e2e.db .data/e2e-outbox && PORT=${PORT} DATABASE_PATH=.data/e2e.db OUTBOX_DIR=.data/e2e-outbox DEMO_MODE=true SCHEDULING_ENABLED=true TRUST_PROXY=true APP_URL=http://localhost:${PORT} npx tsx src/entry/node.ts`,
+      command: `rm -rf .data/e2e.db .data/e2e-outbox && PORT=${PORT} DATABASE_PATH=.data/e2e.db OUTBOX_DIR=.data/e2e-outbox DEMO_MODE=true SCHEDULING_ENABLED=true TRUST_PROXY=true CALLS_TEST_HOOK=true APP_URL=http://localhost:${PORT} npx tsx src/entry/node.ts`,
       url: `http://localhost:${PORT}/api/health`,
       reuseExistingServer: false,
     },

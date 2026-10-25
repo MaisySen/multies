@@ -41,8 +41,8 @@ import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerAssignTools } from "./mcp-r22-assign";
-import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
+import { registerCallTools } from "./mcp-r23-calls";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -215,7 +215,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerThreadCommentTools(server, deps, actor, writable, tool);
   registerPresenceTools(server, deps, actor, writable, tool);
   registerSnippetTools(server, deps, actor, writable, tool);
-  registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
+  registerCallTools(server, deps, actor, writable, tool); // Round 23
   return server;
 }
 

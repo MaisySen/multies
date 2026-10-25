@@ -7,6 +7,7 @@ import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
 import { TimerChip } from "@/web/pages/app/work/time";
+import { CallDockHost } from "@/web/pages/app/work/call-r23";
 import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
@@ -195,6 +196,7 @@ export function AppLayout() {
         </main>
         <CommandPalette open={palette} onOpenChange={setPalette} onSignOut={signOut} />
         <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
+        <CallDockHost />
       </div>
     </div>
   );
