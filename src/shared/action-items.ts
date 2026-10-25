@@ -264,3 +264,28 @@ export function appendActionItem(doc: PMNodeLike, text: string): PMNodeLike {
   }
   return { ...doc, content };
 }
+
+/** A workspace person as the notes view lists them. */
+export interface SummaryPerson { type: "member" | "agent"; id: string; name: string }
+
+const normName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** The people a summary named, matched to the workspace by full name or a first name only one person has. */
+export function matchPerson(name: string | null, people: SummaryPerson[]): SummaryPerson | null {
+  if (!name) return null;
+  const n = normName(name);
+  const full = people.filter((p) => normName(p.name) === n);
+  if (full.length === 1) return full[0];
+  const first = people.filter((p) => normName(p.name).split(" ")[0] === n);
+  return first.length === 1 ? first[0] : null;
+}
+
+/** Action items from the newest call summary that are not in the notes yet, as the action-items request takes them (round 23). */
+export function summaryItemsToAdd(view: { actionItems: { title: string }[]; people: SummaryPerson[]; summaryActionItems?: { text: string; assignee: string | null; due: string | null }[] }) {
+  const have = new Set(view.actionItems.map((i) => normName(i.title)));
+  return (view.summaryActionItems ?? []).filter((i) => i.text.trim() && !have.has(normName(i.text))).map((i) => {
+    const who = matchPerson(i.assignee, view.people);
+    return { title: i.text.trim().slice(0, 300), ...(who ? { assignee: `${who.type}:${who.id}` } : {}), ...(i.due && /^\d{4}-\d{2}-\d{2}/.test(i.due) ? { due: i.due.slice(0, 10) } : {}) };
+  });
+}
+

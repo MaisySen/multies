@@ -11,9 +11,9 @@
  * doc instead would rewrite the whole doc row (its index too) on every click and fight a live editing
  * session for the same row, so the small table is cheaper and safer.
  */
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { docs, meetingActionItems, meetings, organizations, users } from "../../db/schema";
+import { docs, meetingActionItems, meetingRecordings, meetings, organizations, users } from "../../db/schema";
 import { runBatch } from "../../db";
 import { HttpError, notFound } from "../../lib/errors";
 import { listPeople } from "../people";
@@ -90,8 +90,11 @@ export async function meetingNotes(deps: Deps, actor: SuiteActor, meetingId: str
   const m = await meetingRow(deps, actor.orgId, meetingId);
   const d = await liveDoc(deps, actor.orgId, m.docId);
   const content = d ? (JSON.parse(d.content) as PMNodeLike) : null;
-  const [people, tz, done] = await Promise.all([actionPeople(deps, actor.orgId), zoneOf(deps, actor, m),
-    deps.db.select().from(meetingActionItems).where(and(eq(meetingActionItems.orgId, actor.orgId), eq(meetingActionItems.meetingId, meetingId)))]);
+  const [people, tz, done, recorded] = await Promise.all([actionPeople(deps, actor.orgId), zoneOf(deps, actor, m),
+    deps.db.select().from(meetingActionItems).where(and(eq(meetingActionItems.orgId, actor.orgId), eq(meetingActionItems.meetingId, meetingId))),
+    // The newest finished recording's summary (round 23 R23.2), so notes, REST and MCP carry it. Reads only.
+    deps.db.select({ summary: meetingRecordings.summary, actionItems: meetingRecordings.actionItems, endedAt: meetingRecordings.endedAt }).from(meetingRecordings)
+      .where(and(eq(meetingRecordings.orgId, actor.orgId), eq(meetingRecordings.meetingId, meetingId), eq(meetingRecordings.status, "done"))).orderBy(desc(meetingRecordings.id)).limit(1).get()]);
   const now = deps.now();
   const parsed = actionItemsOf(content, people, now, tz);
   const byKey = new Map(done.map((r) => [r.itemKey, r.taskId]));
@@ -115,8 +118,10 @@ export async function meetingNotes(deps: Deps, actor: SuiteActor, meetingId: str
     /** Items not yet turned into tasks. */
     pending: actionItems.filter((i) => !converted.has(i.key)).length,
     people: people.map((p) => ({ type: p.type, id: p.id, name: p.name })),
-    /** Filled by the recording and transcript feature when a summary exists. */
-    summary: null as string | null,
+    /** The newest finished recording's summary, or null when nothing was recorded and summarised. */
+    summary: recorded?.summary ?? null,
+    /** Action items the recording's summary heard ({ text, assignee, due }), for "Make tasks from the summary". */
+    summaryActionItems: recorded ? (JSON.parse(recorded.actionItems || "[]") as { text: string; assignee: string | null; due: string | null }[]) : [],
   };
 }
 

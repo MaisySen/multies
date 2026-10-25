@@ -17,6 +17,7 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { Card, Skeleton } from "@/web/components/ui/misc";
+import { summaryItemsToAdd } from "@/shared/action-items";
 
 interface Who { type: "member" | "agent"; id: string; name: string }
 interface ActionItem {
@@ -27,6 +28,8 @@ export interface MeetingNotesView {
   meeting: { id: string; title: string; startsAt: string };
   doc: { id: string; title: string; version: number; content: Record<string, unknown>; text: string } | null;
   agenda: string[]; notes: string[]; actionItems: ActionItem[]; pending: number; people: Who[];
+  /** The newest call recording's summary and the action items it heard (round 23 R23.2). */
+  summary?: string | null; summaryActionItems?: { text: string; assignee: string | null; due: string | null }[];
 }
 interface Edit { assignee?: string; due?: string }
 
@@ -61,7 +64,10 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
   return (
     <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" data-testid="meeting-notes">
       <NotesEditor meetingId={meetingId} doc={n.doc} onSaved={() => void qc.invalidateQueries({ queryKey: key })} />
-      <ActionItems meetingId={meetingId} view={n} onDone={(v) => qc.setQueryData(key, v)} />
+      <div className="space-y-4">
+        <ActionItems meetingId={meetingId} view={n} onDone={(v) => qc.setQueryData(key, v)} />
+        <SummaryItems meetingId={meetingId} view={n} onDone={(v) => qc.setQueryData(key, v)} />
+      </div>
     </div>
   );
 }
@@ -189,5 +195,27 @@ export function MeetingNotesBacklink({ docId }: { docId: string }) {
     <Link to={`/app/meetings/${m.id}`} data-testid="doc-meeting-link" className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-[12px] text-muted hover:text-fg">
       <NotebookPen className="h-3 w-3" />Notes for {m.title}, {date}
     </Link>
+  );
+}
+
+/** "From the call summary": the recording's action items, added to the notes and made tasks in one click. */
+function SummaryItems({ meetingId, view, onDone }: { meetingId: string; view: MeetingNotesView; onDone: (v: MeetingNotesView) => void }) {
+  const [busy, setBusy] = useState(false);
+  const items = summaryItemsToAdd(view);
+  if (!items.length) return null;
+  const add = async () => {
+    setBusy(true);
+    try {
+      const r = await api.post<{ created: unknown[]; notes: MeetingNotesView }>(`/meeting-notes/${meetingId}/action-items`, { items });
+      onDone(r.notes);
+      toast.success(`${r.created.length} ${r.created.length === 1 ? "task" : "tasks"} created from the summary`);
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+  };
+  return (
+    <Card className="p-5" data-testid="summary-items">
+      <h2 className="mb-2 text-[13px] font-semibold">From the call summary</h2>
+      <ul className="mb-3 space-y-1 text-[13px]">{items.map((i) => <li key={i.title} className="flex gap-2"><Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />{i.title}</li>)}</ul>
+      <Button size="sm" onClick={() => void add()} loading={busy} data-testid="summary-items-add">Add to notes and make {items.length} {items.length === 1 ? "task" : "tasks"}</Button>
+    </Card>
   );
 }
