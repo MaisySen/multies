@@ -7,11 +7,12 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { attachments, deliveries, mailboxes, messages } from "../../db/schema";
+import { attachments, deliveries, domains, mailboxes, messages } from "../../db/schema";
 import { attachmentBytes } from "./store";
 import { PermanentJobError, RetryableJobError, registerJob } from "../jobs";
 import { deliverInbound } from "./delivery";
 import { OutboundError } from "./outbound";
+import { outboundIdentity } from "./sender";
 
 /** Attachments to send, from the database or the body store. */
 async function outboundAttachments(atts: { filename: string; contentType: string; contentB64: string | null; storageKey: string | null }[], deps: Deps) {
@@ -46,8 +47,10 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   const p = payload as DeliverJobPayload;
   const { m, mb, atts } = await load(deps, p);
   try {
+    const domain = await deps.db.select({ providerStatus: domains.providerStatus }).from(domains).where(eq(domains.id, mb.domainId)).get();
+    const id = outboundIdentity(deps, mb, domain ?? { providerStatus: null });
     const res = await deps.outbound.send({
-      from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
+      from: id.from, replyTo: id.replyTo, to: p.to, cc: p.cc, bcc: p.bcc,
       subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@mymail>`,
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined,
       attachments: await outboundAttachments(atts, deps),

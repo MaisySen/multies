@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 17: free addresses and the domain cap (25 Oct 2026)
+
+- Free addresses: every workspace can take an address on the shared Multies domain (for example ada.acme@multies.si) with one click, no domain needed, and send and receive straight away. The app suggests first name and team, keeps role and system names (support, postmaster, no-reply and others), allows it only for confirmed emails and never for sample workspaces, and gives free addresses their own daily allowance (FREE_MAIL_DAILY_SENDS, 50 recipients). Shown on the overview and on Mailboxes for workspaces without a domain. API: `GET`/`POST /api/free-address`, `POST /api/v1/free-address`. The shared domain is already verified with the sending provider, so free users use none of its domain slots. Agent inboxes for workspaces without a domain use the same shared domain and can now send (the shared row is verified).
+- The sending provider's domain cap can't break adding a domain: a refusal for a full plan keeps the domain "In the queue for a sending slot" (status `queued:`), the domain still receives, and once its DNS passes it sends through the shared domain as "<person> via Multies" with the person's address as Reply-To. The oldest queued domain takes the next free slot on each maintenance pass and right after a domain leaves. docs/runbooks/free-addresses.md has the setup and the free option.
+- scripts/free-mail-setup.ts makes the platform workspace and its inbound key (secret to a file, never printed); the Email Worker routes multies.si to production with it (MYMAIL_ROUTES).
+
 ### Everything on multies.si (25 Oct 2026)
 
 - The preview of current main is https://preview.multies.si (the staging Worker, `NOINDEX=true`: robots.txt disallows all and every response carries `X-Robots-Tag: noindex, nofollow`). The mobile web preview is https://mobile.preview.multies.si (noindex).

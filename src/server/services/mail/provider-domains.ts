@@ -65,6 +65,19 @@ function stateFrom(json: Record<string, unknown>): ProviderDomainState {
 
 const failed = (why: string): ProviderDomainState => ({ providerDomainId: null, providerRecords: null, providerStatus: `error: ${why.slice(0, 300)}` });
 
+/** Status prefix for a domain waiting for one of the provider's domain slots. */
+export const QUEUED_PREFIX = "queued:";
+
+/** The provider's words when its plan has no domain slot left (Resend: "domain limit", "maximum number of domains"). */
+const SLOT_LIMIT = /limit|maximum|max(imum)? number|upgrade|plan allows|quota/i;
+
+/** True when a refusal is the provider's per-account domain cap, not a problem with the domain itself. */
+export function isDomainSlotRefusal(status: number, message: string): boolean {
+  return (status === 403 || status === 422 || status === 429 || status === 400) && SLOT_LIMIT.test(message);
+}
+
+const queued = (why: string): ProviderDomainState => ({ providerDomainId: null, providerRecords: null, providerStatus: `${QUEUED_PREFIX} ${why.slice(0, 280)}` });
+
 /** Adds the domain to the provider with sending and receiving on. Never throws: a refusal is kept as the status. */
 export async function registerProviderDomain(deps: Deps, name: string): Promise<ProviderDomainState | null> {
   if (!usesProviderDomains(deps)) return null;
@@ -78,7 +91,11 @@ export async function registerProviderDomain(deps: Deps, name: string): Promise<
       const one = await call(deps, "GET", `/domains/${found.id}`);
       if (one.ok) return stateFrom(one.json);
     }
-    return failed(String(made.json.message ?? `the provider answered ${made.status}`));
+    const why = String(made.json.message ?? `the provider answered ${made.status}`);
+    // The provider's plan is full: wait for a slot instead of failing. Sign up and the domain's own
+    // setup never depend on this; the domain still receives mail and sends through the shared domain.
+    if (isDomainSlotRefusal(made.status, why)) return queued(why);
+    return failed(why);
   } catch {
     return failed("the email provider could not be reached");
   }

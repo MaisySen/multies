@@ -1,5 +1,5 @@
 import { emitEvent } from "./developer/webhooks";
-import { and, asc, count, eq, lt, ne, or, isNull } from "drizzle-orm";
+import { and, asc, count, eq, like, lt, ne, or, isNull } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { aliases, domains, mailboxes, organizations } from "../db/schema";
@@ -7,7 +7,7 @@ import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/c
 import { conflict, notFound } from "../lib/errors";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
 import { assertCanCreate } from "./plans";
-import { refreshProviderDomain, registerProviderDomain, removeProviderDomain } from "./mail/provider-domains";
+import { QUEUED_PREFIX, refreshProviderDomain, registerProviderDomain, removeProviderDomain } from "./mail/provider-domains";
 import type { DnsCheckReport } from "@/shared/dns";
 
 type DomainRow = typeof domains.$inferSelect;
@@ -26,10 +26,28 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
     lastCheck: d.lastCheck ? (JSON.parse(d.lastCheck) as DnsCheckReport) : null,
     counts: counts ?? null,
     // Outbound and provider-MX inbound for this domain: null when it was never registered with the provider.
-    sending: d.providerStatus ? {
-      status: d.providerStatus.startsWith("error:") ? "error" as const : d.providerStatus === "verified" ? "verified" as const : "pending" as const,
-      detail: d.providerStatus.startsWith("error:") ? d.providerStatus.slice(6).trim() : null,
-    } : null,
+    sending: d.providerStatus ? sendingState(d.providerStatus, deps) : null,
+  };
+}
+
+/**
+ * The domain's sending state for the app. "queued" means the provider had no free domain slot:
+ * the domain still receives mail and can still send, through the shared Multies domain with the
+ * person's own address as Reply-To, until a slot frees up and it is registered on its own.
+ */
+export function sendingState(providerStatus: string, deps: Pick<Deps, "config">) {
+  if (providerStatus.startsWith(QUEUED_PREFIX)) {
+    const shared = deps.config.freeMail.domain;
+    return {
+      status: "queued" as const,
+      detail: shared
+        ? `Waiting for a sending slot. Until then mail from this domain goes out through ${shared} with your address as the reply address, so replies still reach you. We move it over by itself when a slot frees up.`
+        : "Waiting for a sending slot. We register it by itself when a slot frees up. Mail inside Multies is unaffected.",
+    };
+  }
+  return {
+    status: providerStatus.startsWith("error:") ? "error" as const : providerStatus === "verified" ? "verified" as const : "pending" as const,
+    detail: providerStatus.startsWith("error:") ? providerStatus.slice(6).trim() : null,
   };
 }
 
@@ -121,6 +139,8 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, lim
     .innerJoin(organizations, eq(organizations.id, domains.orgId))
     .where(and(
       eq(organizations.isDemo, false),
+      // The deployment's shared domain (free addresses) is set up once by the operator, not by these records.
+      ne(domains.orgId, "org_platform"),
       or(
         isNull(domains.lastCheckedAt),
         and(ne(domains.status, "verified"), lt(domains.lastCheckedAt, cutoff)),
@@ -134,14 +154,43 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, lim
   for (let i = 0; i < rows.length; i += 5) {
     results.push(...(await Promise.all(rows.slice(i, i + 5).map(async (d) => ({ id: d.id, ...(await verifyDomain(deps, d)) })))));
   }
+  await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
   return results;
+}
+
+/**
+ * Domains waiting for a sending slot (the provider's plan allows a fixed number of domains per
+ * account). The oldest one is offered the next free slot: on each maintenance pass and right after
+ * a domain leaves Multies. One read when nothing waits; one provider call and one write per try.
+ */
+export async function retryQueuedProviderDomains(deps: Deps, limit = 1) {
+  const waiting = await deps.db.select().from(domains).where(like(domains.providerStatus, `${QUEUED_PREFIX}%`)).orderBy(asc(domains.createdAt)).limit(limit);
+  let registered = 0;
+  for (const d of waiting) {
+    const p = await registerProviderDomain(deps, d.name);
+    if (!p) continue;
+    // Still no slot: leave the row as it is (no write).
+    if (p.providerStatus?.startsWith(QUEUED_PREFIX)) break;
+    await deps.db.update(domains).set(p).where(eq(domains.id, d.id));
+    if (!p.providerStatus?.startsWith("error:")) registered++;
+  }
+  return { waiting: waiting.length, registered };
+}
+
+/** How many customer domains wait for a sending slot (status page and the domain list). */
+export async function queuedDomainCount(db: DB) {
+  const r = await db.select({ n: count() }).from(domains).where(like(domains.providerStatus, `${QUEUED_PREFIX}%`)).get();
+  return r?.n ?? 0;
 }
 
 export async function deleteDomain(db: DB, orgId: string, id: string, deps?: Deps) {
   const d = await getDomain(db, orgId, id);
   await db.delete(domains).where(eq(domains.id, d.id));
-  // Free the provider's slot too (its plan counts domains). Best effort.
-  if (deps && d.providerDomainId) await removeProviderDomain(deps, d.providerDomainId);
+  // Free the provider's slot too (its plan counts domains), and hand it to the next domain waiting. Best effort.
+  if (deps && d.providerDomainId) {
+    await removeProviderDomain(deps, d.providerDomainId);
+    await retryQueuedProviderDomains(deps).catch((err) => deps.reportError?.(err, { where: "domains.retryQueued" }));
+  }
   return d;
 }
 

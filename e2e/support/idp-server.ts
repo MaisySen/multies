@@ -23,9 +23,9 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
   if (url.endsWith("/oauth/token")) {
     const body = new URLSearchParams(String(init?.body ?? ""));
     if (!body.get("code_verifier")) return json({ error: "invalid_grant" });
-    const { nonce, email } = JSON.parse(Buffer.from(body.get("code") ?? "", "base64url").toString("utf8")) as { nonce: string; email: string };
+    const { nonce, email, name } = JSON.parse(Buffer.from(body.get("code") ?? "", "base64url").toString("utf8")) as { nonce: string; email: string; name?: string };
     const now = Math.floor(Date.now() / 1000);
-    const idToken = await new SignJWT({ email, email_verified: true, name: "Pat Example", nonce })
+    const idToken = await new SignJWT({ email, email_verified: true, name: name ?? "Pat Example", nonce })
       .setProtectedHeader({ alg: "RS256", kid: "e2e" }).setIssuer(ISS).setAudience("e2e-web").setSubject(`auth0|${email}`)
       .setIssuedAt(now).setExpirationTime(now + 600).sign(kp.privateKey);
     return json({ access_token: "e2e", id_token: idToken, token_type: "Bearer", expires_in: 600 });
@@ -37,5 +37,21 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
 Object.assign(process.env, {
   AUTH0_DOMAIN: DOMAIN, AUTH0_CLIENT_ID: "e2e-web", AUTH0_CLIENT_SECRET: "e2e-secret",
   PORT: process.env.PORT ?? "8790", APP_URL: process.env.APP_URL ?? "http://localhost:8790",
+  // Free addresses on a made up shared domain (e2e/free-address.spec.ts).
+  FREE_MAIL_DOMAIN: process.env.FREE_MAIL_DOMAIN ?? "free.multies.test",
 });
 await import("../../src/entry/node");
+
+// The platform workspace's inbound key, so the spec can deliver mail for the shared domain through
+// the real Email Worker code, as Cloudflare would. Written next to the database, local only.
+{
+  const { writeFileSync } = await import("node:fs");
+  const { openSqlite } = await import("../../src/server/db/node");
+  const { loadConfig } = await import("../../src/server/config");
+  const { organizations } = await import("../../src/server/db/schema");
+  const { createInboundKey } = await import("../../src/server/services/mail/inbound-keys");
+  const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
+  await db.insert(organizations).values({ id: "org_platform", name: "Multies platform", slug: "mymail-platform" }).onConflictDoNothing();
+  const key = await createInboundKey({ db, config: loadConfig(process.env) } as unknown as Parameters<typeof createInboundKey>[0], "org_platform");
+  writeFileSync(`${process.env.DATABASE_PATH ?? ".data/mymail.db"}.platform-key.json`, JSON.stringify(key));
+}

@@ -98,15 +98,25 @@ describe("customer domains on any DNS provider (round 13)", () => {
   });
 
   it("keeps the domain and says why when the provider refuses it", async () => {
+    const p = fakeProvider({ refuse: "This domain name is not allowed" });
+    const ctx = await makeTestApp({ RESEND_API_KEY: "re_test" }, { fetch: p.fetch });
+    const c = new Client(ctx.app);
+    await c.signup();
+    const made = await c.post("/api/domains", { name: "haajir.test" });
+    expect(made.status).toBe(201);
+    expect(made.body.domain.sending).toEqual({ status: "error", detail: "This domain name is not allowed" });
+    // Without the provider's records the setup falls back to Multies' own MX and DKIM.
+    expect(made.body.domain.records.find((r: { id: string }) => r.id === "dkim").value).toMatch(/^v=DKIM1; k=rsa; p=/);
+  });
+
+  it("a full provider plan queues the domain instead of failing (round 17)", async () => {
     const p = fakeProvider({ refuse: "You have reached your domain limit" });
     const ctx = await makeTestApp({ RESEND_API_KEY: "re_test" }, { fetch: p.fetch });
     const c = new Client(ctx.app);
     await c.signup();
     const made = await c.post("/api/domains", { name: "haajir.test" });
     expect(made.status).toBe(201);
-    expect(made.body.domain.sending).toEqual({ status: "error", detail: "You have reached your domain limit" });
-    // Without the provider's records the setup falls back to Multies' own MX and DKIM.
-    expect(made.body.domain.records.find((r: { id: string }) => r.id === "dkim").value).toMatch(/^v=DKIM1; k=rsa; p=/);
+    expect(made.body.domain.sending.status).toBe("queued");
   });
 
   it("registers nothing with a provider when outbound mail is the local log", async () => {
