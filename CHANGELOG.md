@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 25: speed, phones, Google and Microsoft sign in (26 Oct 2026)
+
+- Faster reads: My Work answers in about a third of the time (date formatters are made once, not per task), the shared inbox list uses a new composite index, and task lists, boards and sprint views make two fewer database round trips. Field definitions and statuses are cached for 10 seconds per server and cleared on every change. Config, people, assignees, projects and channels answer 304 when nothing changed. Migration 0052 swaps two indexes for composite ones, so writes cost the same.
+- Smaller first load: the first script is 171 KB instead of 441 KB, every page loads on its own, sign in and public pages are no longer in the first script, and the next likely page is fetched ahead of time.
+- Phones: Tasks opens as a list on a phone and remembers the view you pick, the board scrolls one column at a time, goal key results stack, and chat drops keyboard hints on touch screens. Buttons are at least 40 px tall.
+- Continue with Google on sign in and sign up, and Continue with Microsoft on the preview site. A verified Google or Microsoft address signs in to the account that already uses it.
+- API fixes found by Haajir: `/health` answers JSON, `GET /projects/{id}/tasks`, sprint dates as workspace days (`startDate` and `endDate` accepted) with a `url` per sprint, epic items take `taskIds`, docs update from plain text, `PATCH /threads/{id}`, `replyTo` on send, and the Supabase auth hook answer lists the rate limit step that otherwise drops signups.
+- Mobile 1.9.2 (iOS build 15, Android 13): a "mentioned you on a thread" notification opens the thread.
+
 ### Round 24: planning depth (25 Oct 2026)
 
 - Formula and rollup fields: two new custom field types. A formula is an expression over a task's fields and built ins (`{Budget} * 1.1`, `if({points} > 5, "big", "small")`, `days_between(today(), {due})`), read by a hand written parser with no eval, limits on length and depth, and a clear "#ERROR" per cell instead of a failed page. A rollup sums, counts, averages or takes the min, max or percent done over subtasks, an epic's items, or a whole project (shown above the task list). Values are computed when tasks are read, so they cost no writes. Migration 0047: `custom_fields.config`.

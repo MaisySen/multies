@@ -111,6 +111,9 @@ simple = { limit = 300, period = 60 }
 
 [vars]
 APP_MODE = "production"
+# R25: Continue with Google on sign in (our own Google OAuth client in the identity provider). Microsoft
+# joins once our own Microsoft app registration exists (staging uses developer keys).
+AUTH0_SOCIAL_CONNECTIONS = "google-oauth2"
 # Public booking pages and the scheduling API (migration 0021).
 SCHEDULING_ENABLED = "true"
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
