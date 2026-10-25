@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Mountain, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
-import { IterationCw } from "lucide-react";
+import { IterationCw, Users } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -23,6 +23,7 @@ import { tone } from "@/web/components/app-bits";
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
 const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
+const WorkloadView = lazy(() => import("./workload").then((m) => ({ default: m.WorkloadView })));
 
 const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
   { id: "board", label: "Board", icon: KanbanSquare },
@@ -30,6 +31,7 @@ const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "timeline", label: "Timeline", icon: GanttChart },
   { id: "sprints", label: "Sprints", icon: IterationCw },
+  { id: "workload", label: "Workload", icon: Users },
 ];
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
@@ -180,6 +182,8 @@ export function TasksPage() {
               : groupField
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
+        ) : view === "workload" ? (
+          <Suspense fallback={<Skeleton className="h-64" />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
         ) : view === "sprints" && project ? (
           <Suspense fallback={<Skeleton className="h-64" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (

@@ -46,6 +46,7 @@ import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
 import { registerRecordingTools } from "./mcp-r23-recordings";
 import { registerCallTools } from "./mcp-r23-calls";
+import { registerWorkloadTools } from "./mcp-r24-workload";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -221,6 +222,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerMeetingNotesTools(server, deps, actor, writable, tool); // Round 23: meeting notes
   registerRecordingTools(server, deps, actor, writable, tool);
   registerCallTools(server, deps, actor, writable, tool); // Round 23
+  registerWorkloadTools(server, deps, actor, tool); // R24.2: workload
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   return server;
 }

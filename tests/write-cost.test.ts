@@ -729,3 +729,32 @@ it("calendar sync (round 23): feed on 2, reset at most 3, off 2; other calendars
   await cal.disableFeed(ctx.deps, actor);
   expect(take()).toBe(2);
 });
+
+it("workload (R24.2): reading the workload writes nothing, through the app, the API and the service; a move is one task update", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const t = (await u.post("/api/tasks", { title: "Ship", projectId, points: 3, due: "2026-11-03T10:00:00Z", assignee: `member:${me.user.id}` })).body.task;
+  const key = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
+  const { getWorkload } = await import("@/server/services/suite/workload");
+  const take = meter(ctx.db);
+  await getWorkload(ctx.deps, actor, { from: "2026-11-02", weeks: 12, unit: "hours" });
+  await getWorkload(ctx.deps, { ...actor, agentId: null, scope: "read" }, { projectIds: [projectId] });
+  expect(take()).toBe(0);
+  // Through a key: whatever any key request writes (its last used time, the rate limit counter), and nothing more.
+  const headers = { host: "localhost", authorization: `Bearer ${key}` };
+  expect((await ctx.app.request("/api/v1/tasks", { headers })).status).toBe(200);
+  const baseline = take();
+  expect((await ctx.app.request("/api/v1/workload?weeks=4", { headers })).status).toBe(200);
+  expect(take()).toBeLessThanOrEqual(baseline);
+  await u.get("/api/tasks");
+  const sessionBaseline = take();
+  await u.get("/api/workload?weeks=4");
+  expect(take()).toBeLessThanOrEqual(sessionBaseline);
+  // Moving a chip is the normal task update: the task row and its indexes, plus the activity row.
+  await u.patch(`/api/tasks/${t.id}`, { due: "2026-11-10T10:00:00Z" });
+  expect(take()).toBeLessThanOrEqual(16);
+});

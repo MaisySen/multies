@@ -70,6 +70,7 @@ describe("MCP server", () => {
       "get_task",
       "get_thread_presence",
       "get_timesheet",
+      "get_workload",
       "invite_guest",
       "list_calendar_events",
       "list_channels",

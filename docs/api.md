@@ -541,3 +541,30 @@ Gmail and Outlook calendars need their own sign in (coming later); add their ICS
 
 D1 writes: turning the feed on is 2 rows (the row and its unique token index), a reset 3 at most, off 2;
 adding, changing or removing another calendar is 1. Fetching the feed and viewing events write nothing.
+
+## Workload (R24.2)
+
+Open tasks and their estimates per person per week, for planning and for moving work off someone
+who is over capacity. Rows are workspace members and agents with open tasks in the range, plus an
+Unassigned row; columns are whole weeks, Monday first, in the viewer's time zone (the `tz` query, else
+the person's own zone, else the workspace zone). A task sits in the week of its due date, or of its
+start date when it has a start and no due date. Open means not in a done category (so cancelled
+statuses are out too), not waiting in Triage, not deleted, and not an epic; subtasks are counted the
+way list views count them. Open tasks due before the range are in `overdue`.
+
+Each cell carries `count`, `points` and `hours` (each project's estimate unit), `noEstimate` (tasks with
+no estimate), `load` (the sum in the chosen `unit`), `over` and `near` (80% of capacity or more) and
+`tasks` (id, ref, title, project, due, start, status, points, unit). Capacity is a plain default per
+person per week, 20 points or 40 hours, that a request can change with `capacity`; nothing is stored.
+At most 2,000 tasks are read, soonest first; `truncated: true` says the answer was cut.
+
+- App API: `GET /api/workload?from&weeks&projectId[]&sprintId&person[]&unit&capacity&tz`. `weeks` is 1
+  to 12 (default 4: this week and the next 3). `projectId` and `person` (`member:<id>`, `agent:<id>` or
+  `none`) repeat. A project or sprint from another workspace answers 404.
+- Public API: `GET /api/v1/workload` with the same query. Read only keys can call it; it reads the
+  tasks GET /api/v1/tasks reads.
+- MCP: `get_workload`.
+- Moving work: the Workload view reassigns with `PATCH /api/tasks/:id { assignee }` and moves a task by
+  whole weeks with `PATCH /api/tasks/:id { due }` (the same weekday), the normal task update.
+
+D1 writes: reading the workload writes nothing. A move is one task update.

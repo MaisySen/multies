@@ -42,7 +42,7 @@ export interface TaskDetail {
 }
 export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null }
 export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
-export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints";
+export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
 
 export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
 export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-brand-hover", high: "text-warn", urgent: "text-bad" };
