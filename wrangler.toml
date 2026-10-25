@@ -69,6 +69,12 @@ class_name = "DocRoom"
 name = "MAIL_SYNC"
 class_name = "MailSyncRunner"
 
+# Round 22: who is viewing or replying in a shared inbox thread (src/server/collab/thread-presence.ts).
+# One object per org and thread, memory only: a heartbeat writes neither storage nor D1.
+[[durable_objects.bindings]]
+name = "THREAD_PRESENCE"
+class_name = "ThreadPresence"
+
 [[migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
@@ -76,6 +82,10 @@ new_sqlite_classes = ["DocRoom"]
 [[migrations]]
 tag = "v2-mail-sync"
 new_sqlite_classes = ["MailSyncRunner"]
+
+[[migrations]]
+tag = "v3-thread-presence"
+new_sqlite_classes = ["ThreadPresence"]
 
 # Edge rate limits (Workers rate limiting API). Without these bindings the app
 # falls back to a shared counter in D1. Limits match src/server/lib/rate-limit.ts.
@@ -169,6 +179,10 @@ class_name = "DocRoom"
 name = "MAIL_SYNC"
 class_name = "MailSyncRunner"
 
+[[env.staging.durable_objects.bindings]]
+name = "THREAD_PRESENCE"
+class_name = "ThreadPresence"
+
 [[env.staging.migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
@@ -176,6 +190,10 @@ new_sqlite_classes = ["DocRoom"]
 [[env.staging.migrations]]
 tag = "v2-mail-sync"
 new_sqlite_classes = ["MailSyncRunner"]
+
+[[env.staging.migrations]]
+tag = "v3-thread-presence"
+new_sqlite_classes = ["ThreadPresence"]
 
 [[env.staging.ratelimits]]
 name = "RL_AUTH"

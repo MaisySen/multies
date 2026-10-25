@@ -26,6 +26,9 @@ import type { DocRoomNamespace } from "../server/collab/durable-object";
 
 /** The doc co-editing room (a Durable Object), exported for the DOC_ROOMS binding. */
 export { DocRoom } from "../server/collab/durable-object";
+/** Round 22: live thread presence (in memory only), exported for the THREAD_PRESENCE binding. */
+export { ThreadPresence } from "../server/collab/thread-presence";
+import { durablePresence } from "../server/collab/thread-presence";
 import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
@@ -75,6 +78,7 @@ async function boot(env: WorkerEnv) {
     dispatchMailSync: mailSyncDispatcher(env),
     liveMail: liveMailDispatcher(env),
     liveWait: liveWaitDispatcher(env),
+    presence: presenceDispatcher(env),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -133,6 +137,12 @@ function liveWaitDispatcher(env: WorkerEnv): ((id: string, ms: number) => Promis
     const res = await ns.get(ns.idFromName(id)).fetch(new Request("https://mail-sync/wait", { method: "POST", body: JSON.stringify({ id, ms }) }));
     return res.ok && ((await res.json()) as { stored: boolean }).stored;
   };
+}
+
+/** Round 22: thread presence rooms in the THREAD_PRESENCE Durable Object. Without the binding they live in the isolate. */
+function presenceDispatcher(env: WorkerEnv) {
+  const ns = env.THREAD_PRESENCE as DurableObjectNamespaceLike | undefined;
+  return ns && typeof ns.idFromName === "function" ? durablePresence(ns) : undefined;
 }
 
 /** The one object that keeps the account's daily live mail allowance (Durable Object wall time). */

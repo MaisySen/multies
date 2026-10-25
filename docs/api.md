@@ -318,38 +318,23 @@ date of its items. Read only keys can read epics but not add or remove items. Ad
 batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
 MCP: `list_epics`, `get_epic`, `add_to_epic`.
 
-## Shared inbox: owners, done and reply times (round 22)
+## Thread presence and shared drafts (round 22)
 
-A shared inbox thread (`messages.thread_id` within a workspace) can have an owner and be marked done.
-Only threads someone touched get a `mail_thread_state` row; every other thread is open and unassigned.
-Every call checks the caller can open the thread (one of its messages is in a mailbox they can open),
-otherwise 404. The assignee must be a workspace member who can open the thread's mailbox (owners and
-admins open every mailbox), otherwise 400. The assignee gets a notification (`thread_assigned`, in the
-Assignments category) unless they assigned themselves.
+Live collision warning in the shared inbox: while a thread is open the app beats every 15 seconds
+with `viewing` or `replying` (Compose with a reply open), and everyone else in the thread sees
+"Maya is viewing" or, in amber, "Maya is replying"; Compose shows "Maya is also replying. Send
+anyway?" above Send. Presence lives in memory only (the `ThreadPresence` Durable Object, binding
+`THREAD_PRESENCE`, one per org and thread; an in process map on Node and self host), so a heartbeat
+writes no D1 rows. An entry expires 40 seconds after its last beat; hiding the tab or closing the
+thread leaves at once.
 
-- Page: the shared inbox (`/app/inbox`) has All, Mine, Unassigned, Assigned to (a person) and Done above
-  the list, the assignee's initials on each row, an Assign menu and Mark done or Reopen in the thread
-  header, and a Reply times card. My Work shows "Mail assigned to you" (open threads, newest first, up to 20).
-- App API: `GET /api/agents/threads?view=open|mine|unassigned|assigned|done|all` (`assignee=<userId>` with
-  assigned or done; open by default; each thread carries `assignee { id, name }` or null and `status`),
-  `GET /api/threads/:id/state` (the state and the people who can open the thread), `POST /api/threads/:id/assign`
-  `{ userId }` or `{ userId: null }`, `POST /api/threads/:id/status` `{ status: open | done }`,
-  `GET /api/threads/stats/replies` (`mailboxId`, `from`, `to`, `groupBy`).
-- Public API: `GET /api/v1/threads?view=...` (open by default), `GET /api/v1/threads/{id}/state`,
-  `POST /api/v1/threads/{id}/assign`, `POST /api/v1/threads/{id}/status`,
-  `GET /api/v1/stats/replies?mailboxId=&from=&to=&groupBy=mailbox|person`. Read only keys can list and read
-  stats but not assign or change status. Agent keys see only their agent's mailboxes.
-- MCP: `assign_thread`, `unassign_thread`, `set_thread_status`, `list_threads_by_view`, `get_reply_stats`.
+Draft replies are messages in folder `drafts` that carry the thread id and their author
+(`sent_by_user_id`). The thread shows "Draft by Maya, edited 3 min ago" with a preview; Take over
+makes you the owner (one row update), notifies the previous author once and shows them a note if
+they are in the thread. Saving over a draft somebody else took over answers 409 `draft_taken_over`;
+saving over a draft that changed in another window answers 409 `draft_changed`.
 
-Reply times are worked out when read (no writes, no table). A thread counts when its first inbound
-message falls in the range (the last 30 days by default, at most 90). First response is the first
-message we sent in the thread after that, credited to the person who sent it (`sent_by_user_id`, so an
-agent reply a person approved counts for that person) or else the agent; resolution runs from the first
-inbound message to `done_at`. Calendar hours, not business hours. Each row has `threads`, `replied`,
-`medianFirstResponseMs`, `averageFirstResponseMs`, `resolved`, `medianResolutionMs`, `averageResolutionMs`;
-`total` covers every thread. At most 2,000 threads are scanned, newest first, and `sampled: true` says
-the answer was cut.
-
-D1 writes: an assign or unassign is 2 rows (the WITHOUT ROWID row and its partial assignee index entry),
-plus 3 for the assignee's notification; a status change is 1; an unchanged assign or status writes nothing;
-views, My Work and reply times write nothing.
+- App API: `GET /api/threads/:id/presence`, `POST /api/threads/:id/presence` `{ clientId, state: viewing | replying }` (answers the same view), `POST /api/threads/:id/presence/leave` `{ clientId }`, `GET /api/threads/:id/drafts`, `POST /api/threads/drafts/:draftId/take-over`. `POST /api/mail/drafts` takes `inReplyToId` to file the draft in that thread.
+- Public API: `GET /api/v1/threads/{id}/presence`, `GET /api/v1/threads/{id}/drafts`, `POST /api/v1/drafts/{id}/take-over`. Read only keys can read; agent keys can't take over a draft.
+- MCP: `get_thread_presence`, `list_thread_drafts`, `take_over_draft`.
+- Every route answers 404 unless the caller can open at least one message of the thread (same workspace, a mailbox in their scope).
