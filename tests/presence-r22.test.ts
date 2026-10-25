@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
-import { memoryPresence, PresenceRoom, PRESENCE_TTL_MS, ThreadPresence } from "@/server/collab/thread-presence";
+import { durablePresence, memoryPresence, presenceKey, PresenceRoom, PRESENCE_TTL_MS, ThreadPresence } from "@/server/collab/thread-presence";
 import { threadPresence } from "@/server/services/suite/thread-collab";
 import { deliverInbound } from "@/server/services/mail/delivery";
 
@@ -64,6 +64,27 @@ describe("PresenceRoom (the Durable Object's logic)", () => {
     expect((await r.json()).people[0]).toMatchObject({ userId: "u1", state: "replying" });
     expect((await post({ op: "nope" })).status).toBe(400);
     expect((await obj.fetch(new Request("https://thread-presence/op"))).status).toBe(405);
+  });
+
+  it("the Workers store reaches one object per org and thread through the binding", async () => {
+    const objects = new Map<string, ThreadPresence>();
+    const ns = {
+      idFromName: (name: string) => name,
+      get: (id: unknown) => {
+        const key = String(id);
+        if (!objects.has(key)) objects.set(key, new ThreadPresence({}, {}));
+        return objects.get(key)!;
+      },
+    };
+    const store = durablePresence(ns);
+    await store(presenceKey("org1", "thr1"), { op: "beat", clientId: "c1", userId: "u1", name: "Una", state: "viewing" });
+    const other = await store(presenceKey("org1", "thr2"), { op: "list" });
+    expect(other.people).toHaveLength(0);
+    const same = await store(presenceKey("org1", "thr1"), { op: "list" });
+    expect(same.people.map((p) => p.userId)).toEqual(["u1"]);
+    expect([...objects.keys()]).toEqual(["org1:thr1", "org1:thr2"]);
+    const broken = durablePresence({ idFromName: (n: string) => n, get: () => ({ fetch: async () => new Response("no", { status: 500 }) }) });
+    await expect(broken("k", { op: "list" })).rejects.toThrow("500");
   });
 });
 
