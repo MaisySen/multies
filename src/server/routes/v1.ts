@@ -29,6 +29,7 @@ import { registerSuiteR7Routes } from "./v1-suite-r7";
 import { registerSuiteR8Routes } from "./v1-suite-r8";
 import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
+import { registerSprintRoutes } from "./v1-sprints";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -212,6 +213,7 @@ export function v1Routes() {
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   api.use("/work-imports/*", apiKeyAuth);
   api.use("/epics/*", apiKeyAuth);
+  api.use("/sprints/*", apiKeyAuth);
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -387,6 +389,7 @@ export function v1Routes() {
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
   registerPeopleRoutes(api);
+  registerSprintRoutes(api);
   registerMcpRoute(api);
   return api;
 }

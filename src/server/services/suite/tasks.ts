@@ -239,6 +239,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     fields: l.fields.get(t.id) ?? {},
     repeat: t.repeatRule ? { ...(JSON.parse(t.repeatRule) as RepeatRule), text: describeRule(JSON.parse(t.repeatRule) as RepeatRule) } : null,
     completedAt: iso(t.completedAt),
+    sprintId: t.sprintId ?? null, points: t.points ?? null,
     createdBy: { type: t.createdByType, id: t.createdById },
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(), version: t.version,
   };
@@ -254,6 +255,8 @@ export interface TaskFilters {
   sort?: string; dir?: "asc" | "desc";
   /** R21: only this type (task, story, bug or epic). */
   type?: TaskType;
+  /** Round 21: tasks in this sprint, or null for the backlog (no sprint). */
+  sprintId?: string | null;
 }
 
 const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
@@ -292,6 +295,7 @@ export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = 
   else if (f.parentId) conds.push(eq(tasks.parentId, f.parentId));
   else if (!f.includeSubtasks && !f.threadId) conds.push(topLevelCondition());
   if (f.fieldFilters?.length) conds.push(...await fieldFilterConditions(deps, actor.orgId, f.fieldFilters));
+  if (f.sprintId !== undefined) conds.push(f.sprintId === null ? isNull(tasks.sprintId) : eq(tasks.sprintId, f.sprintId));
   const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? 500, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
@@ -363,6 +367,8 @@ export interface CreateTaskInput {
   repeat?: RepeatRule | null;
   /** R21: task (default), story, bug or epic. */
   type?: TaskType;
+  /** Round 21: a sprint of the same project, and an estimate (points or hours). */
+  sprintId?: string | null; points?: number | null;
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
@@ -378,6 +384,10 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   await checkTypeRules(deps, actor.orgId, { type: input.type ?? "task", parentId: input.parentId ?? null });
   const status = await pickStatus(deps, project.id, input.statusId, input.status);
   await validateAssignee(deps, actor.orgId, input.assignee);
+  // Round 21: sprint and estimate.
+  const r21 = input.sprintId !== undefined || input.points !== undefined ? await import("./sprints") : null;
+  if (r21 && input.sprintId) await r21.checkSprintForTask(deps, actor.orgId, project.id, input.sprintId);
+  const sprintCols = r21 ? { sprintId: input.sprintId ?? null, points: r21.cleanPoints(input.points) ?? null } : {};
 
   let source: { threadId: string | null; messageId: string | null; from: string | null; subject: string | null } = { threadId: null, messageId: null, from: null, subject: null };
   if (input.source?.messageId || input.source?.threadId) {
@@ -403,6 +413,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     threadId: source.threadId, messageId: source.messageId, sourceFrom: source.from, sourceSubject: source.subject,
     completedAt: status.category === "done" ? now : null, repeatRule: input.repeat ? JSON.stringify(normaliseRule(input.repeat)) : null,
     type: input.type ?? "task",
+    ...sprintCols,
     ...createdBy(actor), createdAt: now, updatedAt: now,
   };
   await deps.db.insert(tasks).values(row);
@@ -449,6 +460,8 @@ export interface UpdateTaskInput {
   repeat?: RepeatRule | null;
   /** R21: task, story, bug or epic. */
   type?: TaskType;
+  /** Round 21: move to a sprint of the task's project (null: back to the backlog), and the estimate. */
+  sprintId?: string | null; points?: number | null;
 }
 
 export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string, patch: UpdateTaskInput) {
@@ -498,6 +511,15 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     }
   }
   if (patch.position !== undefined) set.position = patch.position;
+  // Round 21: sprint and estimate; the activity row below dates them for the burndown.
+  if (patch.points !== undefined || patch.sprintId !== undefined || (set.projectId && t.sprintId)) {
+    const r21 = await import("./sprints");
+    const pts = r21.cleanPoints(patch.points);
+    if (pts !== undefined && pts !== t.points) { set.points = pts; changed.points = { from: t.points, to: pts }; }
+    const sprintId = patch.sprintId !== undefined ? patch.sprintId : set.projectId ? null : t.sprintId;
+    if (sprintId && sprintId !== t.sprintId) await r21.checkSprintForTask(deps, actor.orgId, projectId, sprintId);
+    if (sprintId !== t.sprintId) { set.sprintId = sprintId; changed.sprint = { from: t.sprintId, to: sprintId }; }
+  }
   await deps.db.update(tasks).set(set).where(eq(tasks.id, t.id));
   if (set.projectId) await clearForeignValues(deps, t.id, set.projectId);
   if (patch.fields && Object.keys(patch.fields).length) changed.fields = await setTaskFieldValues(deps, actor.orgId, { id: t.id, projectId }, patch.fields);

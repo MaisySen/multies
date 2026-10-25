@@ -20,6 +20,8 @@ export interface Task {
   fields?: Record<string, FieldValue>;
   /** R21: task, story, bug or epic. */
   type?: "task" | "story" | "bug" | "epic";
+  /** Round 21: the sprint (null: backlog) and the estimate. */
+  sprintId?: string | null; points?: number | null;
 }
 export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url";
 export type FieldValue = string | number | boolean | string[] | null;
@@ -40,7 +42,7 @@ export interface TaskDetail {
 }
 export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null }
 export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
-export type ViewKind = "board" | "list" | "calendar" | "timeline";
+export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints";
 
 export const PRIORITY_LABEL: Record<Priority, string> = { none: "No priority", low: "Low", medium: "Medium", high: "High", urgent: "Urgent" };
 export const PRIORITY_COLOR: Record<Priority, string> = { none: "text-subtle", low: "text-muted", medium: "text-brand-hover", high: "text-warn", urgent: "text-bad" };
@@ -70,7 +72,9 @@ export const useTaskDetail = (id: string | null) =>
 
 export function useTaskMutations() {
   const qc = useQueryClient();
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ["tasks"] }); void qc.invalidateQueries({ queryKey: ["task"] }); void qc.invalidateQueries({ queryKey: sk.projects }); };
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["tasks"] }); void qc.invalidateQueries({ queryKey: ["task"] }); void qc.invalidateQueries({ queryKey: sk.projects }); refreshSprints(); };
+  // Round 21: the Sprints view and its counts follow task edits.
+  const refreshSprints = () => { for (const k of ["sprint", "sprints", "sprint-backlog"]) void qc.invalidateQueries({ queryKey: [k] }); };
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) => api.patch<{ task: Task }>(`/tasks/${id}`, patch),
     // Optimistic: lists show the change at once; the server's answer replaces it.

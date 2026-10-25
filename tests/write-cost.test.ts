@@ -153,7 +153,8 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   expect(r.body.created).toBe(100);
   const tasksRun = take();
   // Measured 819: 8 a task (the row, its key and 6 indexes including the import key), plus 2 batches (number claim and day counter) and the summary activity and change rows.
-  expect(tasksRun).toBeLessThanOrEqual(100 * 8 + 30);
+  // Round 21: the meter bills the partial sprint index on tasks too (9 a task, measured 919), though D1 writes no entry for a task with no sprint.
+  expect(tasksRun).toBeLessThanOrEqual(100 * 9 + 30);
   const again = await u.post("/api/work-imports/run", { content, projectId: project.id });
   expect(again.body).toMatchObject({ created: 0, alreadyThere: 100 });
   expect(take()).toBeLessThanOrEqual(4);
@@ -230,4 +231,42 @@ it("task types and epics (round 21): a type change is a normal task update; addi
   expect(take()).toBe(0);
   await u.call("DELETE", `/api/epics/${epic.id}/items`, { ids: ids.slice(0, 2) });
   expect(take()).toBeLessThanOrEqual(2 * 10 + 4 + 3);
+});
+it("sprints (round 21): a sprint row is 2, a task added is one tasks row, a bulk add is one batch, burndown reads write nothing", async () => {
+  const { addToSprint, completeSprint, createSprint, getSprint, startSprint } = await import("@/server/services/suite/sprints");
+  const { createTask, updateTask } = await import("@/server/services/suite/tasks");
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id as string, userId: me.user.id as string, email: me.user.email as string, name: "Ada", role: "owner" as const };
+  const projectId = (await u.post("/api/projects", { name: "Sprints", key: "SPR" })).body.project.id as string;
+  const ids: string[] = [];
+  for (let i = 0; i < 50; i++) ids.push((await createTask(ctx.deps, actor, { title: `T${i}`, projectId, points: 1 })).id);
+  const take = meter(ctx.db);
+  const s = await createSprint(ctx.deps, actor, projectId, {});
+  // Measured 2: the sprints row (WITHOUT ROWID) and its one index.
+  expect(take()).toBe(2);
+  // The meter bills every index on tasks (8) for an update; D1 bills only the index entries that
+  // change, here the partial sprint index: 2 rows a task in production (3 moving between sprints).
+  await addToSprint(ctx.deps, actor, s.id, [ids[0]]);
+  const one = take();
+  expect(one).toBeLessThanOrEqual(9);
+  await addToSprint(ctx.deps, actor, s.id, ids.slice(1));
+  // 49 tasks, no activity row while the sprint is planned.
+  expect(take()).toBeLessThanOrEqual(49 * one);
+  await startSprint(ctx.deps, actor, s.id);
+  expect(take()).toBe(2);
+  await updateTask(ctx.deps, actor, ids[0], { status: "done" });
+  const doneCost = take();
+  await updateTask(ctx.deps, actor, ids[1], { status: "done" });
+  // Finishing a task in a sprint costs what it did before sprints: nothing extra for the chart.
+  expect(take()).toBe(doneCost);
+  await getSprint(ctx.deps, actor, s.id);
+  await u.get(`/api/sprints?projectId=${projectId}`);
+  await u.get(`/api/sprints/${s.id}`);
+  expect(take()).toBe(0);
+  await completeSprint(ctx.deps, actor, s.id, { carryOver: "backlog" });
+  // Measured: the sprints row (2) plus the 48 carried tasks; nothing per task besides the row and index.
+  expect(take()).toBeLessThanOrEqual(2 + 48 * one);
 });

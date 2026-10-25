@@ -50,6 +50,8 @@ export const TaskCreate = z.object({
   fields: FieldValues.optional(),
   repeat: RepeatRule,
   type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "task (default), story, bug or epic. An item whose parentId is an epic is in that epic." }),
+  sprintId: z.string().max(64).nullable().optional().openapi({ description: "Round 21: put the task in a planned or active sprint of its project." }),
+  points: z.number().min(0).max(1000).nullable().optional().openapi({ description: "Round 21: the estimate, in the project's unit (points or hours)." }),
 }).openapi("TaskCreate");
 export const TaskFromEmail = z.object({
   messageId: z.string().optional(), threadId: z.string().optional(),
@@ -64,6 +66,8 @@ export const TaskPatch = z.object({
   fields: FieldValues.optional(),
   repeat: RepeatRule,
   type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "task, story, bug or epic. An epic can't have a parent; an epic with items keeps its type." }),
+  sprintId: z.string().max(64).nullable().optional().openapi({ description: "Round 21: move to a sprint of the task's project; null moves it to the backlog." }),
+  points: z.number().min(0).max(1000).nullable().optional().openapi({ description: "Round 21: the estimate, in the project's unit (points or hours); null clears it." }),
   version: z.number().int().optional().openapi({ description: "Send the version you read to reject the write if someone changed the task since." }),
 }).openapi("TaskPatch");
 export const TaskQuery = z.object({

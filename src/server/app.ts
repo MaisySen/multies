@@ -30,6 +30,7 @@ import { billingRoutes, providerWebhookRoutes } from "./routes/billing";
 import { mailAccessRoutes } from "./routes/mail-access";
 import { mailScheduleRoutes } from "./routes/mail-schedules";
 import { epicRoutes } from "./routes/suite-r21-types";
+import { sprintRoutes } from "./routes/sprints";
 import { developerRoutes } from "./routes/developer";
 import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
@@ -221,6 +222,7 @@ export function createApp(deps: Deps) {
   app.route("/api/billing", billingRoutes());
   app.route("/api/mail-access", mailAccessRoutes());
   app.route("/api/mail-schedules", mailScheduleRoutes());
+  app.route("/api/sprints", sprintRoutes());
   app.route("/api/developer", developerRoutes());
   app.route("/api/oauth", oauthRoutes());
   app.route("/.well-known", oauthWellKnownRoutes());
