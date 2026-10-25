@@ -418,4 +418,45 @@ it("thread notes (round 22): a note is its row and one index entry, each mention
   expect(take()).toBeLessThanOrEqual(2);
   await deleteComment(ctx.deps, actor, threadId, plain.id);
   expect(take()).toBe(2);
+it("R22: thread assignment and status cost a row or two, and the views, My Work and reply times write nothing", async () => {
+  const ctx = await makeTestApp();
+  const c = new Client(ctx.app);
+  await c.signup("owner@acme.io", "Olive Owner");
+  const me = (await c.get("/api/account/me")).body;
+  const { messages, domains, mailboxes } = await import("@/server/db/schema");
+  await ctx.db.insert(domains).values({ id: "dom_wc", orgId: me.organization.id, name: "acme.io", status: "verified", verificationToken: "x", dkimSelector: "s1", dkimPublicKey: "x", dkimPrivateKeyEnc: "x" });
+  await ctx.db.insert(mailboxes).values({ id: "mbx_wc", orgId: me.organization.id, domainId: "dom_wc", localPart: "support", address: "support@acme.io", displayName: "Support", quotaMb: 100 });
+  await ctx.db.insert(messages).values({ id: "msg_wc", orgId: me.organization.id, mailboxId: "mbx_wc", folder: "inbox", threadId: "thr_wc", fromAddress: "c@example.com", subject: "Help", date: new Date() });
+  const { assignThread, setThreadStatus } = await import("@/server/services/mail/thread-state");
+  // Services directly: a POST through the local app also bumps the rate limit counter, which production keeps in a binding.
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: "owner@acme.io", name: "Olive Owner", role: "owner" as const };
+  const take = meter(ctx.db);
+  // First assign (to myself, so no notification): the row (WITHOUT ROWID, no second index) plus its partial assignee index entry.
+  await assignThread(ctx.deps, actor, "thr_wc", me.user.id);
+  expect(take()).toBe(2);
+  // The same assign again changes nothing and writes nothing.
+  await assignThread(ctx.deps, actor, "thr_wc", me.user.id);
+  expect(take()).toBe(0);
+  // Unassign: the row, and the index entry goes.
+  await assignThread(ctx.deps, actor, "thr_wc", null);
+  expect(take()).toBe(2);
+  // Status changes touch only the row: done, then reopen.
+  await setThreadStatus(ctx.deps, actor, "thr_wc", "done");
+  expect(take()).toBe(1);
+  await setThreadStatus(ctx.deps, actor, "thr_wc", "open");
+  expect(take()).toBe(1);
+  // Reads: the views, the state, My Work and reply times.
+  for (const v of ["open", "mine", "unassigned", "done", "all"]) await c.get(`/api/agents/threads?view=${v}`);
+  await c.get("/api/threads/thr_wc/state"); await c.get("/api/my-work"); await c.get("/api/threads/stats/replies?groupBy=person");
+  expect(take()).toBe(0);
+  // Assigning someone else adds their notification: its row, its primary key index and its user index, 3 more than the state write.
+  const { users, members } = await import("@/server/db/schema");
+  await ctx.db.insert(users).values({ id: "usr_kiran", email: "kiran@acme.io", name: "Kiran" });
+  await ctx.db.insert(members).values({ id: "mem_kiran", organizationId: me.organization.id, userId: "usr_kiran", role: "admin" });
+  take();
+  await assignThread(ctx.deps, actor, "thr_wc", "usr_kiran");
+  expect(take()).toBe(2 + 3);
+  // A reassign updates the row; the meter sees no change in the partial index's size, D1 may bill the moved entry, so 1 to 3.
+  await assignThread(ctx.deps, actor, "thr_wc", me.user.id);
+  expect(take()).toBeLessThanOrEqual(3);
 });

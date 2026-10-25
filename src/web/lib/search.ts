@@ -11,7 +11,7 @@ export interface SearchResult { query: string; groups: SearchGroup[]; tookMs: nu
 export interface MyWorkItem { id: string; title: string; subtitle: string; url: string; at: string | null }
 export interface MyWork {
   date: string; timeZone: string;
-  overdue: MyWorkItem[]; dueToday: MyWorkItem[]; mentions: MyWorkItem[]; threads: MyWorkItem[]; approvals: MyWorkItem[]; meetings: MyWorkItem[];
+  overdue: MyWorkItem[]; dueToday: MyWorkItem[]; mentions: MyWorkItem[]; threads: MyWorkItem[]; assignedThreads?: MyWorkItem[]; approvals: MyWorkItem[]; meetings: MyWorkItem[];
   snoozed: MyWorkItem[] | null; tookMs: number;
 }
 

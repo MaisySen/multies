@@ -10,11 +10,13 @@ import { useAgents } from "./agents";
 import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
 import { ThreadNotes } from "./inbox-comments";
+import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee } from "./inbox-assign";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
   from: { address: string; name?: string }; lastSentBy: { type: "agent" | "person" | "external"; agentId?: string; name?: string | null };
   agentsInvolved: { agentId: string; name: string | null }[]; pendingApprovals: number;
+  assignee?: ThreadAssignee | null; status?: "open" | "done";
 }
 interface ThreadMessage {
   id: string; direction: "inbound" | "outbound"; from: { address: string; name?: string }; to: { address: string }[]; subject: string; date: string;
@@ -27,7 +29,8 @@ interface Thread { id: string; mailboxId: string; subject: string; messages: Thr
 export function TeamInboxPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get("thread");
-  const threads = useQuery({ queryKey: ["team-inbox"], queryFn: () => api.get<{ data: ThreadSummary[] }>("/agents/threads"), refetchInterval: 20_000 });
+  const iv = useInboxView();
+  const threads = useQuery({ queryKey: ["team-inbox", "list", iv.query], queryFn: () => api.get<{ data: ThreadSummary[] }>(`/agents/threads${iv.query}`), refetchInterval: 20_000 });
   const mailboxes = useMailboxes();
   const agents = useAgents();
   const boxName = (id: string) => mailboxes.data?.find((m) => m.id === id)?.address ?? agents.data?.find((a) => a.inboxId === id)?.address ?? "";
@@ -35,6 +38,7 @@ export function TeamInboxPage() {
   return (
     <>
       <PageHeader title="Shared inbox" description="Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place." />
+      <InboxViewBar {...iv} />
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", selected && "hidden lg:block")}>
           {threads.isPending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
@@ -54,6 +58,7 @@ export function TeamInboxPage() {
                         <span className="truncate font-mono text-subtle">{boxName(t.mailboxId)}</span>
                         {t.agentsInvolved.map((a) => <Badge key={a.agentId} tone="brand"><Bot className="h-3 w-3" aria-hidden />{a.name ?? "Agent"}{t.lastSentBy.type === "agent" && t.lastSentBy.agentId === a.agentId ? " replied" : ""}</Badge>)}
                         {t.pendingApprovals > 0 && <Badge tone="warn">Reply waiting for approval</Badge>}
+                        <AssigneeChip assignee={t.assignee} status={t.status} />
                       </div>
                     </button>
                   </li>
@@ -79,6 +84,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
       <div className="flex items-center gap-2">
         <button onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden" aria-label="Back to threads"><ArrowLeft className="h-4 w-4" /></button>
         <h2 className="text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
+        <ThreadAssignControls threadId={t.id} />
       </div>
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (

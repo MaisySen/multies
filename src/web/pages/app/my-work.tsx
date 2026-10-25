@@ -1,7 +1,7 @@
 /** My Work (round 20): everything waiting on me today, from every part of the workspace. */
 import type { ReactNode } from "react";
 import { Link } from "react-router";
-import { AlarmClock, AtSign, CalendarClock, CheckSquare, ClipboardCheck, Inbox, Sun, Video } from "lucide-react";
+import { AlarmClock, AtSign, CalendarClock, CheckSquare, ClipboardCheck, Inbox, Sun, UserCheck, Video } from "lucide-react";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { useMyWork, type MyWorkItem } from "@/web/lib/search";
@@ -37,7 +37,7 @@ export function MyWorkPage() {
   const me = useMe();
   const first = me.data?.user.name.split(" ")[0];
   const w = q.data;
-  const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
+  const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.assignedThreads?.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;
   const day = w ? new Date(`${w.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }) : "";
   return (
     <div>
@@ -54,6 +54,7 @@ export function MyWorkPage() {
             <Section testId="mywork-meetings" title="Today's meetings" icon={<Video />} items={w.meetings} empty="No meetings today." />
             <Section testId="mywork-mentions" title="Mentions" icon={<AtSign />} items={w.mentions} empty="Nobody has mentioned you lately." />
             <Section testId="mywork-approvals" title="Approvals waiting" icon={<ClipboardCheck />} items={w.approvals} empty="No agent emails are waiting for you." />
+            {w.assignedThreads && w.assignedThreads.length > 0 && <Section testId="mywork-assigned-mail" title="Mail assigned to you" icon={<UserCheck />} items={w.assignedThreads} empty="" />}
             <Section testId="mywork-threads" title="Mail on my tasks" icon={<Inbox />} items={w.threads} empty="No open tasks came from mail." />
             {w.snoozed && w.snoozed.length > 0 && <Section testId="mywork-snoozed" title="Snoozed mail coming back" icon={<CalendarClock />} items={w.snoozed} empty="" />}
           </div>

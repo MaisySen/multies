@@ -33,6 +33,7 @@ import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
+import { threadStateRoutes } from "./routes/thread-state";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
 import { developerRoutes } from "./routes/developer";
 import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
@@ -228,6 +229,7 @@ export function createApp(deps: Deps) {
   app.route("/api/sprints", sprintRoutes());
   app.route("/api/triage", triageRoutes());
   app.route("/api/threads", threadCommentRoutes()); // Round 22: internal notes on shared inbox threads
+  app.route("/api/threads", threadStateRoutes()); // Round 22: assign, done, reply times
   app.route("/api/developer", developerRoutes());
   app.route("/api/oauth", oauthRoutes());
   app.route("/.well-known", oauthWellKnownRoutes());

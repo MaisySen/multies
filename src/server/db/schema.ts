@@ -1461,3 +1461,25 @@ export const threadComments = sqliteTable("thread_comments", {
   editedAt: ts("edited_at"),
   createdAt: createdAt(),
 }, (t) => [index("thread_comments_thread_idx").on(t.orgId, t.threadId, t.createdAt)]);
+/**
+ * Round 22 (R22.1): who owns a shared inbox thread and whether it is done (services/mail/thread-state.ts).
+ * Only threads someone has touched get a row, keyed by (org_id, thread_id). WITHOUT ROWID (drizzle/0039),
+ * so the composite primary key needs no second index; the one partial index serves "assigned to X" and
+ * holds only assigned rows. Assign: 1 row + 1 index entry. Status change: 1 row.
+ */
+export const mailThreadState = sqliteTable("mail_thread_state", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  threadId: text("thread_id").notNull(),
+  /** The thread's mailbox when the row was written (the newest message's). */
+  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
+  assigneeUserId: text("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  /** users.id of who assigned, or "agent:<agentId>" for an agent key. */
+  assignedBy: text("assigned_by"),
+  assignedAt: ts("assigned_at"),
+  status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
+  doneAt: ts("done_at"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.orgId, t.threadId] }),
+  index("mail_thread_state_assignee_idx").on(t.orgId, t.assigneeUserId).where(sql`${t.assigneeUserId} IS NOT NULL`),
+]);

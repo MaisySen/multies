@@ -25,6 +25,7 @@ import { sendMessage, type SendResult } from "../mail/send";
 import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
+import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -294,7 +295,7 @@ async function agentNames(deps: Deps, orgId: string) {
 const scopeCond = (scope: string[] | null) => (scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined);
 
 /** Threads, newest first: one row per thread with its latest message. */
-export async function listThreads(deps: Deps, orgId: string, scope: string[] | null, q: { mailboxId?: string; folder?: string; unread?: boolean; before?: string; limit?: number }) {
+export async function listThreads(deps: Deps, orgId: string, scope: string[] | null, q: { mailboxId?: string; folder?: string; unread?: boolean; before?: string; limit?: number; view?: ThreadView; assignee?: string; viewerUserId?: string | null }) {
   const limit = Math.min(Math.max(q.limit ?? 25, 1), 100);
   if (q.mailboxId && scope && !scope.includes(q.mailboxId)) throw notFound("Mailbox");
   const conds = [eq(messages.orgId, orgId), scopeCond(scope), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, sql`${messages.folder} not in ('trash', 'drafts')`];
@@ -306,7 +307,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
     unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)`.as("unread"),
   }).from(messages).where(and(...conds)).groupBy(messages.threadId).as("g");
   const page = await deps.db.select().from(grouped)
-    .where(and(q.before ? lt(grouped.last, Number(q.before)) : undefined, q.unread ? gt(grouped.unread, 0) : undefined))
+    .where(and(q.before ? lt(grouped.last, Number(q.before)) : undefined, q.unread ? gt(grouped.unread, 0) : undefined, threadViewCond(grouped.threadId, orgId, q.view, q.viewerUserId ?? null, q.assignee)))
     .orderBy(desc(grouped.last)).limit(limit + 1);
   const rows = page.slice(0, limit);
   const latest = rows.length
@@ -317,6 +318,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
         .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inArray(sendApprovals.threadId, rows.map((r) => r.threadId)))).groupBy(sendApprovals.threadId)
     : [];
   const names = await agentNames(deps, orgId);
+  const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));
   return {
     data: rows.map((r) => {
       const inThread = latest.filter((x) => x.threadId === r.threadId);
@@ -331,6 +333,7 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
         lastSentBy: m.sentByAgentId ? { type: "agent" as const, agentId: m.sentByAgentId, name: names.agents.get(m.sentByAgentId) ?? null } : m.folder === "sent" ? { type: "person" as const } : { type: "external" as const },
         agentsInvolved: agentIds.map((agentId) => ({ agentId, name: names.agents.get(agentId) ?? null })),
         pendingApprovals: Number(pending.find((p) => p.threadId === r.threadId)?.n ?? 0),
+        assignee: states.get(r.threadId)?.assignee ?? null, status: states.get(r.threadId)?.status ?? "open",
       };
     }),
     nextCursor: page.length > limit && rows.length ? String(rows[rows.length - 1].last) : null,

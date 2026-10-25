@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 84 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 89 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -152,6 +152,18 @@ New work from mail rules, public forms, incoming hooks or the API can wait in Tr
 | `triage_decline` | Decline and delete an item, with an optional reason and an opt in polite reply to the sender |
 | `triage_merge` | Merge an item into an existing task (notes as a comment, mail thread moves over) |
 | `create_triage_item` | Put new work in Triage instead of making a task straight away |
+
+### Shared inbox: owners, done and reply times (round 22)
+
+Give a mail thread an owner, mark it done, list threads by view and read reply times. Read only keys can list and read stats; assigning and status need a write key.
+
+| Tool | What it does |
+| --- | --- |
+| `assign_thread` | Assign a thread to a member who can open its mailbox (they get a notification), or pass userId null to unassign |
+| `unassign_thread` | Take the owner off a thread |
+| `set_thread_status` | Mark a thread done or reopen it |
+| `list_threads_by_view` | Threads by view: open, mine, unassigned, assigned (to a person or anyone), done or all, each with its assignee and status |
+| `get_reply_stats` | Median and average first response and resolution times per mailbox or per person, calendar hours, at most 90 days and 2,000 threads |
 
 ### Meetings and scheduling
 
