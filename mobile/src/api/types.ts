@@ -313,7 +313,7 @@ export interface ChatSend { body: string; parentId?: string; attachments?: { fil
 /** What a push from the server carries: an event type and an id, nothing else. */
 export type PushType = "message.received" | "approval.requested" | "task.assigned" | "task.commented" | "task.email_reply" | "task.due_soon" | "automation.status" | "automation.email"
   | "chat.mention" | "chat.dm" | "chat.reply" | "goal.updated";
-export interface PushData { type: PushType | string; id: string }
+export interface PushData { type: PushType | string; id: string; /** A mail thread mention: the newest message in the thread, which the thread screen opens. */ mid?: string }
 
 // ---------------------------------------------------------------- kept in step with the API spec
 

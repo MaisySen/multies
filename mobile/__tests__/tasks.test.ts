@@ -105,6 +105,11 @@ describe("server push (data only: type and id)", () => {
   });
   it("routes each type to its screen", () => {
     expect(routeForPush({ type: "message.received", id: "msg_1" })).toBe("/thread/msg_1");
+    // A mention in a shared inbox thread opens the thread through its newest message; without one, the notifications inbox.
+    expect(routeForPush({ type: "thread_mention", id: "thr_1", mid: "msg_9" })).toBe("/thread/msg_9");
+    expect(routeForPush({ type: "thread_mention", id: "thr_1" })).toBe("/notifications");
+    expect(extractPushData({ data: { type: "thread_mention", id: "thr_1", mid: "msg_9" } })).toEqual({ type: "thread_mention", id: "thr_1", mid: "msg_9" });
+    expect(fallbackText("thread_mention")).toEqual({ title: "You were mentioned on an email thread", body: "Tap to open the thread.", channel: "mail" });
     expect(routeForPush({ type: "approval.requested", id: "apr_1" })).toBe("/approval/apr_1");
     for (const type of ["task.assigned", "task.commented", "task.email_reply", "task.due_soon"]) expect(routeForPush({ type, id: "tsk_9" })).toBe("/task/tsk_9");
     expect(routeForPush({ type: "automation.status", id: "aut_1" })).toBeNull();

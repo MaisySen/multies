@@ -14,7 +14,7 @@ import { channelTitle, plainText } from "./chat";
 export function extractPushData(raw: unknown): PushData | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  if (typeof o.type === "string" && typeof o.id === "string") return { type: o.type, id: o.id };
+  if (typeof o.type === "string" && typeof o.id === "string") return typeof o.mid === "string" && o.mid ? { type: o.type, id: o.id, mid: o.mid } : { type: o.type, id: o.id };
   if (typeof o.dataString === "string") {
     try { return extractPushData(JSON.parse(o.dataString)); } catch { return null; }
   }
@@ -29,6 +29,8 @@ export function extractPushData(raw: unknown): PushData | null {
 export function routeForPush(d: PushData): string | null {
   const id = encodeURIComponent(d.id);
   if (d.type === "message.received") return `/thread/${id}`;
+  // A mention in a shared inbox thread's team notes: the server sends the newest message id (mid), which the thread screen opens.
+  if (d.type === "thread_mention") return d.mid ? `/thread/${encodeURIComponent(d.mid)}` : "/notifications";
   if (d.type === "approval.requested") return d.id ? `/approval/${id}` : "/approvals";
   if (d.type.startsWith("task.")) return `/task/${id}`;
   if (d.type === "automation.email" && d.id.startsWith("msg_")) return `/thread/${id}`;
@@ -43,6 +45,7 @@ export interface PushText { title: string; body: string; channel: "mail" | "appr
 
 export function channelFor(type: string): PushText["channel"] {
   if (type.startsWith("chat.")) return "chat";
+  if (type === "thread_mention") return "mail";
   return type.startsWith("approval") ? "approvals" : type.startsWith("message") || type.startsWith("mail") ? "mail" : "tasks";
 }
 
@@ -58,6 +61,7 @@ export function fallbackText(type: string): PushText {
     case "task.due_soon": return { title: "A task is due soon", body: "Tap to open it.", channel };
     case "automation.email": return { title: "An automation sent an email", body: "Tap to see it.", channel };
     case "chat.mention": return { title: "You were mentioned in chat", body: "Tap to read it.", channel };
+    case "thread_mention": return { title: "You were mentioned on an email thread", body: "Tap to open the thread.", channel };
     case "chat.dm": return { title: "New direct message", body: "Tap to read it.", channel };
     case "chat.reply": return { title: "New reply in a thread", body: "Tap to read it.", channel };
     case "goal.updated": return { title: "A goal was updated", body: "Tap to see your notifications.", channel };
@@ -76,6 +80,10 @@ export async function describePush(api: Api | null, d: PushData): Promise<PushTe
     if (d.type === "message.received" || (d.type === "automation.email" && d.id.startsWith("msg_"))) {
       const { message: m } = await api.message(d.id);
       return { ...base, title: d.type === "message.received" ? `New email from ${displayName(m.from)}` : base.title, body: clip(m.subject || m.snippet || base.body) };
+    }
+    if (d.type === "thread_mention" && d.mid) {
+      const { message: m } = await api.message(d.mid);
+      return { ...base, title: "You were mentioned on a thread", body: clip(m.subject || m.snippet || base.body) };
     }
     if (d.type === "approval.requested") {
       const { approvals } = await api.approvals("pending");
