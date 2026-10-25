@@ -58,6 +58,7 @@ describe("MCP server", () => {
       "create_triage_item",
       "delete_thread_comment",
       "find_tasks_by_field",
+      "get_call_status",
       "get_epic",
       "get_portfolio",
       "get_reply_stats",

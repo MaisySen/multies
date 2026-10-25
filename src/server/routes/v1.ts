@@ -35,6 +35,7 @@ import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
+import { registerCallRoutes } from "./v1-r23-calls";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -406,6 +407,7 @@ export function v1Routes() {
   registerPeopleRoutes(api);
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
+  registerCallRoutes(api); // Round 23: call presence
   registerMcpRoute(api);
   return api;
 }

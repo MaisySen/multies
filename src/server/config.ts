@@ -137,6 +137,8 @@ export interface AppConfig {
   xero?: { clientId: string; clientSecret: string };
   /** Video meetings through LiveKit (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET). Off without all three. */
   meetings?: { url: string; apiKey: string; apiSecret: string };
+  /** Round 23: local E2E fake of the video room list (CALLS_TEST_HOOK). Refused in production. */
+  callsTestHook?: boolean;
   /** Cloudflare Turnstile on public forms (TURNSTILE_SITE_KEY, TURNSTILE_SECRET_KEY). Without it, forms use a honeypot and rate limits. */
   turnstile?: { siteKey: string; secretKey: string };
   mailServer: {
@@ -254,6 +256,7 @@ const EnvSchema = z.object({
   FREE_MAIL_NEW_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_DAILY_CLAIMS: z.string().regex(/^\d+$/).optional(),
   LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
+  CALLS_TEST_HOOK: z.string().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
   TURNSTILE_SITE_KEY: z.string().optional(),
@@ -415,6 +418,11 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       ? { endpoint: env.BODY_STORE_ENDPOINT, bucket: env.BODY_STORE_BUCKET, region: env.BODY_STORE_REGION ?? "auto", accessKeyId: env.BODY_STORE_ACCESS_KEY_ID, secretAccessKey: env.BODY_STORE_SECRET_ACCESS_KEY }
       : undefined,
     meetings: env.LIVEKIT_URL && env.LIVEKIT_API_KEY && env.LIVEKIT_API_SECRET ? { url: env.LIVEKIT_URL, apiKey: env.LIVEKIT_API_KEY, apiSecret: env.LIVEKIT_API_SECRET } : undefined,
+    callsTestHook: (() => {
+      if (!["1", "true", "on", "yes"].includes(String(env.CALLS_TEST_HOOK ?? "").toLowerCase())) return false;
+      if (mode === "production") throw new ConfigError("CALLS_TEST_HOOK fakes video rooms for local tests and can't be on in production.");
+      return true;
+    })(),
     turnstile: env.TURNSTILE_SITE_KEY && env.TURNSTILE_SECRET_KEY ? { siteKey: env.TURNSTILE_SITE_KEY, secretKey: env.TURNSTILE_SECRET_KEY } : undefined,
     xero: env.XERO_CLIENT_ID && env.XERO_CLIENT_SECRET ? { clientId: env.XERO_CLIENT_ID, clientSecret: env.XERO_CLIENT_SECRET } : undefined,
     maxMessageBytes: env.MAX_MESSAGE_BYTES ? Number(env.MAX_MESSAGE_BYTES) : 10 * 1024 * 1024,

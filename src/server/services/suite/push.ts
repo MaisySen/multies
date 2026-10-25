@@ -12,13 +12,9 @@ import { enqueue, registerJob } from "../jobs";
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const TOKEN_RE = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,}\]$/;
 
-export function pushPayload(event: PushEvent) {
-  // Round 23: a mail thread mention also carries the newest message's id ("mid"), so a phone opens the thread.
-  return event.mid ? { type: event.type, id: event.id, mid: event.mid } : { type: event.type, id: event.id };
+export function pushPayload(event: { type: string; id: string }) {
+  return { type: event.type, id: event.id };
 }
-
-/** What a push carries: an event type, an id and, for a mail thread, the message id the phone opens. */
-export interface PushEvent { type: string; id: string; mid?: string }
 
 export async function registerDevice(deps: Deps, auth: { userId: string; orgId: string }, input: { token: string; platform: "ios" | "android" }) {
   if (!TOKEN_RE.test(input.token)) throw new HttpError(422, "invalid_push_token", "That isn't an Expo push token.");
@@ -39,7 +35,7 @@ export async function listDevices(deps: Deps, auth: { userId: string; orgId: str
 }
 
 /** Queues a push to these people's phones. Never slows the caller: it runs from the job queue. */
-export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], event: PushEvent) {
+export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], event: { type: string; id: string }) {
   if (!deps.config.push.enabled || !userIds.length) return;
   const devices = await deps.db.select({ token: pushDevices.token }).from(pushDevices).where(and(eq(pushDevices.orgId, orgId), inArray(pushDevices.userId, [...new Set(userIds)])));
   if (!devices.length) return;
@@ -48,7 +44,7 @@ export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], 
   try { await sendPushNow(deps, job, 3000); } catch { await enqueue(deps, "push.send", job, { orgId, maxAttempts: 4, delayMs: 30_000 }); }
 }
 
-export interface PushJob { orgId: string; tokens: string[]; event: PushEvent }
+export interface PushJob { orgId: string; tokens: string[]; event: { type: string; id: string } }
 
 export async function sendPushNow(deps: Deps, job: PushJob, timeoutMs = 10_000) {
   const channelId = job.event.type.startsWith("approval") ? "approvals" : job.event.type.startsWith("message") || job.event.type.startsWith("mail") ? "mail" : "tasks";

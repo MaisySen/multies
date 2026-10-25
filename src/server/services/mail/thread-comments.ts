@@ -8,7 +8,7 @@
  * open the thread's mailbox. D1 cost: 1 row plus 1 index entry per note, plus one notification row
  * per mentioned person (never the author).
  */
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, members, messages, threadComments, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -112,13 +112,9 @@ function cleanBody(body: string) {
 
 async function notifyMentions(deps: Deps, a: SuiteActor, threadId: string, subject: string, userIds: string[], authorName: string) {
   const me = a.agentId ? null : a.userId;
-  const targets = userIds.filter((u) => u !== me);
-  if (!targets.length) return;
-  // Round 23: phones open a mail thread by one of its messages, so the push carries the newest one's id.
-  const newest = await deps.db.select({ id: messages.id }).from(messages)
-    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"))).orderBy(desc(messages.date)).limit(1).get();
-  for (const userId of targets) {
-    await notify(deps, a.orgId, userId, { type: "thread_mention", entityType: "thread", entityId: threadId, title: `${authorName} mentioned you on: ${subject}`, actorName: authorName, pushMessageId: newest?.id ?? null });
+  for (const userId of userIds) {
+    if (userId === me) continue;
+    await notify(deps, a.orgId, userId, { type: "thread_mention", entityType: "thread", entityId: threadId, title: `${authorName} mentioned you on: ${subject}`, actorName: authorName });
   }
 }
 

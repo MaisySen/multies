@@ -582,3 +582,45 @@ it("saved replies (round 22): create, edit and delete are the row and its one in
   await deleteSnippet(ctx.deps, actor, s.id);
   expect(take()).toBe(2);
 });
+
+it("calls in chat (round 23): presence polls write nothing; a DM call rings each member with one notification; the end is one meeting update, once", async () => {
+  const ctx = await makeTestApp();
+  const { meetings } = await import("@/server/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const { clearCallCache } = await import("@/server/services/suite/calls");
+  clearCallCache();
+  const rooms = new Map<string, { identity: string; name: string; joinedAt: null }[]>();
+  ctx.deps.callRooms = { list: async (room) => rooms.get(room) ?? [] };
+  let clock = new Date("2026-10-20T00:00:00.000Z").getTime();
+  ctx.deps.now = () => new Date((clock += 20_000));
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const invite = await u.post("/api/team/invites", { email: "mate@acme.io", role: "member" });
+  const m = new Client(ctx.app);
+  await m.signup("mate@acme.io", "Sam Mate", "");
+  await m.post(`/api/invites/${invite.body.link.split("/invite/")[1]}/accept`);
+  const mateId = (await m.get("/api/account/me")).body.user.id;
+  const dm = (await u.post("/api/chat/dms", { userIds: [mateId] })).body.channel;
+  const take = meter(ctx.db);
+  const plain = await u.post(`/api/chat/channels/${dm.id}/messages`, { body: "hello" });
+  expect(plain.status).toBe(201);
+  const messageCost = take();
+  const call = (await u.post(`/api/chat/channels/${dm.id}/call`, {})).body;
+  const callCost = take();
+  // Measured 18 for a plain DM message (with its chat.dm notification) and 33 for a DM call: the meeting, the
+  // card, the channel's call claim and one call.started notification in place of the card's chat.dm one.
+  expect(messageCost).toBeLessThanOrEqual(20);
+  expect(callCost).toBeLessThanOrEqual(36);
+  const room = (await ctx.db.select({ room: meetings.room }).from(meetings).where(eq(meetings.id, call.meeting.id)).get())!.room;
+  for (let i = 0; i < 5; i++) await m.get(`/api/chat/channels/${dm.id}/call`);
+  rooms.set(room, [{ identity: "a", name: "Olive Owner", joinedAt: null }]);
+  for (let i = 0; i < 5; i++) await u.get(`/api/chat/channels/${dm.id}/call`);
+  expect(take()).toBe(0);
+  rooms.set(room, []);
+  for (let i = 0; i < 5; i++) await u.get(`/api/chat/channels/${dm.id}/call`);
+  // Measured 5: the meeting row and its 4 indexes by the meter's rule (D1 skips indexes whose columns didn't change), once.
+  expect(take()).toBe(5);
+  // A late "left" from the last client finds the call ended and writes nothing but the local rate limit counter (a binding in production).
+  await u.post(`/api/chat/calls/${call.meeting.id}/left`, {});
+  expect(take()).toBeLessThanOrEqual(4);
+});

@@ -24,6 +24,7 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "approval.requested": "approval",
   "task.due_soon": "due_soon",
   "chat.dm": "chat",
+  "call.started": "chat",
   "task.email_reply": "email",
   "automation.email": "email",
   "message.received": "email",
@@ -58,14 +59,14 @@ export async function setPrefs(deps: Deps, orgId: string, userId: string, patch:
   return cur;
 }
 
-export async function notify(deps: Deps, orgId: string, userId: string, n: { type: string; entityType: string; entityId: string; title: string; actorName?: string | null; pushMessageId?: string | null }) {
+export async function notify(deps: Deps, orgId: string, userId: string, n: { type: string; entityType: string; entityId: string; title: string; actorName?: string | null }) {
   try {
     const prefs = await getPrefs(deps, orgId, userId);
     const p = prefs[categoryOf(n.type)];
     if (p.inApp) {
       await deps.db.insert(notifications).values({ id: sortableId("ntf", deps.now().getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: deps.now() });
     }
-    if (p.push) await pushToUsers(deps, orgId, [userId], n.pushMessageId ? { type: n.type, id: n.entityId, mid: n.pushMessageId } : { type: n.type, id: n.entityId });
+    if (p.push) await pushToUsers(deps, orgId, [userId], { type: n.type, id: n.entityId });
   } catch (err) {
     deps.reportError?.(err, { where: "notify", type: n.type });
   }

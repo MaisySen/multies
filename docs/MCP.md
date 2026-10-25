@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 95 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 96 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -305,3 +305,11 @@ npx @modelcontextprotocol/inspector
 
 Choose Streamable HTTP and paste the URL. The inspector can run the OAuth sign in, or you can add the
 `Authorization` header with a key.
+
+### Calls in chat (round 23)
+
+Registered in src/server/routes/mcp-r23-calls.ts. Read only. Agents can't start calls (people press Call in chat); they can schedule meetings with `create_meeting`. Keys can't open DMs or private channels, so their calls answer not found.
+
+| Tool | What it does |
+| --- | --- |
+| `get_call_status` | Live status of calls: `channelId` for the calls started in a channel in the last 6 hours (live, waiting or ended, who is in each), or `meetingId` for one meeting; `enabled` is false when video is off |
