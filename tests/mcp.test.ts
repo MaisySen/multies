@@ -121,6 +121,7 @@ describe("MCP server", () => {
       "set_task_fields",
       "set_task_repeat",
       "set_thread_status",
+      "set_weekly_capacity",
       "snooze_thread",
       "start_sprint",
       "start_timer",

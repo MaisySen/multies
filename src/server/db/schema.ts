@@ -1581,3 +1581,18 @@ export const calendarSources = sqliteTable("calendar_sources", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
+
+/**
+ * Round 24: a stored weekly capacity per person for the workload view. `person` is the assignee
+ * key ("member:<userId>" or "agent:<id>"). Keyed (org_id, person) WITHOUT ROWID with no secondary
+ * index: setting a capacity is 1 row write, and the workload read takes the whole org in one
+ * primary key range read.
+ */
+export const workloadCapacity = sqliteTable("workload_capacity", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  person: text("person").notNull(),
+  points: real("points"),
+  hours: real("hours"),
+  updatedBy: text("updated_by"),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.person] })]);

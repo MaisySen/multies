@@ -230,7 +230,7 @@ export function v1Routes() {
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
   api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
-  api.use("/workload", apiKeyAuth); // R24.2: workload
+  api.use("/workload/*", apiKeyAuth); // R24.2: workload (and /workload/capacity; "/x/*" also matches "/x")
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {

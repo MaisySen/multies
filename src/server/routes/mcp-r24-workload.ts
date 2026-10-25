@@ -7,6 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { getWorkload, MAX_WEEKS } from "../services/suite/workload";
+import { MAX_CAPACITY, setCapacity } from "../services/suite/workload-capacity";
 import type { Scoped } from "./mcp-server";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
@@ -33,4 +34,14 @@ export function registerWorkloadTools(server: McpServer, deps: Deps, actor: Scop
     const strip = <T extends { tasks: unknown[] }>(c: T) => { const { tasks: _t, ...rest } = c; void _t; return rest; };
     return { ...w, people: w.people.map((p) => ({ ...p, overdue: strip(p.overdue), weeks: p.weeks.map(strip) })) };
   }) as never);
+
+  server.registerTool("set_weekly_capacity", {
+    title: "Set a person's weekly capacity", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    description: "Stores how much one person (member:<id> or agent:<id>, from list_members or get_workload) can take on per week, in points and or hours. null clears a value back to the default (20 points, 40 hours); a value left out stays. get_workload then flags over capacity against it. Owners and admins can set anyone's; a member their own.",
+    inputSchema: {
+      person: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/),
+      points: z.number().positive().max(MAX_CAPACITY).nullable().optional(),
+      hours: z.number().positive().max(MAX_CAPACITY).nullable().optional(),
+    },
+  }, tool(async (x: { person: string; points?: number | null; hours?: number | null }) => setCapacity(deps, a, x)) as never);
 }

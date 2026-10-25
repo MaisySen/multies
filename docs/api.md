@@ -555,7 +555,8 @@ way list views count them. Open tasks due before the range are in `overdue`.
 Each cell carries `count`, `points` and `hours` (each project's estimate unit), `noEstimate` (tasks with
 no estimate), `load` (the sum in the chosen `unit`), `over` and `near` (80% of capacity or more) and
 `tasks` (id, ref, title, project, due, start, status, points, unit). Capacity is a plain default per
-person per week, 20 points or 40 hours, that a request can change with `capacity`; nothing is stored.
+person per week, 20 points or 40 hours, that a request can change with `capacity`. A person's own weekly capacity can be stored (below); each
+person in the answer carries `capacity` and `capacitySource` (`stored`, `default` or `request`).
 At most 2,000 tasks are read, soonest first; `truncated: true` says the answer was cut.
 
 - App API: `GET /api/workload?from&weeks&projectId[]&sprintId&person[]&unit&capacity&tz`. `weeks` is 1
@@ -568,3 +569,17 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
   whole weeks with `PATCH /api/tasks/:id { due }` (the same weekday), the normal task update.
 
 D1 writes: reading the workload writes nothing. A move is one task update.
+
+### Weekly capacity per person (R24)
+
+A stored weekly capacity per person, in points and in hours, used by the workload view instead of the
+default (20 points, 40 hours). Owners and admins set anyone's; a member sets their own. Setting one is
+1 row write; an unchanged value writes nothing.
+
+- App API: `GET /api/workload/capacity` (defaults and every person with their stored values, null when
+  unset) and `PUT /api/workload/capacity` with `{ person: "member:<id>" | "agent:<id>", points?, hours? }`.
+  A number above 0 (up to 10,000) sets it, `null` clears it back to the default, a field left out stays.
+  A person from another workspace answers 404; someone else's capacity without admin rights answers 403.
+- Public API: `GET /api/v1/workload/capacity` and `PUT /api/v1/workload/capacity`, same shapes. Read only
+  keys can read and are refused (403) on PUT.
+- MCP: `set_weekly_capacity`.
