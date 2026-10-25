@@ -11,6 +11,7 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 
 ### Added
 
+- Customer domains list the sending provider's CNAME record (for example `rsend`) on the domain page and in the API as "Sending host (CNAME)". It was dropped before, so the provider never marked sending as verified (found while adding haajir.xyz on 25 Oct). The provider checks it, so it does not hold up domain verification.
 - 25 Oct deploy: privacy, abuse and support contacts on the legal pages and the disclosure steps in SECURITY.md use contact@fintex.au, because privacy@, abuse@, support@ and security@multies.si are not read mailboxes yet (docs/runbooks/multies-si-mailboxes.md). Scheduling is switched on in production and staging (SCHEDULING_ENABLED).
 - Legal pages and the trust page name the operator: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact contact@fintex.au (approved by the owner 25 Oct).
 - Round 16: the legal pages give the company location as "New South Wales, Australia (NSW 2135)" (no street address) and the ACN, per the company runbook. The site footer and the trust page carry the runbook's standard legal line with Fintex Australia Pty Ltd linked to fintex.au. security.txt, the trust page security contact and the support address now use contact@fintex.au instead of an internal mailbox (security@multies.si takes over once it is a live mailbox), and the mail apps page no longer links to the private source repository.

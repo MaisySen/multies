@@ -13,6 +13,7 @@ function fakeProvider(opts: { refuse?: string } = {}) {
     { record: "DKIM", name: "resend._domainkey", type: "TXT", ttl: "Auto", status: "not_started", value: "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDtest" },
     { record: "SPF", name: "send", type: "MX", ttl: "Auto", status: "not_started", value: "feedback-smtp.us-east-1.amazonses.com", priority: 10 },
     { record: "SPF", name: "send", type: "TXT", ttl: "Auto", status: "not_started", value: "v=spf1 include:amazonses.com ~all" },
+    { record: "SPF", name: "rsend", type: "CNAME", ttl: "Auto", status: "not_started", value: "send.forge.example.net" },
     { record: "Receiving", name: "@", type: "MX", ttl: "Auto", status: "not_started", value: "inbound-smtp.us-east-1.amazonaws.com", priority: 10 },
   ];
   const raw = [
@@ -60,6 +61,7 @@ describe("customer domains on any DNS provider (round 13)", () => {
     expect(byId("dkim")[0]).toMatchObject({ type: "TXT", host: "resend._domainkey", fqdn: "resend._domainkey.haajir.test" });
     expect(byId("return_mx")[0]).toMatchObject({ type: "MX", host: "send", fqdn: "send.haajir.test", value: "feedback-smtp.us-east-1.amazonses.com" });
     expect(byId("return_spf")[0]).toMatchObject({ type: "TXT", host: "send", value: "v=spf1 include:amazonses.com ~all" });
+    expect(byId("return_cname")[0]).toMatchObject({ type: "CNAME", host: "rsend", fqdn: "rsend.haajir.test", value: "send.forge.example.net", required: false });
     expect(byId("spf")[0].value).toMatch(/^v=spf1 /);
     expect(byId("dmarc")[0].value).toMatch(/^v=DMARC1; p=quarantine/);
     expect(byId("ownership")).toHaveLength(1);

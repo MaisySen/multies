@@ -64,6 +64,13 @@ export function expectedRecords(d: DomainDnsInput, config: AppConfig): ExpectedR
       title: "Sending permission (SPF)",
       why: `Lets the sending servers use ${fqdnOf(r.name, d.name)} as the return address, so your mail passes SPF.`,
     }];
+    // The provider checks this one itself (the sending status on the domain page), so it is listed
+    // but does not hold up verification here.
+    if (r.type === "CNAME") return [{
+      id: "return_cname", type: "CNAME", host: r.name, fqdn: fqdnOf(r.name, d.name), value: r.value, required: false,
+      title: "Sending host (CNAME)",
+      why: `The sending provider asks for ${fqdnOf(r.name, d.name)} before it marks sending as verified. It does not change where your normal mail arrives.`,
+    }];
     return [];
   });
   return [
