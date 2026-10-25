@@ -11,6 +11,15 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 
 ### Added
 
+- Contact page at `/contact` with a working form (name, email, optional company, message). It sends to the support address (SUPPORT_EMAIL, contact@fintex.au on production) through the platform sender with Reply-To set to the visitor, checks each field in the browser and on the server with the error shown next to the field, shows a loading state on the button, drops bots through a hidden honeypot field and allows 5 messages per network per hour. After sending, `/thank-you` (noindex) confirms it. `/contact` is in the sitemap and the footer.
+- A small cookie notice on public pages: essential cookies only, cookieless analytics, a link to the privacy policy and one OK button. Closing it is remembered in local storage. The privacy policy's cookie section says the same.
+- The phone's sticky "Start free" bar now covers the marketing pages (home, pricing, agents, check, trust, status, support), not only home. It stays hidden while the page's hero button is on screen, on legal and contact pages, and for signed in people.
+- After sign up, a person whose email isn't confirmed yet lands on a clear "Check your email to verify your account" screen with a Resend link button (loading and error states) instead of a vague sign in error. `POST /api/account/resend-verification` asks Auth0 to send the link again and answers the same whether or not the address exists.
+
+### Fixed
+
+- Settings, Delete account failed for everyone who signs in through Multies sign in (Auth0) with "Credential account not found", and failed silently. It now goes through `DELETE /api/account`: Auth0 people confirm by typing DELETE (password people still enter their password), a session older than 15 minutes is asked to sign in again before anything changes, the Auth0 login is removed through the Management API first (if that fails nothing is deleted and the dialog says so), and every error shows inside the dialog. `/api/account/me` now says `hasPassword`.
+
 - The sign in page logo loads again. Every multies.si response carried `Cross-Origin-Resource-Policy: same-origin`, so the identity provider's sign in page (on its own domain) could not show the Multies logo and browsers drew a broken image. Brand images now live at `/brand/` (for example `/brand/multies-logo-512.png`) and are served with `Cross-Origin-Resource-Policy: cross-origin`; every other path stays same origin.
 - The D1 write budget guard reads the day grouped by date with an exact date filter. The old query (date_geq, grouped only by database) answered 111 rows on 25 Oct while the day had 13,550, so the guard would have stayed "ok" near the limit.
 - A domain check no longer asks the sending provider to verify a domain it already shows as verified. The request put the domain back to pending at the provider each time.

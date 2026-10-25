@@ -25,7 +25,7 @@ export function SupportPage() {
         <section className={card} aria-labelledby="s-mail">
           <Mail className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-mail" className="mt-3 font-semibold">Email us</h2>
-          <p className="mt-1.5 text-[14px] text-muted">Write to <SupportEmail />. Tell us the email address you sign in with and what you were doing. We aim to reply within two business days (Sydney time).</p>
+          <p className="mt-1.5 text-[14px] text-muted">Use the <Link to="/contact" className="text-accent hover:underline">contact form</Link> or write to <SupportEmail />. Tell us the email address you sign in with and what you were doing. We aim to reply within two business days (Sydney time).</p>
         </section>
         <section className={card} aria-labelledby="s-status">
           <LifeBuoy className="h-5 w-5 text-accent" aria-hidden />

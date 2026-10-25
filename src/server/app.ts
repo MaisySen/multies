@@ -9,6 +9,7 @@ import { jsonLogger, requestIdFrom } from "./lib/logger";
 import { rateLimit } from "./lib/rate-limit";
 import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
+import { contactFormRoutes } from "./routes/contact";
 import { adminRoutes } from "./routes/admin";
 import { authFor } from "./auth";
 import { APIError } from "better-auth/api";
@@ -189,6 +190,7 @@ export function createApp(deps: Deps) {
   );
 
   app.route("/api/account", accountRoutes());
+  app.route("/api/contact", contactFormRoutes());
   app.route("/api/admin", adminRoutes());
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));

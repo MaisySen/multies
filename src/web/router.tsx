@@ -70,6 +70,7 @@ const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m
 const ThanksPage = lazy(() => import("./pages/thanks").then((m) => ({ default: m.ThanksPage })));
 const CheckPage = lazy(() => import("./pages/check").then((m) => ({ default: m.CheckPage })));
 const TrustPage = lazy(() => import("./pages/trust").then((m) => ({ default: m.TrustPage })));
+const ContactUsPage = lazy(() => import("./pages/contact").then((m) => ({ default: m.ContactUsPage })));
 const SupportPage = lazy(() => import("./pages/support").then((m) => ({ default: m.SupportPage })));
 const DeleteAccountPage = lazy(() => import("./pages/support").then((m) => ({ default: m.DeleteAccountPage })));
 const LegalPage = lazy(() => import("./pages/legal").then((m) => ({ default: m.LegalPage })));
@@ -89,6 +90,7 @@ export const router = createBrowserRouter([
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },
+      { path: "/contact", element: publicPage(<ContactUsPage />) },
       { path: "/check", element: publicPage(<CheckPage />) },
       { path: "/trust", element: publicPage(<TrustPage />) },
       { path: "/delete-account", element: publicPage(<DeleteAccountPage />) },
@@ -169,5 +171,6 @@ export const router = createBrowserRouter([
   { path: "/g/:token", element: publicPage(<GuestAcceptPage />) },
   { path: "/guest", element: publicPage(<GuestProjectPage />) },
   { path: "/thanks", element: publicPage(<ThanksPage />) },
+  { path: "/thank-you", element: publicPage(<ThanksPage />) },
   { path: "*", element: <NotFound /> },
 ]);

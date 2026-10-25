@@ -5,7 +5,7 @@
  */
 const EXACT = new Set([
   "/", "/pricing", "/agents", "/check", "/trust", "/status", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
-  "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks",
+  "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks", "/contact", "/thank-you",
 ]);
 const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/"];
 

@@ -93,7 +93,7 @@ export const PRIVACY: LegalDoc = {
       "Our primary database is placed in Cloudflare's Oceania region. Cloudflare treats that as a location hint and does not commit to a country, and requests are handled at the edge location nearest you. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
-      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies, so there is no cookie banner. Error monitoring does not set cookies.",
+      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies. Our visitor analytics (Cloudflare Web Analytics) is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
     ] },
     { id: "keep", title: "How long we keep it", body: [
       { list: [

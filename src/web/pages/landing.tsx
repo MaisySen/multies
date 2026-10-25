@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { ArrowRight, Play } from "lucide-react";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { HeroVisual } from "@/web/components/hero-visual";
@@ -45,26 +44,9 @@ export function Landing() {
   const config = useConfig();
   const demo = useStartDemo();
   const demoEnabled = config.data?.demoEnabled;
-  // On phones, a call to action stays pinned to the bottom once the hero buttons scroll away.
-  const heroCta = useRef<HTMLDivElement>(null);
-  const [showSticky, setShowSticky] = useState(false);
-  useEffect(() => {
-    const el = heroCta.current;
-    if (!el || typeof IntersectionObserver === "undefined") return;
-    const io = new IntersectionObserver(([e]) => setShowSticky(!e.isIntersecting && e.boundingClientRect.top < 0));
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
 
   return (
     <>
-      <div data-testid="sticky-cta" aria-hidden={!showSticky}
-        className={`fixed inset-x-0 bottom-0 z-40 border-t border-line bg-bg/85 px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-3 backdrop-blur-xl backdrop-saturate-150 transition-[transform,opacity] duration-250 ease-out sm:hidden ${showSticky ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-full opacity-0"}`}>
-        <div className="flex items-center gap-3">
-          <p className="min-w-0 flex-1 text-[13px] leading-snug text-muted">Free for 1 domain and 3 mailboxes. No card.</p>
-          <ButtonLink to="/signup" tabIndex={showSticky ? 0 : -1}>Start free</ButtonLink>
-        </div>
-      </div>
       <section className="relative overflow-hidden pt-32 sm:pt-40">
         <div className="relative mx-auto max-w-6xl px-5 text-center">
           <h1 className="mx-auto max-w-4xl text-[40px] font-semibold leading-[1.05] tracking-[-0.035em] text-fg sm:text-5xl md:text-6xl">
@@ -73,7 +55,7 @@ export function Landing() {
           <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-muted">
             Free for startups and small businesses, on your own domain. Turn any email into a task, run projects on boards, and see every thread with a client in one place. A person approves what agents send.
           </p>
-          <div ref={heroCta} className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div data-hero-cta className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto" data-testid="hero-cta">Start free <ArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
             {demoEnabled && (
               <Button size="lg" variant="secondary" onClick={demo.start} loading={demo.loading} className="w-full sm:w-auto">

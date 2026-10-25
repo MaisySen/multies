@@ -5,7 +5,8 @@ import { z } from "zod";
 import { and, count, eq, gt, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { accounts, members, organizations, users } from "../db/schema";
+import { accounts, members, organizations, sessions, users } from "../db/schema";
+import { deleteAuth0User, resendAuth0Verification } from "../services/auth0-management";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
 import { authFor, authMode } from "../auth";
@@ -20,7 +21,10 @@ import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } fro
  * Product-level account endpoints. Sign-up, sign-in, sessions, 2FA, password reset
  * and email verification are Better Auth's, served under /api/auth.
  */
+const FRESH_SESSION_MS = 15 * 60_000;
+
 export function accountRoutes() {
+  const resendLimiter = new RateLimiter(3, 10 * 60_000);
   const demoLimiter = new RateLimiter(5, 60 * 60_000);
   return new Hono<AppEnv>()
     .get("/providers", (c) => {
@@ -62,6 +66,23 @@ export function accountRoutes() {
       const r = await runDueJobs(c.var.deps, 1, { types: ["demo.seed_suite"], orgId: c.var.auth.orgId });
       return c.json({ ok: true, ran: r.ran });
     })
+    /**
+     * Sends the email verification link again for a password account at the identity provider.
+     * Always answers the same, so it never tells anyone whether an address has an account.
+     */
+    .post("/resend-verification", async (c) => {
+      const { email } = await parseBody(c, z.object({ email: z.string().trim().toLowerCase().email("Enter the email you signed up with.").max(254) }));
+      if (!resendLimiter.take(`${c.var.ip}|${email}`)) throw tooMany();
+      const mgmt = c.var.deps.config.auth.auth0Management;
+      if (!mgmt) throw new HttpError(503, "resend_unavailable", `Resending isn't available right now. Email ${c.var.deps.config.supportEmail} and we'll confirm your address.`);
+      try {
+        await resendAuth0Verification(mgmt, email);
+      } catch (err) {
+        c.var.deps.log?.error("account.resend_verification_failed", { error: String(err) });
+        throw new HttpError(502, "resend_failed", "We couldn't send the email just now. Try again in a minute.");
+      }
+      return c.json({ ok: true });
+    })
     .use("*", requireAuth)
     .get("/me", async (c) => {
       const { auth } = c.var;
@@ -70,6 +91,8 @@ export function accountRoutes() {
         user: { id: auth.userId, email: auth.email, name: auth.name, emailVerified: !!auth.emailVerified, twoFactor: !!auth.twoFactor, platformAdmin: auth.platformRole === "admin" },
         organization: org ? { id: org.id, name: org.name, plan: org.plan, isDemo: org.isDemo, role: auth.role, timezone: org.timezone, country: org.country, requireSso: org.requireSso } : null,
         session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },
+        hasPassword: !!(await c.var.deps.db.select({ password: accounts.password }).from(accounts)
+          .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get())?.password,
       });
     })
     .get("/workspaces", async (c) => {
@@ -142,6 +165,28 @@ export function accountRoutes() {
         await deps.db.delete(users).where(eq(users.id, auth.userId));
         for (const cookie of out.headers.getSetCookie()) c.header("set-cookie", cookie, { append: true });
         return c.json({ ok: true, deletedWorkspaces: alone });
+      }
+      // A person who signs in only through the identity provider has no password to confirm with, so the
+      // session itself must be recent. Checked before anything is deleted, so a stale session changes nothing.
+      if (!cred?.password) {
+        const s = await deps.db.select({ createdAt: sessions.createdAt }).from(sessions).where(eq(sessions.id, auth.sessionId)).get();
+        if (!s || deps.now().getTime() - new Date(s.createdAt).getTime() > FRESH_SESSION_MS) {
+          throw new HttpError(403, "reauth_required", "For your safety, sign in again to confirm it's you, then delete your account within 15 minutes.");
+        }
+      }
+      // The sign in at the identity provider goes first: if it can't be removed, nothing is deleted and the person can retry.
+      const idp = await deps.db.select({ accountId: accounts.accountId }).from(accounts)
+        .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "auth0"))).all();
+      const mgmt = deps.config.auth.auth0Management;
+      if (idp.length && mgmt) {
+        try {
+          for (const a of idp) await deleteAuth0User(mgmt, a.accountId);
+        } catch (err) {
+          deps.log?.error("account.idp_delete_failed", { user: auth.userId, error: String(err) });
+          throw new HttpError(502, "idp_delete_failed", `Your sign in couldn't be removed just now, so nothing was deleted. Try again in a minute, or email ${deps.config.supportEmail}.`);
+        }
+      } else if (idp.length) {
+        deps.log?.warn("account.idp_delete_skipped", { user: auth.userId, reason: "no Auth0 management client configured" });
       }
       const res = await authFor(deps).api.deleteUser({ headers: c.req.raw.headers, body: cred?.password ? { password: body.password } : {}, asResponse: true });
       if (!res.ok) {

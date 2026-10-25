@@ -8,6 +8,8 @@ export interface Me {
   user: { id: string; email: string; name: string; emailVerified: boolean; twoFactor: boolean; platformAdmin: boolean };
   organization: { id: string; name: string; plan: PlanId; isDemo: boolean; role: "owner" | "admin" | "member"; timezone: string; country: string; requireSso?: boolean } | null;
   session?: { loginMethod: string; ssoBlocked: boolean };
+  /** The person has a Multies password (an email and password account); Auth0-only people do not. */
+  hasPassword?: boolean;
 }
 
 export interface PublicConfig {

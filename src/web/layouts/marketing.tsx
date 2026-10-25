@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Cookie, Menu as MenuIcon, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { LegalLine } from "@/web/components/legal-line";
+import { MarketingBottom } from "@/web/components/marketing-bottom";
 import { ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
@@ -78,7 +79,7 @@ export function MarketingLayout() {
           <div className="space-y-3 md:col-span-2">
             <Logo />
             <p className="max-w-xs text-sm text-muted">Professional email on the domain you already own, with tasks, chat and agents built in.</p>
-            <p className="text-sm text-muted">Questions? <Link to="/support" className="font-medium text-brand-hover hover:underline">Contact support</Link></p>
+            <p className="text-sm text-muted">Questions? <Link to="/contact" className="font-medium text-brand-hover hover:underline">Contact us</Link></p>
           </div>
           <div>
             <h2 className="text-[13px] font-medium text-fg">Product</h2>
@@ -98,6 +99,8 @@ export function MarketingLayout() {
               <li><Link to="/signup" className="hover:text-fg">Create account</Link></li>
               <li><Link to="/login" className="hover:text-fg">Sign in</Link></li>
               <li><Link to="/app" className="hover:text-fg">Dashboard</Link></li>
+              <li><Link to="/contact" className="hover:text-fg">Contact</Link></li>
+              <li><Link to="/support" className="hover:text-fg">Support</Link></li>
             </ul>
           </div>
           <div>
@@ -119,6 +122,7 @@ export function MarketingLayout() {
           <span data-testid="cookie-notice"><Cookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
         </div>
       </footer>
+      <MarketingBottom />
     </div>
   );
 }

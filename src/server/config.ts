@@ -35,6 +35,8 @@ export interface AppConfig {
     social: { google?: { clientId: string; clientSecret: string }; github?: { clientId: string; clientSecret: string } };
     /** The identity provider for people (OIDC, Universal Login). `nativeClientId` is the mobile app's public client. */
     auth0?: { domain: string; clientId: string; clientSecret: string; nativeClientId?: string };
+    /** A machine-to-machine Auth0 client for the Management API (delete a person, resend a verification email). Optional. */
+    auth0Management?: { domain: string; clientId: string; clientSecret: string };
     /**
      * The app's own email and password form. Off by default once the identity provider is
      * configured (sign up, reset and verification then happen there); on for self host and
@@ -145,6 +147,8 @@ const EnvSchema = z.object({
   AUTH0_CLIENT_ID: z.string().optional(),
   AUTH0_CLIENT_SECRET: z.string().optional(),
   AUTH0_NATIVE_CLIENT_ID: z.string().optional(),
+  AUTH0_MGMT_CLIENT_ID: z.string().optional(),
+  AUTH0_MGMT_CLIENT_SECRET: z.string().optional(),
   AUTH_LOCAL_PASSWORD: z.enum(["on", "off", "true", "false"]).optional(),
   TRUST_PROXY: z.string().optional(),
   PASSWORD_BREACH_CHECK: z.string().optional(),
@@ -255,6 +259,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       },
       ...(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET
         ? { auth0: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_CLIENT_ID, clientSecret: env.AUTH0_CLIENT_SECRET, ...(env.AUTH0_NATIVE_CLIENT_ID ? { nativeClientId: env.AUTH0_NATIVE_CLIENT_ID } : {}) } } : {}),
+      ...(env.AUTH0_DOMAIN && env.AUTH0_MGMT_CLIENT_ID && env.AUTH0_MGMT_CLIENT_SECRET
+        ? { auth0Management: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_MGMT_CLIENT_ID, clientSecret: env.AUTH0_MGMT_CLIENT_SECRET } } : {}),
       trustProxy: env.TRUST_PROXY === "true" || env.TRUST_PROXY === "1",
       localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",

@@ -293,11 +293,16 @@ export function AccountSection() {
     onSuccess: () => { setCurrent(""); setNext(""); setFields({}); toast.success("Password changed", { description: "Other devices were signed out." }); },
     onError: (e) => { if (e instanceof ApiError && e.fields) setFields(e.fields); else showError(e); },
   });
+  const me = useMe();
+  const hasPassword = me.data?.hasPassword !== false;
+  const [confirmWord, setConfirmWord] = useState("");
+  // Goes through /api/account, which handles password and Auth0 sign ins alike and removes the Auth0 login too.
   const del = useMutation({
-    mutationFn: () => unwrap(authClient.deleteUser({ password: confirmPw })),
+    mutationFn: () => api.del("/account", { confirm: "DELETE", password: hasPassword ? confirmPw : undefined }),
     onSuccess: () => { qc.clear(); navigate("/"); toast.success("Your account was deleted"); },
-    onError: (e) => showError(e),
   });
+  const delError = del.error instanceof Error ? del.error : null;
+  const needsReauth = del.error instanceof ApiError && del.error.code === "reauth_required";
   return (
     <Section title="Password" description="Changing it signs you out on every other device.">
       <form className="max-w-md space-y-3" onSubmit={(e) => { e.preventDefault(); setFields({}); change.mutate(); }}>
@@ -311,9 +316,19 @@ export function AccountSection() {
         <div><h3 className="text-sm font-medium">Delete account</h3><p className="text-xs text-subtle">Removes you and any workspace where you're the only member, with all its mail.</p></div>
         <Button variant="danger" size="sm" onClick={() => setDeleting(true)}>Delete account</Button>
       </div>
-      <Dialog open={deleting} onClose={() => setDeleting(false)} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, with its domains, mailboxes and mail. Download your data first if you want a copy."
-        footer={<><Button variant="ghost" onClick={() => setDeleting(false)}>Cancel</Button><Button variant="danger" disabled={!confirmPw} loading={del.isPending} onClick={() => del.mutate()}>Delete forever</Button></>}>
-        <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
+      <Dialog open={deleting} onClose={() => { setDeleting(false); del.reset(); }} title="Delete your account?" description="This permanently deletes your account, and any workspace where you're the only member, with its domains, mailboxes and mail. Download your data first if you want a copy."
+        footer={<><Button variant="ghost" onClick={() => { setDeleting(false); del.reset(); }}>Cancel</Button><Button variant="danger" disabled={hasPassword ? !confirmPw : confirmWord !== "DELETE"} loading={del.isPending} onClick={() => del.mutate()} data-testid="delete-account-confirm">Delete forever</Button></>}>
+        <div className="space-y-3">
+          {delError && (
+            <div role="alert" data-testid="delete-account-error" className="rounded-lg border border-bad/25 bg-bad-soft px-3 py-2.5 text-sm text-bad">
+              {delError.message}
+              {needsReauth && <> <a href="/login?next=/app/settings/account" className="font-medium underline underline-offset-2">Sign in again</a></>}
+            </div>
+          )}
+          {hasPassword
+            ? <Field label="Confirm with your password">{(p) => <Input {...p} type="password" autoComplete="current-password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} />}</Field>
+            : <Field label="Type DELETE to confirm" hint="You signed in with Multies sign in, so there's no password to enter.">{(p) => <Input {...p} autoComplete="off" autoCapitalize="characters" value={confirmWord} onChange={(e) => setConfirmWord(e.target.value)} />}</Field>}
+        </div>
       </Dialog>
     </Section>
   );

@@ -135,6 +135,35 @@ function DemoLink() {
   );
 }
 
+/** After sign up: the account exists but its email isn't confirmed yet. Says so plainly and can send the link again. */
+function VerifyEmailNotice() {
+  const [email, setEmail] = useState("");
+  const [fieldError, setFieldError] = useState<string | undefined>();
+  const resend = useMutation({ mutationFn: (address: string) => api.post("/account/resend-verification", { email: address }) });
+  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const address = email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) { setFieldError("Enter the email you signed up with."); return; }
+    setFieldError(undefined);
+    resend.mutate(address);
+  };
+  const serverFields = resend.error instanceof ApiError ? resend.error.fields : undefined;
+  return (
+    <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur" data-testid="verify-email">
+      <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><MailCheck className="h-5 w-5" /></div>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">Check your email to verify your account</h1>
+      <p className="mt-2 text-sm text-muted">Your account is created. We sent a confirmation link to the address you signed up with. Open it, then come back and sign in.</p>
+      <form className="mt-6 space-y-3" onSubmit={onSubmit} noValidate>
+        {resend.isSuccess && <p role="status" className="rounded-lg border border-ok/25 bg-ok-soft px-3 py-2.5 text-sm text-ok">If that address is waiting for confirmation, a new link is on its way. Check your spam folder too.</p>}
+        {resend.error && !serverFields && <FormError message={resend.error.message} />}
+        <Field label="Didn't get it? Send the link again" error={fieldError ?? serverFields?.email}>{(p) => <Input {...p} name="email" type="email" autoComplete="email" inputMode="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
+        <Button type="submit" variant="secondary" className="w-full" loading={resend.isPending} data-testid="resend-verification">{resend.isPending ? "Sending" : "Resend link"}</Button>
+      </form>
+      <Link to="/login" replace className="mt-4 block text-center text-sm font-medium text-accent hover:underline">I've confirmed it, sign in</Link>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const { submit, loading, error, fields, needsSecondFactor } = useAuthSubmit((b) => unwrap(authClient.signIn.email({ email: b.email, password: b.password })));
   const [params] = useSearchParams();
@@ -146,13 +175,18 @@ export function LoginPage() {
     const f = new FormData(e.currentTarget);
     submit({ email: String(f.get("email")), password: String(f.get("password")) });
   };
+  // The identity provider holds back a new password account until its email is confirmed, and says so in error_description.
+  const errorDescription = params.get("error_description") ?? "";
+  const needsVerify = /confirm your email|verify your email|email (is )?not verified/i.test(errorDescription);
+  const oauthFailed = !needsVerify && params.getAll("error").some((e) => e !== "read_only");
   if (needsSecondFactor) return <SecondFactor />;
+  if (needsVerify) return <VerifyEmailNotice />;
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
-      {params.get("error") === "oauth" && <div className="mt-4"><FormError message="That sign in didn't complete. Please try again." /></div>}
+      {oauthFailed && <div className="mt-4"><FormError message={params.get("error_description") || "That sign in didn't complete. Please try again."} /></div>}
       {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
       {!idp && <SocialButtons />}
