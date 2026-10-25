@@ -863,6 +863,10 @@ export const docs = sqliteTable("docs", {
   /** Plain text of the content, for search and for agents. */
   plainText: text("plain_text").notNull().default(""),
   projectId: text("project_id"),
+  /** R24: the page above this one in the docs tree (null at the top). Read with docs_org_idx, no index of its own. */
+  parentId: text("parent_id"),
+  /** R24: order among siblings, fractional so a move writes one row. */
+  position: real("position").notNull().default(0),
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
@@ -950,10 +954,10 @@ export const automations = sqliteTable("automations", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
-  trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon", "task_created", "assignee_changed", "due_passed", "meeting_ended", "chat_message_posted"] }).notNull(),
+  trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon"] }).notNull(),
   /** JSON: email_received { from?, subjectContains?, mailboxId? }; status_changed { projectId?, toCategory? }; due_soon { hoursBefore } */
   conditions: text("conditions").notNull().default("{}"),
-  action: text("action", { enum: ["create_task", "notify", "assign_thread", "post_to_channel", "assign_task", "set_status", "add_label", "set_priority", "create_subtask_checklist"] }).notNull(),
+  action: text("action", { enum: ["create_task", "notify", "assign_thread"] }).notNull(),
   /** JSON: create_task { projectId, assigneeType?, assigneeId?, priority?, dueInDays? }; notify { to: "assignee" | "creator" | userId } */
   actionConfig: text("action_config").notNull().default("{}"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
@@ -1581,3 +1585,14 @@ export const calendarSources = sqliteTable("calendar_sources", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId, t.id] })]);
+
+/**
+ * R24: links found inside a doc's body (links to /app/docs/<id> or a task, and page links), one row per
+ * distinct target, rewritten only when the set changes. Backlinks read doc_links_target_idx. WITHOUT ROWID.
+ */
+export const docLinks = sqliteTable("doc_links", {
+  orgId: text("org_id").notNull(),
+  sourceDocId: text("source_doc_id").notNull(),
+  targetType: text("target_type", { enum: ["doc", "task", "project"] }).notNull(),
+  targetId: text("target_id").notNull(),
+}, (t) => [primaryKey({ columns: [t.sourceDocId, t.targetType, t.targetId] }), index("doc_links_target_idx").on(t.targetType, t.targetId)]);

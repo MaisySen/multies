@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { FieldInput } from "./fields";
 import { TaskFiles } from "./task-files";
+import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
 import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
@@ -191,6 +192,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           </section>
 
           <TaskFiles taskId={t.id} />
+          <TaskDocBacklinks taskId={t.id} />
 
           {q.data!.docs.length > 0 && (
             <section className="mt-6" aria-label="Docs">

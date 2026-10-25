@@ -569,45 +569,35 @@ At most 2,000 tasks are read, soonest first; `truncated: true` says the answer w
 
 D1 writes: reading the workload writes nothing. A move is one task update.
 
-## Automation recipes (R24.4)
+## Docs page tree and backlinks (R24.5)
 
-Ready made "when this happens, do that" rules, about 28 of them in five groups (Tasks, Mail, Chat,
-Meetings, Sprints), defined in src/shared/automation-recipes.ts. Turning one on makes normal automation
-rows (one per rule of the recipe) with `conditions.recipe` set to the recipe's key, so they show and
-edit like any rule. Each recipe lists its `blanks`: what the person picks (`channel`, `project`,
-`member`, `members` or `text`), sent as `{ blanks: { channelId, projectId, memberIds, from, keyword } }`.
+Docs form a tree of pages and sub pages, at most 6 levels deep. Each doc has `parentId` (null at the
+top) and `position` (a number that orders it among its siblings). Moving a page writes one row: it gets
+a position halfway between its new neighbours, and siblings are spaced out again only when two
+neighbours have no room left between them. A page can't go under itself or one of its own sub pages
+(422 `cycle`), and a move or a new sub page that would go past 6 levels answers 422 `too_deep`.
+Deleting a page moves its sub pages up to its parent.
 
-- App API: `GET /api/automations/recipes` answers `{ categories, canManage, recipes: [{ key, category,
-  name, description, icon, rules, blanks, added, on, automationIds }] }`. `POST
-  /api/automations/recipes/:key/enable` with `{ blanks }` (admins only) answers `{ recipe, automations,
-  created }`; a recipe added before is switched back on (`created: false`).
-- Public API: `GET /api/v1/automations/recipes` (read only keys can call it) and `POST
-  /api/v1/automations/recipes/{key}/enable` (a full workspace key; read only and agent keys get 403).
-- MCP: `list_automation_recipes`, `enable_automation_recipe`.
-- Errors: 404 for a key that is not a recipe; 422 when a blank is missing, or names a channel, project
-  or member outside this workspace, or a private or archived channel.
+Backlinks: when a doc's body is saved, the links inside it are read: links to `/app/docs/<id>`,
+`/app/tasks/<id>`, `/app/tasks?task=<id>` and `/app/tasks?project=<id>` (relative, or on the app's own
+host), mention nodes and page links. Outside links and ids from another workspace are ignored. Only
+the difference from the stored set is written, so a save that did not change the links writes no link
+rows. The co-editing room keeps its own state; the doc row (and so its links) is saved by the leader's
+periodic snapshot through the normal update.
 
-The engine behind them (`POST /api/automations` takes the same values):
+- `GET /api/v1/docs/tree` (app: `GET /api/docs/tree`): `{ tree, count, truncated, maxDepth }`; each
+  node has id, title, parentId, position, projectId, updatedAt, depth and children. At most 2,000 docs.
+- `PATCH /api/v1/docs/{id}/move` (app: `PATCH /api/docs/:id/move`): body `{ parentId?, beforeId? |
+  afterId? | position? }`. `parentId` null is the top level; `beforeId` or `afterId` is a sibling under
+  that parent; with none the page goes last. Needs a full key. Answers `{ doc, renumbered }`.
+- `POST /api/v1/docs` accepts `parentId` to create a sub page (it goes last under that page).
+- `GET /api/v1/docs/{id}/backlinks` and `GET /api/v1/tasks/{id}/backlinks` (a task id or a ref like
+  OPS-12; app: the same paths under `/api`): `{ backlinks: [{ id, title, snippet, projectId, updatedAt }] }`,
+  newest first, at most 100. The snippet is the text of the block that holds the link.
+- Project guests: `GET /api/guest/r24/docs/tree`, `/api/guest/r24/docs/:id/backlinks` and
+  `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
+- Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
 
-- Triggers: `email_received`, `status_changed`, `due_soon` (as before), and `task_created`,
-  `assignee_changed`, `due_passed` (an open task whose due date passed, checked by the 15 minute cron,
-  once per task per due date, paused when the day's D1 write budget reads warn or shed),
-  `meeting_ended` (a meeting marked ended; optional `titleContains`) and `chat_message_posted` (needs
-  `keyword`, matched as a whole word; optional `channelId`; posts made by rules never trigger it).
-- Conditions on task triggers: `projectId`, `priority`, `type`, `label`, `inSprint`, `unassigned`,
-  `category` (the task's current category), and on `status_changed` also `toCategory`, `toStatusId` and
-  `toStatusName` (for example "In review").
-- Actions: `notify` (`to`: assignee, creator, lead, admins or a member id), `create_task`, and
-  `post_to_channel` (`channelId` of a public channel, `message` with `{task.title}`, `{task.ref}`,
-  `{task.url}`, `{assignee}`, `{project}`, `{meeting.title}`, `{message.text}`, `{author}`,
-  `{channel}`, `{email.from}`, `{email.subject}`), `assign_task` (`mode` member with `memberId`, lead
-  for the project's owner, or round_robin over `memberIds`), `set_status` (`statusName`, `statusId` or
-  `category`), `add_label` (`label`), `set_priority` (`priority`) and `create_subtask_checklist`
-  (`items`, 1 to 10 subtasks). Meeting and chat rules can notify, make a task or post.
-- Loops: a rule's own change runs one level deeper and nothing runs past 3 levels; one rule acts on
-  one task at most once a minute. Every run counts against the plan's monthly automation runs.
-
-D1 writes: listing recipes writes nothing; turning a recipe on is about 9 rows per rule (the rule, its
-activity and change rows). A run is the run count and the rule's run stamp (3) plus its action: a post
-in a channel about 11, a task change about 15. A due_passed run adds the task's once per due date
-marker. A task, chat message or meeting with no matching rules writes nothing more than before.
+D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
+A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
+page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.

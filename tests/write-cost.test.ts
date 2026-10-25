@@ -759,51 +759,44 @@ it("workload (R24.2): reading the workload writes nothing, through the app, the 
   expect(take()).toBeLessThanOrEqual(16);
 });
 
-it("automation recipes (R24.4): listing writes nothing; turning one on is one automation row with its activity; a run is the action plus the run count; due_passed idle writes nothing", async () => {
+it("docs tree and backlinks (R24.5): unchanged links write 0 link rows; a link is 2 (row + target index); a move is 1 docs row; tree and backlink reads write nothing", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
   await u.signup("owner@acme.io", "Olive Owner");
   const me = (await u.get("/api/account/me")).body;
   const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
-  const channelId = (await u.post("/api/chat/channels", { name: "engineering" })).body.channel.id;
-  const { listRecipes, enableRecipe } = await import("@/server/services/suite/automation-recipes");
-  const { runDuePassed } = await import("@/server/services/suite/automations-r24");
-  const { createTask, updateTask } = await import("@/server/services/suite/tasks");
+  const docsSvc = await import("@/server/services/suite/docs");
+  const tree = await import("@/server/services/suite/doc-tree");
+  const a = await docsSvc.createDoc(ctx.deps, actor, { title: "A", text: "" });
+  const b = await docsSvc.createDoc(ctx.deps, actor, { title: "B", text: "" });
+  const c = await docsSvc.createDoc(ctx.deps, actor, { title: "C", text: "" });
+  const body = (...ids: string[]) => ({ type: "doc", content: [{ type: "paragraph", content: ids.map((id) => ({ type: "text", text: id, marks: [{ type: "link", attrs: { href: `/app/docs/${id}` } }] })) }] });
   const take = meter(ctx.db);
-  await listRecipes(ctx.deps, actor);
-  await u.get("/api/automations/recipes");
-  expect(await runDuePassed(ctx.deps)).toEqual({ fired: 0, paused: false });
+  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id))).toEqual({ added: 1, removed: 0 });
+  expect(take()).toBe(2);
+  // The leader's snapshot saves again with the same links: no link rows.
+  expect(await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(b.id, b.id))).toEqual({ added: 0, removed: 0 });
   expect(take()).toBe(0);
-  // A task with no rules on costs what it cost before (the rules read writes nothing).
-  await createTask(ctx.deps, actor, { title: "Baseline", projectId, priority: "urgent" });
-  const plainCreate = take();
-  await enableRecipe(ctx.deps, actor, "urgent_post_channel", { channelId });
-  const enableCost = take();
-  // Measured 9: the automation row (1 index), its activity and change rows.
-  expect(enableCost).toBeLessThanOrEqual(10);
-  await createTask(ctx.deps, actor, { title: "Server down", projectId, priority: "urgent" });
-  const runCost = take() - plainCreate;
-  // Measured 14: the run count, the rule's run stamp, and the chat message with its channel stamp and activity.
-  expect(runCost).toBeLessThanOrEqual(16);
-  // set_priority on a created bug: the run count, the rule's row, and one task update.
-  await enableRecipe(ctx.deps, actor, "customer_label_priority");
-  take();
-  await createTask(ctx.deps, actor, { title: "Plain", projectId });
-  const plain2 = take();
-  await createTask(ctx.deps, actor, { title: "Customer", projectId, labels: ["customer"] });
-  const prioCost = take() - plain2;
-  // Measured 18: the run count, the rule's run stamp, and one task update with its activity and change rows.
-  expect(prioCost).toBeLessThanOrEqual(20);
-  // due_passed: the marker on the task plus the run.
-  await enableRecipe(ctx.deps, actor, "due_passed_notify");
-  const late = await createTask(ctx.deps, actor, { title: "Late", projectId, due: new Date(Date.now() - 3600_000).toISOString() });
-  await updateTask(ctx.deps, actor, late.id, { assignee: null });
-  take();
-  await runDuePassed(ctx.deps);
-  const dueCost = take();
-  // Measured 12: the once per due date marker on the task (its indexes), the run count and the rule's run stamp.
-  expect(dueCost).toBeLessThanOrEqual(14);
-  await runDuePassed(ctx.deps);
+  await tree.syncDocLinks(ctx.deps, actor.orgId, a.id, body(c.id));
+  expect(take()).toBe(4); // one out, one in
+  // A whole doc save with unchanged links costs the same as a save of a doc with no links at all.
+  await docsSvc.updateDoc(ctx.deps, actor, b.id, { content: body() });
+  const plain = take();
+  await docsSvc.updateDoc(ctx.deps, actor, a.id, { content: body(c.id) });
+  expect(take()).toBe(plain);
+  // A move: one docs row (the meter counts it with the docs key index and docs_org_idx, as for any docs update).
+  await tree.moveDoc(ctx.deps, actor, b.id, { parentId: a.id });
+  expect(take()).toBe(3);
+  await tree.moveDoc(ctx.deps, actor, c.id, { parentId: a.id, beforeId: b.id });
+  expect(take()).toBe(3);
+  await tree.getDocTree(ctx.deps, { orgId: actor.orgId });
+  await tree.getBacklinks(ctx.deps, { orgId: actor.orgId }, { type: "doc", id: c.id });
   expect(take()).toBe(0);
+  // Deleting A lifts its two sub pages: 2 docs rows (3 each by the meter) on top of the delete itself.
+  const d = await docsSvc.createDoc(ctx.deps, actor, { title: "D", text: "" });
+  take();
+  await docsSvc.deleteDoc(ctx.deps, actor, d.id);
+  const lone = take();
+  await docsSvc.deleteDoc(ctx.deps, actor, a.id);
+  expect(take()).toBe(lone + 6);
 });

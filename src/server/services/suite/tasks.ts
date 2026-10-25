@@ -452,8 +452,6 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     const { notify } = await import("./notify");
     await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: id, title: `${task.ref} assigned to you: ${title}`, actorName: actor.name || actor.email });
   }
-  // R24.4: task_created rules (one read of the workspace's rules; triage items wait until accepted).
-  if (!triage) await (await import("./automations-r24")).runTaskEvent(deps, actor, "task_created", task);
   return task;
 }
 
@@ -564,10 +562,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   }
   if (statusChanged) {
     const { runStatusAutomations } = await import("./automations");
-    await runStatusAutomations(deps, actor.orgId, task, fromCategory, actor);
+    await runStatusAutomations(deps, actor.orgId, task, fromCategory);
   }
-  // R24.4: assignee_changed rules.
-  if (changed.assignee !== undefined && task.assignee) await (await import("./automations-r24")).runTaskEvent(deps, actor, "assignee_changed", task);
   return out;
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -9,7 +9,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
-import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
+import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, Link2, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -21,6 +21,7 @@ import { useMe } from "@/web/lib/queries";
 import { colourFor, connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
 import { tone } from "@/web/components/app-bits";
 import { MeetingNotesBacklink } from "./meeting-notes";
+import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteConfirmText, useBracketTrigger, useDocTree } from "./doc-tree";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -33,7 +34,9 @@ export function DocsPage() {
     try { const r = await api.post<{ doc: Doc }>("/docs", { title: "Untitled", text: "" }); navigate(`/app/docs/${r.doc.id}`); } catch (e) { showError(e as Error); }
   };
   return (
-    <div>
+    <div className="flex gap-6">
+      <DocTreeSidebar />
+      <div className="min-w-0 flex-1">
       <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><Plus className="h-4 w-4" />New doc</Button>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
@@ -49,6 +52,7 @@ export function DocsPage() {
           ))}
         </ul>
       )}
+      </div>
     </div>
   );
 }
@@ -76,9 +80,11 @@ export function DocPage() {
     return () => { live = false; if (opened) { opened.provider.destroy(); opened.ydoc.destroy(); } };
   }, [id]);
 
-  if (q.isPending || !collab || collab.id !== id) return <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>;
-  if (q.error) return <EmptyState icon={<FileText />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />;
-  return <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
+  const body = q.isPending || !collab || collab.id !== id ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
+    : q.error ? <EmptyState icon={<FileText />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
+    : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
+  // R24.5: the page tree beside the doc.
+  return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
 }
 
 /** Another person's caret with their name above it (styled in code, so no stylesheet is needed). */
@@ -165,6 +171,8 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
     if (session) session.ydoc.transact(() => { const m = meta(session.ydoc); m.set("version", d.version); m.set("rowText", hashText(d.text)); });
     setState("saved");
     void qc.invalidateQueries({ queryKey: ["docs"] });
+    void qc.invalidateQueries({ queryKey: ["doc-tree"] }); // R24.5: titles in the tree
+    void qc.invalidateQueries({ queryKey: ["backlinks"] });
   };
 
   /** Leader only: brings the room in line with the doc row when someone changed it elsewhere. */
@@ -258,6 +266,9 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   }, [session, editor, userName, userColour]);
 
   const e = editor;
+  const tree = useDocTree();
+  const [picker, setPicker] = useState(false);
+  useBracketTrigger(editor, useCallback(() => setPicker(true), []));
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className="mx-auto max-w-3xl">
@@ -282,8 +293,9 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           }}>
           <LayoutTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm("Delete this doc?")) return; await api.del(`/docs/${id}`); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
+        <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm(deleteConfirmText(tree.data?.tree, id))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
+      <DocBreadcrumbs docId={id} title={title} />
       <h1 className="sr-only">{title || "Untitled doc"}</h1>
       <input aria-label="Doc title" value={title}
         onChange={(ev) => { setTitle(ev.target.value); if (session) meta(session.ydoc).set("title", ev.target.value); }}
@@ -308,9 +320,12 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           <ToolButton label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><List /></ToolButton>
           <ToolButton label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><ListOrdered /></ToolButton>
           <ToolButton label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><Quote /></ToolButton>
+          <ToolButton label="Link a page or task" active={picker} on={() => setPicker((p) => !p)}><Link2 /></ToolButton>
+          <PageLinkPicker editor={e} open={picker} onClose={() => setPicker(false)} selfId={id} />
         </div>
       )}
-      <div className="mt-4 pb-24"><EditorContent editor={editor} /></div>
+      <div className="mt-4"><EditorContent editor={editor} /></div>
+      <div className="pb-24"><LinkedFrom docId={id} /></div>
     </div>
   );
 }
