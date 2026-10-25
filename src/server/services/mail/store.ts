@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxes, messages } from "../../db/schema";
 import { fromB64, newId, toB64 } from "../../lib/crypto";
@@ -49,7 +49,7 @@ export async function resolveThreadId(db: DB, mailboxId: string, inReplyTo?: str
   const ids = [inReplyTo, ...(references ?? "").split(/\s+/)].filter((x): x is string => !!x && x.length > 2).slice(0, 20);
   for (const id of ids) {
     const hit = await db.select({ threadId: messages.threadId }).from(messages)
-      .where(and(eq(messages.mailboxId, mailboxId), eq(messages.messageIdHeader, id))).get();
+      .where(and(eq(messages.mailboxId, mailboxId), or(eq(messages.messageIdHeader, id), eq(messages.providerMessageIdHeader, id)))).get();
     if (hit) return hit.threadId;
   }
   return null;

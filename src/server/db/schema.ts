@@ -238,6 +238,8 @@ export const messages = sqliteTable("messages", {
   mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
   folder: text("folder", { enum: ["inbox", "sent", "drafts", "archive", "spam", "trash"] }).notNull(),
   messageIdHeader: text("message_id_header"),
+  /** The Message-ID the sending provider gave a sent message, when it replaces ours (Resend does): outside replies point at it. */
+  providerMessageIdHeader: text("provider_message_id_header"),
   inReplyTo: text("in_reply_to"),
   references: text("references_header"),
   threadId: text("thread_id").notNull(),
@@ -273,6 +275,7 @@ export const messages = sqliteTable("messages", {
   index("messages_org_idx").on(t.orgId),
   // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
   index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
+  index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader),
 ]);
 
 export const attachments = sqliteTable("attachments", {

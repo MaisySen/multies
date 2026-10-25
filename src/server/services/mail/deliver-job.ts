@@ -52,7 +52,7 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   try {
     const res = await outbound.send({
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
-      subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@mymail>`,
+      subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@${mb.address.split("@")[1] ?? "multies.si"}>`,
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined,
       attachments: await outboundAttachments(atts, deps),
     });

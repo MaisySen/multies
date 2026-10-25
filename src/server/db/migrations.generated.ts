@@ -442,5 +442,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `mail_sync_outbox` ADD `dest` text;",
       "ALTER TABLE `mail_sync_outbox` ADD `message_id` text;"
     ]
+  },
+  {
+    "name": "0029_r19_provider_message_id",
+    "statements": [
+      "ALTER TABLE `messages` ADD `provider_message_id_header` text;",
+      "CREATE INDEX `messages_mailbox_provider_msgid_idx` ON `messages` (`mailbox_id`,`provider_message_id_header`);"
+    ]
   }
 ];

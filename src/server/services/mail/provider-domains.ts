@@ -153,6 +153,22 @@ export async function fetchReceivedEmail(deps: Deps, emailId: string): Promise<{
   return { raw, recipients: [...new Set(recipients.map((a) => (a.match(/<([^>]+)>/)?.[1] ?? a).trim().toLowerCase()))], from };
 }
 
+/**
+ * The Message-ID header a sent email actually went out with. Resend replaces ours with its own
+ * (<...@email.amazonses.com>), so outside replies point at that one. Null when it can't be read.
+ */
+export async function fetchSentMessageIdHeader(deps: Deps, emailId: string): Promise<string | null> {
+  if (!usesProviderDomains(deps)) return null;
+  try {
+    const got = await call(deps, "GET", `/emails/${encodeURIComponent(emailId)}`);
+    if (!got.ok) return null;
+    const v = (got.json as { message_id?: unknown }).message_id;
+    if (typeof v !== "string" || !v.trim()) return null;
+    const id = v.trim();
+    return id.startsWith("<") ? id : `<${id}>`;
+  } catch { return null; }
+}
+
 /** Removes the domain from the provider when it leaves Multies. Never throws. */
 export async function removeProviderDomain(deps: Deps, providerDomainId: string): Promise<void> {
   if (!usesProviderDomains(deps)) return;

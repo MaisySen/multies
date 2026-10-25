@@ -3,14 +3,14 @@
  * its webhooks with Svix, which follows the Standard Webhooks spec, so the same
  * standardwebhooks library verifies them.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import type { Deps } from "../../context";
-import { deliveries } from "../../db/schema";
+import { deliveries, messages } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { emitEvent } from "../developer/webhooks";
 import { suppress } from "./suppressions";
-import { fetchReceivedEmail } from "../mail/provider-domains";
+import { fetchReceivedEmail, fetchSentMessageIdHeader } from "../mail/provider-domains";
 import { parseMime } from "../mail/mime";
 import { deliverInbound } from "../mail/delivery";
 
@@ -90,5 +90,25 @@ export async function handleResendEvent(deps: Deps, event: ResendEvent) {
       });
     }
   }
+  if (status === "delivered") await recordProviderMessageId(deps, emailId, targets.map((t) => t.messageId));
   return { handled: true as const, updated: targets.length };
+}
+
+/**
+ * Resend sends our mail under its own Message-ID, so an outside reply's In-Reply-To names that one.
+ * On the first delivery of a sent message, read it once and keep it on the Sent copy, so the reply
+ * joins the thread. One read and one write per sent message; later deliveries find it set.
+ */
+async function recordProviderMessageId(deps: Deps, emailId: string, messageIds: (string | null)[]) {
+  const ids = [...new Set(messageIds.filter((x): x is string => !!x))];
+  if (!ids.length) return;
+  const open = [];
+  for (const id of ids) {
+    const m = await deps.db.select({ id: messages.id }).from(messages).where(and(eq(messages.id, id), isNull(messages.providerMessageIdHeader))).get();
+    if (m) open.push(m.id);
+  }
+  if (!open.length) return;
+  const header = await fetchSentMessageIdHeader(deps, emailId);
+  if (!header) return;
+  for (const id of open) await deps.db.update(messages).set({ providerMessageIdHeader: header }).where(eq(messages.id, id));
 }

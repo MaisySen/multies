@@ -5,7 +5,7 @@ import globals from "globals";
 
 export default tseslint.config(
   // mobile/ is the Expo app, merged from the mobile branch, with its own lint and tests.
-  { ignores: ["dist", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile"] },
+  { ignores: ["dist", ".wrangler", "node_modules", "drizzle", "coverage", "src/server/db/migrations.generated.ts", "mobile"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
