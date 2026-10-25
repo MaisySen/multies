@@ -31,6 +31,8 @@ export interface StoreInput {
   sizeBytes?: number;
   sentByAgentId?: string | null;
   sentByUserId?: string | null;
+  /** Round 22: put the message in this thread (a draft reply) instead of resolving it from the headers. */
+  threadId?: string;
   /** Large attachments go here instead of being dropped, when a body store is configured. */
   bodyStore?: BodyStore;
 }
@@ -61,7 +63,7 @@ export function estimateSize(i: Pick<StoreInput, "text" | "html" | "subject" | "
 
 export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
   const id = newId("msg");
-  const threadId = (await resolveThreadId(db, i.mailboxId, i.inReplyTo, i.references)) ?? newId("thr");
+  const threadId = i.threadId ?? (await resolveThreadId(db, i.mailboxId, i.inReplyTo, i.references)) ?? newId("thr");
   const sizeBytes = i.sizeBytes ?? estimateSize(i);
   await db.insert(messages).values({
     id,

@@ -40,6 +40,7 @@ import { registerSprintTools } from "./mcp-r21-sprints";
 import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerAssignTools } from "./mcp-r22-assign";
+import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -210,6 +211,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAssignTools(server, deps, actor, writable, tool);
   registerTaskBulkTools(server, deps, actor, writable, tool);
   registerThreadCommentTools(server, deps, actor, writable, tool);
+  registerPresenceTools(server, deps, actor, writable, tool);
   return server;
 }
 

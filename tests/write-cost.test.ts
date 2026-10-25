@@ -1,6 +1,7 @@
 import { it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { runMaintenance } from "@/server/services/maintenance";
+import { deliverInbound } from "@/server/services/mail/delivery";
 
 /**
  * Write costs in D1 terms: D1 bills a written row once for the table and once for every index on it,
@@ -459,4 +460,52 @@ it("R22: thread assignment and status cost a row or two, and the views, My Work 
   // A reassign updates the row; the meter sees no change in the partial index's size, D1 may bill the moved entry, so 1 to 3.
   await assignThread(ctx.deps, actor, "thr_wc", me.user.id);
   expect(take()).toBeLessThanOrEqual(3);
+it("thread presence and shared drafts (round 22): a heartbeat writes 0 rows; a take over is the one draft row plus one notification", async () => {
+  const ctx = await makeTestApp();
+  const owner = new Client(ctx.app);
+  await owner.signup("owner@acme.io", "Olive Owner");
+  await owner.post("/api/org/plan", { plan: "pro" });
+  const d = (await owner.post("/api/domains", { name: "acme.io" })).body.domain;
+  for (const r of d.records) {
+    if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+    else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+  }
+  await owner.post(`/api/domains/${d.id}/verify`);
+  const mailboxId = (await owner.post("/api/mailboxes", { domainId: d.id, localPart: "sales", displayName: "Sales" })).body.mailbox.id as string;
+  const inv = await owner.post("/api/team/invites", { email: "max@acme.io", role: "admin" });
+  const max = new Client(ctx.app);
+  await max.signup("max@acme.io", "Max Admin");
+  await max.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`);
+  await deliverInbound(ctx.deps, {
+    envelopeFrom: "grace@example.com", rcptTo: "sales@acme.io", sizeBytes: 300, via: "test",
+    email: { messageId: "<q1@example.com>", from: { address: "grace@example.com", name: "Grace" }, to: [{ address: "sales@acme.io" }], cc: [], subject: "Quote", text: "Price?", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+  });
+  const row = (await owner.get("/api/agents/threads")).body.data[0];
+  const threadId = (row.threadId ?? row.id) as string;
+  const msgId = (await owner.get(`/api/agents/threads/${threadId}`)).body.messages[0].id as string;
+  const take = meter(ctx.db);
+  // What any POST costs here (the local rate limit counter; a binding in production): a refused beat.
+  expect((await max.post(`/api/threads/${threadId}/presence`, { clientId: "x", state: "viewing" })).status).toBe(422);
+  const limiter = take();
+  for (let i = 0; i < 4; i++) await max.post(`/api/threads/${threadId}/presence`, { clientId: "maxtab1", state: i ? "replying" : "viewing" });
+  expect(take() - 4 * limiter).toBe(0);
+  await max.get(`/api/threads/${threadId}/presence`); await max.get(`/api/threads/${threadId}/drafts`);
+  expect(take()).toBe(0);
+  await max.post("/api/mail/drafts", { mailboxId, to: ["grace@example.com"], subject: "Re: Quote", text: "A$420", inReplyToId: msgId });
+  const save = take() - limiter;
+  // Measured 11, the same as a draft save before round 22: the messages row with its indexes and the mailbox's usage.
+  // The thread id and author ride on that same row; the ownership check before a save only reads.
+  expect(save).toBeLessThanOrEqual(11);
+  const draftId = (await owner.get(`/api/threads/${threadId}/drafts`)).body.drafts[0].id as string;
+  take();
+  await owner.post(`/api/threads/drafts/${draftId}/take-over`);
+  const takeOver = take() - limiter;
+  // The draft row (the meter counts every index on messages, though only sent_by_user_id changes, so D1 bills less)
+  // plus one notification row and its index. No new index on messages, no migration.
+  // Measured 10: the draft row as this meter counts it (7, though only sent_by_user_id changes and it has no index,
+  // so D1 bills 1) plus one notification and its indexes (3).
+  expect(takeOver).toBeLessThanOrEqual(10);
+  await owner.post(`/api/threads/drafts/${draftId}/take-over`);
+  // Taking over a draft you already own writes nothing.
+  expect(take() - limiter).toBe(0);
 });

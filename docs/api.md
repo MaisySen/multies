@@ -373,3 +373,23 @@ the answer was cut.
 D1 writes: an assign or unassign is 2 rows (the WITHOUT ROWID row and its partial assignee index entry),
 plus 3 for the assignee's notification; a status change is 1; an unchanged assign or status writes nothing;
 views, My Work and reply times write nothing.
+## Thread presence and shared drafts (round 22)
+
+Live collision warning in the shared inbox: while a thread is open the app beats every 15 seconds
+with `viewing` or `replying` (Compose with a reply open), and everyone else in the thread sees
+"Maya is viewing" or, in amber, "Maya is replying"; Compose shows "Maya is also replying. Send
+anyway?" above Send. Presence lives in memory only (the `ThreadPresence` Durable Object, binding
+`THREAD_PRESENCE`, one per org and thread; an in process map on Node and self host), so a heartbeat
+writes no D1 rows. An entry expires 40 seconds after its last beat; hiding the tab or closing the
+thread leaves at once.
+
+Draft replies are messages in folder `drafts` that carry the thread id and their author
+(`sent_by_user_id`). The thread shows "Draft by Maya, edited 3 min ago" with a preview; Take over
+makes you the owner (one row update), notifies the previous author once and shows them a note if
+they are in the thread. Saving over a draft somebody else took over answers 409 `draft_taken_over`;
+saving over a draft that changed in another window answers 409 `draft_changed`.
+
+- App API: `GET /api/threads/:id/presence`, `POST /api/threads/:id/presence` `{ clientId, state: viewing | replying }` (answers the same view), `POST /api/threads/:id/presence/leave` `{ clientId }`, `GET /api/threads/:id/drafts`, `POST /api/threads/drafts/:draftId/take-over`. `POST /api/mail/drafts` takes `inReplyToId` to file the draft in that thread.
+- Public API: `GET /api/v1/threads/{id}/presence`, `GET /api/v1/threads/{id}/drafts`, `POST /api/v1/drafts/{id}/take-over`. Read only keys can read; agent keys can't take over a draft.
+- MCP: `get_thread_presence`, `list_thread_drafts`, `take_over_draft`.
+- Every route answers 404 unless the caller can open at least one message of the thread (same workspace, a mailbox in their scope).

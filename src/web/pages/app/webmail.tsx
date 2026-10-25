@@ -15,6 +15,7 @@ import { formatBytes, fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
+import { ThreadPresenceLine } from "./inbox-presence";
 import { useReopenedDrafts } from "@/web/lib/undo-send";
 import { useLiveMail } from "@/web/lib/live-mail";
 import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provider-folders";
@@ -266,7 +267,7 @@ export function WebmailPage() {
 
   async function openDraft(id: string) {
     const { message } = await api.get<{ message: Message }>(`/mail/messages/${id}`);
-    setCompose({ mailboxId: message.mailboxId, to: message.to.map((a) => a.address).join(", "), cc: message.cc.map((a) => a.address).join(", "), subject: message.subject, text: message.text, draftId: message.id });
+    setCompose({ mailboxId: message.mailboxId, to: message.to.map((a) => a.address).join(", "), cc: message.cc.map((a) => a.address).join(", "), subject: message.subject, text: message.text, draftId: message.id, threadId: message.threadId });
   }
 }
 
@@ -313,7 +314,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     const to = own.has(target.from.address) ? target.to.map((t) => t.address) : [target.replyTo || target.from.address];
     const cc = all ? [...target.to, ...target.cc].map((a) => a.address).filter((a) => !own.has(a) && !to.includes(a)) : [];
     onCompose({
-      mailboxId: target.mailboxId, to: to.join(", "), cc: cc.join(", "), inReplyToId: target.id,
+      mailboxId: target.mailboxId, to: to.join(", "), cc: cc.join(", "), inReplyToId: target.id, threadId: target.threadId,
       subject: /^re:/i.test(target.subject) ? target.subject : `Re: ${target.subject}`,
       text: `${draft}\n\nOn ${fullDate(target.date)}, ${target.from.name || target.from.address} wrote:\n${target.text.split("\n").map((l) => `> ${l}`).join("\n")}`,
     });
@@ -344,6 +345,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8">
           <h1 className="text-xl font-semibold leading-snug tracking-tight">{m.subject || "(no subject)"}</h1>
           <div className="mt-2"><MakeTask messageId={last.id} threadId={last.threadId} shortcut /></div>
+          {m.folder !== "drafts" && <ThreadPresenceLine threadId={m.threadId} />}
           <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}

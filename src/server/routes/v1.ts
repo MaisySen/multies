@@ -33,6 +33,7 @@ import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
+import { registerPresenceRoutes } from "./v1-r22-presence";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
@@ -220,6 +221,7 @@ export function v1Routes() {
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
+  api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -400,6 +402,7 @@ export function v1Routes() {
   registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
   registerSprintRoutes(api);
+  registerPresenceRoutes(api);
   registerMcpRoute(api);
   return api;
 }

@@ -9,6 +9,7 @@ import { Button } from "@/web/components/ui/button";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
+import { AlsoReplying, useThreadPresence } from "@/web/lib/thread-presence";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { shouldAskForSubject, SUBJECT_PROMPT } from "@/web/lib/subject-prompt";
 import { zonedDateTime } from "@/web/lib/format";
@@ -23,6 +24,8 @@ export interface ComposeDraft {
   text: string;
   inReplyToId?: string;
   draftId?: string;
+  /** Round 22: the thread a reply belongs to, for live presence ("Maya is also replying"). */
+  threadId?: string;
 }
 
 type SendResult = { messageId?: string; internal: string[]; external: { address: string; status: string; detail?: string }[] };
@@ -115,10 +118,12 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     onClose();
   };
   const saveDraft = useMutation({
-    mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text }),
+    mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId }),
     onSuccess: () => { refresh(); toast.success("Draft saved"); onClose(); },
     onError: (e) => showError(e),
   });
+  // Round 22: while a reply is open, teammates in the thread see "replying".
+  const presence = useThreadPresence(d.threadId, "replying");
   const close = () => (dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose());
 
   return (
@@ -163,6 +168,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>Send anyway</button>
             </div>
           )}
+          <AlsoReplying people={presence.people} />
           <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
             <div className="flex items-center gap-2">
               <Button type="submit" disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>

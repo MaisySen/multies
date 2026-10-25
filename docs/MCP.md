@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 89 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 92 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -208,6 +208,15 @@ Registered in src/server/routes/mcp-r22-comments.ts. Internal notes on a mail th
 | `list_thread_comments` | A thread's internal notes, oldest first, and the teammates who can be mentioned |
 | `add_thread_comment` | Add a note; "@Full Name" in the text or mentions (user ids or emails) notifies teammates who can open the thread |
 | `delete_thread_comment` | Delete a note (its author, or a workspace key) |
+### Thread presence and shared drafts (round 22)
+
+Registered in src/server/routes/mcp-r22-presence.ts. Read only keys can read; `take_over_draft` needs a key that can write and is refused for agent keys. A thread the key can't open answers not found.
+
+| Tool | What it does |
+| --- | --- |
+| `get_thread_presence` | Who has a shared inbox thread open right now, and whether each is viewing or replying (entries expire 40 seconds after the last heartbeat) |
+| `list_thread_drafts` | Draft replies saved in a thread: author, last saved, preview |
+| `take_over_draft` | Become the owner of a teammate's draft reply; they are notified once and their next save of it is refused |
 
 ## Claude (claude.ai and Claude Desktop)
 

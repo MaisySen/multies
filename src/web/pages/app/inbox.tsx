@@ -11,6 +11,7 @@ import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
 import { ThreadNotes } from "./inbox-comments";
 import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee } from "./inbox-assign";
+import { ThreadCollab } from "./inbox-presence";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -86,6 +87,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         <h2 className="text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
         <ThreadAssignControls threadId={t.id} />
       </div>
+      <ThreadCollab threadId={t.id} />
       {t.messages.length > 0 && <MakeTask messageId={t.messages[t.messages.length - 1].id} threadId={t.id} />}
       {t.messages.map((m) => (
         <Card key={m.id} className={cn("p-4", m.sentBy.type === "agent" && "border-brand/40")}>
