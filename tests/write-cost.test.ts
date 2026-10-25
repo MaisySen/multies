@@ -949,3 +949,21 @@ it("formula and rollup fields (R24.1): reading computed values writes nothing; d
   await projectRollups(ctx.deps, actor, projectId);
   expect(take()).toBe(0);
 });
+
+it("formula rename (R24 polish): renaming a field costs one extra custom_fields write per formula that reads it, none when no formula does", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const budget = (await u.post("/api/fields", { projectId, name: "Budget", type: "number" })).body.field;
+  const notes = (await u.post("/api/fields", { projectId, name: "Notes", type: "text" })).body.field;
+  await u.post("/api/fields", { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 0.1" } });
+  await u.post("/api/fields", { projectId, name: "Gross", type: "formula", config: { expression: "{budget} * 1.1" } });
+  const c = (ctx.db as unknown as { $client: { prepare: (q: string) => { get: () => unknown } } }).$client;
+  const perRow = 1 + (c.prepare("select count(*) n from sqlite_master where type='index' and tbl_name='custom_fields' and (sql is null or sql not like '% WHERE %')").get() as { n: number }).n;
+  const take = meter(ctx.db);
+  expect((await u.patch(`/api/fields/${notes.id}`, { name: "Remarks" })).status).toBe(200);
+  const plain = take();
+  expect((await u.patch(`/api/fields/${budget.id}`, { name: "Spend" })).status).toBe(200);
+  expect(take()).toBe(plain + 2 * perRow);
+});
