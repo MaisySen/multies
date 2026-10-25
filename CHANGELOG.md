@@ -7,6 +7,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Everything on multies.si (25 Oct 2026)
+
+- The preview of current main is https://preview.multies.si (the staging Worker, `NOINDEX=true`: robots.txt disallows all and every response carries `X-Robots-Tag: noindex, nofollow`). The mobile web preview is https://mobile.preview.multies.si (noindex).
+- Support and security addresses are support@multies.si and security@multies.si (Cloudflare Email Routing rules on multies.si, ahead of the catch all to the inbound worker). Also accounts@, review@, privacy@, legal@ and hello@.
+- The product plan lives only in this private repo (docs/plan, screenshots in docs/plan/img). It is not published on any website.
+- The copy check fails on any host of the old preview domain in any tracked file (scripts/check-copy.ts, rule "host").
+
+
 Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.0 once the parts marked "after the database reset" are switched on.
 
 ### Added

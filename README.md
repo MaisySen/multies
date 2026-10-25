@@ -6,7 +6,7 @@ your team.** Free for startups, with small paid add-ons. Agents run on the AI yo
 provider key), so Multies never pays for model calls and never resells them.
 
 Production: https://multies.si (also served at https://app.multies.si and
-https://mymail.mymail-app.workers.dev). Staging: https://mymail-staging.mymail-app.workers.dev. Preview: https://mymail.sites.tab.bot.
+https://mymail.mymail-app.workers.dev). Staging: https://mymail-staging.mymail-app.workers.dev. Preview of current main: https://preview.multies.si (noindex, same Worker as staging).
 Tap *Try the live demo* for a private sample workspace, or sign up and add a real domain.
 
 Documentation index: [docs/README.md](docs/README.md). Changes per release: [CHANGELOG.md](CHANGELOG.md).
@@ -129,7 +129,7 @@ pointing a domain at it are in [docs/self-host.md](docs/self-host.md).
 
 | Environment | URL | Database | Deploys |
 | --- | --- | --- | --- |
-| Preview | https://mymail.sites.tab.bot | preview D1 | by hand |
+| Preview | https://preview.multies.si (staging Worker, noindex) | staging D1 | with staging |
 | Staging | https://mymail-staging.mymail-app.workers.dev | D1 `mymail-staging` | by hand, after the checks pass |
 | Production | https://mymail.mymail-app.workers.dev | D1 `mymail-au` (Oceania) | by hand, the same commit after staging passes its smoke and E2E checks |
 

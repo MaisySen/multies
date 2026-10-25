@@ -130,7 +130,7 @@ as defaults. Credentials are listed by name in CREDENTIALS (owner email v7), sec
 - Applications: "Multies" (Regular Web), "Multies Mobile" (Native, PKCE, rotating refresh tokens),
   "Multies Management (Tab)" (machine to machine, configuration only).
 - Callbacks `/api/auth/callback/auth0`, logout URLs (origin and `/login`) and web origins for
-  multies.si, app.multies.si, www.multies.si, both workers.dev hosts, mymail.sites.tab.bot,
+  multies.si, app.multies.si, www.multies.si, both workers.dev hosts, preview.multies.si,
   localhost:5173 and localhost:8792. Mobile: `mymail://auth/callback`.
 - Connections: Username-Password (minimum 12 characters with upper, lower and digit, no repeated or
   sequential characters, password history 5, dictionary and personal data checks, brute force

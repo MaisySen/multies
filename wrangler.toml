@@ -1,7 +1,7 @@
 # Multies on Cloudflare Workers + D1, in two environments:
 #
 #   production  (top level)      https://multies.si (also app.multies.si and https://mymail.mymail-app.workers.dev)
-#   staging     ([env.staging])  https://mymail-staging.mymail-app.workers.dev
+#   staging     ([env.staging])  https://preview.multies.si (also https://mymail-staging.mymail-app.workers.dev), noindex
 #
 # CI (.github/workflows/ci.yml) deploys every push to main to staging first, runs the
 # smoke checks there, and only then promotes the same build to production.
@@ -98,10 +98,9 @@ APP_URL = "https://multies.si"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 SENTRY_TRACES_SAMPLE_RATE = "0.1"
-SECURITY_CONTACT = "mailto:contact@fintex.au"
-# Support address on /support and in the store listings: the company contact from the runbook
-# (company.md). Switch to support@multies.si once that mailbox is live.
-SUPPORT_EMAIL = "contact@fintex.au"
+SECURITY_CONTACT = "mailto:security@multies.si"
+# Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
+SUPPORT_EMAIL = "support@multies.si"
 # The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
 KEEP_DEMO_ORG_IDS = "org_b0kb5ykvrto8w0rm"
 # At most this many new demo workspaces a day. Each costs about 2,000 D1 rows over its life
@@ -114,8 +113,8 @@ DEMO_DAILY_LIMIT = "10"
 CF_ACCOUNT_ID = "84058c44c33b60521d2bb03c36dc0881"
 D1_DAILY_WRITE_BUDGET = "100000"
 BILLING_GRACE_DAYS = "7"
-# Cross checks: production watches staging and the preview (src/server/services/status.ts).
-MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev,https://mymail.sites.tab.bot"
+# Cross checks: production watches staging (the preview) (src/server/services/status.ts).
+MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev"
 # Same account workers.dev fetches answer 404 (error 1042), so the peer goes through a service binding.
 PEER_HOST = "mymail-staging.mymail-app.workers.dev"
 
@@ -137,6 +136,8 @@ crons = ["*/15 * * * *"]
 [env.staging]
 name = "mymail-staging"
 workers_dev = true
+# The public preview of current main. NOINDEX keeps it out of search engines.
+routes = [{ pattern = "preview.multies.si", custom_domain = true }]
 
 [[env.staging.d1_databases]]
 binding = "DB"
@@ -176,7 +177,8 @@ simple = { limit = 300, period = 60 }
 [env.staging.vars]
 SCHEDULING_ENABLED = "true"
 APP_MODE = "production"
-APP_URL = "https://mymail-staging.mymail-app.workers.dev"
+APP_URL = "https://preview.multies.si"
+NOINDEX = "true"
 DEMO_DAILY_LIMIT = "2"
 # Staging spends production's daily D1 budget (same account). Strict: from 60% of the budget its API
 # answers writes with the read only message, so tests here can never take production read only.
@@ -186,10 +188,9 @@ WRITE_BUDGET_GUARD = "strict"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "staging"
 SENTRY_TRACES_SAMPLE_RATE = "1"
-SECURITY_CONTACT = "mailto:contact@fintex.au"
-# Support address on /support and in the store listings: the company contact from the runbook
-# (company.md). Switch to support@multies.si once that mailbox is live.
-SUPPORT_EMAIL = "contact@fintex.au"
+SECURITY_CONTACT = "mailto:security@multies.si"
+# Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
+SUPPORT_EMAIL = "support@multies.si"
 # The App Review login's demo workspace (scripts/review-account.ts), kept from the demo purge.
 KEEP_DEMO_ORG_IDS = "org_xqswgcz3cvizpiel"
 BILLING_GRACE_DAYS = "7"

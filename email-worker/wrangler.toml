@@ -7,7 +7,7 @@ compatibility_date = "2025-01-01"
 workers_dev = false
 
 [vars]
-MYMAIL_WEBHOOK_URL = "https://mymail.sites.tab.bot/api/inbound/cloudflare"
+MYMAIL_WEBHOOK_URL = "https://preview.multies.si/api/inbound/cloudflare"
 MYMAIL_KEY_ID = "ink_o6ot5ly5iw3i6rpf"
 # FALLBACK_FORWARD = "you@example.com"   # optional, must be a verified destination in Email Routing
 

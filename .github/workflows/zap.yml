@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - target: https://mymail.sites.tab.bot
+          - target: https://preview.multies.si
             rules: .zap/rules-preview.tsv
           - target: https://mymail-staging.mymail-app.workers.dev
             rules: .zap/rules.tsv

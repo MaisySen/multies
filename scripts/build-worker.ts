@@ -32,7 +32,7 @@ const PROFILES: Record<string, Record<string, string>> = {
   preview: {
     APP_MODE: "production",
     DEMO_MODE: "true",
-    APP_URL: process.env.PREVIEW_URL ?? "https://mymail.sites.tab.bot",
+    APP_URL: process.env.PREVIEW_URL ?? "https://preview.multies.si",
     ALLOW_GENERATED_SECRET: "true",
     SENTRY_ENVIRONMENT: "preview",
     // The preview host has no cron trigger, so maintenance runs from requests there.

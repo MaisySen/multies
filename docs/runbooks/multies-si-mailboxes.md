@@ -1,5 +1,10 @@
 # security@ and support@ on multies.si
 
+Today (25 Oct 2026) these addresses forward to the team inbox through Cloudflare Email Routing rules
+on multies.si: support@, security@, accounts@, review@, privacy@, legal@ and hello@. A named rule wins
+over the catch all, so the rest of multies.si still goes to the inbound worker. The steps below replace
+the forwarding with real Multies mailboxes once multies.si is a workspace domain.
+
 Mail for multies.si already reaches Cloudflare Email Routing; the catch-all rule hands every message to the `mymail-inbound` worker. These steps make security@ and support@ land in a real Multies inbox on production. They write to D1, so run them when the daily write budget has room (after 00:00 UTC on a capped day).
 
 1. Sign in to https://multies.si as the ops account (or create the "Multies HQ" workspace) and add the domain `multies.si` under Domains. Add the ownership TXT record it shows through the Cloudflare API (zone multies.si); MX and SPF are already in place. Run the domain check until it is verified.

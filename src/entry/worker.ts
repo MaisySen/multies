@@ -232,11 +232,27 @@ export function wwwRedirect(request: Request): Response | null {
   return new Response(null, { status: 301, headers: { location: url.toString(), "cache-control": "public, max-age=86400" } });
 }
 
+/**
+ * Non production hosts (the preview) set NOINDEX=true: robots.txt disallows everything and every
+ * response carries X-Robots-Tag, so search engines never list them.
+ */
+export async function withNoindex(request: Request, noindex: boolean, next: () => Promise<Response>): Promise<Response> {
+  if (!noindex) return next();
+  if (new URL(request.url).pathname === "/robots.txt") {
+    return new Response("User-agent: *\nDisallow: /\n", { headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex, nofollow" } });
+  }
+  const res = await next();
+  if (res.status === 101) return res;
+  const out = new Response(res.body, res);
+  out.headers.set("x-robots-tag", "noindex, nofollow");
+  return out;
+}
+
 const handler = {
   fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
     const www = wwwRedirect(request);
     if (www) return Promise.resolve(www);
-    return withAuthRequestState(() => serve(request, env, ctx));
+    return withNoindex(request, envVar(env, "NOINDEX") === "true", () => withAuthRequestState(() => serve(request, env, ctx)));
   },
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {

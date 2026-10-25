@@ -1,6 +1,6 @@
 # Multies: product plan and gap audit
 
-Live page: https://multies-plan.sites.tab.bot/
+Internal document. It lives only in this private repo and is never published on a website.
 
 25 October 2026. Written for Bidur, Fintex Australia Pty Ltd.
 
@@ -32,17 +32,17 @@ But a stranger outside Australia hits real walls:
 ### 1. Landing page
 Clear, fast, works on a phone. Free plan is obvious. Weak spots: English only, prices in A$, and "Try the live demo" goes to a sandbox that never sends real mail, which is fine but not explained.
 
-![Landing on a phone](https://multies-plan.sites.tab.bot/img/01-landing-phone.jpg)
+![Landing on a phone](img/01-landing-phone.jpg)
 
 ### 2. Create account
 The sign up page is Auth0's hosted page on the raw address dev-s8n2ciq6co7gzsec.us.auth0.com, with a broken logo at the time of the test (a separate fix tonight sets the logo and removes the consent screen). It ignored the French browser. Copy says "Use your work email", which puts off people with a personal address.
 
-![Sign up page on the raw Auth0 address](https://multies-plan.sites.tab.bot/img/12-signup-universal-login.jpg)
+![Sign up page on the raw Auth0 address](img/12-signup-universal-login.jpg)
 
 ### 3. Right after sign up
 You are sent back to the Multies sign in page with "That sign in didn't complete. Please try again." The real reason ("Please confirm your email first. We sent you...") is hidden in the address bar. A stranger will think it is broken.
 
-![Error right after sign up](https://multies-plan.sites.tab.bot/img/14-after-signup.jpg)
+![Error right after sign up](img/14-after-signup.jpg)
 
 ### 4. Verify email
 The email arrived in under a minute, from "Multies" at no-reply@auth0user.net, plain, with a click tracking link. It works, but it is Auth0's shared test sender and will hit limits and spam folders at scale.
@@ -50,12 +50,12 @@ The email arrived in under a minute, from "Multies" at no-reply@auth0user.net, p
 ### 5. First sign in and empty workspace
 Sign in worked once the email was verified. A bot check appeared on one retry. The workspace is named "mymail.builder+stranger1025's workspace" and the greeting uses the email as a name, because nothing asks for a name or company. Step 4 of the checklist says "Route MX through Cloudflare", which means nothing to most people and is wrong for new domains (they route through our provider now). "0/0 verified, plan allows 1" is confusing.
 
-![First screen after sign in](https://multies-plan.sites.tab.bot/img/19-first-landing.jpg)
+![First screen after sign in](img/19-first-landing.jpg)
 
 ### 6. Settings: time zone and country
 New workspaces start in Australia/Sydney. The time zone list puts Australia first. Countries offered: 34. Your browser's own time zone is not used.
 
-![Settings defaults to Sydney](https://multies-plan.sites.tab.bot/img/app-settings-desktop.jpg)
+![Settings defaults to Sydney](img/app-settings-desktop.jpg)
 
 ### 7. Mail, domains, mailboxes
 Mail, Shared inbox and Mailboxes all say "No mailboxes yet" until a domain is added and verified. There is no free address on a Multies domain and no way to bring an existing Gmail or Outlook inbox without moving the domain. Add domain asks for "a domain you control".
@@ -69,22 +69,22 @@ The agent inbox pages are clear and are the strongest part of the product story.
 ### 10. Billing
 Shows "Stripe test mode. Checkout takes test cards only (4242...). Nothing is charged." to real customers. Prices in A$ only.
 
-![Billing shows test mode](https://multies-plan.sites.tab.bot/img/app-settings-billing.jpg)
+![Billing shows test mode](img/app-settings-billing.jpg)
 
 ### 11. Mail apps (IMAP and SMTP)
 The page shows server setup text meant for us ("Whoever runs this Multies sets STALWART_URL..."). Pricing promises Outlook, Apple Mail and phone access. Production does not have it.
 
-![Mail apps shows operator text](https://multies-plan.sites.tab.bot/img/app-settings-mail-apps.jpg)
+![Mail apps shows operator text](img/app-settings-mail-apps.jpg)
 
 ### 12. Status page
 Public status said "Some things are slow or failing", with background work "Degraded", and "Mail apps: Not offered on this server".
 
-![Status page](https://multies-plan.sites.tab.bot/img/07-status-desktop.jpg)
+![Status page](img/07-status-desktop.jpg)
 
 ### 13. Delete account
 Settings, Account, Delete account asks for a password that Auth0 users do not have in Multies. Pressing "Delete forever" fails (server answer: "Credential account not found") and nothing is shown. The public page multies.si/delete-account (type DELETE, leave password empty) worked and removed the account and its workspace. The Auth0 login itself is not removed by either path (no call to Auth0 in the code), so the person's identity record stays with Auth0.
 
-![Delete account fails silently](https://multies-plan.sites.tab.bot/img/25-delete-result.jpg)
+![Delete account fails silently](img/25-delete-result.jpg)
 
 ### 14. Other things a stranger can see that they should not
 - "Admin" is in everyone's sidebar and opens "Only platform operators can do that."

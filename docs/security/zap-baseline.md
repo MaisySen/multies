@@ -18,7 +18,7 @@ TARGET=https://mymail-staging.mymail-app.workers.dev REPORT_DIR=/tmp/zap \
 | Target | High | Medium | Low | Informational |
 | --- | --- | --- | --- | --- |
 | Staging (Cloudflare Workers deploy) | 0 | 2 (accepted) | 0 | 3 (accepted) |
-| Preview (mymail.sites.tab.bot) | 0 | 2 (accepted) | 2 (host only) | 3 (accepted) |
+| Preview (preview.multies.si) | 0 | 2 (accepted) | 2 (host only) | 3 (accepted) |
 
 ### Accepted findings
 

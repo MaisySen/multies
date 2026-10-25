@@ -2,6 +2,7 @@
  * Copy lint, run in CI (npm run lint:copy):
  *  1. No em dashes or en dashes anywhere in tracked text files.
  *  2. No stock AI-marketing phrases in user-facing copy (web app, emails, docs).
+ *  3. No tab.bot host anywhere (code, config, docs): every Multies address lives on multies.si.
  * The phrase list is shared with Vale (styles/MyMail/Slop.yml) so editors flag the same words.
  */
 import { execSync } from "node:child_process";
@@ -29,7 +30,10 @@ export function isUserFacing(file: string) {
 /** The product's old name. People see "Multies"; internal names (the worker, hosts, headers) are not prose. */
 const OLD_NAME = /\bMyMail\b(?![-/])/;
 
-export interface Issue { file: string; line: number; rule: "dash" | "slop" | "name"; text: string }
+/** Hosts that must never ship: Multies lives on multies.si only. */
+export const FOREIGN_HOST = /\btab\.bot\b/i;
+
+export interface Issue { file: string; line: number; rule: "dash" | "slop" | "name" | "host"; text: string }
 
 export function findIssues(file: string, text: string): Issue[] {
   const out: Issue[] = [];
@@ -40,6 +44,7 @@ export function findIssues(file: string, text: string): Issue[] {
     const m = facing ? line.match(SLOP_RE) : null;
     if (m) out.push({ file, line: i + 1, rule: "slop", text: m[0] });
     if (facing && OLD_NAME.test(line)) out.push({ file, line: i + 1, rule: "name", text: "MyMail" });
+    if (FOREIGN_HOST.test(line)) out.push({ file, line: i + 1, rule: "host", text: line.trim() });
   });
   return out;
 }
@@ -53,7 +58,10 @@ function main() {
     try { return findIssues(f, readFileSync(path.join(root, f), "utf8")); } catch { return []; }
   });
   for (const i of issues) {
-    console.error(`${i.file}:${i.line}  ${i.rule === "dash" ? "em/en dash: use a period, comma or colon" : `stock phrase "${i.text}": say the concrete thing`}  ${i.rule === "dash" ? i.text.slice(0, 120) : ""}`);
+    const why = i.rule === "dash" ? "em/en dash: use a period, comma or colon"
+      : i.rule === "host" ? "tab.bot address: use the multies.si equivalent"
+      : `stock phrase "${i.text}": say the concrete thing`;
+    console.error(`${i.file}:${i.line}  ${why}  ${i.rule === "dash" || i.rule === "host" ? i.text.slice(0, 120) : ""}`);
   }
   if (issues.length) {
     console.error(`\n${issues.length} copy issue(s).`);

@@ -19,4 +19,10 @@ describe("copy lint", () => {
     expect(findIssues("src/server/services/developer/webhooks.ts", '"MyMail-Webhooks/1"')).toHaveLength(0);
     expect(findIssues("docs/x.md", "styles/MyMail/Slop.yml")).toHaveLength(0);
   });
+  it("flags any tab.bot host in any file", () => {
+    expect(findIssues("src/server/x.ts", 'const u = "https://preview.sites.tab' + '.bot/"')[0]).toMatchObject({ rule: "host" });
+    expect(findIssues("wrangler.toml", 'URL = "https://x.tab' + '.bot"')).toHaveLength(1);
+    expect(findIssues("docs/x.md", "see https://multies.si/privacy/")).toHaveLength(0);
+    expect(findIssues("src/x.ts", "stab.bottle")).toHaveLength(0);
+  });
 });
