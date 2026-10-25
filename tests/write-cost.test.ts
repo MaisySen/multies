@@ -419,6 +419,8 @@ it("thread notes (round 22): a note is its row and one index entry, each mention
   expect(take()).toBeLessThanOrEqual(2);
   await deleteComment(ctx.deps, actor, threadId, plain.id);
   expect(take()).toBe(2);
+});
+
 it("R22: thread assignment and status cost a row or two, and the views, My Work and reply times write nothing", async () => {
   const ctx = await makeTestApp();
   const c = new Client(ctx.app);
@@ -460,6 +462,8 @@ it("R22: thread assignment and status cost a row or two, and the views, My Work 
   // A reassign updates the row; the meter sees no change in the partial index's size, D1 may bill the moved entry, so 1 to 3.
   await assignThread(ctx.deps, actor, "thr_wc", me.user.id);
   expect(take()).toBeLessThanOrEqual(3);
+});
+
 it("thread presence and shared drafts (round 22): a heartbeat writes 0 rows; a take over is the one draft row plus one notification", async () => {
   const ctx = await makeTestApp();
   const owner = new Client(ctx.app);
