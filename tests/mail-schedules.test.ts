@@ -242,18 +242,26 @@ describe("send later", () => {
     expect(items[0]).toMatchObject({ kind: "remind", message: { subject: "Ping" } });
   });
 
-  it("members only see their own scheduled sends, and only in mailboxes they can open", async () => {
+  it("members only see their own scheduled sends, and only act in mailboxes they were given", async () => {
+    await c.post("/api/org/plan", { plan: "pro" });
     await c.post("/api/mail-schedules/send", { message: { mailboxId: hello.id, to: ["bob@example.com"], subject: "Owner's", text: "x" }, ...later() });
-    const inv = await c.post("/api/team/invites", { email: "mia@acme.io", role: "member" });
+    const m = await mailToHello();
+    const inv = await c.post("/api/team/invites", { email: "mia@acme.io", role: "member", mailboxIds: [sales.id] });
     expect(inv.status).toBe(201);
     const mia = new Client(ctx.app);
-    await mia.signup("mia@acme.io", "Mia", "Mia's");
-    const token = inv.body.invite?.token ?? inv.body.token;
-    if (token) await mia.post(`/api/invites/${token}/accept`);
-    const me = (await mia.get("/api/account/me")).body;
-    if (me.org?.id && me.org.id !== (await c.get("/api/account/me")).body.org?.id) return; // invite flow differs: skip quietly
+    await mia.signup("mia@acme.io", "Mia Member");
+    expect((await mia.post(`/api/invites/${inv.body.link.split("/invite/")[1]}/accept`)).status).toBe(200);
+    expect((await mia.get("/api/account/me")).body.organization).toMatchObject({ role: "member" });
+    // Not the owner's send, not hello's threads.
     expect((await mia.get("/api/mail-schedules?view=scheduled")).body.items).toHaveLength(0);
     expect((await mia.post("/api/mail-schedules/send", { message: { mailboxId: hello.id, to: ["x@example.com"], subject: "No", text: "x" }, ...later() })).status).toBe(404);
+    expect((await mia.post("/api/mail-schedules/snooze", { messageId: m.id, preset: "tomorrow" })).status).toBe(404);
+    const owners = (await ctx.db.select().from(mailSchedules).all())[0];
+    expect((await mia.del(`/api/mail-schedules/${owners.id}`)).status).toBe(404);
+    // Her own mailbox works, and the owner sees her send too.
+    expect((await mia.post("/api/mail-schedules/send", { message: { mailboxId: sales.id, to: ["x@example.com"], subject: "Mine", text: "x" }, ...later() })).status).toBe(201);
+    expect((await mia.get("/api/mail-schedules?view=scheduled")).body.items.map((i: { send: { subject: string } }) => i.send.subject)).toEqual(["Mine"]);
+    expect((await c.get("/api/mail-schedules?view=scheduled")).body.items).toHaveLength(2);
   });
 });
 
