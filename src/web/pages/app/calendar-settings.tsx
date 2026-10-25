@@ -108,6 +108,7 @@ export function OtherCalendarsSection() {
   const patch = useMutation({ mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) => api.patch(`/calendar/sources/${id}`, { enabled }), onSuccess: refresh, onError: showError });
   const remove = useMutation({ mutationFn: (id: string) => api.del(`/calendar/sources/${id}`), onSuccess: refresh, onError: showError });
   const added = new Set((sources.data ?? []).map((s) => s.address));
+  const [davUrl, setDavUrl] = useState<Record<string, string>>({});
   return (
     <Section id="other-calendars" title="Other calendars" description="See your own calendars beside your work, read only. Only you see them; nothing is copied into Multies.">
       <div className="space-y-5">
@@ -134,8 +135,15 @@ export function OtherCalendarsSection() {
               <Mail className="size-4 text-muted" />
               <span className="min-w-0 flex-1 truncate">{o.address}</span>
               {o.caldav ? (
-                <Button size="sm" variant="secondary" disabled={added.has(o.address)} loading={add.isPending && add.variables?.connectionId === o.connectionId} onClick={() => add.mutate({ kind: "caldav", connectionId: o.connectionId })}>{added.has(o.address) ? "Shown" : "Show its calendar"}</Button>
+                <Button size="sm" variant="secondary" disabled={added.has(o.address)} loading={add.isPending && add.variables?.connectionId === o.connectionId} onClick={() => add.mutate({ kind: "caldav", connectionId: o.connectionId, ...(davUrl[o.connectionId]?.trim() ? { url: davUrl[o.connectionId].trim() } : {}) })}>{added.has(o.address) ? "Shown" : "Show its calendar"}</Button>
               ) : <span className="text-[12.5px] text-muted">{o.message}</span>}
+              {o.caldav && o.message && !added.has(o.address) && (
+                // A custom mail server: its calendar may live at another address (round 23 follow up).
+                <div className="basis-full pl-6">
+                  <p className="mb-1 text-[12px] text-muted">{o.message}</p>
+                  <Input value={davUrl[o.connectionId] ?? ""} onChange={(e) => setDavUrl((m) => ({ ...m, [o.connectionId]: e.target.value }))} placeholder="https://dav.example.com/ (optional)" aria-label={`CalDAV address for ${o.address}`} data-testid="caldav-url" />
+                </div>
+              )}
             </div>
           ))}
         </div>
