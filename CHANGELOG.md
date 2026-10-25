@@ -7,6 +7,18 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 22: the shared inbox works as a team (25 Oct 2026)
+
+- Assign a shared inbox thread to a person, with All, Mine, Unassigned, Assigned to, Waiting and Done views, Mark done and Reopen. The assignee is notified, and open assigned mail shows in My Work. New mail on a Waiting or Done thread opens it again. Open rows show the age since the last customer message (amber after 24 hours). Migration 0039: `mail_thread_state` (one row per touched thread, one partial index).
+- Team notes: internal comments on a thread with an @ mention picker. Mentioned teammates who can open the mailbox are notified. Notes never go into outgoing mail, replies or thread reads. Rows show a note count. Migration 0040: `thread_comments`.
+- Live collision warning: "Maya is viewing" and "Maya is replying" in the shared inbox, in webmail, and above Send in Compose. It runs in memory in the ThreadPresence Durable Object, with no D1 write per heartbeat, and the staging write guard lets heartbeats through.
+- Shared drafts: draft replies carry their thread and author. Teammates see "Draft by Maya" and can take it over; the first author is notified, and a later save of theirs is refused instead of overwriting.
+- Reply times per mailbox and per person: median and average first response and resolution, computed when read.
+- Saved replies with variables ({{first_name}}, {{company}}, {{date}} and more), shared or private, from a picker in Compose or "/shortcut" plus Tab, managed in Settings, Mail. Migration 0041: `mail_snippets`.
+- Mail rules can assign new threads to one person or round robin, skipping people who lost access. Fixed: switching an email rule off no longer wipes its conditions.
+- Chat messages can go to Triage. The board can group by epic, and dragging a card moves it to another epic. New webhook events: `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`.
+- MCP has 95 tools. The 14 new ones are assign_thread, unassign_thread, set_thread_status, list_threads_by_view, get_reply_stats, list_thread_comments, add_thread_comment, delete_thread_comment, get_thread_presence, list_thread_drafts, take_over_draft, list_snippets, render_snippet and create_snippet, all with matching REST endpoints.
+
 ### Round 20: AI apps sign in, imports, mail timing, search everything, chat polish (25 Oct 2026)
 
 - MCP sign in with OAuth: Claude, ChatGPT, Cursor and any MCP client add Multies with only https://multies.si/api/v1/mcp. OAuth 2.1 with PKCE (S256), dynamic client registration, protected resource and authorisation server metadata, rotating refresh tokens and RFC 7009 revoke. A consent page at /oauth/authorize picks the workspace and read and write or read only; Settings, Developers lists connected AI apps with Disconnect. Tokens act as the person with their role; access tokens are signed, never stored. API keys work as before (migration 0030: `oauth_clients`, `oauth_grants`).
