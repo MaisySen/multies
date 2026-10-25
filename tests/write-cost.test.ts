@@ -106,4 +106,28 @@ it("chat polish (round 20): a reaction add or remove is 2 rows, polls and search
   // Measured 23: one meetings row (5 with its indexes) and one chat message (5), the channel's last
   // message time (4), the caller's read marker (3) and the meeting's activity and change rows.
   expect(call).toBeLessThanOrEqual(24);
+it("search everything and My Work (round 20) write nothing, for a person and through the services an agent key uses", async () => {
+  const ctx = await makeTestApp({ DEMO_MODE: "true" });
+  const d = new Client(ctx.app);
+  await d.post("/api/account/demo");
+  await d.post("/api/account/demo/seed");
+  await d.get("/api/tasks");
+  await d.get("/api/chat/channels");
+  const me = (await d.get("/api/account/me")).body;
+  const take = meter(ctx.db);
+  const times: number[] = [];
+  for (const q of ["launch", "invoice", "the", "zz-nothing", "TSK-1"]) {
+    const r = await d.get(`/api/search?q=${encodeURIComponent(q)}`);
+    expect(r.status).toBe(200);
+    times.push(r.body.tookMs);
+  }
+  const w = await d.get("/api/my-work");
+  expect(w.status).toBe(200);
+  console.log("search ms on the seeded demo", times.join(", "), "my work ms", w.body.tookMs);
+  expect(take()).toBe(0);
+  const { searchEverything, myWork } = await import("@/server/services/search");
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  await searchEverything(ctx.deps, { kind: "actor", actor: { ...actor, agentId: "agt_none", apiKeyId: "key_x", scope: "read" } }, "launch", { types: ["tasks", "docs", "chat", "contacts", "deals"] });
+  await myWork(ctx.deps, { ...actor, apiKeyId: "key_x", scope: "read" });
+  expect(take()).toBe(0);
 });

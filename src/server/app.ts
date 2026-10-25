@@ -40,6 +40,7 @@ import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverabili
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { checkRoutes } from "./routes/check";
+import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -242,6 +243,10 @@ export function createApp(deps: Deps) {
   app.route("/api/portfolio", portfolioRoutes());
   app.route("/api/guests", guestAdminRoutes());
   app.route("/api/files", fileRoutes());
+  // Round 20: search everything and My Work (reads only). Guest search sits before the guest routes.
+  app.route("/api/search", searchRoutes());
+  app.route("/api/my-work", myWorkRoutes());
+  app.route("/api/guest/search", guestSearchRoutes());
   app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
   app.route("/api/import-runner", importRunnerRoutes());

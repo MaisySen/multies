@@ -12,6 +12,7 @@ import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
 import { listMailboxes } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
+import type { SearchType } from "../services/search";
 import { addComment, createTask, createTaskFromThread, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateTask } from "../services/suite/tasks";
 import { appendToDoc, createDoc, getDoc, listDocs } from "../services/suite/docs";
 import { contactDetail, listContacts, upsertContact } from "../services/suite/contacts";
@@ -100,6 +101,25 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
     description: "Search subject, sender, recipients and body across the mail this key can read.",
     inputSchema: { query: z.string().min(1).max(200), limit: z.number().int().min(1).max(50).default(10) },
   }, tool(async (a: { query: string; limit: number }) => ({ results: await searchMessages(deps, actor, a.query, a.limit) })));
+
+  // Round 20: search everything this key can open, and what is waiting today. Reads only.
+  server.registerTool("search_everything", {
+    title: "Search everything", annotations: ro,
+    description: "One search across mail, tasks (title, notes or a key like OPS-12), docs, chat, contacts and deals, grouped by type, newest first. Only what this key can open: an agent key sees its own inboxes and public channels.",
+    inputSchema: { q: z.string().min(2).max(100), types: z.array(z.enum(["mail", "tasks", "docs", "chat", "contacts", "deals"])).optional(), limit: z.number().int().min(1).max(20).default(5) },
+  }, tool(async (x: { q: string; types?: SearchType[]; limit: number }) => {
+    const { searchEverything } = await import("../services/search");
+    return searchEverything(deps, { kind: "actor", actor }, x.q, { types: x.types, limit: x.limit });
+  }));
+
+  server.registerTool("my_work", {
+    title: "My work today", annotations: ro,
+    description: "What is waiting today for the person (or, with an agent key, the agent): tasks due today and overdue, mentions, mail threads on my tasks, approvals waiting and today's meetings.",
+    inputSchema: { timeZone: z.string().max(64).optional().describe("IANA zone for 'today', e.g. Australia/Sydney. Defaults to the person's or workspace's zone.") },
+  }, tool(async (x: { timeZone?: string }) => {
+    const { myWork } = await import("../services/search");
+    return myWork(deps, actor, { timeZone: x.timeZone });
+  }));
 
   server.registerTool("send_email", {
     title: "Send an email", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },

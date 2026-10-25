@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Command } from "cmdk";
-import { Activity, BookOpen, CreditCard, Globe, Inbox, KeyRound, LayoutDashboard, LogOut, PenSquare, Plus, Search, Settings, ShieldCheck, Smartphone, UserPlus, Users } from "lucide-react";
+import { Activity, BookOpen, CreditCard, Globe, Inbox, KeyRound, LayoutDashboard, LogOut, PenSquare, Plus, Search, Settings, ShieldCheck, Smartphone, UserPlus, Users, Sun } from "lucide-react";
+import { ContentGroups, useContentSearch } from "@/web/components/search-results";
 import { useDomains, useMailboxes } from "@/web/lib/queries";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -25,6 +26,8 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
   useEffect(() => { if (!open) setSearch(""); }, [open]);
 
   const go = (to: string) => () => { onOpenChange(false); navigate(to); };
+  // Round 20: content from mail, tasks, docs, chat, contacts and deals, searched on the server.
+  const content = useContentSearch(search, open);
   const actions: Item[] = [
     { id: "compose", label: "Write an email", icon: PenSquare, run: go("/app/mail?compose=1"), keywords: ["compose", "new message", "send"] },
     { id: "add-domain", label: "Add a domain", icon: Plus, run: go("/app/domains?add=1") },
@@ -34,6 +37,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
     { id: "app-password", label: "Set up Outlook or Apple Mail", icon: Smartphone, run: go("/app/settings/mail-apps"), keywords: ["imap", "smtp", "app password", "thunderbird", "phone"] },
   ];
   const pages: Item[] = [
+    { id: "p-my-work", label: "My Work", icon: Sun, run: go("/app/my-work"), keywords: ["today", "due", "home", "mentions"] },
     { id: "p-overview", label: "Overview", icon: LayoutDashboard, run: go("/app") },
     { id: "p-mail", label: "Mail", icon: Inbox, run: go("/app/mail"), keywords: ["inbox", "webmail"] },
     { id: "p-domains", label: "Domains", icon: Globe, run: go("/app/domains"), keywords: ["dns"] },
@@ -68,11 +72,12 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
       contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in">
       <div className="flex items-center gap-2.5 border-b border-line px-3.5">
         <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
-        <Command.Input value={search} onValueChange={setSearch} placeholder="Jump to a page, domain or mailbox, or run an action" className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
+        <Command.Input value={search} onValueChange={setSearch} placeholder="Search mail, tasks, docs and chat, or jump to a page" className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
         <Kbd>Esc</Kbd>
       </div>
       <Command.List className={cn("max-h-[min(420px,60vh)] overflow-y-auto overscroll-contain py-1")}>
-        <Command.Empty className="px-4 py-8 text-center text-sm text-muted">Nothing matches “{search}”.</Command.Empty>
+        {!content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted">Nothing matches “{search}”.</Command.Empty>}
+        <ContentGroups state={content} search={search} onOpen={(url) => { onOpenChange(false); navigate(url); }} />
         {group("Actions", actions)}
         {group("Go to", pages)}
         {group("Domains and mailboxes", records)}
