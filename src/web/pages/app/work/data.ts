@@ -18,8 +18,6 @@ export interface Task {
   repeat?: { freq: "daily" | "weekly" | "monthly" | "yearly"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string | null; text: string } | null;
   createdBy: { type: string; id: string | null }; createdAt: string; updatedAt: string; version: number;
   fields?: Record<string, FieldValue>;
-  /** R21: task, story, bug or epic. */
-  type?: "task" | "story" | "bug" | "epic";
 }
 export type FieldType = "text" | "number" | "currency" | "date" | "select" | "multiselect" | "person" | "checkbox" | "url";
 export type FieldValue = string | number | boolean | string[] | null;

@@ -62,6 +62,20 @@ update: `POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/v1/tasks`, `PATCH 
 Finishing a repeating task makes the next one with the dates moved on and fires `task.recurred`.
 MCP: `set_task_repeat`.
 
+## Bulk task changes (round 21)
+
+Change or delete many tasks in one call, the same rules as one at a time: `POST /api/v1/tasks/bulk`
+with `{ ids, patch }` and `POST /api/v1/tasks/bulk-delete` with `{ ids }` (the app uses
+`POST /api/tasks/bulk` and `POST /api/tasks/bulk-delete`). `ids` are task ids or references like
+`OPS-12`, at most 500 a call (413 above that). `patch` takes any of `status` (todo, doing, done) or
+`statusId`, `assignee` (`member:<id>`, `agent:<id>` or null), `priority`, `dueAt` and `startAt` (null
+clears), `addLabels`, `removeLabels` and `projectId` (moves the tasks; numbers come from the new
+project and each status maps to the same group there). If any id is not in the workspace nothing is
+changed (404). Read only keys get 403. The writes go out in one batch: each changed task writes its
+row and one sync feed change, and the action writes one summary activity entry. Webhooks still get
+one `task.updated` (or `task.deleted`) per task. When the daily database write budget is nearly
+used, bulk changes answer 503 and single edits still work. MCP: `bulk_update_tasks`.
+
 ## Templates
 
 Kinds: `project`, `task` and `doc`. A template is saved from an item (`fromProjectId`, `fromTaskId`, `fromDocId`) or
@@ -192,7 +206,7 @@ A meeting can repeat weekly: every 1 or 2 weeks on chosen days, with an optional
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -227,32 +241,3 @@ The list lives in `src/server/services/developer/webhooks.ts`.
 - `POST /api/inbound/cloudflare`: mail from the inbound Email Worker, signed with an inbound key (Settings, Inbound; `/api/inbound-keys`).
 - `POST /api/webhooks/resend`: delivery, bounce and complaint events, verified with the Resend signing secret.
 - `POST /api/webhooks/stripe`: billing events, verified with the Stripe signature.
-
-## Task types and epics (round 21)
-
-Every task has a `type`: `task` (the default), `story`, `bug` or `epic`. Set it on create or update
-(`POST /api/tasks`, `PATCH /api/tasks/:id`, `POST /api/v1/tasks`, `PATCH /api/v1/tasks/{id}`) and
-filter by it: `GET /api/v1/tasks?type=bug`. A repeating task repeats with its type.
-
-An epic groups work through the parent link: an item whose `parentId` is an epic is in that epic.
-The list and board show an epic's items (they are top level work); subtasks of a story, task or bug
-stay subtasks. Rules:
-
-- An epic has no parent: it can't be a subtask or sit inside another epic (`epic_in_epic`).
-- A story, task or bug is in at most one epic. Adding it to another epic moves it.
-- An item with a parent can't become an epic until it is taken out (`epic_has_parent`).
-- An epic that still has items keeps its type until they are moved out (`epic_has_items`).
-
-Endpoints (the app uses the same shapes under `/api/epics` with the session cookie):
-
-- `GET /api/v1/epics?project=<projectId>`: epics with `progress`.
-- `GET /api/v1/epics/{id}`: one epic (id or reference) with `progress` and its `items`.
-- `POST /api/v1/epics/{id}/items` with `{ "ids": [...] }` (up to 100 ids or references): puts them in the epic. Answers `{ epic, items, moved }`.
-- `DELETE /api/v1/epics/{id}/items` with `{ "ids": [...] }`: takes them out (only items in this epic).
-
-`progress` is worked out when read (no writes): `done`, `total` and `percent` over the epic's items
-and their subtasks, `items` and `subtasks` counted apart, `points` (`{ done, total, percent }`) when
-tasks carry points and otherwise `null`, and `start` and `end`: the earliest start and latest due
-date of its items. Read only keys can read epics but not add or remove items. Adding N items is one
-batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
-MCP: `list_epics`, `get_epic`, `add_to_epic`.

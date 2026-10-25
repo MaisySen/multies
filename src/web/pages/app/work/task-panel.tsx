@@ -4,7 +4,6 @@ import { TaskFiles } from "./task-files";
 import { Link, useNavigate } from "react-router";
 import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
-import { EpicSection, TaskTypeRows } from "./task-type";
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -101,7 +100,6 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           </div>
 
           <dl className="mt-4 grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
-            <TaskTypeRows task={t} onSave={save} />
             <dt className="text-subtle">Status</dt>
             <dd><Select aria-label="Status" value={t.statusId} onChange={(e) => save({ statusId: e.target.value })} className="h-8 text-[13px]">
               {project?.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -126,8 +124,6 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <dd><Input aria-label="Labels" placeholder="ops, client" value={labels} onChange={(e) => setLabels(e.target.value)}
               onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px]" /></dd>
           </dl>
-
-          {t.type === "epic" && <EpicSection epic={t} onChanged={() => void q.refetch()} />}
 
           {(q.data!.customFields?.length ?? 0) > 0 && (
             <section className="mt-4" aria-label="Custom fields">
@@ -170,7 +166,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
-          <section className="mt-6" aria-label="Subtasks" hidden={t.type === "epic"}>
+          <section className="mt-6" aria-label="Subtasks">
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>
             <ul className="mt-2 space-y-1">
               {q.data!.subtasks.map((s: Task) => (

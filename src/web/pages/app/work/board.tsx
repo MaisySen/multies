@@ -10,7 +10,6 @@ import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task } from "./data";
 import { tone } from "@/web/components/app-bits";
-import { TypeIcon } from "./task-type";
 
 export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode }) {
   return (
@@ -20,7 +19,7 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
         <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-fill px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
       )}
       <div className="mt-2.5 flex items-center gap-2.5 text-[11.5px] text-subtle">
-        <span className="inline-flex items-center gap-1"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
+        <span className="font-mono">{t.ref}</span>
         {t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><Flag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
         {t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
         {t.source && <Mail className="h-3 w-3" aria-label="From email" />}

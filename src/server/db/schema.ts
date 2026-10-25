@@ -806,8 +806,6 @@ export const tasks = sqliteTable("tasks", {
   repeatRule: text("repeat_rule"),
   /** Set on tasks brought in from another work tool: a hash of the source and its own id, so a re-run skips them. */
   importKey: text("import_key"),
-  /** R21: task, story, bug or epic. An item whose parent is an epic is in that epic (no index of its own). */
-  type: text("type", { enum: ["task", "story", "bug", "epic"] }).notNull().default("task"),
   ...suiteCols(),
 }, (t) => [
   index("tasks_org_project_idx").on(t.orgId, t.projectId, t.statusId, t.position),
