@@ -14,7 +14,8 @@ import { claimFreeAddress } from "../services/free-address";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
-import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes } from "../services/addresses";
+import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
+import { mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
 import { resolveOAuthToken } from "../services/developer/oauth";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
@@ -33,6 +34,7 @@ import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
+import { isAuthHookPreview } from "./v1-r25-authmail"; // R25 (MB-60)
 import { registerMeetingNotesRoutes } from "./v1-r23-notes";
 import { registerCalendarRoutes } from "./v1-r23-calendar";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
@@ -82,6 +84,7 @@ const Mailbox = z.object({
   quotaMb: z.number().int(),
   usedBytes: z.number().int(),
   status: z.enum(["active", "suspended"]),
+  replyTo: z.string().email().nullable().openapi({ example: "support@acme.com", description: "The Reply-To a send from this mailbox carries when the send names none. Null: none." }),
   createdAt: z.string().datetime(),
 }).openapi("Mailbox");
 
@@ -157,7 +160,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
-  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();
@@ -253,7 +256,7 @@ export function v1Routes() {
     return { id: p.id, name: p.name, status: p.status, createdAt: iso(p.createdAt)!, verifiedAt: iso(p.verifiedAt), lastCheckedAt: iso(p.lastCheckedAt), dkimSelector: p.dkimSelector, catchAllMailboxId: p.catchAllMailboxId, records: p.records as unknown as z.infer<typeof DnsRecord>[] };
   };
   const mailboxOut = (m: Awaited<ReturnType<typeof getMailbox>>) => ({
-    id: m.id, domainId: m.domainId, address: m.address, displayName: m.displayName, quotaMb: m.quotaMb, usedBytes: m.usedBytes, status: m.status, createdAt: iso(m.createdAt)!,
+    id: m.id, domainId: m.domainId, address: m.address, displayName: m.displayName, quotaMb: m.quotaMb, usedBytes: m.usedBytes, status: m.status, replyTo: m.replyTo ?? null, createdAt: iso(m.createdAt)!,
   });
 
   api.openapi(createRoute({ method: "get", path: "/domains", tags: ["Domains"], summary: "List domains", security: secured,
@@ -314,6 +317,20 @@ export function v1Routes() {
     // A workspace key was made by a signed in owner or admin, so the person behind it is known.
     const m = await claimFreeAddress(deps, { ...auth, emailVerified: true }, input, { ip: c.var.ip });
     return c.json(mailboxOut(m), 201);
+  });
+
+  // MB-61 (R25): the mailbox's display name and default Reply-To.
+  api.openapi(createRoute({ method: "patch", path: "/mailboxes/{id}", tags: ["Mailboxes"], summary: "Update a mailbox",
+    description: "Body: { displayName?, replyTo? }. replyTo is the Reply-To every send from this mailbox carries when the send names none (POST /messages with replyTo still wins); null or \"\" clears it.",
+    security: secured, request: { params: IdParam, ...body(z.object({ displayName: z.string().trim().min(1).max(100).optional(), replyTo: mailboxReplyToSchema.optional().openapi({ type: "string", example: "support@acme.com" }) })) },
+    responses: { 200: json(Mailbox, "The mailbox."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
+  async (c) => {
+    const { auth, deps } = c.var;
+    const patch = c.req.valid("json");
+    if (patch.displayName === undefined && patch.replyTo === undefined) throw new HttpError(422, "validation_failed", "Send displayName or replyTo.");
+    const m = await updateMailbox(deps.db, auth.orgId, c.req.valid("param").id, patch);
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.updated", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, ...patch, via: "api" }, ip: c.var.ip });
+    return c.json(mailboxOut(m), 200);
   });
 
   api.openapi(createRoute({ method: "delete", path: "/mailboxes/{id}", tags: ["Mailboxes"], summary: "Delete a mailbox", description: "Deletes the mailbox and all of its mail.", security: secured, request: { params: IdParam },

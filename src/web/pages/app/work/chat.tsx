@@ -14,6 +14,9 @@ import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
 import { composerHint, isPhoneWidth, isTouchOnly } from "@/web/lib/phone";
+import { messageActions } from "@/web/lib/message-actions";
+import { useCompactActions, useLongPress } from "@/web/lib/use-compact";
+import { MessageActionSheet, copyText } from "./chat-actions-r25";
 import { useProjects } from "./data";
 import { CallHeaderStatus } from "./call-r23";
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
@@ -59,11 +62,20 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, myId, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string }) {
+function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, myId, mine, inThread, role }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string; role?: string | null }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   const call = m.deleted ? null : callPath(m.body);
+  // R25 wave 2: on phones and touch screens one More button (or a long press) opens the actions as a sheet.
+  const compact = useCompactActions();
+  const [sheet, setSheet] = useState(false);
+  const press = useLongPress(() => setSheet(true), compact && !m.deleted);
+  const actions = compact ? messageActions({ deleted: m.deleted, inThread: !!inThread, mine, role, canPin: !!onPin, isReply: !!m.parentId, pinned: !!m.pinnedAt, canTriage: !!onTriage, hasText: !!m.body.trim() }) : [];
+  const runAction = (id: string) => {
+    if (id === "thread") onThread?.(); else if (id === "copy") void copyText(preview(m)); else if (id === "triage") onTriage?.(); else if (id === "task") onTask();
+    else if (id === "pin" || id === "unpin") onPin?.(); else if (id === "edit") onEdit(); else if (id === "delete") onDelete();
+  };
   return (
-    <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover" data-testid="chat-message" id={`m-${m.id}`}>
+    <li className={cn("group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover", compact && "[-webkit-touch-callout:none]")} data-testid="chat-message" id={`m-${m.id}`} {...press}>
       <Avatar label={initials(m.author.name)} className="mt-0.5 h-8 w-8 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
@@ -73,6 +85,11 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
+          {compact && !m.deleted && (
+            <button type="button" onClick={() => setSheet(true)} aria-label="Message actions" aria-haspopup="dialog" data-testid="message-more" className="-my-2.5 -mr-2 ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-lg text-subtle active:bg-elevated">
+              <MoreHorizontal className="h-4 w-4" aria-hidden />
+            </button>
+          )}
         </div>
         {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} channelId={m.channelId} /> : <Body m={m} />}
         {m.attachments.length > 0 && (
@@ -86,7 +103,8 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
         {taskLinks.length > 0 && m.body && !m.body.includes("<#task:") && <div className="mt-1 flex flex-wrap gap-1">{taskLinks.map((l) => <LinkChip key={l.id} l={l} />)}</div>}
         {!m.deleted && <Reactions reactions={m.reactions} myId={myId} onToggle={onReact} />}
       </div>
-      {!m.deleted && (
+      {compact && sheet && !m.deleted && <MessageActionSheet open onClose={() => setSheet(false)} author={m.author.name} excerpt={preview(m)} actions={actions} onAction={runAction} onReact={onReact} />}
+      {!m.deleted && !compact && (
         <div className="flex items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
           <ReactionPicker onPick={onReact} />
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
@@ -292,7 +310,7 @@ export function ChatPage() {
   const row = (m: ChatMessage, inThread = false) => (
     <Message key={m.id} m={m} inThread={inThread} mine={m.author.type === "member" && m.author.id === myId}
       onThread={() => openThread(m)} onTask={() => void makeTask(m)} onTriage={() => void sendToTriage(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
-      onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} />
+      onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} role={me.data?.organization?.role} />
   );
   const chans = list.filter((c) => c.kind === "channel");
   const dms = list.filter((c) => c.kind === "dm");

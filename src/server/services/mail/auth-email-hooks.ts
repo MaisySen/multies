@@ -15,16 +15,18 @@ import { authEmailHooks, mailboxes } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { sendMessage } from "./send";
+import { AUTH_EMAIL_TYPES, BrandingInputSchema, mergeBranding, parseBranding, renderAuthEmail, type BrandingInput } from "./auth-email-branding";
 
 type HookRow = typeof authEmailHooks.$inferSelect;
 
 const bad = (message: string) => new HttpError(422, "validation_failed", message);
 
-export interface AuthHookInput { from: string; secret: string; supabaseUrl: string; appName?: string }
+export interface AuthHookInput { from: string; secret: string; supabaseUrl: string; appName?: string; branding?: BrandingInput | null }
 
 function presentHook(deps: Deps, h: HookRow, from: string) {
   return {
     id: h.id, kind: h.kind, from, supabaseUrl: h.supabaseUrl, appName: h.appName,
+    branding: parseBranding(h.branding),
     url: `${deps.config.appUrl.replace(/\/$/, "")}/api/auth-hooks/supabase/${h.id}`,
     lastUsedAt: h.lastUsedAt?.toISOString() ?? null, createdAt: h.createdAt.toISOString(),
   };
@@ -55,6 +57,8 @@ export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: st
     secretEnc: await encryptSecret(deps.config.appSecret, secret), supabaseUrl: url.origin,
     appName: (input.appName?.trim() || mb.displayName || from.split("@")[1]).slice(0, 80),
   };
+  const branding = mergeBranding(null, input.branding ? parseBrandingInput(input.branding) : null);
+  if (branding) row.branding = JSON.stringify(branding);
   await deps.db.insert(authEmailHooks).values(row);
   const saved = (await deps.db.select().from(authEmailHooks).where(eq(authEmailHooks.id, row.id)).get())!;
   return presentHook(deps, saved, mb.address);
@@ -72,6 +76,69 @@ export async function deleteAuthHook(deps: Deps, a: AuthContext & { agentId?: st
   if (!h) throw notFound("Auth email hook");
   await deps.db.delete(authEmailHooks).where(eq(authEmailHooks.id, id));
   return true;
+}
+
+/** Validates a branding body (REST create and PATCH, MCP). Errors come back as one 422 naming the field. */
+export function parseBrandingInput(raw: unknown): BrandingInput {
+  const r = BrandingInputSchema.safeParse(raw);
+  if (!r.success) {
+    const i = r.error.issues[0];
+    throw new HttpError(422, "validation_failed", `branding${i.path.length ? `.${i.path.join(".")}` : ""}: ${i.message}`, { issues: r.error.issues.map((x) => ({ path: ["branding", ...x.path].join("."), message: x.message })) });
+  }
+  return r.data;
+}
+
+export interface AuthHookPatch { appName?: string; from?: string; branding?: BrandingInput | null }
+
+/**
+ * PATCH /api/v1/auth-email-hooks/{id} (R25, MB-60). One UPDATE of the hook row, nothing else
+ * written. Branding merges into what is stored (see mergeBranding); null clears it all.
+ */
+export async function updateAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, id: string, input: AuthHookPatch) {
+  assertManager(a);
+  const h = await deps.db.select().from(authEmailHooks).where(and(eq(authEmailHooks.id, id), eq(authEmailHooks.orgId, a.orgId))).get();
+  if (!h) throw notFound("Auth email hook");
+  const set: Partial<typeof authEmailHooks.$inferInsert> = {};
+  let mb = await deps.db.select().from(mailboxes).where(eq(mailboxes.id, h.mailboxId)).get();
+  if (input.from !== undefined) {
+    const from = input.from.trim().toLowerCase();
+    const next = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from))).get();
+    if (!next) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
+    if (next.id !== h.mailboxId) set.mailboxId = next.id;
+    mb = next;
+  }
+  if (input.appName !== undefined) {
+    const name = input.appName.trim().slice(0, 80);
+    if (!name) throw bad("appName can't be empty.");
+    if (name !== h.appName) set.appName = name;
+  }
+  if (input.branding !== undefined) {
+    const next = mergeBranding(parseBranding(h.branding), input.branding === null ? null : parseBrandingInput(input.branding));
+    const json = next ? JSON.stringify(next) : null;
+    if (json !== (h.branding ?? null)) set.branding = json;
+  }
+  const saved = Object.keys(set).length ? { ...h, ...set } as HookRow : h;
+  if (Object.keys(set).length) await deps.db.update(authEmailHooks).set(set).where(and(eq(authEmailHooks.id, id), eq(authEmailHooks.orgId, a.orgId)));
+  return presentHook(deps, saved, mb?.address ?? "");
+}
+
+/**
+ * POST /api/v1/auth-email-hooks/{id}/preview?type=signup (R25, MB-60): the subject, HTML and text a
+ * call of that type would send, with a sample link and code. Nothing is sent or written. Pass
+ * branding to preview changes before saving them (merged over what is stored, not saved).
+ */
+export async function previewAuthHook(deps: Deps, orgId: string, id: string, type: string, opts: { email?: string; branding?: unknown } = {}) {
+  if (!(AUTH_EMAIL_TYPES as readonly string[]).includes(type)) throw bad(`type must be one of ${AUTH_EMAIL_TYPES.join(", ")}.`);
+  const h = await deps.db.select().from(authEmailHooks).where(and(eq(authEmailHooks.id, id), eq(authEmailHooks.orgId, orgId))).get();
+  if (!h) throw notFound("Auth email hook");
+  const branding = opts.branding !== undefined
+    ? mergeBranding(parseBranding(h.branding), opts.branding === null ? null : parseBrandingInput(opts.branding))
+    : parseBranding(h.branding);
+  const email = (opts.email ?? "").replace(/[\r\n\t]/g, "").trim().toLowerCase().slice(0, 254) || "parent@example.com";
+  const codeOnly = type === "reauthentication" || type === "email";
+  const link = codeOnly ? null : `${h.supabaseUrl}/auth/v1/verify?token=preview&type=${encodeURIComponent(type)}&redirect_to=`;
+  const mail = renderAuthEmail(branding, type, link, "123456", { appName: h.appName, email });
+  return { type, to: email, subject: mail.subject, html: mail.html, text: mail.text, replyTo: mail.replyTo ?? null };
 }
 
 interface SupabasePayload {
@@ -142,8 +209,8 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   const actor: AuthContext = { userId: "", email: `auth-hook:${h.h.id}`, name: h.h.appName, orgId: h.h.orgId, role: "admin", sessionId: `authhook:${h.h.id}` };
   try {
     for (const s of sends) {
-      const mail = authEmail(h.h.appName, type, s.link, s.token);
-      await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html });
+      const mail = renderAuthEmail(parseBranding(h.h.branding), type, s.link, s.token, { appName: h.h.appName, email: s.to.toLowerCase() });
+      await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { replyTo: mail.replyTo } : {}) });
     }
   } catch (err) {
     return fail(500, err instanceof Error ? err.message : "Sending failed.");

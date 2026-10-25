@@ -42,6 +42,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const mb = await db.select().from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, auth.orgId))).get();
   if (!mb) throw notFound("Mailbox");
   if (mb.status !== "active") throw badRequest("This mailbox is suspended.");
+  // MB-61: a send that names no Reply-To uses the mailbox's default one, when it has one.
+  const replyTo = input.replyTo || mb.replyTo || undefined;
   const domain = (await db.select().from(domains).where(eq(domains.id, mb.domainId)).get())!;
   const org = await getOrg(db, auth.orgId);
   assertNotPaymentPaused(org, deps.now());
@@ -111,7 +113,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
 
   const sentId = await storeMessage(db, {
     orgId: auth.orgId, mailboxId: mb.id, folder: "sent", messageIdHeader, inReplyTo, references,
-    from, to: toList, cc: ccList, bcc: bccList, replyTo: input.replyTo, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
+    from, to: toList, cc: ccList, bcc: bccList, replyTo, subject: input.subject, text: input.text, html: input.html, date: now, isRead: true, attachments: atts,
     sentByAgentId: extra.agentId ?? null, sentByUserId: auth.userId || null, bodyStore: deps.bodyStore,
   });
   if (inReplyTo) {
@@ -141,7 +143,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       sizeBytes: input.text.length + (input.html?.length ?? 0) + 512,
       via: "internal",
       email: {
-        messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo: input.replyTo, subject: input.subject,
+        messageId: messageIdHeader, inReplyTo, references, from, to: toList, cc: ccList, replyTo, subject: input.subject,
         text: input.text, html: input.html, date: now, attachments: atts, authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {},
       },
     });
@@ -174,7 +176,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     try {
       const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
       const sent = await outbound.send({
-        from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc), replyTo: input.replyTo,
+        from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc), replyTo,
         subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
         attachments: atts,
       });

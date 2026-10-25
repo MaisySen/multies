@@ -253,7 +253,7 @@ on read, so a task change costs no extra write; a completed sprint keeps its fin
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -775,8 +775,28 @@ Saved views (the filters behind a board, list, calendar, timeline, sprints or wo
 - `PATCH /api/v1/docs/{id}` takes `text` (plain text, `#` headings and `-` bullets) to replace the body, as create does (MB-58).
 - `PATCH /api/v1/threads/{id}` with `{ status?, userId? }` (`assigneeId` also accepted): owner and status in one call (MB-59).
 - `POST /api/v1/messages` takes `replyTo`, the address replies should go to (MB-61).
+- `PATCH /api/v1/mailboxes/{id}` with `{ displayName?, replyTo? }`: a mailbox's default Reply-To, carried by every send from it that names none (`replyTo` on the send still wins; `null` or `""` clears it). Mailbox objects carry `replyTo`. Settings, Mailboxes, Edit has the same field ("Replies go to") and MCP has `set_mailbox_reply_to` (MB-61).
 - `POST /api/v1/auth-email-hooks` answers with `hook.setup`, the Supabase steps besides the URL, including the SMTP placeholder and rate limit without which Supabase stays at 2 auth emails an hour (MB-57).
 
 ## Conditional GETs (R25)
 
 A few read only session GETs send a weak `ETag` and answer `304 Not Modified` (no body) when the request's `If-None-Match` matches: `/api/config` (`Cache-Control: public, no-cache`, it holds no account data) and `/api/team/people`, `/api/tasks/assignees`, `/api/projects`, `/api/chat/channels` (`Cache-Control: private, no-cache`, `Vary: Cookie, Authorization`). Every one of them revalidates on each use, so a change is never hidden; response shapes are unchanged. All other `/api/*` responses keep `Cache-Control: no-store`.
+
+## Branded auth emails (R25, MB-60)
+
+The Supabase auth email hook (`/api/v1/auth-email-hooks`, see docs/transactional-email.md section 5) can carry the app's branding. With nothing set the email is exactly the one sent before.
+
+- `POST /api/v1/auth-email-hooks` takes an optional `branding` object; `GET /api/v1/auth-email-hooks` shows each hook's `branding` (or `null`). Secrets are never shown.
+- `PATCH /api/v1/auth-email-hooks/{id}` with any of `{ appName, from, branding }`. `branding`:
+  - `logoUrl`: an `https://` image URL (shown at the top, 40 px high).
+  - `brandColor`: `#RRGGBB` (or `#RGB`), the button colour; the button text turns dark on light colours.
+  - `replyTo`: the address replies go to (sent as the `Reply-To` header).
+  - `footer`: one line under the email.
+  - `templates`: per type (`signup`, `invite`, `magiclink`, `recovery`, `email_change`, `email`, `reauthentication`) any of `{ subject, intro, buttonLabel }`. A type or field you leave out keeps the default text. Code only types (`email`, `reauthentication`) never show a button.
+  - `secondaryLanguage`: `{ lang, templates, note }`. For a type with text here, a second block (with `lang`, for example `ne`) goes under the main text: its intro, its own button to the same link and the note (for example "If you didn't ask for this" in that language). Its `subject`, when set, is added to the subject after ` / `.
+  - Placeholders in any text: `{appName}`, `{code}` (empty when the email has none) and `{email}` (the recipient). Other braces stay as typed.
+  - Everything is plain text: it is HTML escaped when sent and never taken as HTML. Subjects and one line fields refuse line breaks. A bad value answers 422 naming the field (`branding.logoUrl: ...`).
+  - Merging: keys you leave out stay as they are, `null` clears one, `templates` merge per type (a type set to `null` goes back to the default), `secondaryLanguage` is replaced whole, and `branding: null` clears everything.
+  - Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403, another workspace's hook 404. One row written (an unchanged PATCH writes nothing).
+- `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` returns `{ preview: { type, to, subject, html, text, replyTo } }` with a sample link and the code `123456`. Nothing is sent or written. Optional body `{ email, branding }`: the address for `{email}` and unsaved branding to try (merged over the saved one). Read only keys can call it. An unknown `type` answers 422.
+- MCP: `update_auth_email_hook` (see docs/MCP.md).

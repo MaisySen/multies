@@ -7,9 +7,25 @@ import { LogOutbound } from "@/server/services/mail/outbound";
 import type { Deps } from "@/server/context";
 import { nullLogger } from "@/server/lib/logger";
 
+/**
+ * D1 refuses a statement with more than 100 bound variables ("too many SQL variables"); SQLite in tests takes
+ * 32,766. This makes the test database refuse the same statements, so an unchunked IN list fails here, not in prod.
+ */
+export const D1_MAX_VARIABLES = 100;
+export function enforceD1VariableLimit(db: ReturnType<typeof openSqlite>) {
+  const client = (db as unknown as { $client: { prepare: (sql: string) => unknown } }).$client;
+  const prepare = client.prepare.bind(client);
+  client.prepare = (sql: string) => {
+    const vars = (sql.replace(/'(?:[^']|'')*'/g, "").match(/\?/g) ?? []).length;
+    if (vars > D1_MAX_VARIABLES) throw new Error(`too many SQL variables (${vars} > ${D1_MAX_VARIABLES}): ${sql.slice(0, 120)}`);
+    return prepare(sql);
+  };
+}
+
 export async function makeTestApp(env: Record<string, string> = {}, opts: { fetch?: typeof fetch } = {}) {
   const db = openSqlite(":memory:");
   await migrate(db);
+  enforceD1VariableLimit(db);
   const dns = new StaticResolver();
   const outbound = new LogOutbound();
   const fetchImpl = opts.fetch ?? (async () => { throw new Error("network disabled in tests"); });

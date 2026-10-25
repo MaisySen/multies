@@ -40,8 +40,12 @@ export const createMailboxSchema = z.object({
   displayName: z.string().trim().min(1, "Add a display name").max(100),
   quotaMb: z.number().int().positive().optional(),
 });
+/** A default Reply-To (MB-61): an address, or null or "" to clear it. */
+export const mailboxReplyToSchema = z.union([z.literal(""), z.string().trim().toLowerCase().email("Enter an email address for replies").max(254)]).nullable()
+  .transform((v) => (v ? v : null));
 export const updateMailboxSchema = z.object({
   displayName: z.string().trim().min(1).max(100).optional(),
+  replyTo: mailboxReplyToSchema.optional(),
   quotaMb: z.number().int().positive().optional(),
   status: z.enum(["active", "suspended"]).optional(),
 });

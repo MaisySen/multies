@@ -6,6 +6,7 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { createAuthHook, deleteAuthHook, listAuthHooks } from "../services/mail/auth-email-hooks";
+import { registerAuthHookBrandingRoutes } from "./v1-r25-authmail";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -31,6 +32,8 @@ export const AuthHookBody = z.object({
   secret: z.string().min(10).max(200).openapi({ description: "The secret Supabase generated for the Send Email Hook (v1,whsec_...).", example: "v1,whsec_..." }),
   supabaseUrl: z.string().url().openapi({ description: "Your Supabase project URL; verification links point here.", example: "https://abcd1234.supabase.co" }),
   appName: z.string().max(80).optional().openapi({ description: "The product name in subjects and bodies. Defaults to the mailbox's display name.", example: "Haajir" }),
+  // R25 (MB-60): checked in full by the service (parseBrandingInput); see AuthHookBranding in PATCH.
+  branding: z.record(z.string(), z.unknown()).nullable().optional().openapi({ description: "Optional logo, colour, reply-to, footer, per type text and a second language. Same shape as PATCH /auth-email-hooks/{id}." }),
 }).openapi("AuthHookCreate");
 
 export function registerAuthHookRoutes(api: OpenAPIHono<AppEnv>) {
@@ -45,4 +48,5 @@ export function registerAuthHookRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { hook: { ...(await createAuthHook(c.var.deps, auth(c), AuthHookBody.parse(await c.req.json().catch(() => ({}))))), setup: AUTH_HOOK_SETUP } }, 201));
   api.openapi(route("delete", "/auth-email-hooks/{id}", "Remove an auth email hook", "Calls to its URL fail from then on.", { request: { params: Id } }),
     async (c) => send(c, { deleted: await deleteAuthHook(c.var.deps, auth(c), c.req.param("id") ?? "") }));
+  registerAuthHookBrandingRoutes(api); // R25 (MB-60): PATCH and preview
 }

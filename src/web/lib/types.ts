@@ -54,6 +54,8 @@ export interface Mailbox {
   quotaMb: number;
   usedBytes: number;
   status: "active" | "suspended";
+  /** MB-61: the Reply-To sends from this mailbox carry when they name none. */
+  replyTo?: string | null;
   createdAt: string;
 }
 

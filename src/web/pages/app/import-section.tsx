@@ -68,7 +68,7 @@ export function ImportSection() {
 
 interface XeroInfo { configured: boolean; connected: boolean; tenantName?: string | null }
 
-/** Xero, when this Multies has it set up: connect to chase unpaid invoices from the reminder dialog. */
+/** Xero, when this server has it set up: connect to chase unpaid invoices from the reminder dialog. */
 export function XeroSection() {
   const me = useMe();
   const qc = useQueryClient();

@@ -66,7 +66,7 @@ export function GoalsPage() {
               {g.keyResults.map((k) => (
                 <li key={k.id} data-testid="key-result" className="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 rounded-md bg-fill/60 px-3 py-2 text-[13.5px] sm:flex sm:flex-wrap sm:justify-between">
                   <span className="col-span-2 min-w-0 break-words sm:flex-1" data-testid="key-result-name">{k.name}</span>
-                  <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : k.target < k.start ? `${val(k, k.current)}, down to ${val(k, k.target)}` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
+                  <span className="text-[12.5px] text-muted">{k.kind === "tasks" ? `${k.tasks?.done ?? 0} of ${k.tasks?.total ?? 0} tasks done` : k.target < k.start || (k.target === k.start && k.current > k.target) ? `${val(k, k.current)}, down to ${val(k, k.target)}` : `${val(k, k.current)} of ${val(k, k.target)}`}</span>
                   {k.kind !== "tasks" && <Button variant="ghost" size="sm" onClick={() => void setCurrent(k)}>Update</Button>}
                   <div className="col-span-2 sm:col-span-1"><Bar value={k.progress} label={`${k.name} progress`} /></div>
                 </li>

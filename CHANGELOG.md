@@ -14,6 +14,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Phones: Tasks opens as a list on a phone and remembers the view you pick, the board scrolls one column at a time, goal key results stack, and chat drops keyboard hints on touch screens. Buttons are at least 40 px tall.
 - Continue with Google on sign in and sign up, and Continue with Microsoft on the preview site. A verified Google or Microsoft address signs in to the account that already uses it.
 - API fixes found by Haajir: `/health` answers JSON, `GET /projects/{id}/tasks`, sprint dates as workspace days (`startDate` and `endDate` accepted) with a `url` per sprint, epic items take `taskIds`, docs update from plain text, `PATCH /threads/{id}`, `replyTo` on send, and the Supabase auth hook answer lists the rate limit step that otherwise drops signups.
+- A default Reply-To per mailbox (MB-61): Settings, Mailboxes, Edit, "Replies go to", `PATCH /api/v1/mailboxes/{id}` and the MCP tool `set_mailbox_reply_to`. Sends that name no Reply-To carry it; a send's own `replyTo` still wins. Migration 0053 adds `mailboxes.reply_to` and renames chat posts stored under the old `API key "..."` author to the agent or the workspace. The Haajir HQ dogfood findings 2, 5, 6, 11, 13, 14, 16 and 17 were already fixed and now have guard tests; the last "this Multies" copy (Xero, booking pages) names the server instead.
+- Phones, second pass: chat message actions open in one sheet from a More button or a long press, the mail star is visible and bigger on touch, and the compose footer fits a phone screen.
+- A default Reply-To per mailbox (Settings, `PATCH /api/v1/mailboxes/{id}`, MCP `set_mailbox_reply_to`). Migration 0053; old chat posts signed "API key ..." now show the agent or workspace name.
+- Branded auth emails for the Supabase hook: logo, colour, Reply-To, footer, per type text and an optional second language block, with `PATCH` and a preview endpoint (MCP `update_auth_email_hook`). Migration 0054.
+- Fixed: task lists over 100 tasks failed on the database's 100 variable limit (seen from the iOS app). Tests now run with the same limit.
 - Mobile 1.9.2 (iOS build 15, Android 13): a "mentioned you on a thread" notification opens the thread.
 
 ### Round 24: planning depth (25 Oct 2026)

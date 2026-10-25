@@ -1046,3 +1046,53 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   expect((await u.call("GET", "/api/projects", undefined, { "if-none-match": tag })).status).toBe(304);
   expect(take()).toBe(0);
 });
+
+it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchanged PATCH write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@haajir.test", "Olive Owner");
+  const d = (await u.post("/api/domains", { name: "haajir.test" })).body.domain;
+  const { body } = await u.get(`/api/domains/${d.id}`);
+  for (const r of body.domain.records) {
+    if (r.id === "mx") ctx.dns.records.mx = { ...ctx.dns.records.mx, [r.fqdn]: r.values.map((v: { value: string; priority: number }) => ({ exchange: v.value, priority: v.priority })) };
+    else ctx.dns.records.txt = { ...ctx.dns.records.txt, [r.fqdn]: [r.value] };
+  }
+  await u.post(`/api/domains/${d.id}/verify`);
+  await u.post("/api/mailboxes", { domainId: d.id, localPart: "no-reply", displayName: "Haajir" });
+  const key = (await u.post("/api/developer/keys", { name: "Haajir HQ" })).body.secret as string;
+  const v1 = async (method: string, path: string, b?: unknown) => (await ctx.app.request(`/api/v1${path}`, { method, headers: { host: "localhost", authorization: `Bearer ${key}`, "content-type": "application/json" }, body: b !== undefined ? JSON.stringify(b) : undefined })).json();
+  const secret = `v1,whsec_${Buffer.from("supabase-hook-secret-0123456789").toString("base64")}`;
+  await v1("GET", "/auth-email-hooks"); // warm the key's last used write
+  const take = meter(ctx.db);
+  take();
+  await v1("POST", "/auth-email-hooks", { from: "no-reply@haajir.test", secret, supabaseUrl: "https://abcd1234.supabase.co", appName: "Plain" });
+  const plain = take();
+  const made = await v1("POST", "/auth-email-hooks", { from: "no-reply@haajir.test", secret, supabaseUrl: "https://abcd1234.supabase.co", appName: "Haajir", branding: { brandColor: "#0F7B6C" } });
+  // Branding rides in the same hook row: a branded create costs what a plain one does (the row and its org index).
+  expect(take()).toBe(plain);
+  const id = made.hook.id as string;
+  const branding = { logoUrl: "https://haajir.test/logo.png", replyTo: "support@haajir.test", footer: "Haajir", templates: { signup: { subject: "Welcome to {appName}" } }, secondaryLanguage: { lang: "ne", templates: { signup: { intro: "नमस्ते" } } } };
+  // Through a key the local rate limit counter (a binding in production) adds a varying few rows per
+  // request, so the PATCH and preview costs are measured on the service itself.
+  expect((await v1("PATCH", `/auth-email-hooks/${id}`, { branding })).hook.branding.replyTo).toBe("support@haajir.test");
+  // The service alone, without the request's limiter: exactly 1, then 0 when nothing changed.
+  const { updateAuthHook, previewAuthHook } = await import("@/server/services/mail/auth-email-hooks");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const, sessionId: "s" };
+  const raw = (ctx.db as unknown as { $client: { prepare: (q: string) => { get: () => unknown } } }).$client;
+  const changed = () => (raw.prepare("select total_changes() n").get() as { n: number }).n;
+  take();
+  let c0 = changed();
+  await updateAuthHook(ctx.deps, actor, id, { branding: { footer: "Haajir, Kathmandu" } });
+  // One UPDATE of one row (D1 rows written: 1; neither index's columns change). This file's rule counts
+  // the row plus each full index on the table (the primary key and org_id), so 3.
+  expect(changed() - c0).toBe(1);
+  expect(take()).toBe(3);
+  c0 = changed();
+  await updateAuthHook(ctx.deps, actor, id, { appName: "Haajir HQ", branding: { templates: { recovery: { subject: "Reset {appName}" } } } });
+  expect(changed() - c0).toBe(1);
+  expect(take()).toBe(3);
+  await updateAuthHook(ctx.deps, actor, id, { branding: { footer: "Haajir, Kathmandu" } });
+  await previewAuthHook(ctx.deps, actor.orgId, id, "recovery");
+  expect(take()).toBe(0);
+});

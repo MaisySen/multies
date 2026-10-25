@@ -49,7 +49,7 @@ export async function createMailbox(db: DB, orgId: string, input: CreateMailboxI
   return getMailbox(db, orgId, id);
 }
 
-export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended" }) {
+export async function updateMailbox(db: DB, orgId: string, id: string, patch: { displayName?: string; quotaMb?: number; status?: "active" | "suspended"; replyTo?: string | null }) {
   const m = await getMailbox(db, orgId, id);
   if (patch.quotaMb !== undefined) {
     const plan = await getPlan(db, orgId);

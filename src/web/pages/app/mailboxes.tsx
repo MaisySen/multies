@@ -97,7 +97,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
                 {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
                   : domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
               </div>
-              <div className="truncate text-xs text-subtle">{m.displayName}</div>
+              <div className="truncate text-xs text-subtle">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
             </div>
             <div className="hidden w-44 sm:block">
               <div className="mb-1.5 flex justify-between text-[11px] text-subtle"><span>{formatBytes(m.usedBytes)}</span><span>{formatBytes(m.quotaMb * 1024 * 1024)}</span></div>
@@ -180,11 +180,12 @@ function CreateMailboxDialog({ open, onClose, domains }: { open: boolean; onClos
 function EditMailboxDialog({ mailbox, onClose }: { mailbox: Mailbox; onClose: () => void }) {
   const [displayName, setDisplayName] = useState(mailbox.displayName);
   const [quota, setQuota] = useState(String(mailbox.quotaMb / 1024));
+  const [replyTo, setReplyTo] = useState(mailbox.replyTo ?? "");
   const org = useOrg();
   const maxGb = (org.data?.plan.limits.storagePerMailboxMb ?? 1024) / 1024;
   const invalidate = useInvalidate();
   const m = useMutation({
-    mutationFn: () => api.patch(`/mailboxes/${mailbox.id}`, { displayName, quotaMb: Math.round(Number(quota) * 1024) }),
+    mutationFn: () => api.patch(`/mailboxes/${mailbox.id}`, { displayName, quotaMb: Math.round(Number(quota) * 1024), replyTo: replyTo.trim() || null }),
     onSuccess: () => { invalidate(); toast.success("Mailbox updated"); onClose(); },
     onError: (e) => showError(e),
   });
@@ -194,6 +195,9 @@ function EditMailboxDialog({ mailbox, onClose }: { mailbox: Mailbox; onClose: ()
       <div className="space-y-4">
         <Field label="Display name">{(p) => <Input {...p} value={displayName} onChange={(e) => setDisplayName(e.target.value)} />}</Field>
         <Field label="Storage quota (GB)" hint={`Up to ${maxGb} GB on your plan.`}>{(p) => <Input {...p} type="number" min={0.1} max={maxGb} step={0.5} value={quota} onChange={(e) => setQuota(e.target.value)} />}</Field>
+        <Field label="Replies go to" hint="Optional. Mail sent from this address asks for replies here, unless a send names its own. Leave empty for replies to come back to this address.">
+          {(p) => <Input {...p} type="email" placeholder="support@example.com" autoComplete="off" spellCheck={false} value={replyTo} onChange={(e) => setReplyTo(e.target.value)} />}
+        </Field>
       </div>
     </Dialog>
   );

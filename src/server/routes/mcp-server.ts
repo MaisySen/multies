@@ -10,7 +10,7 @@ import { z } from "zod";
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
-import { listMailboxes } from "../services/addresses";
+import { listMailboxes, updateMailbox } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
 import type { SearchType } from "../services/search";
 import type { TaskType } from "../services/suite/task-types";
@@ -53,6 +53,7 @@ import { registerDashboardTools } from "./mcp-r24-dashboards";
 import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
 import { registerTaskBulkTools } from "./mcp-r21-table";
+import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -93,7 +94,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
     const boxes = (await listMailboxes(deps.db, actor.orgId)).filter((m) => !scope || scope.includes(m.id));
     return {
       agents: agents.map((a) => ({ agentId: a.id, name: a.name, address: a.address, approvalMode: a.approvalMode, sentToday: a.sentToday, sendCapDaily: a.sendCapDaily, status: a.status, mailboxIds: a.mailboxIds })),
-      mailboxes: boxes.map((m) => ({ mailboxId: m.id, address: m.address, name: m.displayName })),
+      mailboxes: boxes.map((m) => ({ mailboxId: m.id, address: m.address, name: m.displayName, replyTo: m.replyTo ?? null })),
     };
   }));
 
@@ -207,6 +208,20 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
       writable();
       return createAgent(deps, actor, { name: a.name, localPart: a.localPart?.toLowerCase(), approvalMode: a.approvalMode });
     }));
+
+    // MB-61 (R25): a mailbox's default Reply-To, the same as PATCH /api/v1/mailboxes/{id}.
+    server.registerTool("set_mailbox_reply_to", {
+      title: "Set a mailbox's default Reply-To", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+      description: "Sets the Reply-To that every send from this mailbox carries when the send names none (for example no-reply@ sends with replies going to support@). Pass replyTo null to clear it. list_inboxes shows each mailbox's current one.",
+      inputSchema: {
+        mailboxId: z.string(),
+        replyTo: z.string().email().max(254).nullable(),
+      },
+    }, tool(async (a: { mailboxId: string; replyTo: string | null }) => {
+      writable();
+      const m = await updateMailbox(deps.db, actor.orgId, a.mailboxId, { replyTo: a.replyTo ? a.replyTo.trim().toLowerCase() : null });
+      return { mailboxId: m.id, address: m.address, replyTo: m.replyTo ?? null };
+    }));
   }
 
   registerSuiteTools(server, deps, actor, writable);
@@ -234,6 +249,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerFormulaTools(server, deps, actor, writable, tool); // R24.1: formula and rollup fields
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
+  registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
   return server;
 }
 

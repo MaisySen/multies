@@ -147,7 +147,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? "Reply" : "New message")}</span>
         <div className="flex items-center">
           <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><Minus className="h-4 w-4" /></button>
-          <button className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={close} aria-label="Close and save draft"><X className="h-4 w-4" /></button>
+          <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:-mr-2 max-sm:h-10 max-sm:w-10" onClick={close} aria-label="Close and save draft"><X className="h-4 w-4" /></button>
         </div>
       </div>
       {!minimized && (
@@ -176,8 +176,9 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             </div>
           )}
           <AlsoReplying people={presence.people} />
-          <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            {/* R25 wave 2: on a 390 px phone the row wraps instead of pushing saved replies and Discard off the screen. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
               <Button type="submit" disabled={!d.to.trim()}><Send className="h-4 w-4" />Send</Button>
               <SendLaterMenu disabled={!d.to.trim()} onPick={(when) => send(true, when)} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
@@ -190,7 +191,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
-            <button type="button" onClick={onClose} className="rounded-md p-2 text-muted hover:bg-hover hover:text-bad" aria-label="Discard"><Trash2 className="h-4 w-4" /></button>
+            <button type="button" onClick={onClose} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-10 max-sm:w-10" aria-label="Discard"><Trash2 className="h-4 w-4" /></button>
           </div>
         </form>
       )}

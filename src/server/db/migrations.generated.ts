@@ -595,5 +595,19 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- tasks: the same leading columns as tasks_org_project_idx plus status, deleted_at and triage_state, so the per project counts\n-- (projects list, sidebar) are answered from the index alone instead of reading every task row.\nDROP INDEX IF EXISTS `tasks_org_project_idx`;",
       "CREATE INDEX `tasks_org_project_cover_idx` ON `tasks` (`org_id`,`project_id`,`status_id`,`position`,`status`,`deleted_at`,`triage_state`);"
     ]
+  },
+  {
+    "name": "0053_r25_mailbox_reply_to",
+    "statements": [
+      "-- MB-61 (R25): a default Reply-To per mailbox, used when a send passes no replyTo. Nullable, no index (read with the mailbox row a send already loads).\nALTER TABLE `mailboxes` ADD `reply_to` text;",
+      "-- DF-2 (R25): chat posts made with an API key before ae526d7 stored the author as API key \"<key name>\".\n-- New posts already read as the agent or the workspace; this renames the stored old ones once. Writes only the matching rows.\nUPDATE `chat_messages` SET `author_name` = COALESCE((SELECT `name` FROM `agents` WHERE `agents`.`id` = `chat_messages`.`author_id`), `author_name`)\n  WHERE `author_type` = 'agent' AND `author_name` LIKE 'API key \"%';",
+      "UPDATE `chat_messages` SET `author_name` = COALESCE((SELECT `name` FROM `organizations` WHERE `organizations`.`id` = `chat_messages`.`org_id`), `author_name`)\n  WHERE `author_type` = 'member' AND `author_name` LIKE 'API key \"%';"
+    ]
+  },
+  {
+    "name": "0054_r25_auth_email_branding",
+    "statements": [
+      "-- R25 (MB-60): per hook branding for auth emails (logo, colour, reply-to, footer, per type text, second language) as JSON. NULL keeps the round 13 email. No index.\nALTER TABLE `auth_email_hooks` ADD `branding` text;"
+    ]
   }
 ];

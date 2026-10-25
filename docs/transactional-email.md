@@ -100,6 +100,31 @@ bad signature get 401; a sending failure answers Supabase with its error object 
 
 `GET /api/v1/auth-email-hooks` lists hooks (no secrets), `DELETE /api/v1/auth-email-hooks/{id}` removes one.
 
+### Your brand on the auth emails (R25, MB-60)
+
+Each hook can carry a logo, a brand colour, a reply-to address, a footer line, its own subject, intro and
+button label per email type, and a second language under the main text (Haajir sends Nepali under
+English for parents). Set it on create (`branding`) or later:
+
+```bash
+curl -X PATCH https://multies.si/api/v1/auth-email-hooks/ahk_... \
+  -H "Authorization: Bearer $MULTIES_KEY" -H "Content-Type: application/json" \
+  -d '{"branding":{
+    "logoUrl":"https://haajir.xyz/logo.png","brandColor":"#0F7B6C","replyTo":"support@haajir.xyz",
+    "footer":"Haajir, Kathmandu",
+    "templates":{"signup":{"subject":"Welcome to {appName}","intro":"Hi {email}, confirm your email to start using {appName}.","buttonLabel":"Confirm my email"}},
+    "secondaryLanguage":{"lang":"ne","templates":{"signup":{"intro":"नमस्ते, {appName} सुरु गर्न आफ्नो इमेल पुष्टि गर्नुहोस्।","buttonLabel":"इमेल पुष्टि गर्नुहोस्"}},
+      "note":"तपाईंले यो अनुरोध गर्नुभएको होइन भने यो इमेल बेवास्ता गर्नुहोस्।"}}}'
+```
+
+Types: `signup`, `invite`, `magiclink`, `recovery`, `email_change`, `email` (OTP code), `reauthentication`.
+Placeholders: `{appName}`, `{code}`, `{email}`. All text is plain and HTML escaped; the logo must be https and
+the colour a hex value. Anything you leave out keeps the default text, and with no branding at all the
+email is exactly the plain one above. Check the result without sending:
+`POST /api/v1/auth-email-hooks/ahk_.../preview?type=signup` returns the subject, HTML and text.
+The full field list is in docs/api.md ("Branded auth emails"); over MCP the tool is `update_auth_email_hook`.
+There is no screen for hooks in the app yet: they are set up through the API or MCP.
+
 ## Operator notes
 
 - The provider webhook (Resend, endpoint `https://multies.si/api/webhooks/resend` or the workers.dev

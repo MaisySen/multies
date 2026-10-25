@@ -190,6 +190,17 @@ export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
 
 export interface Assignee { type: "member" | "agent"; id: string }
 
+/** Bound variables per IN list: D1 refuses a query with more than 100 (the other conditions need a few). */
+export const SQL_IN_CHUNK = 90;
+
+/** Runs `q` once per chunk of `ids` (in parallel) and joins the rows. No ids, no query. */
+export async function inChunks<T>(ids: string[], q: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
+  if (!ids.length) return [];
+  const parts: string[][] = [];
+  for (let i = 0; i < ids.length; i += SQL_IN_CHUNK) parts.push(ids.slice(i, i + SQL_IN_CHUNK));
+  return (await Promise.all(parts.map(q))).flat();
+}
+
 /** Names for assignees and statuses, loaded once per response. */
 async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const statusIds = [...new Set(rows.map((r) => r.statusId))];
@@ -198,12 +209,13 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const parentIds = rows.map((r) => r.id);
   const [sts, us, ags, subs, cms, prs, fieldValues] = await Promise.all([
     statusIds.length ? orgStatuses(deps, orgId).then((all) => { const want = new Set(statusIds); return all.filter((s) => want.has(s.id)); }) : [], // R25 read cache
-    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
-    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, agentIds), eq(agents.orgId, orgId))) : [],
-    parentIds.length ? deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
-      .where(and(eq(tasks.orgId, orgId), inArray(tasks.parentId, parentIds.slice(0, 500)), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status) : [],
-    parentIds.length ? deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
-      .where(and(inArray(taskComments.taskId, parentIds.slice(0, 500)), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId) : [],
+    inChunks(memberIds, (ids) => deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, ids))),
+    inChunks(agentIds, (ids) => deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, ids), eq(agents.orgId, orgId)))),
+    // D1 allows 100 bound variables per query: IN lists go in chunks of SQL_IN_CHUNK (R25, Sentry MYMAIL-API-V).
+    inChunks(parentIds, (ids) => deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
+      .where(and(eq(tasks.orgId, orgId), inArray(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
+    inChunks(parentIds, (ids) => deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
+      .where(and(inArray(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),
     valuesForTasks(deps, orgId, parentIds),
   ]);

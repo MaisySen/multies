@@ -40,7 +40,7 @@ export function SchedulingPage() {
   }, [page.isSuccess, page.data, draft]);
 
   if (config.isSuccess && !enabled) {
-    return <Card><EmptyState icon={<CalendarClock />} title="Booking pages are off" body="Ask whoever runs this Multies server to switch on scheduling." /></Card>;
+    return <Card><EmptyState icon={<CalendarClock />} title="Booking pages are off" body="Booking pages aren't switched on for this server yet. Ask whoever runs it to switch them on." /></Card>;
   }
   if (!draft) return <Skeleton className="h-64" />;
 

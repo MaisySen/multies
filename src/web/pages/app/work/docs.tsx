@@ -54,7 +54,7 @@ export function DocsPage() {
 
 function ToolButton({ on, label, active, children }: { on: () => void; label: string; active?: boolean; children: React.ReactNode }) {
   return <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={on} aria-label={label} aria-pressed={active} title={label}
-    className={cn("rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg [&_svg]:h-4 [&_svg]:w-4", active && "bg-elevated text-fg")}>{children}</button>;
+    className={cn("inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4", active && "bg-elevated text-fg")}>{children}</button>;
 }
 
 export function DocPage() {
@@ -146,7 +146,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           </div>
         )}
         <span className={cn(!session && "ml-auto")} role="status">{status}</span>
-        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg"
+        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-10 max-sm:min-w-10"
           onClick={async () => {
             // Save pending edits first: the template copies the stored doc.
             if (state === "unsaved") { clearTimeout(timer.current); await save(); }
@@ -154,7 +154,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           }}>
           <LayoutTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="rounded p-1 hover:text-bad" onClick={async () => { if (!window.confirm(deleteConfirmText(tree.data?.tree, id))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
+        <button aria-label="Delete doc" className="inline-flex items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!window.confirm(deleteConfirmText(tree.data?.tree, id))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
       <DocBreadcrumbs docId={id} title={title} />
       <h1 className="sr-only">{title || "Untitled doc"}</h1>

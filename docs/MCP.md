@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 117 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 119 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -62,6 +62,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
 | `create_agent_inbox` | Create an agent inbox |
+| `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
 | `schedule_send` | Send an email later, as an agent; its approval rules apply when it goes |
 | `list_scheduled` | List snoozed threads, scheduled sends and reminders |
@@ -395,3 +396,11 @@ Registered in src/server/routes/mcp-views.ts. `list_saved_views` is a read, so r
 | `list_saved_views` | Saved views you can open (shared ones and your own), optionally for one project: id, name, view type and filters |
 | `create_saved_view` | Save a view of tasks: `view` board, list, calendar, timeline, sprints or workload, an optional `projectId`, and `filters` (assignee, status, priority, label, type, due, q); shared unless `shared` is false. One row written |
 | `delete_saved_view` | Remove a saved view by id; tasks are not touched |
+
+### Branded auth emails (R25, MB-60)
+
+Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key or token (read only keys and tokens get `read_only_key`; agent and agent member keys are refused); another workspace's hook id is not found. The same change is on REST as `PATCH /api/v1/auth-email-hooks/{id}`, and `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` shows the result without sending.
+
+| Tool | What it does |
+| --- | --- |
+| `update_auth_email_hook` | Set how a Supabase auth email hook's emails look: `branding` with `logoUrl` (https), `brandColor` (#RRGGBB), `replyTo`, `footer`, per type `templates` (signup, invite, magiclink, recovery, email_change, email, reauthentication: `subject`, `intro`, `buttonLabel`) and `secondaryLanguage` (`lang`, the same per type `templates`, `note`), shown under the main text. Plain text only, placeholders `{appName}`, `{code}`, `{email}`. Keys left out stay, null clears one, `branding: null` goes back to the default email. Also `appName` and `from`. One row written |

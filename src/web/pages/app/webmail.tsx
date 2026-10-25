@@ -220,7 +220,7 @@ export function WebmailPage() {
               className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-8 text-[13px] outline-none placeholder:text-subtle focus:border-brand/60 focus:ring-4 focus:ring-brand/10" />
             {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-subtle hover:text-fg" aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}
           </form>
-          <button className="rounded-lg border border-line p-2 text-muted md:hidden" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
+          <button className="inline-flex items-center justify-center rounded-lg border border-line p-2 text-muted md:hidden max-sm:h-10 max-sm:w-10" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
         </div>
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
@@ -287,7 +287,7 @@ function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; ac
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>
       </button>
-      <button onClick={onStar} className={cn("absolute right-3 top-3 rounded p-1 transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
+      <button onClick={onStar} data-testid="mail-star" className={cn("absolute right-0 top-1 inline-flex h-10 w-10 items-center justify-center rounded-lg transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
         <Star className={cn("h-4 w-4", m.isStarred && "fill-current")} />
       </button>
     </li>

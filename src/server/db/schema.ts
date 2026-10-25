@@ -196,6 +196,8 @@ export const mailboxes = sqliteTable("mailboxes", {
   status: text("status", { enum: ["active", "suspended"] }).notNull().default("active"),
   /** `agent` inboxes belong to an AI agent (see `agents`) and count against the agent inbox allowance, not mailboxes. */
   kind: text("kind", { enum: ["person", "agent"] }).notNull().default("person"),
+  /** MB-61 (R25): the Reply-To a send from this mailbox carries when the send names none. Null: no Reply-To. */
+  replyTo: text("reply_to"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("mailboxes_address_uq").on(t.address), index("mailboxes_org_idx").on(t.orgId)]);
 
@@ -218,6 +220,8 @@ export const authEmailHooks = sqliteTable("auth_email_hooks", {
   supabaseUrl: text("supabase_url").notNull(),
   /** The product name used in subjects and bodies. */
   appName: text("app_name").notNull(),
+  /** R25 (MB-60): logo, colour, reply-to, footer, per type text, second language. JSON; NULL is the default email. */
+  branding: text("branding"),
   lastUsedAt: ts("last_used_at"),
   createdAt: createdAt(),
 }, (t) => [index("auth_email_hooks_org_idx").on(t.orgId)]);
