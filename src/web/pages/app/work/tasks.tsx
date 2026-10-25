@@ -14,10 +14,10 @@ import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
 import { GuestsDialog } from "./guests";
-import { TaskList } from "./list";
+import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
-import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type Task, type ViewKind } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind } from "./data";
 import { tone } from "@/web/components/app-bits";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
@@ -70,7 +70,6 @@ export function TasksPage() {
     setParams((p) => { const n = new URLSearchParams(p); for (const [k, v] of Object.entries(patch)) { if (v) n.set(k, v); else n.delete(k); } return n; }, { replace: true });
   }, [setParams]);
   const open = useCallback((id: string) => set({ task: id }), [set]);
-  const toggle = useCallback((t: Task) => update.mutate({ id: t.id, patch: { status: t.status === "done" ? "todo" : "done" } }), [update]);
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
 
   const saveView = async () => {
@@ -167,7 +166,7 @@ export function TasksPage() {
         ) : view === "sprints" && project ? (
           <Suspense fallback={<Skeleton className="h-64" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
-          <TaskList tasks={tasks.data ?? []} projects={list} onOpen={open} onToggle={toggle} fields={project ? fields : []} people={people.data ?? []} />
+          <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
         ) : (
           <Suspense fallback={<Skeleton className="h-96" />}>
             {view === "calendar"

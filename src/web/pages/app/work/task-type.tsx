@@ -24,7 +24,7 @@ export const TYPE_META: Record<TaskType, { label: string; Icon: LucideIcon; colo
   bug: { label: "Bug", Icon: Bug, color: "#d9534f" },
   epic: { label: "Epic", Icon: Mountain, color: "#8a5cc7" },
 };
-const typeOf = (t: { type?: string } | undefined): TaskType => (t?.type && t.type in TYPE_META ? t.type as TaskType : "task");
+export const typeOf = (t: { type?: string } | undefined): TaskType => (t?.type && t.type in TYPE_META ? t.type as TaskType : "task");
 
 export interface EpicProgress {
   done: number; total: number; percent: number; items: number; subtasks: number;

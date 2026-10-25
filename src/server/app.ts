@@ -32,6 +32,7 @@ import { mailScheduleRoutes } from "./routes/mail-schedules";
 import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { triageRoutes } from "./routes/triage";
+import { taskBulkRoutes } from "./routes/tasks-bulk";
 import { developerRoutes } from "./routes/developer";
 import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
@@ -233,6 +234,7 @@ export function createApp(deps: Deps) {
   app.route("/api/ai", aiRoutes());
   app.route("/api/projects", projectRoutes());
   app.route("/api/tasks", taskRoutes());
+  app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
   app.route("/api/docs", docRoutes());
   app.route("/api/contacts", contactRoutes());
   app.route("/api/companies", companyRoutes());

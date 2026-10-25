@@ -34,6 +34,7 @@ import { registerTriageRoutes } from "./v1-triage";
 import { registerWorkImportRoutes } from "./v1-work-import";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
+import { registerTaskBulkRoutes } from "./v1-tasks-bulk";
 import { registerPeopleRoutes } from "./v1-people";
 import { registerAuthHookRoutes } from "./v1-auth-hooks";
 
@@ -391,6 +392,7 @@ export function v1Routes() {
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
+  registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
   registerSprintRoutes(api);
   registerMcpRoute(api);

@@ -38,6 +38,7 @@ describe("MCP server", () => {
       "add_to_epic",
       "add_to_sprint",
       "append_to_doc",
+      "bulk_update_tasks",
       "cancel_scheduled",
       "comment_on_task",
       "complete_sprint",

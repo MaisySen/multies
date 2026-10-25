@@ -823,3 +823,11 @@ export async function nextTaskFor(deps: Deps, actor: SuiteActor, agentId: string
   if (!row) return null;
   return taskDetail(deps, actor, row.id);
 }
+
+// ---------------------------------------------------------------- round 21: shared with bulk.ts
+
+/** Presents already-read task rows (names, statuses, counts) the way every task read does. */
+export async function presentTaskRows(deps: Deps, orgId: string, rows: TaskRow[]) {
+  const l = await lookups(deps, orgId, rows);
+  return rows.map((r) => presentTask(r, l));
+}
