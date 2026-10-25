@@ -259,6 +259,8 @@ export interface MyWork {
   dueToday: MyWorkItem[];
   mentions: MyWorkItem[];
   threads: MyWorkItem[];
+  /** Round 22: open shared inbox threads assigned to me, newest first, at most 20. */
+  assignedThreads: MyWorkItem[];
   approvals: MyWorkItem[];
   meetings: MyWorkItem[];
   /** Snoozed mail coming back today. Null when this server has no snooze source (the page hides the section). */
@@ -396,12 +398,14 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     }
   };
 
+  const assignedP = import("./mail/thread-state").then((m) => m.myAssignedThreads(deps, actor));
   const [due, threads, ment, appr, meets, snz] = await Promise.all([dueTasks(), threadTasks(), mentions(), approvals(), meetingsToday(), snoozed()]);
+  const assignedThreads = await assignedP;
   const asItem = (t: (typeof due)[number]): MyWorkItem => ({
     id: t.id, title: t.title, subtitle: `${t.key}-${t.number}${t.priority !== "none" ? ` · ${t.priority[0].toUpperCase()}${t.priority.slice(1)} priority` : ""}`,
     url: `/app/tasks?project=${encodeURIComponent(t.projectId)}&task=${encodeURIComponent(t.id)}`, at: iso(t.dueAt),
   });
   const overdue = due.filter((t) => dueDay(t.dueAt!, timeZone) < today).map(asItem);
   const dueToday = due.filter((t) => dueDay(t.dueAt!, timeZone) === today).map(asItem);
-  return { date: today, timeZone, overdue, dueToday, mentions: ment, threads, approvals: appr, meetings: meets, snoozed: snz, tookMs: Date.now() - started };
+  return { date: today, timeZone, overdue, dueToday, mentions: ment, threads, assignedThreads, approvals: appr, meetings: meets, snoozed: snz, tookMs: Date.now() - started };
 }

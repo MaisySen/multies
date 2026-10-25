@@ -38,7 +38,7 @@ import { registerMailScheduleTools } from "./mcp-mail-schedule";
 import { registerTaskTypeTools } from "./mcp-r21-types";
 import { registerSprintTools } from "./mcp-r21-sprints";
 import { registerTriageTools } from "./mcp-r21-triage";
-import { registerThreadCommentTools } from "./mcp-r22-comments";
+import { registerAssignTools } from "./mcp-r22-assign";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 
 export type Scoped = Actor & { scope?: "full" | "read" };
@@ -206,8 +206,8 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerTaskTypeTools(server, deps, actor, writable, tool);
   registerSprintTools(server, deps, actor, writable, tool);
   registerTriageTools(server, deps, actor, writable, tool);
+  registerAssignTools(server, deps, actor, writable, tool);
   registerTaskBulkTools(server, deps, actor, writable, tool);
-  registerThreadCommentTools(server, deps, actor, writable, tool);
   return server;
 }
 

@@ -317,22 +317,3 @@ tasks carry points and otherwise `null`, and `start` and `end`: the earliest sta
 date of its items. Read only keys can read epics but not add or remove items. Adding N items is one
 batch: each task row with its indexes plus one change entry, and one activity entry on the epic.
 MCP: `list_epics`, `get_epic`, `add_to_epic`.
-
-## Internal notes on threads (round 22)
-
-People and agents can leave notes on a shared inbox thread. Notes are team only: they are never part
-of an outgoing message, a reply quote, `GET /threads/{id}`, `read_thread` or anything the sender can
-see. You read them only by asking for them. Access follows the shared inbox: the caller must be able
-to open at least one message of the thread (same workspace, a mailbox in their scope), else 404.
-
-A note is plain text up to 4,000 characters. `@Full Name` or `@email` in the text mentions a
-teammate who can open the thread's mailbox; they get a `thread_mention` notification (category
-mention) that opens `/app/inbox?thread=<id>`. Unknown names and people without access are ignored,
-and the author is never notified. Only the author can edit, for 24 hours (only newly mentioned people
-are notified); the author, an owner or admin, or a workspace key can delete. Agent keys write as their
-agent. Each note costs 1 row and 1 index entry, plus 1 notification row per mentioned person.
-
-- Page: the "Team notes" card under the messages in `/app/inbox?thread=<id>`. Type @ to mention, Cmd or Ctrl+Enter posts.
-- App API: `GET /api/threads/:id/comments` (notes and `mentionable` people), `POST /api/threads/:id/comments` `{ body, mentions? }`, `PATCH /api/threads/:id/comments/:commentId` `{ body, mentions? }`, `DELETE /api/threads/:id/comments/:commentId`, `GET /api/threads/comment-counts?ids=a,b` (up to 100 threads, one grouped read).
-- Public API: `GET /threads/{id}/comments`, `POST /threads/{id}/comments`, `PATCH /threads/{id}/comments/{commentId}`, `DELETE /threads/{id}/comments/{commentId}`. `mentions` takes user ids or emails. Read only keys can list but not write.
-- MCP: `list_thread_comments`, `add_thread_comment`, `delete_thread_comment`.
