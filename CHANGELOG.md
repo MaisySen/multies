@@ -11,6 +11,7 @@ Live on production at multies.si unless marked otherwise. Round 11 becomes 0.11.
 
 ### Added
 
+- The sign in page logo loads again. Every multies.si response carried `Cross-Origin-Resource-Policy: same-origin`, so the identity provider's sign in page (on its own domain) could not show the Multies logo and browsers drew a broken image. Brand images now live at `/brand/` (for example `/brand/multies-logo-512.png`) and are served with `Cross-Origin-Resource-Policy: cross-origin`; every other path stays same origin.
 - The D1 write budget guard reads the day grouped by date with an exact date filter. The old query (date_geq, grouped only by database) answered 111 rows on 25 Oct while the day had 13,550, so the guard would have stayed "ok" near the limit.
 - A domain check no longer asks the sending provider to verify a domain it already shows as verified. The request put the domain back to pending at the provider each time.
 - Customer domains list the sending provider's CNAME record (for example `rsend`) on the domain page and in the API as "Sending host (CNAME)". It was dropped before, so the provider never marked sending as verified (found while adding haajir.xyz on 25 Oct). The provider checks it, so it does not hold up domain verification.

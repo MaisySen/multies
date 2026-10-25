@@ -100,6 +100,13 @@ writeFileSync(path.join(out, "_headers"), [
   ...Object.entries(pageHeaders).map(([k, v]) => `  ${k}: ${v}`),
   "/assets/*",
   "  cache-control: public, max-age=31536000, immutable",
+  // Brand images are shown by other sites (the sign in page on the identity provider's
+  // domain, mail clients), so they may be loaded cross origin. Everything else stays same origin.
+  "/brand/*",
+  "  ! cross-origin-resource-policy",
+  "  cross-origin-resource-policy: cross-origin",
+  "  access-control-allow-origin: *",
+  "  cache-control: public, max-age=86400",
   "",
 ].join("\n"));
 
