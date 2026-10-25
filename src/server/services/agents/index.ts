@@ -334,6 +334,8 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
         agentsInvolved: agentIds.map((agentId) => ({ agentId, name: names.agents.get(agentId) ?? null })),
         pendingApprovals: Number(pending.find((p) => p.threadId === r.threadId)?.n ?? 0),
         assignee: states.get(r.threadId)?.assignee ?? null, status: states.get(r.threadId)?.status ?? "open",
+        // R22.5: when the customer last wrote (the newest message not in sent), for the age on open rows. Computed on read.
+        lastInboundAt: inThread.find((x) => x.folder !== "sent")?.date.toISOString() ?? null,
       };
     }),
     nextCursor: page.length > limit && rows.length ? String(rows[rows.length - 1].last) : null,

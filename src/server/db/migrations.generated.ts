@@ -524,12 +524,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `thread_comments` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`thread_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text NOT NULL,\n\t`body` text NOT NULL,\n\t`mentions` text DEFAULT '[]' NOT NULL,\n\t`edited_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
       "CREATE INDEX `thread_comments_thread_idx` ON `thread_comments` (`org_id`,`thread_id`,`created_at`);"
     ]
-  },
-  {
-    "name": "0041_r22_snippets",
-    "statements": [
-      "CREATE TABLE `mail_snippets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`shortcut` text,\n\t`subject` text,\n\t`body` text NOT NULL,\n\t`shared` integer DEFAULT true NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
-      "CREATE INDEX `mail_snippets_org_name_idx` ON `mail_snippets` (`org_id`,`name`);"
-    ]
   }
 ];

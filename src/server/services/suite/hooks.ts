@@ -48,6 +48,11 @@ export async function onMailStored(deps: Deps, m: StoredMail) {
     const { usersWhoCanOpen } = await import("../team");
     await pushToUsers(deps, m.orgId, await usersWhoCanOpen(deps.db, m.orgId, m.mailboxId), { type: "message.received", id: m.messageId });
   });
+  // Round 22 (R22.5): new mail on a waiting or done thread puts it back to open (0 writes when nothing changes).
+  await step("thread_reopen", async () => {
+    const { reopenOnInbound } = await import("./thread-rules");
+    await reopenOnInbound(deps, m.orgId, m.threadId);
+  });
   // Round 20: a reply cancels "remind me if no reply" and wakes a snoozed thread (0 writes when none).
   await step("mail_schedules", async () => {
     const { cancelOnReply } = await import("../mail/schedules");

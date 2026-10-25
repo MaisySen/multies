@@ -13,7 +13,7 @@ import { notify } from "./notify";
 import type { Category, Priority, Task } from "./tasks";
 
 export type Trigger = "email_received" | "status_changed" | "due_soon";
-export type Action = "create_task" | "notify";
+export type Action = "create_task" | "notify" | "assign_thread";
 export interface EmailConditions { from?: string; subjectContains?: string; mailboxId?: string }
 export interface StatusConditions { projectId?: string; toCategory?: Category; toStatusId?: string }
 export interface DueConditions { hoursBefore?: number; projectId?: string }
@@ -52,9 +52,17 @@ function validate(i: Pick<AutomationInput, "trigger" | "action" | "conditions" |
   if (i.trigger === "due_soon") { const h = Number(c.hoursBefore ?? 24); if (!(h >= 1 && h <= 24 * 14)) throw new HttpError(422, "validation_failed", "Remind between 1 hour and 14 days before."); }
 }
 
+/** R22.5: assign_thread rules check the people and the mailbox at save time (thread-rules.ts). */
+async function validateAction(deps: Deps, orgId: string, i: { trigger: string; action: string; conditions?: Record<string, unknown>; actionConfig?: Record<string, unknown> }) {
+  if (i.action !== "assign_thread") return i.actionConfig;
+  const { validateAssignRule } = await import("./thread-rules");
+  return { ...(await validateAssignRule(deps, orgId, { trigger: i.trigger, conditions: i.conditions ?? {}, actionConfig: i.actionConfig ?? {} })) } as Record<string, unknown>;
+}
+
 export async function createAutomation(deps: Deps, actor: SuiteActor, input: AutomationInput) {
   assertWritable(actor);
   validate(input);
+  input = { ...input, actionConfig: await validateAction(deps, actor.orgId, input) };
   const now = deps.now();
   const id = sortableId("aut", now.getTime());
   await deps.db.insert(automations).values({ id, orgId: actor.orgId, name: input.name.trim(), trigger: input.trigger, conditions: JSON.stringify(input.conditions ?? {}), action: input.action, actionConfig: JSON.stringify(input.actionConfig ?? {}), enabled: input.enabled ?? true, ...createdBy(actor), createdAt: now, updatedAt: now });
@@ -68,6 +76,7 @@ export async function updateAutomation(deps: Deps, actor: SuiteActor, id: string
   if (!r) throw notFound("Automation");
   const next = { trigger: patch.trigger ?? r.trigger, action: patch.action ?? r.action, conditions: patch.conditions ?? JSON.parse(r.conditions), actionConfig: patch.actionConfig ?? JSON.parse(r.actionConfig) };
   validate(next);
+  next.actionConfig = await validateAction(deps, actor.orgId, next);
   await deps.db.update(automations).set({
     ...(patch.name !== undefined ? { name: patch.name.trim() } : {}), trigger: next.trigger, action: next.action,
     conditions: JSON.stringify(next.conditions), actionConfig: JSON.stringify(next.actionConfig),
@@ -104,8 +113,9 @@ export async function automationUsage(deps: Deps, orgId: string) {
   return { used: cur?.count ?? 0, limit: plan.limits.automationRunsMonthly };
 }
 
-async function ran(deps: Deps, r: Row, error?: string) {
-  await deps.db.update(automations).set({ runCount: sql`${automations.runCount} + 1`, lastRunAt: deps.now(), lastError: error ?? null }).where(eq(automations.id, r.id));
+async function ran(deps: Deps, r: Row, error?: string, actionConfig?: string) {
+  // R22.5: a round robin rule's pointer rides on this same row update (no extra write).
+  await deps.db.update(automations).set({ runCount: sql`${automations.runCount} + 1`, lastRunAt: deps.now(), lastError: error ?? null, ...(actionConfig ? { actionConfig } : {}) }).where(eq(automations.id, r.id));
 }
 
 const systemActor = (orgId: string, name: string): SuiteActor => ({ orgId, userId: "", email: "automation", name: `Automation: ${name}`, system: true });
@@ -138,11 +148,23 @@ async function notifyTargets(deps: Deps, orgId: string, cfg: NotifyConfig, task?
 export async function runEmailAutomations(deps: Deps, orgId: string, m: { messageId: string; threadId: string; mailboxId: string; from: string; subject: string }) {
   const rules = await deps.db.select().from(automations).where(and(eq(automations.orgId, orgId), eq(automations.trigger, "email_received"), eq(automations.enabled, true), isNull(automations.deletedAt)));
   let runs = 0;
+  let first: boolean | undefined;
   for (const r of rules) {
     if (!matchesEmail(JSON.parse(r.conditions) as EmailConditions, m)) continue;
+    // R22.5: assign rules act only on the first message of a thread, never on replies (reads only, once per mail).
+    if (r.action === "assign_thread") {
+      if (first === undefined) first = await (await import("./thread-rules")).isFirstOfThread(deps, orgId, m.threadId, m.messageId);
+      if (!first) continue;
+    }
     if (!(await takeRun(deps, orgId))) { await ran(deps, r, "Monthly automation runs used up."); continue; }
     try {
       const actor = systemActor(orgId, r.name);
+      if (r.action === "assign_thread") {
+        const { runAssignRule } = await import("./thread-rules");
+        await ran(deps, r, undefined, await runAssignRule(deps, actor, r.actionConfig, m));
+        runs++;
+        continue;
+      }
       if (r.action === "create_task") {
         const cfg = JSON.parse(r.actionConfig) as CreateTaskConfig;
         const { createTaskFromThread, parseAssignee } = await import("./tasks");
@@ -167,6 +189,7 @@ export async function runEmailAutomations(deps: Deps, orgId: string, m: { messag
 export async function runStatusAutomations(deps: Deps, orgId: string, task: Task, from: Category | null) {
   const rules = await deps.db.select().from(automations).where(and(eq(automations.orgId, orgId), eq(automations.trigger, "status_changed"), eq(automations.enabled, true), isNull(automations.deletedAt)));
   for (const r of rules) {
+    if (r.action === "assign_thread") continue;
     const c = JSON.parse(r.conditions) as StatusConditions;
     if (c.projectId && c.projectId !== task.projectId) continue;
     if (c.toCategory && c.toCategory !== task.status) continue;

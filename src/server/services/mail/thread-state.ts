@@ -12,9 +12,9 @@ import { badRequest, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
 
-export const THREAD_STATUSES = ["open", "done"] as const;
+export const THREAD_STATUSES = ["open", "waiting", "done"] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
-export const THREAD_VIEWS = ["all", "open", "mine", "unassigned", "assigned", "done"] as const;
+export const THREAD_VIEWS = ["all", "open", "mine", "unassigned", "assigned", "waiting", "done"] as const;
 export type ThreadView = (typeof THREAD_VIEWS)[number];
 
 /** At most this many threads are scanned for one stats request; the answer says "sampled" when cut. */
@@ -117,10 +117,13 @@ export async function assignThread(deps: Deps, actor: SuiteActor, threadId: stri
   return present(deps, actor.orgId, threadId);
 }
 
-/** Marks a thread done or reopens it. Done threads leave Mine, Unassigned and the open list. */
+/**
+ * Marks a thread done, waiting (we replied, the customer has the ball) or reopens it. Done and waiting
+ * threads leave Mine, Unassigned and the open list; new inbound mail puts them back to open (thread-rules.ts).
+ */
 export async function setThreadStatus(deps: Deps, actor: SuiteActor, threadId: string, status: ThreadStatus) {
   assertWritable(actor);
-  if (!(THREAD_STATUSES as readonly string[]).includes(status)) throw badRequest("Status is open or done.");
+  if (!(THREAD_STATUSES as readonly string[]).includes(status)) throw badRequest("Status is open, waiting or done.");
   const t = await openThread(deps, actor, threadId);
   const cur = await stateRow(deps, actor.orgId, threadId);
   if ((cur?.status ?? "open") === status) return present(deps, actor.orgId, threadId);
@@ -133,17 +136,19 @@ export async function setThreadStatus(deps: Deps, actor: SuiteActor, threadId: s
 
 /**
  * The WHERE for a thread list view, against the thread id column of the grouped list. "all" and no view
- * filter nothing; open, mine, unassigned and assigned leave done threads out; done shows only done ones.
+ * filter nothing; open, mine, unassigned and assigned leave done and waiting threads out; done and waiting
+ * show only their own status (waiting takes assignee too).
  */
 export function threadViewCond(threadIdCol: SQL | unknown, orgId: string, view: ThreadView | undefined, viewer: string | null, assignee?: string | null): SQL | undefined {
   if (!view || view === "all") return undefined;
   const s = (extra: SQL) => sql`exists (select 1 from ${mailThreadState} s where s.org_id = ${orgId} and s.thread_id = ${threadIdCol} and ${extra})`;
   switch (view) {
-    case "open": return sql`not ${s(sql`s.status = 'done'`)}`;
+    case "open": return sql`not ${s(sql`s.status in ('done', 'waiting')`)}`;
+    case "waiting": return assignee ? s(sql`s.status = 'waiting' and s.assignee_user_id = ${assignee}`) : s(sql`s.status = 'waiting'`);
     case "done": return assignee ? s(sql`s.status = 'done' and s.assignee_user_id = ${assignee}`) : s(sql`s.status = 'done'`);
     case "mine": return viewer ? s(sql`s.status = 'open' and s.assignee_user_id = ${viewer}`) : sql`0`;
     case "assigned": return assignee ? s(sql`s.status = 'open' and s.assignee_user_id = ${assignee}`) : s(sql`s.status = 'open' and s.assignee_user_id is not null`);
-    case "unassigned": return sql`not ${s(sql`(s.status = 'done' or s.assignee_user_id is not null)`)}`;
+    case "unassigned": return sql`not ${s(sql`(s.status in ('done', 'waiting') or s.assignee_user_id is not null)`)}`;
   }
 }
 

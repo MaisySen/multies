@@ -33,7 +33,6 @@ import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
-import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
@@ -225,7 +224,6 @@ export function createApp(deps: Deps) {
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
-  app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail", mailRoutes());
   app.route("/api/deliveries", deliveryRoutes());
   app.route("/api/dashboard", dashboardRoutes());

@@ -32,7 +32,6 @@ import { registerSuiteR11Routes } from "./v1-suite-r11";
 import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
-import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
 import { registerWorkImportRoutes } from "./v1-work-import";
@@ -146,7 +145,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
-  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp")) throw new HttpError(403, "read_only_key", "This API key can only read.");
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();
@@ -223,7 +222,6 @@ export function v1Routes() {
   api.use("/triage/*", apiKeyAuth);
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
-  api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -398,7 +396,6 @@ export function v1Routes() {
   registerTriageRoutes(api);
   registerThreadCommentRoutes(api); // Round 22: internal notes on threads
   registerR22AssignRoutes(api);
-  registerSnippetRoutes(api); // Round 22: saved replies
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
