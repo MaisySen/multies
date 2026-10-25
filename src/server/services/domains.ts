@@ -26,23 +26,20 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
     lastCheck: d.lastCheck ? (JSON.parse(d.lastCheck) as DnsCheckReport) : null,
     counts: counts ?? null,
     // Outbound and provider-MX inbound for this domain: null when it was never registered with the provider.
-    sending: d.providerStatus ? sendingState(d.providerStatus, deps) : null,
+    sending: d.providerStatus ? sendingState(d.providerStatus) : null,
   };
 }
 
 /**
  * The domain's sending state for the app. "queued" means the provider had no free domain slot:
- * the domain still receives mail and can still send, through the shared Multies domain with the
- * person's own address as Reply-To, until a slot frees up and it is registered on its own.
+ * the domain is kept and still receives mail, mail between Multies addresses works, and it is
+ * registered by itself when a slot frees up. Mail is never sent under another domain's name.
  */
-export function sendingState(providerStatus: string, deps: Pick<Deps, "config">) {
+export function sendingState(providerStatus: string) {
   if (providerStatus.startsWith(QUEUED_PREFIX)) {
-    const shared = deps.config.freeMail.domain;
     return {
       status: "queued" as const,
-      detail: shared
-        ? `Waiting for a sending slot. Until then mail from this domain goes out through ${shared} with your address as the reply address, so replies still reach you. We move it over by itself when a slot frees up.`
-        : "Waiting for a sending slot. We register it by itself when a slot frees up. Mail inside Multies is unaffected.",
+      detail: "Waiting for a sending slot with our email service. Your domain is saved and receives mail, and mail inside Multies works. Sending to outside addresses starts by itself when a slot frees up, usually without anything to do on your side.",
     };
   }
   return {

@@ -10,7 +10,6 @@ import type { Context, MiddlewareHandler } from "hono";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { mailboxes } from "../db/schema";
-import { claimFreeAddress } from "../services/free-address";
 import { HttpError, unauthorized } from "../lib/errors";
 import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
@@ -191,7 +190,6 @@ export function v1Routes() {
 
   // "/x/*" also matches "/x" in Hono, so one registration per resource runs the check once.
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks", "auth-email-hooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
-  api.use("/free-address", apiKeyAuth, workspaceKeyOnly);
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
@@ -252,20 +250,6 @@ export function v1Routes() {
     const { auth, deps } = c.var;
     const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() });
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });
-    return c.json(mailboxOut(m), 201);
-  });
-
-  api.openapi(createRoute({ method: "post", path: "/free-address", tags: ["Mailboxes"], summary: "Take a free address",
-    description: "Creates a mailbox on the shared Multies domain (for example ada.acme@multies.si), with no domain of your own. Send and receive straight away. Free addresses send to fewer people a day than your own domain.",
-    security: secured,
-    request: body(z.object({ localPart: z.string().min(3).max(40).openapi({ example: "ada.acme" }), displayName: z.string().max(120).optional() })),
-    responses: { 201: json(Mailbox, "The new mailbox."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
-  async (c) => {
-    const input = c.req.valid("json");
-    const { auth, deps } = c.var;
-    // A workspace key was made by a signed in owner or admin, so the person behind it is known.
-    const m = await claimFreeAddress(deps, { ...auth, emailVerified: true }, input);
-    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, free: true, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 201);
   });
 

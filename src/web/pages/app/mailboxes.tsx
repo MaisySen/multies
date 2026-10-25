@@ -15,14 +15,12 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { formatBytes, initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { LOCALE } from "@/shared/locale";
-import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
 
 export function MailboxesPage() {
   const [params, setParams] = useSearchParams();
   const tab = params.get("tab") === "aliases" ? "aliases" : "mailboxes";
   const domains = useDomains();
   const org = useOrg();
-  const free = useFreeAddress();
   const [creating, setCreatingState] = useState(params.get("add") === "1");
   const setCreating = (v: boolean) => { setCreatingState(v); if (!v && params.has("add")) setParams((p) => { const n = new URLSearchParams(p); n.delete("add"); return n; }, { replace: true }); };
   const noDomains = domains.data?.length === 0;
@@ -40,16 +38,10 @@ export function MailboxesPage() {
           </button>
         ))}
       </div>
-      {noDomains && free.data?.enabled && tab === "mailboxes" ? (
-        <div className="space-y-4">
-          <FreeAddressCard />
-          {free.data.addresses.length > 0 && <MailboxList domains={[]} freeDomain={free.data.domain} onCreate={() => setCreating(true)} />}
-          <p className="text-sm text-muted">Have your own domain? <Link to="/app/domains" className="font-medium text-brand hover:underline">Add it</Link> for mailboxes and aliases on it.</p>
-        </div>
-      ) : noDomains ? (
+      {noDomains ? (
         <Card><EmptyState icon={<AtSign />} title="Add a domain first" body="Mailboxes and aliases live on your own domain. Add one and we'll walk you through DNS." action={<ButtonLink to="/app/domains">Go to domains <ArrowRight className="h-4 w-4" /></ButtonLink>} /></Card>
       ) : tab === "mailboxes" ? (
-        <MailboxList domains={domains.data ?? []} freeDomain={free.data?.enabled ? free.data.domain : undefined} onCreate={() => setCreating(true)} />
+        <MailboxList domains={domains.data ?? []} onCreate={() => setCreating(true)} />
       ) : (
         <AliasList domains={domains.data ?? []} onCreate={() => setCreating(true)} />
       )}
@@ -71,7 +63,7 @@ function ListSkeleton() {
   return <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-4 p-4"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-56" /><Skeleton className="ml-auto h-4 w-24" /></div>)}</Card>;
 }
 
-function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onCreate: () => void; freeDomain?: string }) {
+function MailboxList({ domains, onCreate }: { domains: Domain[]; onCreate: () => void }) {
   const { data, isPending } = useMailboxes();
   const [editing, setEditing] = useState<Mailbox | null>(null);
   const [deleting, setDeleting] = useState<Mailbox | null>(null);
@@ -94,8 +86,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
               <div className="flex flex-wrap items-center gap-2">
                 <span className="truncate font-medium">{m.address}</span>
                 {m.status === "suspended" && <Badge tone="warn">Suspended</Badge>}
-                {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
-                  : domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
+                {domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
               </div>
               <div className="truncate text-xs text-subtle">{m.displayName}</div>
             </div>

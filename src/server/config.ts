@@ -92,13 +92,6 @@ export interface AppConfig {
    */
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
-  /**
-   * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
-   * (name@FREE_MAIL_DOMAIN) with no domain of its own. One shared domain, already verified with the
-   * outbound provider, so free users never spend the provider's per-account domain slots.
-   * `dailySends` caps recipients a day from a free address, per workspace, to protect the shared domain.
-   */
-  freeMail: { domain?: string; dailySends: number };
   /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
   push: { enabled: boolean; expoAccessToken?: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
@@ -201,8 +194,6 @@ const EnvSchema = z.object({
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
-  FREE_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
-  FREE_MAIL_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
@@ -308,10 +299,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       address: (env.SYSTEM_FROM ?? `no-reply@${hostOf(env.APP_URL ?? "http://localhost")}`).toLowerCase(),
       name: env.SYSTEM_FROM_NAME ?? env.APP_NAME ?? "Multies",
     },
-    // Agent inboxes for workspaces with no domain live on the same shared domain as free addresses
-    // unless the deployment names a separate one.
-    agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
-    freeMail: { domain: env.FREE_MAIL_DOMAIN?.toLowerCase(), dailySends: Number(env.FREE_MAIL_DAILY_SENDS ?? 50) },
+    agents: { sharedDomain: env.AGENT_MAIL_DOMAIN?.toLowerCase() },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
     bodyStore: env.BODY_STORE_ENDPOINT && env.BODY_STORE_BUCKET && env.BODY_STORE_ACCESS_KEY_ID && env.BODY_STORE_SECRET_ACCESS_KEY

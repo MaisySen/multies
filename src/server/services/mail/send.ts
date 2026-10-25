@@ -10,7 +10,6 @@ import type { SendMessageInput } from "@/shared/schemas";
 import { addonHint, getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
-import { outboundIdentity } from "./sender";
 import { storeMessage } from "./store";
 import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
@@ -51,12 +50,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const recipients = [...new Set([...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].map((a) => a.toLowerCase()))];
   const plan = await getPlan(db, auth.orgId);
   const used = await sentToday(db, auth.orgId, deps.now());
-  // Free addresses share one Multies domain, so they get a smaller daily allowance (FREE_MAIL_DAILY_SENDS).
-  const freeAddress = domain.orgId === "org_platform" && mb.kind === "person" && !org.isDemo;
-  const cap = Math.min(org.sendCapDaily ?? plan.limits.dailySends, freeAddress ? deps.config.freeMail.dailySends : Infinity);
-  if (freeAddress && used + recipients.length > cap) {
-    throw planLimit(`Free addresses can send to ${cap} recipients a day. It resets at midnight UTC. Add your own domain to send more.`);
-  }
+  const cap = org.sendCapDaily ?? plan.limits.dailySends;
   if (used + recipients.length > cap) {
     throw planLimit(org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends
       ? `This workspace can send to ${cap} recipients a day while its sending is under review. It resets at midnight UTC.`
@@ -155,9 +149,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     const ext = new Set(external);
     const only = (list: string[] | undefined) => (list ?? []).map((a) => a.toLowerCase()).filter((a) => ext.has(a));
     try {
-      const id = outboundIdentity(deps, mb, domain);
       const sent = await deps.outbound.send({
-        from: id.from, replyTo: id.replyTo, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc),
+        from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc),
         subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
         attachments: atts,
       });
