@@ -949,3 +949,50 @@ it("formula and rollup fields (R24.1): reading computed values writes nothing; d
   await projectRollups(ctx.deps, actor, projectId);
   expect(take()).toBe(0);
 });
+
+it("formula rename (R24 polish): renaming a field costs one extra custom_fields write per formula that reads it, none when no formula does", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const budget = (await u.post("/api/fields", { projectId, name: "Budget", type: "number" })).body.field;
+  const notes = (await u.post("/api/fields", { projectId, name: "Notes", type: "text" })).body.field;
+  await u.post("/api/fields", { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 0.1" } });
+  await u.post("/api/fields", { projectId, name: "Gross", type: "formula", config: { expression: "{budget} * 1.1" } });
+  const c = (ctx.db as unknown as { $client: { prepare: (q: string) => { get: () => unknown } } }).$client;
+  const perRow = 1 + (c.prepare("select count(*) n from sqlite_master where type='index' and tbl_name='custom_fields' and (sql is null or sql not like '% WHERE %')").get() as { n: number }).n;
+  const take = meter(ctx.db);
+  expect((await u.patch(`/api/fields/${notes.id}`, { name: "Remarks" })).status).toBe(200);
+  const plain = take();
+  expect((await u.patch(`/api/fields/${budget.id}`, { name: "Spend" })).status).toBe(200);
+  expect(take()).toBe(plain + 2 * perRow);
+});
+
+it("bulk assignee recipes (R24 polish): a bulk reassign writes the same with no rules or a rule that doesn't match; a matching rule adds only its runs, capped", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const otherId = (await u.post("/api/projects", { name: "Other", key: "OTH" })).body.project.id;
+  const { createTask } = await import("@/server/services/suite/tasks");
+  const { bulkUpdateTasks } = await import("@/server/services/suite/bulk");
+  const { createAutomation } = await import("@/server/services/suite/automations");
+  const batch = async () => { const ids: string[] = []; for (let i = 0; i < 5; i++) ids.push((await createTask(ctx.deps, actor, { title: `T${i}`, projectId })).id); return ids; };
+  const a = await batch(); const b = await batch(); const d = await batch();
+  const take = meter(ctx.db);
+  await bulkUpdateTasks(ctx.deps, actor, a, { assignee: { type: "member", id: actor.userId } });
+  const none = take();
+  await createAutomation(ctx.deps, actor, { name: "Elsewhere", trigger: "assignee_changed", conditions: { projectId: otherId }, action: "add_label", actionConfig: { label: "x" } });
+  take();
+  await bulkUpdateTasks(ctx.deps, actor, b, { assignee: { type: "member", id: actor.userId } });
+  expect(take()).toBe(none);
+  await createAutomation(ctx.deps, actor, { name: "Here", trigger: "assignee_changed", conditions: { projectId }, action: "add_label", actionConfig: { label: "x" } });
+  take();
+  await bulkUpdateTasks(ctx.deps, actor, d, { assignee: { type: "member", id: actor.userId } });
+  const withRule = take();
+  expect(withRule).toBeGreaterThan(none);
+  // Each run is the action (a task update) plus the rule's run count: bounded per task.
+  expect(withRule - none).toBeLessThanOrEqual(5 * 25);
+});

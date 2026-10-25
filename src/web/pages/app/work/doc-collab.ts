@@ -17,7 +17,6 @@ import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
 import { prosemirrorJSONToYXmlFragment } from "@tiptap/y-tiptap";
 import type { Schema } from "@tiptap/pm/model";
-import { leaderOf } from "./collab-logic";
 
 export const FIELD = "default";
 const SEED_CLIENT_ID = 1;
@@ -74,7 +73,9 @@ export function seedIfEmpty(ydoc: Y.Doc, schema: Schema, doc: { content: unknown
 
 /** The connected client with the lowest id saves the doc row. */
 export function isLeader(session: CollabSession) {
-  return leaderOf(session.ydoc.clientID, session.provider.awareness.getStates().keys());
+  const ids = [...session.provider.awareness.getStates().keys()];
+  if (!ids.includes(session.ydoc.clientID)) ids.push(session.ydoc.clientID);
+  return Math.min(...ids) === session.ydoc.clientID;
 }
 
 export function peersOf(session: CollabSession): Peer[] {

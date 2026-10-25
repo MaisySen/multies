@@ -50,7 +50,7 @@ export interface BulkPatch {
   type?: "task" | "story" | "bug";
 }
 
-export interface BulkResult { updated: number; unchanged: number; ids: string[]; tasks: Task[] }
+export interface BulkResult { updated: number; unchanged: number; ids: string[]; tasks: Task[]; /** R24 polish: assignee_changed rule runs, and tasks skipped over the cap or while paused. */ automationRuns?: { runs: number; skipped: number } }
 
 const chunk = <T>(rows: T[], n: number) => Array.from({ length: Math.ceil(rows.length / n) }, (_, i) => rows.slice(i * n, i * n + n));
 const cleanLabel = (x: string) => x.trim().slice(0, 40);
@@ -307,6 +307,12 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
       for (const m of movedNow) { const task = outById.get(m.row.id); if (task) await runStatusAutomations(deps, actor.orgId, task, m.from); }
     }
   }
+  // R24 polish: assignee_changed recipes for the tasks whose assignee changed, capped per request.
+  let automationRuns: { runs: number; skipped: number } | undefined;
+  if (assignee) {
+    const reassigned = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined).map((id) => outById.get(id)).filter((t): t is NonNullable<typeof t> => !!t);
+    if (reassigned.length) automationRuns = await (await import("./automations-r24-events")).runBulkAssigneeChanged(deps, actor, reassigned);
+  }
   if (assignee?.type === "member" && assignee.id !== actor.userId && level !== "warn") {
     const newly = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined);
     if (newly.length) {
@@ -318,7 +324,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
       });
     }
   }
-  return { updated: changedIds.length + repeatToDone.length, unchanged: rows.length - changedIds.length - repeatToDone.length, ids: out.map((t) => t.id), tasks: out };
+  return { updated: changedIds.length + repeatToDone.length, unchanged: rows.length - changedIds.length - repeatToDone.length, ids: out.map((t) => t.id), tasks: out, ...(automationRuns?.runs || automationRuns?.skipped ? { automationRuns } : {}) };
 }
 
 /** Deletes many tasks (and their subtasks) in one batch. */

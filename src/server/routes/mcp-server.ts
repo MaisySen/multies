@@ -484,7 +484,7 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
   const ro = { readOnlyHint: true, openWorldHint: false };
   const rw = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
   const a = actor as unknown as SuiteActor;
-  const fieldTypes = z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url"]);
+  const fieldTypes = z.enum(["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"]);
 
   server.registerTool("list_custom_fields", {
     title: "List a project's custom fields", annotations: ro,
@@ -494,11 +494,15 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
 
   server.registerTool("create_custom_field", {
     title: "Add a custom field to a project", annotations: rw,
-    description: "Types: text, number, currency (AUD), date, select, multiselect, person, checkbox, url. Select types take option labels.",
-    inputSchema: { projectId: z.string(), name: z.string().min(1).max(60), type: fieldTypes, options: z.array(z.string().max(60)).max(50).optional() },
-  }, tool(async (x: { projectId: string; name: string; type: z.infer<typeof fieldTypes>; options?: string[] }) => {
+    description: "Types: text, number, currency (AUD), date, select, multiselect, person, checkbox, url, formula, rollup. Select types take option labels. A formula takes config { expression } (like {Budget} * 1.1); a rollup takes config { source, fn, field } (create_formula_field and create_rollup_field explain both).",
+    inputSchema: {
+      projectId: z.string(), name: z.string().min(1).max(60), type: fieldTypes, options: z.array(z.string().max(60)).max(50).optional(),
+      config: z.object({ expression: z.string().max(500).optional(), source: z.string().max(20).optional(), fn: z.string().max(20).optional(), field: z.string().max(64).optional() }).optional(),
+    },
+  }, tool(async (x: { projectId: string; name: string; type: z.infer<typeof fieldTypes>; options?: string[]; config?: Record<string, string | undefined> }) => {
     writable();
-    return { field: await createField(deps, a, x.projectId, { name: x.name, type: x.type, options: x.options?.map((label) => ({ label })) }) };
+    const config = x.type === "rollup" ? { ...x.config, field: x.config?.field ?? null } : x.config;
+    return { field: await createField(deps, a, x.projectId, { name: x.name, type: x.type, options: x.options?.map((label) => ({ label })), config }) };
   }));
 
   server.registerTool("set_task_fields", {

@@ -102,6 +102,8 @@ async function markEnded(deps: Deps, m: MeetingRow) {
   const done = await deps.db.update(meetings).set({ status: "ended", endedAt: now })
     .where(and(eq(meetings.id, m.id), eq(meetings.status, "scheduled"))).returning({ id: meetings.id });
   if (done.length) { m.status = "ended"; m.endedAt = now; }
+  // R24 polish: recipes listening for meeting_ended hear a call that emptied too. A failed rule never breaks the call status.
+  if (done.length) await (await import("./automations-r24-events")).runCallEnded(deps, m).catch(() => 0);
   return done.length > 0;
 }
 
