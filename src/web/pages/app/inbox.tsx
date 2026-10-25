@@ -9,7 +9,7 @@ import { cn } from "@/web/lib/cn";
 import { useAgents } from "./agents";
 import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
-import { ThreadNotes } from "./inbox-comments";
+import { NoteCount, ThreadNotes, useNoteCounts } from "./inbox-comments";
 import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee } from "./inbox-assign";
 import { ThreadCollab } from "./inbox-presence";
 
@@ -32,6 +32,7 @@ export function TeamInboxPage() {
   const selected = params.get("thread");
   const iv = useInboxView();
   const threads = useQuery({ queryKey: ["team-inbox", "list", iv.query], queryFn: () => api.get<{ data: ThreadSummary[] }>(`/agents/threads${iv.query}`), refetchInterval: 20_000 });
+  const noteCounts = useNoteCounts(threads.data?.data.map((t) => t.id) ?? []);
   const mailboxes = useMailboxes();
   const agents = useAgents();
   const boxName = (id: string) => mailboxes.data?.find((m) => m.id === id)?.address ?? agents.data?.find((a) => a.inboxId === id)?.address ?? "";
@@ -60,6 +61,7 @@ export function TeamInboxPage() {
                         {t.agentsInvolved.map((a) => <Badge key={a.agentId} tone="brand"><Bot className="h-3 w-3" aria-hidden />{a.name ?? "Agent"}{t.lastSentBy.type === "agent" && t.lastSentBy.agentId === a.agentId ? " replied" : ""}</Badge>)}
                         {t.pendingApprovals > 0 && <Badge tone="warn">Reply waiting for approval</Badge>}
                         <AssigneeChip assignee={t.assignee} status={t.status} />
+                        <NoteCount n={noteCounts[t.id]} />
                       </div>
                     </button>
                   </li>

@@ -55,6 +55,8 @@ test("a team note on a thread mentions a teammate, who gets a notification that 
   await expect(posted).toBeVisible();
   await expect(posted.getByText("@Priya Shah")).toBeVisible();
   await expect(box).toHaveValue("");
+  // The thread's row in the list shows it has team notes (Priya's and this one).
+  await expect(page.locator('button[aria-current="true"]').getByTestId("note-count")).toContainText("2");
   await notes.scrollIntoViewIfNeeded();
 
   const shots = "/home/user/tab/files/multies-r22";

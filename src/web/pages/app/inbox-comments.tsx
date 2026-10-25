@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Lock, Pencil, Trash2 } from "lucide-react";
+import { Lock, MessageSquareText, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 import { Textarea } from "@/web/components/ui/input";
@@ -123,7 +123,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
   const notes = useQuery({ queryKey: key, queryFn: () => api.get<NotesResponse>(`/threads/${encodeURIComponent(threadId)}/comments`), refetchInterval: 30_000 });
   const [editing, setEditing] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  const refresh = () => { void qc.invalidateQueries({ queryKey: key }); void qc.invalidateQueries({ queryKey: ["thread-notes", "counts"] }); };
   const add = useMutation({
     mutationFn: (b: { body: string; mentions: string[] }) => api.post(`/threads/${encodeURIComponent(threadId)}/comments`, b),
     onSuccess: () => { setFormKey((k) => k + 1); refresh(); },
@@ -177,5 +177,25 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
       </div>
       {error && <p className="mt-2 text-sm text-bad" role="alert">{error.message}</p>}
     </Card>
+  );
+}
+
+/** Team note counts for the threads on screen: one grouped read per page of the list. */
+export function useNoteCounts(threadIds: string[]) {
+  const ids = threadIds.slice(0, 100).join(",");
+  const q = useQuery({
+    queryKey: ["thread-notes", "counts", ids], enabled: ids.length > 0, staleTime: 30_000,
+    queryFn: () => api.get<{ counts: Record<string, number> }>(`/threads/comment-counts?ids=${encodeURIComponent(ids)}`),
+  });
+  return q.data?.counts ?? {};
+}
+
+/** A small "has team notes" mark on a thread row. */
+export function NoteCount({ n }: { n?: number }) {
+  if (!n) return null;
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-warn-soft px-1.5 py-0.5 text-[11.5px] text-fg/80" title={n === 1 ? "1 team note" : `${n} team notes`} data-testid="note-count">
+      <MessageSquareText className="h-3 w-3" aria-hidden />{n}<span className="sr-only">{n === 1 ? " team note" : " team notes"}</span>
+    </span>
   );
 }
