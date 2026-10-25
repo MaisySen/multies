@@ -34,6 +34,7 @@ import { sprintRoutes } from "./routes/sprints";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { mailSnippetRoutes } from "./routes/mail-snippets";
+import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
@@ -260,6 +261,7 @@ export function createApp(deps: Deps) {
   app.route("/api/forms", formRoutes());
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
+  app.route("/api/meeting-notes", meetingNotesRoutes()); // Round 23: agenda and notes doc, action items
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());

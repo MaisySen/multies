@@ -538,5 +538,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `meetings` ADD `channel_id` text;",
       "ALTER TABLE `meetings` ADD `doc_id` text;"
     ]
+  },
+  {
+    "name": "0043_r23_meeting_notes",
+    "statements": [
+      "CREATE TABLE `meeting_action_items` (\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`item_key` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `item_key`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
+    ]
   }
 ];
