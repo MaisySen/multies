@@ -37,20 +37,20 @@ export function registerAssignTools(server: McpServer, deps: Deps, actor: Scoped
   }) as never);
 
   server.registerTool("set_thread_status", {
-    title: "Mark a thread done or reopen it", annotations: rw,
-    description: "status done takes the thread out of the open lists (All, Mine, Unassigned) and records when; open brings it back.",
-    inputSchema: { threadId: z.string().min(1), status: z.enum(["open", "done"]) },
-  }, tool(async (x: { threadId: string; status: "open" | "done" }) => {
+    title: "Mark a thread done, waiting or reopen it", annotations: rw,
+    description: "status done takes the thread out of the open lists (All, Mine, Unassigned) and records when; waiting means we replied and the customer has the ball (it shows under Waiting and goes back to open when they write); open brings it back.",
+    inputSchema: { threadId: z.string().min(1), status: z.enum(["open", "waiting", "done"]) },
+  }, tool(async (x: { threadId: string; status: "open" | "waiting" | "done" }) => {
     writable();
     return { state: await setThreadStatus(deps, a, x.threadId, x.status) };
   }) as never);
 
   server.registerTool("list_threads_by_view", {
     title: "List threads by owner or status", annotations: ro,
-    description: "Shared inbox threads, newest first, in one view: open (every open thread), mine (open and assigned to me), unassigned, assigned (to assignee, or to anyone), done, or all. Each thread carries its assignee and status. Pass before from nextCursor for the next page.",
+    description: "Shared inbox threads, newest first, in one view: open (every open thread), mine (open and assigned to me), unassigned, assigned (to assignee, or to anyone), waiting (we replied, the customer has the ball), done, or all. Each thread carries its assignee and status. Pass before from nextCursor for the next page.",
     inputSchema: {
-      view: z.enum(["all", "open", "mine", "unassigned", "assigned", "done"]).default("open"),
-      assignee: z.string().optional().describe("A user id, for the assigned and done views."),
+      view: z.enum(["all", "open", "mine", "unassigned", "assigned", "waiting", "done"]).default("open"),
+      assignee: z.string().optional().describe("A user id, for the assigned, waiting and done views."),
       mailboxId: z.string().optional(),
       before: z.string().optional(),
       limit: z.number().int().min(1).max(50).default(20),

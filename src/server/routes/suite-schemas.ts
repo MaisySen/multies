@@ -115,9 +115,11 @@ export const DealPatch = DealCreate.partial().extend({ position: z.number().fini
 
 export const AutomationCreate = z.object({
   name: z.string().trim().min(1).max(120), trigger: z.enum(["email_received", "status_changed", "due_soon"]),
-  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
+  conditions: z.record(z.string(), z.unknown()).default({}), action: z.enum(["create_task", "notify", "assign_thread"]), actionConfig: z.record(z.string(), z.unknown()).default({}),
   enabled: z.boolean().optional(),
 });
-export const AutomationPatch = AutomationCreate.partial();
+// R22.5: no defaults on a patch. With them, a patch of only { enabled } reset conditions and actionConfig to {}
+// (an email rule then failed "Say which emails" and could not be turned off).
+export const AutomationPatch = AutomationCreate.extend({ conditions: z.record(z.string(), z.unknown()).optional(), actionConfig: z.record(z.string(), z.unknown()).optional() }).partial();
 
 export const PushDevice = z.object({ token: z.string().min(10).max(200), platform: z.enum(["ios", "android"]) }).openapi("PushDevice");

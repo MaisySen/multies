@@ -34,7 +34,7 @@ export function registerR22AssignRoutes(api: OpenAPIHono<AppEnv>) {
     createRoute({ method, path, tags: [tag], summary, description, security: [{ bearerAuth: [] }], ...extra, responses: { 200: json("OK."), 400: err("The assignee can't take this thread."), 401: err("Missing or invalid API key."), 403: err("The key can't do this."), 404: err("Not found."), 422: err("Validation failed.") } });
 
   api.openapi(route("get", "/threads", "Shared inbox", "List threads by view",
-    "Threads across the mailboxes the key can read, newest first. view: open (the default), mine, unassigned, assigned (with assignee=<userId>, or anyone), done, all. Each thread carries assignee { id, name } or null and status (open or done). Pass before from nextCursor for the next page."),
+    "Threads across the mailboxes the key can read, newest first. view: open (the default), mine, unassigned, assigned (with assignee=<userId>, or anyone), waiting, done, all. Each thread carries assignee { id, name } or null, status (open, waiting or done) and lastInboundAt. Pass before from nextCursor for the next page."),
   async (c) => {
     const q = ListQuery.parse(c.req.query());
     const a = actor(c);
@@ -44,7 +44,7 @@ export function registerR22AssignRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { state: await getThreadState(c.var.deps, actor(c), pid(c)) }));
   api.openapi(route("post", "/threads/{id}/assign", "Shared inbox", "Assign a thread", "Body: { userId } (a member who can open the thread's mailbox) or { userId: null } to unassign. The assignee gets a notification unless they assigned themselves.", { request: { params: Id, ...body(AssignBody) } }),
     async (c) => send(c, { state: await assignThread(c.var.deps, actor(c), pid(c), (await jsonBody(c, AssignBody)).userId) }));
-  api.openapi(route("post", "/threads/{id}/status", "Shared inbox", "Mark a thread done or reopen it", "Body: { status: open | done }.", { request: { params: Id, ...body(StatusBody) } }),
+  api.openapi(route("post", "/threads/{id}/status", "Shared inbox", "Mark a thread done, waiting or reopen it", "Body: { status: open | waiting | done }. New inbound mail puts a waiting or done thread back to open.", { request: { params: Id, ...body(StatusBody) } }),
     async (c) => send(c, { state: await setThreadStatus(c.var.deps, actor(c), pid(c), (await jsonBody(c, StatusBody)).status) }));
   api.openapi(route("get", "/stats/replies", "Shared inbox", "Reply times",
     "Query: mailboxId, from, to (ISO dates; the last 30 days by default, at most 90), groupBy (mailbox or person). Per row: threads, replied, medianFirstResponseMs, averageFirstResponseMs, resolved, medianResolutionMs, averageResolutionMs; total sums every thread. Calendar hours. At most 2,000 threads are scanned, newest first; sampled: true says the answer was cut."),

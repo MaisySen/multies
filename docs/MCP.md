@@ -161,8 +161,8 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 | --- | --- |
 | `assign_thread` | Assign a thread to a member who can open its mailbox (they get a notification), or pass userId null to unassign |
 | `unassign_thread` | Take the owner off a thread |
-| `set_thread_status` | Mark a thread done or reopen it |
-| `list_threads_by_view` | Threads by view: open, mine, unassigned, assigned (to a person or anyone), done or all, each with its assignee and status |
+| `set_thread_status` | Mark a thread done, waiting (we replied, the customer has the ball) or reopen it; new inbound mail reopens a waiting or done thread |
+| `list_threads_by_view` | Threads by view: open, mine, unassigned, assigned (to a person or anyone), waiting, done or all, each with its assignee, status and lastInboundAt |
 | `get_reply_stats` | Median and average first response and resolution times per mailbox or per person, calendar hours, at most 90 days and 2,000 threads |
 
 ### Meetings and scheduling

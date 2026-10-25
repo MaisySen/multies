@@ -953,7 +953,7 @@ export const automations = sqliteTable("automations", {
   trigger: text("trigger", { enum: ["email_received", "status_changed", "due_soon"] }).notNull(),
   /** JSON: email_received { from?, subjectContains?, mailboxId? }; status_changed { projectId?, toCategory? }; due_soon { hoursBefore } */
   conditions: text("conditions").notNull().default("{}"),
-  action: text("action", { enum: ["create_task", "notify"] }).notNull(),
+  action: text("action", { enum: ["create_task", "notify", "assign_thread"] }).notNull(),
   /** JSON: create_task { projectId, assigneeType?, assigneeId?, priority?, dueInDays? }; notify { to: "assignee" | "creator" | userId } */
   actionConfig: text("action_config").notNull().default("{}"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
@@ -1476,7 +1476,7 @@ export const mailThreadState = sqliteTable("mail_thread_state", {
   /** users.id of who assigned, or "agent:<agentId>" for an agent key. */
   assignedBy: text("assigned_by"),
   assignedAt: ts("assigned_at"),
-  status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
+  status: text("status", { enum: ["open", "waiting", "done"] }).notNull().default("open"),
   doneAt: ts("done_at"),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [

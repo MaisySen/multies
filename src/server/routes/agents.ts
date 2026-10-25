@@ -29,7 +29,7 @@ export function agentRoutes() {
     // The shared inbox: threads across every mailbox this person can open, with agent activity labelled.
     .get("/threads", async (c) => {
       const q = parseQuery(c, z.object({ mailboxId: z.string().optional(), folder: z.enum(["inbox", "sent", "archive", "spam"]).optional(), before: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }).merge(ThreadViewQuery));
-      // Round 22: the list shows open threads unless a view says otherwise (all, mine, unassigned, assigned, done).
+      // Round 22: the list shows open threads unless a view says otherwise (all, mine, unassigned, assigned, waiting, done).
       return c.json(await listThreads(c.var.deps, c.var.auth.orgId, await scopeFor(c.var.deps, c.var.auth), { ...q, view: q.view ?? "open", viewerUserId: c.var.auth.userId }));
     })
     .get("/threads/:id", async (c) => c.json(await readThread(c.var.deps, c.var.auth, c.req.param("id"), new URL(c.req.url).origin)))
