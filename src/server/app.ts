@@ -35,6 +35,7 @@ import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
+import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
 import { taskBulkRoutes } from "./routes/tasks-bulk";
@@ -280,6 +281,8 @@ export function createApp(deps: Deps) {
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());
   app.route("/api/epics", epicRoutes());
+  app.route("/api/calendar", calendarRoutes()); // Round 23: calendar feed and other calendars
+  app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
   // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on
   // every new isolate. On the Workers Free plan the first request of an isolate pays for

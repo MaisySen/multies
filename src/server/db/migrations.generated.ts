@@ -550,5 +550,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "CREATE TABLE `meeting_recordings` (\n\t`org_id` text NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`started_by` text NOT NULL,\n\t`status` text DEFAULT 'recording' NOT NULL,\n\t`started_at` integer NOT NULL,\n\t`ended_at` integer,\n\t`duration_sec` integer DEFAULT 0 NOT NULL,\n\t`chunk_count` integer DEFAULT 0 NOT NULL,\n\t`transcript` text DEFAULT '' NOT NULL,\n\t`summary` text,\n\t`action_items` text DEFAULT '[]' NOT NULL,\n\t`provider` text,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `meeting_id`, `id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0046_r23_calendar",
+    "statements": [
+      "CREATE TABLE `calendar_feeds` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`hint` text NOT NULL,\n\t`include_tasks` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`reset_at` integer,\n\tPRIMARY KEY(`org_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
+      "CREATE UNIQUE INDEX `calendar_feeds_token_uq` ON `calendar_feeds` (`token_hash`);",
+      "CREATE TABLE `calendar_sources` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`connection_id` text,\n\t`url_enc` text,\n\t`calendars` text DEFAULT '[]' NOT NULL,\n\t`name` text NOT NULL,\n\t`color` text DEFAULT '#8E8E93' NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`connection_id`) REFERENCES `mail_connections`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
+    ]
   }
 ];

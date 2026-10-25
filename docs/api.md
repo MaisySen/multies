@@ -508,3 +508,36 @@ call, never one per poll. Without video keys the routes answer `enabled: false`.
 
 D1 writes: presence reads write nothing; a call adds one `call.started` notification per person rung (in place
 of the card's plain DM notification); ending a call is one meeting row update, once.
+
+## Calendar sync (round 23)
+
+A person's calendar feed: a secret address, `https://<app>/cal/<token>.ics`, for Google Calendar,
+Apple Calendar or Outlook (Settings > Calendar). It holds their meetings (they made them, are invited
+by email, or the call came from one of their channels or DMs; a weekly series is one event with its
+RRULE and VTIMEZONE) and the due dates of open tasks assigned to them as all day events ("Due: ..."),
+30 days back to 180 days ahead, at most 1,000 items. The token is the only key: only its SHA-256 hash
+and its last four characters are stored. Reset makes a new address and the old one answers 404 at once.
+The feed answers GET and HEAD with `ETag` and `Cache-Control: private, max-age=300`, `If-None-Match`
+gives 304, and it is limited to 30 fetches a minute per token. Serving it writes nothing to the database.
+
+Other calendars (read only, per person, never shared with the workspace): a connected mailbox's
+CalDAV calendar (Fastmail, iCloud, Zoho, Yahoo, GMX or the mail server's own; same user name and app
+password) or a secret ICS link (Google "Secret address in iCal format", Outlook "Publish calendar").
+The ICS link is stored encrypted and never sent back (only its host). Events are fetched when the
+calendar opens and kept in memory for 5 minutes; none are stored. Private network addresses are refused.
+Gmail and Outlook calendars need their own sign in (coming later); add their ICS link meanwhile.
+
+- App API: `GET|POST|PATCH|DELETE /api/calendar/feed` (POST turns on or resets and answers the address
+  once; PATCH `{ includeTasks }`), `GET /api/calendar/events?from&to` (at most 100 days; meetings, due
+  dates and the person's other calendars, with `errors` per calendar that could not be read),
+  `GET /api/calendar/sources`, `GET /api/calendar/sources/options` (the person's connected mailboxes
+  and whether each offers CalDAV), `POST /api/calendar/sources` `{ kind: "ics", url, name? }` or
+  `{ kind: "caldav", connectionId, url? }`, `PATCH|DELETE /api/calendar/sources/:id` `{ enabled?, name?, color? }`.
+- Public API: `GET /api/v1/calendar/events?from&to` (keys see the workspace's meetings and due dates,
+  no other calendars), `GET /api/v1/calendar/feed` (status of the key's person's feed: `enabled`,
+  `hint`, `includeTasks`; never the address), `POST /api/v1/calendar/feed/reset` (full keys; answers the
+  new address once).
+- MCP: `list_calendar_events`.
+
+D1 writes: turning the feed on is 2 rows (the row and its unique token index), a reset 3 at most, off 2;
+adding, changing or removing another calendar is 1. Fetching the feed and viewing events write nothing.

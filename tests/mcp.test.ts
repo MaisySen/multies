@@ -71,6 +71,7 @@ describe("MCP server", () => {
       "get_thread_presence",
       "get_timesheet",
       "invite_guest",
+      "list_calendar_events",
       "list_channels",
       "list_custom_fields",
       "list_epics",

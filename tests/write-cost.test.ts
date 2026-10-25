@@ -696,3 +696,36 @@ it("calls in chat (round 23): presence polls write nothing; a DM call rings each
   await u.post(`/api/chat/calls/${call.meeting.id}/left`, {});
   expect(take()).toBeLessThanOrEqual(4);
 });
+
+it("calendar sync (round 23): feed on 2, reset at most 3, off 2; other calendars 1 each; serving the feed and viewing events write nothing", async () => {
+  const ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Home\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261103T090000Z\r\nDTEND:20261103T100000Z\r\nSUMMARY:Dentist\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+  const ctx = await makeTestApp({}, { fetch: (async () => new Response(ics)) as typeof fetch });
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const cal = await import("@/server/services/suite/calendar-sync");
+  await u.post("/api/meetings", { title: "Sync", startsAt: "2026-11-03T01:00:00Z" });
+  const take = meter(ctx.db);
+  const on = await cal.resetFeed(ctx.deps, actor);
+  expect(take()).toBe(2);
+  await cal.serveFeed(ctx.deps, on.url.split("/cal/")[1].replace(".ics", ""));
+  await cal.feedStatus(ctx.deps, actor);
+  await cal.listCalendarEvents(ctx.deps, actor, { from: "2026-11-01", to: "2026-12-01" });
+  expect(take()).toBe(0);
+  const res = await ctx.app.request(new URL(on.url).pathname, { headers: { host: "localhost" } });
+  expect(res.status).toBe(200);
+  expect(take()).toBe(0);
+  await cal.resetFeed(ctx.deps, actor);
+  expect(take()).toBeLessThanOrEqual(3);
+  const s = await cal.addIcsSource(ctx.deps, actor, { url: "https://calendar.example.com/secret.ics" });
+  expect(take()).toBe(1);
+  await cal.listCalendarEvents(ctx.deps, actor, { from: "2026-11-01", to: "2026-12-01" });
+  expect(take()).toBe(0);
+  await cal.updateSource(ctx.deps, actor, s.id, { enabled: false });
+  expect(take()).toBe(1);
+  await cal.removeSource(ctx.deps, actor, s.id);
+  expect(take()).toBe(1);
+  await cal.disableFeed(ctx.deps, actor);
+  expect(take()).toBe(2);
+});

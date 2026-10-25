@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 97 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 100 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -243,6 +243,13 @@ Registered in src/server/routes/mcp-r23-recordings.ts. Read only: read only keys
 | Tool | What it does |
 | --- | --- |
 | `get_meeting_transcript` | A meeting's recordings, newest first: status (recording, processing, done or failed), who recorded, duration, the summary, action items `[{ text, assignee, due }]` and the transcript (capped at 200 KB; `truncated` says when it was cut) |
+### Calendar (round 23)
+
+Registered in src/server/routes/mcp-r23-calendar.ts. Read only; nothing is written.
+
+| Tool | What it does |
+| --- | --- |
+| `list_calendar_events` | Meetings (weekly series expanded) and task due dates between `from` and `to` (at most 100 days). Signed in as a person (OAuth): your meetings, your tasks' due dates and your other calendars (read only, `kind: external`). With a key: every meeting and due date in the workspace |
 
 ## Claude (claude.ai and Claude Desktop)
 
