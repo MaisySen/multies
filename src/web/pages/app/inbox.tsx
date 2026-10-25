@@ -9,6 +9,7 @@ import { cn } from "@/web/lib/cn";
 import { useAgents } from "./agents";
 import { ApprovalCard, type Approval } from "./approvals";
 import { MakeTask } from "./work/make-task";
+import { ThreadNotes } from "./inbox-comments";
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -99,6 +100,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         </Card>
       ))}
       {t.pendingApprovals.map((a) => <ApprovalCard key={a.id} a={a} compact />)}
+      <ThreadNotes threadId={t.id} />
     </div>
   );
 }

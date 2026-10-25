@@ -1446,25 +1446,18 @@ export const sprints = sqliteTable("sprints", {
   ...suiteCols(),
 }, (t) => [index("sprints_org_project_idx").on(t.orgId, t.projectId)]);
 
-/**
- * Round 22 (R22.1): who owns a shared inbox thread and whether it is done (services/mail/thread-state.ts).
- * Only threads someone has touched get a row, keyed by (org_id, thread_id). WITHOUT ROWID (drizzle/0039),
- * so the composite primary key needs no second index; the one partial index serves "assigned to X" and
- * holds only assigned rows. Assign: 1 row + 1 index entry. Status change: 1 row.
- */
-export const mailThreadState = sqliteTable("mail_thread_state", {
+/** Round 22 (R22.2): internal notes on a mail thread. Team only: never part of any outgoing mail. */
+export const threadComments = sqliteTable("thread_comments", {
+  id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
   threadId: text("thread_id").notNull(),
-  /** The thread's mailbox when the row was written (the newest message's). */
-  mailboxId: text("mailbox_id").notNull().references(() => mailboxes.id, { onDelete: "cascade" }),
-  assigneeUserId: text("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
-  /** users.id of who assigned, or "agent:<agentId>" for an agent key. */
-  assignedBy: text("assigned_by"),
-  assignedAt: ts("assigned_at"),
-  status: text("status", { enum: ["open", "done"] }).notNull().default("open"),
-  doneAt: ts("done_at"),
-  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [
-  primaryKey({ columns: [t.orgId, t.threadId] }),
-  index("mail_thread_state_assignee_idx").on(t.orgId, t.assigneeUserId).where(sql`${t.assigneeUserId} IS NOT NULL`),
-]);
+  /** The mailbox the thread lives in, for scoping. */
+  mailboxId: text("mailbox_id").notNull(),
+  authorType: text("author_type", { enum: ["member", "agent"] }).notNull().default("member"),
+  authorId: text("author_id").notNull(),
+  body: text("body").notNull(),
+  /** JSON array of mentioned user ids. */
+  mentions: text("mentions").notNull().default("[]"),
+  editedAt: ts("edited_at"),
+  createdAt: createdAt(),
+}, (t) => [index("thread_comments_thread_idx").on(t.orgId, t.threadId, t.createdAt)]);
