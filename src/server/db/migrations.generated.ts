@@ -531,5 +531,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `mail_snippets` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`shortcut` text,\n\t`subject` text,\n\t`body` text NOT NULL,\n\t`shared` integer DEFAULT true NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
       "CREATE INDEX `mail_snippets_org_name_idx` ON `mail_snippets` (`org_id`,`name`);"
     ]
+  },
+  {
+    "name": "0042_r23_meeting_links",
+    "statements": [
+      "ALTER TABLE `meetings` ADD `channel_id` text;",
+      "ALTER TABLE `meetings` ADD `doc_id` text;"
+    ]
   }
 ];

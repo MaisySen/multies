@@ -45,6 +45,9 @@ function present(m: MeetingRow, origin: string, enabled: boolean) {
     /** Set on a weekly series. In an upcoming list each occurrence is its own entry with the series' id. */
     recurrence: seriesOf(m),
     seriesStartsAt: null as string | null,
+    /** Round 23: the chat channel or DM a call started from, and the agenda and notes doc. */
+    channelId: m.channelId ?? null,
+    docId: m.docId ?? null,
   };
 }
 export type Meeting = ReturnType<typeof present>;
@@ -139,7 +142,7 @@ async function fromSource(deps: Deps, actor: SuiteActor, s: MeetingSource) {
   return { title: `Meeting with ${c.name || c.email}`, invitees: [c.email], mailboxId: undefined, sourceId: c.id };
 }
 
-export interface MeetingInput { title?: string; startsAt?: string; durationMin?: number; source?: MeetingSource; invitees?: string[]; sendInvites?: boolean; mailboxId?: string; recurrence?: MeetingRecurrenceInput }
+export interface MeetingInput { title?: string; startsAt?: string; durationMin?: number; source?: MeetingSource; invitees?: string[]; sendInvites?: boolean; mailboxId?: string; recurrence?: MeetingRecurrenceInput; /** Round 23: set by a call from chat. */ channelId?: string }
 
 export async function createMeeting(deps: Deps, actor: SuiteActor, input: MeetingInput) {
   assertWritable(actor);
@@ -158,7 +161,7 @@ export async function createMeeting(deps: Deps, actor: SuiteActor, input: Meetin
   await deps.db.insert(meetings).values({
     ...(series ?? {}),
     id, orgId: actor.orgId, title, room: `mymail-${id.slice(4)}`, guestToken: urlToken(18), startsAt, durationMin, status: "scheduled",
-    sourceType: input.source?.type ?? null, sourceId: suggested.sourceId ?? null, invitees: JSON.stringify(invitees), mailboxId: input.mailboxId ?? suggested.mailboxId ?? null,
+    sourceType: input.source?.type ?? null, sourceId: suggested.sourceId ?? null, invitees: JSON.stringify(invitees), mailboxId: input.mailboxId ?? suggested.mailboxId ?? null, channelId: input.channelId ?? null,
     ...createdBy(actor), createdAt: now, updatedAt: now,
   });
   if (input.source && input.source.type !== "thread" && suggested.sourceId) await link(deps, actor.orgId, { type: "meeting", id }, { type: input.source.type, id: suggested.sourceId }, "about");

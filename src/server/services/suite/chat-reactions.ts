@@ -171,7 +171,7 @@ export async function startChannelCall(deps: Deps, a: SuiteActor, channelId: str
   }
   const title = c.kind === "dm" ? `Call with ${(await getChannel(deps, a, c.id)).name}` : `#${c.name} call`;
   const { createMeeting } = await import("./meetings");
-  const { meeting } = await createMeeting(deps, a, { title, durationMin: 60 });
+  const { meeting } = await createMeeting(deps, a, { title, durationMin: 60, channelId: c.id });
   // Guests of a shared channel can't open the app's meeting page, so their link rides along.
   const body = `${CALL_PREFIX}${meeting.joinUrl}${c.guestAccess ? `\nGuests join here: ${meeting.guestUrl}` : ""}`;
   const message = await postMessage(deps, a, c.id, { body });

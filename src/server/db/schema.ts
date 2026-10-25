@@ -1072,6 +1072,10 @@ export const meetings = sqliteTable("meetings", {
   recurrence: text("recurrence"),
   /** The IANA zone the series keeps its wall clock time in. */
   recurrenceTz: text("recurrence_tz"),
+  /** Round 23: the chat channel or DM a call was started from (its summary is posted there). */
+  channelId: text("channel_id"),
+  /** Round 23: the meeting's agenda and notes doc. */
+  docId: text("doc_id"),
   ...suiteCols(),
 }, (t) => [index("meetings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("meetings_guest_token_uq").on(t.guestToken), index("meetings_source_idx").on(t.orgId, t.sourceType, t.sourceId)]);
 
