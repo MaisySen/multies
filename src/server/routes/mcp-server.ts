@@ -173,6 +173,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerR8Tools(server, deps, actor, writable);
   registerR11Tools(server, deps, actor, writable);
   registerR10Tools(server, deps, actor, writable);
+  registerR20ChatTools(server, deps, actor, writable);
   return server;
 }
 
@@ -622,4 +623,18 @@ function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable
       return { bookings: await listBookings(deps, a, { upcoming: x.upcoming ?? true, status: x.status }) };
     }));
   }
+}
+
+/** Round 20: react to a chat message (write keys only; keys see public channels only). */
+function registerR20ChatTools(server: McpServer, deps: Deps, actor: Scoped, writable: () => void) {
+  const a = actor as unknown as SuiteActor;
+  server.registerTool("react_to_chat_message", {
+    title: "React to a chat message", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    description: "Adds an emoji reaction to a chat message or thread reply in a public channel, or takes it off when this key already reacted with that emoji. Send one emoji character. The answer has the message's reactions with counts.",
+    inputSchema: { messageId: z.string(), emoji: z.string().min(1).max(32) },
+  }, tool(async (x: { messageId: string; emoji: string }) => {
+    writable();
+    const { toggleReaction } = await import("../services/suite/chat-reactions");
+    return toggleReaction(deps, a, x.messageId, x.emoji);
+  }));
 }

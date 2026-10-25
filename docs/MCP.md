@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 58 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 59 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -125,6 +125,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `post_message` | Post in a chat channel |
 | `pin_message` | Pin or unpin a chat message |
 | `message_to_task` | Turn a chat message into a task |
+| `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
 
 ### Meetings and scheduling
 

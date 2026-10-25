@@ -17,6 +17,7 @@ import { actorOf, assertWritable, createdBy, iso, recordWrite, sortableId, type 
 import { notify } from "./notify";
 import { assignees, createTask, link } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
+import { reactionsFor } from "./chat-reaction-summary";
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -347,7 +348,9 @@ async function authorInfo(deps: Deps, rows: MessageRow[]): Promise<Map<string, A
 async function present(deps: Deps, rows: MessageRow[]) {
   const files = await filesFor(deps, rows.map((r) => r.id));
   const who = await authorInfo(deps, rows);
-  return rows.map((r) => presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined));
+  // Round 20: reactions ride along on every read, so the existing chat poll shows them to others.
+  const reactions = await reactionsFor(deps, rows.filter((r) => !r.deletedAt).map((r) => r.id));
+  return rows.map((r) => ({ ...presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined), reactions: reactions.get(r.id) ?? [] }));
 }
 
 export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string }) {

@@ -457,5 +457,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TABLE `oauth_grants` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`client_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`scope` text DEFAULT 'read' NOT NULL,\n\t`redirect_uri` text NOT NULL,\n\t`code_hash` text,\n\t`code_challenge` text,\n\t`code_expires_at` integer,\n\t`code_used_at` integer,\n\t`refresh_hash` text,\n\t`refresh_expires_at` integer,\n\t`last_used_at` integer,\n\t`revoked_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`client_id`) REFERENCES `oauth_clients`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
       "CREATE INDEX `oauth_grants_org_idx` ON `oauth_grants` (`org_id`,`user_id`);"
     ]
+  },
+  {
+    "name": "0033_r20_chat_reactions",
+    "statements": [
+      "CREATE TABLE `chat_reactions` (\n\t`message_id` text NOT NULL,\n\t`reactor` text NOT NULL,\n\t`emoji` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text DEFAULT '' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`message_id`, `reactor`, `emoji`),\n\tFOREIGN KEY (`message_id`) REFERENCES `chat_messages`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
   }
 ];

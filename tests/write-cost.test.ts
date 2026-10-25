@@ -79,3 +79,31 @@ it("MCP OAuth (round 20): registration, sign in, token exchange and refresh stay
   await ctx.app.request("/api/oauth/token", form({ grant_type: "refresh_token", refresh_token: t.refresh_token }));
   const m4 = take(); expect(m4).toBeLessThanOrEqual(6); // rotated refresh hash (2) + local limiter
 });
+
+it("chat polish (round 20): a reaction add or remove is 2 rows, polls and search write nothing, a call is one meeting and one message", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const g = ((await u.get("/api/chat/channels")).body.channels as { id: string; name: string }[]).find((x) => x.name === "general")!;
+  const m = (await u.post(`/api/chat/channels/${g.id}/messages`, { body: "hello" })).body.message as { id: string };
+  await u.post(`/api/chat/channels/${g.id}/read`, {});
+  const take = meter(ctx.db);
+  // The local app limiter writes on posts in tests (a binding in production); measure it to subtract.
+  await u.post("/api/chat/channels/nope/read", {});
+  const limiter = take();
+  await u.post(`/api/chat/messages/${m.id}/reactions`, { emoji: "\u{1F44D}" });
+  // Measured 2: the chat_reactions row and its primary key. No counter on chat_messages.
+  expect(take() - limiter).toBe(2);
+  await u.post(`/api/chat/messages/${m.id}/reactions`, { emoji: "\u{1F44D}" });
+  expect(take() - limiter).toBe(2);
+  // The poll that carries reactions to other people, search and first unread are reads.
+  await u.get(`/api/chat/channels/${g.id}/messages?limit=100`);
+  await u.get("/api/chat/search?q=hello");
+  await u.get(`/api/chat/channels/${g.id}/first-unread`);
+  expect(take()).toBe(0);
+  await u.post(`/api/chat/channels/${g.id}/call`, {});
+  const call = take() - limiter;
+  // Measured 23: one meetings row (5 with its indexes) and one chat message (5), the channel's last
+  // message time (4), the caller's read marker (3) and the meeting's activity and change rows.
+  expect(call).toBeLessThanOrEqual(24);
+});

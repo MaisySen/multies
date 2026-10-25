@@ -1356,3 +1356,21 @@ export const oauthGrants = sqliteTable("oauth_grants", {
   revokedAt: ts("revoked_at"),
   createdAt: createdAt(),
 }, (t) => [index("oauth_grants_org_idx").on(t.orgId, t.userId)]);
+
+// ---------------------------------------------------------------- round 20: chat reactions
+
+/**
+ * One emoji reaction by one person, agent or guest on a chat message or thread reply. Counts are
+ * worked out on read: there is no counter on chat_messages. The primary key leads with
+ * message_id, so it is also the lookup index (2 row writes per add or remove).
+ */
+export const chatReactions = sqliteTable("chat_reactions", {
+  messageId: text("message_id").notNull().references(() => chatMessages.id, { onDelete: "cascade" }),
+  /** "member:<userId>", "agent:<agentId>" or "guest:<guestId>". */
+  reactor: text("reactor").notNull(),
+  emoji: text("emoji").notNull(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  /** The reactor's name when they reacted, for "who reacted" without a join. */
+  name: text("name").notNull().default(""),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.messageId, t.reactor, t.emoji] })]);

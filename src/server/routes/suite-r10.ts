@@ -18,6 +18,7 @@ import { deleteTemplate, getTemplate, listTemplates, saveTemplate, useTemplate }
 import { addKeyResult, createGoal, deleteGoal, deleteKeyResult, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
 import { GUEST_COOKIE, resolveGuest } from "../services/suite/guests";
 import { parseAssignee } from "../services/suite/tasks";
+import { chatR20Routes, guestChatR20Routes } from "./chat-r20";
 
 export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(), contentBase64: z.string().min(1).max(14_000_000) });
 export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional() });
@@ -156,5 +157,8 @@ export function r10Routes(parentVars: WeakMap<Request, ParentVars>) {
     .route("/api/templates", templateRoutes())
     .route("/api/goals", goalRoutes())
     .route("/api/key-results", keyResultRoutes())
-    .route("/api/guest/chat", guestChatRoutes());
+    .route("/api/guest/chat", guestChatRoutes())
+    // Round 20: reactions, chat search, first unread and calls (chat-r20.ts).
+    .route("/api/chat", chatR20Routes())
+    .route("/api/guest/chat", guestChatR20Routes());
 }

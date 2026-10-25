@@ -13,6 +13,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
+import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
   id: string; kind: "channel" | "dm"; name: string; topic: string; private: boolean; projectId: string | null; guestAccess: boolean; archived: boolean; joined: boolean;
@@ -22,7 +23,7 @@ export interface ChatMessage {
   id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string; title?: string | null; agent?: boolean }; body: string;
   mentions: { type: string; id: string; name: string }[]; links: { type: "task" | "thread" | "doc"; id: string; ref: string | null; title: string; messageId?: string }[];
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
-  pinnedAt?: string | null; pinnedBy?: string | null;
+  pinnedAt?: string | null; pinnedBy?: string | null; reactions?: Reaction[];
 }
 interface Person { id: string; type: "member" | "agent"; name: string; email: string | null }
 
@@ -55,8 +56,9 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onEdit, onDelete, onPin, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void }) {
+function Message({ m, onThread, onTask, onEdit, onDelete, onPin, onReact, myId, mine, inThread }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
+  const call = m.deleted ? null : callPath(m.body);
   return (
     <li className="group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover" data-testid="chat-message" id={`m-${m.id}`}>
       <Avatar label={initials(m.author.name)} className="mt-0.5 h-8 w-8 shrink-0" />
@@ -69,7 +71,7 @@ function Message({ m, onThread, onTask, onEdit, onDelete, onPin, mine, inThread 
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
           {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
         </div>
-        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : <Body m={m} />}
+        {m.deleted ? <p className="text-[13px] italic text-subtle">Message deleted</p> : call ? <CallCard path={call} by={m.author.name} at={m.createdAt} /> : <Body m={m} />}
         {m.attachments.length > 0 && (
           <ul className="mt-1.5 flex flex-wrap gap-2">
             {m.attachments.map((f) => (
@@ -79,9 +81,11 @@ function Message({ m, onThread, onTask, onEdit, onDelete, onPin, mine, inThread 
         )}
         {!inThread && m.replyCount > 0 && <button onClick={onThread} className="mt-1 text-[12.5px] font-medium text-brand-hover hover:underline">{m.replyCount} {m.replyCount === 1 ? "reply" : "replies"}</button>}
         {taskLinks.length > 0 && m.body && !m.body.includes("<#task:") && <div className="mt-1 flex flex-wrap gap-1">{taskLinks.map((l) => <LinkChip key={l.id} l={l} />)}</div>}
+        {!m.deleted && <Reactions reactions={m.reactions} myId={myId} onToggle={onReact} />}
       </div>
       {!m.deleted && (
         <div className="flex items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
+          <ReactionPicker onPick={onReact} />
           {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
           <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><MoreHorizontal className="h-4 w-4" aria-hidden /></button>}>
             <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
@@ -219,10 +223,13 @@ export function ChatPage() {
   const lastId = messages.data?.[messages.data.length - 1]?.id;
   // Marks the channel read once per new last message (keyed on ids: the channel list refetch makes new objects).
   const currentId = current?.id;
+  // Round 20: the first unread message is read before the channel is marked read.
+  const firstUnread = useFirstUnread(currentId);
+  const unreadChecked = !firstUnread.isPending;
   useEffect(() => {
-    if (!currentId || !lastId) return;
+    if (!currentId || !lastId || !unreadChecked) return;
     void api.post(`/chat/channels/${currentId}/read`, {}).then(() => qc.invalidateQueries({ queryKey: ["chat", "channels"] })).catch(() => undefined);
-  }, [currentId, lastId, qc]);
+  }, [currentId, lastId, qc, unreadChecked]);
   const bottom = useRef<HTMLDivElement>(null);
   useEffect(() => { bottom.current?.scrollIntoView({ block: "end" }); }, [lastId]);
 
@@ -251,6 +258,21 @@ export function ChatPage() {
     } catch (e) { showError(e as Error); }
   };
   const openThread = (m: ChatMessage) => setParams((p) => { p.set("thread", m.id); return p; });
+  const react = async (m: ChatMessage, emoji: string) => {
+    try { await api.post(`/chat/messages/${m.id}/reactions`, { emoji }); await refresh(); } catch (e) { showError(e as Error); }
+  };
+  /** A search result: replies open their thread, other messages scroll into view (or open beside the channel when not loaded). */
+  const openResult = (r: ChatSearchResult) => {
+    if (r.parentId) { navigate(`/app/chat/${r.channelId}?thread=${r.parentId}`); return; }
+    if (r.channelId === current?.id && flashMessage(r.id)) return;
+    navigate(`/app/chat/${r.channelId}?m=${r.id}`);
+  };
+  const jumpTo = params.get("m");
+  useEffect(() => {
+    if (!jumpTo || !messages.data) return;
+    if (!flashMessage(jumpTo)) setParams((p) => { p.delete("m"); p.set("thread", jumpTo); return p; }, { replace: true });
+    else setParams((p) => { p.delete("m"); return p; }, { replace: true });
+  }, [jumpTo, messages.data, setParams]);
   /** Scrolls to a pinned message when it is on screen, otherwise opens it beside the channel. */
   const openPin = (m: ChatMessage) => {
     const el = document.getElementById(`m-${m.id}`);
@@ -260,7 +282,7 @@ export function ChatPage() {
   const row = (m: ChatMessage, inThread = false) => (
     <Message key={m.id} m={m} inThread={inThread} mine={m.author.type === "member" && m.author.id === myId}
       onThread={() => openThread(m)} onTask={() => void makeTask(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
-      onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} />
+      onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} />
   );
   const chans = list.filter((c) => c.kind === "channel");
   const dms = list.filter((c) => c.kind === "dm");
@@ -295,9 +317,14 @@ export function ChatPage() {
               <h2 className="truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
               {current.guestAccess && <span className="rounded bg-ok/15 px-1.5 text-[11.5px] text-ok">shared with guests</span>}
               <span className="truncate text-[12.5px] text-subtle">{current.topic}</span>
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                <ChatSearch channelId={current.id} onOpen={openResult} />
+                {!current.archived && <CallButton channelId={current.id} onStarted={refresh} />}
+              </div>
             </header>
             <PinnedBar pins={pins.data ?? []} onOpen={openPin} onUnpin={(m) => void togglePin(m)} />
             <div className="flex-1 overflow-y-auto px-2 py-2">
+              <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
               {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? (
                 <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
               ) : <ul>{messages.data.map((m) => row(m))}</ul>}
