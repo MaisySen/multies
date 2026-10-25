@@ -80,6 +80,8 @@ export interface MessageListItem {
   hasAttachments: boolean;
   /** Set when one of your agents wrote it. */
   sentByAgentId?: string | null;
+  /** The provider folder of a connected mailbox's message (round 19), or null. */
+  remoteBox?: string | null;
 }
 
 export interface Message extends MessageListItem {
@@ -104,6 +106,7 @@ export interface MailboxOverview {
   folders: Partial<Record<Folder, { total: number; unread: number }>>;
   /** A mailbox connected from another provider (round 18). */
   connected?: boolean;
+  connectionId?: string | null;
 }
 
 export interface Delivery {

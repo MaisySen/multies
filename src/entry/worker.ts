@@ -74,6 +74,7 @@ async function boot(env: WorkerEnv) {
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
     liveMail: liveMailDispatcher(env),
+    liveWait: liveWaitDispatcher(env),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -125,6 +126,15 @@ function liveMailDispatcher(env: WorkerEnv): ((id: string, seconds: number) => P
   };
 }
 
+function liveWaitDispatcher(env: WorkerEnv): ((id: string, ms: number) => Promise<boolean>) | undefined {
+  const ns = env.MAIL_SYNC as DurableObjectNamespaceLike | undefined;
+  if (!ns || typeof ns.idFromName !== "function") return undefined;
+  return async (id: string, ms: number) => {
+    const res = await ns.get(ns.idFromName(id)).fetch(new Request("https://mail-sync/wait", { method: "POST", body: JSON.stringify({ id, ms }) }));
+    return res.ok && ((await res.json()) as { stored: boolean }).stored;
+  };
+}
+
 /** The one object that keeps the account's daily live mail allowance (Durable Object wall time). */
 const LIVE_BUDGET_NAME = "live-budget";
 
@@ -144,10 +154,11 @@ export class MailSyncRunner {
   async fetch(request: Request): Promise<Response> {
     const path = new URL(request.url).pathname;
     if (path === "/lease") return this.lease(request);
-    if (path === "/live") {
-      const { id, seconds } = (await request.json()) as { id: string; seconds?: number };
+    if (path === "/live" || path === "/wait") {
+      const body = (await request.json()) as { id: string; seconds?: number; ms?: number };
       this.live ??= new LiveMail(async () => ({ ...(await getReady(this.env)).deps, dispatchMailSync: undefined }), { lease: (sec) => this.askLease(sec) });
-      return Response.json(await this.live.touch(id, seconds));
+      if (path === "/wait") return Response.json({ stored: await this.live.waitForMail(body.id, Math.min(Number(body.ms) || 0, 25_000)) });
+      return Response.json(await this.live.touch(body.id, body.seconds));
     }
     const { id } = (await request.json()) as { id: string };
     await this.state.storage.put("id", id);

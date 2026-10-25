@@ -11,6 +11,7 @@ import {
 import { ConnectFailed } from "../services/connect/problems";
 import { syncConnection } from "../services/connect/sync";
 import { LIVE_WINDOW_SECONDS, localLiveMail, type LiveMode } from "../services/connect/live";
+import { listFolders, setFolderSync } from "../services/connect/folders";
 import { oauthAvailable, oauthFinish, oauthStart, type OAuthProvider } from "../services/connect/oauth";
 import { PRESET_ORDER } from "@/shared/mail-connect";
 
@@ -61,8 +62,8 @@ export function connectionRoutes() {
     .post("/live", async (c) => {
       const { deps, auth } = c.var;
       if (!beats.take(auth.userId)) throw tooMany("Too many live checks. Slow down a little.");
-      const b = await parseBody(c, z.object({ poke: z.boolean().optional() }));
-      const list = (await listConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
+      const b = await parseBody(c, z.object({ poke: z.boolean().optional(), wait: z.number().int().min(0).max(25_000).optional(), since: z.number().int().min(0).optional() }));
+      let list = (await listConnections(deps, auth)).filter((x) => ["active", "error", "syncing"].includes(x.status)).slice(0, 5);
       const modes = new Map<string, LiveMode>();
       if (b.poke && deps.config.mailConnect.enabled && deps.config.mailConnect.live && pokes.take(auth.userId)) {
         const touch = deps.liveMail ?? ((id: string, sec: number) => localLiveMail(deps).touch(id, sec));
@@ -71,6 +72,17 @@ export function connectionRoutes() {
             deps.log?.warn("mail_live.poke_failed", { connection: x.id, error: (err as Error).message });
           }
         }));
+      }
+      // A long poll: wait for any live window to store new mail, then answer the new counts.
+      // `since` is the count the app last saw: when mail came in between two heartbeats, answer at once.
+      const stampNow = list.reduce((n, x) => n + x.messagesSynced, 0);
+      if (b.wait && list.length && deps.config.mailConnect.enabled && deps.config.mailConnect.live && (b.since === undefined || b.since === stampNow)) {
+        const wait = deps.liveWait ?? ((id: string, ms: number) => localLiveMail(deps).waitForMail(id, ms));
+        const stored = await Promise.race([
+          ...list.map((x) => wait(x.id, b.wait!).then((v) => (v ? true : new Promise<boolean>(() => {})))),
+          new Promise<boolean>((r) => setTimeout(() => r(false), b.wait)),
+        ]);
+        if (stored) list = (await listConnections(deps, auth)).filter((x) => list.some((y) => y.id === x.id));
       }
       return c.json({
         live: deps.config.mailConnect.live,
@@ -105,6 +117,24 @@ export function connectionRoutes() {
       const result = await syncConnection(deps, conn.id, { force: true });
       const fresh = (await listConnections(deps, auth)).find((x) => x.id === conn.id);
       return c.json({ result: { stored: result.stored, more: result.more, error: result.error ?? null, skipped: result.skipped ?? null }, connection: fresh });
+    })
+    // Round 19: the provider's folders, and which of the person's own folders sync.
+    .get("/:id/folders", async (c) => {
+      const refresh = c.req.query("refresh") === "1";
+      if (refresh) guard(c.var.auth.userId);
+      return c.json(await run(() => listFolders(c.var.deps, c.var.auth, c.req.param("id"), { refresh })));
+    })
+    .put("/:id/folders", async (c) => {
+      const b = await parseBody(c, z.object({ path: z.string().min(1).max(500), sync: z.boolean() }));
+      const { deps, auth } = c.var;
+      const out = await setFolderSync(deps, auth, c.req.param("id"), b.path, b.sync);
+      if (b.sync) {
+        const work = (deps.dispatchMailSync ? deps.dispatchMailSync(c.req.param("id")) : syncConnection(deps, c.req.param("id"))).catch(() => undefined);
+        let waitUntil: ((p: Promise<unknown>) => void) | undefined;
+        try { const ctx = c.executionCtx; waitUntil = ctx.waitUntil.bind(ctx); } catch { waitUntil = undefined; }
+        if (waitUntil) waitUntil(work); else await work;
+      }
+      return c.json(out);
     })
     .put("/:id", async (c) => {
       guard(c.var.auth.userId);

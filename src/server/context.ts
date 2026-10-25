@@ -37,6 +37,8 @@ export interface Deps {
   imapWatcher?: import("./services/connect/imap").InboxWatcher;
   /** Opens or extends a connection's live window (its Durable Object on Workers). Without it the window runs in this process. */
   liveMail?: (connectionId: string, seconds: number) => Promise<import("./services/connect/live").LiveTouch>;
+  /** Waits up to `ms` for a connection's live window to store new mail (its Durable Object on Workers). */
+  liveWait?: (connectionId: string, ms: number) => Promise<boolean>;
   /** Runs a connected mailbox's sync in its own invocation (a Durable Object on Workers). Without it the sync runs inline. */
   dispatchMailSync?: (connectionId: string) => Promise<void>;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;

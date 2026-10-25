@@ -64,6 +64,18 @@ describe.skipIf(!live)("live mail, against a real IMAP server", () => {
       await wait(300);
     }
 
+    // The app's waiting heartbeat (long poll) answers as soon as the message is in.
+    const subject = `Long poll ${Date.now()}`;
+    const stampBefore = (await c.post("/api/connections/live", {})).body.stamp;
+    const held = c.post("/api/connections/live", { wait: 20_000 });
+    await wait(200);
+    const tSend = Date.now();
+    await smtpSend(opener, smtp, { user, secret: pass }, { from: user, to: [user] }, `From: ${user}\r\nTo: ${user}\r\nSubject: ${subject}\r\nMessage-ID: <lp-${tSend}@mymail.test>\r\n\r\nHello.\r\n`);
+    const answer = await held;
+    const heartbeatMs = Date.now() - tSend;
+    expect(answer.body.stamp).toBe(stampBefore + 1);
+    expect(heartbeatMs).toBeLessThan(5000);
+
     // Quiet: the live window keeps watching but writes nothing.
     const before = (await ctx.db.select().from(mailConnections).where(eq(mailConnections.id, row.id)).get())!;
     await wait(3000);
@@ -72,7 +84,7 @@ describe.skipIf(!live)("live mail, against a real IMAP server", () => {
 
     await localLiveMail(ctx.deps).stopAll();
     const sorted = [...delays].sort((a, b) => a - b);
-    const report = { delaysMs: delays, medianMs: sorted[Math.floor(sorted.length / 2)], maxMs: sorted.at(-1), server: "Stalwart (local)", mode: "push (IDLE)" };
+    const report = { heartbeatAnsweredMs: heartbeatMs, delaysMs: delays, medianMs: sorted[Math.floor(sorted.length / 2)], maxMs: sorted.at(-1), server: "Stalwart (local)", mode: "push (IDLE)" };
     if (env.LIVE_MAIL_REPORT) writeFileSync(env.LIVE_MAIL_REPORT, JSON.stringify(report, null, 2));
     console.log("live mail delay", JSON.stringify(report));
     expect(report.maxMs).toBeLessThan(10_000);

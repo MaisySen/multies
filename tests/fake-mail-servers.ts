@@ -17,6 +17,8 @@ export class FakeImapServer {
   loginError: string | null = null;
   unreachable = false;
   logins = 0;
+  /** Whether MOVE answers the new UIDs (UIDPLUS). */
+  uidplus = true;
   actions: string[] = [];
 
   addAccount(user: string, password: string, opts: { sentPath?: string } = {}) {
@@ -25,6 +27,9 @@ export class FakeImapServer {
     folders.set(opts.sentPath ?? "Sent", { uidValidity: "2002", uidNext: 1, msgs: [], specialUse: "\\Sent" });
     folders.set("Archive", { uidValidity: "3003", uidNext: 1, msgs: [], specialUse: "\\Archive" });
     folders.set("Trash", { uidValidity: "4004", uidNext: 1, msgs: [], specialUse: "\\Trash" });
+    folders.set("Drafts", { uidValidity: "5005", uidNext: 1, msgs: [], specialUse: "\\Drafts" });
+    folders.set("Junk", { uidValidity: "6006", uidNext: 1, msgs: [], specialUse: "\\Junk" });
+    folders.set("Clients/Acme", { uidValidity: "7007", uidNext: 1, msgs: [] });
     this.accounts.set(user, { password, folders });
     return this;
   }
@@ -57,6 +62,16 @@ export class FakeImapServer {
   };
 
   folder(user: string, path: string) { return this.accounts.get(user)!.folders.get(path)!; }
+  /** A move made in the provider's own app. */
+  moveAt(user: string, from: string, subject: string, to: string) {
+    const src = this.folder(user, from), dst = this.folder(user, to);
+    const m = src.msgs.find((x) => x.raw.includes(`Subject: ${subject}`))!;
+    src.msgs = src.msgs.filter((x) => x !== m);
+    dst.msgs.push({ ...m, uid: dst.uidNext++ });
+  }
+  addFolder(user: string, path: string) { this.accounts.get(user)!.folders.set(path, { uidValidity: String(8000 + this.accounts.get(user)!.folders.size), uidNext: 1, msgs: [] }); }
+  removeFolder(user: string, path: string) { this.accounts.get(user)!.folders.delete(path); }
+  subjects(user: string, path: string) { return this.folder(user, path).msgs.map((m) => /^Subject: (.*)$/m.exec(m.raw)?.[1] ?? ""); }
 
   connector: ImapConnector = async (_server, auth) => {
     if (this.unreachable) throw new SocketError("unreachable", "connect ECONNREFUSED");
@@ -76,10 +91,17 @@ export class FakeImapServer {
           if (f.specialUse === "\\Sent") out.sent = path;
           if (f.specialUse === "\\Archive") out.archive = path;
           if (f.specialUse === "\\Trash") out.trash = path;
+          if (f.specialUse === "\\Drafts") out.drafts = path;
+          if (f.specialUse === "\\Junk") out.spam = path;
         }
         return out;
       },
-      async open(path) { open = acct.folders.get(path)!; return { uidValidity: open.uidValidity, uidNext: open.uidNext }; },
+      async open(path) {
+        const f = acct.folders.get(path);
+        if (!f) throw Object.assign(new Error("Command failed"), { responseText: "[NONEXISTENT] Unknown Mailbox" });
+        open = f;
+        return { uidValidity: open.uidValidity, uidNext: open.uidNext };
+      },
       async searchSince(since) { return open!.msgs.filter((m) => m.internalDate >= since).map((m) => m.uid); },
       async uidsAfter(uid) { return open!.msgs.filter((m) => m.uid > uid).map((m) => m.uid); },
       async fetch(uids, maxBytes) {
@@ -93,11 +115,16 @@ export class FakeImapServer {
       async addFlags(uids, flags) { if (!uids.length) return; server.actions.push(`+${flags.join(",")}:${uids.join(",")}`); for (const m of open!.msgs) if (uids.includes(m.uid)) flags.forEach((f) => m.flags.add(f)); },
       async removeFlags(uids, flags) { if (!uids.length) return; server.actions.push(`-${flags.join(",")}:${uids.join(",")}`); for (const m of open!.msgs) if (uids.includes(m.uid)) flags.forEach((f) => m.flags.delete(f)); },
       async move(uids, dest) {
-        if (!uids.length) return;
+        if (!uids.length) return null;
         server.actions.push(`move:${uids.join(",")}>${dest}`);
         const to = acct.folders.get(dest)!;
-        for (const m of open!.msgs.filter((x) => uids.includes(x.uid))) to.msgs.push({ ...m, uid: to.uidNext++ });
+        const map = new Map<number, number>();
+        for (const m of open!.msgs.filter((x) => uids.includes(x.uid))) { const uid = to.uidNext++; map.set(m.uid, uid); to.msgs.push({ ...m, uid }); }
         open!.msgs = open!.msgs.filter((x) => !uids.includes(x.uid));
+        return server.uidplus ? map : null;
+      },
+      async listFolders() {
+        return [...acct.folders.entries()].map(([path, f]) => ({ path, name: path.split("/").pop()!, specialUse: f.specialUse }));
       },
       async append(path, raw, flags) {
         server.actions.push(`append:${path}`);

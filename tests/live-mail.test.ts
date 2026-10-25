@@ -193,6 +193,28 @@ describe("POST /api/connections/live", () => {
     await localLiveMail(ctx.deps).stopAll();
   });
 
+  it("a waiting heartbeat answers the moment new mail is stored (long poll), or after the wait", async () => {
+    const { ctx, imap, c } = await setup();
+    const first = await c.post("/api/connections/live", { poke: true });
+    const t0 = Date.now();
+    const waiting = c.post("/api/connections/live", { wait: 5000 });
+    await new Promise((r) => setTimeout(r, 100));
+    imap.deliver(GMAIL, mail("Long poll"));
+    const answered = await waiting;
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(answered.body.stamp).toBe(first.body.stamp + 1);
+    // Mail that came in between two heartbeats: the count the app last saw is older, so no wait.
+    const t2 = Date.now();
+    const behind = await c.post("/api/connections/live", { wait: 5000, since: first.body.stamp });
+    expect(Date.now() - t2).toBeLessThan(1000);
+    expect(behind.body.stamp).toBe(answered.body.stamp);
+    const t1 = Date.now();
+    const quiet = await c.post("/api/connections/live", { wait: 300, since: answered.body.stamp });
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(250);
+    expect(quiet.body.stamp).toBe(answered.body.stamp);
+    await localLiveMail(ctx.deps).stopAll();
+  });
+
   it("uses the host's dispatcher (the Durable Object on Workers) when there is one", async () => {
     const { ctx, c, conn } = await setup();
     const seen: string[] = [];
@@ -233,6 +255,16 @@ describe("the app's beat", () => {
     await b.beat();
     expect(bodies.at(-1)).toBe(true);
     expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks the server to hold the beat when waitMs is set", async () => {
+    const bodies: { poke: boolean; wait?: number }[] = [];
+    const b = liveBeat({ waitMs: 25_000, onChange: () => {}, post: async (body) => { bodies.push(body); return { live: true, stamp: 1, connections: [{ id: "c", lastSyncAt: null, messagesSynced: 1, mode: null }] }; } });
+    await b.beat();
+    await b.beat();
+    // The first beat takes the baseline without waiting, so a change during it isn't missed.
+    expect(bodies[0]).toEqual({ poke: true });
+    expect(bodies[1]).toEqual({ poke: false, wait: 25_000, since: 1 });
   });
 
   it("stops beating when there is nothing connected", async () => {

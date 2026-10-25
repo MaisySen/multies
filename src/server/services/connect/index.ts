@@ -11,7 +11,7 @@
  * - Sync (sync.ts) copies recent mail in, then new mail on a schedule; replies go out through the
  *   provider's own SMTP (outbound.ts), so they pass SPF and DKIM as the person's own mail.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { mailboxes, mailConnections, messages, mailSyncOutbox } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
@@ -212,21 +212,41 @@ export async function dueConnections(deps: Deps, limit = 20) {
 type MessageRow = Pick<typeof messages.$inferSelect, "id" | "mailboxId" | "remoteBox" | "remoteUid">;
 export type RemoteAction = (typeof mailSyncOutbox.$inferInsert)["action"];
 
+/** Folder moves: what each queued action does at the provider (round 19 adds spam, inbox and any synced folder). */
+const MOVE_DEST: Partial<Record<RemoteAction, string>> = { archive: "archive", trash: "trash", inbox: "inbox", spam: "spam" };
+
 /**
  * Remembers a read, star or move made in Multies on synced mail, so the next sync applies it at
  * the provider. Costs nothing for other mail (the rows are already loaded): one insert per message
- * that came from a connected mailbox.
+ * that came from a connected mailbox. A move also points the message at its new folder straight
+ * away (its UID is filled in when the provider answers it), so it lists there at once. A move to a
+ * folder the provider doesn't have is applied in Multies only.
  */
-export async function queueRemoteChange(deps: Deps, rows: MessageRow[], action: RemoteAction) {
+export async function queueRemoteChange(deps: Deps, rows: MessageRow[], action: RemoteAction, opts: { dest?: string } = {}) {
   const synced = rows.filter((r) => r.remoteBox && r.remoteUid);
   if (!synced.length) return 0;
-  const byMailbox = new Map<string, string>();
+  const byMailbox = new Map<string, { id: string; state: { paths?: Record<string, string | undefined>; extra?: string[] } }>();
   for (const mailboxId of new Set(synced.map((r) => r.mailboxId))) {
-    const c = await deps.db.select({ id: mailConnections.id }).from(mailConnections).where(eq(mailConnections.mailboxId, mailboxId)).get();
-    if (c) byMailbox.set(mailboxId, c.id);
+    const c = await deps.db.select({ id: mailConnections.id, syncState: mailConnections.syncState }).from(mailConnections).where(eq(mailConnections.mailboxId, mailboxId)).get();
+    if (c) byMailbox.set(mailboxId, { id: c.id, state: JSON.parse(c.syncState || "{}") });
   }
-  const values = synced.filter((r) => byMailbox.has(r.mailboxId)).map((r) => ({ id: newId("mso"), connectionId: byMailbox.get(r.mailboxId)!, remoteBox: r.remoteBox!, remoteUid: r.remoteUid!, action }));
+  const destKey = action === "move" ? opts.dest : MOVE_DEST[action];
+  const hasDest = (state: { paths?: Record<string, string | undefined>; extra?: string[] }) => !!destKey && (destKey.startsWith("f:") ? (state.extra ?? []).includes(destKey.slice(2)) : !!state.paths?.[destKey]);
+  const values = [];
+  const detach: string[] = [];
+  for (const r of synced) {
+    const conn = byMailbox.get(r.mailboxId);
+    if (!conn) continue;
+    if (destKey) {
+      if (!hasDest(conn.state) || r.remoteBox === destKey) continue;
+      detach.push(r.id);
+    }
+    values.push({ id: newId("mso"), connectionId: conn.id, remoteBox: r.remoteBox!, remoteUid: r.remoteUid!, action, dest: destKey ?? null, messageId: r.id });
+  }
   // A few rows per statement: D1 allows 100 bound values per statement.
-  for (let i = 0; i < values.length; i += 15) await deps.db.insert(mailSyncOutbox).values(values.slice(i, i + 15));
+  for (let i = 0; i < values.length; i += 12) await deps.db.insert(mailSyncOutbox).values(values.slice(i, i + 12));
+  if (detach.length && destKey) {
+    for (let i = 0; i < detach.length; i += 90) await deps.db.update(messages).set({ remoteBox: destKey, remoteUid: null }).where(inArray(messages.id, detach.slice(i, i + 90)));
+  }
   return values.length;
 }

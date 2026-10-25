@@ -239,7 +239,7 @@ describe("connect a mailbox: read, star and move state", () => {
     expect((await ctx.db.select().from(messages).where(eq(messages.subject, "Archived elsewhere")).get())!.folder).toBe("archive");
   });
 
-  it("pushes read, star, archive and trash made in Multies to the provider on the next sync", async () => {
+  it("pushes read, star, archive and trash made in Multies to the provider (moves at once, with what is queued)", async () => {
     const { ctx, c, imap } = await setup();
     const u1 = imap.deliver(GMAIL, rawMail({ to: GMAIL, subject: "One", id: "<one@x>" }));
     const u2 = imap.deliver(GMAIL, rawMail({ to: GMAIL, subject: "Two", id: "<two@x>" }));
@@ -248,10 +248,9 @@ describe("connect a mailbox: read, star and move state", () => {
     const id = async (s: string) => (await ctx.db.select().from(messages).where(eq(messages.subject, s)).get())!.id;
     expect((await c.get(`/api/mail/messages/${await id("One")}`)).status).toBe(200);
     expect((await c.patch(`/api/mail/messages/${await id("Two")}`, { isStarred: true })).status).toBe(200);
+    expect(await ctx.db.select().from(mailSyncOutbox)).toHaveLength(2);
+    // Round 19: a move runs a pass straight away, which applies everything queued.
     expect((await c.post("/api/mail/messages/bulk", { ids: [await id("Three")], action: "archive" })).status).toBe(200);
-    expect(await ctx.db.select().from(mailSyncOutbox)).toHaveLength(3);
-    const r = await syncConnection(ctx.deps, (await conn(ctx)).id);
-    expect(r.pushed).toBe(3);
     expect(imap.actions).toEqual(expect.arrayContaining([`+\\Seen:${u1}`, `+\\Flagged:${u2}`, `move:${u3}>Archive`]));
     expect(await ctx.db.select().from(mailSyncOutbox)).toHaveLength(0);
     // The archived copy stays archived here.

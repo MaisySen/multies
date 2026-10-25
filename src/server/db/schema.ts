@@ -262,7 +262,7 @@ export const messages = sqliteTable("messages", {
   /** Who wrote an outgoing message: an AI agent (agents.id) or a person (users.id). */
   sentByAgentId: text("sent_by_agent_id"),
   sentByUserId: text("sent_by_user_id"),
-  /** For a connected mailbox (mail_connections): which remote folder ("inbox" or "sent") and IMAP UID the copy came from. */
+  /** For a connected mailbox (mail_connections): which remote folder (a folder key: "inbox", "sent", "archive", "drafts", "spam", "trash" or "f:<path>") and IMAP UID the copy came from. A null UID means the copy is not tied to a provider folder right now (moved, or sent from Multies). */
   remoteBox: text("remote_box"),
   remoteUid: integer("remote_uid"),
   date: ts("date").notNull(),
@@ -715,7 +715,11 @@ export const mailSyncOutbox = sqliteTable("mail_sync_outbox", {
   connectionId: text("connection_id").notNull().references(() => mailConnections.id, { onDelete: "cascade" }),
   remoteBox: text("remote_box").notNull(),
   remoteUid: integer("remote_uid").notNull(),
-  action: text("action", { enum: ["seen", "unseen", "flag", "unflag", "archive", "trash", "inbox"] }).notNull(),
+  action: text("action", { enum: ["seen", "unseen", "flag", "unflag", "archive", "trash", "inbox", "spam", "move"] }).notNull(),
+  /** Round 19: for "move", the folder key it goes to (services/connect/sync.ts, BoxKey). */
+  dest: text("dest"),
+  /** Round 19: the Multies message, so its new UID can be recorded after a move. */
+  messageId: text("message_id"),
   createdAt: createdAt(),
 }, (t) => [index("mail_sync_outbox_conn_idx").on(t.connectionId)]);
 

@@ -6,6 +6,9 @@
  * /api/connections/live), and each of the workspace's connections gets a live window of 90 seconds,
  * extended by every heartbeat:
  *
+ * The heartbeat can also wait (a long poll, up to 25 seconds) for the window to store new mail, so
+ * the app shows it the moment it is in without beating more often.
+ *
  * - push: one IMAP connection sits in IDLE on the Inbox; the server tells us the moment mail lands
  *   and a sync pass copies it in (one to three seconds end to end on the local test server).
  * - poll: servers without IDLE are asked with NOOP every 20 seconds over the same connection.
@@ -91,6 +94,7 @@ export interface LiveOptions {
  */
 export class LiveMail {
   private sessions = new Map<string, Session>();
+  private waiters = new Map<string, Set<() => void>>();
   private readonly now: () => number;
   /** Pass results, newest last (tests and the /live answer read them). */
   readonly events: { id: string; at: number; kind: "start" | "new" | "stored" | "stop"; detail?: string }[] = [];
@@ -124,6 +128,21 @@ export class LiveMail {
       this.kick(id);
     }
     return { mode: "check", until: s.until };
+  }
+
+  /**
+   * Resolves true as soon as a pass stores new mail for this connection, or false after `ms`. The
+   * app's heartbeat waits on this (a long poll), so new mail shows up at once without beating often.
+   */
+  waitForMail(id: string, ms: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const set = this.waiters.get(id) ?? new Set();
+      this.waiters.set(id, set);
+      const done = (v: boolean) => { clearTimeout(timer); set.delete(wake); resolve(v); };
+      const wake = () => done(true);
+      const timer = setTimeout(() => done(false), Math.min(Math.max(ms, 0), 30_000));
+      set.add(wake);
+    });
   }
 
   /** Waits for every running pass (tests). */
@@ -196,7 +215,10 @@ export class LiveMail {
         s.again = false;
         try {
           const r = await run(deps, id);
-          if (r.stored) this.events.push({ id, at: this.now(), kind: "stored", detail: String(r.stored) });
+          if (r.stored) {
+            this.events.push({ id, at: this.now(), kind: "stored", detail: String(r.stored) });
+            for (const wake of [...(this.waiters.get(id) ?? [])]) wake();
+          }
           if (r.more && !r.skipped) s.again = true;
         } catch (err) {
           deps.log?.warn("mail_live.sync_failed", { connection: id, error: (err as Error).message });
@@ -207,15 +229,16 @@ export class LiveMail {
   }
 }
 
-const perDeps = new WeakMap<Deps, LiveMail>();
+// Keyed by the database: some hosts hand each request its own copy of deps, but one database is one server.
+const perDb = new WeakMap<object, LiveMail>();
 
 /** The in-process live mail for hosts without Durable Objects (Node, tests). */
 export function localLiveMail(deps: Deps): LiveMail {
-  let live = perDeps.get(deps);
+  let live = perDb.get(deps.db as object);
   if (!live) {
     const budget = new LiveBudget(deps.config.mailConnect.liveMinutesPerDay, () => deps.now().getTime());
     live = new LiveMail(async () => deps, { lease: (sec) => budget.lease(sec), now: () => deps.now().getTime() });
-    perDeps.set(deps, live);
+    perDb.set(deps.db as object, live);
   }
   return live;
 }

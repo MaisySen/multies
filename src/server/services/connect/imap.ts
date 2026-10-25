@@ -9,7 +9,10 @@ import type { ServerSettings } from "@/shared/mail-connect";
 
 export interface ImapAuth { user: string; secret: string; xoauth2?: boolean }
 
-export interface FolderPaths { inbox: string; sent?: string; archive?: string; trash?: string }
+export interface FolderPaths { inbox: string; sent?: string; archive?: string; trash?: string; drafts?: string; spam?: string }
+
+/** A folder at the provider, as LIST answers it. */
+export interface RemoteFolder { path: string; name: string; specialUse?: string; noSelect?: boolean }
 
 export interface FetchedMessage {
   uid: number;
@@ -33,7 +36,10 @@ export interface ImapSession {
   flags(lo: number, hi: number): Promise<Map<number, Set<string>>>;
   addFlags(uids: number[], flags: string[]): Promise<void>;
   removeFlags(uids: number[], flags: string[]): Promise<void>;
-  move(uids: number[], dest: string): Promise<void>;
+  /** Moves mail; answers old UID to new UID in `dest` when the server says (UIDPLUS), else null. */
+  move(uids: number[], dest: string): Promise<Map<number, number> | null>;
+  /** Every folder at the provider (round 19). */
+  listFolders(): Promise<RemoteFolder[]>;
   append(path: string, raw: Uint8Array | string, flags: string[]): Promise<void>;
   /** Whether a message with this Message-ID is already in the open folder. */
   hasMessageId(messageId: string): Promise<boolean>;
@@ -43,8 +49,11 @@ export interface ImapSession {
 export interface ImapConnectOptions { allowSelfSigned?: boolean; timeoutMs?: number }
 export type ImapConnector = (server: ServerSettings, auth: ImapAuth, opts?: ImapConnectOptions) => Promise<ImapSession>;
 
-const SPECIAL: Record<string, keyof FolderPaths> = { "\\Sent": "sent", "\\Archive": "archive", "\\All": "archive", "\\Trash": "trash" };
-const BY_NAME: [RegExp, keyof FolderPaths][] = [[/^(sent|sent items|sent messages|sent mail|\[gmail\]\/sent mail)$/i, "sent"], [/^(archive|archives)$/i, "archive"], [/^(trash|deleted items|deleted messages|bin)$/i, "trash"]];
+const SPECIAL: Record<string, keyof FolderPaths> = { "\\Sent": "sent", "\\Archive": "archive", "\\All": "archive", "\\Trash": "trash", "\\Drafts": "drafts", "\\Junk": "spam" };
+const BY_NAME: [RegExp, keyof FolderPaths][] = [
+  [/^(sent|sent items|sent messages|sent mail|\[gmail\]\/sent mail)$/i, "sent"], [/^(archive|archives)$/i, "archive"], [/^(trash|deleted items|deleted messages|bin)$/i, "trash"],
+  [/^(drafts|draft)$/i, "drafts"], [/^(junk|spam|junk e-?mail|bulk mail|\[gmail\]\/spam)$/i, "spam"],
+];
 
 /** Picks Sent, Archive and Trash from a folder list: special-use flags first (RFC 6154), then common names. */
 export function pickFolders(list: { path: string; specialUse?: string; name?: string }[]): FolderPaths {
@@ -113,7 +122,15 @@ class FlowSession implements ImapSession {
 
   async addFlags(uids: number[], flags: string[]) { if (uids.length) await this.c.messageFlagsAdd(range(uids), flags, { uid: true }); }
   async removeFlags(uids: number[], flags: string[]) { if (uids.length) await this.c.messageFlagsRemove(range(uids), flags, { uid: true }); }
-  async move(uids: number[], dest: string) { if (uids.length) await this.c.messageMove(range(uids), dest, { uid: true }); }
+  async move(uids: number[], dest: string) {
+    if (!uids.length) return null;
+    const r = await this.c.messageMove(range(uids), dest, { uid: true });
+    return r && r.uidMap ? new Map([...r.uidMap].map(([a, b]) => [Number(a), Number(b)])) : null;
+  }
+
+  async listFolders() {
+    return (await this.c.list()).map((f) => ({ path: f.path, name: f.name, specialUse: f.specialUse || undefined, noSelect: f.flags?.has("\\Noselect") || undefined }));
+  }
   async append(path: string, raw: Uint8Array | string, flags: string[]) { await this.c.append(path, typeof raw === "string" ? raw : Buffer.from(raw), flags); }
 
   async hasMessageId(messageId: string) {

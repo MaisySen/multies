@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Archive, ArrowLeft, Ban, Bot, Sparkles, File, FileEdit, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
+  Archive, ArrowLeft, Ban, Bot, Sparkles, File, FileEdit, FolderInput, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -17,11 +17,12 @@ import { HtmlBody, TextBody } from "./mail/html-body";
 import { Compose, type ComposeDraft } from "./mail/compose";
 import { useReopenedDrafts } from "@/web/lib/undo-send";
 import { useLiveMail } from "@/web/lib/live-mail";
+import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provider-folders";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask } from "./work/make-task";
 
-type View = Folder | "starred";
+type View = Folder | "starred" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
   { id: "inbox", label: "Inbox", icon: Inbox },
   { id: "starred", label: "Starred", icon: Star },
@@ -65,7 +66,7 @@ export function WebmailPage() {
     enabled: !!mailboxId,
     initialPageParam: "",
     queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null }>(
-      `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : { folder }), ...(pageParam ? { cursor: pageParam } : {}) })}`,
+      `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(pageParam ? { cursor: pageParam } : {}) })}`,
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
@@ -74,10 +75,10 @@ export function WebmailPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
   const act = useMutation({
-    mutationFn: ({ ids, action }: { ids: string[]; action: string }) => api.post("/mail/messages/bulk", { ids, action }),
+    mutationFn: ({ ids, action, to }: { ids: string[]; action: string; to?: string }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}) }),
     onSuccess: (_r, v) => {
       refresh();
-      const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever" };
+      const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever", move: v.to ? `Moved to ${v.to.slice(2)}` : "Moved" };
       if (labels[v.action]) toast.success(labels[v.action]);
     },
     onError: (e) => showError(e),
@@ -168,6 +169,7 @@ export function WebmailPage() {
               </button>
             );
           })}
+          {mb.connectionId && <ProviderFolderNav connectionId={mb.connectionId} current={q ? "" : folder} onPick={(key) => setParam({ folder: key, m: null, q: null })} />}
         </nav>
         <div className="border-t border-line p-3 text-[11px] text-subtle">
           <div className="mb-1 flex justify-between"><span>Storage</span><span>{formatBytes(mb.usedBytes)} of {formatBytes(mb.quotaMb * 1024 * 1024)}</span></div>
@@ -192,7 +194,7 @@ export function WebmailPage() {
           <button className="rounded-lg border border-line p-2 text-muted md:hidden" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
         </div>
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
-          <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label}</span>
+          <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -215,6 +217,7 @@ export function WebmailPage() {
       <section className={cn("min-w-0 flex-1", selected ? "flex" : "hidden md:flex")} aria-label="Message">
         {current || selected ? (
           <Reader id={selected!} mailboxes={mailboxes} onBack={() => open(null)} onMove={move}
+            onMoveTo={(m, to) => { act.mutate({ ids: [m.id], action: "move", to }); open(null); }}
             onCompose={startCompose} onStar={(m) => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })} />
         ) : (
           <div className="grid flex-1 place-items-center p-6 text-center">
@@ -259,8 +262,8 @@ function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; ac
   );
 }
 
-function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
-  id: string; mailboxes: MailboxOverview[]; onBack: () => void; onMove: (a: string) => void; onCompose: (d: Partial<ComposeDraft>) => void; onStar: (m: Message) => void;
+function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: {
+  id: string; mailboxes: MailboxOverview[]; onBack: () => void; onMove: (a: string) => void; onMoveTo: (m: Message, to: string) => void; onCompose: (d: Partial<ComposeDraft>) => void; onStar: (m: Message) => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, error } = useQuery({
@@ -298,6 +301,7 @@ function Reader({ id, mailboxes, onBack, onMove, onCompose, onStar }: {
           <IconBtn label={m.folder === "spam" ? "Not spam" : "Report spam"} onClick={() => onMove(m.folder === "spam" ? "inbox" : "spam")}><Ban /></IconBtn>
         </>}
         <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><Trash2 /></IconBtn>
+        {m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
         <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><Star className={cn(m.isStarred && "fill-current")} /></IconBtn>
         <div className="ml-auto flex gap-1">
           <IconBtn label="Reply" onClick={() => reply(false)}><Reply /></IconBtn>
@@ -407,6 +411,25 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
         </div>
       )}
     </article>
+  );
+}
+
+/** Move a connected mailbox's message to any synced folder at its provider (round 19). */
+function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message; mailboxes: MailboxOverview[]; onMove: (a: string) => void; onMoveTo: (m: Message, to: string) => void }) {
+  const connectionId = mailboxes.find((b) => b.id === m.mailboxId)?.connectionId;
+  const { data } = useProviderFolders(connectionId);
+  const targets = moveTargets(data, m.remoteBox);
+  if (!connectionId || !targets.length) return null;
+  return (
+    <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Move to folder">
+      <FolderInput className="h-4 w-4" aria-hidden />
+      <select aria-label="Move to folder" value="" data-testid="move-to"
+        onChange={(e) => { const to = e.target.value; if (!to) return; if (to.startsWith("f:")) onMoveTo(m, to); else onMove(to); }}
+        className="absolute inset-0 cursor-pointer opacity-0">
+        <option value="">Move to</option>
+        {targets.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
+      </select>
+    </label>
   );
 }
 

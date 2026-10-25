@@ -13,6 +13,8 @@ export function presentListItem(m: Row) {
     to: JSON.parse(m.to) as Address[],
     subject: m.subject, snippet: m.snippet, date: m.date, isRead: m.isRead, isStarred: m.isStarred, hasAttachments: m.hasAttachments,
     sentByAgentId: m.sentByAgentId ?? null,
+    /** Round 19: the provider folder a connected mailbox's message is in (a folder key), or null. */
+    remoteBox: m.remoteBox ?? null,
   };
 }
 
@@ -41,17 +43,17 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
     .from(messages).where(eq(messages.orgId, orgId)).groupBy(messages.mailboxId, messages.folder);
-  const connected = new Set((await db.select({ mailboxId: mailConnections.mailboxId }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => r.mailboxId));
+  const connected = new Map((await db.select({ mailboxId: mailConnections.mailboxId, id: mailConnections.id }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => [r.mailboxId, r.id]));
   return boxes.map((b) => {
     const folders: Record<string, { total: number; unread: number }> = {};
     for (const c of counts) if (c.mailboxId === b.id) folders[c.folder] = { total: Number(c.total), unread: Number(c.unread ?? 0) };
-    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders, connected: connected.has(b.id) };
+    return { id: b.id, address: b.address, displayName: b.displayName, usedBytes: b.usedBytes, quotaMb: b.quotaMb, kind: b.kind, folders, connected: connected.has(b.id), connectionId: connected.get(b.id) ?? null };
   });
 }
 
 const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
 
-export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; search?: string; cursor?: string; limit?: number; scope?: Scope }) {
+export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; remote?: string; search?: string; cursor?: string; limit?: number; scope?: Scope }) {
   const limit = Math.min(q.limit ?? 50, 100);
   const conds = [eq(messages.orgId, orgId)];
   const s = inScope(q.scope ?? null);
@@ -59,6 +61,8 @@ export async function listMessages(db: DB, orgId: string, q: { mailboxId?: strin
   if (q.mailboxId) conds.push(eq(messages.mailboxId, q.mailboxId));
   if (q.folder === "starred") conds.push(eq(messages.isStarred, true));
   else if (q.folder) conds.push(eq(messages.folder, q.folder));
+  // A connected mailbox's own folder (round 19): filed under Archive, named by its provider path.
+  if (q.remote) conds.push(eq(messages.folder, "archive"), eq(messages.remoteBox, q.remote));
   if (q.search?.trim()) {
     const term = `%${escapeLike(q.search.trim().toLowerCase())}%`;
     const fields = [messages.subject, messages.fromAddress, messages.fromName, messages.text, messages.to];

@@ -15,7 +15,7 @@
  * - Nothing runs while the write budget reads warn or shed.
  * - Flag changes from the provider write only the rows that changed.
  */
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
 import { attachments, mailboxes, mailConnections, mailSyncOutbox, messages } from "../../db/schema";
@@ -25,11 +25,26 @@ import { MAX_INLINE_ATTACHMENT_BYTES } from "../mail/store";
 import { writeBudget } from "../write-budget";
 import { connectionSecret, imapConnector, type Connection } from ".";
 import { classifyProblem } from "./problems";
-import type { FetchedMessage, FolderPaths, ImapSession } from "./imap";
+import { pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
+import type { Folder } from "@/shared/mail";
 import type { ConnectPresetId } from "@/shared/mail-connect";
 
 interface FolderState { path: string; v: string; last: number }
-export interface SyncState { inbox?: FolderState; sent?: FolderState; paths?: FolderPaths }
+/**
+ * Inbox and Sent cursors sit at the top level (round 18); round 19 adds the other synced folders
+ * under `boxes` (Archive, Drafts, Spam, Trash, and the person's own folders as "f:<path>"), the
+ * user folders the person turned on (`extra`, at most MAX_EXTRA_FOLDERS), and the provider's folder
+ * list as last read (`list`, `listedAt`).
+ */
+export interface SyncState {
+  inbox?: FolderState;
+  sent?: FolderState;
+  paths?: FolderPaths;
+  boxes?: Record<string, FolderState>;
+  extra?: string[];
+  list?: RemoteFolder[];
+  listedAt?: number;
+}
 
 export interface SyncResult {
   skipped?: "not_found" | "paused" | "auth_failed" | "budget" | "daily_cap" | "busy" | "unchanged";
@@ -42,12 +57,51 @@ export interface SyncResult {
   error?: string;
 }
 
-const BOXES = ["inbox", "sent"] as const;
-type Box = (typeof BOXES)[number];
+/**
+ * Synced folders, by key: the provider's standard folders by role, and the person's own folders as
+ * "f:<path>". The key is what messages.remote_box holds.
+ */
+export type BoxKey = "inbox" | "sent" | "archive" | "drafts" | "spam" | "trash" | `f:${string}`;
+const ROLE_KEYS = ["archive", "drafts", "spam", "trash"] as const;
+/** The person's own folders synced at once, per connection. */
+export const MAX_EXTRA_FOLDERS = 10;
+
+/** Where synced mail from a folder sits in Multies. The person's own folders file under Archive and keep their name in remote_box. */
+export function localFolderFor(key: string): Folder {
+  if (key === "inbox" || key === "sent" || key === "drafts" || key === "spam" || key === "trash" || key === "archive") return key;
+  return "archive";
+}
+
+/** The provider path of a synced folder. */
+export function pathFor(state: SyncState, key: string): string | undefined {
+  if (key.startsWith("f:")) return key.slice(2);
+  return state.paths?.[key as keyof FolderPaths];
+}
+
+/** Every folder a pass syncs, in order: Inbox and Sent first, then the standard folders, then the person's own. */
+export function syncedKeys(state: SyncState): BoxKey[] {
+  const p = state.paths ?? { inbox: "INBOX" };
+  const keys: BoxKey[] = ["inbox", "sent"];
+  const seen = new Set([p.inbox, p.sent]);
+  for (const k of ROLE_KEYS) { const path = p[k]; if (path && !seen.has(path)) { keys.push(k); seen.add(path); } }
+  for (const path of state.extra ?? []) if (!seen.has(path)) { keys.push(`f:${path}`); seen.add(path); }
+  return keys;
+}
+
+function cursor(state: SyncState, key: string): FolderState | undefined {
+  return key === "inbox" || key === "sent" ? state[key] : state.boxes?.[key];
+}
+function setCursor(state: SyncState, key: string, st: FolderState) {
+  if (key === "inbox" || key === "sent") state[key] = st;
+  else (state.boxes ??= {})[key] = st;
+}
+type Box = BoxKey;
 
 /** Largest message copied whole; bigger ones keep their headers and a note. */
 const MAX_SYNC_BYTES = 10 * 1024 * 1024;
 const FLAG_WINDOW = 200;
+/** The provider's folder list is read again after this long. */
+export const FOLDER_LIST_TTL_MS = 6 * 3600_000;
 
 const today = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -111,26 +165,53 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     }
   }
   try {
-    state.paths ??= await session.folders();
-    result.pushed = await pushChanges(deps, c, session, state.paths);
+    if (!state.paths || !state.listedAt || now.getTime() - state.listedAt > FOLDER_LIST_TTL_MS) {
+      // Round 19: the full list, for Drafts, Spam and the person's own folders. Read again every few hours.
+      const list = (await session.listFolders()).filter((f) => !f.noSelect);
+      state.list = list;
+      state.paths = { ...pickFolders(list), inbox: state.paths?.inbox ?? "INBOX" };
+      state.listedAt = now.getTime();
+    }
+    result.pushed = await pushChanges(deps, c, session, state);
 
     if (allowance <= 0) result.skipped = "daily_cap";
     let budget = Math.min(cfg.batch, allowance);
     const mb = (await deps.db.select({ orgId: mailboxes.orgId }).from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;
+    // Read, star and moves made at the provider first: mail that left a folder is let go of here,
+    // so that when it shows up in another synced folder below it is filed there, not skipped.
+    const flagChanges = [];
+    let flagCount = 0;
+    if (c.initialDone) {
+      for (const box of syncedKeys(state)) {
+        const st = cursor(state, box);
+        if (!st) continue;
+        try { flagChanges.push(...await pullFlags(deps, c, session, box, st)); } catch (err) {
+          if (!box.startsWith("f:")) throw err;
+        }
+      }
+      flagCount = flagChanges.length;
+      if (flagChanges.length) await runBatch(deps.db, flagChanges.splice(0));
+    }
+
     const fetched: { box: Box; m: FetchedMessage }[] = [];
-    for (const box of BOXES) {
-      const path = box === "inbox" ? state.paths.inbox : state.paths.sent;
+    for (const box of syncedKeys(state)) {
+      const path = pathFor(state, box);
       if (!path) continue;
-      const opened = await session.open(path);
-      let st = state[box];
+      let opened: { uidValidity: string; uidNext: number };
+      try { opened = await session.open(path); } catch (err) {
+        // A folder the person deleted at the provider: stop syncing it, keep the rest.
+        if (box.startsWith("f:")) { state.extra = (state.extra ?? []).filter((x) => `f:${x}` !== box); continue; }
+        throw err;
+      }
+      let st = cursor(state, box);
       if (!st || st.v !== opened.uidValidity || st.path !== path) {
         // First sync of this folder (or the provider renumbered it): the recent ones only.
         const since = new Date(now.getTime() - cfg.initialDays * 86_400_000);
         const recent = await session.searchSince(since);
-        const cap = box === "inbox" ? cfg.initialCap : Math.ceil(cfg.initialCap / 2);
+        const cap = box === "inbox" ? cfg.initialCap : box === "sent" ? Math.ceil(cfg.initialCap / 2) : Math.ceil(cfg.initialCap / 4);
         const kept = recent.slice(-cap);
         st = { path, v: opened.uidValidity, last: kept.length ? kept[0] - 1 : Math.max(0, opened.uidNext - 1) };
-        state[box] = st;
+        setCursor(state, box, st);
       }
       if (budget <= 0) { result.more = result.more || (await session.uidsAfter(st.last)).length > 0; continue; }
       const pending = await session.uidsAfter(st.last);
@@ -143,8 +224,8 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       }
     }
 
-    const flagChanges = c.initialDone && state.inbox ? await pullFlags(deps, c, session, state.inbox) : [];
-    result.flagsUpdated = flagChanges.length;
+
+    result.flagsUpdated = flagCount;
 
     const stored = await storeBatch(deps, c, mb.orgId, fetched);
     result.stored = stored.stored;
@@ -175,8 +256,8 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
 async function hasWork(deps: Deps, connectionId: string, session: ImapSession, state: SyncState) {
   const queued = await deps.db.select({ id: mailSyncOutbox.id }).from(mailSyncOutbox).where(eq(mailSyncOutbox.connectionId, connectionId)).limit(1).get();
   if (queued) return true;
-  for (const box of BOXES) {
-    const st = state[box];
+  for (const box of syncedKeys(state)) {
+    const st = cursor(state, box);
     if (!st) continue;
     const opened = await session.open(st.path);
     if (opened.uidValidity !== st.v) return true;
@@ -185,44 +266,62 @@ async function hasWork(deps: Deps, connectionId: string, session: ImapSession, s
   return false;
 }
 
-const FOLDER_ACTION: Record<string, keyof FolderPaths> = { archive: "archive", trash: "trash", inbox: "inbox" };
+/** Where a queued folder action moves mail at the provider (a folder key). */
+const ACTION_DEST: Record<string, string> = { archive: "archive", trash: "trash", inbox: "inbox", spam: "spam" };
 
-/** Applies queued Multies changes at the provider, then clears them (one delete). */
-async function pushChanges(deps: Deps, c: Connection, session: ImapSession, paths: FolderPaths): Promise<number> {
+/**
+ * Applies queued Multies changes at the provider, then clears them (one delete). Moves record the
+ * message's new UID when the server answers it (UIDPLUS); otherwise the message is matched by
+ * Message-ID when its new folder syncs.
+ */
+async function pushChanges(deps: Deps, c: Connection, session: ImapSession, state: SyncState): Promise<number> {
   const rows = await deps.db.select().from(mailSyncOutbox).where(eq(mailSyncOutbox.connectionId, c.id)).limit(200);
   if (!rows.length) return 0;
-  for (const box of BOXES) {
-    const path = box === "inbox" ? paths.inbox : paths.sent;
+  const relink: PromiseLike<unknown>[] = [];
+  for (const box of new Set(rows.map((r) => r.remoteBox))) {
+    const path = pathFor(state, box);
     const mine = rows.filter((r) => r.remoteBox === box);
     if (!path || !mine.length) continue;
-    await session.open(path, { write: true });
+    try { await session.open(path, { write: true }); } catch { continue; }
     const uids = (a: string) => [...new Set(mine.filter((r) => r.action === a).map((r) => r.remoteUid))];
     await session.addFlags(uids("seen"), ["\\Seen"]);
     await session.removeFlags(uids("unseen"), ["\\Seen"]);
     await session.addFlags(uids("flag"), ["\\Flagged"]);
     await session.removeFlags(uids("unflag"), ["\\Flagged"]);
-    for (const a of ["archive", "trash"]) {
-      const dest = paths[FOLDER_ACTION[a]];
-      if (dest && dest !== path) await session.move(uids(a), dest);
+    const moves = mine.filter((r) => ACTION_DEST[r.action] || (r.action === "move" && r.dest));
+    for (const destKey of new Set(moves.map((r) => (r.action === "move" ? r.dest! : ACTION_DEST[r.action])))) {
+      const dest = pathFor(state, destKey);
+      const group = moves.filter((r) => (r.action === "move" ? r.dest : ACTION_DEST[r.action]) === destKey);
+      if (!dest || dest === path) continue;
+      const map = await session.move([...new Set(group.map((r) => r.remoteUid))], dest);
+      if (!map) continue;
+      for (const r of group) {
+        const uid = map.get(r.remoteUid);
+        if (uid && r.messageId) relink.push(deps.db.update(messages).set({ remoteBox: destKey, remoteUid: uid }).where(and(eq(messages.id, r.messageId), eq(messages.remoteBox, destKey))));
+      }
     }
   }
-  await deps.db.delete(mailSyncOutbox).where(inArray(mailSyncOutbox.id, rows.map((r) => r.id)));
+  await runBatch(deps.db, [...relink, deps.db.delete(mailSyncOutbox).where(inArray(mailSyncOutbox.id, rows.map((r) => r.id)))]);
   return rows.length;
 }
 
-/** Read and star changes made at the provider on the most recent Inbox mail; only changed rows are written. */
-async function pullFlags(deps: Deps, c: Connection, session: ImapSession, st: FolderState) {
+/**
+ * Read and star changes made at the provider on the most recent mail of a synced folder; only
+ * changed rows are written. Mail that left the folder at the provider is let go of here (its UID is
+ * cleared, and mail that left the Inbox leaves the Multies inbox too); when it shows up in another
+ * synced folder, that folder's sync picks it up again by Message-ID and files it there.
+ */
+async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: string, st: FolderState) {
   await session.open(st.path);
   const lo = Math.max(1, st.last - FLAG_WINDOW + 1);
   const remote = await session.flags(lo, st.last);
   const local = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
-    .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, "inbox"), gte(messages.remoteUid, lo)));
+    .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last)));
   const changes = [];
   for (const m of local) {
     const f = remote.get(m.remoteUid!);
     if (!f) {
-      // Gone from the provider's Inbox (archived or deleted there): out of the Multies inbox too.
-      if (m.folder === "inbox") changes.push(deps.db.update(messages).set({ folder: "archive" }).where(eq(messages.id, m.id)));
+      changes.push(deps.db.update(messages).set(box === "inbox" && m.folder === "inbox" ? { folder: "archive", remoteUid: null } : { remoteUid: null }).where(eq(messages.id, m.id)));
       continue;
     }
     const isRead = f.has("\\Seen");
@@ -254,16 +353,27 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
   }
   const ids = [...new Set(parsed.flatMap(({ e }) => [e.messageId, e.inReplyTo, ...(e.references ?? "").split(/\s+/)]).filter((x): x is string => !!x && x.length > 2))];
   const known = new Map<string, string>();
+  const rows = new Map<string, { id: string; remoteBox: string | null; remoteUid: number | null; folder: string }>();
   for (let i = 0; i < ids.length; i += 90) {
-    const hits = await deps.db.select({ mid: messages.messageIdHeader, threadId: messages.threadId }).from(messages)
+    const hits = await deps.db.select({ id: messages.id, mid: messages.messageIdHeader, threadId: messages.threadId, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid, folder: messages.folder }).from(messages)
       .where(and(eq(messages.mailboxId, c.mailboxId), inArray(messages.messageIdHeader, ids.slice(i, i + 90))));
-    for (const h of hits) if (h.mid) known.set(h.mid, h.threadId);
+    for (const h of hits) if (h.mid) { known.set(h.mid, h.threadId); if (!rows.has(h.mid) || rows.get(h.mid)!.remoteUid !== null) rows.set(h.mid, h); }
   }
   const statements: PromiseLike<unknown>[] = [];
   let stored = 0, duplicates = 0, bytes = 0;
   const seen = new Set<string>();
   for (const { box, m, e } of parsed) {
-    if (e.messageId && (known.has(e.messageId) || seen.has(e.messageId))) { duplicates++; continue; }
+    if (e.messageId && (known.has(e.messageId) || seen.has(e.messageId))) {
+      duplicates++;
+      // A copy we hold that isn't tied to a provider folder any more (moved, or sent from Multies): tie it to this one.
+      const r = rows.get(e.messageId);
+      if (r && r.remoteUid === null && !seen.has(e.messageId)) {
+        const moved = r.remoteBox !== null && r.remoteBox !== box;
+        statements.push(deps.db.update(messages).set({ remoteBox: box, remoteUid: m.uid, ...(moved ? { folder: localFolderFor(box) } : {}) }).where(eq(messages.id, r.id)));
+        r.remoteUid = m.uid;
+      }
+      continue;
+    }
     if (e.messageId) seen.add(e.messageId);
     const refs = [e.inReplyTo, ...(e.references ?? "").split(/\s+/)].filter((x): x is string => !!x && x.length > 2);
     const threadId = refs.map((r) => known.get(r)).find(Boolean) ?? newId("thr");
@@ -273,11 +383,11 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     bytes += size;
     const keepAtts = (e.attachments ?? []).filter((a) => a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES);
     statements.push(deps.db.insert(messages).values({
-      id, orgId, mailboxId: c.mailboxId, folder: box === "sent" ? "sent" : "inbox", messageIdHeader: e.messageId ?? null,
+      id, orgId, mailboxId: c.mailboxId, folder: localFolderFor(box), messageIdHeader: e.messageId ?? null,
       inReplyTo: e.inReplyTo ?? null, references: e.references ?? null, threadId,
       fromAddress: e.from.address, fromName: e.from.name ?? "", to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []), bcc: "[]",
       replyTo: e.replyTo ?? null, subject: e.subject ?? "", text: e.text ?? "", html: e.html ?? null, snippet: makeSnippet(e.text ?? "", e.html),
-      sizeBytes: size, isRead: box === "sent" || m.flags.has("\\Seen"), isStarred: m.flags.has("\\Flagged"), isAnswered: m.flags.has("\\Answered"),
+      sizeBytes: size, isRead: box === "sent" || box === "drafts" || m.flags.has("\\Seen"), isStarred: m.flags.has("\\Flagged"), isAnswered: m.flags.has("\\Answered"),
       hasAttachments: (e.attachments?.length ?? 0) > 0, authResults: e.authResults ? JSON.stringify(e.authResults) : null,
       remoteBox: box, remoteUid: m.uid, date: e.date ?? new Date(),
     }));
