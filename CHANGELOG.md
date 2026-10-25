@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 20: AI apps sign in, imports, mail timing, search everything, chat polish (25 Oct 2026)
+
+- MCP sign in with OAuth: Claude, ChatGPT, Cursor and any MCP client add Multies with only https://multies.si/api/v1/mcp. OAuth 2.1 with PKCE (S256), dynamic client registration, protected resource and authorisation server metadata, rotating refresh tokens and RFC 7009 revoke. A consent page at /oauth/authorize picks the workspace and read and write or read only; Settings, Developers lists connected AI apps with Disconnect. Tokens act as the person with their role; access tokens are signed, never stored. API keys work as before (migration 0030: `oauth_clients`, `oauth_grants`).
+- Agent thread reads are audited once per agent, thread and hour instead of on every read. docs/MCP.md lists all 65 tools.
+- Import from Trello (board JSON), Asana, ClickUp, monday (CSV or .xlsx), Jira, Linear and Notion (CSV) in Settings, Import: detected columns, a mapping you can change, a 20 row preview, statuses grouped to do, doing and done, subtasks, comments, unknown people kept as a note (never a seat). Re-running a file adds only what is missing. 2,000 tasks per workspace a day, and it stops at the write budget's warn level (migration 0031: `tasks.import_key` with a partial unique index). Also on the API: /api/v1/work-imports.
+- Mail: snooze a thread, send later and "remind me if no reply" for connected mailboxes, free addresses and own domains, with Snoozed and Scheduled views. Times use the person's time zone. Scheduled mail goes through the normal send path; an idle cron pass writes nothing (migration 0032: `mail_schedules`). MCP: snooze_thread, schedule_send, list_scheduled, cancel_scheduled.
+- Search everything in Cmd+K: mail, tasks (including keys like OPS-12), docs, chat, contacts and deals, grouped, with permissions applied and no new writes. A My Work page shows overdue and due today tasks, mentions, mail on my tasks, approvals, today's meetings and snoozed mail coming back. MCP: search_everything, my_work.
+- Chat: emoji reactions with who reacted, search inside a chat or across chats, a Call button that starts a meeting and posts a join card, and jump to first unread (migration 0033: `chat_reactions`). MCP: react_to_chat_message.
+
 ### Round 18: connect your existing mailbox (25 Oct 2026)
 
 - Connect Gmail, Google Workspace, Outlook.com, Microsoft 365, Yahoo, iCloud, Zoho, Fastmail, GMX or any IMAP and SMTP mailbox with an app password, from onboarding or Settings, Connected accounts. The connection is tested before anything is saved, with plain words for a wrong password, a missing app password, IMAP turned off or a server that can't be reached. The password is stored encrypted and deleted with the connection.

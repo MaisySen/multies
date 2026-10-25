@@ -24,7 +24,7 @@ async function demo(page: Page) {
 const palette = (page: Page) => page.getByRole("dialog", { name: "Command menu" });
 async function openSearch(page: Page, q: string) {
   const dialog = palette(page);
-  await expect(page.getByRole("button", { name: /^Search/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Search (Ctrl|⌘)/ })).toBeVisible();
   // The shortcut, once the app's key handler is in place.
   await expect(async () => {
     if (!(await dialog.isVisible())) await page.keyboard.press("ControlOrMeta+k");

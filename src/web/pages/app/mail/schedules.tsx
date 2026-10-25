@@ -118,7 +118,7 @@ export function SendLaterMenu({ disabled, onPick }: { disabled?: boolean; onPick
   const pick = (w: When) => { setOpen(false); onPick(w); };
   return (
     <div ref={ref} className="relative">
-      <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Send later" onClick={() => setOpen((o) => !o)}
+      <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Schedule for later" onClick={() => setOpen((o) => !o)}
         className="rounded-lg border border-line px-2.5 py-2 text-muted hover:bg-hover hover:text-fg disabled:opacity-50" title="Send later" data-testid="send-later"><Clock className="h-4 w-4" /></button>
       {open && (
         <div role="menu" className="absolute bottom-full left-0 z-50 mb-1.5 min-w-56 origin-bottom-left animate-pop-in rounded-xl border border-line bg-elevated p-1 shadow-pop">
