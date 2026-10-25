@@ -7,8 +7,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { getWorkload } from "../services/suite/workload";
-import { parseCapacity, workloadQuery } from "./workload";
-import { capacityList, setCapacity } from "../services/suite/workload-capacity";
+import { workloadQuery } from "./workload";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -25,22 +24,4 @@ export function registerWorkloadRoutes(api: OpenAPIHono<AppEnv>) {
   }),
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async (c) => c.json(await getWorkload(c.var.deps, actor(c), workloadQuery(c.req.queries() as Record<string, string[]>)) as any, 200) as any);
-
-  api.openapi(createRoute({
-    method: "get", path: "/workload/capacity", tags: ["Tasks"], summary: "Weekly capacity per person", security: [{ bearerAuth: [] }],
-    description: "Each person's stored weekly capacity in points and hours (null means the default: 20 points or 40 hours). The workload read uses these unless the request passes capacity.",
-    responses: { 200: json("Defaults and one entry per person."), 401: err("Missing or invalid API key.") },
-  }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async (c) => c.json(await capacityList(c.var.deps, actor(c)) as any, 200) as any);
-
-  api.openapi(createRoute({
-    method: "put", path: "/workload/capacity", tags: ["Tasks"], summary: "Set a person's weekly capacity", security: [{ bearerAuth: [] }],
-    description: "Body: { person: member:<id> or agent:<id>, points?, hours? }. A number above 0 sets it, null clears it back to the default, a field left out stays as it is. Owners and admins can set anyone's; a member their own. Read only keys are refused.",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    request: { body: { content: { "application/json": { schema: z.object({}).passthrough() as any } } } },
-    responses: { 200: json("The stored capacity."), 401: err("Missing or invalid API key."), 403: err("Read only key, or someone else's capacity without admin rights."), 404: err("A person not in this workspace."), 422: err("Validation failed.") },
-  }),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async (c) => c.json(await setCapacity(c.var.deps, actor(c), parseCapacity(await c.req.json().catch(() => ({})))) as any, 200) as any);
 }

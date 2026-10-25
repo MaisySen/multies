@@ -7,9 +7,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Gauge, MoreHorizontal, UserRound, Users, X } from "lucide-react";
+import { Bot, ChevronDown, ChevronLeft, ChevronRight, MoreHorizontal, UserRound, Users } from "lucide-react";
 import { api } from "@/web/lib/api";
-import { useMe } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { initials } from "@/web/lib/format";
@@ -21,7 +20,7 @@ import { tone } from "@/web/components/app-bits";
 type Unit = "points" | "hours";
 export interface WorkloadChip { id: string; ref: string; title: string; projectId: string; project: string; projectColor: string; due: string | null; start: string | null; status: string; points: number | null; unit: Unit }
 export interface WorkloadCell { count: number; points: number; hours: number; noEstimate: number; load: number; over: boolean; near: boolean; tasks: WorkloadChip[] }
-export interface WorkloadPerson { id: string | null; type: "member" | "agent" | null; name: string; isAgent: boolean; capacity?: number; capacitySource?: "request" | "stored" | "default"; overdue: WorkloadCell; weeks: (WorkloadCell & { week: string })[]; total: { count: number } }
+export interface WorkloadPerson { id: string | null; type: "member" | "agent" | null; name: string; isAgent: boolean; overdue: WorkloadCell; weeks: (WorkloadCell & { week: string })[]; total: { count: number } }
 export interface WorkloadData { unit: Unit; capacity: number; timeZone: string; range: { from: string; to: string; weeks: { start: string; end: string }[] }; people: WorkloadPerson[]; taskCount: number; truncated: boolean }
 
 const DAY = 86_400_000;
@@ -51,7 +50,6 @@ const personKey = (p: WorkloadPerson) => p.id ?? "none";
 
 /** Moves a chip in cached data, so the grid shows the change at once. */
 function applyMove(d: WorkloadData, m: Move): WorkloadData {
-  let cap = d.capacity;
   const strip = (c: WorkloadCell, chip: WorkloadChip, sign: 1 | -1): WorkloadCell => {
     const pts = chip.points ?? 0;
     const next = { ...c, count: c.count + sign, tasks: sign > 0 ? [...c.tasks, chip] : c.tasks.filter((t) => t.id !== chip.id) };
@@ -59,14 +57,14 @@ function applyMove(d: WorkloadData, m: Move): WorkloadData {
     else if (chip.unit === "hours") next.hours += sign * pts;
     else next.points += sign * pts;
     next.load = d.unit === "hours" ? next.hours : next.points;
-    next.over = next.load > cap;
-    next.near = !next.over && next.load >= cap * 0.8;
+    next.over = next.load > d.capacity;
+    next.near = !next.over && next.load >= d.capacity * 0.8;
     return next;
   };
   const cellOf = (p: WorkloadPerson, col: string, fn: (c: WorkloadCell) => WorkloadCell): WorkloadPerson =>
     col === OVERDUE ? { ...p, overdue: fn(p.overdue) } : { ...p, weeks: p.weeks.map((w) => (w.week === col ? { ...w, ...fn(w) } : w)) };
-  let people = d.people.map((p) => { if (personKey(p) !== m.fromPerson) return p; cap = p.capacity ?? d.capacity; return cellOf(p, m.fromCol, (c) => strip(c, m.chip, -1)); });
-  people = people.map((p) => { if (personKey(p) !== m.toPerson) return p; cap = p.capacity ?? d.capacity; return cellOf(p, m.toCol, (c) => strip(c, m.chip, 1)); });
+  let people = d.people.map((p) => (personKey(p) === m.fromPerson ? cellOf(p, m.fromCol, (c) => strip(c, m.chip, -1)) : p));
+  people = people.map((p) => (personKey(p) === m.toPerson ? cellOf(p, m.toCol, (c) => strip(c, m.chip, 1)) : p));
   return { ...d, people };
 }
 
@@ -81,8 +79,6 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
   const showOverdue = !!data?.people.some((p) => p.overdue.count > 0);
   const cols = useMemo(() => [...(showOverdue ? [OVERDUE] : []), ...(data?.range.weeks.map((x) => x.start) ?? [])], [data, showOverdue]);
   const people = data?.people ?? [];
-  const me = useMe().data;
-  const canEdit = (p: WorkloadPerson) => !!p.id && (me?.organization?.role === "owner" || me?.organization?.role === "admin" || p.id === `member:${me?.user.id}`);
 
   const move = useMutation({
     mutationFn: async (m: Move) => {
@@ -133,7 +129,7 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
             className={cn("rounded-md px-2.5 py-1 text-[12.5px]", unit === u ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{u === "points" ? "Points" : "Hours"}</button>
         ))}
       </div>
-      {data && <span className="text-[12.5px] text-muted">Default capacity {data.capacity} {unit} a person a week. Set a person's own on their row.</span>}
+      {data && <span className="text-[12.5px] text-muted">Capacity {data.capacity} {unit} a person a week</span>}
       {data?.truncated && <span className="text-[12.5px] text-warn">Showing the first 2,000 tasks</span>}
     </div>
   );
@@ -179,12 +175,11 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
                         <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
                         <ChevronDown className={cn("h-3.5 w-3.5 text-subtle transition-transform", !open && "-rotate-90")} />
                       </button>
-                      {p.id && <CapacityEditor person={p} unit={unit} fallback={data!.capacity} editable={canEdit(p)} />}
                     </td>
                     {cols.map((c) => {
                       const cell = c === OVERDUE ? p.overdue : p.weeks.find((x) => x.week === c)!;
                       return (
-                        <Cell key={c} person={pk} col={c} cell={cell} capacity={p.capacity ?? data!.capacity} unit={unit} overdue={c === OVERDUE} open={open}
+                        <Cell key={c} person={pk} col={c} cell={cell} capacity={data!.capacity} unit={unit} overdue={c === OVERDUE} open={open}
                           people={people} cols={cols} onOpen={onOpen} onMove={(chip, toPerson, toCol) => moveTo(chip, pk, c, toPerson, toCol)} />
                       );
                     })}
@@ -252,39 +247,5 @@ function Chip({ chip, person, col, people, cols, onOpen, onMove }: {
         {cols.filter((c) => c !== OVERDUE && c !== col).map((c) => <MenuItem key={c} onSelect={() => onMove(chip, person, c)}>Week of {weekLabel(c)}</MenuItem>)}
       </Menu>
     </div>
-  );
-}
-
-/** A person's weekly capacity under their name; owners, admins and the person can change it. */
-function CapacityEditor({ person, unit, fallback, editable }: { person: WorkloadPerson; unit: Unit; fallback: number; editable: boolean }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const value = person.capacity ?? fallback;
-  const [draft, setDraft] = useState(String(value));
-  const short = unit === "points" ? "pts" : "h";
-  const save = useMutation({
-    mutationFn: (n: number | null) => api.put("/workload/capacity", { person: person.id, [unit]: n }),
-    onSuccess: () => { setEditing(false); void qc.invalidateQueries({ queryKey: ["workload"] }); },
-    onError: (e) => showError(e as Error),
-  });
-  const label = `${fmtLoad(value)} ${short} a week${person.capacitySource === "default" ? " (default)" : ""}`;
-  if (!editing) {
-    return editable
-      ? <button data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 rounded text-[11.5px] text-muted hover:text-[#0071E3]" aria-label={`Weekly capacity for ${person.name}: ${label}. Change`}
-          onClick={() => { setDraft(String(value)); setEditing(true); }}><Gauge className="h-3 w-3" />{label}</button>
-      : <span data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 text-[11.5px] text-subtle"><Gauge className="h-3 w-3" />{label}</span>;
-  }
-  const n = Number(draft);
-  const valid = draft.trim() !== "" && Number.isFinite(n) && n > 0 && n <= 10_000;
-  return (
-    <form className="mt-1 ml-9 flex items-center gap-1" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate(n); }}>
-      <input autoFocus inputMode="decimal" aria-label={`Weekly capacity in ${unit}`} value={draft} onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
-        className="h-6 w-14 rounded-md border border-line bg-surface px-1.5 text-[12px] outline-none focus:border-[#0071E3]" />
-      <span className="text-[11.5px] text-muted">{short}</span>
-      <button type="submit" disabled={!valid || save.isPending} aria-label="Save capacity" className="grid h-6 w-6 place-items-center rounded-md text-[#0071E3] hover:bg-fill disabled:opacity-40"><Check className="h-3.5 w-3.5" /></button>
-      <button type="button" aria-label="Cancel" onClick={() => setEditing(false)} className="grid h-6 w-6 place-items-center rounded-md text-muted hover:bg-fill"><X className="h-3.5 w-3.5" /></button>
-      {person.capacitySource === "stored" && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => save.mutate(null)}>Use default</button>}
-    </form>
   );
 }

@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 102 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 101 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -339,9 +339,8 @@ Registered in src/server/routes/mcp-r23-calls.ts. Read only. Agents can't start 
 
 ### Workload (R24.2)
 
-Registered in src/server/routes/mcp-r24-workload.ts. `get_workload` is read only, so read only keys and tokens can call it, and it writes nothing. `set_weekly_capacity` writes one row and is refused for read only keys.
+Registered in src/server/routes/mcp-r24-workload.ts. Read only, so read only keys and tokens can call it. It writes nothing.
 
 | Tool | What it does |
 | --- | --- |
-| `get_workload` | Open tasks and estimates per person (plus Unassigned) per week, Monday first, in points or hours, with a capacity flag (default 20 points or 40 hours a person a week, or pass `capacity`); `overloaded` lists each person and week over capacity, so "who is overloaded next week" is one call with `from` set to next Monday and `weeks` 1; `overdue` holds open tasks due before the range; `includeTasks` adds each cell's tasks. Each person carries `capacity` and `capacitySource` (stored, default or request) |
-| `set_weekly_capacity` | Stores one person's weekly capacity (`person` member:<id> or agent:<id>, `points` and or `hours`; null clears back to the default, a value left out stays). Owners and admins set anyone's, a member their own; `get_workload` then flags over capacity against it |
+| `get_workload` | Open tasks and estimates per person (plus Unassigned) per week, Monday first, in points or hours, with a capacity flag (default 20 points or 40 hours a person a week, or pass `capacity`); `overloaded` lists each person and week over capacity, so "who is overloaded next week" is one call with `from` set to next Monday and `weeks` 1; `overdue` holds open tasks due before the range; `includeTasks` adds each cell's tasks |

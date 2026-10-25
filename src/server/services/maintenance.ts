@@ -42,13 +42,15 @@ export async function runMaintenance(deps: Deps) {
   const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
-  const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, writes] = await Promise.all([
+  const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, , writes] = await Promise.all([
     step("uptime", () => recordUptimeCheck(deps)),
     step("cross_check", () => crossCheck(deps)),
     step("legacy", () => legacyMaintenance(deps)),
     step("dunning", () => enforceGracePeriods(deps)),
     step("approvals", () => expireApprovals(deps)),
     step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
+    // R24.4: due_passed rules (reads only when there are none; pauses at a warn or shed write budget).
+    step("due_passed", async () => (await import("./suite/automations-r24")).runDuePassed(deps)),
     // Reads the account's D1 writes today from analytics (no database write) and alerts past 60%.
     step("write_budget", () => checkWriteBudget(deps)),
   ]);

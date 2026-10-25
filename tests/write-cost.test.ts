@@ -758,24 +758,3 @@ it("workload (R24.2): reading the workload writes nothing, through the app, the 
   await u.patch(`/api/tasks/${t.id}`, { due: "2026-11-10T10:00:00Z" });
   expect(take()).toBeLessThanOrEqual(16);
 });
-
-it("workload capacity (R24): setting a person's capacity is 1 row write, an unchanged set and the workload read write nothing", async () => {
-  const ctx = await makeTestApp();
-  const u = new Client(ctx.app);
-  await u.signup("owner@acme.io", "Olive Owner");
-  const me = (await u.get("/api/account/me")).body;
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const { setCapacity } = await import("@/server/services/suite/workload-capacity");
-  const { getWorkload } = await import("@/server/services/suite/workload");
-  const take = meter(ctx.db);
-  await setCapacity(ctx.deps, actor, { person: `member:${me.user.id}`, points: 12 });
-  expect(take()).toBe(1);
-  await setCapacity(ctx.deps, actor, { person: `member:${me.user.id}`, points: 12 });
-  expect(take()).toBe(0);
-  await setCapacity(ctx.deps, actor, { person: `member:${me.user.id}`, hours: 30 });
-  expect(take()).toBe(1);
-  await getWorkload(ctx.deps, actor, { weeks: 4 });
-  expect(take()).toBe(0);
-  await setCapacity(ctx.deps, actor, { person: `member:${me.user.id}`, points: null, hours: null });
-  expect(take()).toBe(1);
-});

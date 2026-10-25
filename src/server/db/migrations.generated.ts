@@ -558,11 +558,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX `calendar_feeds_token_uq` ON `calendar_feeds` (`token_hash`);",
       "CREATE TABLE `calendar_sources` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`connection_id` text,\n\t`url_enc` text,\n\t`calendars` text DEFAULT '[]' NOT NULL,\n\t`name` text NOT NULL,\n\t`color` text DEFAULT '#8E8E93' NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`, `id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`connection_id`) REFERENCES `mail_connections`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
-  },
-  {
-    "name": "0051_r24_capacity",
-    "statements": [
-      "CREATE TABLE `workload_capacity` (\n\t`org_id` text NOT NULL,\n\t`person` text NOT NULL,\n\t`points` real,\n\t`hours` real,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `person`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
-    ]
   }
 ];

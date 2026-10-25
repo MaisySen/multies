@@ -9,7 +9,6 @@ import type { AppEnv } from "../context";
 import { requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { getWorkload, MAX_WEEKS, type WorkloadQuery } from "../services/suite/workload";
-import { capacityList, MAX_CAPACITY, setCapacity } from "../services/suite/workload-capacity";
 
 const id = z.string().min(1).max(64);
 export const WorkloadParams = z.object({
@@ -40,23 +39,8 @@ export function workloadQuery(raw: Record<string, string | string[] | undefined>
   return { from: q.from, weeks: q.weeks, projectIds: q.projectId, sprintId: q.sprintId, people: q.person, unit: q.unit, capacity: q.capacity, tz: q.tz };
 }
 
-const capNum = z.number().positive().max(MAX_CAPACITY).nullable().optional();
-export const CapacityBody = z.object({
-  person: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/, "Say who: member:<id> or agent:<id>."),
-  points: capNum, hours: capNum,
-}).refine((b) => b.points !== undefined || b.hours !== undefined, "Give points, hours or both (null clears one).");
-
-export function parseCapacity(body: unknown) {
-  const r = CapacityBody.safeParse(body);
-  if (!r.success) throw new HttpError(422, "validation_failed", r.error.issues[0]?.message ?? "Check the capacity.", r.error.issues);
-  return r.data;
-}
-
 export function workloadRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .get("/", async (c) => c.json(await getWorkload(c.var.deps, c.var.auth, workloadQuery(c.req.queries() as Record<string, string[]>))))
-    // Stored weekly capacity per person: owners and admins set anyone's, a member their own.
-    .get("/capacity", async (c) => c.json(await capacityList(c.var.deps, c.var.auth)))
-    .put("/capacity", async (c) => c.json(await setCapacity(c.var.deps, c.var.auth, parseCapacity(await c.req.json().catch(() => ({}))))));
+    .get("/", async (c) => c.json(await getWorkload(c.var.deps, c.var.auth, workloadQuery(c.req.queries() as Record<string, string[]>))));
 }

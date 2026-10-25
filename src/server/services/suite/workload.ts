@@ -6,8 +6,8 @@
  * Which week a task sits in: its due date, or its start date when it has a start and no due date,
  * read in the viewer's time zone; weeks start on Monday. Open tasks only (not in a done category,
  * not waiting in Triage, not deleted, not an epic); open tasks due before the range land in the
- * Overdue column. Capacity per person per week: a request's capacity applies to everyone; else
- * the person's stored weekly capacity (workload-capacity.ts); else the default (40 hours or 20 points).
+ * Overdue column. Capacity is a plain default per person per week (40 hours or 20 points) that a
+ * request can change; nothing is stored.
  */
 import { and, asc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
@@ -15,7 +15,6 @@ import { organizations, projects, sprints, tasks, users } from "../../db/schema"
 import { notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { assignees } from "./tasks";
-import { listCapacities } from "./workload-capacity";
 import { topLevelCondition } from "./task-types";
 
 export type WorkloadUnit = "points" | "hours";
@@ -137,7 +136,7 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
     conds.push(ors.length ? or(...ors) : sql`0`);
   }
 
-  const [rows, roster, stored] = await Promise.all([
+  const [rows, roster] = await Promise.all([
     deps.db.select({
       id: tasks.id, number: tasks.number, title: tasks.title, projectId: tasks.projectId, status: tasks.status, points: tasks.points,
       dueAt: tasks.dueAt, startAt: tasks.startAt, assigneeType: tasks.assigneeType, assigneeId: tasks.assigneeId,
@@ -145,19 +144,11 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
     }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(...conds))
       .orderBy(sql`coalesce(${tasks.dueAt}, ${tasks.startAt})`, asc(tasks.id)).limit(ROW_CAP + 1),
     assignees(deps, actor.orgId),
-    q.capacity && q.capacity > 0 ? Promise.resolve([]) : listCapacities(deps, actor.orgId),
   ]);
-  const storedBy = new Map(stored.map((s) => [s.person, s]));
-  /** This person's weekly capacity in the chosen unit, and where it came from. */
-  const capFor = (key: string): { value: number; source: "request" | "stored" | "default" } => {
-    if (q.capacity && q.capacity > 0) return { value: q.capacity, source: "request" };
-    const v = storedBy.get(key)?.[unit];
-    return v != null && v > 0 ? { value: v, source: "stored" } : { value: DEFAULT_CAPACITY[unit], source: "default" };
-  };
   const truncated = rows.length > ROW_CAP;
   const used = truncated ? rows.slice(0, ROW_CAP) : rows;
 
-  type Row = { id: string | null; type: "member" | "agent" | null; name: string; email: string | null; isAgent: boolean; overdue: Cell; weeks: Record<string, Cell>; total: Cell; capacity: number; capacitySource: "request" | "stored" | "default" };
+  type Row = { id: string | null; type: "member" | "agent" | null; name: string; email: string | null; isAgent: boolean; overdue: Cell; weeks: Record<string, Cell>; total: Cell };
   const byPerson = new Map<string, Row>();
   const names = new Map(roster.map((r) => [r.id, r]));
   const rowFor = (key: string) => {
@@ -169,7 +160,6 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
         id: key === "none" ? null : key, type: type as Row["type"], name: key === "none" ? "Unassigned" : who?.name || "Former member",
         email: who?.email ?? null, isAgent: type === "agent" || !!(who as { isAgent?: boolean } | undefined)?.isAgent,
         overdue: emptyCell(), weeks: Object.fromEntries(weeks.map((w) => [w, emptyCell()])), total: emptyCell(),
-        capacity: DEFAULT_CAPACITY[unit], capacitySource: "default",
       };
       byPerson.set(key, r);
     }
@@ -198,7 +188,7 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
     add(r.total, chip, t.points ?? null, u);
     r.total.tasks.pop();
   }
-  const finish = (c: Cell, capacity: number) => {
+  const finish = (c: Cell) => {
     c.points = Math.round(c.points * 100) / 100;
     c.hours = Math.round(c.hours * 100) / 100;
     c.load = unit === "hours" ? c.hours : c.points;
@@ -206,12 +196,9 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
     c.near = !c.over && c.load >= capacity * 0.8;
   };
   const out = [...byPerson.values()].map((r) => {
-    const cap = capFor(r.id ?? "none");
-    for (const w of weeks) finish(r.weeks[w], cap.value);
-    finish(r.overdue, cap.value);
-    finish(r.total, cap.value * weeks.length);
-    r.capacity = cap.value;
-    r.capacitySource = cap.source;
+    for (const w of weeks) finish(r.weeks[w]);
+    finish(r.overdue);
+    finish(r.total);
     r.total.over = weeks.some((w) => r.weeks[w].over);
     return r;
   }).sort((a, b) => (a.id === null ? 1 : b.id === null ? -1 : a.name.localeCompare(b.name)));
@@ -220,12 +207,12 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
     unit, capacity, timeZone: tz,
     range: { from: first, to: addDays(first, weeksN * 7 - 1), weeks: weeks.map((w) => ({ start: w, end: addDays(w, 6) })) },
     people: out.map((r) => ({
-      id: r.id, type: r.type, name: r.name, isAgent: r.isAgent, capacity: r.capacity, capacitySource: r.capacitySource,
+      id: r.id, type: r.type, name: r.name, isAgent: r.isAgent,
       overdue: r.overdue,
       weeks: weeks.map((w) => ({ week: w, ...r.weeks[w] })),
       total: { count: r.total.count, points: r.total.points, hours: r.total.hours, noEstimate: r.total.noEstimate, load: r.total.load, overAnyWeek: r.total.over },
     })),
-    overloaded: out.flatMap((r) => weeks.filter((w) => r.weeks[w].over && r.id).map((w) => ({ person: r.name, id: r.id, week: w, load: r.weeks[w].load, capacity: r.capacity }))),
+    overloaded: out.flatMap((r) => weeks.filter((w) => r.weeks[w].over && r.id).map((w) => ({ person: r.name, id: r.id, week: w, load: r.weeks[w].load, capacity }))),
     taskCount: used.length,
     truncated,
   };
