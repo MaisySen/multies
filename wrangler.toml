@@ -90,6 +90,8 @@ simple = { limit = 300, period = 60 }
 
 [vars]
 APP_MODE = "production"
+# Public booking pages and the scheduling API (migration 0021).
+SCHEDULING_ENABLED = "true"
 # The app's public address. The workers.dev address keeps working (same Worker, same data);
 # www.multies.si redirects to the apex and app.multies.si serves the app too.
 APP_URL = "https://multies.si"
@@ -172,6 +174,7 @@ namespace_id = "2004"
 simple = { limit = 300, period = 60 }
 
 [env.staging.vars]
+SCHEDULING_ENABLED = "true"
 APP_MODE = "production"
 APP_URL = "https://mymail-staging.mymail-app.workers.dev"
 DEMO_DAILY_LIMIT = "2"
