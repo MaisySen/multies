@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client } from "./helpers";
 import { renameReferences } from "@/server/services/suite/formula-rename";
 
@@ -57,5 +59,52 @@ describe("renaming a field rewrites the project's formulas", () => {
     const still = (await u.get(`/api/fields?projectId=${projectId}`)).body.fields as { id: string; name: string; config?: { expression?: string } }[];
     expect(still.find((f) => f.id === budget.id)!.name).toBe("Spend");
     expect(still.find((f) => f.id === gross.id)!.config!.expression).toBe("{Spend} + {GST}");
+  });
+});
+
+describe("MCP create_custom_field takes formula and rollup types", () => {
+  it("creates both with config, checks the config, and refuses read only keys and other workspaces' projects", async () => {
+    const ctx = await makeTestApp();
+    const u = new Client(ctx.app);
+    await u.signup("owner@acme.io", "Olive Owner");
+    const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+    await u.post("/api/fields", { projectId, name: "Budget", type: "number" });
+    const connect = async (key: string) => {
+      const fetchViaApp = ((url: string | URL, init?: RequestInit) => ctx.app.request(new URL(url).pathname, { ...init, headers: { ...Object.fromEntries(new Headers(init?.headers).entries()), host: "localhost" } })) as typeof fetch;
+      const client = new McpClient({ name: "test", version: "1.0.0" });
+      await client.connect(new StreamableHTTPClientTransport(new URL("http://localhost/api/v1/mcp"), { requestInit: { headers: { authorization: `Bearer ${key}` } }, fetch: fetchViaApp }));
+      return client;
+    };
+    type R = { isError?: boolean; content: { text: string }[] };
+    const data = (r: unknown) => JSON.parse((r as R).content[0].text);
+    const key = (await u.post("/api/developer/keys", { name: "rw" })).body.secret;
+    const mcp = await connect(key);
+    const f = data(await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Tax", type: "formula", config: { expression: "{Budget} * 0.1" } } }));
+    expect(f.field).toMatchObject({ type: "formula", config: { expression: "{Budget} * 0.1" } });
+    const r = data(await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Sub points", type: "rollup", config: { source: "subtasks", fn: "sum", field: "points" } } }));
+    expect(r.field).toMatchObject({ type: "rollup", config: { source: "subtasks", fn: "sum", field: "points" } });
+    const c = data(await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Count", type: "rollup", config: { source: "project", fn: "count" } } }));
+    expect(c.field.config).toMatchObject({ source: "project", fn: "count", field: null });
+    const bad = (await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Bad", type: "formula", config: { expression: "{Nope} + 1" } } })) as R;
+    expect(bad.isError).toBe(true);
+    expect(bad.content[0].text).toMatch(/no field called/i);
+    const noCfg = (await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Empty", type: "formula" } })) as R;
+    expect(noCfg.isError).toBe(true);
+    // Plain types still work without config.
+    expect(data(await mcp.callTool({ name: "create_custom_field", arguments: { projectId, name: "Paid", type: "checkbox" } })).field.type).toBe("checkbox");
+
+    const roKey = (await u.post("/api/developer/keys", { name: "ro", scope: "read" })).body.secret;
+    const ro = await connect(roKey);
+    const refused = (await ro.callTool({ name: "create_custom_field", arguments: { projectId, name: "Nope", type: "formula", config: { expression: "1" } } })) as R;
+    expect(refused.isError).toBe(true);
+
+    const x = new Client(ctx.app);
+    await x.signup("eve@evil.io", "Eve Other");
+    const xKey = (await x.post("/api/developer/keys", { name: "x" })).body.secret;
+    const other = await connect(xKey);
+    const foreign = (await other.callTool({ name: "create_custom_field", arguments: { projectId, name: "Mine", type: "formula", config: { expression: "1 + 1" } } })) as R;
+    expect(foreign.isError).toBe(true);
+    const names = ((await u.get(`/api/fields?projectId=${projectId}`)).body.fields as { name: string }[]).map((x) => x.name);
+    expect(names).toEqual(["Budget", "Tax", "Sub points", "Count", "Paid"]);
   });
 });

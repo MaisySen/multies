@@ -82,7 +82,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `set_task_blocked_by` | Set a task as blocked by another |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
-| `create_custom_field` | Add a custom field to a project |
+| `create_custom_field` | Add a custom field to a project (any type; formula and rollup take a config) |
 | `set_task_fields` | Set custom field values on a task |
 | `find_tasks_by_field` | Find tasks by a custom field |
 | `get_portfolio` | Portfolio of all projects |
