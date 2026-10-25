@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 72 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
+- Tools: 70 (listed below). An agent key sees the agent tools; `create_agent_inbox` is for workspace keys and people.
 
 ## Signing in
 
@@ -133,6 +133,18 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `message_to_task` | Turn a chat message into a task |
 | `react_to_chat_message` | Add or take off an emoji reaction on a chat message (write keys) |
 
+### Triage
+
+New work from mail rules, public forms, incoming hooks or the API can wait in Triage before it becomes a task. Read only keys can list; the rest need a write key.
+
+| Tool | What it does |
+| --- | --- |
+| `list_triage` | List items waiting in Triage, newest first, with the count |
+| `triage_accept` | Accept an item as a normal task, optionally setting project, assignee, status, priority and due |
+| `triage_decline` | Decline and delete an item, with an optional reason and an opt in polite reply to the sender |
+| `triage_merge` | Merge an item into an existing task (notes as a comment, mail thread moves over) |
+| `create_triage_item` | Put new work in Triage instead of making a task straight away |
+
 ### Meetings and scheduling
 
 | Tool | What it does |
@@ -152,20 +164,6 @@ Agents read only the threads they can open, and anything an agent sends outside 
 through its approval rule. Sends and approvals are in the audit log. Thread reads by an agent are in
 the audit log too, rolled up to one entry per agent, thread and hour so a polling agent doesn't fill
 the log (or the database's daily write budget).
-
-### Sprints (round 21)
-
-Registered in src/server/routes/mcp-r21-sprints.ts. Read only keys can list and read; the rest need a key that can write.
-
-| Tool | What it does |
-| --- | --- |
-| `list_sprints` | A project's sprints with task and point counts, and its estimate unit |
-| `get_sprint` | One sprint with its tasks and burndown (remaining per day and the ideal line) |
-| `create_sprint` | Plan a sprint (defaults: Sprint N, the day after the last one ends, two weeks) |
-| `start_sprint` | Start a planned sprint; one active sprint per project |
-| `complete_sprint` | Complete the active sprint; unfinished tasks carry over to the next sprint or the backlog |
-| `add_to_sprint` | Move up to 500 tasks into a sprint |
-| `remove_from_sprint` | Move tasks back to the backlog |
 
 ## Claude (claude.ai and Claude Desktop)
 

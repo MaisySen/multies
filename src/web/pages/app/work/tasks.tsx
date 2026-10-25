@@ -1,14 +1,13 @@
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IterationCw } from "lucide-react";
 import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
-import { EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import { Board, NO_VALUE } from "./board";
@@ -21,14 +20,12 @@ import { tone } from "@/web/components/app-bits";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
-const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
 
 const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
   { id: "board", label: "Board", icon: KanbanSquare },
   { id: "list", label: "List", icon: List },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "timeline", label: "Timeline", icon: GanttChart },
-  { id: "sprints", label: "Sprints", icon: IterationCw },
 ];
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status"] as const;
 
@@ -44,7 +41,7 @@ export function TasksPage() {
   const list = projects.data ?? [];
   // The board needs one project: by default the one with the most open work.
   const busiest = [...list].sort((a, b) => (b.counts.todo + b.counts.doing) - (a.counts.todo + a.counts.doing))[0];
-  const projectId = params.get("project") ?? (view === "board" || view === "sprints" ? busiest?.id : undefined) ?? "";
+  const projectId = params.get("project") ?? (view === "board" ? busiest?.id : undefined) ?? "";
   const project = list.find((p) => p.id === projectId);
   const openId = params.get("task");
   const filters = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as Record<(typeof FILTER_KEYS)[number], string | undefined>;
@@ -88,7 +85,7 @@ export function TasksPage() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="mr-2 large-title">Tasks</h1>
         <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px]">
-          {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
+          {view !== "board" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
@@ -156,9 +153,7 @@ export function TasksPage() {
             onMove={(id, col, position) => groupField
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
-        ) : view === "sprints" && project ? (
-          <Suspense fallback={<Skeleton className="h-64" />}><SprintsView project={project} onOpen={open} /></Suspense>
-        ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
+        ) : view === "list" || (view === "board" && !project) ? (
           <TaskList tasks={tasks.data ?? []} projects={list} onOpen={open} onToggle={toggle} fields={project ? fields : []} people={people.data ?? []} />
         ) : (
           <Suspense fallback={<Skeleton className="h-96" />}>
@@ -220,13 +215,16 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // R21: new mail and form tasks for this project wait in Triage.
+  const [triage, setTriage] = useState(!!(project as (Project & { triage?: boolean }) | null)?.triage);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
   const save = async () => {
     setBusy(true); setError(null);
     const body = { name, statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
-      const r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, body) : await api.post<{ project: Project }>("/projects", body);
+      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.post<{ project: Project }>("/projects", body);
+      if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
@@ -256,6 +254,10 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           </ul>
           <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><Plus className="h-3.5 w-3.5" />Add status</Button>
           {project && <p className="mt-2 text-[12px] text-subtle">Removing a status moves its tasks to the first status in the same group.</p>}
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
+          <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">Tasks made from mail rules and forms wait in Triage until someone accepts them.</div></div>
+          <Switch checked={triage} onChange={setTriage} label="Send to triage" />
         </div>
       </div>
     </Dialog>

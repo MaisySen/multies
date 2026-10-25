@@ -50,7 +50,7 @@ function present(f: FormRow, origin?: string) {
     id: f.id, name: f.name, description: f.description, slug: f.slug, url: `${origin ?? ""}/f/${f.slug}`,
     target: f.target, projectId: f.projectId, assigneeId: f.assigneeType && f.assigneeId ? `${f.assigneeType}:${f.assigneeId}` : null,
     fields: JSON.parse(f.fields) as FormField[], successMessage: f.successMessage, enabled: f.enabled,
-    submitCount: f.submitCount, lastSubmitAt: iso(f.lastSubmitAt), createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString(), version: f.version,
+    submitCount: f.submitCount, lastSubmitAt: iso(f.lastSubmitAt), triage: !!f.triage, createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString(), version: f.version,
   };
 }
 export type Form = ReturnType<typeof present>;
@@ -75,7 +75,7 @@ export async function getForm(deps: Deps, orgId: string, id: string) {
   };
 }
 
-export interface FormInput { name: string; description?: string; target?: "task" | "contact"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean }
+export interface FormInput { name: string; description?: string; target?: "task" | "contact"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean; /** R21: submissions wait in Triage. */ triage?: boolean }
 
 function checkTarget(target: "task" | "contact", fields: FormField[]) {
   if (target === "contact" && !fields.some((f) => f.type === "email")) throw new HttpError(422, "validation_failed", "A form that makes contacts needs an email field.");
@@ -98,6 +98,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
     id, orgId: actor.orgId, name, description: (input.description ?? "").slice(0, 2000), slug: randomToken(9).replace(/[^A-Za-z0-9]/g, "").slice(0, 12).toLowerCase(),
     target, projectId: input.projectId ?? null, assigneeType: assignee?.type ?? null, assigneeId: assignee?.id ?? null,
     fields: JSON.stringify(fields), successMessage: (input.successMessage ?? "Thanks, we got it. We'll be in touch.").slice(0, 500), enabled: input.enabled ?? true,
+    triage: input.triage ?? false,
     ...createdBy(actor), createdAt: now, updatedAt: now,
   });
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "create", verb: "form.created", data: { name } });
@@ -116,6 +117,7 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   if (patch.fields !== undefined) set.fields = JSON.stringify(normaliseFields(patch.fields));
   if (patch.successMessage !== undefined) set.successMessage = patch.successMessage.slice(0, 500);
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
+  if (patch.triage !== undefined) set.triage = patch.triage;
   checkTarget((set.target ?? f.target) as "task" | "contact", JSON.parse(set.fields ?? f.fields) as FormField[]);
   await deps.db.update(forms).set(set).where(eq(forms.id, id));
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "update", version: f.version + 1, verb: "form.updated" });
@@ -213,6 +215,8 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
     const t = await createTask(deps, system, {
       title, notes: `Sent through the form "${f.name}".\n\n${lines.join("\n\n")}`, projectId: f.projectId ?? undefined,
       assignee: f.assigneeType && f.assigneeId ? { type: f.assigneeType, id: f.assigneeId } : undefined, labels: ["form"],
+      // R21: the form's own "Send to triage" switch, or the project's Triage setting.
+      triage: { source: "form", when: f.triage ? "always" : "if_project", from: emailField ? answers[emailField.id] || null : null },
     });
     entity = { type: "task", id: t.id };
     if (emailField) {
