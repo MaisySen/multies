@@ -55,7 +55,7 @@ function currentGroups(branch) {
   return latest.map((g) => {
     const view = easJson(["update:view", g.group]);
     const rows = Array.isArray(view) ? view : [];
-    return { ...g, updateIds: rows.map((u) => u.id).filter(Boolean), rollout: rolloutOf(rows), commit: (rows[0] || {}).gitCommitHash || null };
+    return { ...g, updateIds: rows.map((u) => u.id).filter(Boolean), rollout: g.rollout ?? rolloutOf(rows), commit: (rows[0] || {}).gitCommitHash || null };
   });
 }
 

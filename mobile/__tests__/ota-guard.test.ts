@@ -109,11 +109,12 @@ describe("R29b rollout helpers", () => {
   it("finds the newest group per platform (each platform has its own runtime version)", () => {
     const list = { currentPage: [
       { group: "g-ios-new", platforms: "ios", runtimeVersion: "e184", message: "\"R29b\" (1 minute ago by multies)", isRollBackToEmbedded: false },
-      { group: "g-and-new", platforms: "android", runtimeVersion: "e5a5", message: "x" },
+      { group: "g-and-new", platforms: "android", runtimeVersion: "e5a5", message: "x", rolloutPercentage: 10 },
       { group: "g-ios-old", platforms: "ios", runtimeVersion: "e184" },
     ] };
     expect(latestGroupsByPlatform(list).map((g: { platform: string; group: string }) => [g.platform, g.group])).toEqual([["ios", "g-ios-new"], ["android", "g-and-new"]]);
     expect(latestGroupsByPlatform(list)[0].message).toBe("R29b");
+    expect(latestGroupsByPlatform(list).map((g: { rollout: number | null }) => g.rollout)).toEqual([null, 10]);
     expect(latestGroupsByPlatform({ currentPage: [{ group: "both", platforms: "android, ios" }] }).map((g: { platform: string }) => g.platform)).toEqual(["android", "ios"]);
   });
 

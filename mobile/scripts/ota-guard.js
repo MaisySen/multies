@@ -151,13 +151,13 @@ function latestGroupsByPlatform(list) {
     if (!r || !r.group) continue;
     for (const p of String(r.platforms || r.platform || "").split(/[,\s]+/).filter(Boolean)) {
       if (!PLATFORMS.includes(p) || out.some((g) => g.platform === p)) continue;
-      out.push({ platform: p, group: r.group, runtimeVersion: r.runtimeVersion, message: String(r.message || "").replace(/^"|"\s*\(.*$/g, "").replace(/"$/, ""), isRollBackToEmbedded: !!r.isRollBackToEmbedded });
+      out.push({ platform: p, group: r.group, runtimeVersion: r.runtimeVersion, message: String(r.message || "").replace(/^"|"\s*\(.*$/g, "").replace(/"$/, ""), isRollBackToEmbedded: !!r.isRollBackToEmbedded, rollout: rolloutOf([r]) });
     }
   }
   return out;
 }
 
-/** The rollout percentage of an update group (from `eas update:view --json`), or null when it reaches every phone. */
+/** The rollout percentage of an update group (`rolloutPercentage` on `eas update:list --json` rows), or null when it reaches every phone. */
 function rolloutOf(updates) {
   for (const u of updates || []) {
     const p = u && (u.rolloutPercentage ?? (u.rollout && u.rollout.percentage));
