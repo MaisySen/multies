@@ -255,6 +255,8 @@
 .mm-calendar .mm-fc-event { cursor: pointer; border-radius: 5px; padding: 1px 4px; font-weight: 500; }
 .mm-calendar .mm-external-event { box-shadow: inset 3px 0 0 var(--mm-src, #8E8E93); }
 .mm-gantt .wx-gantt { font-family: var(--font-sans); }
+/* R37: rows in the dependency sheets fade in. */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
 .mm-gantt .wx-willow-dark-theme, .mm-gantt .wx-willow-theme { --wx-background: var(--color-surface); --wx-background-alt: var(--color-elevated); --wx-color-primary: var(--color-brand); --wx-gantt-task-color: var(--color-brand); --wx-gantt-task-fill-color: var(--color-brand-hover); --wx-color-font: var(--color-fg); --wx-gantt-border: 1px solid var(--color-line); height: 100%; }
 .mm-prose { font-size: 15px; line-height: 1.7; color: var(--color-fg); }
 .mm-prose > * + * { margin-top: 0.75em; }
