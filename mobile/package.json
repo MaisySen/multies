@@ -67,7 +67,10 @@
     "fetch:spec": "curl -fsS https://multies.si/api/v1/openapi.json -o openapi/mymail-v1.json",
     "export:web": "EXPO_PUBLIC_SAMPLE_ONLY=1 expo export --platform web",
     "build:apk": "expo prebuild --platform android --no-install && cd android && ./gradlew assembleRelease",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "ota:preview": "node scripts/ota.js preview",
+    "ota:production": "node scripts/ota.js production",
+    "ota:check": "node scripts/ota.js preview --check"
   },
   "private": true,
   "jest": {

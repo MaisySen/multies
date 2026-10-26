@@ -3,6 +3,16 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.3 (Android versionCode 15, iOS build 17), 26 October 2026
+
+- Over the air updates: the app now checks for an update each time it starts and uses it from the
+  next start, so most fixes reach phones without a store build (EAS Update, channel production;
+  see docs/OTA.md). Settings shows when an update is running. Nothing else changed from build 16.
+
+What to test: open Settings and check the version line at the bottom reads Multies 1.9.3 (17) on
+iPhone or 1.9.3 (15) on Android. After an update is announced, close the app fully, open it twice,
+and check the line shows the new version with (OTA).
+
 ## 1.9.3 (Android versionCode 14, iOS build 16), 26 October 2026
 
 - Checklists inside a task: the task shows "3 of 5 done" with a progress bar. Tap an item to tick
