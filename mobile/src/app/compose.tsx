@@ -9,11 +9,12 @@ import { useOverview, useThread } from "@/lib/queries";
 import { useSession } from "@/lib/session";
 import { parkDraft, recipientsLabel, sendHold, takeParkedDraft, trackHeld, useUndoSeconds, type HeldDraft } from "@/lib/undo-send";
 import { EMAIL_RE, displayName, parseRecipients, quoteForReply } from "@/lib/format";
+import { replyAllCc } from "@/lib/quote";
 import { askAboutEmptySubject, needsSubjectPrompt } from "@/lib/subject-prompt";
 import { colors, radius, space } from "@/theme";
 
 export default function Compose() {
-  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string }>();
+  const params = useLocalSearchParams<{ replyTo?: string; forward?: string; to?: string; subject?: string; restore?: string; all?: string }>();
   // A message taken back with Undo comes back exactly as it was.
   const [parked] = useState(() => (params.restore ? takeParkedDraft() : null));
   const sourceId = params.replyTo ?? params.forward ?? "";
@@ -48,13 +49,18 @@ export default function Compose() {
     if (params.replyTo) {
       const replyAddress = original.folder === "sent" ? original.to[0]?.address ?? "" : original.replyTo || original.from.address;
       setTo(replyAddress);
+      // R36: Reply all from the thread bar copies everyone else on the message, minus my own addresses.
+      if (params.all === "1") {
+        const others = replyAllCc(original, replyAddress, mailboxes.map((m) => m.address));
+        if (others.length) { setCc(others.join(", ")); setShowCc(true); }
+      }
       setSubject(/^re:/i.test(subj) ? subj : `Re: ${subj}`);
       setText(quoteForReply(original.text ?? "", displayName(original.from), original.date));
     } else {
       setSubject(/^fwd?:/i.test(subj) ? subj : `Fwd: ${subj}`);
       setText(`\n\n---------- Forwarded message ----------\nFrom: ${displayName(original.from)} <${original.from.address}>\nSubject: ${subj}\n\n${original.text ?? ""}`);
     }
-  }, [original, prefilled, params.replyTo]);
+  }, [original, prefilled, params.replyTo, params.all, mailboxes]);
 
   const submit = async () => {
     setError(null);

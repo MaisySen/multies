@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Avatar, Button, EmptyState, Field, Icon, Loading } from "@/components/ui";
 import { useChatPeople, useStartDm } from "@/lib/queries";
 import { colors, font, space } from "@/theme";
+import { dmErrorText } from "@/lib/moderation";
 
 /** Start a direct message with one or more teammates. Opens the existing DM if there is one. */
 export default function NewDirectMessage() {
@@ -37,7 +38,7 @@ export default function NewDirectMessage() {
           </Pressable>
         );
       }) : <Text style={font.small}>No one matches that.</Text>}
-      {start.error ? <Text style={{ color: colors.bad }}>{start.error.message}</Text> : null}
+      {start.error ? <Text style={{ color: colors.bad }} accessibilityRole="alert" testID="start-dm-error">{dmErrorText(start.error)}</Text> : null}
       <Button label={picked.length > 1 ? `Message ${picked.length} people` : "Start message"} onPress={go} disabled={!picked.length} loading={start.isPending} testID="start-dm" />
     </ScrollView>
   );

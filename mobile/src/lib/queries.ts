@@ -11,7 +11,7 @@ import { pendingTask } from "./pending";
 import { ApiError } from "@/api/errors";
 import { commandQueue, type NewCommand } from "./command-queue";
 import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
-import { blockedIds, isMissingEndpoint, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
+import { blockedIds, isMissingEndpoint, isUnblockDone, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
 import { success, warning } from "./haptics";
 import { animateList } from "./motion";
 
@@ -645,7 +645,7 @@ export function useUnblockPerson() {
   return useMutation({
     // R35: the server answers 404 when there was no block to remove (it keeps other workspaces from being probed); that is the state we wanted.
     mutationFn: async (userId: string) => {
-      try { await api.unblock(userId); } catch (e) { if (!(e instanceof ApiError && e.status === 404)) throw e; }
+      try { await api.unblock(userId); } catch (e) { if (!isUnblockDone(e)) throw e; }
       return userId;
     },
     onMutate: (userId) => {

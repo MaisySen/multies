@@ -67,9 +67,23 @@ export function isMissingEndpoint(err: unknown): boolean {
   return err instanceof ApiError && (err.status === 404 || err.status === 405 || err.status === 501);
 }
 
-/** True when a send or a new DM was refused because the other person blocked you. */
+/** True when a send or a new DM was refused because the other person blocked you (403 {"error":{"code":"blocked"}}). */
 export function isBlockedError(err: unknown): boolean {
   return err instanceof ApiError && err.status === 403 && err.code === "blocked";
+}
+
+/** R36: the one line every send path shows for a blocked DM (the server's own words, nothing more). */
+export const BLOCKED_TEXT = "You can't message this person.";
+
+/** Words for a refused DM start or send: the blocked line for a block, else the server's message. */
+export function dmErrorText(err: unknown): string {
+  if (isBlockedError(err)) return BLOCKED_TEXT;
+  return (err as Error)?.message || "Couldn't send. Try again.";
+}
+
+/** R36: DELETE /blocks/:userId answering 404 means there was no block, which is the state we wanted. */
+export function isUnblockDone(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 404;
 }
 
 /**

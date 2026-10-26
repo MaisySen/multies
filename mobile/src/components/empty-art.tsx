@@ -3,7 +3,7 @@ import { colors } from "@/theme";
 import type { IconName } from "./icons";
 
 /** R34: one small illustration per main list, drawn in the brand blue. */
-export type EmptyArt = "inbox" | "tasks" | "chat" | "approvals" | "activity" | "search";
+export type EmptyArt = "inbox" | "tasks" | "chat" | "approvals" | "activity" | "search" | "calendar";
 
 /** The illustration an EmptyState shows for its icon, when there is one. */
 export function artFor(icon: IconName): EmptyArt | null {
@@ -14,6 +14,7 @@ export function artFor(icon: IconName): EmptyArt | null {
     case "check-circle": case "approvals": return "approvals";
     case "bell": case "activity-bell": return "activity";
     case "search": return "search";
+    case "calendar": case "video": case "meeting": return "calendar";
     default: return null;
   }
 }
@@ -56,6 +57,17 @@ export function EmptyIllustration({ art, size = 160 }: { art: EmptyArt; size?: n
           <Rect x="56" y="42" width="48" height="6" rx="3" fill={line} /><Rect x="56" y="54" width="34" height="6" rx="3" fill={line} />
           <Circle cx="104" cy="84" r="16" fill={b} />
           <Path d="M96 84l6 6 10-11" fill="none" stroke={card} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        </G>
+      ) : art === "calendar" ? (
+        <G>
+          {/* R36: a calendar page with today ringed, for meetings. */}
+          <Rect x="40" y="28" width="80" height="70" rx="10" fill={card} stroke={line} strokeWidth="1.5" />
+          <Path d="M40 38a10 10 0 0 1 10-10h60a10 10 0 0 1 10 10v8H40z" fill={b} />
+          <Rect x="56" y="22" width="5" height="12" rx="2.5" fill={b} /><Rect x="99" y="22" width="5" height="12" rx="2.5" fill={b} />
+          {[0, 1, 2, 3].map((c) => [0, 1, 2].map((r) => (
+            <Rect key={`${c}-${r}`} x={52 + c * 16} y={56 + r * 12} width="8" height="6" rx="2" fill={c === 2 && r === 1 ? b : line} />
+          )))}
+          <Circle cx="88" cy="71" r="9" fill="none" stroke={b} strokeWidth="2" />
         </G>
       ) : art === "activity" ? (
         <G>

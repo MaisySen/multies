@@ -41,6 +41,30 @@ export const WHATS_NEW: Record<string, WhatsNewItem[]> = {
     {
       "title": "Quick add",
       "body": "Type \"Call Ana tomorrow 3pm @ana #ops !high\" and the date, person, project and priority are set, with chips that show what was understood."
+    },
+    {
+      "title": "Mail threads",
+      "body": "Earlier messages fold to one line each, quoted text hides behind Show quoted text, and a bar at the bottom has Reply, Reply all, Forward and Mark unread. Messages written by an agent always stay open."
+    },
+    {
+      "title": "Task details",
+      "body": "Status as a switch along the top, priority, due date and assignee as rows with coloured icons that open a picker, notes and subtasks in grouped cards. Ticking a subtask gives a small pop and a tap you can feel. Comments read like a conversation."
+    },
+    {
+      "title": "",
+      "body": "Meetings are grouped by day with a Today marker, each with a colour bar, the time on the left and quick Join and Copy guest link buttons."
+    },
+    {
+      "title": "Search",
+      "body": "A bigger search field, your recent searches, and results grouped into tasks and mail."
+    },
+    {
+      "title": "",
+      "body": "Sign in has a cleaner layout with the Terms and Acceptable use policy links right above the buttons. Two step sign in matches it."
+    },
+    {
+      "title": "",
+      "body": "Notification settings, Blocked people and People use grouped lists like the phone's own Settings."
     }
   ],
   "1.9.8": [

@@ -25,6 +25,19 @@ Android, CFBundleShortVersionString on iOS).
   and every minute while the app is open.
 - Quick add: type "Call Ana tomorrow 3pm @ana #ops !high" and the date, person, project and
   priority are set, with chips that show what was understood.
+- Mail threads: earlier messages fold to one line each, quoted text hides behind Show quoted
+  text, and a bar at the bottom has Reply, Reply all, Forward and Mark unread. Messages written by
+  an agent always stay open.
+- Task details: status as a switch along the top, priority, due date and assignee as rows with
+  coloured icons that open a picker, notes and subtasks in grouped cards. Ticking a subtask gives a
+  small pop and a tap you can feel. Comments read like a conversation.
+- Meetings are grouped by day with a Today marker, each with a colour bar, the time on the left and
+  quick Join and Copy guest link buttons.
+- Search: a bigger search field, your recent searches, and results grouped into tasks and mail.
+- Sign in has a cleaner layout with the Terms and Acceptable use policy links right above the
+  buttons. Two step sign in matches it.
+- Notification settings, Blocked people and People use grouped lists like the phone's own
+  Settings.
 
 ## 1.9.8 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 

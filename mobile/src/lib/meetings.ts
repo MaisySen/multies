@@ -36,3 +36,28 @@ export function isLive(m: Pick<Meeting, "startsAt" | "endsAt" | "status">, now: 
   if (m.status === "ended" || m.status === "cancelled") return false;
   return Date.parse(m.startsAt) - 10 * 60_000 <= now && now < Date.parse(m.endsAt);
 }
+
+/** R36: meetings grouped by local day, soonest first, labelled Today, Tomorrow or "Tue 27 Oct". */
+export function meetingDays<M extends Pick<Meeting, "startsAt">>(list: M[], now: number): { key: string; label: string; today: boolean; items: M[] }[] {
+  const dayKey = (t: number) => { const d = new Date(t); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+  const todayKey = dayKey(now);
+  const tomorrowKey = dayKey(now + 86_400_000);
+  const out: { key: string; label: string; today: boolean; items: M[] }[] = [];
+  for (const m of [...list].sort((a, b) => a.startsAt.localeCompare(b.startsAt))) {
+    const t = Date.parse(m.startsAt);
+    const key = dayKey(t);
+    let g = out.find((x) => x.key === key);
+    if (!g) {
+      const label = key === todayKey ? "Today" : key === tomorrowKey ? "Tomorrow" : new Date(t).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" });
+      g = { key, label, today: key === todayKey, items: [] };
+      out.push(g);
+    }
+    g.items.push(m);
+  }
+  return out;
+}
+
+/** "2:30 pm" */
+export function meetingTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" });
+}

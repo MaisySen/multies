@@ -39,14 +39,6 @@ jest.mock("expo-crypto", () => {
     CryptoEncoding: { BASE64: "base64" },
   };
 });
-jest.mock("lucide-react-native", () => {
-  const { Text } = require("react-native");
-  const React = require("react");
-  // Each icon renders as hidden text with its component name, so tests stay readable and need no SVG.
-  return new Proxy({ __esModule: true }, {
-    get: (target, key) => (key in target ? target[key] : (props) => React.createElement(Text, { accessibilityElementsHidden: true, testID: props.testID }, String(key))),
-  });
-});
 jest.mock("react-native-svg", () => {
   const { View } = require("react-native");
   const React = require("react");

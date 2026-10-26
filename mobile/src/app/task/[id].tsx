@@ -1,7 +1,11 @@
 import { useState } from "react";
-import { Alert, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Animated, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { Avatar, Badge, Banner, Button, Chip, EmptyState, Field, Icon, Loading } from "@/components/ui";
+import { Avatar, Badge, Banner, Button, EmptyState, Icon, Loading, Segmented } from "@/components/ui";
+import { GROUP, GroupRow, InsetGroup } from "@/components/grouped";
+import { ActionSheet, type SheetOption } from "@/components/action-sheet";
+import { SPRING, useReduceMotion } from "@/lib/motion";
+import { success, tick, warning } from "@/lib/haptics";
 import { TaskTime } from "@/components/timer";
 import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
@@ -28,6 +32,7 @@ export default function TaskDetail() {
   const [subtask, setSubtask] = useState("");
   // R29: the page holds still while a checklist item is being dragged.
   const [dragging, setDragging] = useState(false);
+  const [picking, setPicking] = useState<"priority" | "due" | "assignee" | null>(null);
   // Refill the editable fields whenever a newer copy of the task arrives (React's "adjust state
   // when a prop changes" pattern, without an effect).
   const [seen, setSeen] = useState<string | null>(null);
@@ -43,6 +48,7 @@ export default function TaskDetail() {
       e instanceof ApiError && e.status === 409 ? "Someone changed this task while you were editing. Showing the latest now." : e.message),
   });
   const del = () => {
+    warning();
     const go = () => m.remove.mutate(t.id, { onSuccess: () => router.back() });
     if (Platform.OS === "web") return go();
     Alert.alert("Delete this task?", undefined, [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: go }]);
@@ -62,58 +68,77 @@ export default function TaskDetail() {
     { label: "Today", value: dayFrom(0) }, { label: "Tomorrow", value: dayFrom(1) }, { label: "Next week", value: nextMonday() }, { label: "No date", value: null },
   ];
 
+  const people_ = people.data ?? [];
+  const who = t.assigneeId ? people_.find((p) => p.id === t.assigneeId) : null;
+  const whoLabel = who ? (who.type === "agent" ? `${who.name} (agent)` : who.name) : "Nobody";
+  const prio = PRIORITIES.find((p) => p.id === t.priority);
+  const pickers: Record<"priority" | "due" | "assignee", { title: string; options: SheetOption[]; pick: (id: string) => void }> = {
+    priority: { title: "Priority", options: PRIORITIES.map((p) => ({ id: p.id, label: p.label, icon: "flag", selected: t.priority === p.id })), pick: (v) => v !== t.priority && save({ priority: v as Task["priority"] }) },
+    due: { title: "Due date", options: dueChoices.map((c) => ({ id: c.value ?? "none", label: c.label, icon: "calendar", selected: (t.due?.slice(0, 10) ?? null) === c.value })), pick: (v) => save({ due: v === "none" ? null : v }) },
+    assignee: { title: "Assigned to", options: [{ id: "nobody", label: "Nobody", icon: "user", selected: !t.assigneeId }, ...people_.map((p) => ({ id: p.id, label: p.type === "agent" ? `${p.name} (agent)` : p.name, icon: (p.type === "agent" ? "bot" : "user") as SheetOption["icon"], selected: t.assigneeId === p.id }))],
+      pick: (v) => { const next = v === "nobody" ? null : (v as AssigneeId); if (next !== t.assigneeId) save({ assigneeId: next }); } },
+  };
+  const sheet = picking ? pickers[picking] : null;
+  const doneCount = d.subtasks.filter((s) => s.status === "done").length;
+
   return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled" scrollEnabled={!dragging}>
+    <ScrollView style={{ backgroundColor: colors.bg }} contentContainerStyle={{ paddingTop: space.md, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled" scrollEnabled={!dragging}>
       <Stack.Screen options={{ title: t.ref }} />
       {offline ? <Banner text="You're offline. This is the copy saved on this phone." /> : null}
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-        <Badge label={t.statusName} tone={t.status === "done" ? "ok" : t.status === "doing" ? "warn" : "neutral"} />
-        {due && t.status !== "done" ? <Badge label={due.text} tone={due.tone === "plain" ? "neutral" : due.tone} icon="calendar" /> : null}
-        {t.labels.map((l) => <Badge key={l} label={l} icon="tag" />)}
+      <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+          <Badge label={t.statusName} tone={t.status === "done" ? "ok" : t.status === "doing" ? "warn" : "neutral"} icon={t.status === "done" ? "check-circle" : "circle"} />
+          {due && t.status !== "done" ? <Badge label={due.text} tone={due.tone === "plain" ? "neutral" : due.tone} icon="calendar" /> : null}
+          {t.labels.map((l) => <Badge key={l} label={l} icon="tag" />)}
+        </View>
+        <TextInput value={title} onChangeText={setTitle} testID="task-title" accessibilityLabel="Title" multiline blurOnSubmit returnKeyType="done"
+          placeholder="Task title" placeholderTextColor={colors.subtle} selectionColor={colors.brand}
+          style={{ ...font.title, fontSize: 26, lineHeight: 32, paddingVertical: 4 }}
+          onEndEditing={() => title.trim() && title !== t.title && save({ title: title.trim() }, true)} />
+        <View accessibilityRole="radiogroup" accessibilityLabel="Status">
+          <Segmented label="Status" value={t.status} options={STATUSES.map((s) => ({ id: s.id, label: s.label }))}
+            onChange={(v) => { if (v === t.status) return; if (v === "done") success(); else tick(); save({ status: v }); }} />
+        </View>
       </View>
 
-      <Field label="Title" value={title} onChangeText={setTitle} testID="task-title"
-        onEndEditing={() => title.trim() && title !== t.title && save({ title: title.trim() }, true)} />
+      <InsetGroup header="Details">
+        <GroupRow icon="flag" tile="orange" label="Priority" value={prio?.label ?? "None"} onPress={() => setPicking("priority")} testID="pick-priority" />
+        <GroupRow icon="calendar" tile="red" label="Due" value={t.due ? dayLabel(t.due) : "No date"} onPress={() => setPicking("due")} testID="pick-due" />
+        <GroupRow icon={who?.type === "agent" ? "bot" : "user"} tile="purple" label="Assigned to" value={whoLabel} onPress={() => setPicking("assignee")} testID="pick-assignee" />
+      </InsetGroup>
 
-      <TaskTime task={t} detail={d} />
-      <StartMeetingButton source={{ type: "task", id: t.id }} title={t.title} />
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.md }}>
+        <TaskTime task={t} detail={d} />
+        <StartMeetingButton source={{ type: "task", id: t.id }} title={t.title} />
+      </View>
 
-      <Group label="Status">
-        {STATUSES.map((s) => <Chip key={s.id} label={s.label} selected={t.status === s.id} onPress={() => t.status !== s.id && save({ status: s.id })} />)}
-      </Group>
-      <Group label="Priority">
-        {PRIORITIES.map((p) => <Chip key={p.id} label={p.label} selected={t.priority === p.id} onPress={() => t.priority !== p.id && save({ priority: p.id })} />)}
-      </Group>
-      <Group label={t.due ? `Due ${dayLabel(t.due)}` : "Due date"}>
-        {dueChoices.map((c) => <Chip key={c.label} label={c.label} selected={(t.due?.slice(0, 10) ?? null) === c.value} onPress={() => save({ due: c.value })} />)}
-      </Group>
-      <Group label="Assigned to">
-        <Chip label="Nobody" selected={!t.assigneeId} onPress={() => t.assigneeId && save({ assigneeId: null })} />
-        {(people.data ?? []).map((p) => (
-          <Chip key={p.id} label={p.type === "agent" ? `${p.name} (agent)` : p.name} selected={t.assigneeId === p.id} onPress={() => t.assigneeId !== p.id && save({ assigneeId: p.id as AssigneeId })} />
-        ))}
-      </Group>
+      <InsetGroup header="Notes">
+        <TextInput value={notes} onChangeText={setNotes} multiline accessibilityLabel="Notes" placeholder="Add notes" placeholderTextColor={colors.subtle} selectionColor={colors.brand}
+          style={{ ...font.body, minHeight: 96, textAlignVertical: "top", padding: space.lg }}
+          onEndEditing={() => notes !== t.notes && save({ notes }, true)} />
+      </InsetGroup>
 
-      <ChecklistSection taskId={t.id} onDragChange={setDragging} />
-      <TaskRuns taskId={t.id} />
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.lg }}>
+        <ChecklistSection taskId={t.id} onDragChange={setDragging} />
+        <TaskRuns taskId={t.id} />
+        {d.customFields?.length ? (
+          <Section title="Fields">
+            <CustomFields fields={d.customFields} values={t.fields} people={people_} onSet={(fieldId, value) => save({ fields: { [fieldId]: value } })} />
+          </Section>
+        ) : null}
+      </View>
 
-      {d.customFields?.length ? (
-        <Section title="Fields">
-          <CustomFields fields={d.customFields} values={t.fields} people={people.data ?? []} onSet={(fieldId, value) => save({ fields: { [fieldId]: value } })} />
-        </Section>
-      ) : null}
-
-      <Field label="Notes" value={notes} onChangeText={setNotes} multiline style={{ minHeight: 110, textAlignVertical: "top", paddingTop: 12 }}
-        onEndEditing={() => notes !== t.notes && save({ notes }, true)} />
-
-      <Section title={`Subtasks${d.subtasks.length ? ` (${d.subtasks.filter((s) => s.status === "done").length}/${d.subtasks.length})` : ""}`}>
-        {d.subtasks.map((s) => <Subtask key={s.id} s={s} onToggle={() => m.update.mutate({ id: s.id, patch: { status: s.status === "done" ? "todo" : "done" } })} />)}
-        <View style={{ flexDirection: "row", gap: space.sm, alignItems: "flex-end" }}>
-          <View style={{ flex: 1 }}><Field label="Add a subtask" value={subtask} onChangeText={setSubtask} onSubmitEditing={addSubtask} returnKeyType="done" testID="subtask-input" /></View>
-          <Button label="Add" variant="secondary" onPress={addSubtask} loading={m.create.isPending} style={{ minHeight: 48 }} testID="add-subtask" />
+      <InsetGroup header={`Subtasks${d.subtasks.length ? `, ${doneCount} of ${d.subtasks.length} done` : ""}`}>
+        {d.subtasks.map((s) => <Subtask key={s.id} s={s} onToggle={() => { if (s.status !== "done") success(); else tick(); m.update.mutate({ id: s.id, patch: { status: s.status === "done" ? "todo" : "done" } }); }} />)}
+        <View style={{ flexDirection: "row", alignItems: "center", paddingLeft: GROUP.inset, paddingRight: space.sm, minHeight: GROUP.row, gap: space.md }}>
+          <Icon name="plus" size={20} color={colors.brand} />
+          <TextInput value={subtask} onChangeText={setSubtask} onSubmitEditing={addSubtask} returnKeyType="done" testID="subtask-input" accessibilityLabel="Add a subtask"
+            placeholder="Add a subtask" placeholderTextColor={colors.subtle} selectionColor={colors.brand} style={{ ...font.body, flex: 1, paddingVertical: 12 }} />
+          {subtask.trim() ? <Button label="Add" variant="ghost" onPress={addSubtask} loading={m.create.isPending} testID="add-subtask" /> : null}
         </View>
-      </Section>
+      </InsetGroup>
 
+      <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, gap: space.lg }}>
       {d.blockedBy?.length || d.blocking?.length ? (
         <Section title="Dependencies">
           {d.blockedBy?.map((b) => <Linked key={`by-${b.id}`} label="Blocked by" task={b} />)}
@@ -126,7 +151,7 @@ export default function TaskDetail() {
           {d.thread.length ? d.thread.map((r) => (
             <Pressable key={r.id} onPress={() => router.push({ pathname: "/thread/[id]", params: { id: r.id } })} accessibilityRole="button"
               accessibilityLabel={`Email from ${displayName(r.from)}, ${shortDate(r.date)}`}
-              style={{ backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, padding: space.md, gap: 6 }}>
+              style={({ pressed }) => [{ backgroundColor: pressed ? colors.hover : colors.surface, borderRadius: GROUP.radius, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line, padding: space.md, gap: 6 }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
                 <Avatar name={displayName(r.from)} agent={r.byAgent} size={28} />
                 <Text style={{ color: colors.fg, fontWeight: "600", flex: 1 }} numberOfLines={1}>{displayName(r.from)}</Text>
@@ -145,30 +170,36 @@ export default function TaskDetail() {
 
       <Section title={`Comments${d.comments.length ? ` (${d.comments.length})` : ""}`}>
         {d.comments.map((c) => (
-          <View key={c.id} style={{ flexDirection: "row", gap: space.sm }}>
-            <Avatar name={c.author.name ?? "?"} agent={c.author.type === "agent"} size={28} />
-            <View style={{ flex: 1, gap: 2 }}>
-              <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 14 }}>{c.author.name ?? "Someone"} <Text style={font.tiny}>{shortDate(c.createdAt)}</Text></Text>
-              <Text style={font.body}>{c.body}</Text>
+          <View key={c.id} style={{ flexDirection: "row", gap: space.md }}>
+            <Avatar name={c.author.name ?? "?"} agent={c.author.type === "agent"} size={32} />
+            <View style={{ flex: 1, gap: 4, backgroundColor: colors.surface, borderRadius: GROUP.radius, borderTopLeftRadius: 4, padding: space.md, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.line }}>
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm }}>
+                <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 15, flex: 1 }} numberOfLines={1}>{c.author.name ?? "Someone"}</Text>
+                <Text style={font.tiny}>{shortDate(c.createdAt)}</Text>
+              </View>
+              <Text style={[font.body, { fontSize: 16 }]}>{c.body}</Text>
             </View>
           </View>
         ))}
-        <Field label="Add a comment" value={comment} onChangeText={setComment} multiline style={{ minHeight: 64, textAlignVertical: "top", paddingTop: 12 }} testID="comment-input" />
-        <Button label="Post comment" icon="send" variant="secondary" onPress={addComment} loading={m.comment.isPending} disabled={!comment.trim()} testID="post-comment" />
+        <View style={{ flexDirection: "row", alignItems: "flex-end", gap: space.sm, backgroundColor: colors.surface, borderRadius: 22, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.lineStrong, paddingLeft: space.lg, paddingRight: 4, paddingVertical: 4 }}>
+          <TextInput value={comment} onChangeText={setComment} multiline testID="comment-input" accessibilityLabel="Add a comment" placeholder="Add a comment"
+            placeholderTextColor={colors.subtle} selectionColor={colors.brand} style={{ ...font.body, flex: 1, minHeight: 36, maxHeight: 140, paddingVertical: 8 }} />
+          <Pressable onPress={() => { if (comment.trim()) { tick(); addComment(); } }} disabled={!comment.trim() || m.comment.isPending} testID="post-comment"
+            accessibilityRole="button" accessibilityLabel="Post comment" accessibilityState={{ disabled: !comment.trim(), busy: m.comment.isPending }}
+            style={({ pressed }) => [{ width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: comment.trim() ? colors.brandFill : colors.elevated, opacity: pressed ? 0.7 : 1 }]}>
+            <Icon name="send" size={18} color={comment.trim() ? colors.brandFg : colors.subtle} />
+          </Pressable>
+        </View>
       </Section>
+      </View>
 
-      <Text style={font.tiny}>Created {longDate(t.createdAt)}{t.completedAt ? `. Done ${longDate(t.completedAt)}` : ""}</Text>
-      <Button variant="danger" icon="trash-2" label="Delete task" onPress={del} />
+      <InsetGroup footer={`Created ${longDate(t.createdAt)}${t.completedAt ? `. Done ${longDate(t.completedAt)}` : ""}`}>
+        <GroupRow icon="trash-2" label="Delete task" destructive onPress={del} testID="delete-task" />
+      </InsetGroup>
+
+      <ActionSheet visible={!!sheet} title={sheet?.title ?? ""} options={sheet?.options ?? []} testID="task-picker"
+        onSelect={(v) => { const p = sheet; setPicking(null); tick(); p?.pick(v); }} onClose={() => setPicking(null)} />
     </ScrollView>
-  );
-}
-
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{label}</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: space.sm }} accessibilityRole="radiogroup" accessibilityLabel={label}>{children}</View>
-    </View>
   );
 }
 
@@ -183,14 +214,27 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Subtask({ s, onToggle }: { s: Task; onToggle: () => void }) {
   const done = s.status === "done";
+  const reduce = useReduceMotion();
+  const [pop] = useState(() => new Animated.Value(1));
+  const press = () => {
+    if (!reduce && !done) {
+      pop.setValue(0.6);
+      Animated.spring(pop, { toValue: 1, ...SPRING, useNativeDriver: true }).start();
+    }
+    onToggle();
+  };
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line }}>
-      <Pressable onPress={onToggle} role="checkbox" aria-checked={done} accessibilityState={{ checked: done }} accessibilityLabel={`Mark ${s.title} ${done ? "not done" : "done"}`}
-        style={{ width: 48, minHeight: 48, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={done ? "check-circle" : "circle"} size={20} color={done ? colors.ok : colors.subtle} />
+    <View style={{ flexDirection: "row", alignItems: "center", minHeight: GROUP.row }}>
+      <Pressable onPress={press} role="checkbox" aria-checked={done} accessibilityState={{ checked: done }} accessibilityLabel={`Mark ${s.title} ${done ? "not done" : "done"}`}
+        testID={`subtask-check-${s.id}`} style={{ width: GROUP.inset + GROUP.tile + 4, minHeight: GROUP.row, alignItems: "center", justifyContent: "center" }}>
+        <Animated.View style={{ transform: [{ scale: pop }] }}>
+          <Icon name={done ? "check-circle" : "circle"} size={24} color={done ? colors.ok : colors.subtle} filled={done} />
+        </Animated.View>
       </Pressable>
-      <Pressable onPress={() => router.push({ pathname: "/task/[id]", params: { id: s.id } })} accessibilityRole="button" accessibilityLabel={`Open subtask ${s.title}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.md }}>
-        <Text style={{ color: done ? colors.subtle : colors.fg, textDecorationLine: done ? "line-through" : "none" }}>{s.title}</Text>
+      <Pressable onPress={() => router.push({ pathname: "/task/[id]", params: { id: s.id } })} accessibilityRole="button" accessibilityLabel={`Open subtask ${s.title}`}
+        style={({ pressed }) => [{ flex: 1, flexDirection: "row", alignItems: "center", paddingVertical: space.md, paddingRight: GROUP.inset, gap: space.sm }, pressed && { opacity: 0.6 }]}>
+        <Text style={{ ...font.body, flex: 1, color: done ? colors.subtle : colors.fg, textDecorationLine: done ? "line-through" : "none" }}>{s.title}</Text>
+        <Icon name="chevron-right" size={16} color={colors.subtle} />
       </Pressable>
     </View>
   );
