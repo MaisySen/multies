@@ -8,7 +8,10 @@ import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, LargeTitle, 
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
-import { TaskActions } from "@/components/task-actions";
+import { TaskActions, type TaskField } from "@/components/task-actions";
+import { NativeContextMenu, hasNativeMenu } from "@/components/native-menu";
+import { TASK_MENU, command, commandTitle } from "@/lib/commands";
+import type { IconName } from "@/components/icons";
 import { openCommandSheet } from "@/lib/command-sheet-store";
 import { tick, warning } from "@/lib/haptics";
 import { SwipeHint, SwipeRow, type SwipeAction } from "@/components/swipe-row";
@@ -18,6 +21,7 @@ import { usePrefs, type TaskSwipe } from "@/lib/prefs";
 import { isTempId } from "@/lib/pending";
 import { useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
+import { recordTaskCompleted } from "@/lib/native-features";
 import { progressBadge } from "@/lib/checklist";
 import { loadLastQuery, queryErrorText, saveLastQuery } from "@/lib/task-query";
 import { TaskQueryBox } from "@/components/task-query-box";
@@ -40,7 +44,11 @@ export default function Tasks() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const onFail = { onError: () => warning() };
-  const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } }, onFail);
+  const move = (t: Task, status: TaskStatus) => {
+    // R37: the fifth completed task asks once for a store review (1.10.0 builds; no-op elsewhere).
+    if (status === "done" && t.status !== "done") recordTaskCompleted();
+    update.mutate({ id: t.id, patch: { status } }, onFail);
+  };
   // R33: complete, delete and move hide or change at once with Undo; the call runs when the window closes.
   const undo = useUndoQueue();
   const prefs = usePrefs();
@@ -60,7 +68,12 @@ export default function Tasks() {
   // R31: long-press a task for Status, Assignee, Priority, Label and Due date (the registry's task commands).
   const [actionsFor, setActionsFor] = useState<Task | null>(null);
   const knownLabels = [...new Set(list.flatMap((t) => t.labels ?? []))];
-  const longPress = (t: Task) => { tick(); setActionsFor(t); };
+  const [actionsField, setActionsField] = useState<TaskField | null>(null);
+  const longPress = (t: Task) => { tick(); setActionsField(null); setActionsFor(t); };
+  // R37: the native iOS context menu (1.10.0 builds) lists the same commands and opens the picker.
+  const nativeMenu = hasNativeMenu();
+  const menuItems = TASK_MENU.map((id) => ({ id, title: commandTitle(id), icon: command(id).icon as IconName }));
+  const pickFromMenu = (t: Task, id: string) => { tick(); setActionsField(id.replace("task-", "") as TaskField); setActionsFor(t); };
   const collapse = useCollapse(); // R34: large title folds on scroll
 
   return (
@@ -106,7 +119,9 @@ export default function Tasks() {
                   <SwipeRow key={t.id} testID={`swipe-task-${t.id}`}
                     right={swipeFor(t, prefs.taskSwipes.rightShort)} rightLong={swipeFor(t, prefs.taskSwipes.rightLong)}
                     left={swipeFor(t, prefs.taskSwipes.leftShort)} leftLong={swipeFor(t, prefs.taskSwipes.leftLong)}>
-                    <TaskRow t={t} onToggle={() => { tick(); move(t, t.status === "done" ? "todo" : "done"); }} onLongPress={() => longPress(t)} />
+                    <NativeContextMenu items={menuItems} title={t.title} onSelect={(id) => pickFromMenu(t, id)}>
+                      <TaskRow t={t} onToggle={() => { tick(); move(t, t.status === "done" ? "todo" : "done"); }} onLongPress={nativeMenu ? undefined : () => longPress(t)} />
+                    </NativeContextMenu>
                   </SwipeRow>
                 ))}
               </View>
@@ -142,7 +157,7 @@ export default function Tasks() {
           })}
         </ScrollView>
       )}
-      <TaskActions task={actionsFor} knownLabels={knownLabels} onClose={() => setActionsFor(null)} />
+      <TaskActions task={actionsFor} knownLabels={knownLabels} initialField={actionsField} onClose={() => { setActionsFor(null); setActionsField(null); }} />
       <UndoToast pending={undo.newest} onUndo={undo.undo} />
     </View>
   );

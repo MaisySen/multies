@@ -6,6 +6,7 @@ import { GROUP, GroupRow, InsetGroup } from "@/components/grouped";
 import { ActionSheet, type SheetOption } from "@/components/action-sheet";
 import { SPRING, useReduceMotion } from "@/lib/motion";
 import { success, tick, warning } from "@/lib/haptics";
+import { recordTaskCompleted } from "@/lib/native-features";
 import { TaskTime } from "@/components/timer";
 import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
@@ -97,7 +98,7 @@ export default function TaskDetail() {
           onEndEditing={() => title.trim() && title !== t.title && save({ title: title.trim() }, true)} />
         <View accessibilityRole="radiogroup" accessibilityLabel="Status">
           <Segmented label="Status" value={t.status} options={STATUSES.map((s) => ({ id: s.id, label: s.label }))}
-            onChange={(v) => { if (v === t.status) return; if (v === "done") success(); else tick(); save({ status: v }); }} />
+            onChange={(v) => { if (v === t.status) return; if (v === "done") { success(); recordTaskCompleted(); } else tick(); save({ status: v }); }} />
         </View>
       </View>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Platform } from "react-native";
+import { Platform, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
@@ -15,6 +15,9 @@ import { colors, scheme } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
 import { HeldSendBar } from "@/components/held-send-bar";
 import { OtaProvider } from "@/lib/ota/provider";
+import { useBiometricLock } from "@/lib/native-features";
+import { nativeGestureHandler } from "@/lib/native-modules";
+import { LockScreen } from "@/components/lock-screen";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 if (Platform.OS !== "web") configureNotifications();
@@ -23,7 +26,11 @@ export default function RootLayout() {
   const [client] = useState(() => new QueryClient({
     defaultOptions: { queries: { retry: (n, err) => n < 2 && (err as { status?: number }).status !== 401, staleTime: 15_000 } },
   }));
+  // R37: gesture handler root on 1.10.0 builds (a plain View where the module is missing).
+  const GH = nativeGestureHandler();
+  const Root = GH ? GH.GestureHandlerRootView : View;
   return (
+    <Root style={{ flex: 1 }}>
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
         <SessionProvider initialMode={SAMPLE_ONLY && process.env.EXPO_PUBLIC_AUTO_SAMPLE === "1" ? "sample" : undefined}>
@@ -34,12 +41,15 @@ export default function RootLayout() {
         </SessionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>
+    </Root>
   );
 }
 
 function Navigator({ client }: { client: QueryClient }) {
   const { status, mode } = useSession();
   const reduceMotion = useReduceMotion();
+  // R37: Face ID or fingerprint unlock, when the person turned it on in Settings.
+  const lock = useBiometricLock(status === "signedIn");
 
   useEffect(() => { if (status !== "loading") SplashScreen.hideAsync().catch(() => {}); }, [status]);
   // Never show one account's mail to another session.
@@ -101,6 +111,7 @@ function Navigator({ client }: { client: QueryClient }) {
       </Stack.Protected>
     </Stack>
     {signedIn && <HeldSendBar />}
+    {signedIn && lock.locked ? <LockScreen onUnlock={lock.unlock} /> : null}
     </>
   );
 }
