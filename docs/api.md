@@ -853,7 +853,7 @@ follow the task. Read only keys can list; writes need a full key. Another worksp
 | DELETE | `/api/v1/checklist-items/{id}` | Remove the item |
 | POST | `/api/v1/checklist-items/{id}/to-subtask` | Make a subtask of the item's task (same title, assignee, due) and remove the item |
 
-Task rows (GET /tasks and friends) carry `checklist: { total, done }` (0 and 0 with no checklist); since R28 it is a required field of the `Task` schema in `/api/v1/openapi.json`, on list, get, create, update and bulk answers. Each item write costs 3 D1 row writes (the row,
+Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
 its primary key and one index on task_id).
 
 ## Agent runs on tasks (R27, DF-3 slice 2)
@@ -916,13 +916,6 @@ or as the assignee is told once. Commenting again after stopping starts watching
 answers 422 `invalid_member`. `q=is:watching` lists the tasks you watch. MCP: `list_task_watchers`, `watch_task`,
 `unwatch_task`.
 
-Since R28 a bulk status change (`POST /api/v1/tasks/bulk`, the web bulk bar, the bulk MCP tool) tells watchers the
-same way: one `task.watch_status` per watcher per task that moved, never the person who made the change (a workspace
-key counts as its creator), only current members, under their settings. Rows are written 9 to a statement in one
-batch; a phone push is one per watcher per bulk call. A call that would write more than 2,000 rows gives each watcher
-one summary row instead ("12 tasks you watch moved to Done"), and none are written while the daily write budget is at
-its warning level.
-
 ## Duplicate a task (R27)
 
 `POST /api/v1/tasks/{id}/duplicate` copies a task with a new number into the project's first to-do status. The copy
@@ -956,7 +949,6 @@ Settings, Sign-up emails (workspace owners and admins) and the REST API manage t
 - `PUT /api/v1/auth-email-settings` with any of `{ enabled, senderName, from, appName, supabaseUrl, branding }` (`from` and `supabaseUrl` are needed the first time; `branding` merges as in PATCH above, `null` clears it). The first save answers with `secret` once, in the form Supabase takes (`v1,whsec_...`). `enabled: false` makes the hook answer 503 and send nothing; `senderName` is the From name (null uses the mailbox's display name).
 - `POST /api/v1/auth-email-settings/secret`: a new signing secret, returned once; the old one stops working at once.
 - `POST /api/v1/auth-email-settings/preview` with `{ type?, appName?, branding?, email? }`: the email one type would send, with unsaved changes merged in. Nothing is sent or stored.
-- `POST /api/v1/auth-email-settings/test` with `{ type? }`: sends that type, as saved, to the caller's own address with "Test:" before the subject. At most 5 an hour for a workspace (429 after) With a workspace key the caller is the key's creator (R28; before, a key had no address and the test was refused).
-- MCP (R28): `get_auth_email_settings`, `update_auth_email_settings`, `regenerate_auth_email_secret`, `preview_auth_email` and `send_auth_email_test` do the same with the same rules; see docs/MCP.md.
+- `POST /api/v1/auth-email-settings/test` with `{ type? }`: sends that type, as saved, to the caller's own address with "Test:" before the subject. At most 5 an hour for a workspace (429 after).
 - Audit log: `auth_email_settings.created`, `auth_email_settings.updated` (names the fields that changed), `auth_email_settings.secret_regenerated`, `auth_email_settings.test_sent`. Secrets are never written to the audit log or to logs.
 - The web app uses the same routes at `/api/auth-email-settings` (cookie session). Migration 0060 adds `enabled`, `sender_name` and `test_sends` to `auth_email_hooks`.
