@@ -163,7 +163,7 @@ export function SettingsLayout() {
           <div className="mb-6 flex items-center gap-3">
             <span className="max-md:hidden"><Tile pane={pane} /></span>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-[#0071E3]">Settings</p>
+              <p className="text-[13px] font-semibold text-[#0071E3] max-md:hidden">Settings</p>
               <h1 className="large-title" data-testid="settings-title">{pane.label}</h1>
             </div>
           </div>
