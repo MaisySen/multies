@@ -50,7 +50,7 @@ export function ThemedToaster() {
       gap={8}
       toastOptions={{
         classNames: {
-          toast: "!rounded-xl !border !border-line !bg-elevated !text-fg !shadow-pop !font-sans !text-[13px] motion-reduce:!transition-none", // R33: no slide with reduced motion
+          toast: "!rounded-xl !border !border-line !bg-elevated !text-fg !shadow-pop !font-sans !text-[13px]",
           description: "!text-muted",
           actionButton: "!bg-brand !text-brand-fg !rounded-md",
           cancelButton: "!bg-fill !text-fg !rounded-md",

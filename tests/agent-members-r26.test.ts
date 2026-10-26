@@ -103,7 +103,7 @@ describe("agent members R26", () => {
     // The agent works its task through its key: the change is recorded with the agent as actor.
     const up = await v1(made.secret, "PATCH", `/tasks/${task.body.task.id}`, { status: "doing" });
     expect(up.status).toBe(200);
-    const acts = raw().all("select actor_type t, actor_id a, actor_name n from activity where entity_id = ?", task.body.task.id) as { t: string; a: string; n: string }[];
+    const acts = raw().all("select actor_type t, actor_id a, actor_name n from activity_feed where entity_id = ?" /* R33: the timeline view (old activity rows and change rows with a verb) */, task.body.task.id) as { t: string; a: string; n: string }[];
     expect(acts.some((r) => r.a === id && r.n === "Builder")).toBe(true);
     // A chat mention of the agent member resolves to its name.
     const g = (await c.get("/api/chat/channels")).body.channels.find((x: { name: string }) => x.name === "general");

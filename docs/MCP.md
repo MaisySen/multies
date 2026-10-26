@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 176 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 177 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -89,6 +89,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `find_tasks_by_field` | Find tasks by a custom field |
 | `get_portfolio` | Portfolio of all projects |
 | `set_project_health` | Set a project's health |
+| `update_project` | Rename a project or change its key (a key used by another project, any case, is refused with key_taken; R33) |
 | `list_guests` | List a project's guests |
 | `invite_guest` | Invite a guest to a project |
 | `list_epics` | List epics with progress: done of total, percent, points when tasks carry points (round 21, registered in src/server/routes/mcp-r21-types.ts) |
@@ -248,7 +249,6 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
-| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam or trash. Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
 
 ### Live chat typing (R32)
 
