@@ -41,6 +41,7 @@ import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { agentRunRoutes, agentRunTaskRoutes } from "./routes/agent-runs-r27"; // R27 (DF-3 slice 2)
+import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-triggers-r28"; // R28 (DF-3 slice 3)
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
@@ -147,13 +148,13 @@ export function createApp(deps: Deps) {
     const p = c.req.path;
     if (p.startsWith("/api/auth/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/inbound/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || isOAuthPublic(p)) return next();
     // Incoming hooks and the booking page limit themselves in memory, so a public call costs no limiter write.
-    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
+    if (p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || p.startsWith("/api/book/") || p.startsWith("/api/check/")) return next();
     return appLimiter(c, next);
   });
   app.use("/api/*", async (c, next) => {
     // Signed webhooks, the API-key REST API and the import runner (token) never use cookies, so CSRF does not apply.
     const p = c.req.path;
-    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || isOAuthPublic(p)) return next();
+    if (p.startsWith("/api/inbound/") || p.startsWith("/api/webhooks/") || p.startsWith("/api/v1/") || p.startsWith("/api/import-runner/") || p.startsWith("/api/hooks/in/") || p.startsWith("/api/hooks/agent-runs/") || isOAuthPublic(p)) return next();
     return csrfGuard(c, next);
   });
 
@@ -276,6 +277,8 @@ export function createApp(deps: Deps) {
   app.route("/api/checklist-items", checklistItemRoutes()); // R26 (MB-85)
   app.route("/api/tasks", agentRunTaskRoutes()); // R27 (DF-3 slice 2): /api/tasks/:id/runs
   app.route("/api/agent-runs", agentRunRoutes()); // R27 (DF-3 slice 2)
+  app.route("/api/agent-triggers", agentTriggerRoutes()); // R28 (DF-3 slice 3)
+  app.route("/api/hooks/agent-runs", agentTriggerHookRoutes()); // R28 (DF-3 slice 3): public, signed
   app.route("/api/tasks", taskTeardownRoutes()); // R27 teardown: /api/tasks/:id/watchers, /duplicate
   app.route("/api/tasks", taskRoutes());
   app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete

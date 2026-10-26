@@ -37,6 +37,8 @@ export interface AgentRun {
   agent: { userId: string; name: string; avatarColor: string; isAgent: true };
   status: RunStatus; startedAt: string | null; finishedAt: string | null; durationMs: number | null;
   result: string | null; stepCount: number; steps: RunStep[]; createdAt: string; updatedAt: string;
+  /** R28 (DF-3 slice 3): the trigger that queued the run and what it handed over (instructions, a webhook's body). */
+  triggerId: string | null; input: unknown;
 }
 
 const bad = (message: string) => new HttpError(422, "validation_failed", message);
@@ -94,8 +96,14 @@ async function present(deps: Deps, orgId: string, rows: Row[], withSteps = true)
       durationMs: r.startedAt && end ? Math.max(0, end.getTime() - r.startedAt.getTime()) : null,
       result: r.result, stepCount: r.stepCount, steps: withSteps ? parseSteps(r.steps) : [],
       createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(),
+      triggerId: r.triggerId ?? null, input: parseInput(r.input),
     };
   });
+}
+
+function parseInput(s: string | null | undefined): unknown {
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return s; }
 }
 
 async function runRow(deps: Deps, orgId: string, id: string) {

@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  AGE_RECIPIENT: age1u2psgukkx5mmu8s6dcqfwgmtpwwh8sz3k9zntvszp9k0dqvh9v9ssml57h
+  AGE_RECIPIENT: age1js7f2q84pfsz3jhfdws7zavduhcunzu75zga44hmu78jyushduksqqe49w
 
 jobs:
   d1:
