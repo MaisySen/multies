@@ -1,6 +1,5 @@
 @import "tailwindcss";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
+@import "./fonts.css"; /* R30: font-display optional (see fonts.css) */
 
 /*
  * Multies design tokens. Apple style: the system font, calm neutral greys, one blue accent, and red,

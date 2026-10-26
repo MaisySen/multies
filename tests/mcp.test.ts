@@ -41,6 +41,8 @@ describe("MCP server", () => {
       "add_thread_comment",
       "add_to_epic",
       "add_to_sprint",
+      "agent_run_cancel",
+      "agent_trigger_history",
       "append_to_doc",
       "assign_thread",
       "bulk_update_tasks",

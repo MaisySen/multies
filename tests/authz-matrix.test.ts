@@ -16,6 +16,10 @@ const PUBLIC_OK = new Set([
   "POST /api/guest/signout", "POST /api/account/demo", "GET /api/fx",
   // RFC 7009: token revocation answers 200 even for an unknown token (it changes nothing then).
   "POST /api/oauth/revoke",
+  // R30: browsers post CSP violation reports without credentials; it only logs and answers 204.
+  "POST /api/csp-report", "GET /api/v1/reference.js",
+  // R29b: the phone app reads its update policy before sign in (cached 60 s, no account data).
+  "GET /api/v1/app-config",
 ]);
 
 const fill = (path: string) => path.replace(/:[a-zA-Z]+(\{[^}]*\})?/g, "x1").replace(/\*$/, "x1");

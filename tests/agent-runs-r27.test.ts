@@ -244,7 +244,7 @@ describe("agent runs in the audit log page", () => {
     const words = entries.filter((e) => e.action.startsWith("agent_run.")).map((e) => { const d = describeAudit(e); return `${d.subject ?? e.actorEmail} ${d.verb} ${d.object}`; });
     expect(words).toEqual(expect.arrayContaining([
       `Builder started a run on ${taskRef}`,
-      `owner@acme.io finished a run on ${taskRef} (cancelled)`,
+      `owner@acme.io cancelled a run on ${taskRef}`, // R30: cancels are agent_run.cancelled
       "owner@acme.io queued a run on MB-2 for QA",
     ]));
     expect([runDuration(300), runDuration(4_000), runDuration(180_000), runDuration(3_900_000), runDuration(null)]).toEqual(["under 1 s", "4 s", "3 min", "1 h 5 min", ""]);

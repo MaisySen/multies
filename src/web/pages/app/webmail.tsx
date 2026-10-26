@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { applyMailAction, type MailAction, type MailListData } from "@/web/lib/optimistic-mail"; // R30
 import {
   Archive, ArrowLeft, Ban, Bot, Sparkles, File, FileEdit, FolderInput, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
 } from "lucide-react";
@@ -83,14 +84,22 @@ export function WebmailPage() {
   }, [list.data, returnedItems]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
+  const listKey = ["mail", "list", mailboxId, folder, q];
   const act = useMutation({
     mutationFn: ({ ids, action, to }: { ids: string[]; action: string; to?: string }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}) }),
+    // R30: optimistic. The list changes at once; a refusal puts it back and says why.
+    onMutate: async ({ ids, action }) => {
+      await qc.cancelQueries({ queryKey: listKey });
+      const before = qc.getQueryData<MailListData>(listKey);
+      qc.setQueryData<MailListData>(listKey, (d) => applyMailAction(d, ids, action as MailAction, folder, !!q));
+      return { before };
+    },
     onSuccess: (_r, v) => {
-      refresh();
       const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever", move: v.to ? `Moved to ${v.to.slice(2)}` : "Moved" };
       if (labels[v.action]) toast.success(labels[v.action]);
     },
-    onError: (e) => showError(e),
+    onError: (e, _v, ctx) => { if (ctx?.before) qc.setQueryData(listKey, ctx.before); showError(e); },
+    onSettled: () => { void refresh(); },
   });
 
   const open = (id: string | null) => setParam({ m: id });

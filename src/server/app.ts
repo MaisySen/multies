@@ -3,6 +3,7 @@ import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { writeBudget } from "./services/write-budget";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
+import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
 import { HttpError } from "./lib/errors";
 import { clientIp, csrfGuard } from "./middleware";
@@ -12,6 +13,7 @@ import { createHash } from "./lib/hash";
 import { accountRoutes } from "./routes/account";
 import { contactFormRoutes } from "./routes/contact";
 import { adminRoutes } from "./routes/admin";
+import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b";
 import { authFor } from "./auth";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -126,8 +128,9 @@ export function createApp(deps: Deps) {
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
-  const pageHeaders = securityHeaders({ csp: appCsp({ analytics: !!deps.config.cfBeaconToken }), hsts });
-  const formPageHeaders = securityHeaders({ csp: appCsp({ turnstile: true, analytics: !!deps.config.cfBeaconToken }), hsts });
+  const cspBase = { analytics: !!deps.config.cfBeaconToken, appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
+  const pageHeaders = securityHeaders({ csp: appCsp(cspBase), hsts });
+  const formPageHeaders = securityHeaders({ csp: appCsp({ ...cspBase, turnstile: true }), hsts });
   app.use("*", async (c, next) => {
     await next();
     const p = c.req.path;
@@ -138,6 +141,7 @@ export function createApp(deps: Deps) {
     await next();
     if (!c.res.headers.has("cache-control")) c.header("cache-control", "no-store");
   });
+  installCspReport(app); // R30: CSP violation reports, logged only; before the limiters so it writes nothing
   installHttpCache(app); // R25 API speed: ETag and 304 for a few read only GETs (src/server/lib/http-cache.ts)
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
   const ipKey = (c: { var: { ip: string } }) => c.var.ip;
@@ -244,6 +248,7 @@ export function createApp(deps: Deps) {
 
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());
+  app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
   app.route("/api/admin", adminRoutes());
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
@@ -385,6 +390,7 @@ export function createApp(deps: Deps) {
     app.all(prefix, r11Handler);
     app.all(`${prefix}/*`, r11Handler);
   }
+  app.route("/api/v1/app-config", appConfigRoutes()); // R29b: public mobile remote config, before the lazy v1 API
   app.all("/api/v1", v1Handler);
   app.all("/api/v1/*", v1Handler);
   app.route("/api/webhooks/resend", resendWebhookRoutes());

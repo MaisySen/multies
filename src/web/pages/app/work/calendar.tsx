@@ -6,6 +6,8 @@ import type { EventDropArg } from "@fullcalendar/core";
 import type { Task } from "./data";
 import { tone } from "@/web/components/app-bits";
 import { useNavigate } from "react-router";
+import { CalendarDays } from "lucide-react";
+import { emptyTasksCopy } from "@/web/lib/empty-states"; // R30
 import { OtherCalendarsBar, useOtherCalendars } from "./calendar-other";
 
 /** Month calendar of due dates (FullCalendar Standard, MIT). Drag a task to another day to move its due date. */
@@ -33,7 +35,12 @@ export function TaskCalendar({ tasks, onOpen, onDue }: { tasks: Task[]; onOpen: 
         headerToolbar={{ left: "title", center: "", right: "today prev,next" }} buttonText={{ today: "Today" }}
         eventClick={(e) => { e.jsEvent.preventDefault(); const href = e.event.extendedProps.href as string | null | undefined; if (href) navigate(href); else if (!e.event.extendedProps.readOnly) onOpen(e.event.id); }} eventDrop={onDrop}
       />
-      {events.length === 0 && <p className="px-2 pt-3 text-[13px] text-muted">No tasks have a due date yet. Set one on a task and it shows here.</p>}
+      {events.length === 0 && (
+        <div className="mx-2 mt-3 flex items-center gap-3 rounded-lg bg-fill px-3 py-2.5" data-testid="calendar-empty">
+          <CalendarDays className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+          <p className="text-[13px] text-muted"><span className="font-medium text-fg">{emptyTasksCopy("calendar", false).title}.</span> {emptyTasksCopy("calendar", false).body}</p>
+        </div>
+      )}
     </div>
   );
 }

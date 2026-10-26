@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { Command } from "cmdk";
-import { Activity, BookOpen, CreditCard, Globe, Inbox, KeyRound, LayoutDashboard, LogOut, PenSquare, Plus, Search, Settings, ShieldCheck, Smartphone, UserPlus, Users, Sun } from "lucide-react";
+import { Globe, Inbox, LogOut, Search, Sun } from "lucide-react";
+import { PALETTE_ACTIONS, PALETTE_PAGES, paletteScore, type PaletteAction } from "@/web/lib/palette-registry";
+import { openShortcutsSheet } from "@/web/lib/shortcuts";
+import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
 import { useDomains, useMailboxes } from "@/web/lib/queries";
 import { Kbd } from "@/web/components/ui/misc";
@@ -26,28 +29,19 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
   useEffect(() => { if (!open) setSearch(""); }, [open]);
 
   const go = (to: string) => () => { onOpenChange(false); navigate(to); };
+  const appearance = useAppearance();
   // Round 20: content from mail, tasks, docs, chat, contacts and deals, searched on the server.
   const content = useContentSearch(search, open);
-  const actions: Item[] = [
-    { id: "compose", label: "Write an email", icon: PenSquare, run: go("/app/mail?compose=1"), keywords: ["compose", "new message", "send"] },
-    { id: "add-domain", label: "Add a domain", icon: Plus, run: go("/app/domains?add=1") },
-    { id: "add-mailbox", label: "Create a mailbox", icon: Plus, run: go("/app/mailboxes?add=1") },
-    { id: "invite", label: "Invite a teammate", icon: UserPlus, run: go("/app/settings/team"), keywords: ["member", "team"] },
-    { id: "api-key", label: "Create an API key", icon: KeyRound, run: go("/app/settings/developers"), keywords: ["developer", "token"] },
-    { id: "app-password", label: "Set up Outlook or Apple Mail", icon: Smartphone, run: go("/app/settings/mail-apps"), keywords: ["imap", "smtp", "app password", "thunderbird", "phone"] },
-  ];
-  const pages: Item[] = [
-    { id: "p-my-work", label: "My Work", icon: Sun, run: go("/app/my-work"), keywords: ["today", "due", "home", "mentions"] },
-    { id: "p-overview", label: "Overview", icon: LayoutDashboard, run: go("/app") },
-    { id: "p-mail", label: "Mail", icon: Inbox, run: go("/app/mail"), keywords: ["inbox", "webmail"] },
-    { id: "p-domains", label: "Domains", icon: Globe, run: go("/app/domains"), keywords: ["dns"] },
-    { id: "p-mailboxes", label: "Mailboxes and aliases", icon: Users, run: go("/app/mailboxes") },
-    { id: "p-deliverability", label: "Deliverability", icon: ShieldCheck, run: go("/app/deliverability"), keywords: ["dmarc", "bounces", "suppression", "health"] },
-    { id: "p-activity", label: "Activity", icon: Activity, run: go("/app/activity"), keywords: ["log", "audit"] },
-    { id: "p-settings", label: "Settings", icon: Settings, run: go("/app/settings") },
-    { id: "p-billing", label: "Billing", icon: CreditCard, run: go("/app/settings/billing"), keywords: ["plan", "upgrade", "invoice"] },
-    { id: "p-docs", label: "API reference", icon: BookOpen, run: () => { onOpenChange(false); window.open("/api/v1/reference", "_blank", "noopener"); } },
-  ];
+  // R30: pages and actions come from one registry (lib/palette-registry.ts) so every app page is reachable.
+  const runAction = (a: PaletteAction) => () => {
+    onOpenChange(false);
+    if (a.kind === "shortcuts") openShortcutsSheet();
+    else if (a.kind === "theme") appearance.set(appearance.resolved === "dark" ? "light" : "dark");
+    else if (a.kind === "external" && a.to) window.open(a.to, "_blank", "noopener");
+    else if (a.to) navigate(a.to);
+  };
+  const actions: Item[] = PALETTE_ACTIONS.map((a) => ({ id: a.id, label: a.label, icon: a.kind === "theme" && appearance.resolved === "dark" ? Sun : a.icon, run: runAction(a), keywords: a.keywords }));
+  const pages: Item[] = PALETTE_PAGES.map((p) => ({ id: p.id, label: p.label, icon: p.icon, run: go(p.to), keywords: p.keywords }));
   const records: Item[] = [
     ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: Globe, run: go(`/app/domains/${d.id}`) })),
     ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: Inbox, run: go(`/app/mail?mailbox=${m.id}`) })),
@@ -56,7 +50,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
   const group = (heading: string, items: Item[]) => items.length > 0 && (
     <Command.Group heading={heading} className="px-1.5 pb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-subtle">
       {items.map(({ id, label, hint, icon: Icon, run, keywords }) => (
-        <Command.Item key={id} value={`${label} ${id}`} keywords={keywords} onSelect={run}
+        <Command.Item key={id} value={`${label}|${id}`} keywords={keywords} onSelect={run}
           className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-[13.5px] text-muted data-[selected=true]:bg-hover data-[selected=true]:text-fg">
           <Icon className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -67,7 +61,7 @@ export function CommandPalette({ open, onOpenChange, onSignOut }: { open: boolea
   );
 
   return (
-    <Command.Dialog open={open} onOpenChange={onOpenChange} label="Command menu"
+    <Command.Dialog open={open} onOpenChange={onOpenChange} label="Command menu" filter={paletteScore}
       overlayClassName="fixed inset-0 z-[90] bg-black/40 animate-fade-in"
       contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in">
       <div className="flex items-center gap-2.5 border-b border-line px-3.5">

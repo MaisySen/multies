@@ -17,6 +17,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { applySnippet, renderSnippet, shortcutBeforeCursor, snippetDate, SNIPPET_BODY_MAX, SNIPPET_NAME_MAX, SNIPPET_VARIABLES, SNIPPET_VARIABLE_HELP, type SnippetVars } from "@/shared/snippets";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 export interface SavedReply {
   id: string; name: string; shortcut: string | null; subject: string | null; body: string; shared: boolean;
@@ -102,7 +103,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
               }} />
           </div>
           <ul role="listbox" aria-label="Saved replies" className="max-h-64 overflow-y-auto py-1">
-            {list.isLoading && <li className="px-3 py-2 text-[13px] text-subtle">Loading</li>}
+            {list.isLoading && <li><SkeletonRows rows={3} rowHeight={36} label="Loading saved replies" /></li>}
             {!list.isLoading && !items.length && (
               <li className="px-3 py-3 text-[13px] text-subtle">{(list.data?.snippets.length ?? 0) ? "No saved reply matches." : "No saved replies yet."}</li>
             )}

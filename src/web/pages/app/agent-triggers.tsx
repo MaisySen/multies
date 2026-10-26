@@ -16,6 +16,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { TriggerHistory } from "./agent-trigger-history";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 type Day = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 export interface AgentTriggerView {
@@ -66,7 +67,7 @@ export function AgentTriggersDialog({ agentUserId, agentName, onClose }: { agent
       )}
       {adding && <TriggerForm agentUserId={agentUserId} onCancel={() => setAdding(false)} onSaved={(r) => { setAdding(false); refresh(); if (r.secret && r.trigger.webhook) setSecret({ url: r.trigger.webhook.url, secret: r.secret }); }} />}
       {editing && <TriggerForm key={editing.id} agentUserId={agentUserId} initial={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
-      {list.isLoading ? <div className="py-6 text-center text-sm text-muted">Loading</div> : triggers.length === 0 && !adding ? (
+      {list.isLoading ? <SkeletonRows rows={2} rowHeight={64} label="Loading triggers" /> : triggers.length === 0 && !adding ? (
         <EmptyState className="py-8" icon={<Zap />} title="No triggers yet" body="Add one to queue a run every morning, every few hours, or when another system calls a webhook." />
       ) : (
         <ul className="divide-y divide-line rounded-xl border border-line" aria-label="Triggers">

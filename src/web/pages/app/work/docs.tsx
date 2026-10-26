@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
@@ -30,6 +30,15 @@ export function DocsPage() {
   const create = async () => {
     try { const r = await api.post<{ doc: Doc }>("/docs", { title: "Untitled", text: "" }); navigate(`/app/docs/${r.doc.id}`); } catch (e) { showError(e as Error); }
   };
+  // R30: /app/docs?new=1 (from the command menu) starts a new doc once, then opens it.
+  const [params] = useSearchParams();
+  const started = useRef(false);
+  useEffect(() => {
+    if (params.get("new") !== "1" || started.current) return;
+    started.current = true;
+    void create();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
   return (
     <div className="flex gap-6">
       <DocTreeSidebar />

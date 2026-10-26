@@ -125,13 +125,17 @@ async function agentOnTask(deps: Deps, orgId: string, t: Awaited<ReturnType<type
   return (await mentionedMembers(deps, orgId, text)).includes(agentUserId);
 }
 
-async function writeAudit(deps: Deps, a: SuiteActor, action: string, run: { id: string; agentUserId: string; status: string }, agentName: string, t: { id: string; ref: string; title: string }) {
+async function writeAudit(deps: Deps, a: SuiteActor, action: string, run: { id: string; agentUserId: string; status: string }, agentName: string, t: { id: string; ref: string; title: string }, extra: Record<string, unknown> = {}) {
   const byAgent = !!a.userId && a.userId === run.agentUserId;
   await audit(deps.db, {
     orgId: a.orgId, actorUserId: a.userId || null, actorEmail: a.email ?? null, action, targetType: "task", targetId: t.id,
-    metadata: { runId: run.id, agentUserId: run.agentUserId, agentName, taskRef: t.ref, taskTitle: t.title.slice(0, 140), status: run.status, byAgent, via: a.apiKeyId ? "api" : "app" },
+    metadata: { runId: run.id, agentUserId: run.agentUserId, agentName, taskRef: t.ref, taskTitle: t.title.slice(0, 140), status: run.status, byAgent, via: a.apiKeyId ? "api" : "app", ...extra },
   });
 }
+
+/** 409 for a step or a finish on a run that is over: run_cancelled when someone cancelled it, else run_finished. */
+const runOver = (status: string, message = `This run is ${status}.`) =>
+  status === "cancelled" ? new HttpError(409, "run_cancelled", "This run was cancelled.") : new HttpError(409, "run_finished", message);
 
 export interface StartRunInput { agentUserId?: string; moveToDoing?: boolean; note?: string }
 
@@ -208,7 +212,7 @@ export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input
   const text = (input.text ?? "").trim();
   if (!text) throw bad("A step needs text.");
   if (text.length > RUN_STEP_TEXT_MAX) throw bad(`A step is at most ${RUN_STEP_TEXT_MAX} characters.`);
-  if (!ACTIVE.includes(r.status)) throw new HttpError(409, "run_finished", `This run is ${r.status}.`);
+  if (!ACTIVE.includes(r.status)) throw runOver(r.status);
   if (r.stepCount >= RUN_STEPS_MAX) throw new HttpError(422, "run_step_limit", `A run holds at most ${RUN_STEPS_MAX} steps. Finish it and start a new one.`);
   const now = deps.now();
   const step: RunStep = { at: now.toISOString(), kind, text };
@@ -218,7 +222,11 @@ export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input
     stepCount: sql`${agentRuns.stepCount} + 1`, updatedAt: now,
     ...(r.status === "queued" ? { status: "running" as const, startedAt: now } : {}),
   }).where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE), sql`${agentRuns.stepCount} < ${RUN_STEPS_MAX}`)).returning({ n: agentRuns.stepCount }); // D1: fixed two-status list
-  if (!res.length) throw new HttpError(409, "run_changed", "The run finished or filled up meanwhile.");
+  if (!res.length) {
+    const now2 = await deps.db.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, r.id)).get();
+    if (now2?.status === "cancelled") throw runOver("cancelled");
+    throw new HttpError(409, "run_changed", "The run finished or filled up meanwhile.");
+  }
   return { runId: r.id, step, stepCount: res[0].n };
 }
 
@@ -238,7 +246,7 @@ export async function finishRun(deps: Deps, a: SuiteActor, runId: string, input:
   if (me && !own) throw forbid("not_this_agent", "Only the run's own agent can finish it.");
   if (!own && input.status !== "cancelled") throw forbid("cancel_only", "A person or a workspace key can only cancel a run.");
   if (!["succeeded", "failed", "cancelled"].includes(input.status)) throw bad("status is succeeded, failed or cancelled.");
-  if (!ACTIVE.includes(r.status)) throw new HttpError(409, "run_finished", `This run is already ${r.status}.`);
+  if (!ACTIVE.includes(r.status)) throw runOver(r.status, `This run is already ${r.status}.`);
   const result = input.result?.trim() || null;
   if (result && result.length > RUN_RESULT_MAX) throw bad(`A result is at most ${RUN_RESULT_MAX} characters.`);
   if ((input.moveTo || input.comment) && !own) throw forbid("not_this_agent", "Only the run's own agent can move the task or comment.");
@@ -255,15 +263,56 @@ export async function finishRun(deps: Deps, a: SuiteActor, runId: string, input:
   const now = deps.now();
   const res = await deps.db.update(agentRuns).set({ status: input.status, finishedAt: now, startedAt: r.startedAt ?? now, result, updatedAt: now })
     .where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE))).returning({ id: agentRuns.id }); // D1: fixed two-status list
-  if (!res.length) throw new HttpError(409, "run_finished", "This run finished meanwhile.");
+  if (!res.length) throw await changedMeanwhile(deps, r.id);
   const agentName = me?.name ?? (await agentMember(deps, a.orgId, r.agentUserId))?.name ?? "Removed agent";
-  await writeAudit(deps, a, "agent_run.finished", { id: r.id, agentUserId: r.agentUserId, status: input.status }, agentName, t);
+  // R30: every cancel, from finish or from cancel, is one agent_run.cancelled entry.
+  if (input.status === "cancelled") await writeAudit(deps, a, "agent_run.cancelled", { id: r.id, agentUserId: r.agentUserId, status: "cancelled" }, agentName, t, { reason: result ? result.slice(0, RUN_CANCEL_REASON_MAX) : null });
+  else await writeAudit(deps, a, "agent_run.finished", { id: r.id, agentUserId: r.agentUserId, status: input.status }, agentName, t);
   let comment: unknown = null;
   if (own && input.comment && result) comment = await addComment(deps, a, t.id, result);
   if (own && input.moveTo === "done" && t.status !== "done") await updateTask(deps, a, t.id, { status: "done" });
   if (own && reviewStatusId) await updateTask(deps, a, t.id, { statusId: reviewStatusId });
   const run = (await present(deps, a.orgId, [await runRow(deps, a.orgId, r.id)]))[0];
   return comment ? { run, comment } : { run };
+}
+
+async function changedMeanwhile(deps: Deps, runId: string) {
+  const now = await deps.db.select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, runId)).get();
+  return now?.status === "cancelled" ? runOver("cancelled") : new HttpError(409, "run_finished", "This run finished meanwhile.");
+}
+
+export const RUN_CANCEL_REASON_MAX = 500;
+
+/**
+ * R30: cancels a queued or running run. A person, a full workspace key, or the run's own agent key can; another
+ * agent's key gets 403 and a read only key 403. A finished run is 409 run_finished. Cancelling a run that is already
+ * cancelled answers the run unchanged with no write and no second audit entry. A cancelled run can't be claimed,
+ * stepped or finished afterwards (409 run_cancelled). The reason (up to 500 characters) becomes the run's result and
+ * rides the agent_run.cancelled audit entry. One row write and one audit row.
+ */
+export async function cancelRun(deps: Deps, a: SuiteActor, runId: string, input: { reason?: string | null } = {}) {
+  assertWritable(a);
+  if (a.agentId) throw forbid("agent_member_only", "Only an AI agent member's key can run tasks. Mail agent keys can't.");
+  const r = await runRow(deps, a.orgId, runId);
+  const me = await actingAgent(deps, a);
+  if (me && me.userId !== r.agentUserId) throw forbid("not_this_agent", "An agent's key can only cancel its own runs.");
+  const reason = typeof input.reason === "string" ? input.reason.trim() || null : null;
+  if (reason && reason.length > RUN_CANCEL_REASON_MAX) throw bad(`A reason is at most ${RUN_CANCEL_REASON_MAX} characters.`);
+  const answer = async () => ({ run: (await present(deps, a.orgId, [await runRow(deps, a.orgId, r.id)]))[0] });
+  if (r.status === "cancelled") return answer();
+  if (!ACTIVE.includes(r.status)) throw new HttpError(409, "run_finished", `This run is already ${r.status}.`);
+  const now = deps.now();
+  const res = await deps.db.update(agentRuns).set({ status: "cancelled", finishedAt: now, startedAt: r.startedAt ?? now, result: reason ?? r.result, updatedAt: now })
+    .where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE))).returning({ id: agentRuns.id }); // D1: fixed two-status list
+  if (!res.length) {
+    const err = await changedMeanwhile(deps, r.id);
+    if (err.code === "run_cancelled") return answer(); // someone else cancelled it a moment ago: same answer, no second entry
+    throw err;
+  }
+  const t = await taskFor(deps, a.orgId, r.taskId);
+  const agentName = me?.name ?? (await agentMember(deps, a.orgId, r.agentUserId))?.name ?? "Removed agent";
+  await writeAudit(deps, a, "agent_run.cancelled", { id: r.id, agentUserId: r.agentUserId, status: "cancelled" }, agentName, t, { reason, from: r.status });
+  return answer();
 }
 
 export async function getRun(deps: Deps, a: SuiteActor, runId: string) {

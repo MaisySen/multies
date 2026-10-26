@@ -16,7 +16,7 @@ import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
 import type { Deps, RateLimitBinding } from "../server/context";
-import { appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
+import { API_CSP, appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
 import { withAuthRequestState } from "../server/lib/request-state";
 import { S3BodyStore } from "../server/services/storage/body-store";
@@ -33,6 +33,7 @@ import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
+import { shellFor } from "../shared/prerender-shell";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -48,6 +49,10 @@ export interface WorkerEnv {
 declare const __MYMAIL_BUILD_ENV__: Record<string, string>;
 /** The built index.html, served by the Worker for every app route. */
 declare const __MYMAIL_SHELL_HTML__: string;
+/** R30: the shell with the landing page prerendered inside, served for "/" only (empty when not built). */
+declare const __MYMAIL_LANDING_HTML__: string;
+/** R30: the shell that preloads the sign in page's code, served for the auth pages (empty when not built). */
+declare const __MYMAIL_AUTH_HTML__: string;
 
 let ready: Promise<{ app: ReturnType<typeof createApp>; deps: Deps }> | null = null;
 let lastMaintenance = 0;
@@ -273,9 +278,14 @@ async function collabUpgrade(request: Request, env: WorkerEnv, docId: string): P
  */
 async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
   const url = new URL(request.url);
-  if (url.pathname === "/api/internal/migrate") return deployMigrate(request, env);
+  // R30: the two responses served outside the app get the API headers too (a 101 upgrade cannot carry them).
+  const apiHeaders = { csp: API_CSP, hsts: isHttps(url.origin) };
+  if (url.pathname === "/api/internal/migrate") return withSecurityHeaders(await deployMigrate(request, env), apiHeaders);
   const collabDoc = collabDocId(url.pathname);
-  if (collabDoc) return collabUpgrade(request, env, collabDoc);
+  if (collabDoc) {
+    const res = await collabUpgrade(request, env, collabDoc);
+    return res.status === 101 ? res : withSecurityHeaders(res, apiHeaders);
+  }
   if (url.pathname.startsWith("/api/") || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
@@ -289,9 +299,10 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     return app.fetch(request, undefined, ctx as unknown as Parameters<typeof app.fetch>[2]);
   }
   const analytics = /^[a-f0-9]{32}$/i.test(envVar(env, "CF_BEACON_TOKEN") ?? "");
-  pageHeaders ??= { csp: appCsp({ analytics }), hsts: isHttps(url.origin) };
+  const cspBase = { analytics, appUrl: envVar(env, "APP_URL") ?? url.origin, livekitUrl: envVar(env, "LIVEKIT_URL") };
+  pageHeaders ??= { csp: appCsp(cspBase), hsts: isHttps(url.origin) };
   // Public form pages load Cloudflare Turnstile; the rest of the app runs only its own scripts.
-  formPageHeaders ??= { csp: appCsp({ turnstile: true, analytics }), hsts: isHttps(url.origin) };
+  formPageHeaders ??= { csp: appCsp({ ...cspBase, turnstile: true }), hsts: isHttps(url.origin) };
   const headers = url.pathname.startsWith("/f/") ? formPageHeaders : pageHeaders;
   const asset = await env.ASSETS.fetch(request);
   if (asset.status !== 404) {
@@ -302,7 +313,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-    ? new Response(__MYMAIL_SHELL_HTML__, { headers: { "content-type": "text/html; charset=utf-8" } })
+    ? new Response(shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);

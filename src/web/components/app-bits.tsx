@@ -76,6 +76,7 @@ const ACTIONS: Record<string, string> = {
   "agent_run.started": "started a run on",
   "agent_run.queued": "queued a run on",
   "agent_run.finished": "finished a run on",
+  "agent_run.cancelled": "cancelled a run on", // R30
   "agent_trigger.created": "added the agent trigger",
   "agent_trigger.updated": "edited the agent trigger",
   "agent_trigger.deleted": "deleted the agent trigger",

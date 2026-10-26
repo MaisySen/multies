@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ListTodo, Sun, CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
+import { ListTodo, Sun, CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Keyboard, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
 import { CommandPalette } from "@/web/components/command-palette";
+import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
+import { openShortcutsSheet } from "@/web/lib/shortcuts";
 import { TimerChip } from "@/web/pages/app/work/time";
 import { CallDockHost } from "@/web/pages/app/work/call-r23";
 import { useUnreadNotifications } from "@/web/pages/app/notifications";
@@ -174,6 +176,7 @@ export function AppLayout() {
           <div className="px-1.5 pb-1.5 pt-0.5"><AppearanceControl className="w-full [&>button]:flex-1 [&>button]:justify-center" /></div>
           <MenuItem icon={<UserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
           <MenuItem icon={<Settings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
+          <MenuItem icon={<Keyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
           <MenuItem icon={<LogOut />} onSelect={signOut} danger>Sign out</MenuItem>
         </Menu>
       </div>
@@ -199,6 +202,7 @@ export function AppLayout() {
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
         <CommandPalette open={palette} onOpenChange={setPalette} onSignOut={signOut} />
+        <ShortcutsHost />
         <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
         <CallDockHost />
       </div>

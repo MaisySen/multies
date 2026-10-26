@@ -12,8 +12,9 @@
     "dev:api": "tsx watch src/entry/node.ts",
     "dev:web": "vite",
     "build": "npm run build:web && npm run build:server",
-    "build:web": "vite build",
+    "build:web": "vite build && tsx scripts/prerender-landing.ts",
     "build:server": "tsx scripts/build-server.ts",
+    "security:headers": "node scripts/security-headers-grade.mjs",
     "start": "node dist/server/node.js",
     "db:generate": "drizzle-kit generate && tsx scripts/bundle-migrations.ts",
     "db:migrate": "tsx scripts/migrate.ts",
@@ -34,6 +35,7 @@
     "a11y:audit": "node scripts/a11y-audit.mjs",
     "test:coverage": "vitest run --coverage",
     "lhci": "lhci autorun --config=lighthouserc.cjs",
+    "perf:lh": "node scripts/lighthouse-r30.mjs",
     "security": "node scripts/security-check.mjs",
     "hooks:install": "git config core.hooksPath scripts/githooks"
   },

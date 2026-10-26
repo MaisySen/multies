@@ -4,21 +4,23 @@ import { mkdirSync } from "node:fs";
 /** R29: the Google sign in button follows Google's branding guidelines in light and dark, on sign in and sign up. */
 const BASE = `http://localhost:${process.env.E2E_IDP_PORT ?? "8790"}`;
 test.skip(!!process.env.E2E_BASE_URL, "needs the local fake identity provider");
-const SHOTS = "/home/user/tab/files/multies-r29";
+const SHOTS = "/home/user/tab/files/multies-r30";
 
 for (const scheme of ["light", "dark"] as const) {
-  test(`Google button in ${scheme} mode: the four colour G, Google's colours, 40 px`, async ({ browser }) => {
+  test(`Google button in ${scheme} mode: Google's G asset, Google's colours, 40 px`, async ({ browser }) => {
     const ctx = await browser.newContext({ colorScheme: scheme, viewport: { width: 1100, height: 820 } });
     const page = await ctx.newPage();
     for (const path of ["/signup", "/login"]) {
       await page.goto(`${BASE}${path}`);
       const google = page.getByRole("button", { name: "Continue with Google" });
       await expect(google).toBeVisible();
-      const fills = await google.locator("svg path").evaluateAll((ps) => ps.map((p) => p.getAttribute("fill")));
-      expect(fills).toEqual(["#EA4335", "#4285F4", "#FBBC05", "#34A853", "none"]);
+      // R30: Google's own downloadable G asset, loaded and drawn at 20 px.
+      const g = google.getByTestId("google-g");
+      await expect(g).toHaveAttribute("src", "/brand/google-g.svg");
+      await expect.poll(() => g.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
       const look = await google.evaluate((b) => {
         const s = getComputedStyle(b);
-        const logo = b.querySelector("svg")!.getBoundingClientRect();
+        const logo = b.querySelector("[data-testid=google-g]")!.getBoundingClientRect();
         const r = b.getBoundingClientRect();
         return { bg: s.backgroundColor, border: s.borderTopColor, borderWidth: s.borderTopWidth, color: s.color, size: s.fontSize, weight: s.fontWeight, height: r.height, logo: [logo.width, logo.height], logoLeft: Math.round(logo.left - r.left) };
       });

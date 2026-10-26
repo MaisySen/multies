@@ -116,14 +116,15 @@ export const router = createBrowserRouter([
   },
   {
     element: <AuthLayout />,
+    // R30: the auth layout holds its own Suspense, so the logo and the card appear together.
     children: [
-      { path: "/login", element: publicPage(<LoginPage />) },
-      { path: "/signup", element: publicPage(<SignupPage />) },
-      { path: "/invite/:token", element: page(<InvitePage />) },
-      { path: "/forgot-password", element: publicPage(<ForgotPasswordPage />) },
-      { path: "/reset-password", element: publicPage(<ResetPasswordPage />) },
-      { path: "/email-verified", element: publicPage(<EmailVerifiedPage />) },
-      { path: "/oauth/authorize", element: publicPage(<OAuthAuthorizePage />) },
+      { path: "/login", element: <LoginPage /> },
+      { path: "/signup", element: <SignupPage /> },
+      { path: "/invite/:token", element: <InvitePage /> },
+      { path: "/forgot-password", element: <ForgotPasswordPage /> },
+      { path: "/reset-password", element: <ResetPasswordPage /> },
+      { path: "/email-verified", element: <EmailVerifiedPage /> },
+      { path: "/oauth/authorize", element: <OAuthAuthorizePage /> },
     ],
   },
   {

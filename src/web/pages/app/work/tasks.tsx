@@ -1,8 +1,11 @@
-import { lazy, Suspense, useCallback, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Mountain, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
 import { IterationCw, Users } from "lucide-react";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
+import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
+import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -84,6 +87,16 @@ export function TasksPage() {
     void deps.refetch();
   }, [deps]);
   const [newTask, setNewTask] = useState<{ statusId?: string } | null>(null);
+  // R30: empty views say why and offer the way out (clear the filters, or add the first task).
+  const filtered = hasTaskFilters(params.entries(), FILTER_KEYS);
+  const clearFilters = () => setParams((p) => { const n = new URLSearchParams(p); for (const k of [...n.keys()]) if ((FILTER_KEYS as readonly string[]).includes(k) || k.startsWith("field.")) n.delete(k); return n; }, { replace: true });
+  // R30: ?new=1 (from the command menu) opens New task once projects load.
+  const wantsNew = params.get("new") === "1";
+  useEffect(() => {
+    if (!wantsNew || projects.isPending) return;
+    setNewTask({});
+    setParams((p) => { const n = new URLSearchParams(p); n.delete("new"); return n; }, { replace: true });
+  }, [wantsNew, projects.isPending, setParams]);
   // Round 22: dragging a card between epic columns moves it into that epic (or out of its epic).
   const moveToEpic = useCallback(async (id: string, col: string, position: number) => {
     const t = (tasks.data ?? []).find((x) => x.id === id);
@@ -195,7 +208,11 @@ export function TasksPage() {
       <div className="min-h-0 flex-1">
         {!list.length ? (
           <EmptyState icon={<KanbanSquare />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
-        ) : tasks.isPending ? <Skeleton className="h-64" /> : view === "board" && project ? (
+        ) : tasks.isPending ? (
+          view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
+        ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
+          <TasksEmpty copy={emptyTasksCopy("list", filtered)} onClear={clearFilters} onNew={() => setNewTask({})} />
+        ) : view === "board" && project ? (
           <Board project={project} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
             onMove={(id, col, position) => groupEpic
               ? void moveToEpic(id, col, position)

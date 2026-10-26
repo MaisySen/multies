@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, FileText, Link2 } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 interface Node { id: string; title: string; children: Node[] }
 interface Backlink { id: string; title: string; snippet: string }
@@ -49,7 +50,7 @@ export function GuestBacklinks({ id, onOpen }: { id: string; onOpen: (id: string
   return (
     <section className="mt-6 border-t border-line pt-4" aria-label="Linked from" data-testid="guest-backlinks">
       <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><Link2 className="h-3.5 w-3.5" />Linked from</h3>
-      {q.isPending ? <p className="text-[13px] text-muted">Loading</p>
+      {q.isPending ? <SkeletonRows rows={3} rowHeight={44} label="Loading docs" />
         : !list.length ? <p className="text-[13px] text-muted">No other page in this project links here yet.</p>
           : (
             <ul className="space-y-2">

@@ -69,6 +69,13 @@ cpSync(path.join(root, "dist/web"), out, { recursive: true });
 // file: hosts that serve static files before the Worker would skip the headers.
 const shellHtml = readFileSync(path.join(out, "index.html"), "utf8");
 rmSync(path.join(out, "index.html"));
+// R30: the prerendered landing (npm run build:web makes it) is served by the Worker for "/" too.
+const landingFile = path.join(out, "landing.html");
+const landingHtml = existsSync(landingFile) ? readFileSync(landingFile, "utf8") : "";
+rmSync(landingFile, { force: true });
+const authFile = path.join(out, "auth.html");
+const authHtml = existsSync(authFile) ? readFileSync(authFile, "utf8") : "";
+rmSync(authFile, { force: true });
 // Browser source maps go to Sentry (CI uploads them from dist/web), not to the public.
 for (const f of readdirSync(path.join(out, "assets"))) if (f.endsWith(".map")) rmSync(path.join(out, "assets", f));
 
@@ -105,7 +112,7 @@ const options = (banner: string): BuildOptions => ({
   // Production builds keep an external map for Sentry and wrangler (never served).
   sourcemap: profile === "preview" ? false : "external",
   alias: { "@": path.join(root, "src"), module: path.join(root, "src/server/shims/module.ts"), "@react-email/code-block": path.join(root, "src/server/shims/empty.ts") },
-  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml) },
+  define: { __MYMAIL_BUILD_ENV__: JSON.stringify({ ...PROFILES[profile], ...secrets }), __MYMAIL_SHELL_HTML__: JSON.stringify(shellHtml), __MYMAIL_LANDING_HTML__: JSON.stringify(landingHtml), __MYMAIL_AUTH_HTML__: JSON.stringify(authHtml) },
   logLevel: "warning",
 });
 await build({ ...options(""), write: false });

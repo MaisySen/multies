@@ -5,7 +5,7 @@
  * Auth: `Authorization: Bearer mm_live_...` (Settings, Developers).
  */
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
-import { Scalar } from "@scalar/hono-api-reference";
+import { apiReferenceBootJs, apiReferenceHtml } from "../lib/api-reference-page";
 import type { Context, MiddlewareHandler } from "hono";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
@@ -228,7 +228,9 @@ export function v1Routes() {
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
-  api.get("/reference", Scalar({ url: "/api/v1/openapi.json", pageTitle: "Multies API reference", theme: "default" }));
+  // R30: our own page and boot script (pinned Scalar, no inline script), see lib/api-reference-page.ts.
+  api.get("/reference", (c) => c.html(apiReferenceHtml()));
+  api.get("/reference.js", (c) => c.body(apiReferenceBootJs(), 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600" }));
   // The reference used to live at /api/v1/docs, which is also the docs list. A browser without a key
   // that opens the old address goes to the reference; everything else gets the list.
   api.get("/docs", async (c, next) => {

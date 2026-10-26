@@ -8,8 +8,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { api, ApiError } from "@/web/lib/api";
-import { authClient, unwrap, type AuthProviders } from "@/web/lib/auth-client";
+import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
+import { authProvidersQuery } from "@/web/lib/auth-providers";
 import { useStartDemo } from "@/web/lib/demo";
 import { SocialSignInButtons } from "@/web/components/social-sign-in";
 import { GitHubLogo, GoogleSignInButton, ProviderButton } from "@/web/components/google-button";
@@ -52,7 +53,7 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
 }
 
 export function useAuthProviders() {
-  return useQuery({ queryKey: ["auth-providers"], queryFn: () => api.get<AuthProviders>("/account/providers"), staleTime: Infinity });
+  return useQuery(authProvidersQuery); // R30: shared with the auth layout and the boot prefetch
 }
 
 function safeNext(next: string | null) {

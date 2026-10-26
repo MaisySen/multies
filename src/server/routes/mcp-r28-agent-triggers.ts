@@ -1,5 +1,5 @@
 /**
- * R28 (DF-3 slice 3): agent run triggers over MCP: list, create and delete. Admin and full workspace keys only; the
+ * R28 (DF-3 slice 3): agent run triggers over MCP: list, create and delete (R30: and read a trigger's history). Admin and full workspace keys only; the
  * same service backs the app and REST (v1-r28-agent-triggers.ts). A webhook trigger's secret is returned once.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { DAYS } from "../services/suite/scheduling";
-import { createTrigger, deleteTrigger, listTriggers, TRIGGER_INSTRUCTIONS_MAX, TRIGGER_TITLE_MAX } from "../services/suite/agent-triggers";
+import { createTrigger, deleteTrigger, HISTORY_LIMIT, listTriggers, triggerHistory, TRIGGER_INSTRUCTIONS_MAX, TRIGGER_TITLE_MAX } from "../services/suite/agent-triggers";
 import type { Scoped } from "./mcp-server";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
@@ -47,4 +47,11 @@ export function registerAgentTriggerTools(server: McpServer, deps: Deps, actor: 
     writable();
     return deleteTrigger(deps, a, x.triggerId);
   }) as never);
+
+  // R30: the History the Triggers dialog shows (R29), over MCP. Same service and rules as GET /api/v1/agent-triggers/{id}/history.
+  server.registerTool("agent_trigger_history", {
+    title: "Read an agent trigger's history", annotations: { readOnlyHint: true, openWorldHint: false },
+    description: `A trigger's recent fires and refusals, newest first: outcome (fired or refused), source (schedule, webhook or manual), reason and message on a refusal, the run it queued with its task, who fired it, and when. limit is 1 to ${HISTORY_LIMIT} (default 20). Admin and workspace keys only.`,
+    inputSchema: { triggerId: z.string().min(1).max(80), limit: z.number().int().min(1).max(HISTORY_LIMIT).optional() },
+  }, tool(async (x: { triggerId: string; limit?: number }) => triggerHistory(deps, a, x.triggerId, { limit: x.limit ?? 20 })) as never);
 }

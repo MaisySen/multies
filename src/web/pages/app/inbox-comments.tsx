@@ -7,6 +7,7 @@ import { Textarea } from "@/web/components/ui/input";
 import { Avatar, Card, Kbd } from "@/web/components/ui/misc";
 import { fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 /** Round 22 (R22.2): internal notes on a shared inbox thread. Team only, never sent to anyone outside. */
 interface Person { userId: string; name: string; email: string | null }
@@ -146,7 +147,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
         <h3 className="text-sm font-semibold">Team notes</h3>
         <span className="text-xs text-warn">Only your team sees these</span>
       </div>
-      {notes.isPending ? <p className="mt-3 text-sm text-subtle">Loading notes</p>
+      {notes.isPending ? <SkeletonRows rows={2} rowHeight={56} avatar label="Loading notes" className="mt-3" />
         : notes.error ? <p className="mt-3 text-sm text-bad">{notes.error.message}</p>
         : notes.data.comments.length > 0 && (
           <ul className="mt-3 space-y-3">

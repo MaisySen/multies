@@ -11,6 +11,7 @@ import { api } from "@/web/lib/api";
 import { timeAgo, zonedDateTime } from "@/web/lib/format";
 import { Badge } from "@/web/components/ui/misc";
 import { TRIGGER_REFUSALS } from "@/web/components/app-bits";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 export interface TriggerHistoryEntry {
   id: string; at: string; outcome: "fired" | "refused"; source: "schedule" | "webhook" | "manual" | null;
@@ -39,7 +40,7 @@ export function TriggerHistory({ triggerId }: { triggerId: string }) {
     queryFn: () => api.get<{ entries: TriggerHistoryEntry[]; limit: number }>(`/agent-triggers/${triggerId}/history`),
     staleTime: 0,
   });
-  if (q.isLoading) return <p className="px-1 py-2 text-[13px] text-muted">Loading history</p>;
+  if (q.isLoading) return <SkeletonRows rows={3} rowHeight={36} label="Loading history" />;
   if (q.isError) return <p className="px-1 py-2 text-[13px] text-bad" role="alert">History could not be loaded.</p>;
   const entries = q.data?.entries ?? [];
   return (

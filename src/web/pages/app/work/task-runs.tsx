@@ -2,16 +2,18 @@
  * R27 (DF-3 slice 2): the Runs section of the task panel. Each run an AI agent member made on the task, newest first:
  * the agent with its Agent badge, a status chip, when it started and how long it took. A run opens to its ordered
  * steps and result. Refreshes with the task panel (its detail refetches every 20 seconds) and every 10 seconds while
- * a run is queued or running.
+ * a run is queued or running. R30: a queued or running run has a "Cancel run" button with an inline confirm; the chip
+ * turns Cancelled at once and goes back if the server refuses.
  */
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, ChevronDown, ChevronRight, MessageSquare, RefreshCw, StickyNote, Wrench } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Bot, ChevronDown, ChevronRight, CircleStop, MessageSquare, RefreshCw, StickyNote, Wrench } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Badge } from "@/web/components/ui/misc";
+import { Button } from "@/web/components/ui/button";
 import { fullDate, initials, timeAgo } from "@/web/lib/format";
-import { cn } from "@/web/lib/cn";
 
 type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 interface RunStep { at: string; kind: "note" | "tool" | "comment" | "status_change"; text: string }
@@ -41,6 +43,21 @@ export function runDuration(ms: number | null): string {
   return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
 }
 
+/** R30: the runs with one run marked cancelled (the optimistic change before the server answers). */
+export function withRunCancelled<T extends { runs: AgentRun[] }>(data: T | undefined, id: string, at = new Date().toISOString()): T | undefined {
+  if (!data) return data;
+  return { ...data, runs: data.runs.map((r) => (r.id === id && (r.status === "queued" || r.status === "running") ? { ...r, status: "cancelled" as const, finishedAt: at } : r)) };
+}
+
+/** R30: the runs with one run replaced by the server's answer. */
+export function withRun<T extends { runs: AgentRun[] }>(data: T | undefined, run: AgentRun): T | undefined {
+  if (!data) return data;
+  return { ...data, runs: data.runs.map((r) => (r.id === run.id ? { ...r, ...run, steps: run.steps ?? r.steps } : r)) };
+}
+
+/** Whether a run can still be cancelled (queued or running). */
+export const canCancelRun = (r: Pick<AgentRun, "status">) => r.status === "queued" || r.status === "running";
+
 export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?: number }) {
   const qc = useQueryClient();
   const key = ["task-runs", taskId];
@@ -53,12 +70,24 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
   useEffect(() => { if (refreshedAt) void qc.invalidateQueries({ queryKey: key }); }, [refreshedAt]); // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState<string | null>(null);
   const runs = q.data?.runs ?? [];
-  if (!runs.length) return null;
 
-  const cancel = async (id: string) => {
-    try { await api.post(`/agent-runs/${id}/cancel`); } catch (e) { showError(e as Error); }
-    await qc.invalidateQueries({ queryKey: key });
-  };
+  const [confirming, setConfirming] = useState<string | null>(null);
+  // R30: optimistic cancel with rollback.
+  const cancel = useMutation({
+    mutationFn: (id: string) => api.post<{ run: AgentRun }>(`/agent-runs/${id}/cancel`, {}),
+    onMutate: async (id: string) => {
+      setConfirming(null);
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<{ runs: AgentRun[] }>(key);
+      qc.setQueryData(key, withRunCancelled(before, id));
+      return { before };
+    },
+    onError: (e, _id, c) => { if (c?.before) qc.setQueryData(key, c.before); showError(e as Error); },
+    onSuccess: (res) => { qc.setQueryData(key, (d: { runs: AgentRun[] } | undefined) => withRun(d, res.run)); toast.success("Run cancelled"); },
+    onSettled: () => { void qc.invalidateQueries({ queryKey: key }); },
+  });
+
+  if (!runs.length) return null;
 
   return (
     <section className="mt-6" aria-label="Runs" data-testid="task-runs">
@@ -67,7 +96,7 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
         {runs.map((r) => {
           const st = STATUS[r.status];
           const expanded = open === r.id;
-          const live = r.status === "queued" || r.status === "running";
+          const live = canCancelRun(r);
           return (
             <li key={r.id} className="rounded-lg border border-line" data-testid="task-run">
               <button type="button" aria-expanded={expanded} aria-label={`${r.agent.name} run, ${st.label}`} onClick={() => setOpen(expanded ? null : r.id)}
@@ -104,9 +133,17 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
                       <p className="mt-1 whitespace-pre-wrap text-[13px]" data-testid="run-result">{r.result}</p>
                     </div>
                   )}
-                  {live && (
-                    <button type="button" onClick={() => void cancel(r.id)} className={cn("mt-2 rounded-md px-2 py-1 text-[12px] text-subtle hover:bg-hover hover:text-bad")}>Cancel run</button>
-                  )}
+                  {live && (confirming === r.id ? (
+                    <div role="group" aria-label="Cancel this run" className="mt-2.5 flex flex-wrap items-center gap-2 rounded-md bg-fill/70 px-2.5 py-2" data-testid="run-cancel-confirm">
+                      <p className="mr-auto text-[12.5px] text-muted">{r.agent.name} stops and this run can't be picked up again.</p>
+                      <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Keep running</Button>
+                      <Button size="sm" variant="danger" onClick={() => cancel.mutate(r.id)} autoFocus>Cancel run</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" className="mt-2 hover:text-bad" onClick={() => setConfirming(r.id)} disabled={cancel.isPending && cancel.variables === r.id}>
+                      <CircleStop className="h-3.5 w-3.5" aria-hidden />Cancel run
+                    </Button>
+                  ))}
                 </div>
               )}
             </li>

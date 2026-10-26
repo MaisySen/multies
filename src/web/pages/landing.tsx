@@ -24,7 +24,7 @@ const work = [
   { title: "Team chat beside your mail", body: "Channels, direct messages and threads, with @mentions, files and task links that open in one click. Turn any message into a task. Share a project's channel with its guests, and let agents post and read through the API." },
   { title: "Goals, templates and repeating tasks", body: "Set goals with key results in AUD, numbers or tasks done, and watch progress roll up. Start projects from a starter gallery or your own templates. Tasks can repeat daily, weekly on chosen days, monthly or yearly." },
   { title: "One inbox for what needs you", body: "Mentions, work assigned to you, comments, approvals and anything due soon land in one notifications inbox. Choose per category what shows there and what buzzes your phone." },
-  { title: "Video meetings from a thread", body: "Start a meeting from an email, a task or a contact. Guests join from a link in their browser, and the calendar invite goes out from your own address. Nothing is recorded." },
+  { title: "Video meetings from a thread", body: "Start a meeting from an email, a task or a contact. Guests join from a link in their browser, and the calendar invite goes out from your own address. Record a call for a transcript and summary." },
 ];
 
 const faqs = [

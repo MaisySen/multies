@@ -117,7 +117,7 @@ or how it ended.
   rules as comments), or claims a run queued for it. The explicit allowance is a person or a full workspace key queuing
   a run for a named agent member, which also covers tasks the agent is not on. Only the run's agent adds steps and
   finishes; a person or a workspace key can cancel. Mail agent keys (the `agents` table) can't run tasks.
-- Audit: `agent_run.started`, `agent_run.queued` and `agent_run.finished` go to `audit_logs` with the task as target and
+- Audit: `agent_run.started`, `agent_run.queued`, `agent_run.finished` and (R30) `agent_run.cancelled` go to `audit_logs` with the task as target and
   metadata naming the agent (`agentUserId`, `agentName`), the task (`taskRef`, `taskTitle`), the run and its status.
   Steps are not audited (they are the run log itself). The audit page reads them in plain words: "Builder started a run
   on MB-12".

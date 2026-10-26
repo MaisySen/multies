@@ -7,8 +7,8 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
-import { addRunStep, finishRun, getRun, listRuns, listTaskRuns, startRun } from "../services/suite/agent-runs";
-import { RunFinishBody, RunStartBody, RunStepBody } from "./agent-runs-r27";
+import { addRunStep, cancelRun, finishRun, getRun, listRuns, listTaskRuns, startRun } from "../services/suite/agent-runs";
+import { RunCancelBody, RunFinishBody, RunStartBody, RunStepBody } from "./agent-runs-r27";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -44,4 +44,8 @@ export function registerAgentRunRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(route("post", "/runs/{id}/finish", "Finish a run", "Body: { status: succeeded | failed | cancelled, result?, moveTo?: done | review, comment? }. The run's own agent can finish it, move the task to done or to a status named like \"In review\", and post the result as its comment on the task. A person or a workspace key can only cancel. Writes an audit entry.", { request: { params: Id, ...body(RunFinishBody) } }),
     async (c) => send(c, await finishRun(c.var.deps, actor(c), pid(c), await jsonBody(c, RunFinishBody))));
+
+  // R30: cancel. Same answer shape as GET /runs/{id}. The body is optional, so the request body is not required here.
+  api.openapi(route("post", "/runs/{id}/cancel", "Cancel a run", "Cancels a queued or running run. A person, a full workspace key, or the run's own agent key can; another agent's key gets 403 not_this_agent and a read only key 403. Body (optional): { reason? } up to 500 characters, kept as the run's result. A finished run answers 409 run_finished; cancelling an already cancelled run answers 200 with the run unchanged (no second write or audit entry). A cancelled run can't be claimed, stepped (409 run_cancelled) or finished (409 run_cancelled). Writes an agent_run.cancelled audit entry. Answers { run } like GET /runs/{id}.", { request: { params: Id, body: { required: false, content: { "application/json": { schema: RunCancelBody } } } } }),
+    async (c) => send(c, await cancelRun(c.var.deps, actor(c), pid(c), await jsonBody(c, RunCancelBody))));
 }

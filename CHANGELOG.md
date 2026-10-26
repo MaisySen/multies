@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 30: cancel agent runs, faster first load, tighter security headers, polish (26 Oct 2026)
+
+- Agents: cancel a queued or running run from the run detail (with a confirm and an instant Cancelled state that rolls back if the server refuses), over the API (`POST /api/v1/runs/{id}/cancel`, optional reason, same shape as GET run) and over MCP (`agent_run_cancel`). A cancelled run can't be picked up again; steps and finishes on it answer 409 `run_cancelled`. Every cancel writes one `agent_run.cancelled` audit entry. New MCP tool `agent_trigger_history`. MCP now has 156 tools.
+- Sign in with Google uses Google's own downloadable "G" asset (Google's current gradient mark), served as an image.
+- Faster first load: the landing page arrives already rendered, sign in no longer jumps as it loads (layout shift 0.37 to 0), sign-in code preloads with the page, web fonts can no longer swap mid-read and `legacy.js` no longer blocks rendering. Lighthouse mobile: landing 92 performance and 100 accessibility, sign in 89 and 100. `npm run perf:lh`.
+- Security headers: connect-src no longer allows any websocket host (only our own, LiveKit Cloud and the configured LiveKit URL), the API reference page has no inline script and pins its viewer, HSTS carries `preload`, Permissions-Policy drops `interest-cohort` for `browsing-topics=()`, and CSP violation reports go to `POST /api/csp-report` (log only, no database writes). `npm run security:headers` grades a site the way securityheaders.com does: A+ locally.
+- Polish: press ? for the keyboard shortcuts sheet (also G then a key to jump between pages), all from one registry; the command menu reaches every app page plus New task, New doc, theme and shortcuts with fuzzy matching; designed empty states and row-height skeletons on Tasks; mail actions update instantly and roll back with a message if the server refuses.
+- `GET /api/v1/app-config` (public, cached 60 s) and `PUT` (behind `APP_CONFIG_TOKEN`) for the phone app: minimum supported store build per platform, critical and rolled back OTA updates, update check throttle and the Sentry DSN for update health. Platform admins have `/api/admin/app-config`.
+- Meetings: the page and the landing page no longer say nothing is recorded; recording and transcripts shipped in round 23.
+
 ### Round 29: trigger history, bulk reassign watchers, docs and sign in polish (26 Oct 2026)
 
 - Agent triggers: each trigger in the Triggers dialog has History (its last 50 fires and refusals, with the reason in plain words, the source and a link to the run's task) and Edit (the Add form filled in, days of the week and an optional time zone). `GET /api/v1/agent-triggers/{id}/history`. Refused webhook calls before a fire (bad signature, stale, replayed, over the rate) are recorded at most once per trigger every 10 minutes. Migration 0063 adds a partial index on trigger audit rows.

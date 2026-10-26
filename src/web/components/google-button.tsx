@@ -4,27 +4,28 @@ import { Spinner } from "./ui/spinner";
 
 /**
  * R29: sign in buttons for other accounts, drawn to Google's sign in branding guidelines
- * (developers.google.com/identity/branding-guidelines): the standard four colour "G" at 20 px on
+ * (developers.google.com/identity/branding-guidelines): Google's "G" (R30: Google's own asset) at 20 px on
  * the left, 12 px padding each side and 10 px between the logo and the words, 14 px medium text,
  * a white button with a #747775 border in light mode and #131314 with a #8E918F border in dark
  * mode (the .mm-provider-btn rules in index.css). Microsoft and GitHub use the same shell so the
  * row reads as one set.
  */
 
-/** The four colours Google publishes for its "G". */
-export const GOOGLE_G_COLOURS = ["#EA4335", "#4285F4", "#FBBC05", "#34A853"] as const;
+/**
+ * R30: the "G" is Google's own downloadable sign in asset (signin-assets.zip from
+ * developers.google.com/identity/branding-guidelines, "Android + Web/SVG", icon only, square),
+ * with only the button frame removed and the view box cropped to the 20 x 20 logo. The file is
+ * identical in the Light, Dark and Neutral sets. It is served as an image, so it is cached, not
+ * subject to the page's inline style rules, and never recoloured.
+ */
+export const GOOGLE_G_SRC = "/brand/google-g.svg";
 
-/** Google's standard "G" logo, as Google ships it in its sign in button. Never recoloured. */
+/** The colours of Google's current gradient "G" (the solid stops in Google's asset). */
+export const GOOGLE_G_COLOURS = ["#3186FF", "#FF4641", "#0EBC5F", "#FFCC00"] as const;
+
+/** Google's "G" logo, exactly as Google ships it. */
 export function GoogleGLogo({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 48 48" className={className} aria-hidden="true" focusable="false" data-testid="google-g">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-      <path fill="none" d="M0 0h48v48H0z" />
-    </svg>
-  );
+  return <img src={GOOGLE_G_SRC} width={20} height={20} alt="" aria-hidden="true" draggable={false} decoding="async" className={className} data-testid="google-g" />;
 }
 
 /** Microsoft's four squares. */

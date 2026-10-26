@@ -110,7 +110,7 @@ export function MeetingsPage() {
   const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
-      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. No recordings or transcripts." actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Schedule</Button>} />
+      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Schedule</Button>} />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><VideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
         <Card><EmptyState icon={<Video />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
@@ -289,7 +289,7 @@ export function GuestMeetingPage() {
                   <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void go(); }}>
                     <Field label="Your name">{(fp) => (<Input {...fp} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} />)}</Field>
                     <Button type="submit" className="w-full" loading={busy} disabled={!name.trim()}><Video className="h-4 w-4" />Join meeting</Button>
-                    <p className="text-[12px] text-subtle">Your browser will ask to use your camera and microphone. Nothing is recorded.</p>
+                    <p className="text-[12px] text-subtle">Your browser will ask to use your camera and microphone. If the call is recorded, you see a banner while it is on.</p>
                   </form>
                 )}
             </Card>

@@ -19,6 +19,7 @@ import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Badge, Card } from "@/web/components/ui/misc";
 import { blobToBase64, CallRecorder, decodeSignal, encodeSignal, RECORDING_TOPIC, UploadQueue, type Chunk, type RecordingSignal } from "@/web/lib/call-recorder";
+import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
 export interface Recording {
@@ -221,7 +222,7 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
         <FileText className="h-4 w-4 text-muted" />
         <h2 className="text-[13px] font-semibold">Recording and transcript</h2>
       </div>
-      {!data ? <p className="mt-2 text-[13px] text-muted">Loading...</p> : (
+      {!data ? <SkeletonRows rows={2} rowHeight={40} label="Loading recording" className="mt-2" /> : (
         <>
           {!data.recordings.length && (data.setup.ready
             ? <p className="mt-2 text-[13px] text-muted">No recordings yet. Press Record in the call to transcribe it with your {data.setup.providerName} key; the summary is posted to the chat afterwards.</p>

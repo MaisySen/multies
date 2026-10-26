@@ -59,6 +59,12 @@ export interface AppConfig {
   sentry: { dsnApi?: string; dsnWeb?: string; environment: string; tracesSampleRate: number };
   /** Release id (the git commit) reported to Sentry and in logs and /api/health. */
   release: string;
+  /**
+   * R29b: the mobile app's remote config (GET /api/v1/app-config). `configToken` (APP_CONFIG_TOKEN) lets the
+   * release scripts change it (PUT); `sentryDsn` is where phones send update health reports
+   * (SENTRY_DSN_MOBILE, else the web DSN).
+   */
+  mobileApp: { configToken?: string; sentryDsn?: string };
   /** RFC 9116 contact for vulnerability reports (a mailto: or https: URI). */
   securityContact: string;
   /** Other deployments this one probes on its schedule (base URLs). */
@@ -230,6 +236,8 @@ const EnvSchema = z.object({
   RELEASE: z.string().optional(),
   CF_BEACON_TOKEN: z.string().optional(),
   SENTRY_RELEASE: z.string().optional(),
+  APP_CONFIG_TOKEN: z.string().min(32, "APP_CONFIG_TOKEN must be at least 32 characters").optional(),
+  SENTRY_DSN_MOBILE: z.string().optional(),
   SECURITY_CONTACT: z.string().regex(/^(mailto:|https:\/\/)/, "SECURITY_CONTACT must be a mailto: or https: URI").optional(),
   BILLING_GRACE_DAYS: z.string().regex(/^\d+$/).optional(),
   MONITOR_URLS: z.string().optional(),
@@ -370,6 +378,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       tracesSampleRate: clampRate(env.SENTRY_TRACES_SAMPLE_RATE, 0.1),
     },
     release: env.RELEASE ?? env.SENTRY_RELEASE ?? "dev",
+    mobileApp: { configToken: env.APP_CONFIG_TOKEN?.trim() || undefined, sentryDsn: env.SENTRY_DSN_MOBILE || env.SENTRY_DSN_WEB || undefined },
     securityContact: env.SECURITY_CONTACT ?? `mailto:security@${hostOf(env.APP_URL ?? "http://localhost")}`,
     monitorUrls: csv(env.MONITOR_URLS).filter((u) => /^https?:\/\//.test(u)),
     billingGraceDays: Math.max(0, Math.min(60, Number(env.BILLING_GRACE_DAYS ?? 7) || 7)),

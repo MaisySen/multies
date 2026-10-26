@@ -7,7 +7,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
-import { addRunStep, finishRun, listRuns, listTaskRuns, RUN_RESULT_MAX, RUN_STEP_KINDS, RUN_STEP_TEXT_MAX, startRun } from "../services/suite/agent-runs";
+import { addRunStep, cancelRun, finishRun, listRuns, listTaskRuns, RUN_CANCEL_REASON_MAX, RUN_RESULT_MAX, RUN_STEP_KINDS, RUN_STEP_TEXT_MAX, startRun } from "../services/suite/agent-runs";
 import type { Scoped } from "./mcp-server";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
@@ -50,4 +50,14 @@ export function registerAgentRunTools(server: McpServer, deps: Deps, actor: Scop
     inputSchema: { taskId: z.string().optional(), agentUserId: z.string().max(80).optional(), status: z.enum(["queued", "running", "succeeded", "failed", "cancelled"]).optional(), limit: z.number().int().min(1).max(200).optional() },
   }, tool(async (x: { taskId?: string; agentUserId?: string; status?: "queued" | "running" | "succeeded" | "failed" | "cancelled"; limit?: number }) =>
     x.taskId ? listTaskRuns(deps, a, x.taskId, { limit: x.limit }) : listRuns(deps, a, { agentUserId: x.agentUserId, status: x.status, limit: x.limit })) as never);
+
+  // R30: cancel a run (the same rules as POST /api/v1/runs/{id}/cancel).
+  server.registerTool("agent_run_cancel", {
+    title: "Cancel an agent run", annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    description: `Cancels a queued or running run so no agent picks it up or keeps working on it. A person's key, a full workspace key, or the run's own agent key can; another agent's key can't. reason (up to ${RUN_CANCEL_REASON_MAX} characters) is kept as the run's result. A finished run is refused (run_finished); an already cancelled run comes back unchanged. Returns { run }.`,
+    inputSchema: { runId: z.string().min(1).max(80), reason: z.string().max(RUN_CANCEL_REASON_MAX).optional() },
+  }, tool(async (x: { runId: string; reason?: string }) => {
+    writable();
+    return cancelRun(deps, a, x.runId, { reason: x.reason });
+  }) as never);
 }

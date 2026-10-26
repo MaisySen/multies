@@ -27,6 +27,8 @@ export default defineConfig({
     outDir: "dist/web",
     emptyOutDir: true,
     sourcemap: "hidden",
+    // R30: read by scripts/prerender-landing.ts (route preloads for sign in), then deleted from dist.
+    manifest: true,
     rolldownOptions: { output: { codeSplitting: { includeDependenciesRecursively: false, groups: VENDOR_GROUPS } } },
   },
   server: {
