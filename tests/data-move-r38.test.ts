@@ -119,7 +119,8 @@ describe("move your data: imports, undo and the export round trip", () => {
 
   it("maps file statuses onto an existing project's statuses", async () => {
     const { c, db } = await owner();
-    const p = (await c.post("/api/projects", { name: "Board" })).body;
+    const made = (await c.post("/api/projects", { name: "Board" })).body;
+    const p = (made.project ?? made) as { id: string };
     const statuses = await db.select().from(projectStatuses).where(eq(projectStatuses.projectId, p.id));
     const doing = statuses.find((s) => s.category === "doing")!;
     const run = await c.post("/api/data-moves/imports/run", { kind: "tasks", content: "Title,Status\nA,Working on it\n", projectId: p.id, statusMap: { "working on it": doing.id } });
