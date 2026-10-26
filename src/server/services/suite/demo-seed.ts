@@ -13,7 +13,6 @@ import { enqueue, registerJob } from "../jobs";
 import { addComment, createProject, listProjects, listTasks, createTaskFromThread, defaultProject, link } from "./tasks";
 import { changeRow, createdBy, flushWriteBuffer, parseDate, sortableId, type SuiteActor } from "./common";
 import { claimNumbers } from "./project-counter";
-import { seedDemoTriage } from "./demo-triage-r38";
 
 const day = (now: number, d: number) => new Date(now + d * 86_400_000).toISOString().slice(0, 10);
 
@@ -140,7 +139,7 @@ export async function seedDemoSuite(deps: Deps, actor: SuiteActor, now: number, 
   }
 
   const [docsList, dealsList, autoList] = await Promise.all([listDocs(deps, orgId), listDeals(deps, orgId), listAutomations(deps, orgId)]);
-  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now), seedRound8(deps, actor, client.id, tasksProject.id), seedRound10(deps, actor, fromMaria, now), seedDemoTriage(deps, actor, client, now)]);
+  await Promise.all([seedDocs(), seedDeals(), seedAutomations(), seedRound7(deps, actor, client, now), seedRound8(deps, actor, client.id, tasksProject.id), seedRound10(deps, actor, fromMaria, now)]);
 
   async function seedDocs() {
   if (!docsList.length) {

@@ -65,10 +65,11 @@ test("make Team overview, see the counts, add a widget from a saved filter, reor
   // Add a widget from the saved filter.
   await page.getByRole("button", { name: "Add widget" }).click();
   const dlg = page.getByRole("dialog");
-  await dlg.getByLabel("Widget").selectOption("count");
+  // R38: the picker is a grid of tiles; pick one, then its settings.
+  await dlg.getByTestId("picker-tile-count").click();
   await dlg.getByLabel("Tasks from").selectOption({ label: "High priority" });
   await dlg.getByLabel("Title").fill("High priority tasks");
-  await dlg.getByRole("button", { name: "Add" }).click();
+  await dlg.getByRole("button", { name: "Add widget" }).click();
   await expect(widgets).toHaveCount(5);
   await expect(page.locator('[data-title="High priority tasks"]').getByTestId("widget-number")).toHaveText("2");
 

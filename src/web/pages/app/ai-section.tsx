@@ -18,7 +18,7 @@ export interface AiStatus {
   message: string;
 }
 
-export const BYO_AI_LINE = "Bring your own AI: connect a desktop chat app, a code editor or any MCP client, free.";
+export const BYO_AI_LINE = "Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.";
 
 export const useAiStatus = () => useQuery({ queryKey: ["ai-status"], queryFn: () => api.get<AiStatus>("/ai/status"), staleTime: 60_000 });
 

@@ -35,11 +35,6 @@ export function TriageCommentBar({ mode, busy, onSubmit, onCancel, onMore }: {
         }} />
       <span className="hidden items-center gap-1 text-xs text-subtle sm:inline-flex"><Kbd>Enter</Kbd> {accept ? "accept" : "decline"} <Kbd>Esc</Kbd> cancel</span>
       {!accept && onMore && <button type="button" onClick={onMore} className="rounded text-xs text-muted hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]">Reply options</button>}
-      {/* R38: touch friendly buttons (a phone has no Esc or Enter key in reach); the e2e for the triage keys found the bar had no visible way out. */}
-      <span className="flex items-center gap-1.5">
-        <button type="button" onClick={onCancel} data-testid="triage-comment-cancel" className="inline-flex min-h-8 items-center rounded-lg px-3 text-[13px] font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3] max-sm:min-h-11">Cancel</button>
-        <button type="submit" disabled={busy} className={cn("inline-flex min-h-8 items-center rounded-lg px-3 text-[13px] font-semibold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3] focus-visible:ring-offset-1 disabled:opacity-50 max-sm:min-h-11", accept ? "bg-[#0071E3] hover:bg-[#0062c4]" : "bg-bad hover:opacity-90")}>{accept ? "Accept" : "Decline"}</button>
-      </span>
     </form>
   );
 }

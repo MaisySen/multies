@@ -441,9 +441,9 @@ Registered in src/server/routes/mcp-r24-dashboards.ts. `list_dashboards` and `ge
 | Tool | What it does |
 | --- | --- |
 | `list_dashboards` | Dashboards you can open (shared ones and your own) with their widget counts |
-| `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person; a widget whose saved filter was removed carries an `error` |
+| `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person, and the R38 types: calculations with a goal and the change against the previous range, battery, pivot tables, created vs completed, task lists, time tracked and notes; a widget whose saved filter was removed carries an `error` |
 | `create_dashboard` | Make a dashboard with up to 24 widgets, or `starter: "team"` for Team overview (by status, by person, due this week, completed per week); private unless `shared` |
-| `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`) |
+| `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`). R38 types take `range`, `metric`, `op`, `goal` (calculation), `columnBy` (pivot), `sort` (task_list) and `text` (note) |
 
 ### Formula and rollup fields (R24.1)
 
