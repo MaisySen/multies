@@ -853,7 +853,7 @@ follow the task. Read only keys can list; writes need a full key. Another worksp
 | DELETE | `/api/v1/checklist-items/{id}` | Remove the item |
 | POST | `/api/v1/checklist-items/{id}/to-subtask` | Make a subtask of the item's task (same title, assignee, due) and remove the item |
 
-Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
+Task rows (GET /tasks and friends) carry `checklist: { total, done }` (0 and 0 with no checklist); since R28 it is a required field of the `Task` schema in `/api/v1/openapi.json`, on list, get, create, update and bulk answers. Each item write costs 3 D1 row writes (the row,
 its primary key and one index on task_id).
 
 ## Agent runs on tasks (R27, DF-3 slice 2)
