@@ -856,6 +856,31 @@ follow the task. Read only keys can list; writes need a full key. Another worksp
 Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
 its primary key and one index on task_id).
 
+## Agent runs on tasks (R27, DF-3 slice 2)
+
+An AI agent member works on a task itself and leaves a run log: a start, ordered steps and a result. Runs show on the
+task (the Runs section of the task panel) and every start and finish writes an audit entry that names the agent and the
+task ("Builder started a run on MB-12"). A run is `queued`, `running`, `succeeded`, `failed` or `cancelled`.
+
+| Method | Path | Who | What it does |
+|---|---|---|---|
+| POST | `/api/v1/tasks/{id}/runs` | the agent member's own key | Start a run (`running`) on a task the agent is assigned to or mentioned on (`<@member:id>` or `@Name` in the notes or a comment), or claim a run queued for it. Body `{ moveToDoing?, note? }`. Otherwise 403 `agent_not_on_task` |
+| POST | `/api/v1/tasks/{id}/runs` | a person or a full workspace key | Queue a run (`queued`) for an agent member: the explicit allowance. Body `{ agentUserId }` |
+| POST | `/api/v1/runs/{id}/steps` | the run's own agent | Append `{ kind: note \| tool \| comment \| status_change, text }`. A queued run becomes running |
+| POST | `/api/v1/runs/{id}/finish` | the run's own agent | `{ status: succeeded \| failed \| cancelled, result?, moveTo?: done \| review, comment? }`. `moveTo: review` picks the project status whose name has "review" in it; `comment: true` posts the result as the agent's comment |
+| POST | `/api/v1/runs/{id}/finish` | a person or a workspace key | Only `{ status: "cancelled" }` (403 `cancel_only` otherwise). The app has `POST /api/agent-runs/{id}/cancel` |
+| GET | `/api/v1/tasks/{id}/runs` | any key | The task's runs, newest first, with steps and result. `limit` 1 to 200 |
+| GET | `/api/v1/runs/{id}` | any key | One run with its steps |
+| GET | `/api/v1/runs` | any key | Runs across the workspace, newest first, without steps. `agentUserId`, `status`, `limit` (1 to 200) |
+
+Limits: one queued or running run per agent and task (409 `run_in_progress`), 200 steps per run (422
+`run_step_limit`), 1,000 characters per step and 4,000 per result. Mail agent keys get 403 `agent_member_only`; read
+keys get 403 `read_only_key`; a paused agent's key gets 401. Another workspace's ids answer 404.
+
+D1 cost: a step is 1 row write (the steps are a JSON array on the run row, appended in place; no index changes).
+Starting is 4 (the row, its primary key, the task index and the one-active-run index) plus the audit row; finishing is
+2 plus the audit row. Moving the task or posting the comment costs what those writes always cost.
+
 ## Task query language (R26, MB-86)
 
 `GET /api/v1/tasks?q=...` (and the app's task list) takes a typed query. Terms are ANDed, commas mean any of, a leading

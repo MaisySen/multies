@@ -65,10 +65,10 @@ export function DashboardPage() {
             <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2><Link to="/app/activity" className="text-xs text-muted hover:text-fg">Audit log</Link></div>
             <ul className="mt-3 divide-y divide-line">
               {data.recent.map((e) => {
-                const { verb, object } = describeAudit(e);
+                const { verb, object, subject } = describeAudit(e);
                 return (
                   <li key={e.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                    <span className="min-w-0 truncate"><span className="text-muted">{e.actorEmail ?? "System"}</span> {verb}{object && <span className="font-medium"> {object}</span>}</span>
+                    <span className="min-w-0 truncate"><span className="text-muted">{subject ?? e.actorEmail ?? "System"}</span> {verb}{object && <span className="font-medium"> {object}</span>}</span>
                     <time className="shrink-0 text-xs text-subtle" dateTime={e.createdAt}>{timeAgo(e.createdAt)}</time>
                   </li>
                 );

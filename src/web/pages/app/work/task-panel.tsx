@@ -9,6 +9,7 @@ import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
 import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
+import { TaskRuns } from "./task-runs"; // R27 (DF-3 slice 2)
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -176,6 +177,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
           <TaskChecklist taskId={t.id} onSubtask={() => void q.refetch()} />
+
+          <TaskRuns taskId={t.id} refreshedAt={q.dataUpdatedAt} />
 
           <section className="mt-6" aria-label="Subtasks" hidden={t.type === "epic"}>
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>
