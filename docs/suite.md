@@ -153,6 +153,23 @@ blocked task should start after the blocker's last day (a task with one date tak
   wait" on (remembered per device, on by default), dragging a bar into the tasks after it opens a sheet with each
   task's old and new dates: "Move all" or "Only this one". MCP: `check_task_schedule`, `reschedule_task`.
 
+R38, dependencies round 2 (migration 0079; schedule-settings-r38.ts, web schedule-r38.tsx):
+- Lead and lag per link: `entity_links.lag_days`, a whole number from -365 to 365. Positive waits that many days after
+  the blocker ends; negative lets the task start that many days before. `POST /api/v1/tasks/{id}/dependencies
+  { blockedBy, lagDays? }` and `PATCH /api/v1/tasks/{id}/dependencies/{blockedBy} { lagDays }` (one update, essential).
+  Dependency lists carry `lagDays` on each row; clashes carry `lag`. MCP: `set_task_blocked_by` takes `lagDays`.
+- Rules per project, kept in the project's board settings row (`schedule` JSON): `GET` and `PUT /api/v1/projects/{id}/schedule
+  { workingDaysOnly?, daysOff?, strict? }` (tasks:read, tasks:write; one upsert, essential). Working days only: lag and
+  shifts count working days (Saturday and Sunday off unless `daysOff` says otherwise) and a moved task never starts or
+  ends on a day off, keeping its length in working days. Strict: moving a task by N days moves every task down the
+  chain by the same N, earlier or later; off is the flexible rule. `reschedule` takes `strict` to override it for one
+  move and answers `mode` and `workingDaysOnly`. MCP: `set_project_schedule`; `check_task_schedule` with a projectId
+  also returns the rules.
+- Web: a "Date clash" badge on list rows and board cards (one check per view, tooltip names the blocker and the fix
+  date); the gap on each link in the task panel and in the move sheet ("Waits 2 days", "Starts 1 day early"); "Working
+  days only" and "Just enough" or "Same days" on the timeline's schedule bar, with a per move switch in the sheet; a
+  Today line drawn over the chart.
+
 ## Forms
 
 A form has a random public address (`/f/<slug>`) and makes a task (answers in the notes, label
