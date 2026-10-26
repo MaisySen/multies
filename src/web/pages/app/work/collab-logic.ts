@@ -42,3 +42,14 @@ export function initialsOf(name: string): string {
   const b = parts.length > 1 ? parts[parts.length - 1][0] ?? "" : "";
   return (a + b).toUpperCase();
 }
+
+/**
+ * R29: whether an editor update means "Unsaved changes" for this person. Only their own typing
+ * does. In a live session a change that came from the room (the shared doc's first render, the
+ * editor's normalisation of it such as the closing empty paragraph, another person's typing) is
+ * saved quietly by the leader when it differs from the row, so opening a doc no longer flashes
+ * "Unsaved changes".
+ */
+export function updateShowsUnsaved(opts: { live: boolean; fromRoom: boolean }): boolean {
+  return !(opts.live && opts.fromRoom);
+}

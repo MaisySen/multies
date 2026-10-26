@@ -671,5 +671,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `agent_runs` ADD `input` text;",
       "CREATE INDEX `agent_runs_queued_idx` ON `agent_runs` (`agent_user_id`) WHERE \"agent_runs\".\"status\" = 'queued';"
     ]
+  },
+  {
+    "name": "0063_r29_audit_target_idx",
+    "statements": [
+      "-- R29: an agent trigger's History reads its last 50 fires and refusals from audit_logs by target_id, newest first.\n-- A partial index on agent trigger rows only: the read is a bounded range read instead of a scan of the workspace's\n-- audit log, and every other audit insert costs no extra D1 write. Building it writes one entry per existing agent\n-- trigger audit row (a few at most, since triggers shipped in R28).\nCREATE INDEX `audit_target_idx` ON `audit_logs` (`target_id`,`created_at`) WHERE \"audit_logs\".\"target_type\" = 'agent_trigger';"
+    ]
   }
 ];

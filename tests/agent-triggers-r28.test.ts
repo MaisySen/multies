@@ -226,13 +226,15 @@ describe("the webhook", () => {
     expect((await c.get(`/api/agent-triggers/${t.id}`)).body.trigger).toMatchObject({ fireCount: 1, lastFiredAt: new Date(clock).toISOString() });
   });
 
-  it("refuses unsigned, badly signed and stale requests, and replays, without writing", async () => {
+  it("refuses unsigned, badly signed and stale requests, and replays, writing at most one sampled audit row (R29)", async () => {
     const t = await webhookTrigger();
     const before = (raw("select count(*) n from audit_logs") as { n: number }[])[0].n;
     expect((await hook(t.id, "{}")).status).toBe(401);
     expect((await hook(t.id, "{}", { secret: "mtw_wrong" })).body.error.code).toBe("bad_signature");
     expect((await hook(t.id, "{}", { secret: t.secret, ts: Math.floor(clock / 1000) - 600 })).body.error.code).toBe("stale_signature");
-    expect((raw("select count(*) n from audit_logs") as { n: number }[])[0].n).toBe(before);
+    // R29: the first refusal is sampled into the audit log for the trigger's History; the rest of the 10 minutes write nothing.
+    expect((raw("select count(*) n from audit_logs") as { n: number }[])[0].n).toBe(before + 1);
+    expect(JSON.parse(audits().filter((x) => x.action === "agent_trigger.refused").at(-1)!.metadata)).toMatchObject({ reason: "missing_signature", source: "webhook", sampled: true });
     expect((raw("select count(*) n from agent_runs") as { n: number }[])[0].n).toBe(0);
     // A replay of an accepted request is refused, even after the rate limit has passed.
     const ts = Math.floor(clock / 1000);

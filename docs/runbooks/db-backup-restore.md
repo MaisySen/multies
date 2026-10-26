@@ -91,3 +91,8 @@ Restore the latest dump into a scratch database once a quarter and record the re
 | --- | --- | --- |
 | 2026-10-23 | `wrangler d1 export` of staging, imported into a new D1 database in Oceania | 37 tables and 11 applied migrations restored, then the scratch database was deleted. |
 | 2026-10-23 | Production moved from `mymail` (western North America) to `mymail-au` (Oceania) with `wrangler d1 export` | `d1 execute --file` refused the dump twice (rows for a table came before the table it references), so the tables were created first and the rows loaded parent tables first in batches through the D1 query API. Row counts matched for all 46 tables except one new uptime check, and `PRAGMA foreign_key_check` was clean. Old database kept until 2026-10-30. |
+
+
+## D1 read retry, checked against real D1 (R29)
+
+`npm run qa:d1-retry` starts `wrangler dev --local` on port 8890 (local workerd and a local D1, nothing remote), wraps the real D1 binding with `withReadRetry` (src/server/lib/d1-busy.ts) and goes through Drizzle the way the app does. It injects Cloudflare's own error words into the real statement objects and checks: a read that loses the connection once is retried once and succeeds; overloaded is retried; a second failure in a row reaches the caller and maps to 503 busy; an export is not retried (it lasts far longer than the pause) but maps to 503; a write is never retried and is never written twice; a real D1 error (no such table) stays a 500 and is not retried; Drizzle's DrizzleQueryError carries the D1 message on `cause`, which d1BusyKind reads; D1 batch() still takes the wrapped statements. Result on 26 Oct 2026: all 10 checks pass, no fix needed. Staging and production run the same wrapper since release 59da2dc1e113 with /health db ok.

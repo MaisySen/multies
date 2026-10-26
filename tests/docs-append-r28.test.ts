@@ -60,7 +60,9 @@ describe("POST /api/v1/docs/{id}/append", () => {
   it("adds a markdown section and keeps the existing content and headings", async () => {
     const made = await api(key, "POST", "/docs", { title: "Plan", text: "# Goals\nShip the pilot\n## Risks\n- Late roster" });
     const id = made.body.doc.id;
-    const before = made.body.doc.content.content;
+    // R29: a doc written from text ends with the editor's empty paragraph, which an append replaces.
+    expect(made.body.doc.content.content.at(-1)).toEqual({ type: "paragraph" });
+    const before = made.body.doc.content.content.slice(0, -1);
     const r = await api(key, "POST", `/docs/${id}/append`, { markdown: "## Week 2\n\n1. Call **Kathmandu**\n2. Print codes\n\nSee [the runbook](https://multies.si/docs)." });
     expect(r.status).toBe(200);
     const content = r.body.doc.content.content;
@@ -72,7 +74,7 @@ describe("POST /api/v1/docs/{id}/append", () => {
     // Plain text still works, with the create rules.
     const t = await api(key, "POST", `/docs/${id}/append`, { text: "# Notes\n- one" });
     expect(t.status).toBe(200);
-    expect(types({ content: t.body.doc.content.content.slice(-2) })).toEqual(["heading", "bulletList"]);
+    expect(types({ content: t.body.doc.content.content.slice(-3) })).toEqual(["heading", "bulletList", "paragraph"]);
   });
 
   it("drops an unsafe link target but keeps the words", async () => {
@@ -157,7 +159,7 @@ describe("MCP docs_append", () => {
     expect((stale as { isError?: boolean }).isError).toBe(true);
     expect((stale as { content: { text: string }[] }).content[0].text).toContain("version_conflict");
     const doc = (await api(key, "GET", `/docs/${d.id}`)).body.doc;
-    expect(types(doc.content)).toEqual(["heading", "heading", "taskList"]);
+    expect(types(doc.content)).toEqual(["heading", "heading", "taskList", "paragraph"]);
     await mcp.close();
   });
 });

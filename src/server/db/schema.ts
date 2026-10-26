@@ -348,7 +348,7 @@ export const auditLogs = sqliteTable("audit_logs", {
   /** Set when an AI agent did this (through its API key or MCP), or when a person acted on an agent. */
   agentId: text("agent_id"),
   createdAt: createdAt(),
-}, (t) => [index("audit_org_idx").on(t.orgId, t.createdAt), index("audit_agent_idx").on(t.agentId, t.createdAt)]);
+}, (t) => [index("audit_org_idx").on(t.orgId, t.createdAt), index("audit_agent_idx").on(t.agentId, t.createdAt), index("audit_target_idx").on(t.targetId, t.createdAt).where(sql`${t.targetType} = 'agent_trigger'`)]);
 
 /** Key/value settings owned by the platform (e.g. a generated secret in demo deployments). */
 export const appSettings = sqliteTable("app_settings", {

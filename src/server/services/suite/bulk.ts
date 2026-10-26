@@ -308,6 +308,11 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
       for (const m of movedNow) { const task = outById.get(m.row.id); if (task) await runStatusAutomations(deps, actor.orgId, task, m.from); }
     }
   }
+  // R29: a new member assignee starts watching each reassigned task, like a single reassign.
+  if (assignee?.type === "member") {
+    const reassignedIds = changedIds.filter((id) => sets.get(id)!.assigneeId !== undefined);
+    if (reassignedIds.length) await (await import("./task-watchers-bulk-assign-r29")).autoWatchBulk(deps, actor.orgId, reassignedIds, assignee.id);
+  }
   // R28: watchers hear about a bulk move the way they hear about a single one (not the person who made it).
   if (movedNow.length && level !== "warn") {
     const { notifyWatchersBulk } = await import("./task-watchers-bulk-r28");

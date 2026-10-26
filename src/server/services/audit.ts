@@ -14,6 +14,8 @@ export interface AuditEntry {
   ip?: string | null;
   /** The agent that acted, or that a person acted on. */
   agentId?: string | null;
+  /** R29: when it happened, for callers that run on the deps clock (agent triggers). Defaults to now. */
+  at?: Date;
 }
 
 /** Appends an immutable audit record. Actions are dotted verbs, e.g. `domain.verified`. */
@@ -29,6 +31,7 @@ export async function audit(db: DB, e: AuditEntry): Promise<void> {
     metadata: e.metadata ? JSON.stringify(e.metadata) : null,
     ip: e.ip ?? null,
     agentId: e.agentId ?? null,
+    ...(e.at ? { createdAt: e.at } : {}),
   });
 }
 

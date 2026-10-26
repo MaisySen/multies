@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
+import type { Transaction } from "@tiptap/pm/state";
 import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, Link2, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -82,7 +83,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const qc = useQueryClient();
   const me = useMe();
   const [title, setTitle] = useState(doc.title);
-  const onUpdate = useRef(() => {});
+  const onUpdate = useRef<(tr?: Transaction) => void>(() => {});
   const userName = me.data?.user.name || me.data?.user.email || "Someone";
   const userColour = colourFor(me.data?.user.id ?? userName);
   // Stable options: a new extensions array or editorProps object on a render makes Tiptap
@@ -94,7 +95,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
     // that differs from the editor's own makes Tiptap reconfigure on every render.
     ...(session ? {} : { content: doc.content as never }),
     editorProps: session ? LIVE_EDITOR_PROPS : EDITOR_PROPS,
-    onUpdate: () => onUpdate.current(),
+    onUpdate: ({ transaction }) => onUpdate.current(transaction),
     immediatelyRender: true,
   });
 

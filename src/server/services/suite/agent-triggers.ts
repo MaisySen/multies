@@ -13,12 +13,18 @@
  * D1 cost: the cron pass reads due triggers with one query on a partial index that holds only enabled schedule
  * rows (an idle pass writes nothing). A fire writes the trigger row once (claim, next run, counters), the run row
  * and one audit row; a new task adds the task's own writes. A refused fire writes the audit row (and, on a
- * schedule, the next run time). A bad signature, a stale or replayed timestamp and a webhook over its rate write
- * nothing.
+ * schedule, the next run time). A bad signature, a stale or replayed timestamp and a webhook over its rate are
+ * sampled (R29): at most one agent_trigger.refused row per trigger every 10 minutes (one indexed read of the
+ * trigger's recent refusals per such request), so the trigger's History shows that senders are failing without a
+ * flood of unsigned requests spending the D1 write budget.
+ *
+ * History (R29): the trigger's last 50 fires and refusals, newest first, read from audit_logs through
+ * audit_target_idx (target_id, created_at), a partial index on agent trigger rows only (other audit inserts pay no
+ * extra write); a bounded range read, never a scan of the workspace's audit log.
  */
-import { and, asc, count, eq, inArray, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, inArray, isNull, lte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agentRuns, agentTriggers, members, organizations, projects, tasks, users } from "../../db/schema";
+import { agentRuns, agentTriggers, auditLogs, members, organizations, projects, tasks, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, hmacSha256Hex, randomToken, safeEqual } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { inChunks } from "../../lib/sql-chunks";
@@ -214,7 +220,7 @@ export async function getTrigger(deps: Deps, a: SuiteActor, id: string) {
 
 async function writeAudit(deps: Deps, a: SuiteActor | null, orgId: string, action: string, t: Pick<Row, "id" | "name" | "kind" | "agentUserId">, extra: Record<string, unknown> = {}) {
   await audit(deps.db, {
-    orgId, actorUserId: a?.userId || null, actorEmail: a?.email ?? null, action, targetType: "agent_trigger", targetId: t.id,
+    at: deps.now(), orgId, actorUserId: a?.userId || null, actorEmail: a?.email ?? null, action, targetType: "agent_trigger", targetId: t.id,
     metadata: { triggerId: t.id, triggerName: t.name, kind: t.kind, agentUserId: t.agentUserId, via: a ? (a.apiKeyId ? "api" : "app") : t.kind, ...extra },
   });
 }
@@ -364,6 +370,72 @@ export async function rotateTriggerSecret(deps: Deps, a: SuiteActor, id: string)
   return { trigger: await getTrigger(deps, a, id), secret };
 }
 
+// ------------------------------------------------------------------ history (R29)
+
+export const HISTORY_LIMIT = 50;
+export const REFUSAL_SAMPLE_MS = 10 * 60_000;
+const HISTORY_ACTIONS = ["agent_trigger.fired", "agent_trigger.refused"] as const;
+
+export interface TriggerHistoryEntry {
+  id: string; at: string; outcome: "fired" | "refused"; source: FireSource | null;
+  reason: string | null; message: string | null;
+  run: { id: string; taskId: string | null; taskRef: string | null } | null;
+  actor: { userId: string | null; email: string | null } | null;
+  /** True for a sampled webhook refusal (bad signature, stale, replayed, over its rate): at most one per 10 minutes. */
+  sampled: boolean;
+}
+
+const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+const parseMeta = (raw: string | null): Record<string, unknown> => {
+  if (!raw) return {};
+  try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; }
+};
+const SOURCES: readonly FireSource[] = ["schedule", "webhook", "manual"];
+
+/**
+ * A trigger's recent fires and refusals, newest first (at most 50). Admins only, scoped to the actor's workspace
+ * (another workspace's trigger is a 404). One bounded read on audit_target_idx.
+ */
+export async function triggerHistory(deps: Deps, a: SuiteActor, id: string, opts: { limit?: number } = {}) {
+  assertAdmin(a);
+  const t = await triggerRow(deps, a.orgId, id);
+  const limit = Math.max(1, Math.min(HISTORY_LIMIT, Math.floor(Number(opts.limit) || HISTORY_LIMIT)));
+  const rows = await deps.db.select().from(auditLogs)
+    // The literal target_type matches audit_target_idx's partial WHERE (a bound parameter would not).
+    .where(and(eq(auditLogs.targetId, t.id), sql`${auditLogs.targetType} = 'agent_trigger'`, eq(auditLogs.orgId, a.orgId), inArray(auditLogs.action, [...HISTORY_ACTIONS])))
+    .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(limit);
+  const entries: TriggerHistoryEntry[] = rows.map((r) => {
+    const m = parseMeta(r.metadata);
+    const source = SOURCES.includes(m.source as FireSource) ? (m.source as FireSource) : null;
+    const runId = str(m.runId);
+    return {
+      id: r.id, at: r.createdAt.toISOString(), outcome: r.action === "agent_trigger.fired" ? "fired" : "refused", source,
+      reason: str(m.reason), message: str(m.message),
+      run: runId ? { id: runId, taskId: str(m.taskId), taskRef: str(m.taskRef) } : null,
+      actor: r.actorUserId || r.actorEmail ? { userId: r.actorUserId, email: r.actorEmail } : null,
+      sampled: m.sampled === true,
+    };
+  });
+  return { triggerId: t.id, entries, limit };
+}
+
+/**
+ * Records a webhook refusal that happens before a fire (signature, timestamp, replay, rate), at most once per
+ * trigger every 10 minutes: one indexed read of the trigger's latest refusal, and a write only when there is none.
+ */
+async function sampleWebhookRefusal(deps: Deps, t: Row, code: string, message: string) {
+  try {
+    const since = new Date(deps.now().getTime() - REFUSAL_SAMPLE_MS);
+    const recent = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
+      .where(and(eq(auditLogs.targetId, t.id), sql`${auditLogs.targetType} = 'agent_trigger'`, gt(auditLogs.createdAt, since), eq(auditLogs.action, "agent_trigger.refused"), sql`json_extract(${auditLogs.metadata}, '$.sampled') = 1`))
+      .limit(1).get();
+    if (recent) return;
+    await writeAudit(deps, null, t.orgId, "agent_trigger.refused", t, { source: "webhook", reason: code, message, sampled: true });
+  } catch (err) {
+    deps.log?.warn("agent_trigger.sample_failed", { triggerId: t.id, error: err });
+  }
+}
+
 // ------------------------------------------------------------------ firing
 
 export class TriggerRefused extends HttpError {}
@@ -487,12 +559,29 @@ export async function handleTriggerWebhook(deps: Deps, id: string, headers: { ti
   const now = deps.now();
   const secret = await decryptSecret(deps.config.appSecret, t.secretEnc);
   const check = await verifyWebhookSignature(secret, headers, body, now);
-  if (!check.ok) throw new HttpError(401, check.code, check.message);
-  if (t.lastHookTs !== null && check.timestamp <= t.lastHookTs) throw new HttpError(409, "replayed", "This request (or an older one) was already accepted. Sign each request with a new timestamp.");
-  if (t.lastFiredAt && now.getTime() - t.lastFiredAt.getTime() < WEBHOOK_MIN_INTERVAL_MS) throw new TriggerRefused(429, "trigger_rate_limited", "This trigger fired less than a minute ago. Try again in a minute.");
+  if (!check.ok) {
+    await sampleWebhookRefusal(deps, t, check.code, check.message);
+    throw new HttpError(401, check.code, check.message);
+  }
+  if (t.lastHookTs !== null && check.timestamp <= t.lastHookTs) {
+    const msg = "This request (or an older one) was already accepted. Sign each request with a new timestamp.";
+    await sampleWebhookRefusal(deps, t, "replayed", msg);
+    throw new HttpError(409, "replayed", msg);
+  }
+  const rateMsg = "This trigger fired less than a minute ago. Try again in a minute.";
+  if (t.lastFiredAt && now.getTime() - t.lastFiredAt.getTime() < WEBHOOK_MIN_INTERVAL_MS) {
+    await sampleWebhookRefusal(deps, t, "trigger_rate_limited", rateMsg);
+    throw new TriggerRefused(429, "trigger_rate_limited", rateMsg);
+  }
   let payload: unknown = undefined;
   if (body.trim()) { try { payload = JSON.parse(body); } catch { payload = body; } }
-  return fireTrigger(deps, t, { source: "webhook", payload, hookTs: check.timestamp });
+  try {
+    return await fireTrigger(deps, t, { source: "webhook", payload, hookTs: check.timestamp });
+  } catch (err) {
+    // A lost claim (two requests at once) is a rate refusal that fireTrigger does not audit; sample it too.
+    if (err instanceof TriggerRefused && err.code === "trigger_rate_limited") await sampleWebhookRefusal(deps, t, "trigger_rate_limited", rateMsg);
+    throw err;
+  }
 }
 
 /** The agent's own runs (its key), newest first, e.g. status=queued to pick up work a trigger queued. */

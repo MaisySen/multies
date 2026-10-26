@@ -7,6 +7,7 @@ import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } f
 import { link, linked } from "./tasks";
 import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
 import { markdownToDoc } from "./markdown-doc";
+import { editorShape } from "./doc-editor-shape";
 import { inIds } from "../../lib/sql-chunks";
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
@@ -123,7 +124,7 @@ async function assertLinkTargets(deps: Deps, orgId: string, targets: LinkTarget[
 
 export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }) {
   assertWritable(actor);
-  const body = input.content !== undefined ? validDoc(input.content) : docFromText(input.text ?? "");
+  const body = input.content !== undefined ? validDoc(input.content) : editorShape(docFromText(input.text ?? "")); // R29: as the editor holds it
   await assertLinkTargets(deps, actor.orgId, [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]);
   const place = await placeNewDoc(deps, actor.orgId, input.parentId); // R24: tree position
   const now = deps.now();
@@ -142,7 +143,7 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
   const expected = patch.version ?? patch.ifVersion; // R28: ifVersion is the API's name for it
   if (expected !== undefined && expected !== d.version) throw versionConflict(d.version);
   // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).
-  const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? docFromText(patch.text) : undefined;
+  const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? editorShape(docFromText(patch.text)) : undefined;
   await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
   const written = await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),
@@ -174,7 +175,8 @@ export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, tex
   while (keep.length && keep[keep.length - 1].type === "paragraph" && !keep[keep.length - 1].content?.length) keep.pop(); // an empty last line
   const add = (opts.markdown ? markdownToDoc(text) : docFromText(text)).content ?? [];
   // The version just read guards the write too: another write in between is a 409, not a lost edit.
-  return updateDoc(deps, actor, id, { content: { ...cur, content: [...keep, ...add] }, version: d.version });
+  // R29: written in the editor's own shape (attributes filled, a closing empty paragraph), so opening the doc changes nothing.
+  return updateDoc(deps, actor, id, { content: editorShape({ ...cur, content: [...keep, ...add] }), version: d.version });
 }
 
 export async function deleteDoc(deps: Deps, actor: SuiteActor, id: string) {

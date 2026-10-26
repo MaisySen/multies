@@ -10,7 +10,7 @@ import { parseBody, requireAuth } from "../middleware";
 import { DAYS } from "../services/suite/scheduling";
 import {
   createTrigger, deleteTrigger, getTrigger, handleTriggerWebhook, listTriggers, rotateTriggerSecret, runTriggerNow, SIGNATURE_HEADER,
-  TIMESTAMP_HEADER, TRIGGER_INSTRUCTIONS_MAX, TRIGGER_TITLE_MAX, updateTrigger,
+  TIMESTAMP_HEADER, TRIGGER_INSTRUCTIONS_MAX, TRIGGER_TITLE_MAX, triggerHistory, updateTrigger,
 } from "../services/suite/agent-triggers";
 
 const fields = {
@@ -60,6 +60,8 @@ export function agentTriggerRoutes() {
     .get("/", async (c) => c.json(await listTriggers(c.var.deps, c.var.auth, { agentUserId: c.req.query("agentUserId") || undefined })))
     .post("/", async (c) => c.json(await createTrigger(c.var.deps, c.var.auth, await parseBody(c, TriggerCreateBody)), 201))
     .get("/:id", async (c) => c.json({ trigger: await getTrigger(c.var.deps, c.var.auth, c.req.param("id")) }))
+    // R29: the trigger's last 50 fires and refusals, newest first.
+    .get("/:id/history", async (c) => c.json(await triggerHistory(c.var.deps, c.var.auth, c.req.param("id"), { limit: Number(c.req.query("limit")) || undefined })))
     .patch("/:id", async (c) => c.json({ trigger: await updateTrigger(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, TriggerPatchBody)) }))
     .delete("/:id", async (c) => c.json(await deleteTrigger(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/rotate-secret", async (c) => c.json(await rotateTriggerSecret(c.var.deps, c.var.auth, c.req.param("id"))))

@@ -9,6 +9,7 @@ import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
+import type { Transaction } from "@tiptap/pm/state";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
 import { Bot, CheckCircle2, Circle, ExternalLink, ListChecks, NotebookPen, UserRound } from "lucide-react";
 import { toast } from "sonner";
@@ -135,7 +136,7 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
   const pickerRef = useRef<MentionState | null>(null);
   pickerRef.current = picker;
   const choose = useRef<(w: Who) => void>(() => {});
-  const onUpdate = useRef(() => {});
+  const onUpdate = useRef<(tr?: Transaction) => void>(() => {});
   const editorProps = useMemo(() => ({
     ...NOTES_PROPS,
     handleKeyDown: (v: EditorView, e: KeyboardEvent) => {
@@ -152,7 +153,7 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
     extensions, editorProps, immediatelyRender: true,
     // Live: the room is the content, so no content key at all.
     ...(session ? {} : { content: doc.content as never }),
-    onUpdate: ({ editor: ed, transaction }) => { onUpdate.current(); if (!isChangeOrigin(transaction)) setPicker(mentionAt(ed, people, pickerRef.current)); },
+    onUpdate: ({ editor: ed, transaction }) => { onUpdate.current(transaction); if (!isChangeOrigin(transaction)) setPicker(mentionAt(ed, people, pickerRef.current)); },
     onSelectionUpdate: ({ editor: ed }) => setPicker(mentionAt(ed, people, pickerRef.current)),
     onBlur: () => setTimeout(() => setPicker(null), 150),
   });

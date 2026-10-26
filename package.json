@@ -21,6 +21,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "qa:d1-retry": "node scripts/qa/d1-retry-check/run.mjs",
     "build:worker": "tsx scripts/build-worker.ts",
     "build:preview": "npm run build:web && tsx scripts/build-worker.ts --profile preview",
     "test:e2e": "playwright test",

@@ -892,6 +892,7 @@ an AI itself: the agent picks queued runs up with its own key and works them wit
 | GET | `/api/v1/agent-triggers` | an admin or a full workspace key | The workspace's triggers. `agentUserId` filters |
 | POST | `/api/v1/agent-triggers` | an admin or a full workspace key | `{ agentUserId, kind: schedule \| webhook, name, taskId? \| projectId? + titleTemplate?, instructions?, everyHours? \| dailyAt? + days?, timezone?, enabled? }`. A webhook trigger answers with `secret` once |
 | GET | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | One trigger (never the secret) |
+| GET | `/api/v1/agent-triggers/{id}/history` | an admin or a full workspace key | R29: its last fires and refusals, newest first (`limit` 1 to 50). Each entry: `at`, `outcome` (fired \| refused), `source` (schedule \| webhook \| manual), `reason` and `message` on a refusal, `run { id, taskId, taskRef }`, `actor`, `sampled`. Webhook refusals before a fire (bad signature, stale, replayed, over its rate) are recorded at most once per trigger every 10 minutes (`sampled: true`) |
 | PATCH | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | Any create field except `kind`. `enabled: false` turns it off |
 | DELETE | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | Deletes it; runs it queued stay |
 | POST | `/api/v1/agent-triggers/{id}/rotate-secret` | an admin or a full workspace key | A new webhook secret, once; the old one is refused at once |
@@ -924,7 +925,9 @@ to the webhook; a paused or removed agent is 409 (`agent_paused`, `agent_not_mem
 
 Audit: `agent_trigger.created`, `updated`, `deleted`, `secret_rotated`, `fired` (with the run and task) and `refused`
 (with the reason: queue full, agent paused or removed, run in progress, task or project gone). A bad signature, a
-replay or a webhook over its rate writes nothing.
+replay or a webhook over its rate is sampled (R29): at most one `refused` row per trigger every 10 minutes, marked
+`sampled`, so the trigger's History shows that a sender is failing without a flood spending D1 writes. The app's
+Triggers dialog shows each trigger's History and edits a trigger with the same form as Add.
 
 D1 cost: an idle cron pass is one read on a partial index of enabled schedule triggers and writes nothing. A fire
 writes the trigger row once (claim, next run, counters), the run row with its indexes and one audit row; a new task

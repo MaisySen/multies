@@ -155,7 +155,9 @@ triage, a digest every few hours, or a run when an outside system (a monitor, a 
   partial index, one claim write per trigger (which also blocks a double fire), one run row and one audit row.
 - Limits: 20 triggers per workspace, a webhook fires at most once a minute, at most 3 queued runs per agent, a 32 KB
   body, an active (not paused, not removed) agent. Refusals for the agent, its queue or the target write
-  `agent_trigger.refused`; unsigned, stale, replayed and over-rate requests write nothing.
+  `agent_trigger.refused`; unsigned, stale, replayed and over-rate requests are sampled (R29): at most one
+  `agent_trigger.refused` row (`sampled: true`) per trigger every 10 minutes. R29 adds each trigger's History (its
+  last 50 fires and refusals from the audit log, through `audit_target_idx`) and an Edit form.
 - Only admins and full workspace keys manage triggers (app, REST, MCP: `list_agent_triggers`, `create_agent_trigger`,
   `delete_agent_trigger`). The app shows them under the agent's row in People, Triggers.
 

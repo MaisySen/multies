@@ -7,15 +7,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { TextSelection } from "@tiptap/pm/state";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import Collaboration from "@tiptap/extension-collaboration";
+import Collaboration, { isChangeOrigin } from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { connectCollab, FIELD, hashText, isLeader, meta, peersOf, seedIfEmpty, type CollabSession, type Peer } from "./doc-collab";
-import { liveSaveStep } from "./collab-logic";
+import { liveSaveStep, updateShowsUnsaved } from "./collab-logic";
 
 /** Opens the doc's room once per doc id. Null until it answers; then the session, or null session for the single editor. */
 export function useCollabSession(docId: string) {
@@ -84,6 +84,17 @@ export const liveKeyDown = (view: EditorView, event: KeyboardEvent) => { if (!ev
 export const liveDomEvents = { mouseup: (view: EditorView) => { setTimeout(() => { if (!view.isDestroyed) syncSelectionFromDom(view); }, 0); return false; } };
 
 export type SaveState = "saved" | "saving" | "unsaved" | "conflict";
+
+/**
+ * R29: the single editor applies its own load-time normalisation (StarterKit's closing empty
+ * paragraph after a list or code block) in a transaction that is not an edit, so the first click
+ * in a doc no longer reads as "Unsaved changes" and writes a version nobody typed. The next real
+ * edit saves the normalised doc with it.
+ */
+export function settleLoadedDoc(editor: Editor) {
+  if (editor.isDestroyed) return;
+  editor.view.dispatch(editor.state.tr.setMeta("preventUpdate", true).setMeta("addToHistory", false));
+}
 export interface RowDoc { id: string; version: number; text: string; title: string; content: unknown }
 
 interface Options {
@@ -181,11 +192,15 @@ export function useCollabDoc(o: Options) {
     }
   };
 
-  const schedule = () => {
+  /** Called on every editor update with its transaction (R29: a change from the room is saved quietly). */
+  const schedule = (tr?: Transaction) => {
     if (session && !isLeader(session)) return;
-    setState("unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void save(), opts.current.delayMs);
+    if (updateShowsUnsaved({ live: !!session, fromRoom: !!tr && isChangeOrigin(tr) })) setState("unsaved");
+    clearTimeout(timer.current); timer.current = setTimeout(() => void save(), opts.current.delayMs);
   };
   useEffect(() => () => clearTimeout(timer.current), []);
+  // Single editor: take the editor's load-time normalisation as the starting point (R29).
+  useEffect(() => { if (!session && editor) settleLoadedDoc(editor); }, [session, editor]);
 
   // Live session: seed an empty room, follow presence, and keep the row in step while this client is the leader.
   useEffect(() => {

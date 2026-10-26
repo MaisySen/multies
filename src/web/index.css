@@ -190,3 +190,28 @@
 .mm-notes { font-size: 14px; }
 .mm-notes h2 { font-size: 1.05em; margin-top: 0.9em; }
 .mm-notes h2:first-child { margin-top: 0; }
+
+@layer components {
+  /* R29: sign in with another account (Google's sign in branding: white with a #747775 border in
+     light mode, #131314 with a #8E918F border in dark mode, 14 px medium text in Roboto where
+     installed). Hover and press darken by Google's 8% and 12% state layers. */
+  .mm-provider-btn {
+    background-color: #ffffff;
+    border: 1px solid #747775;
+    color: #1f1f1f;
+    font-family: Roboto, var(--font-sans);
+    font-weight: 500;
+    letter-spacing: 0.25px;
+    line-height: 20px;
+  }
+  .mm-provider-btn:hover { background-color: color-mix(in srgb, #303030 8%, #ffffff); box-shadow: 0 1px 2px 0 rgb(60 64 67 / 0.3), 0 1px 3px 1px rgb(60 64 67 / 0.15); }
+  .mm-provider-btn:active { background-color: color-mix(in srgb, #303030 12%, #ffffff); }
+  :root[data-theme="dark"] .mm-provider-btn { background-color: #131314; border-color: #8e918f; color: #e3e3e3; }
+  :root[data-theme="dark"] .mm-provider-btn:hover { background-color: color-mix(in srgb, #ffffff 8%, #131314); }
+  :root[data-theme="dark"] .mm-provider-btn:active { background-color: color-mix(in srgb, #ffffff 12%, #131314); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .mm-provider-btn { background-color: #131314; border-color: #8e918f; color: #e3e3e3; }
+    :root:not([data-theme="light"]) .mm-provider-btn:hover { background-color: color-mix(in srgb, #ffffff 8%, #131314); }
+    :root:not([data-theme="light"]) .mm-provider-btn:active { background-color: color-mix(in srgb, #ffffff 12%, #131314); }
+  }
+}

@@ -8,7 +8,7 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
-import { createTrigger, deleteTrigger, getTrigger, listMyRuns, listTriggers, rotateTriggerSecret, runTriggerNow, updateTrigger } from "../services/suite/agent-triggers";
+import { createTrigger, deleteTrigger, getTrigger, listMyRuns, listTriggers, rotateTriggerSecret, runTriggerNow, triggerHistory, updateTrigger } from "../services/suite/agent-triggers";
 import { TriggerCreateBody, TriggerPatchBody } from "./agent-triggers-r28";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
@@ -39,6 +39,9 @@ export function registerAgentTriggerRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(route("get", "/agent-triggers/{id}", "Get an agent trigger", "One trigger. The secret is never shown again; rotate it to get a new one.", { request: { params: Id } }),
     async (c) => send(c, { trigger: await getTrigger(c.var.deps, actor(c), pid(c)) }));
+
+  api.openapi(route("get", "/agent-triggers/{id}/history", "Agent trigger history", "R29: the trigger's recent fires and refusals, newest first (at most 50; query limit 1 to 50). Each entry: id, at, outcome (fired | refused), source (schedule | webhook | manual), reason and message on a refusal, run { id, taskId, taskRef } when a run was queued, actor, sampled (a webhook refusal before firing: bad signature, stale, replayed or over its rate, recorded at most once per 10 minutes). Admins and full workspace keys.", { request: { params: Id } }),
+    async (c) => send(c, await triggerHistory(c.var.deps, actor(c), pid(c), { limit: Number(c.req.query("limit")) || undefined })));
 
   api.openapi(route("patch", "/agent-triggers/{id}", "Update an agent trigger", "Any of the create fields except kind; enabled: false turns it off (its webhook then answers 404). Writes agent_trigger.updated.", { request: { params: Id, ...body(TriggerPatchBody) } }),
     async (c) => send(c, { trigger: await updateTrigger(c.var.deps, actor(c), pid(c), await jsonBody(c, TriggerPatchBody)) }));

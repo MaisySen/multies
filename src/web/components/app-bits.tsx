@@ -85,13 +85,20 @@ const ACTIONS: Record<string, string> = {
 };
 
 /** R28 (DF-3 slice 3): why a trigger did not fire, in plain words. */
-const TRIGGER_REFUSALS: Record<string, string> = {
+export const TRIGGER_REFUSALS: Record<string, string> = {
   agent_queue_full: "the agent's queue is full",
   agent_paused: "the agent is paused",
   agent_not_member: "the agent was removed",
   run_in_progress: "a run is already active",
   task_missing: "its task was deleted",
   project_missing: "its project is gone",
+  // R29: webhook refusals before a fire, sampled at most once every 10 minutes.
+  missing_signature: "the request was not signed",
+  bad_timestamp: "the timestamp was not unix seconds",
+  stale_signature: "the timestamp was more than 5 minutes off",
+  bad_signature: "the signature did not match",
+  replayed: "the request was a replay",
+  trigger_rate_limited: "it fired less than a minute before",
 };
 
 /** "approved an agent's message", for one audit action. */

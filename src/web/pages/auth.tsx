@@ -12,6 +12,7 @@ import { authClient, unwrap, type AuthProviders } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 import { SocialSignInButtons } from "@/web/components/social-sign-in";
+import { GitHubLogo, GoogleSignInButton, ProviderButton } from "@/web/components/google-button";
 import { browserTimeZone } from "@/web/lib/format";
 import { cleanLocale, guessCountry } from "@/shared/locale";
 
@@ -107,7 +108,9 @@ function SocialButtons() {
   return (
     <div className="mt-6 space-y-2">
       {list.map((p) => (
-        <Button key={p} variant="secondary" className="w-full" loading={busy === p} onClick={() => go(p)}>Continue with {label[p]}</Button>
+        p === "google"
+          ? <GoogleSignInButton key={p} loading={busy === p} disabled={!!busy && busy !== p} onClick={() => go(p)} data-testid="social-google" />
+          : <ProviderButton key={p} logo={<GitHubLogo />} loading={busy === p} disabled={!!busy && busy !== p} onClick={() => go(p)} data-testid={`social-${p}`}>Continue with {label[p]}</ProviderButton>
       ))}
       <div className="flex items-center gap-3 pt-2 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or use email<span className="h-px flex-1 bg-line" /></div>
     </div>

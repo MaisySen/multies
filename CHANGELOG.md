@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 29: trigger history, bulk reassign watchers, docs and sign in polish (26 Oct 2026)
+
+- Agent triggers: each trigger in the Triggers dialog has History (its last 50 fires and refusals, with the reason in plain words, the source and a link to the run's task) and Edit (the Add form filled in, days of the week and an optional time zone). `GET /api/v1/agent-triggers/{id}/history`. Refused webhook calls before a fire (bad signature, stale, replayed, over the rate) are recorded at most once per trigger every 10 minutes. Migration 0063 adds a partial index on trigger audit rows.
+- A bulk reassign makes the new assignee a watcher of each task, the same as a single reassign, in one batch.
+- Docs written through the API (append, create or update from text) are stored in the editor's own format, so opening one no longer shows "Unsaved changes" or saves a version nobody typed, and an agent's next `ifVersion` stays valid.
+- Sign in with Google uses Google's own four colour G on a white (light) or dark grey (dark) button, as Google's branding rules ask.
+- `GET /api/agent-runs` lists the workspace's agent runs for the phone app's new Runs screen.
+- Checked the D1 busy retry against the real D1 binding (`npm run qa:d1-retry`); no change needed.
+- Mobile 1.9.5 (over the air): agent runs list and detail, and drag to reorder checklist items.
+
 ### Round 25: speed, phones, Google and Microsoft sign in (26 Oct 2026)
 
 - Faster reads: My Work answers in about a third of the time (date formatters are made once, not per task), the shared inbox list uses a new composite index, and task lists, boards and sprint views make two fewer database round trips. Field definitions and statuses are cached for 10 seconds per server and cleared on every change. Config, people, assignees, projects and channels answer 304 when nothing changed. Migration 0052 swaps two indexes for composite ones, so writes cost the same.
