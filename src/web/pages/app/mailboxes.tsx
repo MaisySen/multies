@@ -1,23 +1,20 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconClose, IconEdit, IconInbox, IconMention, IconMore, IconPause, IconPlay, IconPlus, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
-import { useAliases, useDomains, useMailboxes, useOrg, useTeam, qk } from "@/web/lib/queries";
+import { useAliases, useDomains, useMailboxes, useOrg, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import type { Alias, Domain, Mailbox } from "@/web/lib/types";
 import { Button, ButtonLink } from "@/web/components/ui/button";
-import { Badge, Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
+import { Avatar, Badge, Card, EmptyState, Meter, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { formatBytes, initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { LOCALE } from "@/shared/locale";
-import { MailFolderArt } from "@/web/components/illustrations";
-import { AvatarTile, MailboxKindPill, StorageRing } from "@/web/components/premium5-r39";
-import { mailboxKind } from "@/web/lib/premium5-r39";
 import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address";
 
 export function MailboxesPage() {
@@ -71,14 +68,11 @@ function useInvalidate() {
 }
 
 function ListSkeleton() {
-  // R39 premium pass 5: skeleton rows shaped like the cards they stand in for.
-  return <div className="space-y-2" aria-busy="true" aria-label="Loading">{Array.from({ length: 3 }).map((_, i) => <Card key={i} className="flex items-center gap-3 p-3.5 sm:gap-4"><Skeleton className="h-10 w-10 rounded-[12px]" /><div className="flex-1 space-y-1.5"><Skeleton className="h-4 w-48 max-w-full" /><Skeleton className="h-3 w-28" /></div><Skeleton className="h-8 w-8 rounded-full" /></Card>)}</div>;
+  return <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-4 p-4"><Skeleton className="h-8 w-8 rounded-full" /><Skeleton className="h-4 w-56" /><Skeleton className="ml-auto h-4 w-24" /></div>)}</Card>;
 }
 
 function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onCreate: () => void; freeDomain?: string }) {
   const { data, isPending } = useMailboxes();
-  const team = useTeam();
-  const navigate = useNavigate();
   const [editing, setEditing] = useState<Mailbox | null>(null);
   const [deleting, setDeleting] = useState<Mailbox | null>(null);
   const invalidate = useInvalidate();
@@ -88,40 +82,38 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
     onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
-  if (!data?.length) return <Card><EmptyState icon={<IconTeam />} art={<MailFolderArt />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New mailbox</Button>} /></Card>;
+  if (!data?.length) return <Card><EmptyState icon={<IconTeam />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New mailbox</Button>} /></Card>;
   const domainStatus = new Map(domains.map((d) => [d.id, d.status]));
   return (
     <>
-      {/* R39 premium pass 5: each mailbox a card with a tinted avatar tile, a kind pill and a storage ring. */}
-      <ul className="space-y-2" aria-label="Mailboxes" data-testid="mailbox-cards">
+      <Card className="divide-y divide-line">
         {data.map((m) => (
-          <li key={m.id}>
-            <Card className="flex items-center gap-3 p-3.5 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] motion-reduce:transition-none sm:gap-4" data-testid="mailbox-card">
-              <AvatarTile label={initials(m.displayName)} name={m.address} />
-              <div className="min-w-0 flex-1">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="min-w-0 truncate text-[15px] font-semibold">{m.address}</span>
-                  <MailboxKindPill kind={mailboxKind(m, team.data?.members ?? [])} />
-                  {m.status === "suspended" && <Badge tone="warn">Suspended</Badge>}
-                  {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
-                    : domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
-                </div>
-                <div className="mt-0.5 truncate text-[13px] text-muted">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
+          <div key={m.id} className="flex items-center gap-3 p-4 sm:gap-4">
+            <Avatar label={initials(m.displayName)} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate font-medium">{m.address}</span>
+                {m.status === "suspended" && <Badge tone="warn">Suspended</Badge>}
+                {freeDomain && m.address.endsWith(`@${freeDomain}`) ? <Badge tone="neutral">Free address</Badge>
+                  : domainStatus.get(m.domainId) !== "verified" && <Badge tone="neutral">Domain pending</Badge>}
               </div>
-              <div className="hidden sm:block"><StorageRing used={m.usedBytes} max={m.quotaMb * 1024 * 1024} label={`Storage for ${m.address}`} show={formatBytes} /></div>
-              <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-full p-2 text-muted transition-colors hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>
-              <Menu label={`Actions for ${m.address}`} trigger={<button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg sm:h-9 sm:w-9" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
-                <MenuItem icon={<IconInbox />} onSelect={() => navigate(`/app/mail?mailbox=${m.id}`)}>Open in mail</MenuItem>
-                <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>
-                {m.status === "active"
-                  ? <MenuItem icon={<IconPause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
-                  : <MenuItem icon={<IconPlay />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
-                <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>
-              </Menu>
-            </Card>
-          </li>
+              <div className="truncate text-xs text-subtle">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
+            </div>
+            <div className="hidden w-44 sm:block">
+              <div className="mb-1.5 flex justify-between text-[11px] text-subtle"><span>{formatBytes(m.usedBytes)}</span><span>{formatBytes(m.quotaMb * 1024 * 1024)}</span></div>
+              <Meter value={m.usedBytes} max={m.quotaMb * 1024 * 1024} />
+            </div>
+            <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-md p-2 text-muted hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>
+            <Menu label={`Actions for ${m.address}`} trigger={<button className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
+              <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>
+              {m.status === "active"
+                ? <MenuItem icon={<IconPause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
+                : <MenuItem icon={<IconPlay />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
+              <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>
+            </Menu>
+          </div>
         ))}
-      </ul>
+      </Card>
       {editing && <EditMailboxDialog mailbox={editing} onClose={() => setEditing(null)} />}
       <ConfirmDelete open={!!deleting} onClose={() => setDeleting(null)} what={deleting?.address ?? ""} path={`/mailboxes/${deleting?.id}`} body="Its stored mail is deleted too. Mail sent to this address will bounce." />
     </>

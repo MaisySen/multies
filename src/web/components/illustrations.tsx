@@ -173,3 +173,29 @@ export function SmallNoResultsArt() {
     </svg>
   );
 }
+
+/** R39: a receipt with a check, for an empty invoice list. */
+export function ReceiptArt() {
+  return (
+    <Frame label="A paper receipt">
+      <path d="M40 12h40v66l-6.7-5-6.6 5-6.7-5-6.7 5-6.6-5-6.7 5z" fill={B} opacity="0.12" />
+      <path d="M40 12h40v66l-6.7-5-6.6 5-6.7-5-6.7 5-6.6-5-6.7 5z" fill="none" stroke={B} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M49 28h22M49 38h22M49 48h12" stroke={B} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <circle cx="82" cy="60" r="10" fill={B} />
+      <path d="M77.5 60l3 3 5.5-6" fill="none" stroke="var(--color-surface, #fff)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </Frame>
+  );
+}
+
+/** R39: a globe with a check, for a workspace with no domain yet. */
+export function GlobeArt() {
+  return (
+    <Frame label="A globe with a check mark">
+      <circle cx="58" cy="44" r="28" fill={B} opacity="0.12" />
+      <circle cx="58" cy="44" r="28" fill="none" stroke={B} strokeWidth="3" />
+      <path d="M30 44h56M58 16c-9 8-13 18-13 28s4 20 13 28c9-8 13-18 13-28s-4-20-13-28z" fill="none" stroke={B} strokeWidth="3" strokeLinejoin="round" opacity="0.7" />
+      <circle cx="84" cy="66" r="10" fill={B} />
+      <path d="M79.5 66l3 3 5.5-6" fill="none" stroke="var(--color-surface, #fff)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </Frame>
+  );
+}

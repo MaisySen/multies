@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { IconChevronRight, IconGlobe, IconPlus } from "@/web/components/ui/icon";
+import { IconCheckCircle, IconChevronRight, IconGlobe, IconMails, IconPlus } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { useDomains, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import type { Domain } from "@/web/lib/types";
 import { Button } from "@/web/components/ui/button";
-import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Card, EmptyState, PageHeader, Skeleton, StatTile } from "@/web/components/ui/misc";
+import { GlobeArt } from "@/web/components/illustrations"; // R39 premium pass 4
+import { usageRing } from "@/web/lib/premium4-r39";
+import { cn } from "@/web/lib/cn";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
 import { DomainStatusBadge } from "@/web/components/app-bits";
@@ -25,11 +28,19 @@ export function DomainsPage() {
       {isPending ? (
         <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-4 p-5"><Skeleton className="h-9 w-9 rounded-lg" /><Skeleton className="h-4 w-48" /><Skeleton className="ml-auto h-5 w-20 rounded-full" /></div>)}</Card>
       ) : data?.length === 0 ? (
-        <Card><EmptyState icon={<IconGlobe />} title="Add your first domain" body="Bring a domain you own. We'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add domain</Button>} /></Card>
+        <Card><EmptyState icon={<IconGlobe />} art={<GlobeArt />} title="Add your first domain" body="Bring a domain you own. We'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add domain</Button>} /></Card>
       ) : (
-        <Card className="divide-y divide-line overflow-hidden">
-          {data?.map((d) => <DomainRow key={d.id} d={d} />)}
-        </Card>
+        <>
+          {/* R39 premium pass 4: three headline numbers above the list. */}
+          <div className="mb-4 grid grid-cols-3 gap-3" data-testid="domain-stats">
+            <StatTile label="Domains" value={data?.length ?? 0} icon={<IconGlobe />} tone="brand" />
+            <StatTile label="Verified" value={data?.filter((d) => d.status === "verified").length ?? 0} icon={<IconCheckCircle />} tone="ok" />
+            <StatTile label="Mailboxes" value={(data ?? []).reduce((s, d) => s + (d.counts?.mailboxes ?? 0), 0)} icon={<IconMails />} />
+          </div>
+          <Card className="divide-y divide-line overflow-hidden">
+            {data?.map((d) => <DomainRow key={d.id} d={d} />)}
+          </Card>
+        </>
       )}
       <AddDomainDialog open={open} onClose={() => setOpen(false)} />
     </>
@@ -38,17 +49,28 @@ export function DomainsPage() {
 
 function DomainRow({ d }: { d: Domain }) {
   const passed = d.lastCheck?.records.filter((r) => r.status === "pass").length ?? 0;
+  const total = d.lastCheck?.records.length || 5;
+  const ring = usageRing(passed, total);
+  const verified = d.status === "verified";
+  const r = 13, c = 2 * Math.PI * r;
   return (
-    <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-hover sm:p-5">
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><IconGlobe className="h-4 w-4" /></div>
+    <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors duration-150 hover:bg-hover motion-reduce:transition-none sm:p-5">
+      <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-[11px] [&_svg]:h-5 [&_svg]:w-5", verified ? "bg-ok-soft text-ok" : d.status === "failed" ? "bg-bad-soft text-bad" : "bg-brand-soft text-brand-hover")} aria-hidden><IconGlobe /></div>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><span className="truncate font-medium">{d.name}</span><DomainStatusBadge status={d.status} /></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="truncate text-[15px] font-semibold">{d.name}</span><DomainStatusBadge status={d.status} /></div>
         <div className="mt-0.5 text-xs text-subtle">
           {d.counts ? `${d.counts.mailboxes} mailbox${d.counts.mailboxes === 1 ? "" : "es"} · ${d.counts.aliases} alias${d.counts.aliases === 1 ? "" : "es"} · ` : ""}
-          {passed}/5 records passing · checked {timeAgo(d.lastCheckedAt)}
+          {passed}/{total} records passing · checked {timeAgo(d.lastCheckedAt)}
         </div>
       </div>
-      <IconChevronRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" />
+      <span className="relative hidden h-8 w-8 shrink-0 min-[420px]:block" role="img" aria-label={`${passed} of ${total} records passing`}>
+        <svg width="32" height="32" viewBox="0 0 32 32" className="-rotate-90" aria-hidden>
+          <circle cx="16" cy="16" r={r} fill="none" strokeWidth="3.5" style={{ stroke: "var(--color-fill)" }} />
+          <circle cx="16" cy="16" r={r} fill="none" strokeWidth="3.5" strokeLinecap="round" stroke="currentColor" className={verified ? "text-ok" : ring.pct > 0 ? "text-brand" : "text-fill"} strokeDasharray={c} strokeDashoffset={c - (c * ring.pct) / 100} />
+        </svg>
+        <span className="absolute inset-0 grid place-items-center text-[9.5px] font-semibold tabular-nums">{passed}/{total}</span>
+      </span>
+      <IconChevronRight className="h-4 w-4 text-subtle transition-transform duration-150 group-hover:translate-x-0.5 motion-reduce:transition-none" />
     </Link>
   );
 }
