@@ -51,7 +51,6 @@ import { registerTaskQueryTools } from "./mcp-r26-task-query"; // R26 (MB-86)
 import { registerAgentRunTools } from "./mcp-r27-agent-runs"; // R27 (DF-3 slice 2)
 import { registerAgentTriggerTools } from "./mcp-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerDocsR28Tools } from "./mcp-r28-docs"; // R28: docs_append (found by Haajir)
-import { registerCountsR34Tools } from "./counts-r34"; // R34
 import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification triage and catch-up
 import { registerTriageR32Tools } from "./mcp-r32-triage"; // R32: task triage list and actions
 import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
@@ -267,7 +266,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentTriggerTools(server, deps, actor, writable, tool); // R28 (DF-3 slice 3)
   registerDocsR28Tools(server, deps, actor, writable, tool); // R28: docs_append
   registerTriageR31Tools(server, deps, actor, writable, tool); // R31: notification triage and catch-up
-  registerCountsR34Tools(server, deps, actor, tool); // R34: get_counts
   registerTriageR32Tools(server, deps, actor, writable, tool); // R32: task triage list and actions
   registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
   registerDocsR32Tools(server, deps, actor, writable, tool); // R32: docs_add_block

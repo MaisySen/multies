@@ -92,7 +92,6 @@ describe("MCP server", () => {
       "get_backlinks",
       "get_call_status",
       "get_computed_fields",
-      "get_counts",
       "get_dashboard_data",
       "get_doc_tree",
       "get_epic",
