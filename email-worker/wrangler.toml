@@ -15,6 +15,7 @@ MYMAIL_KEY_ID = "ink_o6ot5ly5iw3i6rpf"
 # R26 (DF-18): support@ and security@multies.si go to the operator workspace (Haajir HQ) on production, signed with its own
 # inbound key (Worker secret MYMAIL_KEY_SECRET_HQ). A copy goes to the old forward destination for the first week.
 MYMAIL_ROUTES = '{"mail.multies.si":{"url":"https://multies.si/api/inbound/cloudflare","keyId":"ink_8nel8rfn56catg2i","secret":"MYMAIL_KEY_SECRET_PROD"},"multies.si":{"url":"https://multies.si/api/inbound/cloudflare","keyId":"ink_1t4nmf2lvmmbayem","secret":"MYMAIL_KEY_SECRET_HQ"}}'
-MYMAIL_COPY_TO = '{"support@multies.si":"mymail.builder@mail.tab.bot","security@multies.si":"mymail.builder@mail.tab.bot"}'
+# MYMAIL_COPY_TO (week-one copy of support@ and security@ to the old forward destination) is a Worker secret since R27,
+# so the address is not in the repo. Remove it after 2 Nov:  npx wrangler secret delete MYMAIL_COPY_TO
 
 # Secret, never commit it:  npx wrangler secret put MYMAIL_KEY_SECRET

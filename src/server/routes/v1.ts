@@ -59,6 +59,8 @@ import { registerAgentMemberR26Routes } from "./v1-r26-agents"; // R26 (DF-3)
 import { registerShareLinkRoutes } from "./v1-r26-share"; // R26 (MB-87)
 import { registerInboundKeyRoutes } from "./v1-r26-inbound"; // R26 (DF-18)
 import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
+import { registerAgentRunRoutes } from "./v1-r27-agent-runs"; // R27 (DF-3 slice 2)
+import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: watchers, duplicate
 
 // ---------------------------------------------------------------- schemas
 
@@ -256,6 +258,7 @@ export function v1Routes() {
   api.use("/views/*", apiKeyAuth); // DF-20: saved views ("/x/*" also matches "/x")
   api.use("/comments/*", apiKeyAuth); // R26 (MB-77): task comments by id
   api.use("/checklist-items/*", apiKeyAuth); // R26 (MB-85): checklist items
+  api.use("/runs/*", apiKeyAuth); // R27 (DF-3 slice 2): agent runs ("/x/*" also matches "/x")
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -459,6 +462,8 @@ export function v1Routes() {
   registerShareLinkRoutes(api); // R26 (MB-87): read only share links
   registerInboundKeyRoutes(api); // R26 (DF-18): inbound keys for the Email Worker
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
+  registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
+  registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

@@ -395,10 +395,24 @@
       "breakpoints": true
     },
     {
+      "idx": 59,
+      "version": "6",
+      "when": 1793000059000,
+      "tag": "0059_r27_agent_runs",
+      "breakpoints": true
+    },
+    {
       "idx": 60,
       "version": "6",
       "when": 1793000060000,
       "tag": "0060_r27_auth_hook_settings",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "6",
+      "when": 1793000061000,
+      "tag": "0061_r27_task_watchers",
       "breakpoints": true
     }
   ]

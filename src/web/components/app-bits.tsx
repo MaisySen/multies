@@ -73,6 +73,9 @@ const ACTIONS: Record<string, string> = {
   "webhook.deleted": "removed a webhook endpoint",
   "suppression.added": "blocked an address",
   "suppression.removed": "unblocked an address",
+  "agent_run.started": "started a run on",
+  "agent_run.queued": "queued a run on",
+  "agent_run.finished": "finished a run on",
 };
 
 /** "approved an agent's message", for one audit action. */
@@ -80,8 +83,16 @@ export function auditLabel(action: string) {
   return ACTIONS[action] ?? action.replace(/[._]/g, " ");
 }
 
-export function describeAudit(e: AuditEntry): { verb: string; object?: string } {
+export function describeAudit(e: AuditEntry): { verb: string; object?: string; subject?: string } {
   const m = e.metadata ?? {};
+  // R27 (DF-3 slice 2): "Builder started a run on MB-12", "Olive queued a run on MB-12 for Builder".
+  if (e.action.startsWith("agent_run.") && typeof m.taskRef === "string") {
+    const verb = ACTIONS[e.action] ?? e.action.replace(/[._]/g, " ");
+    const agent = typeof m.agentName === "string" ? m.agentName : "An agent";
+    if (e.action === "agent_run.queued") return { verb, object: `${m.taskRef} for ${agent}` };
+    const outcome = e.action === "agent_run.finished" && typeof m.status === "string" ? ` (${m.status})` : "";
+    return { verb, object: `${m.taskRef}${outcome}`, subject: m.byAgent === false ? undefined : agent };
+  }
   const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };
 }

@@ -856,6 +856,31 @@ follow the task. Read only keys can list; writes need a full key. Another worksp
 Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
 its primary key and one index on task_id).
 
+## Agent runs on tasks (R27, DF-3 slice 2)
+
+An AI agent member works on a task itself and leaves a run log: a start, ordered steps and a result. Runs show on the
+task (the Runs section of the task panel) and every start and finish writes an audit entry that names the agent and the
+task ("Builder started a run on MB-12"). A run is `queued`, `running`, `succeeded`, `failed` or `cancelled`.
+
+| Method | Path | Who | What it does |
+|---|---|---|---|
+| POST | `/api/v1/tasks/{id}/runs` | the agent member's own key | Start a run (`running`) on a task the agent is assigned to or mentioned on (`<@member:id>` or `@Name` in the notes or a comment), or claim a run queued for it. Body `{ moveToDoing?, note? }`. Otherwise 403 `agent_not_on_task` |
+| POST | `/api/v1/tasks/{id}/runs` | a person or a full workspace key | Queue a run (`queued`) for an agent member: the explicit allowance. Body `{ agentUserId }` |
+| POST | `/api/v1/runs/{id}/steps` | the run's own agent | Append `{ kind: note \| tool \| comment \| status_change, text }`. A queued run becomes running |
+| POST | `/api/v1/runs/{id}/finish` | the run's own agent | `{ status: succeeded \| failed \| cancelled, result?, moveTo?: done \| review, comment? }`. `moveTo: review` picks the project status whose name has "review" in it; `comment: true` posts the result as the agent's comment |
+| POST | `/api/v1/runs/{id}/finish` | a person or a workspace key | Only `{ status: "cancelled" }` (403 `cancel_only` otherwise). The app has `POST /api/agent-runs/{id}/cancel` |
+| GET | `/api/v1/tasks/{id}/runs` | any key | The task's runs, newest first, with steps and result. `limit` 1 to 200 |
+| GET | `/api/v1/runs/{id}` | any key | One run with its steps |
+| GET | `/api/v1/runs` | any key | Runs across the workspace, newest first, without steps. `agentUserId`, `status`, `limit` (1 to 200) |
+
+Limits: one queued or running run per agent and task (409 `run_in_progress`), 200 steps per run (422
+`run_step_limit`), 1,000 characters per step and 4,000 per result. Mail agent keys get 403 `agent_member_only`; read
+keys get 403 `read_only_key`; a paused agent's key gets 401. Another workspace's ids answer 404.
+
+D1 cost: a step is 1 row write (the steps are a JSON array on the run row, appended in place; no index changes).
+Starting is 4 (the row, its primary key, the task index and the one-active-run index) plus the audit row; finishing is
+2 plus the audit row. Moving the task or posting the comment costs what those writes always cost.
+
 ## Task query language (R26, MB-86)
 
 `GET /api/v1/tasks?q=...` (and the app's task list) takes a typed query. Terms are ANDed, commas mean any of, a leading
@@ -869,11 +894,41 @@ Keys: `assignee` (me, none, a name or email, member:<id>), `status` (todo, doing
 7d meaning 7 days from now, -3d, none), `sprint` (current, next, none or a sprint name), `type` (task, story, bug,
 epic), `project` (key or name), `created` and `updated` (a date or 7d meaning 7 days ago), `points` (a number or
 none), `has` (subtasks, checklist, due, assignee, labels, points, parent, notes), `is` (overdue, open, done,
-unassigned, subtask, mine) and `title`. Text with no key in it searches titles and notes, as before.
+unassigned, subtask, mine, watching) and `title`. Text with no key in it searches titles and notes, as before.
 
 A bad query answers 400 with `error.code` `bad_query`, a message and `error.details.position` (the 1 based character
 where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
 one query. MCP: `search_tasks` with `q`.
+
+## Task watchers (R27)
+
+Watchers hear about a task's new comments (notification type `task.watch_comment`, category comment) and status
+changes (`task.watch_status`, category status) in their notifications inbox, under their own notification settings.
+The person who creates a task, a member it is assigned to and anyone who comments start watching on their own
+(`source: "auto"`); anyone can watch or stop by hand (`source: "manual"`). A person told about a comment by a mention
+or as the assignee is told once. Commenting again after stopping starts watching again.
+
+    GET    /api/v1/tasks/{id}/watchers            { taskId, watching, count, watchers: [{ userId, name, email, source, since }] }
+    POST   /api/v1/tasks/{id}/watchers            { userId? }  (default: the key's member; an agent key names one)
+    DELETE /api/v1/tasks/{id}/watchers/{userId}   ("me" is the key's member)
+
+`id` takes a task id or a reference like OPS-12. Read only keys can list. Up to 200 watchers per task; a non member
+answers 422 `invalid_member`. `q=is:watching` lists the tasks you watch. MCP: `list_task_watchers`, `watch_task`,
+`unwatch_task`.
+
+## Duplicate a task (R27)
+
+`POST /api/v1/tasks/{id}/duplicate` copies a task with a new number into the project's first to-do status. The copy
+keeps the notes, assignee, priority, dates, labels, type, estimate, sprint, repeat rule and custom field values, and is
+linked to the original (`duplicate_of`). Body, all optional:
+
+    { "title": "Launch, Android", "projectId": "prj_...", "subtasks": true, "checklist": true, "assignee": true, "dependencies": false }
+
+`title` defaults to "<title> (copy)". `subtasks` copies up to 3 levels and 200 tasks in all. `checklist` copies every
+item unticked. `dependencies` copies the "blocked by" links. A copy into another project keeps no sprint or custom
+field values. Comments, time, files and history stay with the original. Answers 201 with
+`{ task, from: { id, ref }, copied: { tasks, subtasks, checklistItems, dependencies } }`. Read only keys get 403.
+MCP: `duplicate_task`.
 
 ## Inbound keys (R26, DF-18)
 
