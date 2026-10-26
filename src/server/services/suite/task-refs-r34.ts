@@ -42,7 +42,8 @@ export async function movedRefStatements(deps: Deps, orgId: string, moved: { tas
   }
   const now = deps.now();
   const rows = moved.filter((m) => keyOf.get(m.projectId)).map((m) => ({ orgId, fromType: MOVED_REF, fromId: `${keyOf.get(m.projectId)}-${m.number}`, toType: "task", toId: m.taskId, relation: "moved_from", createdAt: now }));
-  return chunk(rows, 14).map((part) => deps.db.insert(entityLinks).values(part).onConflictDoNothing());
+  // D1 caps a statement at 100 bound values: entity_links has 8 columns since R38 (lag_days), so 12 rows a statement.
+  return chunk(rows, 12).map((part) => deps.db.insert(entityLinks).values(part).onConflictDoNothing());
 }
 
 /**

@@ -20,11 +20,14 @@ import { Button } from "@/web/components/ui/button";
 import { useDialogs } from "@/web/components/ui/confirm";
 import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input } from "@/web/components/ui/input";
+import { Field, Input, Select } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
-import { AddWidgetSheet, CATALOG, isR38, R38WidgetBody, SKELETON_H, WidgetChips, WidgetEmpty, type Chart, type Source, type WidgetSettings, type WidgetType } from "./dashboard-widgets-r38";
+import { useProjects, useViews } from "./data";
 
-export interface Widget extends WidgetSettings { id: string; type: WidgetType; title: string; source: Source; groupBy: string | null; chart: Chart; size: 1 | 2; position: number }
+type WidgetType = "count" | "breakdown" | "due" | "completed" | "burndown" | "goals" | "reply_times" | "mail_volume" | "workload";
+type Chart = "number" | "bar" | "donut" | "line" | "table";
+interface Source { savedViewId?: string; projectId?: string; filters?: Record<string, string>; mailboxId?: string }
+export interface Widget { id: string; type: WidgetType; title: string; source: Source; groupBy: string | null; chart: Chart; size: 1 | 2; position: number }
 export interface DashboardDoc { id: string; name: string; shared: boolean; mine: boolean; widgets: Widget[]; version: number; updatedAt: string }
 interface DashboardRow { id: string; name: string; shared: boolean; mine: boolean; widgetCount: number; updatedAt: string }
 interface DataResp { dashboard: DashboardDoc; timeZone: string; weekStart: string; widgets: { id: string; type: WidgetType; data: unknown; error: string | null }[] }
@@ -37,7 +40,18 @@ const zone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZo
 const shortDay = (s: string) => new Date(`${s}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 const hours = (ms: number | null) => (ms == null ? "No replies yet" : ms < 3_600_000 ? `${Math.max(1, Math.round(ms / 60_000))} min` : `${(ms / 3_600_000).toFixed(1)} h`);
 
-export const WIDGET_CHOICES: { type: WidgetType; label: string; charts: Chart[] }[] = CATALOG.map(({ type, label, charts }) => ({ type, label, charts }));
+export const WIDGET_CHOICES: { type: WidgetType; label: string; charts: Chart[] }[] = [
+  { type: "count", label: "Task count", charts: ["number"] },
+  { type: "breakdown", label: "Tasks grouped by", charts: ["bar", "donut", "table"] },
+  { type: "due", label: "Due this week and overdue", charts: ["table"] },
+  { type: "completed", label: "Completed per week", charts: ["line", "bar"] },
+  { type: "burndown", label: "Sprint burndown", charts: ["line"] },
+  { type: "goals", label: "Goal progress", charts: ["table"] },
+  { type: "reply_times", label: "Reply times", charts: ["table"] },
+  { type: "mail_volume", label: "Mail per day", charts: ["line", "bar"] },
+  { type: "workload", label: "Workload per person", charts: ["bar", "table"] },
+];
+const GROUPS: [string, string][] = [["status", "Status"], ["assignee", "Person"], ["priority", "Priority"], ["project", "Project"], ["sprint", "Sprint"], ["type", "Type"], ["label", "Label"]];
 
 const dk = { list: ["dashboards"] as const, one: (id: string) => ["dashboard", id] as const, data: (id: string) => ["dashboard-data", id] as const };
 
@@ -157,24 +171,23 @@ function DashboardView({ id }: { id: string }) {
                   <WidgetCard key={w.id} w={w} result={byId.get(w.id)} loading={data.isPending}
                     onMove={(dir) => { const next = moveWidget(widgets, w.id, dir); if (next === widgets) return; setOrder(next); save.mutate({ widgets: next }); }}
                     canUp={i > 0} canDown={i < widgets.length - 1}
-                    onChange={(patch) => { const next = widgets.map((x) => (x.id === w.id ? { ...x, ...patch } : x)); setOrder(next); save.mutate({ widgets: next }); }}
                     onRemove={() => { const next = widgets.filter((x) => x.id !== w.id); setOrder(next); save.mutate({ widgets: next }); }} />
                 ))}
               </div>
             </SortableContext>
           </DndContext>
         )}
-      <AddWidgetSheet open={adding} onClose={() => setAdding(false)} onAdd={(w) => { setAdding(false); save.mutate({ widgets: [...widgets, w] }); }} />
+      <AddWidgetDialog open={adding} onClose={() => setAdding(false)} onAdd={(w) => { setAdding(false); save.mutate({ widgets: [...widgets, w] }); }} />
       <NameDialog open={renaming} title="Rename dashboard" initial={d?.name ?? ""} onClose={() => setRenaming(false)} onSave={(name) => { setRenaming(false); save.mutate({ name }); }} />
     </div>
   );
 }
 
-function WidgetCard({ w, result, loading, onRemove, onMove, onChange, canUp, canDown }: { w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void; onMove: (dir: -1 | 1) => void; onChange: (patch: Partial<Widget>) => void; canUp: boolean; canDown: boolean }) {
+function WidgetCard({ w, result, loading, onRemove, onMove, canUp, canDown }: { w: Widget; result?: DataResp["widgets"][number]; loading: boolean; onRemove: () => void; onMove: (dir: -1 | 1) => void; canUp: boolean; canDown: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: w.id });
   return (
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn(w.size === 2 && "md:col-span-2", isDragging && "z-10 opacity-80")}>
-      <Card className="flex h-full flex-col p-4 transition-shadow duration-200 hover:shadow-pop motion-reduce:transition-none" data-testid="widget" data-type={w.type} data-title={w.title}>
+      <Card className="flex h-full flex-col p-4" data-testid="widget" data-title={w.title}>
         <div className="mb-3 flex items-center gap-1.5">
           <button type="button" {...attributes} {...listeners} aria-label={`Move ${w.title}`} className="-ml-1 cursor-grab rounded p-0.5 text-subtle hover:bg-hover hover:text-fg active:cursor-grabbing"><IconGrip className="h-4 w-4" /></button>
           <h2 className="truncate text-[13px] font-semibold">{w.title}</h2>
@@ -187,16 +200,15 @@ function WidgetCard({ w, result, loading, onRemove, onMove, onChange, canUp, can
             <button type="button" onClick={onRemove} aria-label={`Remove ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><IconClose className="h-4 w-4" /></button>
           </div>
         </div>
-        <WidgetChips w={w} onChange={onChange} />
         <div className="min-h-0 flex-1">
-          {loading || !result ? <Skeleton className={SKELETON_H[w.type] ?? "h-40"} /> : result.error ? <p className="py-10 text-center text-[13px] text-muted">{result.error}</p> : <WidgetBody w={w} data={result.data} />}
+          {loading || !result ? <Skeleton className="h-40" /> : result.error ? <p className="py-10 text-center text-[13px] text-muted">{result.error}</p> : <WidgetBody w={w} data={result.data} />}
         </div>
       </Card>
     </div>
   );
 }
 
-const Empty = WidgetEmpty;
+const Empty = ({ text }: { text: string }) => <p className="py-12 text-center text-[13px] text-muted">{text}</p>;
 const Big = ({ value, sub }: { value: string | number; sub?: string }) => (
   <div className="py-6 text-center"><div className="text-4xl font-semibold tabular-nums text-fg" data-testid="widget-number">{value}</div>{sub && <div className="mt-1 text-[12.5px] text-muted">{sub}</div>}</div>
 );
@@ -246,7 +258,6 @@ function Table({ rows }: { rows: { label: string; value: string | number; muted?
 function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
   /* eslint-disable @typescript-eslint/no-explicit-any */
   const d = data as any;
-  if (isR38(w.type)) return <>{R38WidgetBody({ w, data })}</>;
   switch (w.type) {
     case "count": return <Big value={d.value} sub={d.value === d.open ? "all open" : `${d.open} open`} />;
     case "breakdown": {
@@ -307,4 +318,43 @@ function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
     }
   }
   /* eslint-enable @typescript-eslint/no-explicit-any */
+}
+
+function AddWidgetDialog({ open, onClose, onAdd }: { open: boolean; onClose: () => void; onAdd: (w: Partial<Widget> & { type: WidgetType }) => void }) {
+  const views = useViews();
+  const projects = useProjects();
+  const [type, setType] = useState<WidgetType>("breakdown");
+  const [groupBy, setGroupBy] = useState("status");
+  const [source, setSource] = useState("");
+  const [chart, setChart] = useState<Chart>("bar");
+  const [title, setTitle] = useState("");
+  const [wide, setWide] = useState(false);
+  const choice = WIDGET_CHOICES.find((c) => c.type === type)!;
+  useEffect(() => { if (open) { setType("breakdown"); setGroupBy("status"); setSource(""); setChart("bar"); setTitle(""); setWide(false); } }, [open]);
+  useEffect(() => { if (!choice.charts.includes(chart)) setChart(choice.charts[0]); }, [type, choice, chart]);
+  const needsProject = type === "burndown";
+  const taskSource = !["goals", "reply_times", "mail_volume"].includes(type);
+  const src: Source = source.startsWith("view:") ? { savedViewId: source.slice(5) } : source.startsWith("project:") ? { projectId: source.slice(8) } : {};
+  const ok = !needsProject || !!src.projectId || !!src.savedViewId;
+  return (
+    <Dialog open={open} onClose={onClose} title="Add widget" description="Pick what to show and where the tasks come from."
+      footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button disabled={!ok} onClick={() => onAdd({ type, groupBy: type === "breakdown" ? groupBy : null, chart, source: src, title: title.trim() || undefined, size: wide ? 2 : 1 } as never)}>Add</Button></>}>
+      <div className="space-y-4">
+        <Field label="Widget">{(f) => <Select {...f} value={type} onChange={(e) => setType(e.target.value as WidgetType)}>{WIDGET_CHOICES.map((c) => <option key={c.type} value={c.type}>{c.label}</option>)}</Select>}</Field>
+        {type === "breakdown" && <Field label="Group by">{(f) => <Select {...f} value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>{GROUPS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>}</Field>}
+        {taskSource && (
+          <Field label={needsProject ? "Project" : "Tasks from"}>{(f) => (
+            <Select {...f} value={source} onChange={(e) => setSource(e.target.value)}>
+              <option value="">{needsProject ? "Pick a project" : "All tasks"}</option>
+              {!!views.data?.length && !needsProject && <optgroup label="Saved views">{views.data.map((v) => <option key={v.id} value={`view:${v.id}`}>{v.name}</option>)}</optgroup>}
+              <optgroup label="Projects">{(projects.data ?? []).map((p) => <option key={p.id} value={`project:${p.id}`}>{p.name}</option>)}</optgroup>
+            </Select>
+          )}</Field>
+        )}
+        {choice.charts.length > 1 && <Field label="Chart">{(f) => <Select {...f} value={chart} onChange={(e) => setChart(e.target.value as Chart)}>{choice.charts.map((c) => <option key={c} value={c}>{c === "donut" ? "Donut" : c === "bar" ? "Bars" : c === "line" ? "Line" : c === "table" ? "List" : "Number"}</option>)}</Select>}</Field>}
+        <Field label="Title" hint="Leave empty for a title that says what it shows.">{(f) => <Input {...f} maxLength={80} value={title} onChange={(e) => setTitle(e.target.value)} />}</Field>
+        <Switch checked={wide} onChange={setWide} label="Full width" />
+      </div>
+    </Dialog>
+  );
 }

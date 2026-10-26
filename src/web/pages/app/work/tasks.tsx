@@ -32,6 +32,7 @@ import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarget } from "./board-lanes"; // R34 (MB-186)
 import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/shared/board-lanes";
+import { ClashScope } from "./schedule-r38"; // R38: clash badges on list rows and board cards
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const PlannedTimeline = lazy(() => import("./timeline-plan-r37")); // R37: timeline with dependency planning
@@ -265,6 +266,7 @@ export function TasksPage() {
       {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
       {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
       <div className="min-h-0 flex-1">
+        <ClashScope projectId={projectId || undefined} enabled={view === "list" || view === "board"}>{/* R38: one date clash check for the list or board */}
         {!list.length ? (
           <EmptyState icon={<IconBoard />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
         ) : tasks.isPending ? (
@@ -295,6 +297,7 @@ export function TasksPage() {
               : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
           </Suspense>
         )}
+        </ClashScope>
       </div>
 
       {openId && <TaskPanel id={openId} onClose={() => set({ task: null })} />}

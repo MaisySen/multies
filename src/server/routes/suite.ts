@@ -3,7 +3,8 @@
  * automations, notifications, phone push registration and the change feed.
  * The same services back the REST API (v1-suite.ts) and the MCP tools.
  */
-import { RescheduleBody } from "../services/suite/dependency-schedule-r37-schema";
+import { DependencyAddBody, DependencyLagBody, RescheduleBody, ScheduleSettingsBody } from "../services/suite/dependency-schedule-r37-schema";
+import { getScheduleSettings, setScheduleSettings } from "../services/suite/schedule-settings-r38"; // R38
 import { rescheduleTask, scheduleCheck } from "../services/suite/dependency-schedule-r37";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -12,7 +13,7 @@ import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware"
 import { changesSince } from "../services/suite/common";
 import {
   addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
-  parseAssignee, taskDetail, updateProject, updateTask, addDependency, removeDependency, dependencyLinks,
+  parseAssignee, taskDetail, updateProject, updateTask, addDependency, removeDependency, dependencyLinks, setDependencyLag,
 } from "../services/suite/tasks";
 import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
 import {
@@ -53,7 +54,10 @@ export function projectRoutes() {
     .delete("/:id", requireAdmin, async (c) => c.json(await deleteProject(c.var.deps, c.var.auth, c.req.param("id"))))
     // R34 (MB-186): board swimlanes and WIP limits.
     .get("/:id/board", async (c) => c.json({ board: await getBoardSettings(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
-    .put("/:id/board", async (c) => c.json({ board: await setBoardSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, BoardPatchSchema)) }));
+    .put("/:id/board", async (c) => c.json({ board: await setBoardSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, BoardPatchSchema)) }))
+    // R38: working days only and strict moves for dependency dates.
+    .get("/:id/schedule", async (c) => c.json({ schedule: await getScheduleSettings(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
+    .put("/:id/schedule", async (c) => c.json({ schedule: await setScheduleSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ScheduleSettingsBody)) }));
 }
 
 export function taskRoutes() {
@@ -95,7 +99,9 @@ export function taskRoutes() {
     .post("/:id/reschedule", async (c) => c.json(await rescheduleTask(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, RescheduleBody))))
     .get("/dependencies", async (c) => c.json({ links: await dependencyLinks(c.var.deps, c.var.auth.orgId, c.req.query("projectId")) }))
     .get("/:id", async (c) => c.json(await taskDetail(c.var.deps, c.var.auth, c.req.param("id"))))
-    .post("/:id/dependencies", async (c) => c.json(await addDependency(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ blockedBy: z.string().min(1) }))).blockedBy), 201))
+    .post("/:id/dependencies", async (c) => { const b = await parseBody(c, DependencyAddBody); return c.json(await addDependency(c.var.deps, c.var.auth, c.req.param("id"), b.blockedBy, b.lagDays), 201); })
+    // R38: lead or lag on one link.
+    .patch("/:id/dependencies/:blockedBy", async (c) => c.json(await setDependencyLag(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("blockedBy"), (await parseBody(c, DependencyLagBody)).lagDays)))
     .delete("/:id/dependencies/:blockedBy", async (c) => c.json(await removeDependency(c.var.deps, c.var.auth, c.req.param("id"), c.req.param("blockedBy"))))
     .patch("/:id", async (c) => {
       const b = await parseBody(c, TaskPatch);

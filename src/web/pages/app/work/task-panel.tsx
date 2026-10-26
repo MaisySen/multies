@@ -24,6 +24,7 @@ import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task, isAgentLike } from "./data";
 import { recordRecent } from "@/web/lib/palette-recents"; // R36
+import { LagChip } from "./schedule-r38"; // R38: lead and lag per link
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -272,12 +273,14 @@ function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blo
   const remove = async (blocker: string, blocked: string) => { try { await api.del(`/tasks/${blocked}/dependencies/${blocker}`); onChange(); } catch (e) { showError(e as Error); } };
   const taken = new Set([task.id, ...blockedBy.map((b) => b.id)]);
   const open = blockedBy.filter((b) => b.status !== "done").length;
-  const row = (x: Task, onRemove: () => void) => (
-    <li key={x.id} className="group flex items-center gap-2 text-[13px]">
+  // R38: each row carries the link's lead or lag (lagDays), edited in place with LagChip.
+  const row = (x: Task, onRemove: () => void, link?: { blocked: string; blocker: string }) => (
+    <li key={x.id} className="group flex min-h-7 items-center gap-2 text-[13px]">
       {x.status === "done" ? <IconCheckCircle className="h-3.5 w-3.5 shrink-0 text-ok" /> : <IconCircle className="h-3.5 w-3.5 shrink-0 text-muted" />}
       <span className="font-mono text-[12px] text-subtle">{x.ref}</span>
-      <span className={cn("truncate", x.status === "done" && "text-subtle line-through")}>{x.title}</span>
-      <button className="ml-auto text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label={`Remove dependency on ${x.ref}`} onClick={onRemove}><IconClose className="h-3.5 w-3.5" /></button>
+      <span className={cn("min-w-0 truncate", x.status === "done" && "text-subtle line-through")}>{x.title}</span>
+      {link && <span className="ml-auto"><LagChip blockedId={link.blocked} blockerId={link.blocker} lag={(x as Task & { lagDays?: number }).lagDays ?? 0} onSaved={onChange} /></span>}
+      <button className="ml-auto shrink-0 text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label={`Remove dependency on ${x.ref}`} onClick={onRemove}><IconClose className="h-3.5 w-3.5" /></button>
     </li>
   );
   return (
@@ -292,8 +295,8 @@ function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blo
           {candidates.data?.filter((c) => !taken.has(c.id)).map((c) => <option key={c.id} value={c.id}>{c.ref} {c.title}</option>)}
         </Select>
       )}
-      {blockedBy.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocked by</p><ul className="mt-1 space-y-1">{blockedBy.map((b) => row(b, () => void remove(b.id, task.id)))}</ul></>}
-      {blocking.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocking</p><ul className="mt-1 space-y-1">{blocking.map((b) => row(b, () => void remove(task.id, b.id)))}</ul></>}
+      {blockedBy.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocked by</p><ul className="mt-1 space-y-1">{blockedBy.map((b) => row(b, () => void remove(b.id, task.id), { blocked: task.id, blocker: b.id }))}</ul></>}
+      {blocking.length > 0 && <><p className="mt-2 text-[12px] text-subtle">Blocking</p><ul className="mt-1 space-y-1">{blocking.map((b) => row(b, () => void remove(task.id, b.id), { blocked: b.id, blocker: task.id }))}</ul></>}
       {!blockedBy.length && !blocking.length && !adding && <p className="mt-1 text-[12.5px] text-subtle">Nothing blocks this task.</p>}
     </section>
   );

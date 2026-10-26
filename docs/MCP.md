@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 188 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 189 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -95,9 +95,10 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
 | `list_projects` | List projects |
-| `set_task_blocked_by` | Set a task as blocked by another |
-| `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `overlapDays` and `fix { taskId, start, due }` (R37, `tasks:read`) |
-| `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
+| `set_task_blocked_by` | Set a task as blocked by another; `lagDays` sets a wait after the blocker ends, negative for a lead (R38) |
+| `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
+| `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
+| `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
 | `create_custom_field` | Add a custom field to a project (any type; formula and rollup take a config) |
@@ -441,9 +442,9 @@ Registered in src/server/routes/mcp-r24-dashboards.ts. `list_dashboards` and `ge
 | Tool | What it does |
 | --- | --- |
 | `list_dashboards` | Dashboards you can open (shared ones and your own) with their widget counts |
-| `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person, and the R38 types: calculations with a goal and the change against the previous range, battery, pivot tables, created vs completed, task lists, time tracked and notes; a widget whose saved filter was removed carries an `error` |
+| `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person; a widget whose saved filter was removed carries an `error` |
 | `create_dashboard` | Make a dashboard with up to 24 widgets, or `starter: "team"` for Team overview (by status, by person, due this week, completed per week); private unless `shared` |
-| `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`). R38 types take `range`, `metric`, `op`, `goal` (calculation), `columnBy` (pivot), `sort` (task_list) and `text` (note) |
+| `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`) |
 
 ### Formula and rollup fields (R24.1)
 

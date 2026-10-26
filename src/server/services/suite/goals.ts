@@ -12,7 +12,7 @@ import { HttpError } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, sortableId, type SuiteActor } from "./common";
 import { notify } from "./notify";
 import { resolveTaskId } from "./tasks";
-import { inIds } from "../../lib/sql-chunks";
+import { chunkIds as chunk, inIds } from "../../lib/sql-chunks";
 
 type GoalRow = typeof goals.$inferSelect;
 type KrRow = typeof keyResults.$inferSelect;
@@ -213,7 +213,9 @@ export interface KrInput { name?: string; kind?: KrRow["kind"]; start?: number; 
 async function setTaskLinks(deps: Deps, orgId: string, krId: string, taskIds: string[]) {
   await deps.db.delete(entityLinks).where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "key_result"), eq(entityLinks.fromId, krId), eq(entityLinks.toType, "task")));
   const ids = [...new Set(await Promise.all(taskIds.slice(0, 500).map((t) => resolveTaskId(deps, orgId, t))))];
-  if (ids.length) await deps.db.insert(entityLinks).values(ids.map((t) => ({ orgId, fromType: "key_result", fromId: krId, toType: "task", toId: t, relation: "measures", createdAt: deps.now() }))).onConflictDoNothing();
+  // D1 caps a statement at 100 bound values: 8 columns a link (R38), so 12 rows a statement.
+  const rows = ids.map((t) => ({ orgId, fromType: "key_result", fromId: krId, toType: "task", toId: t, relation: "measures", createdAt: deps.now() }));
+  for (const part of chunk(rows, 12)) await deps.db.insert(entityLinks).values(part).onConflictDoNothing();
 }
 
 async function checkProject(deps: Deps, orgId: string, projectId: string | null | undefined) {

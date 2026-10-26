@@ -305,7 +305,7 @@ on read, so a task change costs no extra write; a completed sprint keeps its fin
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `bulk_update_tasks`, `check_task_schedule`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `form_logic_set`, `form_results`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `update_project` (R33), `set_task_blocked_by`, `reschedule_task`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `bulk_update_tasks`, `check_task_schedule`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `form_logic_set`, `form_results`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `update_project` (R33), `set_task_blocked_by`, `reschedule_task`, `set_project_schedule` (R38), `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -734,21 +734,6 @@ Widget: `{ id, type, title, source, groupBy, chart, size, position }`.
   `done`; `priority`; `label`; `type`; `q`; `due` as `overdue`, `week` or `none`). Inline filters go on
   top of a saved view's. `{ mailboxId }` narrows the mail widgets.
 - `chart`: `number`, `bar`, `donut`, `line` or `table`. `size`: 1 or 2 columns.
-- R38 types (the most used widgets of the big work apps that were missing):
-  - `calculation`: one number for `range` (`7d`, `30d`, `90d`, `180d`, ending today; default `30d`):
-    `metric` `done` (tasks done), `created`, `points` (points of tasks done) or `hours` (time tracked on
-    the widget's tasks), `op` `sum` or `avg` (per day), an optional `goal`. Data:
-    `{ value, previous, change, goal, progress, unit }`; `change` is the percent against the range
-    before (null when that was 0).
-  - `battery`: `{ total, done, donePercent, segments: [{ key, label, color, count }] }` for done, in
-    progress and to do.
-  - `pivot`: counts by `groupBy` rows and `columnBy` columns (`status`, `assignee`, `priority`,
-    `project`, `type`; never the same field twice), with row and column totals. At most 20 rows and 8
-    columns; the rest add up in Other.
-  - `created_completed`: created and completed per day (ranges up to 30 days) or per week, with `net`.
-  - `task_list`: up to 10 tasks and the `total`, `sort` `due`, `priority` or `updated`.
-  - `time_tracked`: hours per day or week in `range` and the top 5 people.
-  - `note`: `text` (up to 2,000 characters) shown as written; it reads nothing.
 
 Up to 24 widgets a dashboard and 50 dashboards a workspace. Breakdowns return at most 20 groups (the
 rest add up in Other). Tasks are read the way the task list reads them (this workspace, top level,
