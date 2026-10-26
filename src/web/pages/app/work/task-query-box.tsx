@@ -75,7 +75,7 @@ export function TaskQueryBox({ value, onApply, values }: { value: string; onAppl
               {it.hint && <span className="truncate text-[11.5px] text-subtle">{it.hint}</span>}
             </li>
           ))}
-          <li className="border-t border-line px-2.5 pt-1.5 pb-1 text-[11px] text-subtle" aria-hidden>Tab picks, Enter searches. Minus excludes: -label:wontfix. OR and brackets group: (label:bug OR label:ux). History: status WAS doing.</li>
+          <li className="border-t border-line px-2.5 pt-1.5 pb-1 text-[11px] text-subtle" aria-hidden>Tab picks, Enter searches. Minus excludes: -label:wontfix. Quotes keep words together.</li>
         </ul>
       )}
     </div>

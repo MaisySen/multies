@@ -30,7 +30,7 @@ describe("R31 one command registry", () => {
   });
 
   it("every command in the sheet has a handler: its own run, a page binding found in the source, or a field that handles it", () => {
-    const sources = ["src/web/pages/app/webmail.tsx", "src/web/lib/commands/use-task-focus.ts", "src/web/components/shortcuts-sheet.tsx", "src/web/components/palette-host.tsx"].map((f) => readFileSync(f, "utf8")).join("\n");
+    const sources = ["src/web/pages/app/webmail.tsx", "src/web/lib/commands/use-task-focus.ts", "src/web/components/shortcuts-sheet.tsx", "src/web/components/palette-host.tsx", "src/web/pages/app/work/tasks.tsx" /* R34 board lanes */].map((f) => readFileSync(f, "utf8")).join("\n");
     for (const c of COMMANDS.filter(inSheet)) {
       if (c.handler === "run") expect(typeof c.run, c.id).toBe("function");
       else if (c.handler === "page") expect(sources, c.id).toContain(`"${c.id}"`);

@@ -385,10 +385,10 @@ export async function resolveTaskId(deps: Deps, orgId: string, idOrRef: string) 
   const row = await deps.db.select({ id: tasks.id }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(eq(tasks.orgId, orgId), eq(projects.key, m[1].toUpperCase()), eq(tasks.number, Number(m[2])), isNull(tasks.deletedAt))).get();
   if (row) return row.id;
-  // R33: a key the project used before a key edit still resolves (OPS-12 after OPS became OPR). R34: so does the ref a
-  // task had before it moved to another project. Only on a miss.
-  const { resolveOldRefs } = await import("./task-refs-r34");
-  return (await resolveOldRefs(deps, orgId, [idOrRef])).get(`${m[1].toUpperCase()}-${m[2]}`) ?? idOrRef;
+  // R33: a key the project used before a key edit still resolves (OPS-12 after OPS became OPR). One read, only on a miss.
+  const alias = await deps.db.select({ id: tasks.id }).from(projectKeyAliases).innerJoin(tasks, eq(tasks.projectId, projectKeyAliases.projectId))
+    .where(and(eq(projectKeyAliases.orgId, orgId), eq(projectKeyAliases.key, m[1].toUpperCase()), eq(tasks.orgId, orgId), eq(tasks.number, Number(m[2])), isNull(tasks.deletedAt))).get();
+  return alias?.id ?? idOrRef;
 }
 
 export async function getTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
@@ -587,11 +587,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   let projectId = t.projectId;
   if (patch.projectId && patch.projectId !== t.projectId) {
     const p = await projectRow(deps, actor.orgId, patch.projectId);
-    // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
-    const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
     set.projectId = p.id; set.number = await claimNumbers(deps, p.id); projectId = p.id;
     changed.projectId = p.id;
-    if (from?.key) { const { rememberMovedRef } = await import("./task-refs-r34"); await rememberMovedRef(deps, actor.orgId, `${from.key}-${t.number}`, t.id); }
   }
   let fromCategory: Category | null = null;
   if (patch.statusId !== undefined || patch.status !== undefined || set.projectId) {

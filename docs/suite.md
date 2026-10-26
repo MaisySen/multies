@@ -170,7 +170,7 @@ and the browser code don't change. The page's content security policy allows any
 
 ## Custom fields
 
-Each project can have custom fields: text, number, currency (AUD, stored in cents), date, select, multi select, person, checkbox and url. Fields show on the task panel and as list columns, sort by clicking the column, and a board can be grouped by any single select field (with a "No value" column; dragging a card sets the field).
+Each project can have custom fields: text, number, currency (AUD, stored in cents), date, select, multi select, person, checkbox and url. Fields show on the task panel and as list columns, sort by clicking the column, and a board can be grouped by any single select field (with a "No value" column; dragging a card sets the field). R34: a board can also show swimlanes by assignee, epic, priority or project (each lane folds, "No assignee" and the like come last, dragging a card into another lane sets that field, folded lanes are remembered on the device, Shift+L folds or opens them all), and each column can have a most and fewest cards limit from its header menu; past the limit the header reads "6 / 5" with "Over limit" and a red top edge, and a move still goes through with a short note.
 
 - REST: `GET/POST /api/v1/projects/{id}/fields`, `PATCH/DELETE /api/v1/fields/{id}`. Set values with `PATCH /api/v1/tasks/{id}` and `{"fields": {"<fieldId>": value}}`; `null` clears one.
 - Filters: `GET /api/v1/tasks?field.<fieldId>=<op>:<value>` with ops `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `contains`, `empty`, `notempty`. Sort with `sort=field.<fieldId>&dir=asc|desc`.
