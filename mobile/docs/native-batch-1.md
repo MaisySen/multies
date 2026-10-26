@@ -37,3 +37,22 @@ Before building: bump runtimeVersion, run the fingerprint guard (scripts/ota-gua
 - Blocked user filter in the notification service extension: push for a DM or mention is already
   dropped server side for blocked people; a Notification Service Extension could re check the
   cached block list on iOS so a stale server never shows one. Needs a native target.
+
+## Added in R36 (phone helper, pass 2 on the remaining screens, 26 Oct 2026)
+
+- Native search field: the Search screen draws its own 44 pt rounded field in JS. A native
+  search bar (react-native-screens headerSearchBarOptions on the native stack, UISearchController
+  on iOS and the Material search view on Android) would give the system cancel button, dictation
+  and scope bar. Needs the native stack header on that route.
+- Native date picker for task Due: the Due row opens a JS sheet with Today, Tomorrow, Next week and
+  No date. A calendar wheel or inline calendar needs @react-native-community/datetimepicker (native
+  module, not in the binary).
+- Haptic on the subtask check with the system "success" pattern plus the sound off switch already
+  works through expo-haptics; a richer tick (UIImpactFeedbackGenerator with intensity, Android
+  performHapticFeedback CONFIRM) needs a newer expo-haptics in the binary.
+- Calendar events from the phone: the meetings list shows Multies meetings only. Showing the phone's
+  own calendar beside them needs expo-calendar plus the NSCalendarsFullAccessUsageDescription key
+  (iOS) and READ_CALENDAR (Android).
+- Rich mail bodies: the thread shows the plain text part with quoted text folded. Rendering the
+  HTML part safely needs react-native-webview (native module), sandboxed with remote images off by
+  default.
