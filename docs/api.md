@@ -710,6 +710,26 @@ periodic snapshot through the normal update.
   `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
 - Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
 
+### Page history (R39)
+
+Every doc keeps earlier states of itself. A version is saved when a new editing session starts (the last save was 10
+minutes ago or more, or someone else made it), when someone saves one by name, and before every restore. The newest 50
+unnamed versions per doc are kept; named versions are kept for good. Reads need `docs:read`, the rest `docs:write`.
+The app uses the same paths under `/api`.
+
+- `GET /api/v1/docs/{id}/versions`: `{ doc: { id, title, version, words, updatedAt, editedBy }, versions: [{ id, docVersion,
+  title, name, reason, words, author, savedAt }] }`, newest first. `reason` is `edit` (the page before an editing session)
+  or `restore` (the page just before a restore).
+- `POST /api/v1/docs/{id}/versions` with `{ name? }` (up to 80 characters; default "Version N"): saves the page as it is now. 201.
+- `GET /api/v1/docs/{id}/versions/{versionId}`: the version with `content` and `text`, `current { version, title }` and
+  `sinceThen { added, removed, titleChanged }` (lines added and removed between that version and now). `?diff=1` adds
+  `diff: [{ type: same | add | del, text }]`, at most 2,000 lines.
+- `PATCH /api/v1/docs/{id}/versions/{versionId}` with `{ name }` (null clears it).
+- `POST /api/v1/docs/{id}/versions/{versionId}/restore` with `{ ifVersion? }`: saves the page as it is now, then writes the
+  version's title and content as the next doc version. Answers `{ doc, restoredFrom, savedCurrentAs }`; a stale
+  `ifVersion` is 409 with `details.currentVersion`.
+- Another workspace's ids answer 404. MCP: `list_doc_versions`, `read_doc_version`, `save_doc_version`, `restore_doc_version`.
+
 D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
 A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
 page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.

@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBuilding, IconCheck, IconCreditCard, IconCrown, IconDatabase, IconDocs, IconExternalLink, IconGlobe, IconInbox, IconMails, IconMinus, IconPlugZap, IconPlus, IconReceipt, IconSend, IconSliders, IconWarning } from "@/web/components/ui/icon";
+import { IconCreditCard, IconDocs, IconExternalLink, IconMinus, IconPlugZap, IconPlus, IconReceipt, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, chargeFor, type Addon, type AddonId, type AddonQuantities, type BillingInterval, type Plan, type PlanId, formatPlanPrice } from "@/shared/plans";
-import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
-import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
-import { UsageRing } from "@/web/components/premium4-r39"; // R39 premium pass 4
-import { ReceiptArt } from "@/web/components/illustrations";
+import { Badge, Card, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { cn } from "@/web/lib/cn";
@@ -76,7 +73,6 @@ export function BillingSettings() {
   const [draft, setDraft] = useState<AddonQuantities | null>(null);
   const [dropLegacy, setDropLegacy] = useState(false);
   const [reviewing, setReviewing] = useState(false);
-  const [comparing, setComparing] = useState(false); // R39: the plan comparison sheet
   const preview = useQuery({
     queryKey: ["billing-preview", draft, dropLegacy], enabled: reviewing && !!draft,
     queryFn: () => api.post<AddonPreview>("/billing/addons/preview", { addons: draft, dropLegacyPlan: dropLegacy }),
@@ -135,29 +131,12 @@ export function BillingSettings() {
       )}
 
       <Section title="Your plan" description="Free forever, priced per business, never per person. Limits change the moment your add-ons do.">
-        {/* R39 premium pass 4: the plan as a hero card on the accent, with the price, status and a compare sheet. */}
-        <div className="relative overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-br from-brand-soft via-surface to-surface p-5 shadow-card sm:p-6" data-testid="plan-hero">
-          <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-brand/10 blur-2xl" aria-hidden />
-          <div className="relative">
-            <div className="flex min-w-0 items-center gap-4">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-brand text-white shadow-[0_6px_16px_-6px_rgb(0_113_227/0.6)] [&_svg]:h-6 [&_svg]:w-6" aria-hidden><IconCrown /></span>
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[26px] font-semibold leading-tight tracking-tight">{legacy ? `${b.plan.name} (legacy plan)` : "Free"}</span>
-                  {status && <Badge tone={status.tone} dot>{status.label}</Badge>}
-                </div>
-                <span className="block whitespace-nowrap text-sm text-muted">
-                  {b.charge.amount === 0 ? "A$0, nothing to pay" : `${formatPlanPrice(b.charge.amount)} AUD a ${b.charge.interval === "year" ? "year" : "month"}`}
-                </span>
-              </div>
-            </div>
-          </div>
-          <ul className="relative mt-4 flex flex-wrap gap-2 text-[12.5px] text-muted" aria-label="What every plan includes">
-            {["Per business, never per person", "No card needed", "Add-ons from A$1 a month"].map((x) => (
-              <li key={x} className="inline-flex items-center gap-1.5 rounded-full bg-surface/80 px-2.5 py-1 ring-1 ring-line"><IconCheck className="h-3 w-3 text-ok" />{x}</li>
-            ))}
-          </ul>
-          <Button variant="secondary" size="sm" className="relative mt-4" onClick={() => setComparing(true)}><IconSliders className="h-4 w-4" />Compare limits</Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-2xl font-semibold tracking-tight">{legacy ? `${b.plan.name} (legacy plan)` : "Free"}</span>
+          <span className="text-sm text-muted">
+            {b.charge.amount === 0 ? "A$0, nothing to pay" : `${formatPlanPrice(b.charge.amount)} AUD a ${b.charge.interval === "year" ? "year" : "month"}`}
+          </span>
+          {status && <Badge tone={status.tone} dot>{status.label}</Badge>}
         </div>
         {legacy && <p className="mt-1 text-sm text-muted">Pro and Business are no longer sold, and your plan keeps working with its limits. You can add add-ons to it, or move to Free and keep only the add-ons you need.</p>}
         {sub?.currentPeriodEnd && (
@@ -174,12 +153,12 @@ export function BillingSettings() {
         {sub?.status === "past_due" && !b.dunning && (
           <p className="mt-3 flex items-center gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn"><IconWarning className="h-4 w-4" />Your last payment failed. Update your card to keep your plan.</p>
         )}
-        <h3 className="mb-3 mt-6 text-[13px] font-semibold text-muted">Usage and limits</h3>
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3" data-testid="usage-rings">
+        <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           {meters.map((m) => (
-            <Card key={m.label} className="p-3.5">
-              <UsageRing used={m.used} max={m.max} label={m.label} show={m.show ?? ((n) => n.toLocaleString(LOCALE))} />
-            </Card>
+            <div key={m.label}>
+              <div className="mb-1.5 flex justify-between text-xs"><span className="text-muted">{m.label}</span><span className="tabular-nums">{m.show ? m.show(m.used) : m.used.toLocaleString(LOCALE)} / {m.show ? m.show(m.max) : m.max.toLocaleString(LOCALE)}</span></div>
+              <Meter value={m.used} max={m.max} />
+            </div>
           ))}
         </div>
         {paidFlow && b.hasCustomer && isOwner && (
@@ -188,14 +167,13 @@ export function BillingSettings() {
       </Section>
 
       <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. When your add-ons come to less than A$${YEARLY_BELOW_MONTHLY} a month, they bill once a year instead, so card fees don't eat a A$1 charge.`}>
-        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+        <ul className="divide-y divide-line border-y border-line">
           {ADDON_ORDER.map((id) => {
             const a = ADDONS[id];
             const qty = chosen[id] ?? 0;
             const single = a.maxQuantity === 1;
             return (
-              <li key={id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 transition-colors duration-150 hover:bg-hover/40 motion-reduce:transition-none">
-                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]", qty ? "bg-brand text-white" : "bg-brand-soft text-brand-hover")} aria-hidden>{ADDON_ICON[id]}</span>
+              <li key={id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-2"><span className="font-medium">{a.name}</span><span className="text-sm text-muted">{formatPlanPrice(a.priceMonthly)} a month{single ? " for the whole team" : ` per ${a.unit}`}</span></div>
                   <p className="text-xs text-subtle">{a.description}</p>
@@ -236,25 +214,30 @@ export function BillingSettings() {
 
       <Section title="Invoices" description="Receipts for every payment, with PDF downloads.">
         {!b.enabled ? (
-          <EmptyState className="py-8" icon={<IconReceipt />} art={<ReceiptArt />} title="No invoices" body="Invoices appear here once billing is connected and you add something paid." />
-        ) : invoices.isPending ? <Card className="p-0"><SkeletonRows rows={3} label="Loading invoices" avatar /></Card> : !invoices.data?.length ? (
-          <EmptyState className="py-8" icon={<IconReceipt />} art={<ReceiptArt />} title="No invoices yet" body="Your first invoice appears here after checkout." />
+          <EmptyState className="py-8" icon={<IconReceipt />} title="No invoices" body="Invoices appear here once billing is connected and you add something paid." />
+        ) : invoices.isPending ? <Skeleton className="h-20" /> : !invoices.data?.length ? (
+          <EmptyState className="py-8" icon={<IconReceipt />} title="No invoices yet" body="Your first invoice appears here after checkout." />
         ) : (
-          <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card" aria-label="Invoices">
-            {invoices.data.map((i) => (
-              <li key={i.id} className="flex items-center gap-3 px-4 py-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-fill text-muted [&_svg]:h-[18px] [&_svg]:w-[18px]" aria-hidden><IconReceipt /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2"><span className="font-medium tabular-nums">{money(i.total, i.currency)}</span><Badge tone={i.status === "paid" ? "ok" : i.status === "open" ? "warn" : "neutral"}>{i.status}</Badge></div>
-                  <div className="truncate text-xs text-subtle">{new Date(i.createdAt).toLocaleDateString(LOCALE, { timeZone: tz(), dateStyle: "medium" })} · <span className="font-mono">{i.number ?? i.id}</span></div>
-                </div>
-                {i.pdfUrl && <a className="inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-xs font-medium text-brand-hover hover:bg-brand-soft max-sm:min-h-11" href={i.pdfUrl} target="_blank" rel="noreferrer"><IconDocs className="h-3.5 w-3.5" />PDF</a>}
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Invoices">
+            <table className="w-full text-sm">
+              <thead className="bg-fill/60 text-left text-xs text-subtle"><tr><th className="px-3 py-2 font-medium">Date</th><th className="px-3 py-2 font-medium">Invoice</th><th className="px-3 py-2 font-medium">Amount</th><th className="px-3 py-2 font-medium">Status</th><th className="px-3 py-2" /></tr></thead>
+              <tbody className="divide-y divide-line">
+                {invoices.data.map((i) => (
+                  <tr key={i.id}>
+                    <td className="px-3 py-2.5">{new Date(i.createdAt).toLocaleDateString(LOCALE, { timeZone: tz() })}</td>
+                    <td className="px-3 py-2.5 font-mono text-xs">{i.number ?? i.id}</td>
+                    <td className="px-3 py-2.5 tabular-nums">{money(i.total, i.currency)}</td>
+                    <td className="px-3 py-2.5"><Badge tone={i.status === "paid" ? "ok" : i.status === "open" ? "warn" : "neutral"}>{i.status}</Badge></td>
+                    <td className="px-3 py-2.5 text-right">
+                      {i.pdfUrl && <a className="inline-flex items-center gap-1 text-xs text-brand-hover hover:underline" href={i.pdfUrl} target="_blank" rel="noreferrer"><IconDocs className="h-3.5 w-3.5" />PDF</a>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Section>
-      <ComparePlans open={comparing} onClose={() => setComparing(false)} limits={b.limits} />
       <Dialog open={reviewing} onClose={() => setReviewing(false)} title="Confirm your add-ons"
         description="Stripe prorates the change to the day, so you only pay for what you use."
         footer={<><Button variant="secondary" onClick={() => setReviewing(false)}>Cancel</Button><Button loading={save.isPending} disabled={preview.isPending || !!preview.error} onClick={() => save.mutate()}>Confirm change</Button></>}>
@@ -277,35 +260,4 @@ export function BillingSettings() {
 
 function clean(a: AddonQuantities) {
   return Object.fromEntries(ADDON_ORDER.filter((id) => (a[id] ?? 0) > 0).map((id) => [id, a[id]]));
-}
-
-/** R39: one icon per add-on, drawn in a tinted tile (solid accent once added). */
-const ADDON_ICON: Record<AddonId, React.ReactNode> = { domain: <IconGlobe />, mailboxes: <IconMails />, storage: <IconDatabase />, send_boost: <IconSend />, agent_inbox: <IconInbox /> };
-
-/** R39: the plan comparison as a native sheet: what Free includes beside what this workspace has now. */
-function ComparePlans({ open, onClose, limits }: { open: boolean; onClose: () => void; limits: BillingInfo["limits"] }) {
-  const free = PLANS.starter.limits;
-  const gb = (mb: number) => `${(mb / 1024).toLocaleString(LOCALE, { maximumFractionDigits: 1 })} GB`;
-  const n = (x: number) => x.toLocaleString(LOCALE);
-  const rows: [string, number, number, (x: number) => string][] = [
-    ["Custom domains", free.domains, limits.domains, n], ["Mailboxes", free.mailboxes, limits.mailboxes, n], ["People", free.seats, limits.seats, n],
-    ["Storage", free.storageMb, limits.storageMb, gb], ["Sends a day", free.dailySends, limits.dailySends, n], ["Aliases", free.aliases, limits.aliases, n],
-    ["Agent inboxes", free.agentInboxes, limits.agentInboxes, n], ["Agent messages a month", free.agentMessagesMonthly, limits.agentMessagesMonthly, n],
-  ];
-  return (
-    <Dialog open={open} onClose={onClose} title="Compare limits" description="Free is the same for every business. Add-ons raise a limit the moment you add them.">
-      <div className="overflow-hidden rounded-xl border border-line" data-testid="compare-plans">
-        <div className="grid grid-cols-[minmax(0,1fr)_72px_72px] bg-fill/60 px-3 py-2 text-[12px] font-medium text-muted"><span>Limit</span><span className="text-right">Free</span><span className="text-right">You</span></div>
-        <ul className="divide-y divide-line">
-          {rows.map(([label, f, you, fmt]) => (
-            <li key={label} className="grid grid-cols-[minmax(0,1fr)_72px_72px] items-center px-3 py-2.5 text-[13.5px]">
-              <span className="flex items-center gap-2"><IconBuilding className="h-3.5 w-3.5 text-subtle" aria-hidden />{label}</span>
-              <span className="text-right tabular-nums text-muted">{fmt(f)}</span>
-              <span className={cn("text-right tabular-nums", you > f ? "font-semibold text-brand-hover" : "")}>{fmt(you)}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </Dialog>
-  );
 }
