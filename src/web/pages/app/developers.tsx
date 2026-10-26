@@ -28,21 +28,9 @@ export function DeveloperSettings() {
   }
   return (
     <div className="space-y-6">
-      {/* R39 premium pass 4: the two ways in as tappable tiles instead of a grey strip. */}
-      <div className="grid gap-3 sm:grid-cols-2" data-testid="developer-tiles">
-        {([
-          ["/api/v1/reference", "REST API", "Domains, mailboxes, aliases, mail and the work suite, with an OpenAPI spec.", <IconBook key="b" />],
-          ["/developers/mcp", "MCP tools", "Every tool an agent can call, with real example results.", <IconAgent key="a" />],
-        ] as const).map(([href, title, body, icon]) => (
-          <a key={href} href={href} target="_blank" rel="noreferrer"
-            className="group flex items-start gap-3 rounded-xl border border-line bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[11px] bg-brand-soft text-brand-hover [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</span>
-            <span className="min-w-0">
-              <span className="block text-[14.5px] font-semibold">{title}<span className="ml-1 text-subtle transition-transform duration-150 group-hover:translate-x-0.5" aria-hidden>{"\u203A"}</span></span>
-              <span className="mt-0.5 block text-[12.5px] leading-relaxed text-muted">{body}</span>
-            </span>
-          </a>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-elevated px-4 py-3 text-sm">
+        <span className="text-muted">REST API for domains, mailboxes, aliases and mail, with an OpenAPI spec.</span>
+        <a href="/api/v1/reference" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><IconBook className="h-4 w-4" />API reference</a>
       </div>
       <ConnectedApps />
       <ApiKeys />

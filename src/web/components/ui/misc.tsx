@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
-import { toast } from "sonner";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
@@ -40,15 +39,13 @@ export function EmptyState({ icon, art, title, body, action, className }: { icon
   );
 }
 
-/** R39: `toastText` also shows a toast naming what was copied (one tap copy on the domain records). */
-export function CopyButton({ value, label = "Copy", className, toastText }: { value: string; label?: string; className?: string; toastText?: string }) {
+export function CopyButton({ value, label = "Copy", className }: { value: string; label?: string; className?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
       type="button"
       onClick={async () => {
         try { await navigator.clipboard.writeText(value); } catch { /* clipboard blocked */ }
-        if (toastText) toast.success(toastText);
         setDone(true);
         setTimeout(() => setDone(false), 1400);
       }}

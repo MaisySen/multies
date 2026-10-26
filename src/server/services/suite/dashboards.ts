@@ -76,7 +76,7 @@ export interface Widget extends R38WidgetSettings {
   groupBy: GroupBy | "mailbox" | "person" | null; chart: (typeof CHARTS)[number]; size: 1 | 2; position: number;
 }
 
-export const DEFAULT_CHART: Record<WidgetType, Widget["chart"]> = {
+const DEFAULT_CHART: Record<WidgetType, Widget["chart"]> = {
   count: "number", breakdown: "bar", due: "table", completed: "line", burndown: "line", goals: "table", reply_times: "table", mail_volume: "line", workload: "bar",
   calculation: "number", battery: "bar", pivot: "table", created_completed: "bar", task_list: "table", time_tracked: "bar", note: "table",
 };

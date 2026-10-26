@@ -16,13 +16,10 @@ import { DomainStatusBadge } from "@/web/components/app-bits";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { fetchMailCheck, ProviderSummary, SwitchPlan } from "@/web/components/mail-check";
-import { RecordStatusPill, Stepper } from "@/web/components/premium4-r39"; // R39 premium pass 4
-import { domainSteps, recordPill } from "@/web/lib/premium4-r39";
 
 export function DomainDetailPage() {
   const { id = "" } = useParams();
   const { data: d, isPending, error } = useDomain(id);
-  const { data: mailboxes } = useMailboxes(); // R39: the stepper's last step
   const qc = useQueryClient();
   const verify = useMutation({
     mutationFn: () => api.post<{ domain: Domain }>(`/domains/${id}/verify`),
@@ -64,8 +61,6 @@ export function DomainDetailPage() {
         </Button>
       </div>
 
-      <SetupProgress domain={d} passing={passing} required={required.length} mailboxes={(mailboxes ?? []).filter((m) => m.domainId === d.id).length} />
-
       {d.status !== "verified" && (
         <Card className="mb-6 flex gap-3 border-brand/25 bg-brand-soft/40 p-4 text-sm">
           <IconInfo className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />
@@ -90,7 +85,7 @@ export function DomainDetailPage() {
         </Card>
       )}
 
-      <div className="space-y-3" id="dns-records">
+      <div className="space-y-3">
         {d.records.map((r) => <RecordCard key={`${r.id}:${r.host}`} record={r} check={checks.get(r.id)} checking={verify.isPending} />)}
       </div>
       <p className="mt-3 text-xs text-subtle">Last checked {timeAgo(d.lastCheckedAt)}. Some DNS providers want the host without your domain (e.g. <code className="font-mono">_dmarc</code>), others the full name (<code className="font-mono">_dmarc.{d.name}</code>).</p>
@@ -98,26 +93,6 @@ export function DomainDetailPage() {
       <CatchAll domain={d} />
       <DangerZone domain={d} />
     </>
-  );
-}
-
-/** R39 premium pass 4: the 4 setup steps with the next one named and one button for it. */
-function SetupProgress({ domain: d, passing, required, mailboxes }: { domain: Domain; passing: number; required: number; mailboxes: number }) {
-  const { steps, current } = domainSteps({ status: d.status, passing, required, mailboxes });
-  const next = steps[current]?.id;
-  const line = next === "records" ? `Add the ${required - passing} missing record${required - passing === 1 ? "" : "s"} below at your DNS provider. ${passing} of ${required} are in.`
-    : next === "verified" ? "The records are in. Verification usually lands within a few minutes."
-    : next === "mailbox" ? `${d.name} is ready. Create the first address on it.`
-    : `Setup is complete. ${mailboxes} mailbox${mailboxes === 1 ? "" : "es"} on ${d.name}.`;
-  return (
-    <Card className="mb-6 p-4 sm:p-5" data-testid="domain-setup">
-      <Stepper steps={steps} current={current} label={`Setup of ${d.name}`} />
-      <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm"><span className="font-semibold">{current === -1 ? "All set. " : "Next step. "}</span><span className="text-muted">{line}</span></p>
-        {next === "mailbox" && <Link to="/app/mailboxes" className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-[13px] font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:min-h-11">Create a mailbox</Link>}
-        {next === "records" && <a href="#dns-records" className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-fill px-3.5 text-[13px] font-medium transition-colors duration-150 hover:bg-hover max-sm:min-h-11">Show the records</a>}
-      </div>
-    </Card>
   );
 }
 
@@ -150,8 +125,9 @@ const statusUi: Record<string, { icon: React.ReactNode; label: string; tone: "ok
 function RecordCard({ record: r, check, checking }: { record: Domain["records"][number]; check?: RecordCheck; checking: boolean }) {
   const [open, setOpen] = useState(false);
   const ui = check ? statusUi[check.status] ?? statusUi.fail : null;
+  const label = check?.status === "fail" && check.found.length ? "Incorrect" : ui?.label;
   return (
-    <Card className={cn("overflow-hidden transition-colors duration-200 motion-reduce:transition-none", check?.status === "pass" && "border-ok/20", check?.status === "fail" && check.found.length > 0 && "border-bad/25")} data-testid="dns-record">
+    <Card className={cn("overflow-hidden", check?.status === "pass" && "border-ok/15")}>
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
         <div className="flex items-center gap-3">
           <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border",
@@ -162,7 +138,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-[15px] font-semibold">{r.title}</h3>
               {!r.required && <Badge>Recommended</Badge>}
-              <RecordStatusPill pill={recordPill(check)} />
+              {ui && <Badge tone={ui.tone}>{label}</Badge>}
             </div>
             <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-subtle">{r.why}</p>
           </div>
@@ -178,7 +154,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
                 {r.values.map((v) => (
                   <div key={v.value} className="flex items-center justify-between gap-3">
                     <span className="break-all font-mono text-[13px]">{v.value} <span className="text-subtle">· {v.priority}</span></span>
-                    <CopyButton value={v.value} toastText="Value copied" />
+                    <CopyButton value={v.value} />
                   </div>
                 ))}
               </div>
@@ -193,7 +169,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
           <p className={cn(check.status === "fail" ? "text-bad" : "text-warn")}>{check.message}</p>
           {check.suggestion && (
             <div className="mt-3 rounded-lg border border-line bg-bg/60 p-3">
-              <div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-xs font-medium text-muted">Replace it with this single record</span><CopyButton value={check.suggestion} toastText="Record copied" /></div>
+              <div className="mb-1.5 flex items-center justify-between gap-2"><span className="text-xs font-medium text-muted">Replace it with this single record</span><CopyButton value={check.suggestion} /></div>
               <code className="block break-all font-mono text-[12.5px] text-fg/90">{check.suggestion}</code>
             </div>
           )}
@@ -215,7 +191,7 @@ function RecordCell({ label, children, copy }: { label: string; children: React.
   return (
     <div className="bg-surface/40 px-4 py-3 sm:px-5">
       <dt className="mb-1 text-[11px] font-medium uppercase tracking-wide text-subtle">{label}</dt>
-      <dd className="flex items-start justify-between gap-3">{children}{copy && <CopyButton value={copy} toastText={`${label} copied`} />}</dd>
+      <dd className="flex items-start justify-between gap-3">{children}{copy && <CopyButton value={copy} />}</dd>
     </div>
   );
 }

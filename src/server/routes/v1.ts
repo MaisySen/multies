@@ -52,7 +52,6 @@ import { registerSavedViewRoutes } from "./v1-views";
 import { registerBoardRoutes } from "./v1-r34-board"; // R34 (MB-186)
 import { registerAutomationRecipeRoutes } from "./v1-r24-recipes";
 import { registerR24DocRoutes } from "./v1-r24-docs";
-import { registerDocVersionV1Routes } from "./doc-versions-r39"; // R39: page history
 import { registerDashboardRoutes } from "./v1-r24-dashboards";
 import { registerFormulaRoutes } from "./v1-r24-formulas";
 import { registerWorkImportRoutes } from "./v1-work-import";
@@ -474,7 +473,6 @@ export function v1Routes() {
   registerAgentRoutes(api);
   registerAuthHookRoutes(api);
   registerR24DocRoutes(api); // R24.5: docs tree and backlinks (before /docs/{id})
-  registerDocVersionV1Routes(api); // R39: page history
   registerR26CommentRoutes(api); // R26 (MB-77): read back, edit and delete comments and chat messages
   registerSuiteRoutes(api);
   registerFormsR31Routes(api); // R31: form logic and results (before /forms/{id})
