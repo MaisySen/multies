@@ -86,7 +86,7 @@ const cell = (v: unknown) => {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 export const csvLine = (values: unknown[]) => values.map(cell).join(",") + "\r\n";
-const safeName = (s: string) => (s.replace(/[\\/:*?"<>|\x00-\x1f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Untitled");
+const safeName = (s: string) => ([...s].map((ch) => (ch.charCodeAt(0) < 32 ? " " : ch)).join("").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "Untitled");
 
 export interface ZipSink { file(name: string): { push(text: string): void; end(): void } }
 
@@ -135,7 +135,7 @@ export async function writeWorkData(deps: Deps, orgId: string, zip: ZipSink): Pr
   for await (const page of rowsOf(deps, tasks as AnyTable, orgId)) {
     for (const t of page) {
       taskTitle.set(String(t.id), String(t.title));
-      let labels = "";
+      let labels: string;
       try { labels = (JSON.parse(String(t.labels ?? "[]")) as string[]).join(", "); } catch { labels = ""; }
       tf.push(csvLine([t.id, t.title, projectName.get(String(t.projectId)) ?? "", statusName.get(String(t.statusId)) ?? "", t.status, t.assigneeType === "member" ? who(t.assigneeId) : "",
         t.priority, iso(t.startAt), iso(t.dueAt), labels, t.parentId ?? "", t.notes ?? "", iso(t.createdAt), iso(t.completedAt)]));

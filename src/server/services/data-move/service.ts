@@ -355,9 +355,9 @@ function firstCells(line: string, n: number) {
 }
 
 function summarizeWorkspace(w: WorkspaceFile) {
-  let events = 0, people = 0;
-  try { events = w.calendar ? parseIcsEvents(w.calendar).events.length : 0; } catch { events = 0; }
-  try { people = w.contacts ? readContacts(w.contacts).contacts.length : 0; } catch { people = 0; }
+  const safeCount = (f: () => number) => { try { return f(); } catch { return 0; } };
+  const events = safeCount(() => (w.calendar ? parseIcsEvents(w.calendar).events.length : 0));
+  const people = safeCount(() => (w.contacts ? readContacts(w.contacts).contacts.length : 0));
   const tasksN = [...w.projects.values()].reduce((a, csv) => a + splitCsvRecords(csv).length - 1, 0);
   return { total: tasksN + events + people + w.pages.length, parts: { projects: w.projects.size, tasks: tasksN, meetings: events, contacts: people, docs: w.pages.length } };
 }
