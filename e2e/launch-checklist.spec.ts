@@ -76,6 +76,13 @@ test("6. robots.txt keeps crawlers out of the app and the API", async ({ request
   const r = await request.get("/robots.txt");
   expect(r.status()).toBe(200);
   const body = await r.text();
+  // Staging is a preview: it keeps every crawler out, so the read-only staging pass checks that instead.
+  if (/staging/.test(process.env.E2E_BASE_URL ?? "")) {
+    expect(body).toMatch(/^User-agent: \*$/m);
+    expect(body).toMatch(/^Disallow: \/$/m);
+    expect(body).not.toMatch(/^Allow: \/$/m);
+    return;
+  }
   expect(body).toMatch(/^Disallow: \/app$/m);
   expect(body).toMatch(/^Disallow: \/api$/m);
   expect(body).toContain(`Sitemap: ${SITE_URL}/sitemap.xml`);
