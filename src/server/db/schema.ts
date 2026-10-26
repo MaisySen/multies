@@ -1890,3 +1890,29 @@ export const mailPrefs = sqliteTable("mail_prefs", {
   readStatus: integer("read_status", { mode: "boolean" }).notNull().default(false),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);
+
+/** R33 (0074): "select all" in mail as one server job (services/mail/bulk-job-r33.ts). */
+export const mailBulkJobs = sqliteTable("mail_bulk_jobs", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id"),
+  /** The client's own id for the job: a repeated request with it continues the same job. */
+  clientJobId: text("client_job_id").notNull(),
+  action: text("action").notNull(),
+  /** JSON: the scope (mailboxId, folder, remote, q, split), exclude ids and action options. */
+  params: text("params").notNull(),
+  /** Mail that arrived after this moment (created_at) is left alone. */
+  maxReceivedAt: ts("max_received_at").notNull(),
+  /** running, done, reverting, reverted, failed */
+  status: text("status").notNull().default("running"),
+  total: integer("total").notNull().default(0),
+  done: integer("done").notNull().default(0),
+  /** Keyset position "<date ms>.<id>" of the last message the job reached. */
+  cursor: text("cursor"),
+  /** JSON BulkCall-like list [{ action, ids }]: what puts back exactly what the job changed. */
+  undoPlan: text("undo_plan").notNull().default("[]"),
+  undoDone: integer("undo_done").notNull().default(0),
+  error: text("error"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [uniqueIndex("mail_bulk_jobs_client_idx").on(t.orgId, t.clientJobId)]);

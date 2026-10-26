@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 177 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 178 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -249,6 +249,7 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
+| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam or trash. Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
 
 ### Live chat typing (R32)
 

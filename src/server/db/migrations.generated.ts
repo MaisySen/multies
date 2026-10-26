@@ -761,5 +761,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "INSERT OR IGNORE INTO `project_counters` (`project_id`, `next_number`) SELECT `id`, `next_number` FROM `projects` WHERE `next_number` > 1;;",
       "-- 3. Old project keys keep working. When a project's key changes (OPS to OPR), the old key is kept here so OPS-12 still\n--    opens the task (1 row written per key edit, WITHOUT ROWID, no other index), and no other project can take it.\nCREATE TABLE `project_key_aliases` (\n  `org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE CASCADE,\n  `key` text NOT NULL,\n  `project_id` text NOT NULL REFERENCES `projects`(`id`) ON DELETE CASCADE,\n  `created_at` integer NOT NULL,\n  PRIMARY KEY (`org_id`, `key`)\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0074_r33_mail_bulk_jobs",
+    "statements": [
+      "-- R33: \"select all\" in mail runs as one server job (services/mail/bulk-job-r33.ts). The client names the job\n-- (client id, so a repeated request continues it instead of starting a second one), the server freezes the set at\n-- max_received_at (mail that arrives mid job is left alone) and keeps the undo plan (only what it changed).\nCREATE TABLE `mail_bulk_jobs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text,\n\t`client_job_id` text NOT NULL,\n\t`action` text NOT NULL,\n\t`params` text NOT NULL,\n\t`max_received_at` integer NOT NULL,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`done` integer DEFAULT 0 NOT NULL,\n\t`cursor` text,\n\t`undo_plan` text DEFAULT '[]' NOT NULL,\n\t`undo_done` integer DEFAULT 0 NOT NULL,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `mail_bulk_jobs_client_idx` ON `mail_bulk_jobs` (`org_id`,`client_job_id`);"
+    ]
   }
 ];
