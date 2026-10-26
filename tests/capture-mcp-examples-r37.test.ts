@@ -15,8 +15,10 @@ import { deliverInbound } from "@/server/services/mail/delivery";
 
 const OUT = path.join(__dirname, "../src/server/services/developer/mcp-examples.generated.json");
 type Args = Record<string, unknown>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose bag of ids handed between steps
 type S = Record<string, any>;
 // Tool, arguments (from what earlier steps returned), and what to keep from the answer for later steps.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- each tool answers its own shape
 const STEPS: [string, (s: S) => Args, ((r: any, s: S) => void)?][] = [
   ["create_agent_inbox", () => ({ name: "Support agent", localPart: "support", approvalMode: "external" }), (r, s) => { s.agentId = r.agent.id; s.agentAddr = r.agent.address; }],
   ["list_inboxes", () => ({})],
