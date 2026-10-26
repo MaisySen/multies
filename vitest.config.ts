@@ -7,6 +7,8 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     environment: "node",
     testTimeout: 20000,
+    // R26: mask credentials in anything a test prints.
+    setupFiles: ["tests/setup-mask.ts"],
     coverage: {
       provider: "v8",
       include: ["src/server/**/*.ts", "src/shared/**/*.ts", "src/emails/**/*.tsx", "email-worker/src/**/*.ts"],
