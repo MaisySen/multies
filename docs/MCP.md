@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 194 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 198 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -438,6 +438,17 @@ Registered in src/server/routes/mcp-r24-docs.ts. `get_doc_tree` and `get_backlin
 | `get_doc_tree` | The workspace's docs as a tree of pages and sub pages (id, title, parentId, position, depth, children), at most 6 levels deep; `flat: true` gives one line per page with its depth |
 | `move_doc` | Puts a doc under another page (`parentId`, or null for the top level) and, optionally, right before or after a sibling (`beforeId` or `afterId`); with neither it goes last. A page can't go under itself or its own sub pages |
 | `get_backlinks` | The docs whose body links to a doc or a task (`type` doc or task, `id` an id or a task ref like OPS-12), newest first, each with a short snippet of the text around the link |
+
+### Page history (R39)
+
+Registered in src/server/routes/mcp-r39-doc-versions.ts. `list_doc_versions` and `read_doc_version` are reads (`docs:read`); `save_doc_version` and `restore_doc_version` need `docs:write`. A version is kept when a new editing session starts (10 minutes after the last save, or someone else edits), when someone saves one, and before every restore; the newest 50 unnamed versions per doc are kept, named ones always.
+
+| Tool | What it does |
+| --- | --- |
+| `list_doc_versions` | A doc's saved versions, newest first (id, docVersion, title, name, reason edit or restore, words, author, savedAt), and the page now (version, words, editedBy) |
+| `read_doc_version` | One version's title and text, and `sinceThen { added, removed, titleChanged }` against the page now; `diff: true` adds the line diff, `content: true` the Tiptap JSON |
+| `save_doc_version` | Keeps the page as it is now under a `name` (default "Version N"), for example before a big rewrite; never pruned |
+| `restore_doc_version` | Puts a doc back to a version; the page as it is now is saved first, so the restore can be undone. `ifVersion` fails with version_conflict if the doc changed since |
 
 ### Dashboards (R24.3)
 

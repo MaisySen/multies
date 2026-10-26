@@ -483,9 +483,9 @@
       "version": "6",
       "when": 1793000073000,
       "tag": "0073_r33_one_row_per_change",
-        "breakpoints": true
-      },
-      {
+      "breakpoints": true
+    },
+    {
       "idx": 74,
       "version": "6",
       "when": 1793000074000,
@@ -518,6 +518,13 @@
       "version": "6",
       "when": 1793000079000,
       "tag": "0079_r38_dependency_lag",
+      "breakpoints": true
+    },
+    {
+      "idx": 80,
+      "version": "6",
+      "when": 1793000080000,
+      "tag": "0080_r39_doc_versions",
       "breakpoints": true
     },
     {
