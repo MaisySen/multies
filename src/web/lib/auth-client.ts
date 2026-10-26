@@ -3,6 +3,7 @@ import { createAuthClient } from "better-auth/react";
 import { twoFactorClient } from "better-auth/client/plugins";
 import { ApiError } from "./api";
 import { markReadOnly, READ_ONLY_MESSAGE } from "./read-only";
+import { clearOfflineData } from "./sw-client";
 
 export const authClient = createAuthClient({
   basePath: "/api/auth",
@@ -46,7 +47,11 @@ export interface AuthProviders { idp: boolean; password: boolean; google: boolea
  * person at this browser sees the sign in page instead of being let straight back in.
  */
 export async function signOutEverywhere(opts: { idp?: boolean } = {}): Promise<"redirected" | "done"> {
+  // R32: drop this browser's push subscription and the offline caches while the session still exists.
+  await clearOfflineData();
   try { await authClient.signOut(); } catch { /* already signed out */ }
+  // Again once the session is gone: a read that raced the sign out may have stored a copy in between.
+  await clearOfflineData();
   if (opts.idp) {
     window.location.assign("/api/auth/logout/idp");
     return "redirected";

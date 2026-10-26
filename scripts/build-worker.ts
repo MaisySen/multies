@@ -136,6 +136,9 @@ writeFileSync(path.join(out, "_headers"), [
   ...Object.entries(pageHeaders).map(([k, v]) => `  ${k}: ${v}`),
   "/assets/*",
   "  cache-control: public, max-age=31536000, immutable",
+  // R32: the service worker is always checked for a newer copy, so a deploy reaches every open tab.
+  "/sw.js",
+  "  cache-control: no-cache",
   // Brand images are shown by other sites (the sign in page on the identity provider's
   // domain, mail clients), so they may be loaded cross origin. Everything else stays same origin.
   "/brand/*",

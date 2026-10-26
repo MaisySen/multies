@@ -3,6 +3,7 @@ import type { Deps } from "../../context";
 import { inboundKeys } from "../../db/schema";
 import { decryptSecret, encryptSecret, hmacSha256Hex, newId, randomToken, safeEqual, sha256HexBytes } from "../../lib/crypto";
 import { notFound } from "../../lib/errors";
+import { deferrableWrite } from "../write-priority";
 
 export const SIGNATURE_TOLERANCE_S = 300;
 
@@ -47,7 +48,7 @@ export async function verifyInboundSignature(
   if (!safeEqual(expected, h.signature.toLowerCase())) return { ok: false, reason: "Bad signature." };
   // Last used is shown to the nearest few minutes; one write per message was a write per inbound mail.
   if (!key.lastUsedAt || deps.now().getTime() - key.lastUsedAt.getTime() > 15 * 60_000) {
-    await deps.db.update(inboundKeys).set({ lastUsedAt: deps.now() }).where(eq(inboundKeys.id, key.id));
+    await deferrableWrite(deps, "last_used", `inbound:${key.id}`, () => deps.db.update(inboundKeys).set({ lastUsedAt: deps.now() }).where(eq(inboundKeys.id, key.id))); // R32: deferrable
   }
   return { ok: true, orgId: key.orgId, keyId: key.id };
 }

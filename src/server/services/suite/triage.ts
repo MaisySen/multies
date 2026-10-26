@@ -5,7 +5,7 @@
  * out until someone accepts it. Accept clears the flag in the same write as any other change; decline
  * soft deletes the item (and can send the sender a short reply); merge folds it into an existing task.
  */
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, lte, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, taskComments, tasks } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
@@ -19,7 +19,7 @@ async function emitTriage(deps: Deps, actor: SuiteActor, type: "triage.accepted"
 }
 import { createTask, getTask, link, listTasks, updateTask, type Assignee, type Category, type Priority } from "./tasks";
 
-export type TriageSource = "mail" | "form" | "api" | "chat";
+export type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 export const BULK_LIMIT = 100;
 
 const notFound = () => new HttpError(404, "not_found", "Triage item not found.");
@@ -32,14 +32,19 @@ async function pendingRow(deps: Deps, actor: SuiteActor, id: string) {
 }
 
 /** Items waiting in Triage, newest first. */
-export async function listTriage(deps: Deps, actor: SuiteActor, q: { projectId?: string; limit?: number } = {}) {
-  const items = await listTasks(deps, actor, { triage: "pending", includeSubtasks: true, projectId: q.projectId, sort: "created", dir: "desc", limit: Math.min(q.limit ?? 200, 500) });
-  return { items, count: await triageCount(deps, actor) };
+export async function listTriage(deps: Deps, actor: SuiteActor, q: { projectId?: string; limit?: number; view?: "pending" | "snoozed" } = {}) {
+  const all = await listTasks(deps, actor, { triage: "pending", includeSubtasks: true, projectId: q.projectId, sort: "created", dir: "desc", limit: Math.min(q.limit ?? 200, 500) });
+  // R32: snoozed items leave the queue until their time passes, then come back by themselves.
+  const now = deps.now().getTime();
+  const isSnoozed = (t: (typeof all)[number]) => !!t.triage?.snoozedUntil && Date.parse(t.triage.snoozedUntil) > now;
+  const items = q.view === "snoozed" ? all.filter(isSnoozed) : all.filter((t) => !isSnoozed(t));
+  return { items, count: await triageCount(deps, actor), ...(q.view === "snoozed" ? { view: "snoozed" as const } : {}) };
 }
 
 /** How many items wait in Triage (the nav badge). Reads the partial index only. */
 export async function triageCount(deps: Deps, actor: SuiteActor) {
-  const r = await deps.db.select({ n: count() }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt))).get();
+  const r = await deps.db.select({ n: count() }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt),
+    or(isNull(tasks.triageSnoozedUntil), lte(tasks.triageSnoozedUntil, deps.now())))).get();
   return Number(r?.n ?? 0);
 }
 
@@ -66,6 +71,7 @@ export interface AcceptInput { projectId?: string; assignee?: Assignee | null; s
 export async function acceptTriage(deps: Deps, actor: SuiteActor, id: string, input: AcceptInput = {}) {
   assertWritable(actor);
   const t = await pendingRow(deps, actor, id);
+  if (t.triageSnoozedUntil) await deps.db.update(tasks).set({ triageSnoozedUntil: null }).where(eq(tasks.id, t.id));
   const patch: Parameters<typeof updateTask>[3] = { triage: null };
   if (input.projectId !== undefined) patch.projectId = input.projectId;
   if (input.assignee !== undefined) patch.assignee = input.assignee;
@@ -101,7 +107,7 @@ export async function declineTriage(deps: Deps, actor: SuiteActor, id: string, i
   const t = await pendingRow(deps, actor, id);
   const now = deps.now();
   const reason = (input.reason ?? "").trim().slice(0, 500);
-  await deps.db.update(tasks).set({ deletedAt: now, triageState: null, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, triageReason: reason || null, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
   await recordWrite(deps, actor, {
     entityType: "task", entityId: t.id, op: "delete", version: t.version + 1, verb: "triage_declined",
     data: { title: t.title, ...(reason ? { reason } : {}) }, event: "task.deleted", eventData: { id: t.id },
@@ -148,7 +154,7 @@ export async function mergeTriage(deps: Deps, actor: SuiteActor, id: string, tar
     ...(takeThread ? { threadId: t.threadId, messageId: t.messageId, sourceFrom: t.sourceFrom, sourceSubject: t.sourceSubject } : {}),
   }).where(eq(tasks.id, target.id));
   if (t.threadId && !takeThread) await link(deps, actor.orgId, { type: "task", id: target.id }, { type: "thread", id: t.threadId }, "merged");
-  await deps.db.update(tasks).set({ deletedAt: now, triageState: null, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
+  await deps.db.update(tasks).set({ deletedAt: now, triageState: null, triageSnoozedUntil: null, duplicateOf: target.id, updatedAt: now, version: t.version + 1 }).where(eq(tasks.id, t.id));
   await recordWrite(deps, actor, {
     entityType: "task", entityId: target.id, op: "update", version: target.version, verb: "triage_merged",
     data: { from: t.id, title: t.title, commentId, ...(takeThread ? { threadId: t.threadId } : {}) }, event: "task.commented",

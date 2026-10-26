@@ -3,6 +3,7 @@ import type { AuthContext, Deps } from "../../context";
 import { agents, apiKeys, members, organizations, users } from "../../db/schema";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
+import { deferrableWrite } from "../write-priority";
 
 /** How often a key's last used time is written (D1 daily write budget). */
 export const LAST_USED_EVERY_MS = 15 * 60_000;
@@ -70,7 +71,7 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   // Write at most once every 15 minutes per key: an agent polling once a minute would otherwise
   // cost 1,440 row writes a day per key against the shared D1 daily budget.
   if (!k.lastUsedAt || now.getTime() - k.lastUsedAt.getTime() > LAST_USED_EVERY_MS) {
-    await deps.db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, k.id));
+    await deferrableWrite(deps, "last_used", `key:${k.id}`, () => deps.db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, k.id))); // R32: deferrable
   }
   // Who a post or a change reads as: the agent member by name, an agent inbox by its name,
   // otherwise the workspace itself (a script acting for the whole workspace).

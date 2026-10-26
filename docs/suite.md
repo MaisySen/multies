@@ -96,6 +96,32 @@ or commented on, a reply on a task's thread and a task nearly due. The payload i
 `{ type, id }`; the app fetches the item through the API, so no mail content passes through the
 push provider.
 
+
+### Browser notifications and offline (R32)
+
+The web app installs a small service worker (`/sw.js`, built from `src/web/sw/sw.ts` by `scripts/build-sw.ts`).
+It keeps the app shell, the entry files and the icons so `/app` opens without a connection (pages that were
+opened before work offline too, and a quiet strip at the top says the browser is offline). Page loads try the
+network for 3 seconds before the stored shell; only real HTML becomes the shell and only real JavaScript or CSS is
+kept under an asset name. It never stores mail, lists of work or anything sent with a cookie: the only API reads it
+keeps are `/api/config`, `/api/account/providers` and `/api/account/me` (so the app frame and greeting draw
+offline), always read from the network first and answered from the stored copy only when the network fails.
+Signing out removes this browser's push subscription and deletes every Multies cache (before and again after the
+session ends). `/sw.js` is served with `cache-control: no-cache` (the Worker's `_headers` and the Node server).
+
+Updates: a new worker waits instead of taking over. The page fires `mymail:sw-update` on `window` (exported as
+`SW_UPDATE_EVENT` from `src/web/lib/sw-client.ts`) when one is waiting; the update pill (`src/web/components/update-pill.tsx`) listens for it and its Reload calls
+`applyServiceWorkerUpdate()`, which posts `{type:"SKIP_WAITING"}` and reloads the page once when the new worker
+takes control. There is no second update prompt.
+
+Browser notifications are web push (VAPID, RFC 8291 and RFC 8292, sent with WebCrypto from the server). They are
+on when `VAPID_PUBLIC_KEY` and `VAPID_SUBJECT` (vars) and `VAPID_PRIVATE_KEY` (secret) are set; make a pair with
+`node scripts/vapid-keygen.mjs <file>` (mode 600, prints only the public key). Then Settings, Notifications shows
+"Browser notifications"; turning it on saves the subscription with `POST /api/push/web` (`DELETE /api/push/web`
+removes it, `GET /api/push/web` lists this person's browsers by push service host). The same events and the
+same per category switches as phone push apply. A notification carries a title and the page to open, never
+message text; a push service that answers 404 or 410 removes the subscription, and five failures in a row do too.
+
 ## Time tracking
 
 A timer belongs to one person or agent; starting a new one stops the old, and a timer left running

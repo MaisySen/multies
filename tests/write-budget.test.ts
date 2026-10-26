@@ -35,12 +35,13 @@ describe("D1 write budget", () => {
     expect((await new Client(app).post("/api/account/demo")).status).toBe(201);
   });
 
-  it("maps the count to levels at 60% and 80% of the budget, both configurable", () => {
+  it("maps the count to levels at 60% and 85% (R32) of the budget, both configurable", () => {
     const cfg = loadConfig({ APP_SECRET: "t".repeat(40) }).writeBudget;
     expect(cfg.daily).toBe(100_000);
     expect(levelFor(59_999, cfg)).toBe("ok");
     expect(levelFor(60_000, cfg)).toBe("warn");
-    expect(levelFor(80_000, cfg)).toBe("shed");
+    expect(levelFor(80_000, cfg)).toBe("warn");
+    expect(levelFor(85_000, cfg)).toBe("shed");
     const custom = loadConfig({ APP_SECRET: "t".repeat(40), D1_DAILY_WRITE_BUDGET: "50000", WRITE_BUDGET_WARN_PCT: "50", WRITE_BUDGET_SHED_PCT: "70" }).writeBudget;
     expect(levelFor(25_000, custom)).toBe("warn");
     expect(levelFor(35_000, custom)).toBe("shed");
@@ -71,8 +72,8 @@ describe("D1 write budget", () => {
     expect(out.writes).toEqual({ level: "shed", rowsWritten: 85_000 });
   });
 
-  it("production pauses new demos from 80% but keeps sign in and writes working", async () => {
-    const { app } = await makeTestApp(env({ DEMO_MODE: "true" }), { fetch: analytics(80_500) });
+  it("production pauses new demos from 85% (R32) but keeps sign in and writes working", async () => {
+    const { app } = await makeTestApp(env({ DEMO_MODE: "true" }), { fetch: analytics(85_500) });
     const r = await new Client(app).post("/api/account/demo");
     expect(r.status).toBe(503);
     expect(r.body.error.code).toBe("demo_paused");

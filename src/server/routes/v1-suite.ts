@@ -101,9 +101,9 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => { strictTaskParams(c.req.query(), Object.keys(TaskQuery.omit({ projectId: true }).shape)); const q = c.req.valid("query"); await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
-    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task.",
+    description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage, the new task waits there (triage.state pending, source api) until someone accepts it.",
     request: body(TaskCreate), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 422: errors[422] } }),
-  async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b) }) }, 201); });
+  async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }) }, 201); }); // R32: waits in Triage when the project uses it
 
   api.openapi(createRoute({ method: "post", path: "/tasks/from-email", tags: tag("Tasks"), summary: "Make a task from an email", security: secured,
     description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.",

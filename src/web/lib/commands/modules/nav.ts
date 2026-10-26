@@ -14,6 +14,7 @@ export const GO_KEYS: { key: string; page: string; label?: string }[] = [
   { key: "m", page: "p-meetings" },
   { key: "p", page: "p-contacts" },
   { key: "a", page: "p-agents" },
+  { key: "r", page: "p-triage", label: "Triage" }, // R32: task Triage
   { key: "s", page: "p-settings" },
 ];
 

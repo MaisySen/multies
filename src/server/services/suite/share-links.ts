@@ -218,7 +218,7 @@ function renderText(n: PMNode, appUrl: string): string {
 }
 
 /**
- * Tiptap (ProseMirror) JSON to HTML, for the nodes the doc editor makes (StarterKit, task lists). Every text and
+ * Tiptap (ProseMirror) JSON to HTML, for the nodes the doc editor makes (StarterKit, task lists, R32 tables, images, callouts). Every text and
  * attribute is escaped; unknown nodes render only their children; mentions show the name alone.
  */
 export function renderDocHtml(doc: unknown, appUrl: string, depth = 0): string {
@@ -240,7 +240,23 @@ export function renderDocHtml(doc: unknown, appUrl: string, depth = 0): string {
     case "horizontalRule": return "<hr>";
     case "hardBreak": return "<br>";
     case "mention": { const label = n.attrs?.label ?? n.attrs?.name; return typeof label === "string" ? `@${esc(label)}` : ""; }
-    case "image": return "";
+    // R32: tables, callouts and images. Only https and inline images render on a public page (uploads need a member session).
+    case "table": return `<div class="table"><table>${kids()}</table></div>`;
+    case "tableRow": return `<tr>${kids()}</tr>`;
+    case "tableHeader": case "tableCell": {
+      const tag = n.type === "tableHeader" ? "th" : "td";
+      const cs = Number(n.attrs?.colspan), rs = Number(n.attrs?.rowspan);
+      return `<${tag}${Number.isInteger(cs) && cs > 1 && cs < 100 ? ` colspan="${cs}"` : ""}${Number.isInteger(rs) && rs > 1 && rs < 1000 ? ` rowspan="${rs}"` : ""}>${kids()}</${tag}>`;
+    }
+    case "callout": { const v = ["info", "success", "warning", "danger"].includes(String(n.attrs?.variant)) ? String(n.attrs?.variant) : "info"; return `<div class="callout" data-callout="${v}" role="note">${kids()}</div>`; }
+    case "image": {
+      const src = typeof n.attrs?.src === "string" ? n.attrs.src : "";
+      const ok = /^https:\/\//i.test(src) || /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i.test(src);
+      const alt = typeof n.attrs?.alt === "string" ? n.attrs.alt : "";
+      if (!ok) return alt ? `<p class="img-missing">${esc(alt)}</p>` : "";
+      const size = ["fit", "wide", "full"].includes(String(n.attrs?.size)) ? String(n.attrs?.size) : "fit";
+      return `<img src="${esc(src)}" alt="${esc(alt)}" data-size="${size}" loading="lazy" referrerpolicy="no-referrer">`;
+    }
     default: return kids();
   }
 }

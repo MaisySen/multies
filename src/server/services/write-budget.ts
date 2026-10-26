@@ -7,11 +7,41 @@
  * writes), keeps it per isolate for a few minutes, and turns it into a level:
  *   ok     below `warnAt` of the budget
  *   warn   from `warnAt`: alert, and staging (WRITE_BUDGET_GUARD=strict) refuses writes
- *   shed   from `shedAt`: production stops the optional writers too (new demo workspaces)
+ *   shed   from `shedAt`: production stops the optional writers too (new demo workspaces) and skips
+ *          deferrable writes (services/write-priority.ts: visits, read markers, last used touches)
  *   off    no analytics token configured, so nothing is known and nothing is refused
  * Sign in and normal work on production are never refused here; only optional writers stop.
+ *
+ * R32: no local fallback counter. A count of this isolate's own writes would see a sliver of one database,
+ * never staging, so it would read "ok" on exactly the day it matters. When analytics cannot be read the last
+ * good reading for the day stands; when D1 itself refuses a write for the daily limit (`noteD1LimitHit`, from
+ * the app's error handler) the level is "shed" for the rest of the UTC day whatever analytics say.
  */
 import type { Deps } from "../context";
+import { appSettings } from "../db/schema";
+
+/** R32: the two D1 databases on the account (wrangler.toml), so the meter can say production or staging. */
+export const DATABASE_LABELS: Record<string, string> = {
+  "e467919b-f7d8-4961-86b9-9cd861708efc": "production",
+  "72494627-4880-4fb9-9586-e2175f16e8d3": "staging",
+};
+
+/** The reading as /api/health shows it: counts by environment, never database ids. */
+export function healthView(r: WriteBudgetReading, cfg: Pick<Deps["config"]["writeBudget"], "warnAt" | "shedAt">, now: Date) {
+  const byEnvironment: Record<string, number> = {};
+  for (const [id, n] of Object.entries(r.byDatabase)) { const k = DATABASE_LABELS[id] ?? "other"; byEnvironment[k] = (byEnvironment[k] ?? 0) + n; }
+  const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+  return {
+    today: r.rowsWritten, budget: r.budget, level: r.level, at: r.at,
+    pct: Math.round((r.rowsWritten / r.budget) * 1000) / 10,
+    warnAt: Math.round(cfg.warnAt * 100), shedAt: Math.round(cfg.shedAt * 100),
+    resetAt: next.toISOString(), byEnvironment,
+  };
+}
+
+/** R32: alert and degrade from 60% (warn) and 85% (shed) of the daily budget, unless overridden by env. */
+export const WRITE_BUDGET_WARN_PCT = 60;
+export const WRITE_BUDGET_SHED_PCT = 85;
 
 export type WriteBudgetLevel = "ok" | "warn" | "shed" | "off";
 
@@ -31,8 +61,22 @@ let cached: { key: string; at: number; reading: WriteBudgetReading } | null = nu
 let inflight: Promise<WriteBudgetReading> | null = null;
 const alerted = new Set<string>();
 
+let limitHitDay: string | null = null;
+
 /** Test hook: forget the cached reading and the alerts sent. */
-export function resetWriteBudgetCache() { cached = null; inflight = null; alerted.clear(); }
+export function resetWriteBudgetCache() { cached = null; inflight = null; alerted.clear(); limitHitDay = null; }
+
+/**
+ * R32: D1 refused a write for the daily limit. Until 00:00 UTC this isolate treats the budget as spent
+ * (level "shed"), so deferrable writes stop at once instead of failing one by one.
+ */
+export function noteD1LimitHit(now: Date = new Date()) { limitHitDay = now.toISOString().slice(0, 10); }
+
+/** Seconds until the daily budget resets (00:00 UTC). */
+export function secondsUntilReset(now: Date) {
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(0, Math.round((next - now.getTime()) / 1000));
+}
 
 export function levelFor(rowsWritten: number, cfg: Deps["config"]["writeBudget"]): WriteBudgetLevel {
   if (rowsWritten >= cfg.daily * cfg.shedAt) return "shed";
@@ -69,6 +113,14 @@ async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
  * keeps the last good reading (or answers "off"), so a slow analytics API cannot break a request.
  */
 export async function writeBudget(deps: Deps, opts: { fresh?: boolean } = {}): Promise<WriteBudgetReading> {
+  const r = await readWriteBudget(deps, opts);
+  if (limitHitDay && limitHitDay === deps.now().toISOString().slice(0, 10) && r.level !== "shed") {
+    return { ...r, level: "shed", rowsWritten: Math.max(r.rowsWritten, r.budget) };
+  }
+  return r;
+}
+
+async function readWriteBudget(deps: Deps, opts: { fresh?: boolean }): Promise<WriteBudgetReading> {
   const cfg = deps.config.writeBudget;
   const off: WriteBudgetReading = { level: "off", rowsWritten: 0, budget: cfg.daily, byDatabase: {}, at: deps.now().toISOString() };
   if (!cfg.token || !cfg.accountId) return off;
@@ -97,9 +149,53 @@ export async function optionalWritesPaused(deps: Deps): Promise<boolean> {
   return r.level === "warn" && deps.config.writeBudget.strict;
 }
 
+/** "Multies D1 writes at 60% today (60,123 of 100,000)": the alert's subject line. */
+export function alertSubject(appName: string, r: Pick<WriteBudgetReading, "rowsWritten" | "budget" | "level">, cfg: Pick<Deps["config"]["writeBudget"], "warnAt" | "shedAt">) {
+  const pct = Math.round((r.level === "shed" ? cfg.shedAt : cfg.warnAt) * 100);
+  const n = (x: number) => x.toLocaleString("en-US");
+  return `${appName} D1 writes at ${pct}% today (${n(r.rowsWritten)} of ${n(r.budget)})`;
+}
+
+/**
+ * R32: the alert mail, once per level per UTC day for the whole deployment. The dedupe is one app_settings row
+ * per alert (at most 2 rows a day, essential), claimed with INSERT OR IGNORE so two isolates cannot both send.
+ * If D1 refuses that write (the cap itself), the per isolate memory still sends it once.
+ */
+async function sendAlert(deps: Deps, r: WriteBudgetReading, fields: Record<string, unknown>) {
+  const day = r.at.slice(0, 10);
+  const key = `d1_alert:${day}:${r.level}`;
+  let claimed = true;
+  try {
+    const res = await deps.db.insert(appSettings).values({ key, value: String(r.rowsWritten) }).onConflictDoNothing().returning({ key: appSettings.key });
+    claimed = res.length > 0;
+  } catch (err) {
+    deps.log?.warn("d1.write_budget_alert_unclaimed", { error: err instanceof Error ? err.message : String(err) });
+  }
+  if (!claimed) return false;
+  const to = deps.config.writeBudget.alertTo;
+  if (!to) return false;
+  const cfg = deps.config.writeBudget;
+  const byEnv = healthView(r, cfg, deps.now()).byEnvironment;
+  const prod = Object.entries(byEnv).sort((a, b) => b[1] - a[1]).map(([env, n]) => `  ${env}: ${n.toLocaleString("en-US")} rows`).join("\n");
+  const text = [
+    `D1 rows written today (UTC) across the Cloudflare account: ${r.rowsWritten.toLocaleString("en-US")} of ${r.budget.toLocaleString("en-US")} (${fields.pct}%).`,
+    `Level: ${r.level}. At ${Math.round(cfg.shedAt * 100)}% deferrable writes (visits, read markers, last used times) are skipped and new demo workspaces stop; mail, sign in and the work people do keep writing.`,
+    `The budget resets at 00:00 UTC, in ${Math.round(secondsUntilReset(deps.now()) / 360) / 10} hours.`,
+    prod ? `By environment:\n${prod}` : "",
+    "What to do: docs/runbooks/d1-daily-limits.md, section \"D1 limit reached\". First stop any test runs and demo seeds against staging.",
+  ].filter(Boolean).join("\n\n");
+  try {
+    const { sendSystemEmail } = await import("./system-mail");
+    await sendSystemEmail(deps, { to, subject: alertSubject(deps.config.appName, r, cfg), text, template: "d1-write-budget" });
+  } catch (err) {
+    deps.log?.warn("d1.write_budget_alert_failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+  return true;
+}
+
 /**
  * The scheduled check: one log line with the count (searchable in Workers Logs as d1.write_budget),
- * and an error report once per level per UTC day per isolate when the count passes a threshold.
+ * and an error report plus an alert mail once per level per UTC day when the count passes a threshold.
  */
 export async function checkWriteBudget(deps: Deps) {
   const r = await writeBudget(deps, { fresh: true });
@@ -111,6 +207,9 @@ export async function checkWriteBudget(deps: Deps) {
   if (!alerted.has(key)) {
     alerted.add(key);
     deps.reportError?.(new Error(`D1 writes today: ${r.rowsWritten} of ${r.budget} (${fields.pct}%), level ${r.level}`), { writeBudget: fields });
+    // Passing straight from ok to shed sends the 60% mail too, so the inbox tells the whole story.
+    if (r.level === "shed" && !alerted.has(`${r.at.slice(0, 10)}:warn`)) { alerted.add(`${r.at.slice(0, 10)}:warn`); await sendAlert(deps, { ...r, level: "warn" }, fields); }
+    await sendAlert(deps, r, fields);
   }
   return r;
 }

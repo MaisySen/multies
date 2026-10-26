@@ -36,9 +36,11 @@ import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
 import { isSplitPreview, registerMailR31Routes } from "./v1-r31-mail";
+import { registerMailR32Routes } from "./v1-r32-mail"; // R32: bulk mail actions
 import { isAuthHookPreview } from "./v1-r25-authmail"; // R25 (MB-60)
 import { registerMeetingNotesRoutes } from "./v1-r23-notes";
 import { registerMeetingLiveV1Routes } from "./meeting-live-r31";
+import { registerMeetingLobbyV1Routes } from "./meeting-lobby-r32";
 import { registerCalendarRoutes } from "./v1-r23-calendar";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
@@ -66,6 +68,7 @@ import { registerAgentRunRoutes } from "./v1-r27-agent-runs"; // R27 (DF-3 slice
 import { registerAgentTriggerRoutes } from "./v1-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: watchers, duplicate
 import { registerTriageR31Routes } from "./v1-r31-triage"; // R31: notification triage and catch-up
+import { registerTriageR32Routes } from "./v1-r32-triage"; // R32: task triage actions
 
 // ---------------------------------------------------------------- schemas
 
@@ -466,8 +469,10 @@ export function v1Routes() {
   registerR22AssignRoutes(api);
   registerSnippetRoutes(api); // Round 22: saved replies
   registerMailR31Routes(api); // R31: Inbox splits, mail settings, read status
+  registerMailR32Routes(api); // R32: POST /mail/messages/bulk
   registerMeetingNotesRoutes(api); // Round 23: meeting notes and action items
   registerMeetingLiveV1Routes(api); // R31: summary so far
+  registerMeetingLobbyV1Routes(api); // R32: waiting room
   registerCalendarRoutes(api); // Round 23: calendar events and feed
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
@@ -481,6 +486,7 @@ export function v1Routes() {
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
   registerTriageR31Routes(api); // R31: notification triage and catch-up
+  registerTriageR32Routes(api); // R32: task triage actions
   registerAgentTriggerRoutes(api); // R28 (DF-3 slice 3): triggers and GET /agents/me/runs
   registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate
   registerSprintRoutes(api);

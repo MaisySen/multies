@@ -7,6 +7,18 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 32: bulk mail, live chat, waiting room, triage queue, offline and web push, D1 write meter (26 Oct 2026)
+
+- Mail: X selects the open conversation, Shift+X or Shift+click a range, Cmd/Ctrl+A everything shown; a bar archives, snoozes, moves, marks read or unread and deletes the selection, with Undo for 8 seconds (also Cmd/Ctrl+Z). Same service over the API (`POST /v1/mail/messages/bulk`) and MCP (`mail_bulk_action`). First-time senders that pass SPF and DKIM and are not bulk mail land in Important.
+- Chat is live over a WebSocket: new and changed messages, typing and read state arrive at once, with polling as the fallback. MCP `chat_typing`.
+- Meetings: guests give their name on the pre-join screen, wait in a waiting room until a host admits or denies them (a request that times out is asked again once), and "So far" sits in the call dock. Migration 0068.
+- Tasks: a Triage queue for tasks from mail, forms, the API and agents: accept, decline, snooze, mark duplicate, restore. MCP `task_triage_list` and `task_triage_action`. Migration 0069.
+- Docs: table, image and callout blocks from the / menu.
+- The web app works offline after one visit (the app frame, an offline strip, an offline page) and can send browser notifications (Settings). Migration 0070.
+- An "Update" pill appears when a new release ships; a critical release reloads on your next page change, never while a change is still saving.
+- D1 write budget: a meter on the operator console, alert mail at 60% and 85%, read markers and similar writes are coalesced near the cap, and seven indexes now skip empty rows (migration 0072).
+- `/llms.txt` and `/llms-full.txt` for multies.si (public docs only). MCP: 176 tools.
+
 ### Round 31: one command list, triage, split inbox, form logic, pre-join (26 Oct 2026)
 
 - One command list drives Cmd+K, every shortcut and the ? sheet. G then I, T, D, C, M or N jumps to Inbox, Tasks, Docs, Chat, Meetings or Notifications. J and K move through tasks; on a focused task S, A, P, L and D change status, assignee, priority, label and due date inside the command menu, instantly, with undo on error. Mail adds R, A, F, U and H.

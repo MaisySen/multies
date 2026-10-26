@@ -15,7 +15,7 @@ describe("slash menu", () => {
   });
 
   it("lists every supported block, with unique ids and an action each", () => {
-    expect(SLASH_ITEMS.map((i) => i.id)).toEqual(["text", "h1", "h2", "h3", "quote", "code", "divider", "bullets", "numbers", "todo", "link", "date"]);
+    expect(SLASH_ITEMS.map((i) => i.id)).toEqual(["text", "h1", "h2", "h3", "quote", "code", "divider", "callout", "callout-success", "callout-warning", "callout-danger", "bullets", "numbers", "todo", "table", "image", "link", "date"]);
     expect(new Set(SLASH_ITEMS.map((i) => i.id)).size).toBe(SLASH_ITEMS.length);
     expect(SLASH_ITEMS.find((i) => i.id === "h2")!.action).toEqual({ kind: "heading", level: 2 });
     expect(SLASH_ITEMS.find((i) => i.id === "todo")!.action).toEqual({ kind: "taskList" });
@@ -38,7 +38,7 @@ describe("slash menu", () => {
 
   it("groups the full list and ranks a filtered one, with flat indexes for the keyboard", () => {
     const g = groupSlash(SLASH_ITEMS, false);
-    expect(g.map((x) => x.group)).toEqual(["Basic", "Lists", "Embeds"]);
+    expect(g.map((x) => x.group)).toEqual(["Basic", "Lists", "Media", "Embeds"]);
     expect(g.flatMap((x) => x.items.map((i) => i.index))).toEqual(SLASH_ITEMS.map((_, i) => i));
     expect(groupSlash(filterSlash("list"), true)).toHaveLength(1);
     expect(groupSlash([], true)).toEqual([]);

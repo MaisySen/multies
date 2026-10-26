@@ -3,6 +3,7 @@
  * for everything else, D1 as the database. Housekeeping runs opportunistically
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
+import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
 import * as Sentry from "@sentry/cloudflare";
@@ -28,6 +29,10 @@ import type { DocRoomNamespace } from "../server/collab/durable-object";
 export { DocRoom } from "../server/collab/durable-object";
 /** Round 22: live thread presence (in memory only), exported for the THREAD_PRESENCE binding. */
 export { ThreadPresence } from "../server/collab/thread-presence";
+/** Round 32: the workspace live chat hub, exported for the CHAT_HUB binding. */
+export { ChatHub } from "../server/realtime/chat-hub-do";
+import { chatLiveUpgrade, durableChatLive } from "../server/realtime/worker";
+import { CHAT_LIVE_PATH } from "../server/realtime/hub";
 import { durablePresence } from "../server/collab/thread-presence";
 import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
@@ -86,6 +91,7 @@ async function boot(env: WorkerEnv) {
     liveMail: liveMailDispatcher(env),
     liveWait: liveWaitDispatcher(env),
     presence: presenceDispatcher(env),
+    chatLive: durableChatLive(env.CHAT_HUB),
     rateLimiters: {
       auth: binding(env.RL_AUTH), api: binding(env.RL_API), webhooks: binding(env.RL_WEBHOOKS), app: binding(env.RL_APP),
     },
@@ -286,7 +292,12 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const res = await collabUpgrade(request, env, collabDoc);
     return res.status === 101 ? res : withSecurityHeaders(res, apiHeaders);
   }
-  if (url.pathname.startsWith("/api/") || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
+  if (url.pathname === CHAT_LIVE_PATH) {
+    const { deps } = await getReady(env);
+    const res = await chatLiveUpgrade(request, env.CHAT_HUB, deps);
+    return res.status === 101 ? res : withSecurityHeaders(res, apiHeaders);
+  }
+  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to
@@ -309,6 +320,8 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const res = withSecurityHeaders(asset, headers);
     // Hashed build files never change; everything else revalidates.
     if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
+    // R32: the service worker is always checked for a newer copy.
+    if (url.pathname === "/sw.js") res.headers.set("cache-control", "no-cache");
     return res;
   }
   // Every app route renders the app shell, which routes client-side.

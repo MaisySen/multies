@@ -702,5 +702,48 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R31: a form's routing rules: after a submission, the first rule whose condition matches picks the task's project and assignee.\n-- JSON: [{ when: { field, op, value }, projectId, assigneeId }]. One column, no backfill: every existing form reads '[]'.\nALTER TABLE `forms` ADD `routing` text DEFAULT '[]' NOT NULL;"
     ]
+  },
+  {
+    "name": "0068_r32_meeting_lobby",
+    "statements": [
+      "-- R32: a meeting's waiting room. Guests from outside the workspace ask to join and wait until a member admits them.\n-- guest_lobby: the meeting setting \"Guests wait to be let in\" (on by default, existing meetings included).\nALTER TABLE `meetings` ADD `guest_lobby` integer DEFAULT 1 NOT NULL;",
+      "CREATE TABLE `meeting_lobby` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`meeting_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`guest_name` text NOT NULL,\n\t`status` text DEFAULT 'pending' NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`decided_by` text,\n\t`decided_at` integer,\n\tFOREIGN KEY (`meeting_id`) REFERENCES `meetings`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `meeting_lobby_meeting_idx` ON `meeting_lobby` (`meeting_id`,`status`);"
+    ]
+  },
+  {
+    "name": "0069_r32_triage_snooze",
+    "statements": [
+      "-- R32: a Triage item can be snoozed until a time (it leaves the queue and its count, then comes back by itself),\n-- and remembers why it was declined and which task it duplicates. New columns only, no backfill.\nALTER TABLE `tasks` ADD `triage_snoozed_until` integer;",
+      "ALTER TABLE `tasks` ADD `triage_reason` text;",
+      "ALTER TABLE `tasks` ADD `duplicate_of` text;"
+    ]
+  },
+  {
+    "name": "0070_r32_web_push",
+    "statements": [
+      "-- R32: browsers subscribed to web push (VAPID). One row per push endpoint; payloads carry a type, an id, a title and a path.\nCREATE TABLE `web_push_subscriptions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`endpoint` text NOT NULL,\n\t`p256dh` text NOT NULL,\n\t`auth` text NOT NULL,\n\t`user_agent` text,\n\t`created_at` integer NOT NULL,\n\t`last_ok_at` integer,\n\t`failures` integer DEFAULT 0 NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE UNIQUE INDEX `web_push_subscriptions_endpoint_unique` ON `web_push_subscriptions` (`endpoint`);",
+      "CREATE INDEX `web_push_subscriptions_user_idx` ON `web_push_subscriptions` (`user_id`);"
+    ]
+  },
+  {
+    "name": "0072_r32_partial_indexes",
+    "statements": [
+      "-- R32 (D1 write budget): seven indexes on columns that are empty for most rows become partial (WHERE col IS NOT NULL).\n-- D1 bills every index entry a write touches. A full index holds a NULL entry for every row, so each insert paid for\n-- an entry no query reads: tasks without a parent or a source thread, chat messages that are not replies, inbound\n-- deliveries and received messages without a provider id, contacts without a company, tasks without a due date. Every query on these columns\n-- compares them to a value (=, IN, <, >=), which SQLite proves implies IS NOT NULL, so the same reads use the partial\n-- index (EXPLAIN QUERY PLAN checked in tests/write-budget-r32.test.ts). Building them writes one entry per non NULL row.\nDROP INDEX IF EXISTS `tasks_parent_idx`;",
+      "CREATE INDEX `tasks_parent_idx` ON `tasks` (`parent_id`) WHERE \"tasks\".\"parent_id\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `tasks_org_thread_idx`;",
+      "CREATE INDEX `tasks_org_thread_idx` ON `tasks` (`org_id`,`thread_id`) WHERE \"tasks\".\"thread_id\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `chat_messages_parent_idx`;",
+      "CREATE INDEX `chat_messages_parent_idx` ON `chat_messages` (`parent_id`) WHERE \"chat_messages\".\"parent_id\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `deliveries_provider_msg_idx`;",
+      "CREATE INDEX `deliveries_provider_msg_idx` ON `deliveries` (`provider_message_id`) WHERE \"deliveries\".\"provider_message_id\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `messages_mailbox_provider_msgid_idx`;",
+      "CREATE INDEX `messages_mailbox_provider_msgid_idx` ON `messages` (`mailbox_id`,`provider_message_id_header`) WHERE \"messages\".\"provider_message_id_header\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `contacts_company_idx`;",
+      "CREATE INDEX `contacts_company_idx` ON `contacts` (`company_id`) WHERE \"contacts\".\"company_id\" IS NOT NULL;",
+      "DROP INDEX IF EXISTS `tasks_org_due_idx`;",
+      "CREATE INDEX `tasks_org_due_idx` ON `tasks` (`org_id`,`due_at`) WHERE \"tasks\".\"due_at\" IS NOT NULL;"
+    ]
   }
 ];

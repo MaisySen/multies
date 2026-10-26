@@ -20,6 +20,7 @@ import { HttpError } from "../../lib/errors";
 import { actorOf, assertWritable, type SuiteActor } from "./common";
 import { getChannel, guestChannel, plainText, postMessage, presentedMessage, visibleChannel, type ChatLink, type GuestViewer, type Mention } from "./chat";
 import { reactionsFor, type ReactionSummary } from "./chat-reaction-summary";
+import { publishChat, type ChannelAudienceRow } from "../../realtime/publish";
 import { notifyCallStarted } from "./calls";
 
 /** Distinct emoji one message can carry. */
@@ -72,7 +73,7 @@ export async function toggleReaction(deps: Deps, a: SuiteActor, messageId: strin
   const c = await visibleChannel(deps, a, m.channelId);
   const who = actorOf(a);
   if (who.type === "system" || !who.id) throw new HttpError(403, "forbidden", "Only people and agents react to messages.");
-  return applyToggle(deps, m, c.archived, `${who.type}:${who.id}`, who.name || "Someone", e);
+  return live(deps, c, await applyToggle(deps, m, c.archived, `${who.type}:${who.id}`, who.name || "Someone", e));
 }
 
 /** The same toggle for a guest, only on messages in channels shared with their project. */
@@ -80,7 +81,13 @@ export async function guestToggleReaction(deps: Deps, g: GuestViewer, messageId:
   const e = cleanEmoji(emoji);
   const m = await liveMessage(deps, g.orgId, messageId);
   const c = await guestChannel(deps, g, m.channelId).catch(() => { throw notFound(); });
-  return applyToggle(deps, m, c.archived, `guest:${g.guestId}`, `${g.name} (guest)`, e);
+  return live(deps, c, await applyToggle(deps, m, c.archived, `guest:${g.guestId}`, `${g.name} (guest)`, e));
+}
+
+/** R32: open chats see the new counts at once (the poll stays as the fallback). */
+async function live<T extends { messageId: string; reactions: ReactionSummary[] }>(deps: Deps, c: ChannelAudienceRow, r: T) {
+  await publishChat(deps, c, { t: "reactions", channelId: c.id, messageId: r.messageId, reactions: r.reactions });
+  return r;
 }
 
 // ---------------------------------------------------------------- search

@@ -135,7 +135,7 @@ export function EditSplitsDialog({ open, onClose, mailboxId, splits }: { open: b
   const valid = !!draft && draft.name.trim().length > 0 && draft.rules.every((r) => !fieldNeedsValue(r.field) || r.value.trim());
   return (
     <Dialog open={open} onClose={onClose} title={draft ? (draft.id ? "Edit split" : "New split") : "Inbox splits"}
-      description={draft ? "Rules decide which mail lands in this tab." : "Important shows mail from people. Other holds newsletters, notifications and receipts. Add your own tabs below."}
+      description={draft ? "Rules decide which mail lands in this tab." : "Important shows mail from people, including someone writing for the first time when their mail is verified. Other holds newsletters, notifications and receipts. Add your own tabs below."}
       footer={draft
         ? <><Button variant="ghost" onClick={() => setDraft(null)}>Back</Button><Button disabled={!valid} loading={save.isPending} onClick={() => draft && save.mutate(draft)} data-testid="split-save">Save split</Button></>
         : <><Button variant="ghost" onClick={onClose}>Done</Button><Button onClick={() => setDraft(blank())} data-testid="split-new"><Plus className="h-4 w-4" />New split</Button></>}>

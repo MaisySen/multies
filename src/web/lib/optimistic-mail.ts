@@ -5,7 +5,7 @@
  */
 import type { MessageListItem } from "@/web/lib/types";
 
-export type MailAction = "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "delete" | "move";
+export type MailAction = "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "delete" | "move" | "snooze" | "unsnooze";
 interface Page { messages: MessageListItem[]; nextCursor: string | null }
 export interface MailListData { pages: Page[]; pageParams: unknown[] }
 
@@ -34,6 +34,9 @@ export function applyMailAction(data: MailListData | undefined, ids: string[], a
     if (!hit.has(m.id)) return m;
     if (action === "read" || action === "unread") return { ...m, isRead: action === "read" };
     if (action === "star" || action === "unstar") return { ...m, isStarred: action === "star" };
+    // R32: a snoozed thread leaves Inbox until its time; elsewhere (and in search) it stays. Unsnooze waits for the refetch.
+    if (action === "unsnooze") return m;
+    if (action === "snooze") return folder === "inbox" && !searching ? null : m;
     if (dest === "gone") return null;
     if (searching) return dest === "elsewhere" ? m : { ...m, folder: dest as MessageListItem["folder"] };
     // A move to the folder already on screen keeps it (e.g. "Move to inbox" while in Inbox).

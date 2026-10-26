@@ -20,3 +20,13 @@ condition = "AND"
 paths = ['tests/ai\.test\.ts']
 regexTarget = "line"
 regexes = ['const KEY = "sk-test-0123456789abcdefWXYZ"']
+
+# R32: the web push tests use the published worked example from RFC 8291 Appendix A
+# (public keys, private keys and auth secret printed in the RFC itself). They sign and
+# decrypt nothing real. Allowed by path and by those exact published values only.
+[[allowlists]]
+description = "RFC 8291 Appendix A example keys in the web push tests"
+condition = "AND"
+paths = ['tests/web-push(-routes)?-r32\.test\.ts']
+regexTarget = "line"
+regexes = ['yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw|q1dXpw3UpT5VOmu_cf_v6ih07Aems3njxI-JWgLcM94|BTBZMqHH6r4Tts7J_aSIgg']

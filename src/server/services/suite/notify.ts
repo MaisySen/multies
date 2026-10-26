@@ -3,13 +3,14 @@
  * mail, in one place per person. Each person chooses per category whether it shows in the inbox
  * and whether it buzzes their phone. A push carries only an event type and an id.
  */
-import { and, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { notificationPrefs, notifications } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { sortableId } from "./common";
 import { pushToUsers } from "./push";
 import { inIds } from "../../lib/sql-chunks";
+import { deferrableWrite } from "../write-priority";
 import { inboxWhere, VIEW_ORDER, viewCountsFor, viewWhere, type TriageView } from "./notify-triage"; // R31 triage
 
 export const CATEGORIES = ["mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"] as const;
@@ -70,7 +71,7 @@ export async function notify(deps: Deps, orgId: string, userId: string, n: { typ
     if (p.inApp) {
       await deps.db.insert(notifications).values({ id: sortableId("ntf", deps.now().getTime()), orgId, userId, type: n.type, entityType: n.entityType, entityId: n.entityId, title: n.title.slice(0, 300), actorName: n.actorName?.slice(0, 120) ?? null, createdAt: deps.now() });
     }
-    if (p.push) await pushToUsers(deps, orgId, [userId], n.pushMessageId ? { type: n.type, id: n.entityId, mid: n.pushMessageId } : { type: n.type, id: n.entityId });
+    if (p.push) await pushToUsers(deps, orgId, [userId], n.pushMessageId ? { type: n.type, id: n.entityId, mid: n.pushMessageId, title: n.title } : { type: n.type, id: n.entityId, title: n.title });
   } catch (err) {
     deps.reportError?.(err, { where: "notify", type: n.type });
   }
@@ -135,15 +136,19 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
 
 export async function markNotificationsRead(deps: Deps, orgId: string, userId: string, ids?: string[], category?: string) {
   const now = deps.now();
-  let filter;
+  let filter: SQL | undefined;
   if (ids) filter = inIds(notifications.id, ids);
   else if (category && category !== "all") {
     if (!(CATEGORIES as readonly string[]).includes(category)) throw new HttpError(422, "validation_failed", `Unknown category: ${category}`);
     filter = inIds(notifications.type, typesOf(category as Category).length ? typesOf(category as Category) : ["-"]);
   }
-  const res = await deps.db.update(notifications).set({ readAt: now })
-    .where(and(eq(notifications.orgId, orgId), eq(notifications.userId, userId), isNull(notifications.readAt), filter))
-    .returning({ id: notifications.id });
+  let res: { id: string }[] = [];
+  // R32: read marks are deferrable (services/write-priority.ts): coalesced near the daily D1 budget, skipped at shed.
+  await deferrableWrite(deps, "notification_read", `${userId}:${ids ? ids.join(",") : category ?? "all"}`, async () => {
+    res = await deps.db.update(notifications).set({ readAt: now })
+      .where(and(eq(notifications.orgId, orgId), eq(notifications.userId, userId), isNull(notifications.readAt), filter))
+      .returning({ id: notifications.id });
+  });
   return { ok: true, updated: res.length, marked: res.length };
 }
 

@@ -13,7 +13,7 @@ import { inIds } from "../../lib/sql-chunks";
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
 interface PMNode { type?: string; text?: string; content?: PMNode[]; attrs?: Record<string, unknown> }
 
-const BLOCKS = new Set(["paragraph", "heading", "listItem", "blockquote", "codeBlock", "taskItem"]);
+const BLOCKS = new Set(["paragraph", "heading", "listItem", "blockquote", "codeBlock", "taskItem", "tableCell", "tableHeader"]); // R32: one line per table cell
 
 /** Plain text of a ProseMirror document, one line per block. */
 export function plainTextOf(node: PMNode): string {
@@ -69,8 +69,18 @@ function safeLinks(node: PMNode, depth: number): PMNode {
   if (Array.isArray(n.marks)) {
     n.marks = n.marks.filter((m) => m.type !== "link" || (typeof m.attrs?.href === "string" && SAFE_HREF.test(withoutControls(m.attrs.href))));
   }
-  if (Array.isArray(n.content)) n.content = n.content.map((c) => safeLinks(c, depth + 1));
+  if (Array.isArray(n.content)) n.content = n.content.filter((c) => !(c && c.type === "image" && !safeImageSrc(c.attrs?.src))).map((c) => safeLinks(c, depth + 1));
   return n;
+}
+
+/** R32: an image in a doc keeps an https source, our own upload path, or inline png/jpeg/gif/webp data; anything else is dropped. */
+const DATA_IMAGE = /^data:image\/(png|jpeg|gif|webp);base64,[a-z0-9+/=]+$/i;
+export function safeImageSrc(src: unknown): boolean {
+  if (typeof src !== "string" || src.length > 700_000) return false;
+  const s = withoutControls(src);
+  if (s.startsWith("/api/doc-images/")) return /^\/api\/doc-images\/[A-Za-z0-9_-]+$/.test(s);
+  if (/^data:/i.test(s)) return DATA_IMAGE.test(s);
+  try { return new URL(s).protocol === "https:"; } catch { return false; }
 }
 
 type DocRow = typeof docs.$inferSelect;

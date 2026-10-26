@@ -1,5 +1,5 @@
 /**
- * R31: split inbox (services side). Splits are a person's own (per user per workspace). Which tab a message
+ * R31: split inbox (services side). R32: first time senders with SPF and DKIM passing join Important (firstTimeAuthCond). Splits are a person's own (per user per workspace). Which tab a message
  * shows under is worked out at read time from what the messages table already keeps (sender, recipients,
  * thread, is_bulk), so nothing is written per message and no backfill runs.
  *
@@ -54,7 +54,21 @@ export function importantBaseCond(orgId: string): SQL {
   const inThread = sql`exists (select 1 from messages t where t.mailbox_id = ${messages.mailboxId} and t.thread_id = ${messages.threadId} and t.folder = 'sent')`;
   // Contacts made by hand, imported or by an agent; every sender becomes a "mail" contact on its own, so those don't count.
   const contact = sql`lower(${messages.fromAddress}) in (select lower(ct.email) from contacts ct where ct.org_id = ${orgId} and ct.source <> 'mail')`;
-  return sql`(${notBulkCond()} and (${wroteTo} or ${inThread} or ${teammateCond(orgId)} or ${contact}))`;
+  return sql`(${notBulkCond()} and (${wroteTo} or ${inThread} or ${teammateCond(orgId)} or ${contact} or ${firstTimeAuthCond()}))`;
+}
+
+/**
+ * R32 (product decision): a first time sender lands in Important when the message passed SPF and DKIM (the
+ * authentication results stored on ingest, with DMARC not failing, so the domains line up) and it is not bulk
+ * (the caller already requires notBulkCond: no list headers, no robot address). First time means no earlier
+ * message from that address in this mailbox. Failing or missing SPF or DKIM stays in Other.
+ */
+export function firstTimeAuthCond(): SQL {
+  const res = (k: string) => sql`lower(coalesce(json_extract(${messages.authResults}, ${sql.raw(`'$.${k}'`)}), ''))`;
+  const passed = sql`(${messages.authResults} is not null and json_valid(${messages.authResults}) and ${res("spf")} = 'pass' and ${res("dkim")} = 'pass' and ${res("dmarc")} <> 'fail')`;
+  const earlier = sql`exists (select 1 from messages p where p.mailbox_id = ${messages.mailboxId} and p.folder <> 'sent' and p.folder <> 'drafts'
+    and lower(p.from_address) = lower(${messages.fromAddress}) and (p.date < ${messages.date} or (p.date = ${messages.date} and p.id < ${messages.id})))`;
+  return sql`(${messages.folder} <> 'sent' and ${passed} and not ${earlier})`;
 }
 
 export function ruleCond(r: SplitRuleT, orgId: string): SQL {

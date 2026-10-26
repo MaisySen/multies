@@ -20,11 +20,16 @@ export const NODE_ATTR_DEFAULTS: Record<string, Record<string, unknown>> = {
   heading: { level: 1 },
   orderedList: { start: 1, type: null },
   taskItem: { checked: false },
+  // R32: tables, images and callouts (docs-blocks-schema.ts)
+  tableCell: { colspan: 1, rowspan: 1, colwidth: null, align: null },
+  tableHeader: { colspan: 1, rowspan: 1, colwidth: null, align: null },
+  image: { src: null, alt: null, title: null, width: null, height: null, size: "fit" },
+  callout: { variant: "info" },
 };
 export const MARK_ATTR_DEFAULTS: Record<string, Record<string, unknown>> = {
   link: { href: null, target: "_blank", rel: "noopener noreferrer nofollow", class: null, title: null },
 };
-const NO_ATTRS = new Set(["doc", "paragraph", "blockquote", "bulletList", "listItem", "taskList", "text", "hardBreak", "horizontalRule"]);
+const NO_ATTRS = new Set(["doc", "paragraph", "blockquote", "bulletList", "listItem", "taskList", "text", "hardBreak", "horizontalRule", "table", "tableRow"]);
 
 /** Only attributes the editor knows survive, each with its default when missing. Unknown node types are left as they are. */
 function withAttrs<T extends { type?: string; attrs?: Record<string, unknown> }>(n: T, table: Record<string, Record<string, unknown>>): T {

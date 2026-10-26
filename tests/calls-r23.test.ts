@@ -59,6 +59,7 @@ describe("screen share in the room token", () => {
     expect(claims.video).toMatchObject({ canPublish: true, canSubscribe: true, canPublishData: true });
     expect(claims.video.canPublishSources).toEqual(expect.arrayContaining(["camera", "microphone", "screen_share", "screen_share_audio"]));
     const meeting = (await c.get(`/api/meetings/${call.meeting.id}`)).body.meeting;
+    await c.patch(`/api/meeting-lobby/${call.meeting.id}/settings`, { guestsWait: false }); // R32: waiting room off for this token test
     const guest = (await new Client(ctx.app).post(`/api/public/meetings/${meeting.guestUrl.split("/m/")[1]}/join`, { name: "Maria" })).body;
     const gc = JSON.parse(Buffer.from(guest.token.split(".")[1], "base64url").toString());
     expect(gc.video.canPublishSources).toEqual(expect.arrayContaining(["screen_share", "screen_share_audio"]));

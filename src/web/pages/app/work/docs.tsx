@@ -20,6 +20,8 @@ import { tone } from "@/web/components/app-bits";
 import { MeetingNotesBacklink } from "./meeting-notes";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { SlashMenu } from "./slash-menu"; // R31: "/" menu for every block
+import { uploadDocImage } from "@/web/lib/docs-blocks"; // R32: table, image and callout blocks
+import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteConfirmText, useBracketTrigger, useDocTree } from "./doc-tree";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
@@ -99,7 +101,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const userColour = colourFor(me.data?.user.id ?? userName);
   // Stable options: a new extensions array or editorProps object on a render makes Tiptap
   // reconfigure the view, which redraws the shared document and drops the cursor.
-  const extensions = useMemo(() => docExtensions(session), [session]);
+  const extensions = useMemo(() => docExtensions(session, { upload: (f: File) => uploadDocImage(id, f), onError: showError }), [session, id]);
   const editor = useEditor({
     extensions,
     // No content key at all in a live session: the room is the content, and an option
@@ -143,6 +145,9 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const tree = useDocTree();
   const [picker, setPicker] = useState(false);
   const openPicker = useCallback(() => setPicker(true), []);
+  const [imageDialog, setImageDialog] = useState(false);
+  const openImageDialog = useCallback(() => setImageDialog(true), []);
+  const uploadImage = useCallback((f: File) => uploadDocImage(id, f), [id]);
   useBracketTrigger(editor, openPicker);
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
@@ -202,7 +207,10 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         </div>
       )}
       <div className="mt-4"><EditorContent editor={editor} /></div>
-      <SlashMenu editor={editor} onLinkPicker={openPicker} />
+      <SlashMenu editor={editor} onLinkPicker={openPicker} onImage={openImageDialog} />
+      <TableMenu editor={editor} />
+      <ImageToolbar editor={editor} />
+      <ImageInsertDialog editor={editor} open={imageDialog} onClose={() => setImageDialog(false)} upload={uploadImage} />
       <div className="pb-24"><LinkedFrom docId={id} /></div>
     </div>
   );

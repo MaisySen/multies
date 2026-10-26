@@ -17,6 +17,35 @@ const QUOTE = /^\s{0,3}>\s?(.*)$/;
 const ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const TASK = /^\[([ xX])\]\s+(.*)$/;
 
+const CALLOUT_OPEN = /^\s{0,3}:::\s*([a-z]+)\s*$/i;
+const CALLOUT_CLOSE = /^\s{0,3}:::\s*$/;
+const QUOTE_ALERT = /^\s{0,3}>\s?\[!([a-z]+)\]\s*(.*)$/i;
+const IMAGE_LINE = /^\s{0,3}!\[([^\]]{0,300})\]\((https:\/\/[^\s)]+)\)\s*$/;
+const TABLE_ROW = /^\s{0,3}\|.*\|\s*$/;
+const TABLE_RULE = /^\s{0,3}\|(\s*:?-{1,}:?\s*\|)+\s*$/;
+const VARIANTS: Record<string, string> = { info: "info", note: "info", important: "info", success: "success", tip: "success", check: "success", warning: "warning", warn: "warning", caution: "warning", danger: "danger", error: "danger", alert: "danger" };
+
+function callout(word: string, body: string[], depth: number): MdNode {
+  const variant = VARIANTS[word.toLowerCase()] ?? "info";
+  const content = depth < 16 ? blocks(body, depth + 1) : [paragraph(body.join(" "))];
+  return { type: "callout", attrs: { variant }, content: content.length ? content : [{ type: "paragraph" }] };
+}
+
+/** The cells of a "| a | b |" row ("\|" stays a literal bar). */
+function cells(row: string): string[] {
+  const inner = row.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return inner.split(/(?<!\\)\|/).map((c) => c.trim().replace(/\\\|/g, "|"));
+}
+
+function table(rows: string[][]): MdNode {
+  const cols = Math.min(Math.max(...rows.map((r) => r.length)), 30);
+  const cell = (type: string, text: string): MdNode => ({ type, attrs: { colspan: 1, rowspan: 1, colwidth: null, align: null }, content: [text ? withInline({ type: "paragraph" }, text) : { type: "paragraph" }] });
+  return {
+    type: "table",
+    content: rows.slice(0, 500).map((r, ri) => ({ type: "tableRow", content: Array.from({ length: cols }, (_, ci) => cell(ri === 0 ? "tableHeader" : "tableCell", r[ci] ?? "")) })),
+  };
+}
+
 const indentOf = (line: string) => (line.match(/^\s*/)?.[0] ?? "").replace(/\t/g, "    ").length;
 const blank = (line: string) => !line.trim();
 
@@ -45,6 +74,33 @@ function blocks(lines: string[], depth: number): MdNode[] {
     const h = line.match(HEADING);
     if (h) { out.push(withInline({ type: "heading", attrs: { level: h[1].length } }, h[2])); i++; continue; }
     if (RULE.test(line)) { out.push({ type: "horizontalRule" }); i++; continue; }
+    // R32: callouts (":::info" ... ":::", or a "> [!NOTE]" quote), a line that is only an image, and pipe tables.
+    const open = line.match(CALLOUT_OPEN);
+    if (open) {
+      const body: string[] = [];
+      i++;
+      while (i < lines.length && !CALLOUT_CLOSE.test(lines[i])) body.push(lines[i++]);
+      i++;
+      out.push(callout(open[1], body, depth));
+      continue;
+    }
+    const alert = line.match(QUOTE_ALERT);
+    if (alert) {
+      const body: string[] = [alert[2]];
+      i++;
+      while (i < lines.length && !blank(lines[i]) && QUOTE.test(lines[i])) body.push(lines[i++].match(QUOTE)![1]);
+      out.push(callout(alert[1], body, depth));
+      continue;
+    }
+    const img = line.match(IMAGE_LINE);
+    if (img) { out.push({ type: "image", attrs: { src: img[2], alt: img[1] || null, title: null, width: null, height: null, size: "fit" } }); i++; continue; }
+    if (TABLE_ROW.test(line) && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1])) {
+      const rows: string[][] = [cells(line)];
+      i += 2;
+      while (i < lines.length && TABLE_ROW.test(lines[i])) rows.push(cells(lines[i++]));
+      out.push(table(rows));
+      continue;
+    }
     if (QUOTE.test(line)) {
       const inner: string[] = [];
       while (i < lines.length && !blank(lines[i]) && (QUOTE.test(lines[i]) || inner.length)) {
@@ -59,7 +115,7 @@ function blocks(lines: string[], depth: number): MdNode[] {
     if (ITEM.test(line)) { i = list(lines, i, depth, out); continue; }
     // A paragraph: lines up to a blank line or the start of another block.
     const para: string[] = [];
-    while (i < lines.length && !blank(lines[i]) && !(para.length && (FENCE.test(lines[i]) || HEADING.test(lines[i]) || QUOTE.test(lines[i]) || ITEM.test(lines[i]) || RULE.test(lines[i])))) {
+    while (i < lines.length && !blank(lines[i]) && !(para.length && (FENCE.test(lines[i]) || HEADING.test(lines[i]) || QUOTE.test(lines[i]) || ITEM.test(lines[i]) || RULE.test(lines[i]) || CALLOUT_OPEN.test(lines[i]) || IMAGE_LINE.test(lines[i])))) {
       para.push(lines[i]);
       i++;
     }

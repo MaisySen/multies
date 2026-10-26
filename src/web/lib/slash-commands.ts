@@ -12,11 +12,13 @@ export type SlashAction =
   | { kind: "heading"; level: 1 | 2 | 3 }
   | { kind: "bulletList" } | { kind: "orderedList" } | { kind: "taskList" }
   | { kind: "blockquote" } | { kind: "codeBlock" } | { kind: "horizontalRule" }
-  | { kind: "linkPicker" } | { kind: "date" };
+  | { kind: "linkPicker" } | { kind: "date" }
+  // R32: blocks from docs-blocks-schema.ts and docs-callout.ts
+  | { kind: "table" } | { kind: "image" } | { kind: "callout"; variant: "info" | "success" | "warning" | "danger" };
 
 export interface SlashItem { id: string; label: string; hint: string; group: SlashGroup; keywords: string[]; markdown?: string; action: SlashAction }
 
-/** Every block the doc editor supports (StarterKit, to-do lists and the page link picker). */
+/** Every block the doc editor supports (StarterKit, to-do lists, R32 tables, images and callouts, and the page link picker). */
 export const SLASH_ITEMS: SlashItem[] = [
   { id: "text", label: "Text", hint: "Plain paragraph", group: "Basic", keywords: ["paragraph", "plain", "body"], action: { kind: "paragraph" } },
   { id: "h1", label: "Heading 1", hint: "Big section title", group: "Basic", keywords: ["title", "h1", "header"], markdown: "#", action: { kind: "heading", level: 1 } },
@@ -25,9 +27,15 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "quote", label: "Quote", hint: "Call out a quote", group: "Basic", keywords: ["blockquote", "citation"], markdown: ">", action: { kind: "blockquote" } },
   { id: "code", label: "Code block", hint: "Code with spacing kept", group: "Basic", keywords: ["snippet", "pre", "monospace"], markdown: "```", action: { kind: "codeBlock" } },
   { id: "divider", label: "Divider", hint: "A line between sections", group: "Basic", keywords: ["rule", "line", "separator", "hr"], markdown: "---", action: { kind: "horizontalRule" } },
+  { id: "callout", label: "Callout", hint: "A tinted note with an icon", group: "Basic", keywords: ["note", "info", "tip", "warning", "danger", "alert", "admonition", "highlight", "box"], markdown: ":::", action: { kind: "callout", variant: "info" } },
+  { id: "callout-success", label: "Success callout", hint: "A green note", group: "Basic", keywords: ["tip", "done", "check", "callout"], action: { kind: "callout", variant: "success" } },
+  { id: "callout-warning", label: "Warning callout", hint: "An amber note", group: "Basic", keywords: ["caution", "warn", "callout"], action: { kind: "callout", variant: "warning" } },
+  { id: "callout-danger", label: "Danger callout", hint: "A red note", group: "Basic", keywords: ["error", "alert", "callout"], action: { kind: "callout", variant: "danger" } },
   { id: "bullets", label: "Bulleted list", hint: "A simple list", group: "Lists", keywords: ["unordered", "ul", "points"], markdown: "-", action: { kind: "bulletList" } },
   { id: "numbers", label: "Numbered list", hint: "A list in order", group: "Lists", keywords: ["ordered", "ol", "steps"], markdown: "1.", action: { kind: "orderedList" } },
   { id: "todo", label: "To-do list", hint: "Tick items off", group: "Lists", keywords: ["task", "checkbox", "checklist", "todo"], markdown: "[]", action: { kind: "taskList" } },
+  { id: "table", label: "Table", hint: "Rows and columns", group: "Media", keywords: ["grid", "rows", "columns", "spreadsheet", "cells"], action: { kind: "table" } },
+  { id: "image", label: "Image", hint: "Upload or add by link", group: "Media", keywords: ["picture", "photo", "img", "screenshot", "upload"], action: { kind: "image" } },
   { id: "link", label: "Link a page or task", hint: "Find and link it", group: "Embeds", keywords: ["mention", "page", "doc", "task", "reference", "[["], action: { kind: "linkPicker" } },
   { id: "date", label: "Today's date", hint: "Insert the date", group: "Embeds", keywords: ["date", "today", "time", "now"], action: { kind: "date" } },
 ];

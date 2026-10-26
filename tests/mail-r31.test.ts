@@ -80,18 +80,21 @@ describe("bulk and robot senders", () => {
 });
 
 describe("split inbox", () => {
-  it("puts people in Important and bulk mail in Other, and custom splits take their mail out of both", async () => {
-    // A teammate, a person we wrote to, a reply in our thread: Important. A newsletter, a robot, a stranger: Other.
+  it("puts people (and verified first time senders, R32) in Important and bulk mail in Other, and custom splits take their mail out of both", async () => {
+    // A teammate, a person we wrote to, a reply in our thread, a verified first time sender: Important. A newsletter, a robot, a bulk pitch: Other.
     await inbound("From teammate", { address: "owner@acme.io", name: "Olive" });
     await owner.post("/api/mail/send", { mailboxId, to: ["grace@example.com"], subject: "Lunch?", text: "Free Friday?" });
     await inbound("Grace writes", { address: "grace@example.com", name: "Grace" });
     await inbound("Weekly news", { address: "grace@example.com", name: "Grace" }, { "list-unsubscribe": "<https://x.com/u>" });
     await inbound("Your receipt", { address: "noreply@shop.com", name: "Shop" });
-    await inbound("Cold pitch", { address: "sam@vendor.io", name: "Sam" });
+    // R32: a pitch sent through a mailing tool (List-Unsubscribe) is bulk and stays in Other.
+    await inbound("Cold pitch", { address: "sam@vendor.io", name: "Sam" }, { "list-unsubscribe": "<https://vendor.io/u>" });
+    // R32: a person writing for the first time, SPF and DKIM passing, not bulk: Important.
+    await inbound("Hello from Ana", { address: "ana@studio.io", name: "Ana" });
     await inbound("Invite: standup", { address: "cal@vendor.io", name: "Calendar" }, {}, { attachments: [{ filename: "invite.ics", contentType: "text/calendar", content: new TextEncoder().encode("BEGIN:VCALENDAR") }] });
 
-    expect(await subjects("important")).toEqual(["From teammate", "Grace writes"]);
-    expect(await subjects("other")).toEqual(["Cold pitch", "Invite: standup", "Weekly news", "Your receipt"]);
+    expect(await subjects("important")).toEqual(["From teammate", "Grace writes", "Hello from Ana", "Invite: standup"]);
+    expect(await subjects("other")).toEqual(["Cold pitch", "Weekly news", "Your receipt"]);
 
     // Live preview, then a custom split by domain.
     expect((await owner.post("/api/mail/splits/preview", { rules: [{ field: "fromDomain", value: "vendor.io" }], mailboxId })).body.threads).toBe(2);
@@ -108,15 +111,15 @@ describe("split inbox", () => {
 
     // Tabs carry unread counts and come in order.
     const tabs = (await owner.get(`/api/mail/splits?mailboxId=${mailboxId}`)).body.tabs as { name: string; unread: number }[];
-    expect(tabs.map((t) => `${t.name}:${t.unread}`)).toEqual(["Important:2", "Other:2", "Calendar:1", "Vendors:2"]);
+    expect(tabs.map((t) => `${t.name}:${t.unread}`)).toEqual(["Important:3", "Other:2", "Calendar:1", "Vendors:2"]);
 
     // Rename clashes and reserved names are refused; delete gives the mail back to Other.
     expect((await owner.patch(`/api/mail/splits/${cal.id}`, { name: "vendors" })).status).toBe(409);
     expect((await owner.post("/api/mail/splits", { name: "Other", rules: [{ field: "subjectContains", value: "x" }] })).status).toBe(400);
     expect((await owner.patch(`/api/mail/splits/${vendors.body.split.id}`, { rules: [{ field: "subjectContains", value: "pitch" }] })).body.split.rules[0].field).toBe("subjectContains");
-    expect(await subjects("other")).toEqual(["Invite: standup", "Weekly news", "Your receipt"]);
+    expect(await subjects("other")).toEqual(["Weekly news", "Your receipt"]);
     expect((await owner.del(`/api/mail/splits/${vendors.body.split.id}`)).body.deleted).toBe(true);
-    expect(await subjects("other")).toEqual(["Cold pitch", "Invite: standup", "Weekly news", "Your receipt"]);
+    expect(await subjects("other")).toEqual(["Cold pitch", "Weekly news", "Your receipt"]);
     expect((await owner.get(`/api/mail/messages?mailboxId=${mailboxId}&folder=inbox&split=spl_nope`)).status).toBe(404);
   });
 

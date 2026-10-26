@@ -75,6 +75,12 @@ class_name = "MailSyncRunner"
 name = "THREAD_PRESENCE"
 class_name = "ThreadPresence"
 
+# Round 32: live chat, one hub per workspace (src/server/realtime/chat-hub-do.ts). WebSocket
+# Hibernation with an auto answered ping, no timers, nothing stored. SQLite backend (Free plan).
+[[durable_objects.bindings]]
+name = "CHAT_HUB"
+class_name = "ChatHub"
+
 [[migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
@@ -86,6 +92,10 @@ new_sqlite_classes = ["MailSyncRunner"]
 [[migrations]]
 tag = "v3-thread-presence"
 new_sqlite_classes = ["ThreadPresence"]
+
+[[migrations]]
+tag = "v4-chat-hub"
+new_sqlite_classes = ["ChatHub"]
 
 # Edge rate limits (Workers rate limiting API). Without these bindings the app
 # falls back to a shared counter in D1. Limits match src/server/lib/rate-limit.ts.
@@ -148,6 +158,8 @@ BILLING_GRACE_DAYS = "7"
 MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev"
 # Same account workers.dev fetches answer 404 (error 1042), so the peer goes through a service binding.
 PEER_HOST = "mymail-staging.mymail-app.workers.dev"
+# R32: web push. The public half of the VAPID pair; VAPID_PRIVATE_KEY is a secret (scripts/vapid-keygen.mjs).
+VAPID_PUBLIC_KEY = "BD5idyEC8Z2t0LROHN_FwSS6mKaQ_Ki8d8YPKqM-pnhC4hi9mDccU9dmNtZKFP974TfuLLYfKz3xYPTFbqog3MM"
 
 [[services]]
 binding = "PEER"
@@ -189,6 +201,10 @@ class_name = "MailSyncRunner"
 name = "THREAD_PRESENCE"
 class_name = "ThreadPresence"
 
+[[env.staging.durable_objects.bindings]]
+name = "CHAT_HUB"
+class_name = "ChatHub"
+
 [[env.staging.migrations]]
 tag = "v1-doc-rooms"
 new_sqlite_classes = ["DocRoom"]
@@ -200,6 +216,10 @@ new_sqlite_classes = ["MailSyncRunner"]
 [[env.staging.migrations]]
 tag = "v3-thread-presence"
 new_sqlite_classes = ["ThreadPresence"]
+
+[[env.staging.migrations]]
+tag = "v4-chat-hub"
+new_sqlite_classes = ["ChatHub"]
 
 [[env.staging.ratelimits]]
 name = "RL_AUTH"
@@ -222,6 +242,7 @@ namespace_id = "2004"
 simple = { limit = 300, period = 60 }
 
 [env.staging.vars]
+VAPID_PUBLIC_KEY = "BF_cIsJn0Z-3EUSVQQMet8dFzCp6t0v_1CqHoFoM9rMO7GAU76vlb0p_06bmxw97YmUtE-Oyh-7keouK-D98qYo"
 SCHEDULING_ENABLED = "true"
 APP_MODE = "production"
 APP_URL = "https://preview.multies.si"

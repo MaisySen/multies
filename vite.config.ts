@@ -10,7 +10,9 @@ const lib = (names: string) => new RegExp(`[\\/]node_modules[\\/](${names})[\\/]
 const VENDOR_GROUPS = [
   { name: "vendor-react", test: lib("react|react-dom|scheduler|react-router"), priority: 30 },
   // The editor and its co-editing layer share one chunk: split apart, their circular imports ran out of order.
-  { name: "vendor-editor", test: lib("@tiptap|prosemirror-[a-z-]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname|yjs|lib0|y-protocols|y-websocket"), priority: 20 },
+  // R32: fast-equals (used by @tiptap/react) belongs here too; left out, it landed in an app chunk that imports
+  // the editor, the two chunks imported each other, and the docs blocks crashed on load (Node undefined).
+  { name: "vendor-editor", test: lib("@tiptap|prosemirror-[a-z-]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname|yjs|lib0|y-protocols|y-websocket|fast-equals"), priority: 20 },
   { name: "vendor-charts", test: lib("recharts|d3-[a-z-]+|victory-vendor|decimal\\.js-light|@reduxjs|react-redux|redux|immer|reselect|es-toolkit"), priority: 20 },
   { name: "vendor-calls", test: lib("livekit-client|@livekit"), priority: 20 },
   { name: "vendor-calendar", test: lib("@fullcalendar|preact"), priority: 20 },

@@ -18,13 +18,14 @@ import { RecordingLayer, RecordingSection } from "./meeting-recording";
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
+import { askToJoin, GuestLobby, GuestsWaitSetting, LobbyRequests } from "./lobby-r32";
 import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
 import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
-  source: { type: "thread" | "task" | "contact"; id: string } | null; invitees: string[]; invitesSentAt: string | null; joinUrl: string; guestUrl: string; videoEnabled: boolean;
+  source: { type: "thread" | "task" | "contact"; id: string } | null; invitees: string[]; invitesSentAt: string | null; joinUrl: string; guestUrl: string; videoEnabled: boolean; guestsWait?: boolean;
   /** A weekly series. In the upcoming list each occurrence is its own entry with the series' id. */
   recurrence: Series | null;
   seriesStartsAt: string | null;
@@ -119,6 +120,7 @@ function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeav
               <CallRoomExtras meetingId={meetingId} />
             </LiveKitRoom>
           )}
+          {member && <LobbyRequests meetingId={meetingId} className="absolute right-3 top-3 z-30" />}
         </div>
         {panel.tab && <CallSidePanel meetingId={meetingId} guestToken={guestToken} member={member} tab={panel.tab} onClose={panel.close} so={panel.so} />}
       </div>
@@ -220,7 +222,7 @@ export function MeetingPage() {
   });
   const enter = async (p?: JoinPrefs) => {
     setBusy(true);
-    try { setJoin(await api.post<Join>(`/meetings/${id}/join`, {})); setPrefs(p); setPrejoin(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { setJoin(await api.post<Join>(`/meetings/${id}/join`, p?.name ? { name: p.name } : {})); setPrefs(p); setPrejoin(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23 (the dock already passed pre-join)
   const invite = async () => {
@@ -241,6 +243,7 @@ export function MeetingPage() {
           <h2 className="text-[13px] font-semibold">Guest link</h2>
           <p className="mt-1 text-[13px] text-muted">Anyone with this link can join from a browser. No account or app needed.</p>
           <div className="mt-3 flex items-center gap-2"><Input readOnly value={m.guestUrl} aria-label="Guest link" className="font-mono text-[12.5px]" /><CopyButton value={m.guestUrl} /></div>
+          <GuestsWaitSetting meetingId={m.id} value={m.guestsWait !== false} />
         </Card>
         <Card className="p-5">
           <h2 className="text-[13px] font-semibold">Guests</h2>
@@ -303,15 +306,31 @@ function EditMeetingDialog({ m, onClose, onSaved }: { m: Meeting; onClose: () =>
 /** The guest page at /m/<token>: a name, then the call. */
 export function GuestMeetingPage() {
   const { token } = useParams();
-  const q = useQuery({ queryKey: ["guest-meeting", token], queryFn: async () => (await api.get<{ meeting: { title: string; startsAt: string; durationMin: number; status: string; host: string; videoEnabled: boolean } }>(`/public/meetings/${token}`)).meeting, retry: false });
+  const q = useQuery({ queryKey: ["guest-meeting", token], queryFn: async () => (await api.get<{ meeting: { title: string; startsAt: string; durationMin: number; status: string; host: string; videoEnabled: boolean; guestsWait?: boolean } }>(`/public/meetings/${token}`)).meeting, retry: false });
+  // Round 32: who is already in ("Maya and 2 others are here"), and the waiting room.
+  const here = useQuery({
+    queryKey: ["guest-here", token], enabled: !!q.data && q.data.status === "scheduled" && q.data.videoEnabled, refetchInterval: 15_000, retry: false,
+    queryFn: () => api.get<{ names: string[]; count: number }>(`/public/meeting-lobby/${token}/here`),
+  });
+  const [lobby, setLobby] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
   const [join, setJoin] = useState<Join | null>(null);
   const [left, setLeft] = useState(false);
   const [busy, setBusy] = useState(false);
   const [prefs, setPrefs] = useState<JoinPrefs | undefined>();
-  const go = async (p?: JoinPrefs) => {
+  const go = async (p?: JoinPrefs, lobbyId?: string) => {
     setBusy(true);
-    try { setJoin(await api.post<Join>(`/public/meetings/${token}/join`, { name: p?.name ?? name })); setPrefs(p); setLeft(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { setJoin(await api.post<Join>(`/public/meetings/${token}/join`, { name: p?.name ?? name, ...(lobbyId ? { lobbyId } : {}) })); setPrefs(p); setLeft(false); setLobby(null); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+  };
+  /** With the waiting room on, ask first and wait; otherwise join straight away. */
+  const ask = async (p: JoinPrefs) => {
+    if (!q.data?.guestsWait) return go(p);
+    setBusy(true);
+    try {
+      const r = await askToJoin(token!, p.name ?? name);
+      setPrefs(p);
+      if (r.lobbyId) setLobby({ id: r.lobbyId, name: p.name ?? name }); else { setBusy(false); return go(p); }
+    } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const m = q.data;
   return (
@@ -320,6 +339,7 @@ export function GuestMeetingPage() {
         <div className="mb-6 flex items-center justify-between"><Logo /><span className="text-[12px] text-subtle">Video meeting</span></div>
         {q.isPending ? <Skeleton className="h-40" /> : !m ? <Card className="p-8 text-center"><h1 className="text-lg font-semibold">This meeting link doesn't work</h1><p className="mt-1 text-[13px] text-muted">Ask whoever invited you for a new link.</p></Card>
           : join ? <Room join={join} prefs={prefs} member={false} guestToken={token} onLeave={() => { setJoin(null); setLeft(true); }} />
+          : lobby ? <Card className="mx-auto max-w-3xl p-6"><GuestLobby token={token!} lobbyId={lobby.id} name={lobby.name} prefs={prefs} title={m.title} onAdmitted={() => void go(prefs, lobby.id)} onLeave={() => setLobby(null)} onAskAgain={() => { if (prefs) void ask(prefs); }} /></Card>
           : (
             <Card className={m.status === "scheduled" && m.videoEnabled ? "mx-auto max-w-3xl p-6" : "mx-auto max-w-md p-6"} data-testid="guest-meeting">
               <p className="text-[12.5px] text-muted">{m.host} invited you to</p>
@@ -329,7 +349,7 @@ export function GuestMeetingPage() {
               {m.status !== "scheduled" ? <p className="mt-4 text-[13px]">{m.status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended."}</p>
                 : !m.videoEnabled ? <p className="mt-4 text-[13px] text-muted">The video service isn't switched on yet. Try again at the meeting time, or reply to the invite.</p>
                 : (
-                  <div className="mt-5"><PreJoin bare title={m.title} who={{ mode: "guest" }} busy={busy} joinLabel="Join meeting" footnote={PREJOIN_NOTE} onJoin={(p) => { setName(p.name ?? ""); void go(p); }} /></div>
+                  <div className="mt-5"><PreJoin bare title={m.title} who={{ mode: "guest" }} inCall={here.data?.names} inCallCount={here.data?.count} busy={busy} joinLabel={m.guestsWait ? "Ask to join" : "Join meeting"} footnote={PREJOIN_NOTE} onJoin={(p) => { setName(p.name ?? ""); void ask(p); }} /></div>
                 )}
             </Card>
           )}

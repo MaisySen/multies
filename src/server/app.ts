@@ -1,7 +1,9 @@
+import { llmsFullTxt, llmsTxt, versionJson } from "./routes/web-meta-r32";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
-import { writeBudget } from "./services/write-budget";
+import { healthView, noteD1LimitHit, writeBudget } from "./services/write-budget";
+import { deferredCounts } from "./services/write-priority";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
 import type { AppEnv, Deps } from "./context";
@@ -51,6 +53,7 @@ import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
+import { meetingLobbyRoutes, publicMeetingLobbyRoutes } from "./routes/meeting-lobby-r32";
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
@@ -60,6 +63,7 @@ import { oauthRoutes, oauthWellKnownRoutes } from "./routes/oauth";
 import { v1ParentVars, v1Routes } from "./routes/v1";
 import { agentRoutes, approvalRoutes } from "./routes/agents";
 import { aiRoutes } from "./routes/ai";
+import { webPushRoutes } from "./routes/web-push-r32";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
@@ -73,6 +77,7 @@ import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
+import { docImageRoutes } from "./routes/doc-images-r32"; // R32: images in docs
 import { installHttpCache } from "./lib/http-cache";
 import { hostSessionCookie } from "./lib/host-cookie";
 
@@ -95,6 +100,7 @@ export function createApp(deps: Deps) {
     }
     if (isD1LimitError(err)) {
       console.warn("[api] database daily limit reached", c.req.method, c.req.path);
+      noteD1LimitHit(); // R32: deferrable writes stop for the rest of the UTC day in this isolate
       // A browser landing on a sign in callback gets the sign in page with the read only notice, not raw JSON.
       if (c.req.method === "GET" && c.req.path.startsWith("/api/auth/") && (c.req.header("accept") ?? "").includes("text/html")) {
         return c.redirect("/login?error=read_only", 302);
@@ -202,7 +208,7 @@ export function createApp(deps: Deps) {
       }
       // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
       const wb = await writeBudget(deps);
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { today: wb.rowsWritten, budget: wb.budget, level: wb.level, at: wb.at } } : {}) });
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() } } : {}) });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }
@@ -210,6 +216,10 @@ export function createApp(deps: Deps) {
   app.get("/api/health", health);
   // Uptime monitors try /health and /healthz first (MB-53): same JSON answer, never the HTML 404 page.
   app.get("/health", health);
+  // R32: release check for open tabs, and the public developer docs for agents.
+  app.get("/version.json", versionJson);
+  app.get("/llms.txt", llmsTxt);
+  app.get("/llms-full.txt", llmsFullTxt);
   app.get("/healthz", health);
 
   // RFC 9116: where to report a vulnerability.
@@ -246,6 +256,8 @@ export function createApp(deps: Deps) {
       scheduling: deps.config.schedulingEnabled,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
       socialConnections: deps.config.auth.socialConnections ?? [],
+      // R32: the VAPID public key a browser subscribes with (absent when web push is off).
+      vapidPublicKey: deps.config.webPush?.publicKey ?? null,
       // A browser DSN is public by design (it can only submit events).
       sentry: deps.config.sentry.dsnWeb
         ? { dsn: deps.config.sentry.dsnWeb, environment: deps.config.sentry.environment, release: deps.config.release, tracesSampleRate: deps.config.sentry.tracesSampleRate }
@@ -312,6 +324,7 @@ export function createApp(deps: Deps) {
   app.route("/api/automations", automationRoutes());
   app.route("/api/notifications", notificationRoutes());
   app.route("/api/catchup", catchupRoutes()); // R31
+  app.route("/api/push/web", webPushRoutes()); // R32: browser notifications (web push)
   app.route("/api/push", pushRoutes());
   app.route("/api/changes", changeRoutes());
   app.route("/api/time", timeRoutes());
@@ -323,12 +336,15 @@ export function createApp(deps: Deps) {
   app.route("/api/meetings", meetingRecordingRoutes()); // Round 23: recording and transcript
   app.route("/api/meeting-live", meetingLiveRoutes()); // R31: call notes and the So far digest
   app.route("/api/public/meeting-live", publicMeetingLiveRoutes()); // R31: guest read only notes
+  app.route("/api/meeting-lobby", meetingLobbyRoutes()); // R32: waiting room (members)
+  app.route("/api/public/meeting-lobby", publicMeetingLobbyRoutes()); // R32: waiting room (guests)
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());
   app.route("/api/portfolio", portfolioRoutes());
   app.route("/api/guests", guestAdminRoutes());
   app.route("/api/files", fileRoutes());
+  app.route("/api/doc-images", docImageRoutes()); // R32: images in docs (file storage only)
   // Round 20: search everything and My Work (reads only). Guest search sits before the guest routes.
   app.route("/api/search", searchRoutes());
   app.route("/api/my-work", myWorkRoutes());

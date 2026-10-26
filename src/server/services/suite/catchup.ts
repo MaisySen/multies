@@ -13,6 +13,7 @@ import { activity, chatMembers, chatMessages, itemVisits, notifications, taskCom
 import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { plainText } from "./chat";
+import { deferrableWrite } from "../write-priority";
 
 export const CATCHUP_TYPES = ["channel", "task", "doc"] as const;
 export type CatchupType = (typeof CATCHUP_TYPES)[number];
@@ -58,9 +59,16 @@ export async function recordVisit(deps: Deps, a: SuiteActor, type: CatchupType, 
   if (!opts.checked) id = (await assertVisible(deps, a, type, id)) ?? id;
   const now = deps.now();
   const cutoff = now.getTime() - (opts.force ? 0 : VISIT_THROTTLE_MS);
-  const res = await deps.db.insert(itemVisits).values({ userId, orgId: a.orgId, itemType: type, itemId: id, lastVisitAt: now })
-    .onConflictDoUpdate({ target: [itemVisits.userId, itemVisits.itemType, itemVisits.itemId], set: { lastVisitAt: now }, setWhere: sql`${itemVisits.lastVisitAt} < ${cutoff}` })
-    .returning({ at: itemVisits.lastVisitAt });
+  let res: { at: Date }[] = [];
+  const write = async () => {
+    res = await deps.db.insert(itemVisits).values({ userId, orgId: a.orgId, itemType: type, itemId: id, lastVisitAt: now })
+      .onConflictDoUpdate({ target: [itemVisits.userId, itemVisits.itemType, itemVisits.itemId], set: { lastVisitAt: now }, setWhere: sql`${itemVisits.lastVisitAt} < ${cutoff}` })
+      .returning({ at: itemVisits.lastVisitAt });
+  };
+  // R32: a visit is deferrable (coalesced near the daily D1 budget, skipped at shed); "Mark as caught up" is the
+  // person's own action and essential.
+  if (opts.force) await write();
+  else await deferrableWrite(deps, "item_visit", `${userId}:${type}:${id}`, write);
   return { ok: true, written: res.length > 0, lastVisitAt: now.toISOString() };
 }
 

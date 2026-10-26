@@ -105,7 +105,11 @@ export function meetingRoutes() {
       headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": "attachment; filename=\"meeting.ics\"", "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
     }))
     .post("/:id/invite", async (c) => c.json(await sendInvites(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, z.object({ mailboxId: z.string().optional() })))))
-    .post("/:id/join", async (c) => c.json(await joinMeeting(c.var.deps, c.var.auth, c.req.param("id"))));
+    .post("/:id/join", async (c) => {
+      // Round 32: an optional name for this call only (the pre-join screen's name field).
+      const b = (await c.req.json().catch(() => ({}))) as { name?: unknown };
+      return c.json(await joinMeeting(c.var.deps, c.var.auth, c.req.param("id"), { name: typeof b?.name === "string" ? b.name : undefined }));
+    });
 }
 
 /** No sign-in: the public form page and the meeting guest page. */
@@ -118,7 +122,7 @@ export function publicRoutes() {
     })
     .get("/meetings/:token", async (c) => c.json({ meeting: await guestInfo(c.var.deps, c.req.param("token")) }))
     .post("/meetings/:token/join", async (c) => {
-      const b = await parseBody(c, z.object({ name: z.string().max(60) }));
-      return c.json(await guestJoin(c.var.deps, c.req.param("token"), b.name));
+      const b = await parseBody(c, z.object({ name: z.string().max(60), lobbyId: z.string().max(64).optional() }));
+      return c.json(await guestJoin(c.var.deps, c.req.param("token"), b.name, b.lobbyId));
     });
 }

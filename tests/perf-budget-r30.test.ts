@@ -76,7 +76,9 @@ describe("prerendered landing", () => {
 
   it("is wired into the web build, the Node server and the Worker", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
-    expect(pkg.scripts["build:web"]).toMatch(/vite build && tsx scripts\/prerender-landing\.ts/);
+    // R32: the service worker is built from the same manifest, between the bundle and the prerender.
+    expect(pkg.scripts["build:web"]).toMatch(/vite build && (tsx scripts\/build-sw\.ts && )?tsx scripts\/prerender-landing\.ts/);
+    expect(pkg.scripts["build:web"]).toContain("tsx scripts/build-sw.ts");
     expect(pkg.scripts["perf:lh"]).toBe("node scripts/lighthouse-r30.mjs");
     expect(readFileSync("src/entry/node.ts", "utf8")).toMatch(/landing\.html/);
     expect(readFileSync("src/entry/node.ts", "utf8")).toMatch(/auth\.html/);

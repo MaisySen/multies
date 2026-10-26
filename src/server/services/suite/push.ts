@@ -9,6 +9,7 @@ import { pushDevices } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { enqueue, registerJob } from "../jobs";
 import { inIds } from "../../lib/sql-chunks";
+import { webPushToUsers } from "./web-push-r32";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const TOKEN_RE = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,}\]$/;
@@ -19,7 +20,7 @@ export function pushPayload(event: PushEvent) {
 }
 
 /** What a push carries: an event type, an id and, for a mail thread, the message id the phone opens. */
-export interface PushEvent { type: string; id: string; mid?: string }
+export interface PushEvent { type: string; id: string; mid?: string; /** R32: browsers only (web push shows it; phones never get it). */ title?: string }
 
 export async function registerDevice(deps: Deps, auth: { userId: string; orgId: string }, input: { token: string; platform: "ios" | "android" }) {
   if (!TOKEN_RE.test(input.token)) throw new HttpError(422, "invalid_push_token", "That isn't an Expo push token.");
@@ -41,6 +42,10 @@ export async function listDevices(deps: Deps, auth: { userId: string; orgId: str
 
 /** Queues a push to these people's phones. Never slows the caller: it runs from the job queue. */
 export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], event: PushEvent) {
+  // R32: the same event also reaches the person's browsers when web push is set up (never throws).
+  if (deps.config.webPush && userIds.length) {
+    try { await webPushToUsers(deps, orgId, userIds, event); } catch (err) { deps.reportError?.(err, { where: "web-push" }); }
+  }
   if (!deps.config.push.enabled || !userIds.length) return;
   const devices = await deps.db.select({ token: pushDevices.token }).from(pushDevices).where(and(eq(pushDevices.orgId, orgId), inIds(pushDevices.userId, [...new Set(userIds)])));
   if (!devices.length) return;

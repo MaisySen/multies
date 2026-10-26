@@ -18,7 +18,8 @@ export function attachCollab(server: Server, app: FetchApp, deps: Deps) {
   server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
     const docId = collabDocId(url.pathname);
-    if (!docId) { socket.destroy(); return; }
+    // R32: the live chat socket has its own upgrade handler (realtime/node.ts).
+    if (!docId) { if (url.pathname !== "/api/chat/live") socket.destroy(); return; }
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers)) if (typeof v === "string") headers.set(k, v);
     const request = new Request(url.toString(), { method: "GET", headers });

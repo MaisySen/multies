@@ -15,15 +15,14 @@ import { RateLimiter } from "../lib/rate-limit";
 import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
 import { connectionForMailbox, queueRemoteChange, type RemoteAction } from "../services/connect";
-import { localFolderFor, syncConnection } from "../services/connect/sync";
+import { syncConnection } from "../services/connect/sync";
 import { snoozeHiddenCond } from "../services/mail/schedules";
 import { checkDraftSave, ownedBy, replyTarget } from "../services/suite/thread-collab";
-import { inIds } from "../lib/sql-chunks";
 import { splitCond } from "../services/mail/splits";
 import { readStatusFor } from "../services/mail/read-status";
+import { BULK_MAIL_ACTIONS, BULK_MAIL_MAX, runBulkMail } from "../services/mail/bulk-r32";
+import { deferrableWrite } from "../services/write-priority";
 
-/** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
-const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash", spam: "spam", inbox: "inbox" };
 
 /** The provider side of a single message edit: read, star and folder moves. */
 function remoteActionsFor(patch: { isRead?: boolean; isStarred?: boolean; folder?: string }, m: { isRead: boolean; isStarred: boolean; folder: string }): RemoteAction[] {
@@ -100,8 +99,11 @@ export function mailRoutes() {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
       if (!m.isRead) {
-        await db.update(messages).set({ isRead: true }).where(and(eq(messages.threadId, m.threadId), eq(messages.mailboxId, m.mailboxId)));
-        await queueRemoteChange(c.var.deps, [m], "seen");
+        // R32: read because it was opened is deferrable (services/write-priority.ts); the Mark read action is not.
+        await deferrableWrite(c.var.deps, "mail_read_on_open", `${c.var.auth.userId}:${m.threadId}`, async () => {
+          await db.update(messages).set({ isRead: true }).where(and(eq(messages.threadId, m.threadId), eq(messages.mailboxId, m.mailboxId)));
+          await queueRemoteChange(c.var.deps, [m], "seen");
+        });
       }
       if (m.folder === "drafts") {
         const draft = presentMessage(m);
@@ -124,40 +126,18 @@ export function mailRoutes() {
       return c.json({ ok: true });
     })
     .post("/messages/bulk", async (c) => {
-      const { ids, action, to } = await parseBody(c, z.object({
-        ids: z.array(z.string()).min(1).max(500),
-        action: z.enum(["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash", "delete", "move"]),
+      const b = await parseBody(c, z.object({
+        ids: z.array(z.string()).min(1).max(BULK_MAIL_MAX),
+        action: z.enum(BULK_MAIL_ACTIONS),
         /** For "move": a connected mailbox's folder key ("f:<path>" for the person's own folders). Round 19. */
         to: z.string().min(1).max(520).optional(),
+        /** R32: for "snooze", when it comes back (same shapes as /mail-schedules/snooze). */
+        preset: z.enum(["later_today", "tomorrow", "next_week"]).optional(),
+        at: z.string().max(40).optional(),
+        local: z.string().max(20).optional(),
       }));
-      if (action === "move" && !to) throw badRequest("Say which folder to move to.");
-      const { db } = c.var.deps;
-      const scope = await mailboxScope(db, c.var.auth);
-      const rows = (await db.select().from(messages).where(and(eq(messages.orgId, c.var.auth.orgId), inIds(messages.id, ids))))
-        .filter((r) => !scope || scope.includes(r.mailboxId));
-      const own = rows.map((r) => r.id);
-      if (!own.length) return c.json({ updated: 0 });
-      const set: Partial<typeof messages.$inferInsert> = {
-        read: { isRead: true }, unread: { isRead: false }, star: { isStarred: true }, unstar: { isStarred: false },
-        archive: { folder: "archive" as const }, inbox: { folder: "inbox" as const }, spam: { folder: "spam" as const }, trash: { folder: "trash" as const }, delete: {}, move: {},
-      }[action];
-      if (action === "move") {
-        // Only synced mail of connected mailboxes moves to a provider folder; the rest stays put.
-        const movable = rows.filter((r) => r.remoteBox && r.remoteUid && r.folder !== "sent" && r.folder !== "drafts");
-        if (movable.length) await db.update(messages).set({ folder: localFolderFor(to!) }).where(inIds(messages.id, movable.map((r) => r.id)));
-        const queued = await queueChange(c, movable, "move", { dest: to });
-        if (!queued) {
-          // Put them back: the folder isn't one this mailbox syncs.
-          for (const r of movable) await db.update(messages).set({ folder: r.folder }).where(eq(messages.id, r.id));
-          throw badRequest("That folder isn't one of this mailbox's synced folders.");
-        }
-        return c.json({ updated: queued });
-      }
-      if (action === "delete") await deleteMessagesPermanently(db, rows);
-      else await db.update(messages).set(set).where(inIds(messages.id, own));
-      const remote = BULK_REMOTE[action];
-      if (remote) await queueChange(c, rows.filter((r) => r.folder !== "sent" && r.folder !== "drafts"), remote);
-      return c.json({ updated: own.length });
+      // R32: one service for the app, v1 and MCP (services/mail/bulk-r32.ts); the app also pushes moves at once.
+      return c.json(await runBulkMail(c.var.deps, c.var.auth, b, (rows, action, opts) => queueChange(c, rows, action, opts)));
     })
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;

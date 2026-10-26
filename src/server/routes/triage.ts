@@ -7,16 +7,19 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { parseAssignee } from "../services/suite/tasks";
+import { TRIAGE_ACTIONS, triageAction, type TriageActionInput } from "../services/suite/triage-r32";
 import { acceptTriage, bulkTriage, createTriageItem, declineTriage, getTriageItem, listTriage, mergeTriage, triageCount, BULK_LIMIT, type AcceptInput } from "../services/suite/triage";
 
 export const TriageQuery = z.object({
   projectId: z.string().max(64).optional(),
+  /** R32: pending (default, the queue) or snoozed. */
+  view: z.enum(["pending", "snoozed"]).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 export const TriageCreate = z.object({
   title: z.string().trim().min(1).max(300),
   notes: z.string().max(20_000).optional(),
-  source: z.enum(["mail", "form", "api", "chat"]).optional(),
+  source: z.enum(["mail", "form", "api", "chat", "agent"]).optional(),
   from: z.string().max(300).nullable().optional(),
   projectId: z.string().max(64).optional(),
 });
@@ -34,6 +37,15 @@ export const TriageDecline = z.object({
   message: z.string().max(5000).optional(),
 });
 export const TriageMerge = z.object({ targetId: z.string().min(1).max(64) });
+/** R32: one body for every action (the app, POST /api/v1/tasks/{id}/triage and MCP task_triage_action). */
+export const TriageActionBody = z.object({
+  action: z.enum(TRIAGE_ACTIONS),
+  accept: TriageAccept.optional(),
+  decline: TriageDecline.optional(),
+  until: z.string().max(40).optional(),
+  duplicateOf: z.string().max(64).optional(),
+});
+export const triageActionInput = (b: z.infer<typeof TriageActionBody>): TriageActionInput => ({ ...b, accept: b.accept ? acceptInput(b.accept) : undefined });
 export const TriageBulk = z.object({
   ids: z.array(z.string().min(1).max(64)).min(1).max(BULK_LIMIT),
   action: z.enum(["accept", "decline"]),
@@ -58,5 +70,6 @@ export function triageRoutes() {
     .get("/:id", async (c) => c.json({ item: await getTriageItem(c.var.deps, c.var.auth, c.req.param("id")) }))
     .post("/:id/accept", async (c) => c.json({ task: await acceptTriage(c.var.deps, c.var.auth, c.req.param("id"), acceptInput(await parseBody(c, TriageAccept))) }))
     .post("/:id/decline", async (c) => c.json(await declineTriage(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, TriageDecline))))
+    .post("/:id/action", async (c) => c.json(await triageAction(c.var.deps, c.var.auth, c.req.param("id"), triageActionInput(await parseBody(c, TriageActionBody)))))
     .post("/:id/merge", async (c) => c.json(await mergeTriage(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, TriageMerge)).targetId)));
 }

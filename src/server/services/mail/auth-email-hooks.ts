@@ -16,6 +16,7 @@ import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { sendMessage } from "./send";
 import { AUTH_EMAIL_TYPES, BrandingInputSchema, mergeBranding, parseBranding, renderAuthEmail, type BrandingInput } from "./auth-email-branding";
+import { deferrableWrite } from "../write-priority";
 
 type HookRow = typeof authEmailHooks.$inferSelect;
 
@@ -218,7 +219,7 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
     return fail(500, err instanceof Error ? err.message : "Sending failed.");
   }
   if (!h.h.lastUsedAt || deps.now().getTime() - h.h.lastUsedAt.getTime() > 15 * 60_000) {
-    await deps.db.update(authEmailHooks).set({ lastUsedAt: deps.now() }).where(eq(authEmailHooks.id, h.h.id));
+    await deferrableWrite(deps, "last_used", `hook:${h.h.id}`, () => deps.db.update(authEmailHooks).set({ lastUsedAt: deps.now() }).where(eq(authEmailHooks.id, h.h.id))); // R32: deferrable
   }
   return { status: 200, body: {} };
 }

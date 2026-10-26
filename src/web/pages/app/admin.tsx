@@ -9,6 +9,7 @@ import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Section } from "./settings";
 import { LOCALE } from "@/shared/locale";
+import { WriteBudgetMeter } from "./admin-write-budget"; // R32
 
 interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
@@ -46,6 +47,7 @@ export function AdminPage() {
           <Card key={k} className="p-4"><div className="text-xs text-muted">{k}</div><div className="mt-1 text-2xl font-semibold tabular-nums">{v}</div></Card>
         ))}
       </div>
+      <WriteBudgetMeter />
       <Section title="Integrations" description="What this deployment has keys for.">
         <ul className="flex flex-wrap gap-2">
           {Object.entries(integrations).map(([k, v]) => (

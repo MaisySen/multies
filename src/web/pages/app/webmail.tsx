@@ -28,6 +28,9 @@ import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, Snooze
 import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
 import { registerMailActions } from "@/web/lib/mail-actions"; // R31
 import type { ReadStatus } from "@/shared/mail-splits";
+import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
+import { Dialog } from "@/web/components/ui/dialog";
+import { bulkLabel, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -96,7 +99,7 @@ export function WebmailPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
   const listKey = ["mail", "list", mailboxId, folder, q, split];
   const act = useMutation({
-    mutationFn: ({ ids, action, to }: { ids: string[]; action: string; to?: string }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}) }),
+    mutationFn: ({ ids, action, to, preset }: { ids: string[]; action: string; to?: string; preset?: string; quiet?: boolean }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}), ...(preset ? { preset } : {}) }),
     // R30: optimistic. The list changes at once; a refusal puts it back and says why.
     onMutate: async ({ ids, action }) => {
       await qc.cancelQueries({ queryKey: listKey });
@@ -105,6 +108,7 @@ export function WebmailPage() {
       return { before };
     },
     onSuccess: (_r, v) => {
+      if (v.quiet) return; // R32: bulk actions show their own toast with Undo
       const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever", move: v.to ? `Moved to ${v.to.slice(2)}` : "Moved" };
       if (labels[v.action]) toast.success(labels[v.action]);
     },
@@ -113,8 +117,60 @@ export function WebmailPage() {
   });
 
   const open = (id: string | null) => setParam({ m: id });
+
+  // R32: multi-select. X toggles the open row, Shift+X or Shift+click selects a range, Cmd/Ctrl+A selects every
+  // visible row, Escape clears. E, H, # and U act on the whole selection; every action can be undone for 8 seconds.
+  const [sel, setSel] = useState<Selection>(emptySelection);
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<BulkCall | null>(null);
+  const rowIds = useMemo(() => items.map((m) => m.id), [items]);
+  const rowKey = rowIds.join(",");
+  useEffect(() => { setSel(emptySelection()); setSnoozeOpen(false); }, [mailboxId, folder, q, split]);
+  useEffect(() => { setSel((s) => prune(s, rowKey ? rowKey.split(",") : [])); }, [rowKey]);
+  useEffect(() => { setSelectionCount(sel.ids.length); }, [sel.ids.length]);
+  useEffect(() => () => setSelectionCount(0), []);
+  const lastUndo = useRef<{ plan: BulkCall[]; until: number } | null>(null);
+  const runUndo = useCallback(() => {
+    const u = lastUndo.current;
+    lastUndo.current = null;
+    if (!u || Date.now() > u.until) return false;
+    for (const c of u.plan) act.mutate({ ...c, quiet: true });
+    toast.success("Undone");
+    return true;
+  }, [act]);
+  const runBulk = (partial: Omit<BulkCall, "ids">, folderLabel?: string, confirmed = false) => {
+    const ids = sel.ids;
+    if (!ids.length) return;
+    const call: BulkCall = { ...partial, ids };
+    if (call.action === "delete" && !confirmed) { setConfirmDelete(call); return; }
+    const plan = undoPlan(call, items);
+    act.mutate({ ...call, quiet: true });
+    setSel(emptySelection());
+    if (selected && ids.includes(selected) && ["archive", "inbox", "spam", "trash", "delete", "move", "snooze"].includes(call.action) && call.action !== folder) open(null);
+    lastUndo.current = plan?.length ? { plan, until: Date.now() + UNDO_MS } : null;
+    toast.success(bulkLabel(call, folderLabel), plan?.length ? { duration: UNDO_MS, action: { label: "Undo", onClick: () => { runUndo(); } } } : undefined);
+  };
+  const toggleRow = (id: string, shift: boolean) => setSel((s) => (shift ? selectRange(s, id, rowIds) : toggleOne(s, id, rowIds)));
+  const latestSel = useRef({ sel, rowIds, current: null as MessageListItem | null, compose: !!compose, runUndo });
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const l = latestSel.current;
+      const t = e.target as HTMLElement | null;
+      if (l.compose || e.defaultPrevented || !t || t.closest?.("input, textarea, select, [contenteditable=true], [role=dialog], dialog")) return;
+      const mod = e.metaKey || e.ctrlKey;
+      const k = e.key.toLowerCase();
+      if (mod && !e.altKey && !e.shiftKey && k === "z") { if (l.runUndo()) e.preventDefault(); return; }
+      if (mod && !e.altKey && !e.shiftKey && k === "a" && l.rowIds.length) { e.preventDefault(); e.stopImmediatePropagation(); setSel(selectAll(l.rowIds)); return; }
+      if (!mod && !e.altKey && e.shiftKey && k === "x" && l.current) { e.preventDefault(); e.stopImmediatePropagation(); setSel((s) => selectRange(s, l.current!.id, l.rowIds)); return; }
+      if (e.key === "Escape" && l.sel.ids.length) { e.preventDefault(); e.stopImmediatePropagation(); setSel(emptySelection()); }
+    };
+    window.addEventListener("keydown", on, true);
+    return () => window.removeEventListener("keydown", on, true);
+  }, []);
   const idx = items.findIndex((i) => i.id === selected);
   const current = idx >= 0 ? items[idx] : null;
+  latestSel.current = { sel, rowIds, current, compose: !!compose, runUndo };
+  const hasSel = sel.ids.length > 0;
   const move = (action: string) => {
     if (!current) return;
     const next = items[idx + 1] ?? items[idx - 1];
@@ -155,22 +211,53 @@ export function WebmailPage() {
   }, [wantsCompose, composeParam, mailboxes, mailboxId, setParams]);
 
   // R31: mail keys come from the one command registry (lib/commands/modules/mail.ts); this page binds them.
-  useEffect(() => { setFocus("mail", selected); }, [selected]);
+  // R32: a selection counts as focus too, so E, H, # and U reach the page with no message open.
+  const focusId = selected ?? sel.ids[0] ?? null;
+  // R32: J, K and X typed quickly run before the page re-renders, so the open row is tracked here as well
+  // (otherwise "x j x" toggled the same row twice). The URL stays the source of truth once it catches up.
+  const cursor = useRef<string | null>(selected ?? null);
+  useEffect(() => { cursor.current = selected ?? null; }, [selected]);
+  const cursorId = () => (cursor.current && items.some((m) => m.id === cursor.current) ? cursor.current : selected ?? null);
+  const step = (by: 1 | -1) => {
+    const at = items.findIndex((m) => m.id === cursorId());
+    const next = items[Math.min(Math.max(at + by, 0), items.length - 1)];
+    if (!next) return;
+    cursor.current = next.id;
+    open(next.id);
+  };
+  useEffect(() => { setFocus("mail", focusId); }, [focusId]);
   useEffect(() => () => setFocus("mail", null), []);
   useCommandHandlers({
-    "mail-next": () => { if (!items.length) return false; open(items[Math.min(idx + 1, items.length - 1)].id); },
-    "mail-prev": () => { if (!items.length) return false; open(items[Math.max(idx - 1, 0)].id); },
+    "mail-next": () => { if (!items.length) return false; step(1); },
+    "mail-prev": () => { if (!items.length) return false; step(-1); },
     "mail-compose": () => { startCompose(); },
     "mail-search": () => { searchRef.current?.focus(); },
-    "mail-archive": () => { if (!current) return false; move("archive"); },
-    "mail-trash": () => { if (!current) return false; move("trash"); },
-    "mail-star": () => { if (!current) return false; act.mutate({ ids: [current.id], action: current.isStarred ? "unstar" : "star" }); },
+    "mail-archive": () => { if (hasSel) return runBulk({ action: folder === "archive" ? "inbox" : "archive" }); if (!current) return false; move("archive"); },
+    "mail-trash": () => { if (hasSel) return runBulk({ action: folder === "trash" ? "delete" : "trash" }); if (!current) return false; move("trash"); },
+    "mail-star": () => {
+      if (hasSel) { const all = sel.ids.every((id) => items.find((m) => m.id === id)?.isStarred); return runBulk({ action: all ? "unstar" : "star" }); }
+      if (!current) return false; act.mutate({ ids: [current.id], action: current.isStarred ? "unstar" : "star" });
+    },
+    "mail-snooze": () => { if (!hasSel) return false; setSnoozeOpen(true); },
+    "mail-select": () => { const id = cursorId(); if (!id) return false; toggleRow(id, false); },
+    "mail-select-all": () => { if (!rowIds.length) return false; setSel(selectAll(rowIds)); },
+    // Shift+X, Esc and Cmd/Ctrl+Z are read by the page's own key listener above; these bind the same ids by name.
+    "mail-select-range": () => { const id = cursorId(); if (!id) return false; toggleRow(id, true); },
+    "mail-select-clear-key": () => { if (!hasSel) return false; setSel(emptySelection()); },
+    "mail-undo": () => { if (!runUndo()) return false; },
+    "mail-bulk-archive": () => { if (!hasSel) return false; runBulk({ action: folder === "archive" ? "inbox" : "archive" }); },
+    "mail-bulk-snooze": () => { if (!hasSel) return false; setSnoozeOpen(true); },
+    "mail-bulk-read": () => { if (!hasSel) return false; runBulk({ action: "read" }); },
+    "mail-bulk-unread": () => { if (!hasSel) return false; runBulk({ action: "unread" }); },
+    "mail-bulk-trash": () => { if (!hasSel) return false; runBulk({ action: folder === "trash" ? "delete" : "trash" }); },
+    "mail-bulk-clear": () => { if (!hasSel) return false; setSel(emptySelection()); },
     "mail-read": () => {
+      if (hasSel) { const anyUnread = sel.ids.some((id) => items.find((m) => m.id === id)?.isRead === false); return runBulk({ action: anyUnread ? "read" : "unread" }); }
       if (!current) return false;
       act.mutate({ ids: [current.id], action: current.isRead ? "unread" : "read" });
       toast.success(current.isRead ? "Marked unread" : "Marked read");
     },
-    "mail-close": () => { if (!selected) return false; open(null); },
+    "mail-close": () => { if (hasSel) { setSel(emptySelection()); return; } if (!selected) return false; open(null); },
   }, !compose);
 
   // R31: Tab and Shift+Tab move between Inbox splits while focus is on the page or the message list
@@ -282,6 +369,8 @@ export function WebmailPage() {
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
+          {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
+            snoozeOpen={snoozeOpen} setSnoozeOpen={setSnoozeOpen} onAct={(c, label) => runBulk(c, label)} onSelectAll={() => setSel(selectAll(rowIds))} onClear={() => setSel(emptySelection())} />}
           {isScheduleView(folder) && !q ? <ScheduleListView view={folder} mailboxId={mailboxId} onOpen={open} onEdit={(it) => void editScheduled(it)} /> : <>
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
@@ -291,6 +380,7 @@ export function WebmailPage() {
             ) : (
               <ul>
                 {items.map((m) => <ListRow key={m.id} m={m} active={m.id === selected} folder={folder}
+                  checked={sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
                   onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })} />)}
               </ul>
@@ -316,6 +406,11 @@ export function WebmailPage() {
       </section>
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
+      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={confirmDelete ? `Delete ${confirmDelete.ids.length === 1 ? "1 conversation" : `${confirmDelete.ids.length} conversations`} forever?` : ""}
+        description="They leave Trash for good. This can't be undone."
+        footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>Delete forever</Button></>}>
+        <span className="sr-only">Confirm</span>
+      </Dialog>
       {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} />}
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
     </div>
@@ -327,11 +422,12 @@ export function WebmailPage() {
   }
 }
 
-function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void }) {
+function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onCheck }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
-    <li className={cn("group relative border-b border-line", active ? "bg-brand-soft/60" : "hover:bg-hover")}>
-      <button onClick={onOpen} className="block w-full px-4 py-3 pr-10 text-left" aria-current={active || undefined}>
+    <li className={cn("group relative border-b border-line", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row">
+      <RowCheck checked={checked} visible={selecting} label={`Select ${m.subject || "(no subject)"}`} onToggle={onCheck} />
+      <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}>
         <div className="flex items-baseline gap-2">
           {!m.isRead && <span className="h-2 w-2 shrink-0 translate-y-[-1px] rounded-full bg-brand" aria-label="Unread" />}
           <span className={cn("min-w-0 flex-1 truncate text-[13.5px]", m.isRead ? "text-fg/75" : "font-semibold text-fg")}>{who}</span>

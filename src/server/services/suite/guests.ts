@@ -16,6 +16,7 @@ import { randomToken, sha256Hex } from "../../lib/crypto";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
 import { addComment, getProject, listComments, listTasks, resolveTaskId, type Task } from "./tasks";
 import { listFields } from "./fields";
+import { deferrableWrite } from "../write-priority";
 
 const INVITE_DAYS = 14;
 export const GUEST_COOKIE = "mm_guest";
@@ -143,7 +144,7 @@ export async function resolveGuest(deps: Deps, cookie: string | undefined): Prom
   const g = await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get();
   if (!g || g.status !== "active" || !g.sessionHash || g.sessionHash !== await sha256Hex(secret)) return null;
   const now = deps.now();
-  if (!g.lastSeenAt || now.getTime() - g.lastSeenAt.getTime() > 3_600_000) await deps.db.update(projectGuests).set({ lastSeenAt: now }).where(eq(projectGuests.id, g.id));
+  if (!g.lastSeenAt || now.getTime() - g.lastSeenAt.getTime() > 3_600_000) await deferrableWrite(deps, "last_seen", `guest:${g.id}`, () => deps.db.update(projectGuests).set({ lastSeenAt: now }).where(eq(projectGuests.id, g.id))); // R32: deferrable
   return { guest: g, actor: { orgId: g.orgId, userId: "", email: g.email, name: `${g.name || g.email} (guest)`, role: "member" } };
 }
 

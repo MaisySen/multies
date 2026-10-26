@@ -11,7 +11,8 @@ your shell, never write them into the repo.
 ## Before you start
 
 - [ ] `main` has every commit you mean to ship, and the checks in [../sdlc.md](../sdlc.md) pass on it.
-- [ ] A schema change has a backward compatible migration (`npm run db:generate`).
+- [ ] A schema change has a backward compatible migration (`npm run db:generate`). After merging branches that each add one, keep `drizzle/meta/_journal.json` in number order and rerun `npx tsx scripts/bundle-migrations.ts`.
+- [ ] D1 writes: check `writes.level` on `/api/health` is `ok` before a migration that rebuilds indexes ([d1-daily-limits.md](d1-daily-limits.md)).
 - [ ] New environment variables are in `.env.example` and `wrangler.toml`, or set with `wrangler secret put` for staging and production.
 - [ ] A production migration: take a manual D1 export first, except in Sydney business hours (21:00 to 07:00 UTC), when no export runs on production; then record the Time Travel bookmark (`npx wrangler d1 time-travel info mymail-au`) in the deploy log instead ([db-backup-restore.md](db-backup-restore.md)).
 - [ ] Email worker: deploy `email-worker/` only from a checkout whose `MYMAIL_ROUTES` carries the current inbound key ids. An old key id makes support@ and security@ bounce. After any email worker deploy or key rotation, send a test mail to security@multies.si and check that it arrives.
@@ -28,6 +29,8 @@ export RELEASE=$(git rev-parse --short=12 HEAD)
 RELEASE=$RELEASE npm run build:web
 RELEASE=$RELEASE npm run build:worker
 ```
+
+Then run the local E2E smoke against this build (`npx playwright test e2e/smoke.spec.ts` plus the specs for what changed). Type checks and unit tests do not load the bundled chunks: in R32 a new editor dependency (`fast-equals`) landed outside the `vendor-editor` chunk in `vite.config.ts`, the two chunks imported each other, and the docs editor failed on load ("reading 'create'") while tsc and vitest were green. A new dependency of the editor, chart or calendar code goes in the matching vendor regex.
 
 `RELEASE` is the 12 character release id that `/api/health`, `/api/config` and Sentry report. It is
 normally the commit's short hash; if you use another id, write down the commit it maps to.

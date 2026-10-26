@@ -291,7 +291,8 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // R21: new mail and form tasks for this project wait in Triage.
-  const [triage, setTriage] = useState(!!(project as (Project & { triage?: boolean }) | null)?.triage);
+  // R32: on by default for a new project (existing projects keep what they have).
+  const [triage, setTriage] = useState(project ? !!(project as Project & { triage?: boolean }).triage : true);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
   const save = async () => {

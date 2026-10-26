@@ -59,6 +59,8 @@ export interface AppConfig {
   sentry: { dsnApi?: string; dsnWeb?: string; environment: string; tracesSampleRate: number };
   /** Release id (the git commit) reported to Sentry and in logs and /api/health. */
   release: string;
+  /** R32: when it equals release, open tabs reload on the next page change (web update prompt). */
+  criticalRelease?: string;
   /**
    * R29b: the mobile app's remote config (GET /api/v1/app-config). `configToken` (APP_CONFIG_TOKEN) lets the
    * release scripts change it (PUT); `sentryDsn` is where phones send update health reports
@@ -80,10 +82,11 @@ export interface AppConfig {
   /**
    * The account wide D1 daily write budget (services/write-budget.ts). Read from Cloudflare analytics
    * with CF_ANALYTICS_TOKEN (read only) and CF_ACCOUNT_ID; without both the guard is off.
-   * D1_DAILY_WRITE_BUDGET (default 100000), WRITE_BUDGET_WARN_PCT (60), WRITE_BUDGET_SHED_PCT (80).
+   * D1_DAILY_WRITE_BUDGET (default 100000), WRITE_BUDGET_WARN_PCT (60), WRITE_BUDGET_SHED_PCT (85, R32).
    * `strict` (WRITE_BUDGET_GUARD=strict, staging) refuses API writes from the warn level on.
+   * `alertTo` (OPS_ALERT_EMAIL, default security@ the support domain; "off" for none) gets the 60% and 85% mail.
    */
-  writeBudget: { token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean };
+  writeBudget: { token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean; alertTo?: string };
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -116,6 +119,8 @@ export interface AppConfig {
   operatorInbox: { orgId: string | null; domain: string | null; addresses: string[] };
   /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
   push: { enabled: boolean; expoAccessToken?: string };
+  /** R32: web push to browsers (VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY, VAPID_SUBJECT). Off when either key is missing. */
+  webPush?: { publicKey: string; privateKey: string; subject: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
   bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
@@ -219,11 +224,15 @@ const EnvSchema = z.object({
   WRITE_BUDGET_WARN_PCT: z.string().optional(),
   WRITE_BUDGET_SHED_PCT: z.string().optional(),
   WRITE_BUDGET_GUARD: z.string().optional(),
+  OPS_ALERT_EMAIL: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_PRO: z.string().optional(),
   PUSH_ENABLED: z.string().optional(),
   EXPO_ACCESS_TOKEN: z.string().optional(),
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().optional(),
   STRIPE_PRICE_BUSINESS: z.string().optional(),
   SYSTEM_FROM_NAME: z.string().optional(),
   STALWART_URL: z.string().url().optional(),
@@ -234,6 +243,8 @@ const EnvSchema = z.object({
   MAIL_SMTP_PORT: z.string().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.string().optional(),
   RELEASE: z.string().optional(),
+  /** R32: set to the RELEASE id when that release must reload open tabs (the web update prompt). */
+  CRITICAL_RELEASE: z.string().optional(),
   CF_BEACON_TOKEN: z.string().optional(),
   SENTRY_RELEASE: z.string().optional(),
   APP_CONFIG_TOKEN: z.string().min(32, "APP_CONFIG_TOKEN must be at least 32 characters").optional(),
@@ -378,6 +389,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       tracesSampleRate: clampRate(env.SENTRY_TRACES_SAMPLE_RATE, 0.1),
     },
     release: env.RELEASE ?? env.SENTRY_RELEASE ?? "dev",
+    criticalRelease: env.CRITICAL_RELEASE?.trim() || undefined, // R32
     mobileApp: { configToken: env.APP_CONFIG_TOKEN?.trim() || undefined, sentryDsn: env.SENTRY_DSN_MOBILE || env.SENTRY_DSN_WEB || undefined },
     securityContact: env.SECURITY_CONTACT ?? `mailto:security@${hostOf(env.APP_URL ?? "http://localhost")}`,
     monitorUrls: csv(env.MONITOR_URLS).filter((u) => /^https?:\/\//.test(u)),
@@ -390,8 +402,9 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       accountId: env.CF_ACCOUNT_ID?.trim() || undefined,
       daily: Math.max(1000, Number.parseInt(env.D1_DAILY_WRITE_BUDGET ?? "100000", 10) || 100_000),
       warnAt: pct(env.WRITE_BUDGET_WARN_PCT, 60),
-      shedAt: pct(env.WRITE_BUDGET_SHED_PCT, 80),
+      shedAt: pct(env.WRITE_BUDGET_SHED_PCT, 85),
       strict: env.WRITE_BUDGET_GUARD === "strict",
+      alertTo: env.OPS_ALERT_EMAIL?.trim() === "off" ? undefined : env.OPS_ALERT_EMAIL?.trim() || `security@${(env.SUPPORT_EMAIL?.trim() || "support@multies.si").split("@")[1]}`,
     },
     billing: {
       // Only the secret key is required. Prices are found by lookup key (and created in
@@ -419,6 +432,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dailyClaims: Number(env.FREE_MAIL_DAILY_CLAIMS ?? 300),
     },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
+    ...(env.VAPID_PUBLIC_KEY?.trim() && env.VAPID_PRIVATE_KEY?.trim()
+      ? { webPush: { publicKey: env.VAPID_PUBLIC_KEY.trim(), privateKey: env.VAPID_PRIVATE_KEY.trim(), subject: env.VAPID_SUBJECT?.trim() || "mailto:security@multies.si" } } : {}),
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
     mailConnect: (() => {
       const on = (v: string | undefined) => v === "1" || v === "true" || v === "on";

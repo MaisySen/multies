@@ -17,6 +17,7 @@ import { groupByDay, moveOut, nextFocus, pickedDateIso, SNOOZE_LABELS, TRIAGE_VI
 import { Button } from "@/web/components/ui/button";
 import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
+import { BrowserNotifications } from "@/web/components/browser-notifications-r32"; // R32: web push
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -257,6 +258,7 @@ export function NotificationSettings() {
   return (
     <div className="space-y-4">
       <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open.</p></div>
+      <BrowserNotifications />
       {q.isPending ? <Skeleton className="h-64" /> : (
         <Card className="p-0">
           <table className="w-full text-[13.5px]" data-testid="notification-settings">

@@ -13,6 +13,7 @@ import { AnalyticsBeacon } from "./components/analytics-beacon";
 import "./index.css";
 import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
 import { authProvidersQuery, isAuthLayoutPath } from "./lib/auth-providers";
+import { registerServiceWorker } from "./lib/sw-client";
 
 // R25: start the opened page's code now, beside the app frame, instead of after the frame has loaded,
 // and warm a page's code when a link to it is hovered, touched or focused.
@@ -22,6 +23,9 @@ prefetchOnIntent();
 // After first paint, so error tracking never delays the page.
 if ("requestIdleCallback" in window) requestIdleCallback(() => void startSentry(), { timeout: 3000 });
 else setTimeout(() => void startSentry(), 1500);
+
+// R32: offline app shell and browser notifications (production builds only; see lib/sw-client.ts).
+registerServiceWorker({ navigate: (url) => void router.navigate(url) });
 
 // Per-page title, description and social tags, on first load and every navigation.
 applyMeta(window.location.pathname);

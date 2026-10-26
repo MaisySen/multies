@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
+import { chatPollMs, useLiveChat } from "@/web/lib/live-chat"; // R32
+import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
@@ -175,7 +177,7 @@ const toBase64 = (file: File) => new Promise<string>((resolve, reject) => {
 });
 
 /** The box people type in: "@" opens a picker; names become mention tokens on send, task refs become links. */
-function Composer({ people, placeholder, onSend, testId }: { people: Person[]; placeholder: string; onSend: (body: string, files: File[]) => Promise<void>; testId?: string }) {
+function Composer({ people, placeholder, onSend, testId, onType }: { people: Person[]; placeholder: string; onSend: (body: string, files: File[]) => Promise<void>; testId?: string; onType?: () => void }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [picked, setPicked] = useState<Person[]>([]);
@@ -207,7 +209,7 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
       {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></span>)}</div>}
       <div className="flex items-end gap-2">
         <label className="sr-only" htmlFor={`${testId ?? "composer"}-input`}>Message</label>
-        <textarea id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => setText(e.target.value)} rows={1} placeholder={placeholder}
+        <textarea id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); }} rows={1} placeholder={placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
           className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
         <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => setFiles((l) => [...l, ...Array.from(e.target.files ?? [])].slice(0, 5))} />
@@ -228,18 +230,20 @@ export function ChatPage() {
   const me = useMe();
   const myId = me.data?.user.id;
   const [creating, setCreating] = useState<"channel" | "dm" | null>(null);
-  const channels = useQuery({ queryKey: ["chat", "channels"], refetchInterval: 15_000, queryFn: async () => (await api.get<{ channels: ChatChannel[] }>("/chat/channels")).channels });
+  // R32: live chat over a socket; while it is open the polls below slow to a 60 second safety net.
+  const live = useLiveChat(myId);
+  const channels = useQuery({ queryKey: ["chat", "channels"], refetchInterval: chatPollMs(live.live, 15_000), queryFn: async () => (await api.get<{ channels: ChatChannel[] }>("/chat/channels")).channels });
   const people = useQuery({ queryKey: ["chat", "people"], staleTime: 120_000, queryFn: async () => (await api.get<{ people: Person[] }>("/chat/people")).people });
   const list = channels.data ?? [];
   const current = list.find((c) => c.id === channelId) ?? (channelId ? undefined : list.find((c) => c.name === "general") ?? list[0]);
   useEffect(() => { if (!channelId && current) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate]);
   const visible = typeof document === "undefined" || document.visibilityState === "visible";
   const messages = useQuery({
-    queryKey: ["chat", "messages", current?.id], enabled: !!current, refetchInterval: visible ? 4000 : false,
+    queryKey: ["chat", "messages", current?.id], enabled: !!current, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
     queryFn: async () => (await api.get<{ messages: ChatMessage[] }>(`/chat/channels/${current!.id}/messages?limit=100`)).messages,
   });
   const thread = useQuery({
-    queryKey: ["chat", "thread", threadId], enabled: !!threadId, refetchInterval: visible ? 4000 : false,
+    queryKey: ["chat", "thread", threadId], enabled: !!threadId, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
     queryFn: () => api.get<{ message: ChatMessage; replies: ChatMessage[] }>(`/chat/messages/${threadId}/thread`),
   });
   const pins = useQuery({
@@ -361,7 +365,8 @@ export function ChatPage() {
               ) : <ul>{messages.data.map((m) => row(m))}</ul>}
               <div ref={bottom} />
             </div>
-            <Composer testId="chat-composer" people={people.data ?? []} placeholder={current.kind === "channel" ? `Message #${current.name}` : `Message ${current.name}`} onSend={send()} />
+            <ChatLiveLine store={live.typing} channelId={current.id} degraded={live.degraded} />
+            <Composer testId="chat-composer" people={people.data ?? []} placeholder={current.kind === "channel" ? `Message #${current.name}` : `Message ${current.name}`} onSend={send()} onType={() => live.onType(current.id)} />
           </>
         ) : !channels.isPending && <EmptyState icon={<MessageSquare />} title="Pick a channel" body="Choose a channel or start a direct message." className="m-auto" />}
       </section>
@@ -374,7 +379,7 @@ export function ChatPage() {
           <div className="flex-1 overflow-y-auto px-2 py-2">
             {thread.data ? <ul>{row(thread.data.message, true)}<li className="my-2 border-t border-line" aria-hidden />{thread.data.replies.map((m) => row(m, true))}</ul> : <Skeleton className="h-24" />}
           </div>
-          {current && <Composer testId="thread-composer" people={people.data ?? []} placeholder="Reply in thread" onSend={send(threadId)} />}
+          {current && <Composer testId="thread-composer" people={people.data ?? []} placeholder="Reply in thread" onSend={send(threadId)} onType={() => live.onType(current.id)} />}
         </aside>
       )}
       <NewChannel open={creating === "channel"} onClose={() => setCreating(null)} onMade={(id) => { setCreating(null); void qc.invalidateQueries({ queryKey: ["chat", "channels"] }); navigate(`/app/chat/${id}`); }} />

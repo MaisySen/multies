@@ -6,16 +6,17 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { CheckSquare, Calendar, Code2, Heading1, Heading2, Heading3, Link2, List, ListOrdered, Minus, Quote, Type } from "lucide-react";
+import { CheckSquare, Calendar, CircleCheck, Code2, Heading1, Heading2, Heading3, Image as ImageIcon, Info, Link2, List, ListOrdered, Minus, OctagonAlert, Quote, Table, TriangleAlert, Type } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 import { filterSlash, groupSlash, moveSel, slashQuery, todayText, type SlashItem } from "@/web/lib/slash-commands";
 
-const ICONS: Record<string, typeof Type> = { text: Type, h1: Heading1, h2: Heading2, h3: Heading3, quote: Quote, code: Code2, divider: Minus, bullets: List, numbers: ListOrdered, todo: CheckSquare, link: Link2, date: Calendar };
+const ICONS: Record<string, typeof Type> = { text: Type, h1: Heading1, h2: Heading2, h3: Heading3, quote: Quote, code: Code2, divider: Minus, bullets: List, numbers: ListOrdered, todo: CheckSquare, link: Link2, date: Calendar,
+  table: Table, image: ImageIcon, callout: Info, "callout-success": CircleCheck, "callout-warning": TriangleAlert, "callout-danger": OctagonAlert };
 
 interface MenuState { from: number; to: number; query: string; left: number; top: number }
 
 /** Runs a picked item: removes the "/query" text, then applies the block. */
-export function runSlashItem(editor: Editor, item: SlashItem, range: { from: number; to: number }, openLinkPicker?: () => void) {
+export function runSlashItem(editor: Editor, item: SlashItem, range: { from: number; to: number }, openLinkPicker?: () => void, openImage?: () => void) {
   const chain = editor.chain().focus().deleteRange(range);
   const a = item.action;
   switch (a.kind) {
@@ -29,10 +30,14 @@ export function runSlashItem(editor: Editor, item: SlashItem, range: { from: num
     case "horizontalRule": chain.setHorizontalRule().run(); break;
     case "date": chain.insertContent(`${todayText()} `).run(); break;
     case "linkPicker": chain.run(); openLinkPicker?.(); break;
+    // R32
+    case "table": chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break;
+    case "image": chain.run(); openImage?.(); break;
+    case "callout": chain.setCallout(a.variant).run(); break;
   }
 }
 
-export function SlashMenu({ editor, onLinkPicker }: { editor: Editor | null; onLinkPicker?: () => void }) {
+export function SlashMenu({ editor, onLinkPicker, onImage }: { editor: Editor | null; onLinkPicker?: () => void; onImage?: () => void }) {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [sel, setSel] = useState(0);
   const dismissedAt = useRef<number | null>(null);
@@ -49,8 +54,8 @@ export function SlashMenu({ editor, onLinkPicker }: { editor: Editor | null; onL
     const m = menuRef.current;
     if (!editor || !m || !item) return;
     close();
-    runSlashItem(editor, item, { from: m.from, to: m.to }, onLinkPicker);
-  }, [editor, close, onLinkPicker]);
+    runSlashItem(editor, item, { from: m.from, to: m.to }, onLinkPicker, onImage);
+  }, [editor, close, onLinkPicker, onImage]);
 
   useEffect(() => {
     if (!editor) return;

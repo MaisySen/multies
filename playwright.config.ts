@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { generateKeyPairSync } from "node:crypto";
 
 // Ports can move (E2E_PORT, E2E_IDP_PORT) so two checkouts can run their suites side by side.
 const PORT = process.env.E2E_PORT ?? "8788";
@@ -17,6 +18,14 @@ if (remote) {
   }
 }
 
+// R32: a throwaway VAPID pair for each local run, so browser notifications are switched on in E2E without a
+// key in the repo or on a command line. It signs nothing that leaves this machine.
+function e2eVapid(): Record<string, string> {
+  const jwk = generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({ format: "jwk" });
+  const pub = Buffer.concat([Buffer.from([4]), Buffer.from(jwk.x!, "base64url"), Buffer.from(jwk.y!, "base64url")]).toString("base64url");
+  return { VAPID_PUBLIC_KEY: pub, VAPID_PRIVATE_KEY: jwk.d!, VAPID_SUBJECT: "mailto:security@multies.si" };
+}
+
 export default defineConfig({
   testDir: "e2e",
   timeout: 30_000,
@@ -25,6 +34,7 @@ export default defineConfig({
     {
       command: `rm -rf .data/e2e.db .data/e2e-outbox && PORT=${PORT} DATABASE_PATH=.data/e2e.db OUTBOX_DIR=.data/e2e-outbox DEMO_MODE=true SCHEDULING_ENABLED=true TRUST_PROXY=true AI_FAKE=1 CALLS_TEST_HOOK=true APP_URL=http://localhost:${PORT} npx tsx src/entry/node.ts`,
       url: `http://localhost:${PORT}/api/health`,
+      env: { ...(process.env as Record<string, string>), ...e2eVapid() },
       reuseExistingServer: false,
     },
     {

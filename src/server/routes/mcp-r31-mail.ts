@@ -23,7 +23,7 @@ export function registerMailR31Tools(server: McpServer, deps: Deps, actor: Scope
 
   server.registerTool("mail_split_list", {
     title: "List Inbox splits", annotations: { readOnlyHint: true, openWorldHint: false },
-    description: "Your Inbox tabs: Important (mail from people), Other (newsletters, notifications, receipts), then your own splits, each with its unread count, plus each split's rules. Pass a tab id as split to list_threads.",
+    description: "Your Inbox tabs: Important (mail from people, including verified first time senders), Other (newsletters, notifications, receipts), then your own splits, each with its unread count, plus each split's rules. Pass a tab id as split to list_threads.",
     inputSchema: { mailboxId: z.string().max(64).optional() },
   }, tool(async (x: { mailboxId?: string }) => ({ splits: await listSplits(deps, a), tabs: await splitTabs(deps, a, { mailboxId: x.mailboxId, scope: await scope() }) })) as never);
 

@@ -13,6 +13,7 @@ import { api } from "@/web/lib/api";
 import { closeCallDock, useCallDock } from "./call-r23";
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
 import { useCallNotesDoc } from "./call-panel-r31";
+import { DockSoFar, LobbyRequests } from "./lobby-r32";
 import { roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
 
@@ -57,9 +58,10 @@ export function CallDock() {
   const me = useMe();
   const docId = useCallNotesDoc(prefs ? call?.meetingId : undefined, true);
   const drag = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Round 32: the token is asked for after pre-join, so a name changed for this call reaches the room.
   const join = useQuery({
-    queryKey: ["call-dock", call?.meetingId], enabled: !!call, retry: false, staleTime: Infinity, gcTime: 0,
-    queryFn: () => api.post<Join>(`/meetings/${call!.meetingId}/join`, {}),
+    queryKey: ["call-dock", call?.meetingId, prefs?.name ?? ""], enabled: !!call && !!prefs, retry: false, staleTime: Infinity, gcTime: 0,
+    queryFn: () => api.post<Join>(`/meetings/${call!.meetingId}/join`, prefs?.name ? { name: prefs.name } : {}),
   });
   if (!call) return null;
   const leave = () => { closeCallDock(); };
@@ -76,6 +78,7 @@ export function CallDock() {
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">{call.title}</h2>
+        {prefs && <DockSoFar meetingId={call.meetingId} />}
         {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><NotebookPen className="h-3.5 w-3.5" aria-hidden />Notes</button>}
         <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><Maximize2 className="h-3.5 w-3.5" aria-hidden />Expand</button>
         <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><PhoneOff className="h-3.5 w-3.5" aria-hidden />Leave</button>
@@ -87,6 +90,7 @@ export function CallDock() {
           <LiveKitRoom serverUrl={join.data.url} token={join.data.token} connect {...roomMedia(prefs)} onDisconnected={leave} style={{ height: "100%" }}>
             <VideoConference />
             <CallRoomExtras meetingId={call.meetingId} />
+            <LobbyRequests meetingId={call.meetingId} className="absolute right-2 top-2 z-30 w-64" />
           </LiveKitRoom>
         ) : (
           <p className="p-4 text-[13px] text-muted">{join.error ? (join.error as Error).message : "Connecting"}</p>

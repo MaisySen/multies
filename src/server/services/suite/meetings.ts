@@ -12,6 +12,7 @@ import { randomToken, toB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
 import { link, resolveTaskId } from "./tasks";
+import { admittedGuest, cleanGuestName } from "./meeting-lobby-r32";
 import { vtimezone } from "./vtimezone";
 import { assertZone, describeRecurrence, expandWeekly, normaliseRecurrence, parseRrule, toRrule, weekdayIn, type Recurrence, type RecurrenceInput } from "./meeting-recurrence";
 
@@ -48,6 +49,8 @@ function present(m: MeetingRow, origin: string, enabled: boolean) {
     /** Round 23: the chat channel or DM a call started from, and the agenda and notes doc. */
     channelId: m.channelId ?? null,
     docId: m.docId ?? null,
+    /** Round 32: guests from the link wait until a member lets them in. */
+    guestsWait: m.guestLobby,
   };
 }
 export type Meeting = ReturnType<typeof present>;
@@ -313,11 +316,11 @@ export async function livekitToken(deps: Deps, room: string, who: { identity: st
 }
 
 /** A workspace member (or agent key) joining: their own name, host rights. */
-export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string) {
+export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opts: { name?: string } = {}) {
   const m = await meetingRow(deps, actor.orgId, id);
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
   const identity = actor.agentId ? `agent-${actor.agentId}` : `member-${actor.userId}`;
-  return { meeting: out(deps, m), ...(await livekitToken(deps, m.room, { identity, name: actor.name || actor.email || "Host", host: true })) };
+  return { meeting: out(deps, m), ...(await livekitToken(deps, m.room, { identity, name: cleanGuestName(opts.name) || actor.name || actor.email || "Host", host: true })) };
 }
 
 async function guestRow(deps: Deps, token: string) {
@@ -330,13 +333,15 @@ async function guestRow(deps: Deps, token: string) {
 export async function guestInfo(deps: Deps, token: string) {
   const m = await guestRow(deps, token);
   const org = await deps.db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, m.orgId)).get();
-  return { title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: m.status, host: org?.name ?? "", videoEnabled: meetingsEnabled(deps) };
+  return { title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: m.status, host: org?.name ?? "", videoEnabled: meetingsEnabled(deps), guestsWait: m.guestLobby };
 }
 
-export async function guestJoin(deps: Deps, token: string, name: string) {
+export async function guestJoin(deps: Deps, token: string, name: string, lobbyId?: string) {
   const m = await guestRow(deps, token);
   if (m.status !== "scheduled") throw new HttpError(409, m.status === "cancelled" ? "meeting_cancelled" : "meeting_ended", m.status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended.");
-  const clean = name.trim().slice(0, 60);
+  // Round 32: with the waiting room on, only an admitted request gets a token, under the name it asked with.
+  const admitted = deps.config.meetings ? await admittedGuest(deps, m, lobbyId) : null;
+  const clean = admitted ?? name.trim().slice(0, 60);
   if (!clean) throw new HttpError(422, "validation_failed", "Tell the others your name.");
   return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false })) };
 }

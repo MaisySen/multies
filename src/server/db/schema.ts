@@ -295,7 +295,7 @@ export const messages = sqliteTable("messages", {
   index("messages_org_folder_date_idx").on(t.orgId, t.folder, t.date),
   // Dedupe by Message-ID (connected mailbox sync, imports) and thread lookups by In-Reply-To.
   index("messages_mailbox_msgid_idx").on(t.mailboxId, t.messageIdHeader),
-  index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader),
+  index("messages_mailbox_provider_msgid_idx").on(t.mailboxId, t.providerMessageIdHeader).where(sql`${t.providerMessageIdHeader} IS NOT NULL`),
 ]);
 
 export const attachments = sqliteTable("attachments", {
@@ -325,7 +325,7 @@ export const deliveries = sqliteTable("deliveries", {
   providerMessageId: text("provider_message_id"),
   detail: text("detail"),
   createdAt: createdAt(),
-}, (t) => [index("deliveries_org_idx").on(t.orgId, t.createdAt), index("deliveries_provider_msg_idx").on(t.providerMessageId)]);
+}, (t) => [index("deliveries_org_idx").on(t.orgId, t.createdAt), index("deliveries_provider_msg_idx").on(t.providerMessageId).where(sql`${t.providerMessageId} IS NOT NULL`)]);
 
 /** Signing keys the Cloudflare Email Worker uses to deliver inbound mail. */
 export const inboundKeys = sqliteTable("inbound_keys", {
@@ -840,14 +840,19 @@ export const tasks = sqliteTable("tasks", {
   /** R21: "pending" while the task waits in Triage (hidden from lists); null for normal tasks. */
   triageState: text("triage_state", { enum: ["pending"] }),
   /** R21: where a triage item came from: mail, form, api or chat. */
-  triageSource: text("triage_source", { enum: ["mail", "form", "api", "chat"] }),
+  triageSource: text("triage_source", { enum: ["mail", "form", "api", "chat", "agent"] }),
+  /** R32 (0069): a pending item snoozed until this time is out of the queue and its count until then. */
+  triageSnoozedUntil: ts("triage_snoozed_until"),
+  /** R32 (0069): why a Triage item was declined, and the task it was marked a duplicate of. */
+  triageReason: text("triage_reason"),
+  duplicateOf: text("duplicate_of"),
   ...suiteCols(),
 }, (t) => [
   // R25 (0052): replaces tasks_org_project_idx with the same leading columns plus three, so counts read the index only.
   index("tasks_org_project_cover_idx").on(t.orgId, t.projectId, t.statusId, t.position, t.status, t.deletedAt, t.triageState),
-  index("tasks_org_thread_idx").on(t.orgId, t.threadId),
-  index("tasks_org_due_idx").on(t.orgId, t.dueAt),
-  index("tasks_parent_idx").on(t.parentId),
+  index("tasks_org_thread_idx").on(t.orgId, t.threadId).where(sql`${t.threadId} IS NOT NULL`),
+  index("tasks_org_due_idx").on(t.orgId, t.dueAt).where(sql`${t.dueAt} IS NOT NULL`), // R32 (0072): partial
+  index("tasks_parent_idx").on(t.parentId).where(sql`${t.parentId} IS NOT NULL`),
   uniqueIndex("tasks_project_number_uq").on(t.projectId, t.number),
   uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
   index("tasks_sprint_idx").on(t.sprintId).where(sql`${t.sprintId} IS NOT NULL`),
@@ -919,7 +924,7 @@ export const contacts = sqliteTable("contacts", {
   firstContactAt: ts("first_contact_at"),
   lastContactAt: ts("last_contact_at"),
   ...suiteCols(),
-}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_company_idx").on(t.companyId)]);
+}, (t) => [uniqueIndex("contacts_org_email_uq").on(t.orgId, t.email), index("contacts_org_last_idx").on(t.orgId, t.lastContactAt), index("contacts_company_idx").on(t.companyId).where(sql`${t.companyId} IS NOT NULL`)]);
 
 /** A simple sales pipeline. Values are in cents, AUD. */
 export const deals = sqliteTable("deals", {
@@ -1026,6 +1031,20 @@ export const pushDevices = sqliteTable("push_devices", {
   lastSeenAt: ts("last_seen_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("push_devices_org_idx").on(t.orgId), index("push_devices_user_idx").on(t.userId)]);
 
+/** R32: browsers subscribed to web push (VAPID). The endpoint is the browser's push service address. */
+export const webPushSubscriptions = sqliteTable("web_push_subscriptions", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),
+  auth: text("auth").notNull(),
+  userAgent: text("user_agent"),
+  createdAt: createdAt(),
+  lastOkAt: ts("last_ok_at"),
+  failures: integer("failures").notNull().default(0),
+}, (t) => [index("web_push_subscriptions_user_idx").on(t.userId)]);
+
 
 // ---------------------------------------------------------------- suite round 7: time, forms, meetings
 
@@ -1117,8 +1136,23 @@ export const meetings = sqliteTable("meetings", {
   channelId: text("channel_id"),
   /** Round 23: the meeting's agenda and notes doc. */
   docId: text("doc_id"),
+  /** Round 32: "Guests wait to be let in" (the waiting room). On by default. */
+  guestLobby: integer("guest_lobby", { mode: "boolean" }).notNull().default(true),
   ...suiteCols(),
 }, (t) => [index("meetings_org_idx").on(t.orgId, t.startsAt), uniqueIndex("meetings_guest_token_uq").on(t.guestToken), index("meetings_source_idx").on(t.orgId, t.sourceType, t.sourceId)]);
+
+/** Round 32: a guest asking to join a meeting from its link, waiting for a member to admit or deny them. */
+export const meetingLobby = sqliteTable("meeting_lobby", {
+  id: text("id").primaryKey(),
+  meetingId: text("meeting_id").notNull().references(() => meetings.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  guestName: text("guest_name").notNull(),
+  status: text("status", { enum: ["pending", "admitted", "denied"] }).notNull().default("pending"),
+  createdAt: ts("created_at").notNull(),
+  /** The member (or agent) who decided, as "member:<id>" or "agent:<id>". */
+  decidedBy: text("decided_by"),
+  decidedAt: ts("decided_at"),
+}, (t) => [index("meeting_lobby_meeting_idx").on(t.meetingId, t.status)]);
 
 /**
  * Custom fields per project. `options` holds the choices for single and multi select
@@ -1257,7 +1291,7 @@ export const chatMessages = sqliteTable("chat_messages", {
   deletedAt: ts("deleted_at"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [index("chat_messages_channel_idx").on(t.channelId, t.parentId, t.createdAt), index("chat_messages_updated_idx").on(t.channelId, t.updatedAt), index("chat_messages_parent_idx").on(t.parentId)]);
+}, (t) => [index("chat_messages_channel_idx").on(t.channelId, t.parentId, t.createdAt), index("chat_messages_updated_idx").on(t.channelId, t.updatedAt), index("chat_messages_parent_idx").on(t.parentId).where(sql`${t.parentId} IS NOT NULL`)]);
 
 export const chatFiles = sqliteTable("chat_files", {
   id: text("id").primaryKey(),

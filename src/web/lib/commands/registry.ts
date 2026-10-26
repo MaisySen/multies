@@ -91,10 +91,11 @@ export const isBound = (id: string) => (handlers.get(id)?.length ?? 0) > 0;
 /** Runs a command; false when nothing handled it (so the key is left alone). */
 export function runCommand(c: Command, ctx: CommandContext): boolean {
   if (c.handler === "run" && c.run) { c.run(ctx); return true; }
-  const list = handlers.get(c.id);
-  const fn = list?.[list.length - 1];
-  if (!fn) return false;
-  return fn() !== false;
+  const list = handlers.get(c.id) ?? [];
+  // R32: newest binding first; one that returns false passes to the one bound before it (the Mail page's
+  // H snoozes the selection, else the open message's own H runs).
+  for (let i = list.length - 1; i >= 0; i--) if (list[i]() !== false) return true;
+  return false;
 }
 
 /** Key labels as this computer shows them. */

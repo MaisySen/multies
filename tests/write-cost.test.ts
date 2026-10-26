@@ -1029,15 +1029,15 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   // Same number of full indexes as before 0052 (one replaced on each table): 6 each, primary key included, as on main.
   expect(full("messages")).toContain("messages_org_folder_date_idx");
   expect(full("messages")).not.toContain("messages_org_idx");
-  expect(full("messages").length).toBe(6);
+  expect(full("messages").length).toBe(5); // R32 (0072): messages_mailbox_provider_msgid_idx is partial
   expect(full("tasks")).toContain("tasks_org_project_cover_idx");
   expect(full("tasks")).not.toContain("tasks_org_project_idx");
-  expect(full("tasks").length).toBe(6);
+  expect(full("tasks").length).toBe(3); // R32 (0072): tasks_parent_idx, tasks_org_thread_idx and tasks_org_due_idx are partial
   const { createTask } = await import("@/server/services/suite/tasks");
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(17) // measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(14) // R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);
@@ -1167,7 +1167,8 @@ it("R26: support@ on the company domain costs what any inbound delivery costs, a
   take();
   await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
   const once = take();
-  // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes).
+  // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes). Still 7 after R32 (0072):
+  // this update sets provider_message_id_header, so the now partial messages_mailbox_provider_msgid_idx gains its entry.
   expect(once).toBe(7);
   await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
   expect(take()).toBe(0);

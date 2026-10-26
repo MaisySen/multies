@@ -12,6 +12,7 @@ import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
 import { deviceLabel, levelOf, loadPrefs, pickDevice, savePrefs, type JoinPrefs } from "@/web/lib/prejoin-prefs";
+import { hereText } from "@/shared/meeting-lobby";
 
 export type { JoinPrefs } from "@/web/lib/prejoin-prefs";
 
@@ -57,6 +58,8 @@ export interface PreJoinProps {
   who: Who;
   /** Names already in the call, when known. */
   inCall?: string[];
+  /** Round 32: how many are in the call when inCall lists only some (the guest page gets first names and the count). */
+  inCallCount?: number;
   busy?: boolean;
   compact?: boolean;
   /** Leave out the "Ready to join?" heading (the page already shows the title). */
@@ -67,9 +70,11 @@ export interface PreJoinProps {
   onCancel?: () => void;
 }
 
-export function PreJoin({ title, who, inCall, busy, compact, bare, joinLabel = "Join", footnote = "Press Enter to join.", onJoin, onCancel }: PreJoinProps) {
+export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, joinLabel = "Join", footnote = "Press Enter to join.", onJoin, onCancel }: PreJoinProps) {
   const [prefs, setPrefs] = useState<JoinPrefs>(() => loadPrefs());
   const [name, setName] = useState(() => (who.mode === "guest" ? loadPrefs().name ?? "" : ""));
+  // Round 32: a member's name for this call only (not remembered).
+  const [callName, setCallName] = useState<string | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [blocked, setBlocked] = useState<Blocked>(null);
   const [level, setLevel] = useState(0);
@@ -126,7 +131,7 @@ export function PreJoin({ title, who, inCall, busy, compact, bare, joinLabel = "
   const mics = devices.filter((d) => d.kind === "audioinput");
   const speakers = devices.filter((d) => d.kind === "audiooutput");
   const set = (patch: Partial<JoinPrefs>) => setPrefs((p) => { const n = { ...p, ...patch }; savePrefs({ ...n, name: loadPrefs().name }); return n; });
-  const nameOk = who.mode === "member" || name.trim().length > 0;
+  const nameOk = who.mode === "member" ? callName === null || callName.trim().length > 0 : name.trim().length > 0;
   const join = (override?: Partial<JoinPrefs>) => {
     if (!nameOk || busy) return;
     const final: JoinPrefs = {
@@ -137,7 +142,8 @@ export function PreJoin({ title, who, inCall, busy, compact, bare, joinLabel = "
     };
     savePrefs(final);
     stop(); // free the camera before the call opens it
-    onJoin(final);
+    const forCall = who.mode === "member" && callName !== null && callName.trim() && callName.trim() !== who.name ? callName.trim().slice(0, 60) : undefined;
+    onJoin(forCall ? { ...final, name: forCall } : final);
   };
 
   // Enter joins from anywhere on the screen that isn't a control of its own (a toggle, picker or field).
@@ -228,12 +234,22 @@ export function PreJoin({ title, who, inCall, busy, compact, bare, joinLabel = "
               <Input id={`${ids}-name`} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} className="mt-1" data-testid="prejoin-name" />
             </div>
           ) : (
-            <p className="text-[12.5px] text-muted" data-testid="prejoin-joining-as">Joining as <span className="font-medium text-fg">{who.name}</span></p>
+            callName === null ? (
+              <p className="flex items-center gap-2 text-[12.5px] text-muted" data-testid="prejoin-joining-as">
+                <span>Joining as <span className="font-medium text-fg">{who.name}</span></span>
+                <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="prejoin-change-name">Change</button>
+              </p>
+            ) : (
+              <div>
+                <label className="block text-[12px] font-medium text-muted" htmlFor={`${ids}-callname`}>Your name in this call</label>
+                <Input id={`${ids}-callname`} value={callName} onChange={(e) => setCallName(e.target.value)} autoComplete="name" required maxLength={60} autoFocus className="mt-1" data-testid="prejoin-member-name" />
+              </div>
+            )
           )}
           {inCall && (
             <p className="flex items-start gap-1.5 text-[12.5px] text-muted" data-testid="prejoin-in-call">
               <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              {inCall.length ? <span>In the call: {inCall.slice(0, 4).join(", ")}{inCall.length > 4 ? ` and ${inCall.length - 4} more` : ""}</span> : <span>Nobody is in the call yet.</span>}
+              <span>{hereText(inCall, inCallCount ?? inCall.length)}</span>
             </p>
           )}
           <div className={cn("mt-auto flex gap-2", compact && "justify-end")}>

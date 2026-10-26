@@ -95,7 +95,12 @@ export async function createProject(deps: Deps, actor: SuiteActor, input: { name
   assertWritable(actor);
   const now = deps.now();
   const id = sortableId("prj", now.getTime());
-  const key = (input.key ?? keyFrom(input.name)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "TSK";
+  const base = (input.key ?? keyFrom(input.name)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "TSK";
+  // R32: a key is unique in the workspace (two "Client work" projects were both CW, so CW-1 named two tasks and
+  // a ref could open the wrong one). A taken key gets the next free number: CW2, CW3. One read, no extra write.
+  const taken = new Set((await deps.db.select({ key: projects.key }).from(projects).where(and(eq(projects.orgId, actor.orgId), isNull(projects.deletedAt)))).map((r) => r.key));
+  let key = base;
+  for (let n = 2; taken.has(key) && n < 1000; n++) key = base.slice(0, 6 - String(n).length) + n;
   await deps.db.insert(projects).values({ id, orgId: actor.orgId, name: input.name.trim(), description: input.description ?? "", key, color: input.color ?? "#ff5a36", ...createdBy(actor), createdAt: now, updatedAt: now });
   const list = input.statuses?.length ? input.statuses : DEFAULT_STATUSES;
   if (!list.some((s) => s.category === "done")) throw new HttpError(422, "validation_failed", "Add at least one status in the Done group.");
@@ -274,7 +279,7 @@ function presentTask(t: TaskRow, l: Lookups) {
     sprintId: t.sprintId ?? null, points: t.points ?? null,
     createdBy: { type: t.createdByType, id: t.createdById },
     createdAt: t.createdAt.toISOString(), updatedAt: t.updatedAt.toISOString(), version: t.version,
-    triage: t.triageState ? { state: t.triageState, source: t.triageSource ?? null, from: t.sourceFrom ?? null } : null,
+    triage: t.triageState ? { state: t.triageState, source: t.triageSource ?? null, from: t.sourceFrom ?? null, snoozedUntil: iso(t.triageSnoozedUntil) } : null,
   };
 }
 export type Task = ReturnType<typeof presentTask>;
@@ -409,7 +414,7 @@ export interface CreateTaskInput {
   /** Round 21: a sprint of the same project, and an estimate (points or hours). */
   sprintId?: string | null; points?: number | null;
   /** R21: land in Triage. "always" does; "if_project" only when the project has Triage on. */
-  triage?: { source: "mail" | "form" | "api" | "chat"; when: "always" | "if_project"; from?: string | null } | null;
+  triage?: { source: "mail" | "form" | "api" | "chat" | "agent"; when: "always" | "if_project"; from?: string | null } | null;
 }
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();

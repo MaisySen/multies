@@ -19,6 +19,8 @@ import { assignees, createTask, link } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { reactionsFor } from "./chat-reaction-summary";
 import { inChunks, inIds } from "../../lib/sql-chunks";
+import { publishChat } from "../../realtime/publish";
+import { deferrableWrite } from "../write-priority";
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -504,6 +506,8 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
   if (c.kind === "dm" && !m.body.startsWith("Started a call. Join: ")) for (const u of members) await tell(u, "chat.dm", `${author.name}: ${preview}`);
   const channel = { id: c.id, kind: c.kind, name: c.kind === "dm" ? null : c.name };
   await emitEvent(deps, c.orgId, "chat.message.created", { message: m, channel });
+  // R32: live chat. Open chats see the message within a second (the poll stays as the fallback).
+  await publishChat(deps, c, { t: "message", op: "created", channelId: c.id, message: m }, { members });
   const agentMentions = m.mentions.filter((x) => x.type === "agent");
   if (agentMentions.length) await emitEvent(deps, c.orgId, "chat.mention", { message: m, channel, agents: agentMentions.map((x) => ({ id: x.id, name: x.name })) });
 }
@@ -525,7 +529,7 @@ export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, 
 export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: string) {
   assertWritable(a);
   const m = await messageRow(deps, a.orgId, id);
-  await visibleChannel(deps, a, m.channelId);
+  const c = await visibleChannel(deps, a, m.channelId);
   const who = actorOf(a);
   if (m.deletedAt || m.authorType !== who.type || m.authorId !== who.id) throw new HttpError(403, "forbidden", "Only the author can edit a message.");
   const text = body.trim();
@@ -539,13 +543,14 @@ export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: s
   await deps.db.update(chatMessages).set({ body: text, mentions: JSON.stringify(mentions), mentionKeys: mentions.map((x) => (x.type === "channel" ? "channel" : `${x.type}:${x.id}`)).join(" "), links: JSON.stringify(links), editedAt: now, updatedAt: now }).where(eq(chatMessages.id, m.id));
   const out = (await present(deps, [await messageRow(deps, a.orgId, id)]))[0];
   await emitEvent(deps, a.orgId, "chat.message.updated", { message: out });
+  await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: out });
   return out;
 }
 
 export async function deleteMessage(deps: Deps, a: SuiteActor, id: string) {
   assertWritable(a);
   const m = await messageRow(deps, a.orgId, id);
-  await visibleChannel(deps, a, m.channelId);
+  const c = await visibleChannel(deps, a, m.channelId);
   const who = actorOf(a);
   const own = m.authorType === who.type && m.authorId === who.id;
   if (!own && !(a.role === "owner" || a.role === "admin") ) throw new HttpError(403, "forbidden", "Only the author or an admin can delete a message.");
@@ -553,6 +558,8 @@ export async function deleteMessage(deps: Deps, a: SuiteActor, id: string) {
   await deps.db.update(chatMessages).set({ deletedAt: now, updatedAt: now, body: "", mentions: "[]", mentionKeys: "", links: "[]" }).where(eq(chatMessages.id, m.id));
   await deps.db.delete(chatFiles).where(eq(chatFiles.messageId, m.id));
   await emitEvent(deps, a.orgId, "chat.message.deleted", { messageId: m.id, channelId: m.channelId });
+  // R32: open chats swap in the same "deleted" placeholder the next read would show.
+  await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: (await present(deps, [await messageRow(deps, a.orgId, id)]))[0] });
   return { ok: true };
 }
 
@@ -565,7 +572,7 @@ export const MAX_PINS = 50;
 export async function pinMessage(deps: Deps, a: SuiteActor, id: string, pinned: boolean) {
   assertWritable(a);
   const m = await messageRow(deps, a.orgId, id);
-  await visibleChannel(deps, a, m.channelId);
+  const c = await visibleChannel(deps, a, m.channelId);
   if (m.deletedAt) throw notFound("Message");
   if (m.parentId) throw new HttpError(422, "validation_failed", "Pin the thread's first message instead of a reply.");
   if (pinned === !!m.pinnedAt) return (await present(deps, [m]))[0];
@@ -577,6 +584,7 @@ export async function pinMessage(deps: Deps, a: SuiteActor, id: string, pinned: 
   await deps.db.update(chatMessages).set(pinned ? { pinnedAt: now, pinnedBy: actorOf(a).name || "Someone", updatedAt: now } : { pinnedAt: null, pinnedBy: null, updatedAt: now }).where(eq(chatMessages.id, m.id));
   const out = (await present(deps, [await messageRow(deps, a.orgId, id)]))[0];
   await emitEvent(deps, a.orgId, "chat.message.updated", { message: out });
+  await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: out });
   return out;
 }
 
@@ -593,8 +601,14 @@ export async function markRead(deps: Deps, a: SuiteActor, channelId: string, mes
   const c = await visibleChannel(deps, a, channelId);
   let at = deps.now();
   if (messageId) { const m = await messageRow(deps, a.orgId, messageId); if (m.channelId === c.id) at = m.createdAt; }
-  if (c.kind === "channel" && !c.isPrivate) await deps.db.insert(chatMembers).values({ channelId: c.id, userId: a.userId, orgId: a.orgId, lastReadAt: at, joinedAt: deps.now() }).onConflictDoUpdate({ target: [chatMembers.channelId, chatMembers.userId], set: { lastReadAt: at } });
-  else await deps.db.update(chatMembers).set({ lastReadAt: at }).where(and(eq(chatMembers.channelId, c.id), eq(chatMembers.userId, a.userId)));
+  const userId = a.userId;
+  // R32: a read marker is deferrable (services/write-priority.ts): coalesced near the daily budget, skipped at shed.
+  await deferrableWrite(deps, "chat_read", `${userId}:${c.id}`, async () => {
+    if (c.kind === "channel" && !c.isPrivate) await deps.db.insert(chatMembers).values({ channelId: c.id, userId, orgId: a.orgId, lastReadAt: at, joinedAt: deps.now() }).onConflictDoUpdate({ target: [chatMembers.channelId, chatMembers.userId], set: { lastReadAt: at } });
+    else await deps.db.update(chatMembers).set({ lastReadAt: at }).where(and(eq(chatMembers.channelId, c.id), eq(chatMembers.userId, userId)));
+  });
+  // R32: the person's other tabs and devices clear the unread badge at once (no D1 write).
+  await publishChat(deps, c, { t: "read", channelId: c.id, userId, at: at.toISOString() }, { audience: { userIds: [userId] } });
   return { ok: true };
 }
 

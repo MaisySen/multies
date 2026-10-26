@@ -26,7 +26,7 @@ export function registerTriageRoutes(api: OpenAPIHono<AppEnv>) {
   const route = (method: "get" | "post", path: string, summary: string, description: string, extra: Record<string, unknown> = {}) =>
     createRoute({ method, path, tags: ["Triage"], summary, description, security: [{ bearerAuth: [] }], ...extra, responses: { 200: json("OK."), 201: json("Created."), 401: err("Missing or invalid API key."), 403: err("The key can't do this."), 404: err("Not found."), 422: err("Validation failed.") } });
 
-  api.openapi(route("get", "/triage", "List the Triage queue", "Items waiting in Triage, newest first, and the total count. Query: projectId, limit (up to 500). Each item is a task with triage: { state, source, from }."),
+  api.openapi(route("get", "/triage", "List the Triage queue", "Items waiting in Triage, newest first, and the total count. Query: projectId, limit (up to 500), view (pending by default, or snoozed). Each item is a task with triage: { state, source, from }."),
     async (c) => send(c, await listTriage(c.var.deps, actor(c), TriageQuery.parse(c.req.query()))));
   api.openapi(route("get", "/triage/count", "Count the Triage queue", "How many items wait in Triage."),
     async (c) => send(c, { count: await triageCount(c.var.deps, actor(c)) }));

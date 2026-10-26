@@ -5,6 +5,7 @@ import { ListTodo, Sun, CalendarClock, Plug, Bell, MessageCircle, Target, Layout
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
+import { UpdatePill } from "@/web/components/update-pill"; // R32
 import { PaletteHost } from "@/web/components/palette-host"; // R31: the menu itself loads on demand
 import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
 import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
@@ -22,6 +23,8 @@ import { ReadOnlyBanner } from "@/web/lib/read-only";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
+import { clearOfflineData } from "@/web/lib/sw-client"; // R32
+import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { api, ApiError } from "@/web/lib/api";
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -107,7 +110,7 @@ export function AppLayout() {
           <h1 className="text-lg font-semibold">{organization?.name} requires single sign on</h1>
           <p className="mt-2 text-sm text-muted">You signed in with a password. Sign out, then choose your company's SSO on the sign in page.</p>
           <button className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg hover:bg-brand/90"
-            onClick={async () => { try { await authClient.signOut(); } catch { /* already signed out */ } qc.clear(); navigate("/login?sso=required"); }}>
+            onClick={async () => { await clearOfflineData(); try { await authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
             Sign out and use SSO
           </button>
         </div>
@@ -198,10 +201,12 @@ export function AppLayout() {
           <Link to="/app" aria-label="Multies overview" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-[22px]" /></Link>
         </header>
         <ReadOnlyBanner />
+        <OfflineBanner />
         <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
         <PaletteHost onSignOut={signOut} />
+        <UpdatePill />{/* R32: new version prompt */}
         <ShortcutsHost />
         <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
         <Suspense fallback={null}><CallDockHost /></Suspense>

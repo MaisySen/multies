@@ -190,6 +190,41 @@
 .mm-notes h2 { font-size: 1.05em; margin-top: 0.9em; }
 .mm-notes h2:first-child { margin-top: 0; }
 
+/* R32: doc blocks. Tables with hairline borders and a rounded outer edge, callouts in four tints, block images. */
+.mm-prose .tableWrapper { overflow-x: auto; margin: 1em 0; }
+.mm-prose table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; border: 1px solid var(--color-line-strong); border-radius: 10px; overflow: hidden; font-size: 0.95em; }
+.mm-prose th, .mm-prose td { border-right: 1px solid var(--color-line); border-bottom: 1px solid var(--color-line); padding: 0.45em 0.7em; vertical-align: top; text-align: left; min-width: 4em; position: relative; }
+.mm-prose tr > *:last-child { border-right: 0; }
+.mm-prose tr:last-child > * { border-bottom: 0; }
+.mm-prose th { background: var(--color-fill); font-weight: 600; }
+.mm-prose td > p, .mm-prose th > p { margin: 0; }
+.mm-prose .selectedCell::after { content: ""; position: absolute; inset: 0; background: var(--color-brand-soft); pointer-events: none; }
+.mm-prose .mm-callout { display: flex; gap: 0.6em; align-items: flex-start; border-radius: 12px; padding: 0.75em 0.9em; background: rgb(0 113 227 / 0.08); border: 1px solid rgb(0 113 227 / 0.16); }
+.mm-prose .mm-callout-icon { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.6em; height: 1.6em; margin-top: 0.05em; border-radius: 7px; color: #0071E3; transition: background-color 150ms; }
+.mm-prose .mm-callout-icon:hover:not(:disabled) { background: rgb(0 0 0 / 0.06); }
+.mm-prose .mm-callout-icon:focus-visible { outline: 2px solid #0071E3; outline-offset: 1px; }
+.mm-prose .mm-callout-body { flex: 1; min-width: 0; }
+.mm-prose .mm-callout-body > * + * { margin-top: 0.5em; }
+.mm-prose .mm-callout[data-callout="success"] { background: var(--color-ok-soft); border-color: rgb(36 138 61 / 0.2); }
+.mm-prose .mm-callout[data-callout="success"] .mm-callout-icon { color: var(--color-ok); }
+.mm-prose .mm-callout[data-callout="warning"] { background: var(--color-warn-soft); border-color: rgb(255 159 10 / 0.28); }
+.mm-prose .mm-callout[data-callout="warning"] .mm-callout-icon { color: var(--color-warn); }
+.mm-prose .mm-callout[data-callout="danger"] { background: var(--color-bad-soft); border-color: rgb(215 0 21 / 0.18); }
+.mm-prose .mm-callout[data-callout="danger"] .mm-callout-icon { color: var(--color-bad); }
+.mm-prose img.mm-doc-img { display: block; max-width: 100%; height: auto; border-radius: 10px; margin: 1em auto; }
+.mm-prose img.mm-doc-img[data-size="fit"] { max-width: min(100%, 36rem); }
+.mm-prose img.mm-doc-img[data-size="wide"] { width: 100%; }
+.mm-prose img.mm-doc-img[data-size="full"] { width: calc(100% + 4rem); max-width: calc(100% + 4rem); margin-left: -2rem; border-radius: 0; }
+@media (max-width: 640px) { .mm-prose img.mm-doc-img[data-size="full"] { width: 100%; max-width: 100%; margin-left: 0; } }
+.mm-prose img.mm-doc-img.ProseMirror-selectednode { outline: 2px solid #0071E3; outline-offset: 2px; }
+.mm-prose img.mm-doc-img:not([src]) { min-height: 4em; background: var(--color-fill); }
+:root[data-theme="dark"] .mm-prose .mm-callout:not([data-callout]), :root[data-theme="dark"] .mm-prose .mm-callout[data-callout="info"] { background: rgb(10 132 255 / 0.14); border-color: rgb(10 132 255 / 0.28); }
+:root[data-theme="dark"] .mm-prose .mm-callout[data-callout="info"] .mm-callout-icon { color: #5ea4ff; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mm-prose .mm-callout[data-callout="info"] { background: rgb(10 132 255 / 0.14); border-color: rgb(10 132 255 / 0.28); }
+  :root:not([data-theme="light"]) .mm-prose .mm-callout[data-callout="info"] .mm-callout-icon { color: #5ea4ff; }
+}
+
 @layer components {
   /* R29: sign in with another account (Google's sign in branding: white with a #747775 border in
      light mode, #131314 with a #8E918F border in dark mode, 14 px medium text in Roboto where

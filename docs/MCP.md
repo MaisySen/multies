@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 169 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 176 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -108,6 +108,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `create_doc` | Create a doc |
 | `append_to_doc` | Add to a doc |
 | `docs_append` | Append markdown to a doc (R28): keeps what is there; `ifVersion` fails with `version_conflict` if the doc changed |
+| `docs_add_block` | Add a table (`rows`, `header`), an image (`url` https, `alt`) or a callout (`text`, `variant` info, success, warning, danger) to the end of a doc (R32); `ifVersion` as for `docs_append` |
 | `search_contacts` | Search contacts |
 | `contact_timeline` | Contact timeline |
 | `upsert_contact` | Save a contact |
@@ -240,9 +241,34 @@ Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens c
 | `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
 | `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
+### Bulk mail actions (R32)
+
+Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's selection bar and `POST /v1/mail/messages/bulk`. Read only keys get 403.
+
+| Tool | What it does |
+| --- | --- |
+| `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
+
+### Live chat typing (R32)
+
+Registered in src/server/routes/mcp-r32-live.ts.
+
+| Tool | What it does |
+| --- | --- |
+| `chat_typing` | Shows "<name> is typing" to people who have the channel open, for about 6 seconds. Call it every 3 seconds or so while writing. Nothing is stored; `sent` is false when called faster than every 3 seconds |
+
+### Task triage queue (R32)
+
+Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage page and the v1 triage routes.
+
+| Tool | What it does |
+| --- | --- |
+| `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
+| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day) |
+
 ### Inbox splits and read status (R31)
 
-Registered in src/server/routes/mcp-r31-mail.ts. Splits are a person's own: personal keys and OAuth sign ins (agent keys get 403). Important is mail from people (someone the mailbox wrote to, a teammate, a saved contact, or a reply in a thread the mailbox wrote in) that is not bulk; Other is the rest. `list_threads` takes `split` (`important`, `other` or a split id).
+Registered in src/server/routes/mcp-r31-mail.ts. Splits are a person's own: personal keys and OAuth sign ins (agent keys get 403). Important is mail from people (someone the mailbox wrote to, a teammate, a saved contact, or a reply in a thread the mailbox wrote in, and since R32 a first time sender whose message passed SPF and DKIM) that is not bulk; Other is the rest. `list_threads` takes `split` (`important`, `other` or a split id).
 
 | Tool | What it does |
 | --- | --- |
@@ -259,6 +285,8 @@ Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can 
 | Tool | What it does |
 | --- | --- |
 | `get_meeting_notes` | A meeting's title, time and attendees with its notes doc as plain structure: agenda lines, notes lines, and action items (title, assignee, due date, and the task once made). `doc` is null before anyone took notes; `summary` is null unless a recording summary exists |
+| `meeting_lobby_list` | The meeting's waiting room: guests from the guest link waiting to be let in (`id`, `name`, `askedAt`), oldest first, and `guestsWait` (R32) |
+| `meeting_lobby_decide` | Admit or deny one waiting guest (`lobbyId`) or everyone waiting (`all: true`); `decision` is `admit` or `deny`. Audited (R32) |
 | `meeting_summary_so_far` | For a live call or meeting: who is in it and since when, minutes elapsed, the notes doc's headings and to-dos, and decisions said in the call's chat. A deterministic digest labelled "So far" (no model call); `transcript` is always null (R31) |
 | `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
 ### Call recordings and transcripts (round 23)

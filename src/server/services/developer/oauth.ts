@@ -16,6 +16,7 @@ import { members, oauthClients, oauthGrants, organizations, users } from "../../
 import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
+import { deferrableWrite } from "../write-priority";
 
 export const ACCESS_TOKEN_TTL_S = 3600;
 export const REFRESH_TOKEN_TTL_MS = 90 * 24 * 3600_000;
@@ -257,7 +258,7 @@ export async function resolveOAuthToken(deps: Deps, header: string | undefined):
   if (!row || row.g.revokedAt || !row.role || row.kind !== "human") return null;
   const now = deps.now();
   if (!row.g.lastUsedAt || now.getTime() - row.g.lastUsedAt.getTime() > GRANT_LAST_USED_EVERY_MS) {
-    await deps.db.update(oauthGrants).set({ lastUsedAt: now }).where(eq(oauthGrants.id, row.g.id));
+    await deferrableWrite(deps, "last_used", `grant:${row.g.id}`, () => deps.db.update(oauthGrants).set({ lastUsedAt: now }).where(eq(oauthGrants.id, row.g.id))); // R32: deferrable
   }
   return {
     userId: row.g.userId, email: row.email, name: row.name, orgId: row.g.orgId, role: row.role,

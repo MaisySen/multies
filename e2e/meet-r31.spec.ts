@@ -56,7 +56,7 @@ test("pre-join, Enter joins, one notes doc for two joins, and So far lists who i
   await expect(pre.getByRole("heading", { name: "Ready to join?" })).toBeVisible();
   await expect(page.getByTestId("prejoin-joining-as")).toContainText("Ada Owner");
   await expect(page.getByTestId("prejoin-join")).toBeFocused();
-  await expect(page.getByTestId("prejoin-in-call")).toContainText("Sam Mate, Gail Guest");
+  await expect(page.getByTestId("prejoin-in-call")).toContainText("Sam Mate and Gail Guest are here");
   // The fake camera plays in the preview, and the pickers list the fake devices.
   await expect.poll(() => page.getByTestId("prejoin-preview").evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 20_000 }).toBeGreaterThan(0);
   await expect.poll(() => page.getByTestId("prejoin-camera-select").locator("option").count()).toBeGreaterThan(0);

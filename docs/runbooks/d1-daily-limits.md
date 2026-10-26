@@ -1,5 +1,8 @@
 # D1 daily limits
 
+## What caused 24 October (summary)
+Cloudflare's Free plan allows 100,000 D1 rows written per day for the whole account, and production (mymail-au) and staging (mymail-staging) share it. On 24 October 2026 staging's test runs and demo seeds wrote 69,035 rows and production 31,724, all between 00:00 and 03:00 UTC, so the account passed 100,000 at about 03:00 UTC and every database went read only until 00:00 UTC. The biggest single production writer was an old demo seed follow-up (`UPDATE deliveries SET created_at`, 10,440 rows), removed since. Details in "Second pass" below.
+
 ## What happened (24 October 2026)
 The Cloudflare account hit the Free plan D1 cap of 100,000 rows written per day (reads were fine at 1.3 million of 5 million). Production (mymail-au) and staging (mymail-staging) share one account, so staging's E2E runs and demo seeds (about 70,000 rows) used most of production's budget. The cap resets at 00:00 UTC.
 
@@ -46,7 +49,7 @@ Write costs measured locally in D1 terms (one row per table write plus one per i
 Sign in, normal use and the cron are cheap. The cap is reached only by bursts of workspace creation: test suites and demos.
 
 What changed:
-- Write budget guard (`src/server/services/write-budget.ts`). Each cron pass reads the account's rows written today from Cloudflare analytics with `CF_ANALYTICS_TOKEN` (read only, no database writes), logs `d1.write_budget` (searchable in Workers Logs) and reports to Sentry once per level per day from 60% (`warn`). From 80% (`shed`) production stops opening new demo workspaces. Staging runs with `WRITE_BUDGET_GUARD=strict` and answers every API write with the read only message from 60%, so tests on staging can never take production read only. Sign in and normal writes on production are never refused by the guard. `/api/health` shows `writes` (today, budget, level). Without the token the guard is off and refuses nothing.
+- Write budget guard (`src/server/services/write-budget.ts`). Each cron pass reads the account's rows written today from Cloudflare analytics with `CF_ANALYTICS_TOKEN` (read only, no database writes), logs `d1.write_budget` (searchable in Workers Logs) and reports to Sentry once per level per day from 60% (`warn`). From 80% (`shed`; 85% since R32, see "D1 limit reached") production stops opening new demo workspaces. Staging runs with `WRITE_BUDGET_GUARD=strict` and answers every API write with the read only message from 60%, so tests on staging can never take production read only. Sign in and normal writes on production are never refused by the guard. `/api/health` shows `writes` (today, budget, level). Without the token the guard is off and refuses nothing.
 - `DEMO_DAILY_LIMIT` 10 on production (at most about 20,000 rows a day) and 2 on staging.
 - Staging cron runs hourly.
 - Last used times for API keys, inbound keys and auth email hooks are written at most every 15 minutes (an agent polling once a minute was up to 1,440 writes a day per key).
@@ -66,3 +69,76 @@ Setup (once, at deploy): create a Cloudflare API token with only Account Analyti
 5. Remove the `PEER` service binding and `PEER_HOST` (cross account), and let production watch staging over HTTPS instead.
 6. Delete the old `mymail-staging` worker and database from the production account.
 Result: staging and its tests can never spend production's daily budget.
+
+## D1 limit reached (R32)
+
+### How to tell
+- The API answers `503` with `{"error":{"code":"read_only"}}` ("Multies is read only for a short while") on writes, and the web app shows the read only banner. Sign in callbacks land on `/login?error=read_only`.
+- `GET https://multies.si/api/health` shows `writes`: `today`, `budget`, `pct`, `level` (`ok`, `warn` from 60%, `shed` from 85%), `resetAt` (next 00:00 UTC), `byEnvironment` (production, staging) and `deferred` (what this isolate wrote, coalesced or skipped). The operator console (`/app/admin`) shows the same as a meter.
+- The alert mail to `OPS_ALERT_EMAIL` (default security@multies.si): "Multies D1 writes at 60% today (60,123 of 100,000)" and again at 85%. Once per level per UTC day for the whole deployment (one `app_settings` row per alert, key `d1_alert:<date>:<level>`). Also a Sentry error and a `d1.write_budget` line in Workers Logs on every cron pass.
+- The analytics query (account token in the Cloudflare section of CREDENTIALS, read through creds.mjs, never printed):
+
+```
+POST https://api.cloudflare.com/client/v4/graphql
+query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){
+  d1AnalyticsAdaptiveGroups(limit:50,filter:{date:$d}){sum{rowsWritten rowsRead} dimensions{databaseId date}}}}}
+variables: {"a":"84058c44c33b60521d2bb03c36dc0881","d":"<today, UTC, YYYY-MM-DD>"}
+```
+
+Database ids: production `e467919b-f7d8-4961-86b9-9cd861708efc`, staging `72494627-4880-4fb9-9586-e2175f16e8d3`.
+
+### What still works at each level
+| Level | From | Production | Staging (strict) |
+| --- | --- | --- | --- |
+| ok | 0% | everything | everything |
+| warn | 60% | everything; visits and last used or last seen times coalesced to one per item per 15 minutes (read state a person sees still writes); alert mail | API writes refused (read only), reads work |
+| shed | 85% | mail in and out, sign in, tasks, chat, docs, forms all write; deferrable writes skipped (answer success, write nothing); new demos paused; second alert mail | read only |
+| cap | 100% | D1 refuses every write: read only until 00:00 UTC. Reads, the web app and cached views work; inbound mail is retried by the sender for days | read only |
+
+Deferrable writes (src/server/services/write-priority.ts): catch up visits (`item_visits`, except "Mark as caught up"), chat read markers set by opening a channel, mail marked read because it was opened (the Mark read action is essential), notification read marks, last used times on API keys, inbound keys, OAuth grants and auth email hooks, last seen on project guests. Plan and usage counters stay essential because they enforce sending limits. When D1 itself refuses a write for the limit, that isolate sheds for the rest of the UTC day even without the analytics token.
+
+There is no local fallback counter: a count of one isolate's own writes sees a sliver of one database and never staging, so it would read "ok" on exactly the day that matters. Without `CF_ANALYTICS_TOKEN` the meter is off and only the real limit error sheds.
+
+### First 10 minutes
+1. Stop the bleeding: cancel any test run, Playwright suite or load script pointed at staging or production, and any demo seeding. Check CI for running jobs.
+2. Read the top writers today, ordered by rows written:
+
+```
+query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){
+  d1QueriesAdaptiveGroups(limit:20,filter:{date:$d},orderBy:[sum_rowsWritten_DESC]){
+    sum{rowsWritten rowsRead} count dimensions{query databaseId}}}}}
+```
+
+3. If staging is the writer and the cap is not reached yet, make staging read only now: `npx wrangler secret put WRITE_BUDGET_GUARD --env staging` with the value `strict` piped on stdin (already set; check it is), or lower the thresholds for staging: `WRITE_BUDGET_WARN_PCT=30`.
+4. If production is the writer, find the route or cron step in the top queries and turn it off (demo: `DEMO_DAILY_LIMIT=0`; cron: comment the step and deploy only if the cap is not reached, since a deploy with migrations writes).
+5. Post in #engineering what you saw and did. Do not run `wrangler d1 export` or migrations until the reset.
+
+### Recovery
+The cap resets at 00:00 UTC (11:00 Sydney in summer). Nothing needs restoring: refused writes were never applied, and the API told each client it was read only. After the reset check `/api/health` (`writes.level` is `ok`), send a test mail to security@ and confirm it lands, and check that the cron's next pass ran (uptime row). Mail that bounced during the window was retried by the sending servers.
+
+### Permanent fixes
+- Staging on its own free Cloudflare account (steps in "Plan: staging on its own free account" above). This removes the main cause: staging can never spend production's budget. Needs the owner, or a new mailbox, to sign up.
+- Workers Paid (the owner's choice): D1 then allows 50 million rows written a month, billed past that. Not done; the guard stays useful either way.
+
+## Write amplification (R32)
+Measured with the D1 meter in tests (`tests/d1-meter.ts`: a row counts once for the table and once per full index, a partial index only for entries that came or went). This is an upper bound: D1 counts an index on an UPDATE only when its columns change.
+
+Migration 0072 makes seven indexes partial (`WHERE col IS NOT NULL`): `tasks_parent_idx`, `tasks_org_thread_idx`, `tasks_org_due_idx`, `chat_messages_parent_idx`, `deliveries_provider_msg_idx`, `messages_mailbox_provider_msgid_idx`, `contacts_company_idx`. Those columns are empty for most rows, so every insert paid for an index entry no query reads. EXPLAIN QUERY PLAN checks that the lookups still use them.
+
+| Action | Before (53b8cdb) | After (0072) | Where the rows go now |
+| --- | --- | --- | --- |
+| Task create (no due date) | 17 | 14 | task 4, project number claim 3, activity 4, change log 2, creator watch 1 |
+| Task update (status) | 7 | 5 | task 5 (the meter counts every full index on an update) |
+| Task update (title) | 13 | 11 | task 5, activity 4, change log 2 |
+| Chat message | 12 | 11 | message 4, channel last message time 4, sender read marker 3 |
+| Doc save | 9 | 9 | doc 3, activity 4, change log 2 |
+| Mail received | 20 | 17 | message 6, mailbox counters 4, delivery log 3, contact 4 |
+| Mail sent (API, with limiter) | 33 | 32 | message 6, mailbox 4, contact 5, activity 4, change log 2, delivery 4, audit 4, limiter 3 |
+| Sign in | 10 | 10 | session 4, user 3, limiter 3 (a binding in production) |
+| Cron pass, idle | 3 | 3 | one uptime row |
+
+`tests/write-budget-r32.test.ts` locks the After column: it fails if any action grows.
+
+Not cut, and why: task create at 8 rows (the goal) is not reached; would need the activity row and the change log row to become one table (they serve the feed and client sync), or the project number claim to move off the projects row. Both are schema changes for R33, worth about 6 rows per task, doc or title change.
+
+The cron writes one uptime row per pass: 96 a day on production (every 15 minutes) and 24 on staging (hourly), about 360 D1 rows a day with the row's index. No cut needed.

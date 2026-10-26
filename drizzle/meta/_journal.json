@@ -434,20 +434,48 @@
       "version": "6",
       "when": 1793000065000,
       "tag": "0065_r31_notification_triage",
-        "breakpoints": true
-      },
-      {
+      "breakpoints": true
+    },
+    {
       "idx": 66,
       "version": "6",
       "when": 1793000066000,
       "tag": "0066_r31_mail_splits",
-        "breakpoints": true
-      },
-      {
+      "breakpoints": true
+    },
+    {
       "idx": 67,
       "version": "6",
       "when": 1793000067000,
       "tag": "0067_r31_form_routing",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "6",
+      "when": 1793000068000,
+      "tag": "0068_r32_meeting_lobby",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "6",
+      "when": 1793000069000,
+      "tag": "0069_r32_triage_snooze",
+      "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1793000070000,
+      "tag": "0070_r32_web_push",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "6",
+      "when": 1793000072000,
+      "tag": "0072_r32_partial_indexes",
       "breakpoints": true
     }
   ]

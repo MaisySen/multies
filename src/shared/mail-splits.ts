@@ -1,7 +1,7 @@
 /**
  * R31: split inbox. Inbox shows Important, Other and the person's own splits as tabs.
  * Important = mail from people (someone you wrote to, a teammate, a saved contact, or a reply in a thread you
- * are in) that is not bulk. Other = the rest. A split with leavesImportant takes its matching mail out of
+ * are in, or since R32 a first time sender whose message passed SPF and DKIM) that is not bulk. Other = the rest. A split with leavesImportant takes its matching mail out of
  * Important and Other, so each thread shows under one tab.
  */
 import { z } from "zod";

@@ -20,6 +20,7 @@ import { GUEST_COOKIE, resolveGuest } from "../services/suite/guests";
 import { parseAssignee } from "../services/suite/tasks";
 import { chatR20Routes, guestChatR20Routes } from "./chat-r20";
 import { chatR23CallRoutes, guestChatR23CallRoutes } from "./chat-r23-calls";
+import { chatLiveR32Routes } from "./chat-live-r32";
 
 export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(), contentBase64: z.string().min(1).max(14_000_000) });
 export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional() });
@@ -164,5 +165,7 @@ export function r10Routes(parentVars: WeakMap<Request, ParentVars>) {
     .route("/api/guest/chat", guestChatR20Routes())
     // Round 23: live call presence in chat (chat-r23-calls.ts).
     .route("/api/chat", chatR23CallRoutes())
-    .route("/api/guest/chat", guestChatR23CallRoutes());
+    .route("/api/guest/chat", guestChatR23CallRoutes())
+    // Round 32: live chat typing beat (chat-live-r32.ts).
+    .route("/api/chat", chatLiveR32Routes());
 }

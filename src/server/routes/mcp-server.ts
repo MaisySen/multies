@@ -42,6 +42,7 @@ import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerMailR31Tools } from "./mcp-r31-mail";
+import { registerMailR32Tools } from "./mcp-r32-mail"; // R32: mail_bulk_action
 import { registerAssignTools } from "./mcp-r22-assign";
 import { registerAgentMemberTools } from "./mcp-r26-agents"; // R26 (DF-3)
 import { registerChecklistTools } from "./mcp-r26-checklists"; // R26 (MB-85)
@@ -51,13 +52,17 @@ import { registerAgentRunTools } from "./mcp-r27-agent-runs"; // R27 (DF-3 slice
 import { registerAgentTriggerTools } from "./mcp-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerDocsR28Tools } from "./mcp-r28-docs"; // R28: docs_append (found by Haajir)
 import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification triage and catch-up
+import { registerTriageR32Tools } from "./mcp-r32-triage"; // R32: task triage list and actions
 import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
+import { registerDocsR32Tools } from "./mcp-r32-docs"; // R32: docs_add_block (table, image, callout)
+import { registerChatLiveR32Tools } from "./mcp-r32-live"; // R32: chat_typing
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
 import { registerRecordingTools } from "./mcp-r23-recordings";
 import { registerCallTools } from "./mcp-r23-calls";
 import { registerMeetingLiveTools } from "./meeting-live-r31";
+import { registerMeetingLobbyTools } from "./meeting-lobby-r32";
 import { registerWorkloadTools } from "./mcp-r24-workload";
 import { registerRecipeTools } from "./mcp-r24-recipes";
 import { registerR24DocTools } from "./mcp-r24-docs";
@@ -261,16 +266,21 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentTriggerTools(server, deps, actor, writable, tool); // R28 (DF-3 slice 3)
   registerDocsR28Tools(server, deps, actor, writable, tool); // R28: docs_append
   registerTriageR31Tools(server, deps, actor, writable, tool); // R31: notification triage and catch-up
+  registerTriageR32Tools(server, deps, actor, writable, tool); // R32: task triage list and actions
   registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
+  registerDocsR32Tools(server, deps, actor, writable, tool); // R32: docs_add_block
+  registerChatLiveR32Tools(server, deps, actor, writable, tool); // R32: chat_typing
   registerTaskBulkTools(server, deps, actor, writable, tool);
   registerThreadCommentTools(server, deps, actor, writable, tool);
   registerPresenceTools(server, deps, actor, writable, tool);
   registerSnippetTools(server, deps, actor, writable, tool);
   registerMailR31Tools(server, deps, actor, writable, tool); // R31: Inbox splits, read status
+  registerMailR32Tools(server, deps, actor, writable, tool); // R32: mail_bulk_action
   registerMeetingNotesTools(server, deps, actor, writable, tool); // Round 23: meeting notes
   registerRecordingTools(server, deps, actor, writable, tool);
   registerCallTools(server, deps, actor, writable, tool); // Round 23
   registerMeetingLiveTools(server, deps, actor, writable, tool); // R31: meeting_summary_so_far
+  registerMeetingLobbyTools(server, deps, actor, writable, tool); // R32: meeting_lobby_list, meeting_lobby_decide
   registerWorkloadTools(server, deps, actor, tool); // R24.2: workload
   registerRecipeTools(server, deps, actor, writable, tool); // R24.4: automation recipes
   registerR24DocTools(server, deps, actor, writable, tool); // R24.5: docs tree and backlinks
@@ -341,7 +351,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
     const assignee = parseAssignee(x.assignee);
     if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }) };
     if (!x.title) throw new HttpError(422, "validation_failed", "Give the task a title, or pass messageId to make it from an email.");
-    return { task: await createTask(deps, a, { ...x, title: x.title, assignee }) };
+    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }) }; // R32: agents' tasks wait in Triage when the project uses it
   }));
 
   server.registerTool("update_task", {

@@ -249,6 +249,8 @@ describe("meetings", () => {
     expect(claims.video).toMatchObject({ room: r.body.meeting.room, roomJoin: true, roomAdmin: true });
     expect(claims.name).toBe("Ada Lovelace");
     const token = r.body.meeting.guestUrl.split("/m/")[1];
+    // Round 32: the waiting room is on by default; this test is about the token, so it is turned off.
+    expect((await c.patch(`/api/meeting-lobby/${r.body.meeting.id}/settings`, { guestsWait: false })).status).toBe(200);
     const guest = await new Client(ctx.app).post(`/api/public/meetings/${token}/join`, { name: "Maria" });
     const g = JSON.parse(Buffer.from(guest.body.token.split(".")[1], "base64url").toString());
     expect(g.name).toBe("Maria");

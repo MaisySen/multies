@@ -43,6 +43,8 @@ export interface Deps {
   dispatchMailSync?: (connectionId: string) => Promise<void>;
   /** Round 22: live thread presence rooms (the ThreadPresence Durable Object on Workers). Without it the rooms live in this process. */
   presence?: import("./collab/thread-presence").PresenceStore;
+  /** Round 32: the workspace live chat hub (the ChatHub Durable Object on Workers, MemoryChatHub on Node). Without it chat only polls. */
+  chatLive?: import("./realtime/hub").ChatLiveBus;
   /** Round 23: who is in a video room (LiveKit RoomService). Tests inject a fake; without it the meeting keys decide. */
   callRooms?: import("./services/suite/calls").CallRooms;
   authenticate?: (raw: Uint8Array, ctx: { sender?: string; ip?: string; helo?: string }) => Promise<{ results: import("@/shared/mail").AuthResults; header: string }>;

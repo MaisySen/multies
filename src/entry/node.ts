@@ -37,6 +37,7 @@ import { ResilientOutbound } from "../server/services/resilience";
 import { runMaintenanceIfMigrated } from "../server/services/maintenance";
 import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 import { attachCollab } from "../server/collab/node";
+import { attachChatLive } from "../server/realtime/node";
 import { SmtpOutbound, smtpSettingsFrom } from "./smtp-outbound";
 import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
@@ -85,6 +86,8 @@ if (existsSync(webRoot)) {
   app.use("/*", compress());
   // R25: hashed build files never change, so browsers keep them a year (the Worker does the same).
   app.use("/assets/*", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", "public, max-age=31536000, immutable"); });
+  // R32: the service worker is always checked for a newer copy.
+  app.use("/sw.js", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", "no-cache"); });
   // R30: "/" gets the landing page prerendered at build time (scripts/prerender-landing.ts) when there is one.
   app.get("/", async (c, next) => {
     const landing = path.join(webRoot, "landing.html");
@@ -105,6 +108,8 @@ const server = serve({ fetch: (req, env) => withAuthRequestState(() => Promise.r
 });
 // Doc co-editing: GET /api/docs/:id/collab upgrades to a WebSocket (in-memory rooms).
 attachCollab(server as unknown as import("node:http").Server, app, deps as never);
+// Round 32: live chat: GET /api/chat/live upgrades to a WebSocket (one in-process hub).
+attachChatLive(server as unknown as import("node:http").Server, deps as never);
 
 function loadDotEnv() {
   const file = path.resolve(".env");
