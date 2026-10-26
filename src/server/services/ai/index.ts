@@ -18,7 +18,7 @@ import { AI_PROVIDER_INFO, AiProviderError, type AiCompletion } from "./provider
 export { AI_PROVIDERS, AI_PROVIDER_INFO, byoProvider, isAiProviderId, type AiCompletion, type AiProvider, type AiProviderId } from "./providers";
 export { aiKeyStatus, deleteAiKey, saveAiKey } from "./keys";
 
-export const BYO_AI_MESSAGE = "Bring your own AI: connect any AI app or agent through MCP, free. Or add your own model provider key in Settings.";
+export const BYO_AI_MESSAGE = "Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. Or add your own OpenAI, Anthropic, OpenRouter or Groq key in Settings.";
 
 const aiKeyRequired = () => new HttpError(409, "ai_key_required", `The assistant runs on your own AI key. ${BYO_AI_MESSAGE}`);
 

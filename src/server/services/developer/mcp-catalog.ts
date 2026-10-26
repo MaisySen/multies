@@ -6,13 +6,14 @@
  */
 import { z } from "zod";
 import { buildMcpServer } from "../../routes/mcp-server";
-import { SCOPE_AREAS, toolArea, toolScope, type ScopeArea } from "../../lib/api-scopes";
+import { SCOPE_AREAS, canUseTool, normalizeScopes, splitToolList, toolArea, toolScope, type ScopeArea } from "../../lib/api-scopes";
+import captured from "./mcp-examples.generated.json"; // R37: real answers, see tests/capture-mcp-examples-r37.test.ts
 import type { Deps } from "../../context";
 
 export interface CatalogParam { name: string; type: string; required: boolean; description: string; default?: unknown; values?: string[] }
 export interface CatalogTool {
   name: string; title: string; description: string; area: ScopeArea; areaLabel: string; scope: string; readOnly: boolean; destructive: boolean;
-  params: CatalogParam[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean };
+  params: CatalogParam[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean; captured?: boolean };
 }
 
 type JsonSchema = { type?: string | string[]; description?: string; default?: unknown; enum?: unknown[]; const?: unknown; items?: JsonSchema; properties?: Record<string, JsonSchema>; required?: string[]; anyOf?: JsonSchema[]; oneOf?: JsonSchema[]; format?: string; minimum?: number; examples?: unknown[] };
@@ -92,6 +93,10 @@ const ARGS: Record<string, Record<string, unknown>> = {
   set_weekly_capacity: { person: "member:usr_8d7c6b5a", points: 20 },
 };
 
+/** R37: real example calls and answers, captured from a local server with example seed data. */
+export const CAPTURED: Record<string, { arguments: Record<string, unknown>; result: unknown }> = (captured as { examples: Record<string, { arguments: Record<string, unknown>; result: unknown }> }).examples;
+export const CAPTURED_AT: string = (captured as { capturedAt: string }).capturedAt;
+
 let cached: { release: string; tools: CatalogTool[] } | null = null;
 
 export function mcpCatalog(release = "dev"): CatalogTool[] {
@@ -114,10 +119,13 @@ export function mcpCatalog(release = "dev"): CatalogTool[] {
     Object.assign(args, ARGS[name]);
     const readOnly = !!t.annotations?.readOnlyHint;
     const area = toolArea(name) ?? "admin";
+    const real = CAPTURED[name];
     tools.push({
       name, title: t.title ?? name, description: t.description ?? "", area, areaLabel: SCOPE_AREAS.find((a) => a.area === area)!.label,
       scope: toolScope(name, readOnly), readOnly, destructive: !!t.annotations?.destructiveHint, params,
-      example: { arguments: args, result: RESULTS[name] ?? { content: [{ type: "text", text: "{ ...the result as JSON... }" }] }, resultIsShape: !RESULTS[name] },
+      example: real
+        ? { arguments: real.arguments, result: real.result, resultIsShape: false, captured: true }
+        : { arguments: args, result: RESULTS[name] ?? { content: [{ type: "text", text: "{ ...the result as JSON... }" }] }, resultIsShape: !RESULTS[name] },
     });
   }
   cached = { release, tools };
@@ -133,6 +141,7 @@ export function mcpCatalogMarkdown(release = "dev"): string {
     `> Every tool the Multies MCP server at https://multies.si/api/v1/mcp offers (${tools.length} tools), generated from the server itself. Each tool names the API key scope it needs. Page: https://multies.si/developers/mcp`,
     "",
   ];
+  out.push(...SCOPED_TOOL_LIST_MD);
   for (const a of SCOPE_AREAS) {
     const list = tools.filter((t) => t.area === a.area);
     if (!list.length) continue;
@@ -147,5 +156,47 @@ export function mcpCatalogMarkdown(release = "dev"): string {
       out.push("Example call:", "", "```json", JSON.stringify({ name: t.name, arguments: t.example.arguments }), "```", "");
     }
   }
+  out.push(...capturedExamplesMarkdown());
   return `${out.join("\n")}\n`;
 }
+
+/**
+ * R37: the tools one scope value can use, the same list an MCP client sees in tools/list when the key
+ * (or the connection, with ?tools=scoped) hides the rest. Accepts "full", "read" or a per area list.
+ */
+export function mcpCatalogView(release: string, scope: string): { ok: true; scope: string; total: number; tools: CatalogTool[] } | { ok: false; unknown: string[] } {
+  const plain = splitToolList(scope).scope;
+  const n = normalizeScopes(plain);
+  if (!n.ok) return n;
+  const all = mcpCatalog(release);
+  return { ok: true, scope: n.value, total: all.length, tools: all.filter((t) => canUseTool(n.value, t.name, t.readOnly)) };
+}
+
+/** R37: the captured examples as Markdown, for /developers/mcp.md and llms-full.txt. Long answers are cut. */
+export function capturedExamplesMarkdown(maxResultChars = 900): string[] {
+  const out = [
+    "## Example calls with real results",
+    "",
+    `These are real answers from a Multies server with example data (captured ${CAPTURED_AT}). Ids are made stable, secrets are hidden and long lists are cut to 3 items. Your ids and data will differ.`,
+    "",
+  ];
+  for (const [name, ex] of Object.entries(CAPTURED)) {
+    let result = JSON.stringify(ex.result, null, 2);
+    if (result.length > maxResultChars) result = `${result.slice(0, maxResultChars)}\n... (cut)`;
+    out.push(`### ${name}`, "", "Call:", "", "```json", JSON.stringify({ name, arguments: ex.arguments }), "```", "", "Result:", "", "```json", result, "```", "");
+  }
+  return out;
+}
+
+/** R37: the docs section on hiding the tools a key can't use. One copy for the page, the .md and llms-full. */
+export const SCOPED_TOOL_LIST_MD = [
+  "## Show only the tools a key can use",
+  "",
+  "A key with limited scopes can hide the tools it can't use, so an agent's tool list stays short and every tool it sees will work.",
+  "",
+  "- Per key: turn on \"Show only the tools this key can use\" when you create or edit a key in Settings, Developers. It is on by default for new keys with limited scopes and off for keys made before it existed. Full access keys always see every tool.",
+  "- Per connection: add `?tools=scoped` to the MCP URL (`https://multies.si/api/v1/mcp?tools=scoped`), or send the header `X-Multies-Tools: scoped`. `?tools=all` shows every tool even when the key hides them. This works for API keys and for OAuth sign-ins: a read only sign-in then sees only read tools.",
+  "- A hidden tool is only hidden from `tools/list`. Calling it by name still gets the same `insufficient_scope` (or `read_only_key`) answer as before.",
+  "- To see a key's list without an MCP client: `GET https://multies.si/api/mcp-tools?view=key` with `Authorization: Bearer <key>`, or preview any scopes with `GET https://multies.si/api/mcp-tools?scope=mail:read+tasks:write`.",
+  "",
+];

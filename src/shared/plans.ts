@@ -8,7 +8,7 @@
  * are no longer sold.
  *
  * Multies never pays for AI model calls ("bring your own AI"): the assistant runs on the
- * workspace's own API key, and people connect any AI app or agent through MCP.
+ * workspace's own API key, and people connect Claude, ChatGPT or any agent through MCP.
  */
 export const PRICE_CURRENCY = "aud";
 
@@ -73,7 +73,7 @@ export const PLANS: Record<PlanId, Plan> = {
       "Team chat, goals, templates and repeating tasks",
       "3 GB shared storage",
       "Webmail on any device, desktop or phone",
-      "Bring your own AI: connect any AI app or agent through MCP, free.",
+      "Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.",
       "3 agent inboxes with API and MCP access",
     ],
     highlighted: true,

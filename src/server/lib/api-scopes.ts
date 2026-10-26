@@ -162,3 +162,49 @@ export function routeScopeForRequest(method: string, path: string): Scope | "ful
 export function insufficientScopeBody(required: string) {
   return { error: { code: "insufficient_scope", message: `This API key does not have the ${required} scope. Edit the key's scopes in Settings, Developers, or use a key with Full access.`, required } };
 }
+
+// ------------------------------------------------------------------------ R37: scoped tool list
+
+/**
+ * R37: "Show only the tools this key can use". Stored as one extra word in the same scope column (no
+ * migration): "mail:read tasks:write list:scoped". grantedScopes() already ignores the word, and the key
+ * resolver strips it, so every other check sees the plain scope value it saw before R37.
+ */
+export const TOOL_LIST_MARKER = "list:scoped";
+
+/** Splits a stored value into the plain scope value and the tool list option. */
+export function splitToolList(stored: string | null | undefined): { scope: string; scopedList: boolean } {
+  const words = (stored ?? "full").trim().split(/\s+/).filter(Boolean);
+  const scopedList = words.includes(TOOL_LIST_MARKER);
+  const rest = words.filter((w) => w !== TOOL_LIST_MARKER).join(" ");
+  return { scope: rest || "full", scopedList };
+}
+
+/** Joins a plain scope value and the option back into the stored value. A Full access key never hides tools. */
+export function withToolList(scope: string, scopedList: boolean): string {
+  const plain = splitToolList(scope).scope;
+  return scopedList && plain !== "full" ? `${plain} ${TOOL_LIST_MARKER}` : plain;
+}
+
+/**
+ * Whether a tool can run for this scope value (the same rule the MCP dispatcher and writable() apply):
+ * "full" runs everything, "read" runs read only tools, a per area value needs the tool's scope.
+ */
+export function canUseTool(scope: string | null | undefined, name: string, readOnly: boolean): boolean {
+  const plain = splitToolList(scope).scope;
+  if (plain === "full") return true;
+  if (plain === "read") return readOnly;
+  const need = toolScope(name, readOnly);
+  return need !== "full" && hasScope(plain, need);
+}
+
+/**
+ * The per connection option: ?tools=scoped (or the X-Multies-Tools header) hides tools the key can't use,
+ * ?tools=all shows every tool even when the key hides them. Anything else: the key's own setting.
+ */
+export function toolListChoice(query: string | null | undefined, header?: string | null): "scoped" | "all" | null {
+  const v = (query ?? header ?? "").trim().toLowerCase();
+  if (v === "scoped" || v === "usable" || v === "mine") return "scoped";
+  if (v === "all") return "all";
+  return null;
+}

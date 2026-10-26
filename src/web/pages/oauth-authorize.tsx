@@ -17,7 +17,7 @@ interface Info {
 }
 
 /**
- * The OAuth consent screen for MCP clients (round 20): desktop chat apps, code editors and other AI apps send
+ * The OAuth consent screen for MCP clients (round 20): Claude, ChatGPT, Cursor and other AI apps send
  * people here to connect a Multies workspace. Signed out people sign in first and come back.
  */
 export function OAuthAuthorizePage() {

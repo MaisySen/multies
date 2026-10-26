@@ -520,13 +520,13 @@ and a second press write nothing.
 ## Meeting recordings and transcripts (round 23)
 
 A member presses Record in a meeting's room; the browser mixes the call's audio and uploads a chunk
-about every 5 minutes and at Stop. Each chunk goes straight on to the workspace's own speech to text
-key (Settings, General, AI); Multies keeps only the text (capped at 200 KB), never the audio. At Stop
-the workspace's AI key writes a short summary with decisions and action items, posted once as a chat
-message from the recorder in the channel the call started from, or sent to the attendees who are
-members as a notification. Without a key that can transcribe, starting answers 409
-`recording_needs_ai_key` (no key) or `recording_needs_transcribe_key` (the saved key's provider has no
-speech to text). Everyone in the call sees a Recording banner.
+about every 5 minutes and at Stop. Each chunk goes straight on to the workspace's own OpenAI
+(`gpt-4o-mini-transcribe`) or Groq (`whisper-large-v3-turbo`) key; Multies keeps only the text (capped
+at 200 KB), never the audio. At Stop the workspace's AI key writes a short summary with decisions and
+action items, posted once as a chat message from the recorder in the channel the call started from, or
+sent to the attendees who are members as a notification. Without an OpenAI or Groq key, starting answers
+409 `recording_needs_ai_key` (no key) or `recording_needs_transcribe_key` (an Anthropic or OpenRouter
+key). Everyone in the call sees a Recording banner.
 
 - App API (cookie session): `GET /api/meetings/:id/recordings` answers `{ recordings, setup }`;
   `POST /api/meetings/:id/recordings` starts (or joins the live one); `PUT /api/meetings/:id/recordings/:rid/chunks/:seq`

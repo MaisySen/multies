@@ -1,5 +1,5 @@
 /**
- * The MCP server: Multies' agent tools for any MCP client.
+ * The MCP server: Multies' agent tools for Claude, ChatGPT, Cursor and any MCP client.
  * Streamable HTTP, stateless: each request builds a server bound to the caller's API key,
  * so an agent key only ever sees and sends as its own agent.
  */
@@ -11,7 +11,7 @@ import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
-import { hasScope, isPresetScope, toolScope } from "../lib/api-scopes";
+import { canUseTool, hasScope, isPresetScope, toolScope } from "../lib/api-scopes";
 import { listMailboxes, updateMailbox } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
 import type { SearchType } from "../services/search";
@@ -78,7 +78,7 @@ import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
 import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 import { registerAuthEmailSettingsTools } from "./mcp-r28-auth-email-settings"; // R28: Sign-up emails settings
 
-export type Scoped = Actor & { scope?: string }; // R36: "full", "read" or a per area list (lib/api-scopes.ts)
+export type Scoped = Actor & { scope?: string; toolList?: "scoped" | "all" }; // R36: "full", "read" or a per area list (lib/api-scopes.ts). R37: toolList "scoped" hides tools the key can't use from tools/list
 import { registerReportsR35Tools } from "./reports-r35"; // R35
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
@@ -311,7 +311,25 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
   registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
   registerAuthEmailSettingsTools(server, deps, actor, writable, tool); // R28: Sign-up emails settings
+  if (actor.toolList === "scoped") hideUnusableTools(server, actor.scope);
   return server;
+}
+
+/**
+ * R37: "Show only the tools this key can use". tools/list leaves out every tool the key's scopes can't
+ * run. The tools stay registered, so a client that calls a hidden tool by name still gets the same
+ * 403 insufficient_scope (or read_only_key) answer as before, never a confusing "unknown tool".
+ */
+function hideUnusableTools(server: McpServer, scope: string | undefined) {
+  if (!scope || scope === "full") return;
+  const registered = (server as unknown as { _registeredTools: Record<string, { annotations?: { readOnlyHint?: boolean } }> })._registeredTools;
+  const handlers = (server.server as unknown as { _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: { name: string }[] }>> })._requestHandlers;
+  const list = handlers.get("tools/list");
+  if (!list) return;
+  handlers.set("tools/list", async (req, extra) => {
+    const out = await list(req, extra);
+    return { ...out, tools: out.tools.filter((t) => canUseTool(scope, t.name, !!registered[t.name]?.annotations?.readOnlyHint)) };
+  });
 }
 
 /** Tasks, projects, docs and contacts. Internal work: no approval needed. Mail sends keep their rules. */

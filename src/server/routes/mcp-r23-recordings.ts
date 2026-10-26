@@ -17,7 +17,7 @@ export function registerRecordingTools(server: McpServer, deps: Deps, actor: Sco
 
   server.registerTool("get_meeting_transcript", {
     title: "Get a meeting's transcript and summary", annotations: ro,
-    description: "The recordings of a meeting, newest first: status (recording, processing, done or failed), who recorded, duration in seconds, the summary, action items [{ text, assignee, due }] and the transcript text (capped at 200 KB; truncated says when it was cut). Calls are recorded and transcribed with the workspace's own speech to text key; Multies keeps the text, not the audio.",
+    description: "The recordings of a meeting, newest first: status (recording, processing, done or failed), who recorded, duration in seconds, the summary, action items [{ text, assignee, due }] and the transcript text (capped at 200 KB; truncated says when it was cut). Calls are recorded and transcribed with the workspace's own OpenAI or Groq key; Multies keeps the text, not the audio.",
     inputSchema: { meetingId: z.string().min(1) },
   }, tool(async (x: { meetingId: string }) => ({ meetingId: x.meetingId, recordings: await listRecordings(deps, a, x.meetingId) })) as never);
 }
