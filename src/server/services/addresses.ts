@@ -4,6 +4,7 @@ import { aliases, domains, mailboxes } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { badRequest, conflict, notFound } from "../lib/errors";
 import { assertCanCreate, getPlan } from "./plans";
+import { isOperatorDomainRow, type OperatorConfig } from "./suite/operator-inbox";
 import type { CreateAliasInput, CreateMailboxInput } from "@/shared/schemas";
 
 async function domainInOrg(db: DB, orgId: string, domainId: string) {
@@ -34,9 +35,15 @@ export async function getMailbox(db: DB, orgId: string, id: string) {
   return m;
 }
 
-export async function createMailbox(db: DB, orgId: string, input: CreateMailboxInput) {
+/**
+ * `operator` (R26, DF-18): the deployment's operator settings. support@ and security@ on the company domain in the
+ * operator workspace are the deployment's own addresses, so they don't count against that workspace's plan.
+ */
+export async function createMailbox(db: DB, orgId: string, input: CreateMailboxInput, operator?: OperatorConfig) {
   const d = await domainInOrg(db, orgId, input.domainId);
-  await assertCanCreate(db, orgId, "mailboxes");
+  const operatorAddress = !!operator && isOperatorDomainRow(operator, { orgId, name: d.name })
+    && operator.operatorInbox.addresses.includes(`${input.localPart}@${d.name}`.toLowerCase());
+  if (!operatorAddress) await assertCanCreate(db, orgId, "mailboxes");
   const plan = await getPlan(db, orgId);
   const quotaMb = input.quotaMb ?? plan.limits.storagePerMailboxMb;
   if (quotaMb > plan.limits.storagePerMailboxMb) {

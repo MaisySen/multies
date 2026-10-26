@@ -70,8 +70,10 @@ export async function getDomain(db: DB, orgId: string, id: string) {
 /** `dkimKey` reuses an existing key pair (sandbox domains share one, skipping RSA key generation). */
 export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string } } = {}) {
   const { db, config } = deps;
-  await assertCanCreate(db, orgId, "domains");
+  // R26 (DF-18): the company domain in the operator workspace is the deployment's own and is not a plan add-on.
+  const operatorDomain = isOperatorDomainRow(config, { orgId, name });
   assertDomainAllowed(config, orgId, name);
+  if (!operatorDomain) await assertCanCreate(db, orgId, "domains");
   const existing = await db.select().from(domains).where(eq(domains.name, name)).get();
   if (existing) {
     throw conflict(existing.orgId === orgId
@@ -89,7 +91,6 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
     dkimPrivateKeyEnc: await encryptSecret(config.appSecret, privateKeyPem),
   };
   // R26: the company domain in the operator workspace is the deployment's own: verified, no provider registration.
-  const operatorDomain = isOperatorDomainRow(config, { orgId, name });
   if (operatorDomain) Object.assign(row, { status: "verified", verifiedAt: deps.now(), lastCheckedAt: deps.now(), providerStatus: "verified" });
   await db.insert(domains).values(row);
   // Customer domains are registered with the outbound provider straight away, so the setup page

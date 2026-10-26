@@ -13,7 +13,7 @@
 import type { AppConfig } from "../../config";
 import { conflict } from "../../lib/errors";
 
-type OperatorConfig = Pick<AppConfig, "operatorInbox">;
+export type OperatorConfig = Pick<AppConfig, "operatorInbox">;
 
 export type OperatorDecision =
   | { kind: "operator"; orgId: string; address: string }

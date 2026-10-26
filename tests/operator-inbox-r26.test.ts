@@ -77,6 +77,44 @@ describe("delivery into the operator's shared inbox", () => {
     return domainId;
   }
 
+  it("the company domain is not a plan add-on for the operator workspace, other domains still are", async () => {
+    ctx.deps.fetch = (async () => new Response("{}")) as unknown as typeof fetch;
+    // The operator workspace already uses its one included domain (Haajir HQ holds haajir.xyz).
+    expect((await op.post("/api/domains", { name: "haajir.test" })).status).toBe(201);
+    expect((await op.post("/api/domains", { name: "second.test" })).body.error.code).toBe("plan_limit");
+    const res = await op.post("/api/domains", { name: "multies.si" });
+    expect(res.status).toBe(201);
+    expect(res.body.domain.status).toBe("verified");
+    // support@ and security@ don't use up the plan's mailboxes; any other address on it does.
+    const domainId = res.body.domain.id as string;
+    for (const l of ["a", "b", "c"]) await op.post("/api/mailboxes", { domainId: (await op.get("/api/domains")).body.domains.find((d: { name: string }) => d.name === "haajir.test").id, localPart: l, displayName: l });
+    for (const l of ["support", "security"]) expect((await op.post("/api/mailboxes", { domainId, localPart: l, displayName: l })).status).toBe(201);
+    expect((await op.post("/api/mailboxes", { domainId, localPart: "hello", displayName: "hello" })).body.error.code).toBe("plan_limit");
+    // Another workspace is refused for the reservation, not offered the add-on.
+    expect((await other.post("/api/domains", { name: "multies.si" })).status).toBe(409);
+  });
+
+  it("inbound keys can be made, listed and revoked with a workspace key (v1), never by a read only key", async () => {
+    const v1 = async (key: string, method: string, path: string) => {
+      const res = await ctx.app.request(`/api/v1${path}`, { method, headers: { host: "localhost", authorization: `Bearer ${key}`, "content-type": "application/json" } });
+      return { status: res.status, body: await res.json() };
+    };
+    const ro = (await op.post("/api/developer/keys", { name: "Reader", scope: "read" })).body.secret as string;
+    const full = (await op.post("/api/developer/keys", { name: "Full" })).body.secret as string;
+    const otherKey = (await other.post("/api/developer/keys", { name: "Other" })).body.secret as string;
+    expect((await v1(ro, "POST", "/inbound-keys")).status).toBe(403);
+    const made = await v1(full, "POST", "/inbound-keys");
+    expect(made.status).toBe(201);
+    expect(made.body.key.secret).toMatch(/^whsec_/);
+    expect(made.body.webhookUrl).toContain("/api/inbound/cloudflare");
+    const list = await v1(full, "GET", "/inbound-keys");
+    expect(list.body.keys.map((k: { id: string }) => k.id)).toEqual([made.body.key.id]);
+    expect(JSON.stringify(list.body)).not.toContain(made.body.key.secret);
+    expect((await v1(otherKey, "DELETE", `/inbound-keys/${made.body.key.id}`)).status).toBe(404);
+    expect((await v1(full, "DELETE", `/inbound-keys/${made.body.key.id}`)).status).toBe(200);
+    expect((await v1(full, "GET", "/inbound-keys")).body.keys).toEqual([]);
+  });
+
   it("adds the company domain verified with no provider call, and support@ and security@ receive", async () => {
     const fetchSpy = vi.fn(async () => new Response("{}"));
     ctx.deps.fetch = fetchSpy as unknown as typeof fetch;

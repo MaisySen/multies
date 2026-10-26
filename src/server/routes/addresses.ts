@@ -15,7 +15,7 @@ export function mailboxRoutes() {
     .post("/", requireAdmin, async (c) => {
       const input = await parseBody(c, createMailboxSchema);
       const { auth, deps } = c.var;
-      const m = await createMailbox(deps.db, auth.orgId, input);
+      const m = await createMailbox(deps.db, auth.orgId, input, deps.config);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address }, ip: c.var.ip });
       return c.json({ mailbox: m }, 201);
     })

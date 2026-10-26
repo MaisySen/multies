@@ -30,6 +30,7 @@ missed while the team gets used to the shared inbox; drop it after that.
 ## Live steps (R26 worker, production)
 
 Each step writes a handful of D1 rows (well under 50 in total). Do them when the daily write budget has room.
+The company domain and the support@ and security@ mailboxes do not count against the operator workspace's plan (R26), so a workspace on the free plan can hold them.
 
 1. Check nobody holds the domain (a read):
    `npx wrangler d1 execute mymail-au --remote --command "SELECT id, org_id, status FROM domains WHERE name = 'multies.si'"`
@@ -44,7 +45,7 @@ Each step writes a handful of D1 rows (well under 50 in total). Do them when the
 4. In that workspace: Domains, Add domain, `multies.si` (it shows as verified straight away). Then Mailboxes,
    New mailbox: `support` and `security`. Give the support team access to support@ and the security owner
    access to security@ (Mailboxes, access). Optional: set the mailbox reply-to to the same address.
-5. Settings, Inbound: create an inbound key in this workspace. Keep the secret in CREDENTIALS (multies.si
+5. Settings, Inbound (or `POST /api/v1/inbound-keys` with the workspace key, R26): create an inbound key in this workspace. Keep the secret in CREDENTIALS (multies.si
    section), never in the repo. The key must belong to this workspace: a key from any other workspace
    (the platform key for mail.multies.si included) is refused for these addresses.
 6. Email Worker (`email-worker/wrangler.toml`, `[vars]`), keeping the mail.multies.si entry as it is:

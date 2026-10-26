@@ -57,6 +57,7 @@ import { registerInviteRoutes } from "./v1-r25-invites"; // R25 (DF-7)
 import { registerR26CommentRoutes } from "./v1-r26-comments"; // R26 (MB-77)
 import { registerAgentMemberR26Routes } from "./v1-r26-agents"; // R26 (DF-3)
 import { registerShareLinkRoutes } from "./v1-r26-share"; // R26 (MB-87)
+import { registerInboundKeyRoutes } from "./v1-r26-inbound"; // R26 (DF-18)
 import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
 
 // ---------------------------------------------------------------- schemas
@@ -242,6 +243,7 @@ export function v1Routes() {
   api.use("/triage/*", apiKeyAuth);
   api.use("/invites/*", apiKeyAuth, workspaceKeyOnly); // R25 (DF-7): agent and agent member keys can't invite
   api.use("/share-links/*", apiKeyAuth, workspaceKeyOnly); // R26 (MB-87): agent and agent member keys can't share
+  api.use("/inbound-keys/*", apiKeyAuth, workspaceKeyOnly); // R26 (DF-18): inbound keys
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
@@ -310,7 +312,7 @@ export function v1Routes() {
   async (c) => {
     const input = c.req.valid("json");
     const { auth, deps } = c.var;
-    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() });
+    const m = await createMailbox(deps.db, auth.orgId, { ...input, localPart: input.localPart.toLowerCase() }, deps.config);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId || null, actorEmail: auth.email, action: "mailbox.created", targetType: "mailbox", targetId: m.id, metadata: { address: m.address, via: "api" }, ip: c.var.ip });
     return c.json(mailboxOut(m), 201);
   });
@@ -454,6 +456,7 @@ export function v1Routes() {
   registerInviteRoutes(api); // R25 (DF-7): invite members with a workspace key
   registerAgentMemberR26Routes(api); // R26 (DF-3): list, edit and pause agent members
   registerShareLinkRoutes(api); // R26 (MB-87): read only share links
+  registerInboundKeyRoutes(api); // R26 (DF-18): inbound keys for the Email Worker
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerSprintRoutes(api);
   registerPresenceRoutes(api);

@@ -874,3 +874,14 @@ unassigned, subtask, mine) and `title`. Text with no key in it searches titles a
 A bad query answers 400 with `error.code` `bad_query`, a message and `error.details.position` (the 1 based character
 where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
 one query. MCP: `search_tasks` with `q`.
+
+## Inbound keys (R26, DF-18)
+
+The Email Worker signs each delivery with a workspace's inbound key. Owner and admin workspace keys can manage them
+(read only, agent and agent member keys are refused):
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/v1/inbound-keys` | The keys: `id`, `createdAt`, `lastUsedAt`. Secrets are never shown again |
+| POST | `/api/v1/inbound-keys` | Make one. Returns `{ key: { id, secret }, webhookUrl }`; the secret is shown only this once |
+| DELETE | `/api/v1/inbound-keys/{id}` | Revoke it. Deliveries signed with it are refused from then on |
