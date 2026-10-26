@@ -72,6 +72,7 @@ function nativeChanges(files, appJson, packageJson) {
  * @param {string[]} o.nativeFiles result of nativeChanges()
  * @param {string} o.head the commit being published
  * @param {string[]} [o.previewCommits] commits already published to the preview channel
+ * @param {boolean} [o.whatsNewCurrent] false when src/lib/ota/whats-new.generated.ts no longer matches CHANGELOG.md
  * @returns {{ ok: boolean, problems: string[] }}
  */
 function evaluateGuard(o) {
@@ -100,6 +101,9 @@ function evaluateGuard(o) {
     problems.push(
       `Native files changed since the store build: ${o.nativeFiles.join(", ")}. Make a new store build instead of an update.`,
     );
+  }
+  if (o.whatsNewCurrent === false) {
+    problems.push("The What's new notes are out of date with CHANGELOG.md. Run npm run whats-new and commit.");
   }
   if (o.channel === "production") {
     const seen = (o.previewCommits || []).some((c) => c && o.head && (c.startsWith(o.head) || o.head.startsWith(c)));
@@ -136,4 +140,43 @@ function commitsFromViews(views) {
   return views.flat().map((u) => u && u.gitCommitHash).filter(Boolean);
 }
 
-module.exports = { groupIdsFromList, commitsFromViews, CHANNELS, PLATFORMS, NATIVE_PATTERNS, nativeChanges, evaluateGuard, bundleEnv, stripVersions };
+/**
+ * The newest update group per platform from `eas update:list --branch <b> --json`. Each platform has
+ * its own runtime version (fingerprint), so one publish makes one group per platform.
+ */
+function latestGroupsByPlatform(list) {
+  const rows = (list && (list.currentPage || list.updates)) || (Array.isArray(list) ? list : []);
+  const out = [];
+  for (const r of rows) {
+    if (!r || !r.group) continue;
+    for (const p of String(r.platforms || r.platform || "").split(/[,\s]+/).filter(Boolean)) {
+      if (!PLATFORMS.includes(p) || out.some((g) => g.platform === p)) continue;
+      out.push({ platform: p, group: r.group, runtimeVersion: r.runtimeVersion, message: String(r.message || "").replace(/^"|"\s*\(.*$/g, "").replace(/"$/, ""), isRollBackToEmbedded: !!r.isRollBackToEmbedded });
+    }
+  }
+  return out;
+}
+
+/** The rollout percentage of an update group (from `eas update:view --json`), or null when it reaches every phone. */
+function rolloutOf(updates) {
+  for (const u of updates || []) {
+    const p = u && (u.rolloutPercentage ?? (u.rollout && u.rollout.percentage));
+    if (typeof p === "number" && p < 100) return p;
+  }
+  return null;
+}
+
+/** `--name value`, `--flag` and positional arguments. */
+function parseFlags(argv) {
+  const out = { _: [] };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith("--")) { out._.push(a); continue; }
+    const k = a.slice(2);
+    const next = argv[i + 1];
+    if (next !== undefined && !next.startsWith("--")) { out[k] = next; i++; } else out[k] = true;
+  }
+  return out;
+}
+
+module.exports = { latestGroupsByPlatform, rolloutOf, parseFlags, groupIdsFromList, commitsFromViews, CHANNELS, PLATFORMS, NATIVE_PATTERNS, nativeChanges, evaluateGuard, bundleEnv, stripVersions };

@@ -1,5 +1,7 @@
 /* The guard in front of npm run ota:preview and npm run ota:production (scripts/ota-guard.js). */
-const { bundleEnv, commitsFromViews, evaluateGuard, groupIdsFromList, nativeChanges } = require("../scripts/ota-guard");
+const { bundleEnv, commitsFromViews, evaluateGuard, groupIdsFromList, nativeChanges, latestGroupsByPlatform, rolloutOf, parseFlags } = require("../scripts/ota-guard");
+const { readFileSync, readdirSync } = require("fs");
+const { join } = require("path");
 const eas = require("../eas.json");
 
 const store = { android: { runtimeVersion: "aaaaaaaaaaaaaaaa" }, ios: { runtimeVersion: "bbbbbbbbbbbbbbbb" } };
@@ -93,5 +95,54 @@ describe("reading the preview branch from EAS", () => {
     expect(groupIdsFromList({})).toEqual([]);
     const views = [[{ group: "4c10af8c", gitCommitHash: "266dbef802de" }], [{ group: "dc7ed512", gitCommitHash: "266dbef802de" }, { group: "x" }]];
     expect(commitsFromViews(views)).toEqual(["266dbef802de", "266dbef802de"]);
+  });
+});
+
+describe("R29b rollout helpers", () => {
+  it("refuses to publish when What's new is out of date with the changelog", () => {
+    const r = evaluateGuard({ ...base, whatsNewCurrent: false });
+    expect(r.ok).toBe(false);
+    expect(r.problems.join(" ")).toMatch(/What's new/);
+    expect(evaluateGuard({ ...base, whatsNewCurrent: true }).ok).toBe(true);
+  });
+
+  it("finds the newest group per platform (each platform has its own runtime version)", () => {
+    const list = { currentPage: [
+      { group: "g-ios-new", platforms: "ios", runtimeVersion: "e184", message: "\"R29b\" (1 minute ago by multies)", isRollBackToEmbedded: false },
+      { group: "g-and-new", platforms: "android", runtimeVersion: "e5a5", message: "x" },
+      { group: "g-ios-old", platforms: "ios", runtimeVersion: "e184" },
+    ] };
+    expect(latestGroupsByPlatform(list).map((g: { platform: string; group: string }) => [g.platform, g.group])).toEqual([["ios", "g-ios-new"], ["android", "g-and-new"]]);
+    expect(latestGroupsByPlatform(list)[0].message).toBe("R29b");
+    expect(latestGroupsByPlatform({ currentPage: [{ group: "both", platforms: "android, ios" }] }).map((g: { platform: string }) => g.platform)).toEqual(["android", "ios"]);
+  });
+
+  it("reads a group's rollout percentage", () => {
+    expect(rolloutOf([{ id: "u", rolloutPercentage: 10 }])).toBe(10);
+    expect(rolloutOf([{ id: "u", rolloutPercentage: 100 }])).toBeNull();
+    expect(rolloutOf([{ id: "u" }])).toBeNull();
+  });
+
+  it("parses flags", () => {
+    expect(parseFlags(["50", "--rollout", "10", "--critical", "--message", "Fix"])).toEqual({ _: ["50"], rollout: "10", critical: true, message: "Fix" });
+  });
+
+  it("wires every release command into npm", () => {
+    const pkg = require("../package.json");
+    for (const s of ["ota:preview", "ota:production", "ota:check", "ota:health", "ota:promote", "ota:rollback", "ota:status", "whats-new"]) expect(pkg.scripts[s]).toBeTruthy();
+  });
+
+  it("keeps the OTA client on modules the store build already has (no native change)", () => {
+    const dir = join(__dirname, "..", "src", "lib", "ota");
+    const pkg = require("../package.json");
+    const allowed = new Set(["react", "react-native", "expo-updates", ...Object.keys(pkg.dependencies)]);
+    for (const f of readdirSync(dir)) {
+      const src = readFileSync(join(dir, f), "utf8");
+      for (const m of src.matchAll(/from "([^"./@][^"]*|@[^/"]+\/[^"]+)"/g)) {
+        const name = m[1].startsWith("@") ? m[1].split("/").slice(0, 2).join("/") : m[1].split("/")[0];
+        if (name.startsWith("@/")) continue;
+        expect([f, allowed.has(name)]).toEqual([f, true]);
+      }
+    }
   });
 });

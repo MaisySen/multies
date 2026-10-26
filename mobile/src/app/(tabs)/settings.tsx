@@ -15,6 +15,7 @@ import { bytes } from "@/lib/format";
 import { LINKS, WEB_PAGES } from "@/config";
 import { colors, font, space } from "@/theme";
 import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
+import { UpdateRows } from "@/components/update-rows";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
 
@@ -90,6 +91,8 @@ export default function Settings() {
           options={UNDO_SEND_CHOICES.map((n) => ({ id: String(n), label: `${n} s` }))} />
         <Text style={{ color: colors.subtle, fontSize: 13 }}>How long you have to take a message back after Send. Saved on this phone.</Text>
       </View>
+
+      <UpdateRows />
 
       <SectionTitle>Help and legal</SectionTitle>
       <Row icon="activity" label="Service status" onPress={() => open(LINKS.status)} />

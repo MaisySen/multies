@@ -70,7 +70,12 @@
     "lint": "eslint .",
     "ota:preview": "node scripts/ota.js preview",
     "ota:production": "node scripts/ota.js production",
-    "ota:check": "node scripts/ota.js preview --check"
+    "ota:check": "node scripts/ota.js preview --check",
+    "ota:health": "node scripts/ota.js health",
+    "ota:promote": "node scripts/ota.js promote",
+    "ota:rollback": "node scripts/ota.js rollback",
+    "ota:status": "node scripts/ota.js status",
+    "whats-new": "node scripts/whats-new.js"
   },
   "private": true,
   "jest": {

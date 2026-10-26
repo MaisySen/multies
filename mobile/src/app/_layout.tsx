@@ -14,6 +14,7 @@ import { SAMPLE_ONLY } from "@/config";
 import { colors, scheme } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
 import { HeldSendBar } from "@/components/held-send-bar";
+import { OtaProvider } from "@/lib/ota/provider";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 if (Platform.OS !== "web") configureNotifications();
@@ -27,7 +28,9 @@ export default function RootLayout() {
       <QueryClientProvider client={client}>
         <SessionProvider initialMode={SAMPLE_ONLY && process.env.EXPO_PUBLIC_AUTO_SAMPLE === "1" ? "sample" : undefined}>
           <StatusBar style={scheme === "light" ? "dark" : "light"} />
-          <Navigator client={client} />
+          <OtaProvider>
+            <Navigator client={client} />
+          </OtaProvider>
         </SessionProvider>
       </QueryClientProvider>
     </SafeAreaProvider>

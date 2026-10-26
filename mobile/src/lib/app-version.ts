@@ -6,7 +6,7 @@ import * as Updates from "expo-updates";
  * version; an over the air update (EAS Update, see docs/OTA.md) may raise it without a new store
  * build, and Settings then shows it with "(OTA)".
  */
-export const JS_VERSION = "1.9.5";
+export const JS_VERSION = "1.9.6";
 
 export type VersionFacts = {
   jsVersion: string;
@@ -16,6 +16,8 @@ export type VersionFacts = {
   embedded: boolean;
   updateId: string | null;
   channel: string | null;
+  /** The fingerprint the store build was made with (EAS runtime version). */
+  runtimeVersion?: string | null;
 };
 
 /** The line at the bottom of Settings, for example "Multies 1.9.3 (17)" or "Multies 1.9.4 (OTA)". */
@@ -41,10 +43,12 @@ export function currentVersionFacts(): VersionFacts {
   let embedded = true;
   let updateId: string | null = null;
   let channel: string | null = null;
+  let runtimeVersion: string | null = null;
   try {
     embedded = Updates.isEmbeddedLaunch ?? true;
     updateId = Updates.updateId ?? null;
     channel = Updates.channel ?? null;
+    runtimeVersion = Updates.runtimeVersion ?? null;
   } catch {
     // expo-updates is not available (web, tests): treat as the built in bundle.
   }
@@ -55,5 +59,6 @@ export function currentVersionFacts(): VersionFacts {
     embedded,
     updateId,
     channel,
+    runtimeVersion,
   };
 }

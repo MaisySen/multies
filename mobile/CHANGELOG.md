@@ -3,6 +3,23 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.6 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
+
+- What's new: after an update this sheet shows once, with what changed in the version you just
+  got. It reads from this changelog.
+- Updates in the background: Multies now also looks for an update when you come back to it, not
+  only when it starts, at most every 30 minutes. An update still installs on the next start, so
+  nothing reloads while you work. An important fix can install at once, with a short notice first.
+- Check for updates: Settings, About shows the version, the update and channel it runs, and a
+  Check for updates button with a Restart to update button once one is ready.
+- Keeping up to date: if a store build ever becomes too old to work with Multies, the app says so
+  and opens the App Store or Google Play for you.
+- Shipped over the air (no store build): Settings reads Multies 1.9.6 (OTA).
+
+What to test: open Settings and tap Check for updates; it should say Multies is up to date. Leave
+the app for a minute, come back, and check nothing reloads. After the next update, the What's new
+sheet appears once on the first start and not again.
+
 ## 1.9.5 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
 - Agent runs: Settings, Agent runs lists what AI agent members have run, newest first, with a
