@@ -27,7 +27,11 @@ export const SEQUENCE_MS = 1000;
 
 const MODS = new Set(["Mod", "Alt", "Shift", "Ctrl"]);
 /** A single key or a sequence the global handler reads (not a chord, not a key handled in a field). */
-export const isPlainKeys = (c: Command) => c.handler !== "local" && !!c.keys?.length && !c.keys.some((k) => MODS.has(k)) && !c.keys.includes("Esc");
+// R37: Shift plus a letter ("Shift+L" lanes, "Shift+D" date clashes) is a plain key too; the e2e found both never fired from the keyboard.
+const shiftLetter = (keys: string[]) => keys.length === 2 && keys[0] === "Shift" && /^[A-Za-z]$/.test(keys[1]);
+export const isPlainKeys = (c: Command) => c.handler !== "local" && !!c.keys?.length && (!c.keys.some((k) => MODS.has(k)) || shiftLetter(c.keys)) && !c.keys.includes("Esc");
+/** The key tokens a command waits for: ["Shift","L"] is one token "Shift+L". */
+const tokens = (keys: string[]) => (shiftLetter(keys) ? [`Shift+${keys[1].toUpperCase()}`] : keys.map((x) => norm(x)));
 
 /** The scopes active now, most specific first. */
 export function activeScopes(pathname: string, focus: Focus): CommandScope[] {
@@ -55,15 +59,15 @@ export type KeyResult =
  * The global key reducer, pure so it is tested without a browser. A key that completes a command
  * runs it (most specific scope wins), a key that starts a sequence waits up to SEQUENCE_MS for the next.
  */
-export function readKeys(state: KeyState, e: { key: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }, now: number, scopes: CommandScope[], list: Command[] = COMMANDS): { state: KeyState; result: KeyResult } {
+export function readKeys(state: KeyState, e: { key: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; shiftKey?: boolean }, now: number, scopes: CommandScope[], list: Command[] = COMMANDS): { state: KeyState; result: KeyResult } {
   if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return { state: idleKeys(), result: { kind: "none" } };
-  const k = norm(e.key);
+  const k = e.shiftKey && /^[A-Za-z]$/.test(e.key) ? `Shift+${e.key.toUpperCase()}` : norm(e.key);
   const usable = list.filter((c) => isPlainKeys(c) && scopes.includes(c.scope));
   const rank = (c: Command) => scopes.indexOf(c.scope);
   const tryKeys = (seq: string[]): KeyResult | null => {
-    const exact = usable.filter((c) => c.keys!.length === seq.length && c.keys!.every((x, i) => norm(x) === seq[i])).sort((a, b) => rank(a) - rank(b));
+    const exact = usable.filter((c) => { const t = tokens(c.keys!); return t.length === seq.length && t.every((x, i) => x === seq[i]); }).sort((a, b) => rank(a) - rank(b));
     if (exact.length) return { kind: "run", command: exact[0] };
-    if (usable.some((c) => c.keys!.length > seq.length && seq.every((x, i) => norm(c.keys![i]) === x))) return { kind: "pending", keys: seq };
+    if (usable.some((c) => { const t = tokens(c.keys!); return t.length > seq.length && seq.every((x, i) => t[i] === x); })) return { kind: "pending", keys: seq };
     return null;
   };
   if (state.pending.length && now - state.at <= SEQUENCE_MS) {
