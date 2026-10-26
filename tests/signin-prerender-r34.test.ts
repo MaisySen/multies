@@ -13,8 +13,8 @@ const localLike = { auth: auth(), demoEnabled: false };
 describe("R34 prerendered sign in card: variant pick", () => {
   it("reads the setup the way the providers answer does", () => {
     expect(providersAnswer(prodLike)).toEqual({ idp: true, password: false, google: false, github: false, auth0: true });
-    expect(loginVariant(prodLike)).toEqual({ idp: true, password: false, google: false, github: false, demo: true });
-    expect(loginVariant(localLike)).toEqual({ idp: false, password: true, google: false, github: false, demo: false });
+    expect(loginVariant(prodLike)).toEqual({ idp: true, password: false, google: false, github: false, demo: true, social: "" });
+    expect(loginVariant(localLike)).toEqual({ idp: false, password: true, google: false, github: false, demo: false, social: "" });
     expect(loginVariant({ auth: auth({ social: { google: {}, github: {} } }), demoEnabled: true })).toMatchObject({ google: true, github: true });
     // With the identity provider on, direct social buttons are off whatever is configured.
     expect(loginVariant({ auth: auth({ auth0: { domain: "x" }, social: { google: {} } }), demoEnabled: false }).google).toBe(false);

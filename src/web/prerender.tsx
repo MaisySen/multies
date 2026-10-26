@@ -73,7 +73,7 @@ function renderAuthMarkup(page: AuthCardPage, v: LoginVariant): string {
   const path = AUTH_CARD_ROUTES[page];
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false, staleTime: Infinity } } });
   queryClient.setQueryData(authProvidersQuery.queryKey, { idp: v.idp, password: v.password, google: v.google, github: v.github });
-  queryClient.setQueryData(qk.config, { demoEnabled: v.demo });
+  queryClient.setQueryData(qk.config, { demoEnabled: v.demo, socialConnections: v.social ? v.social.split("+") : [] });
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>

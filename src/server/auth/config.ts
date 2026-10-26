@@ -1,4 +1,5 @@
 import type { AppConfig } from "../config";
+import { socialKey } from "../../shared/prerender-shell";
 
 /**
  * How people sign in on this deployment, read from config once.
@@ -22,10 +23,12 @@ export function providersAnswer(config: Pick<AppConfig, "auth">) {
 }
 
 /** R34: which prerendered sign in card this deployment shows (the providers answer plus the demo button). */
-export interface LoginVariantOf { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean }
+export interface LoginVariantOf { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean; social: string }
 export function loginVariant(config: Pick<AppConfig, "auth" | "demoEnabled">): LoginVariantOf {
   const p = providersAnswer(config);
-  return { idp: p.idp, password: p.password, google: p.google, github: p.github, demo: !!config.demoEnabled };
+  // R35: the direct social buttons the identity provider page shows (the same list /api/config answers).
+  const social = p.idp ? socialKey(config.auth.socialConnections) : "";
+  return { idp: p.idp, password: p.password, google: p.google, github: p.github, demo: !!config.demoEnabled, social };
 }
 
 export function localPasswordEnabled(config: Pick<AppConfig, "auth">): boolean {

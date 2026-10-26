@@ -111,15 +111,23 @@ export function routeChunkMap(manifest: Record<string, { file: string; imports?:
  * 210 KB of JS, 86% of LCP was render delay). The server picks the variant from its own config, the same config the
  * providers answer and the public config come from, so the card the HTML shows is the card React then renders.
  */
-export interface LoginVariant { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean }
+export interface LoginVariant { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean; social?: string }
 
-export const loginVariantKey = (v: LoginVariant) => `idp${+v.idp}-pw${+v.password}-g${+v.google}-gh${+v.github}-demo${+v.demo}`;
+/** R35: the identity provider's direct social buttons (Continue with Google, Microsoft) are part of the card too: left
+ * out, the card grew by a button when the app took over and everything under it moved (prod CLS 0.14 in one run of
+ * two). `social` is the connections the page shows, in its fixed order, joined with "+"; "" for none. */
+export const SOCIAL_ORDER = ["google-oauth2", "windowslive"] as const;
+export const socialKey = (list: readonly string[] | null | undefined) => SOCIAL_ORDER.filter((c) => list?.includes(c)).join("+");
+
+export const loginVariantKey = (v: LoginVariant) => `idp${+v.idp}-pw${+v.password}-g${+v.google}-gh${+v.github}-demo${+v.demo}${v.social ? `-s${v.social}` : ""}`;
 
 /** Every setup the build prerenders: the identity provider (with or without the password form), or the app's own
  * form with any mix of Google and GitHub; each with and without the demo button. Anything else gets the plain shell. */
 export const LOGIN_VARIANTS: LoginVariant[] = [true, false].flatMap((demo) => [
-  { idp: true, password: false, google: false, github: false, demo },
-  { idp: true, password: true, google: false, github: false, demo },
+  ...["", "google-oauth2", "google-oauth2+windowslive"].flatMap((social) => [
+    { idp: true, password: false, google: false, github: false, demo, social },
+    { idp: true, password: true, google: false, github: false, demo, social },
+  ]),
   ...[false, true].flatMap((google) => [false, true].map((github) => ({ idp: false, password: true, google, github, demo }))),
 ]);
 

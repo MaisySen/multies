@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { AUTH_CARD_PATH, authCardPage, LOGIN_VARIANTS, loginHtmlFor, loginVariantKey, type LoginPrerender, type LoginVariant } from "../src/shared/prerender-shell";
+import { AUTH_CARD_PATH, authCardPage, LOGIN_VARIANTS, loginHtmlFor, loginVariantKey, socialKey, type LoginPrerender, type LoginVariant } from "../src/shared/prerender-shell";
+import { loginVariant } from "../src/server/auth/config";
 import { inertFormFields, prerendersAuthCard, renderAuthCard } from "../src/web/prerender";
 
 const shell = '<html><head></head><body><div id="root"></div></body></html>';
@@ -53,5 +54,23 @@ describe("R35 prerendered sign up and forgot password cards", () => {
     expect(up).not.toContain('type="submit"');
     expect(up).toContain('href="/login"');
     expect(inertFormFields('<input type="hidden" name="x"/><input readonly="" name="y"/><input name="z"/>')).toBe('<input type="hidden" name="x"/><input readonly="" name="y"/><input readonly="" name="z"/>');
+  });
+});
+
+describe("R35 social buttons are in the prerendered card", () => {
+  it("picks the variant with the identity provider's social connections, in the page's order", () => {
+    expect(socialKey(["windowslive", "google-oauth2", "github"])).toBe("google-oauth2+windowslive");
+    expect(socialKey(undefined)).toBe("");
+    const cfg = { demoEnabled: true, auth: { auth0: { domain: "x" }, localPassword: false, social: {}, socialConnections: ["google-oauth2"] } } as unknown as Parameters<typeof loginVariant>[0];
+    const v = loginVariant(cfg);
+    expect(v.social).toBe("google-oauth2");
+    expect(LOGIN_VARIANTS.map(loginVariantKey)).toContain(loginVariantKey(v));
+  });
+
+  it("draws Continue with Google in the card when the deployment shows it, so nothing moves when the app takes over", () => {
+    const withGoogle = renderAuthCard("login", { ...prod, social: "google-oauth2" });
+    expect(withGoogle).toContain("Google");
+    expect(renderAuthCard("login", prod)).not.toContain("social-google-oauth2");
+    expect(withGoogle).toContain("social-google-oauth2");
   });
 });
