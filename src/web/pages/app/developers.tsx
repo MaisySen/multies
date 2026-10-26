@@ -61,7 +61,7 @@ function ScopePicker({ preset, picked, onChange }: { preset: Preset; picked: str
     onChange("custom", [...next]);
   };
   return (
-    <fieldset>
+    <fieldset className="min-w-0">
       <legend className="mb-2 text-[13px] font-medium">Access</legend>
       <div role="radiogroup" aria-label="Access preset" className="grid grid-cols-3 gap-1 rounded-lg bg-fill p-0.5 text-sm">
         {([["full", "Full access"], ["read", "Read only"], ["custom", "Choose areas"]] as const).map(([id, label]) => (
@@ -74,7 +74,7 @@ function ScopePicker({ preset, picked, onChange }: { preset: Preset; picked: str
         <div className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
           {(areas.data ?? []).map((a) => (
             <div key={a.area} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5">
-              <div className="min-w-0 flex-1"><p className="text-sm font-medium">{a.label}</p><p className="truncate text-xs text-subtle">{a.note}</p></div>
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1"><p className="text-sm font-medium">{a.label}</p><p className="truncate text-xs text-subtle">{a.note}</p></div>
               <label className="flex min-h-9 items-center gap-1.5 text-[13px]"><input type="checkbox" className="h-4 w-4 accent-brand" checked={set.has(a.read)} onChange={(e) => toggle(a, "read", e.target.checked)} aria-label={`${a.label}: read`} />Read</label>
               <label className="flex min-h-9 items-center gap-1.5 text-[13px]"><input type="checkbox" className="h-4 w-4 accent-brand" checked={set.has(a.write)} onChange={(e) => toggle(a, "write", e.target.checked)} aria-label={`${a.label}: ${a.writeLabel.toLowerCase()}`} />{a.writeLabel}</label>
             </div>

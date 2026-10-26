@@ -241,7 +241,7 @@ export function v1Routes() {
     info: {
       title: "Multies API",
       version: "1.0.0",
-      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
+      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));
