@@ -12,3 +12,10 @@ One store build, one review: Multies 1.10.0 with a new runtime version. Everythi
 8. In-app review + in-app update prompts (StoreKit review request, Play in-app updates): ask for a rating after a good moment, prompt when a store build is required. Why: ratings and update reach. Teardown: monday/mobile-architecture.md, todoist/mobile-store.md.
 
 Before building: bump runtimeVersion, run the fingerprint guard (scripts/ota-guard.js) to confirm the new fingerprint, publish the web files from item 4 first, and test on a TestFlight and an internal Play track build.
+
+## Added in R34 (premium pass 2)
+9. Real blur materials (expo-blur, or expo-router native tabs): the tab bar, the compact title bar and sheet headers use a semi-opaque surface with a hairline today (src/components/chrome.tsx, `chrome`); swap that one object for a BlurView with the system thin material. Why: the owner asked for a native, premium feel; JS cannot blur what is behind a view.
+10. Native context menus (react-native-ios-context-menu or zeego on UIMenu and Android popup menus): long-press on mail and task rows opens a JS action sheet with a haptic today; native menus add the lifted row preview. Why: the press and hold preview is the strongest native cue on iOS.
+11. SF Symbols proper (expo-symbols, iOS only): the Icon component (src/components/Icon.tsx) draws Phosphor paths today, the closest open set; with expo-symbols it can render the real SF Symbol per name on iOS with weight and hierarchical colour, keeping Material Symbols on Android. The name map is already semantic, so the swap is inside Icon only.
+12. Native large titles (react-native-screens headerLargeTitle with a native stack on each tab): the large title folds on scroll in JS today (useCollapse + LargeTitle collapsed); native large titles track the scroll on the UI thread with the system spring.
+13. Badge count on Android launchers: expo-notifications sets the iOS badge; Android needs a notification channel badge or a launcher plugin for a count on the icon.

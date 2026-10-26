@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
 import { cached, setOffline } from "./offline";
@@ -559,10 +559,8 @@ export function useClaimFreeAddress() {
 export function useCounts() {
   const { api, mode } = useSession();
   const foreground = useForeground();
-  const latest = useRef(api);
-  latest.current = api;
-  const [client] = useState(() => countsClient((opts) => latest.current.counts(opts)));
-  useEffect(() => { client.reset(); }, [client, mode]);
+  // One client (ETag and last answer) per session transport; switching live and sample starts fresh.
+  const client = useMemo(() => countsClient((opts) => api.counts(opts)), [api]);
   const q = useQuery<Counts | null>({
     queryKey: [...keys.counts, mode],
     queryFn: () => client.get(),

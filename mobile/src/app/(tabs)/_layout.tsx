@@ -1,8 +1,7 @@
 import { useEffect, useRef } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { Tabs } from "expo-router";
 import { Icon } from "@/components/ui";
-import { Platform } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { keys, useApprovals } from "@/lib/queries";
 import { setAppBadge } from "@/lib/badges";
