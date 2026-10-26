@@ -347,3 +347,17 @@ test("triage keys: J K, then A D H M open their bars and dialogs, O opens the ta
   await page.keyboard.press("o");
   await expect(page).toHaveURL(/\/app\/tasks\?task=/, { timeout: 15_000 });
 });
+
+test("timeline key: Shift+D opens the date clashes sheet", async ({ page }) => {
+  test.setTimeout(240_000);
+  await demo(page);
+  const projects = (await (await page.request.get("/api/projects")).json()).projects as { id: string }[];
+  await page.goto(`/app/tasks?view=timeline&project=${projects[0].id}`);
+  await expect(page.getByTestId("schedule-clash-pill").or(page.getByTestId("schedule-ok-pill")).first()).toBeVisible({ timeout: 60_000 });
+  await blur(page);
+  await page.keyboard.press("Shift+D");
+  const sheet = page.getByRole("dialog").first();
+  await expect(sheet).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden({ timeout: 10_000 });
+});
