@@ -24,7 +24,7 @@ try {
   await tid("sample").waitFor({ timeout: 30000 }); await tid("sample").click();
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${out}/${prefix}-inbox.png` });
-  for (const [route, name] of [["/tasks", "tasks"], ["/settings", "settings"], ["/chat", "chat"]]) {
+  for (const [route, name] of [["/tasks", "tasks"], ["/settings", "settings"], ["/chat", "chat"], ...(prefix === "after" ? [["/today", "today"]] : [])]) {
     await page.goto(base + route); await page.waitForTimeout(2500);
     await page.screenshot({ path: `${out}/${prefix}-${name}.png` });
   }
