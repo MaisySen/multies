@@ -99,6 +99,29 @@ test("docs blocks: table, callout and image from the slash menu", async ({ brows
   const saved = (await (await page.request.get(`/api/docs/${doc.id}`)).json()).doc as { content: { content: { type: string }[] } };
   const types = saved.content.content.map((n) => n.type);
   for (const t of ["callout", "table", "image"]) expect(types).toContain(t);
+  // R33: the image node stored its natural size (the test PNG is 1 by 1).
+  const imgNode = (saved.content.content as { type: string; attrs?: Record<string, unknown> }[]).find((n) => n.type === "image");
+  expect(imgNode?.attrs).toMatchObject({ width: 1, height: 1 });
+
+  // R33: on reload the box is reserved before the file arrives, so the image causes no layout shift.
+  await page.unroute("https://images.example.com/**");
+  await page.route("https://images.example.com/**", async (r) => { await new Promise((ok) => setTimeout(ok, 1500)); await r.fulfill({ status: 200, contentType: "image/png", body: PNG }); });
+  await page.addInitScript(() => {
+    (window as unknown as { __cls: number }).__cls = 0;
+    new PerformanceObserver((list) => { for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean }[]) if (!e.hadRecentInput) (window as unknown as { __cls: number }).__cls += e.value; }).observe({ type: "layout-shift", buffered: true });
+  });
+  await page.reload();
+  const again = page.locator('.ProseMirror img[alt="Launch timeline"]').first();
+  await expect(again).toHaveAttribute("width", "1");
+  await expect(again).toHaveAttribute("style", /aspect-ratio: 1 \/ 1/);
+  const before = await again.evaluate((el) => ({ h: el.getBoundingClientRect().height, done: (el as HTMLImageElement).complete && (el as HTMLImageElement).naturalWidth > 0 }));
+  expect(before.done).toBe(false);
+  expect(before.h).toBeGreaterThan(50);
+  const clsAtAppear = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+  await expect.poll(() => again.evaluate((el) => (el as HTMLImageElement).complete && (el as HTMLImageElement).naturalWidth > 0), { timeout: 10_000 }).toBe(true);
+  await page.waitForTimeout(300);
+  const clsAfter = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+  expect(clsAfter - clsAtAppear).toBe(0);
 
   await page.mouse.click(1300, 120);
   const shots = "/home/user/tab/files/multies-r32";
