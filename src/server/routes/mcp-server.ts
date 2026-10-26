@@ -616,18 +616,6 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     const p = await updateProject(deps, a, x.projectId, { health: x.health, ...(x.note !== undefined ? { healthNote: x.note } : {}) });
     return { project: { id: p.id, name: p.name, health: p.health, healthNote: p.healthNote } };
   }));
-
-  // R33: rename a project or change its key. A key another project uses (any case) answers key_taken (409).
-  server.registerTool("update_project", {
-    title: "Rename a project or change its key", annotations: rw,
-    description: "Change a project's name, description, color or key. The key (letters and digits, up to 6) must be unique in the workspace without regard to case; a taken key is refused with key_taken and nothing changes.",
-    inputSchema: { projectId: z.string(), name: z.string().trim().min(1).max(80).optional(), description: z.string().max(2000).optional(), color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(), key: z.string().trim().min(1).max(6).regex(/^[A-Za-z0-9]+$/).optional() },
-  }, tool(async (x: { projectId: string; name?: string; description?: string; color?: string; key?: string }) => {
-    writable();
-    const { projectId, ...patch } = x;
-    const p = await updateProject(deps, a, projectId, patch);
-    return { project: { id: p.id, name: p.name, key: p.key, description: p.description, color: p.color } };
-  }));
 }
 
 /** Chat, templates and goals. Agents read and post in public channels; DMs and private channels are only for people. */

@@ -12,8 +12,9 @@ import { HttpError } from "../lib/errors";
 import { fromB64 } from "../lib/crypto";
 import {
   addMembers, channelMessages, chatPeople, createChannel, deleteMessage, editMessage, getChannel, getMessage, getThread, guestChannels, guestMessages, guestPost, guestThread,
-  joinChannel, leaveChannel, listChannels, listPins, markRead, pinMessage, messageToTask, openDm, postMessage, readChatFile, readSignedChatFile, unreadSummary, updateChannel, type GuestViewer,
+  joinChannel, leaveChannel, listChannels, listPins, markRead, pinMessage, messageToTask, openDm, postMessageAcked, readChatFile, readSignedChatFile, unreadSummary, updateChannel, type GuestViewer,
 } from "../services/suite/chat";
+import { ackFor } from "../services/suite/chat-ack-r33";
 import { deleteTemplate, getTemplate, listTemplates, saveTemplate, useTemplate } from "../services/suite/templates";
 import { addKeyResult, createGoal, deleteGoal, deleteKeyResult, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
 import { GUEST_COOKIE, resolveGuest } from "../services/suite/guests";
@@ -23,7 +24,7 @@ import { chatR23CallRoutes, guestChatR23CallRoutes } from "./chat-r23-calls";
 import { chatLiveR32Routes } from "./chat-live-r32";
 
 export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(), contentBase64: z.string().min(1).max(14_000_000) });
-export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional() });
+export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional(), /** R33: the sender's id for this send; a repeat with the same id returns the first message (see chat-ack-r33.ts). */ clientMsgId: z.string().regex(/^[0-9a-z]{17,49}$/).optional() });
 export const ChannelCreate = z.object({ name: z.string().trim().min(1).max(80), topic: z.string().max(250).optional(), private: z.boolean().optional(), memberIds: z.array(z.string().max(80)).max(200).optional(), projectId: z.string().max(64).nullable().optional(), guestAccess: z.boolean().optional() });
 export const ChannelPatch = z.object({ name: z.string().trim().min(1).max(80).optional(), topic: z.string().max(250).optional(), archived: z.boolean().optional(), guestAccess: z.boolean().optional(), projectId: z.string().max(64).nullable().optional() });
 export const MessageToTask = z.object({ title: z.string().max(300).optional(), projectId: z.string().max(64).optional(), assignee: z.string().regex(/^(member|agent):[A-Za-z0-9_-]+$/).nullable().optional(), due: z.string().max(40).nullable().optional(), triage: z.boolean().optional() });
@@ -76,7 +77,9 @@ export function chatRoutes() {
     .get("/channels/:id/messages", async (c) => c.json(await channelMessages(c.var.deps, c.var.auth, c.req.param("id"), parseQuery(c, MessagesQuery))))
     .post("/channels/:id/messages", async (c) => {
       const b = await parseBody(c, ChatPost);
-      return c.json({ message: await postMessage(c.var.deps, c.var.auth, c.req.param("id"), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments) }) }, 201);
+      // R33: the answer carries an ack naming the client id, and a repeat answers 200 with the first message.
+      const r = await postMessageAcked(c.var.deps, c.var.auth, c.req.param("id"), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId });
+      return c.json({ message: r.message, ...(b.clientMsgId ? { ack: ackFor(b.clientMsgId, r.message, r.deduped) } : {}) }, r.deduped ? 200 : 201);
     })
     .post("/channels/:id/read", async (c) => c.json(await markRead(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ messageId: z.string().max(64).optional() }).default({}))).messageId)))
     .get("/unread", async (c) => c.json(await unreadSummary(c.var.deps, c.var.auth)))

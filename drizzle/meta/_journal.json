@@ -477,13 +477,6 @@
       "when": 1793000072000,
       "tag": "0072_r32_partial_indexes",
       "breakpoints": true
-    },
-    {
-      "idx": 73,
-      "version": "6",
-      "when": 1793000073000,
-      "tag": "0073_r33_one_row_per_change",
-      "breakpoints": true
     }
   ]
 }

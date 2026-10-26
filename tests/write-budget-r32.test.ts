@@ -191,10 +191,7 @@ describe("R32 write amplification (migration 0072)", () => {
   //   task create 17 -> 14 (no due date), task status 7 -> 5, task title 13 -> 11, chat send 12 -> 11, doc create 9 -> 9,
   //   doc save 9 -> 9, mail receive 20 -> 17, mail send (http) 33 -> 32, sign in (http) 10 -> 10, cron pass 3 -> 3.
   // A change that raises any of these fails here; lower the number when a change makes an action cheaper.
-  // R33 (0073: one change row per write, the number claim on project_counters), measured on base 231f54f -> r33-d1:
-  //   task create 14 -> 9, task title 10 -> 7, task move 13 -> 8, comment (http) 16 -> 13, bulk move of 2 (http) 22 -> 20,
-  //   doc save 9 -> 6, doc create 9 -> 6, task status 4 -> 4, chat send 11 -> 11.
-  const BUDGET = { taskCreate: 9, taskUpdateStatus: 5, taskUpdateTitle: 8, chatSend: 11, docSave: 6, mailReceive: 17, signIn: 12, cronPass: 3 };
+  const BUDGET = { taskCreate: 14, taskUpdateStatus: 5, taskUpdateTitle: 11, chatSend: 11, docSave: 9, mailReceive: 17, signIn: 12, cronPass: 3 };
   it("locks the per action write cost", async () => {
     const ctx = await makeTestApp();
     const u = new Client(ctx.app);

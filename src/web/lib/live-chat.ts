@@ -10,7 +10,8 @@
  */
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, ApiError } from "./api";
+import { ChatOutbox, type SendResult } from "./chat-outbox";
 
 export const LIVE_PATH = "/api/chat/live";
 export const PING_EVERY_MS = 25_000;
@@ -30,10 +31,12 @@ export type LiveState = "idle" | "connecting" | "open" | "reconnecting" | "stopp
 
 /** What the hub pushes (see src/server/realtime/hub.ts). */
 export type LiveEvent =
-  | { t: "message"; op: "created" | "updated"; channelId: string; message: LiveMessage }
+  | { t: "message"; op: "created" | "updated"; channelId: string; message: LiveMessage; clientMsgId?: string }
   | { t: "reactions"; channelId: string; messageId: string; reactions: unknown[] }
   | { t: "typing"; channelId: string; userId: string; name: string }
   | { t: "read"; channelId: string; userId: string; at: string };
+/** R33: the server's first frame on a socket (see src/server/realtime/hub.ts ChatHello). */
+export interface LiveHello { t: "hello"; serverTime: string; seq: number }
 export interface LiveMessage { id: string; channelId: string; parentId: string | null; createdAt: string; replyCount?: number; lastReplyAt?: string | null; reactions?: unknown[]; [k: string]: unknown }
 
 /** The parts of a browser WebSocket the connection uses (tests pass a fake). */
@@ -74,6 +77,10 @@ export class LiveChatConnection {
   state: LiveState = "idle";
   /** True once a socket has opened: only then is a drop worth showing ("Reconnecting"). */
   everOpened = false;
+  /** R33: true once the current socket sent its hello frame; false while connecting or down. */
+  ready = false;
+  /** R33: the highest hello seq seen; a lower one means the hub restarted (read once to catch up). */
+  private lastSeq = -1;
   private ws: SocketLike | null = null;
   private attempt = 0;
   private retry: unknown = null;
@@ -87,12 +94,19 @@ export class LiveChatConnection {
     onEvent: (e: LiveEvent) => void;
     /** Called after a reconnect, so missed events are caught up with one read. */
     onResync?: () => void;
+    /** R33: hello arrived (true) or the socket went away (false). The outbox holds sends until true. */
+    onReady?: (ready: boolean) => void;
     clock?: Clock;
   }) {}
 
   private get clock() { return this.opts.clock ?? realClock; }
 
   subscribe = (fn: () => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
+  private setReady(ready: boolean) {
+    if (this.ready === ready) return;
+    this.ready = ready;
+    this.opts.onReady?.(ready);
+  }
   private set(state: LiveState) {
     if (this.state === state) return;
     this.state = state;
@@ -111,6 +125,7 @@ export class LiveChatConnection {
     const ws = this.ws;
     this.ws = null;
     if (ws) { ws.onclose = null; ws.onerror = null; ws.onmessage = null; try { ws.close(1000, "bye"); } catch { /* closed */ } }
+    this.setReady(false);
     this.set("stopped");
   }
 
@@ -133,6 +148,14 @@ export class LiveChatConnection {
       if (typeof ev.data !== "string" || ev.data === "pong") return;
       let e: LiveEvent;
       try { e = JSON.parse(ev.data) as LiveEvent; } catch { return; }
+      if (e && (e as unknown as { t?: unknown }).t === "hello") {
+        const h = e as unknown as LiveHello;
+        const seq = typeof h.seq === "number" ? h.seq : 0;
+        if (seq < this.lastSeq) this.opts.onResync?.();
+        this.lastSeq = seq;
+        this.setReady(true);
+        return;
+      }
       if (e && typeof e === "object" && typeof (e as { t?: unknown }).t === "string") this.opts.onEvent(e);
     };
     ws.onerror = () => { /* onclose follows */ };
@@ -140,6 +163,7 @@ export class LiveChatConnection {
       if (this.ws !== ws) return;
       this.ws = null;
       this.clearTimers();
+      this.setReady(false);
       if (ev.code === 4001) { this.attempt = 0; this.set("reconnecting"); this.retry = this.clock.setTimeout(() => this.connect(), 200 + Math.round(this.clock.random() * 500)); return; }
       if (ev.code === 4013) { this.set("reconnecting"); this.retry = this.clock.setTimeout(() => this.connect(), FULL_RETRY_MS); return; }
       this.scheduleRetry();
@@ -182,7 +206,16 @@ export class LiveChatConnection {
     this.retry = null;
     this.ws = null;
     if (ws) { ws.onclose = null; try { ws.close(1000, "killed"); } catch { /* closed */ } }
+    this.setReady(false);
     this.set("reconnecting");
+  }
+
+  /** Test hook (R33): drop the socket as a network blip would; it reconnects with backoff. */
+  drop() {
+    const ws = this.ws;
+    if (!ws) return;
+    try { ws.close(4000, "dropped"); } catch { /* closed */ }
+    ws.onclose?.({ code: 4000 });
   }
 }
 
@@ -353,9 +386,28 @@ export function useLiveChat(myId: string | undefined) {
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const me = useRef(myId);
   me.current = myId;
+  // R33: sends wait in the outbox until the socket's hello (or the hold), then carry a client id.
+  const outbox = useMemo(() => new ChatOutbox({
+    send: async (item): Promise<SendResult> => {
+      try {
+        const r = await api.post<{ message: unknown; ack?: { type: "ack"; reply_to: string; ok: boolean; message?: { id: string; ts: string }; deduped?: boolean } }>(
+          `/chat/channels/${encodeURIComponent(item.channelId)}/messages`, { body: item.body, parentId: item.parentId ?? undefined, clientMsgId: item.clientMsgId });
+        return { ok: true, ack: r.ack ?? { type: "ack", reply_to: item.clientMsgId, ok: true, message: { id: (r.message as { id: string }).id, ts: "" } }, message: r.message };
+      } catch (e) {
+        const status = e instanceof ApiError ? e.status : 0;
+        return { ok: false, retryable: status === 0 || status >= 500 || status === 429, error: (e as Error).message };
+      }
+    },
+    onAcked: (_id, message) => {
+      // The server's copy goes straight into the list (no gap between the pending bubble and the row).
+      const m = message as LiveMessage | undefined;
+      if (m?.id && m.channelId) applyLiveEvent(qc, { t: "message", op: "created", channelId: m.channelId, message: m });
+      void qc.invalidateQueries({ queryKey: ["chat", "channels"] });
+    },
+  }), [qc]);
 
   useEffect(() => {
-    if (typeof WebSocket === "undefined") return;
+    if (typeof WebSocket === "undefined") { outbox.setReady(true); return; }
     const flush = () => {
       flushTimer.current = null;
       const keys = [...pending.current];
@@ -372,6 +424,7 @@ export function useLiveChat(myId: string | undefined) {
       makeSocket: (url) => new WebSocket(url) as unknown as SocketLike,
       onEvent: (e) => {
         if (e.t === "typing") { if (e.userId !== me.current) typing.add(e.channelId, e.userId, e.name); return; }
+        if (e.t === "message" && e.op === "created" && e.clientMsgId) outbox.settle(e.clientMsgId, e.message);
         if (e.t === "message" && e.op === "created") {
           const author = (e.message.author as { id?: string; type?: string } | undefined);
           if (author?.id) typing.remove(e.channelId, author.type === "agent" ? `agent:${author.id}` : author.id);
@@ -380,14 +433,18 @@ export function useLiveChat(myId: string | undefined) {
         if (pending.current.size && !flushTimer.current) flushTimer.current = setTimeout(flush, 1500);
       },
       onResync: () => { void qc.invalidateQueries({ queryKey: ["chat"] }); },
+      onReady: (ready) => outbox.setReady(ready),
     });
     conn.current = c;
     const unsub = c.subscribe(() => force((n) => n + 1));
     c.start();
     const pruner = setInterval(() => typing.prune(), 1000);
-    if ((globalThis as { __MULTIES_CHAT_POLL_MS?: unknown }).__MULTIES_CHAT_POLL_MS) (window as unknown as { __MULTIES_LIVE_CHAT__?: LiveChatConnection }).__MULTIES_LIVE_CHAT__ = c;
+    if ((globalThis as { __MULTIES_CHAT_POLL_MS?: unknown }).__MULTIES_CHAT_POLL_MS) {
+      (window as unknown as { __MULTIES_LIVE_CHAT__?: LiveChatConnection }).__MULTIES_LIVE_CHAT__ = c;
+      (window as unknown as { __MULTIES_CHAT_OUTBOX__?: ChatOutbox }).__MULTIES_CHAT_OUTBOX__ = outbox;
+    }
     return () => { unsub(); clearInterval(pruner); if (flushTimer.current) clearTimeout(flushTimer.current); c.stop(); conn.current = null; };
-  }, [qc, typing]);
+  }, [qc, typing, outbox]);
 
   const beat = useMemo(() => typingThrottle((channelId) => { void api.post(`/chat/channels/${encodeURIComponent(channelId)}/typing`, {}).catch(() => undefined); }), []);
   const state = conn.current?.state ?? "idle";
@@ -395,9 +452,16 @@ export function useLiveChat(myId: string | undefined) {
     live: state === "open",
     degraded: !!conn.current?.everOpened && state !== "open" && state !== "stopped",
     typing,
+    /** R33: the outbox (pending bubbles, retry). */
+    outbox,
     /** Call on every keystroke; only sends while live chat works on this host. */
     onType: (channelId: string) => { if (conn.current?.everOpened) beat(channelId); },
   };
+}
+
+/** R33: the outbox's pending sends, re-rendered on every change. */
+export function useOutbox(outbox: ChatOutbox) {
+  return useSyncExternalStore(outbox.subscribe, outbox.getSnapshot, outbox.getSnapshot);
 }
 
 /** The names typing in a channel right now. */
