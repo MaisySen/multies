@@ -814,3 +814,15 @@ The Supabase auth email hook (`/api/v1/auth-email-hooks`, see docs/transactional
 - Another workspace's ids answer 404; private channels and DMs answer 404 to keys; read only keys get 403 `read_only_key` on writes.
 - `GET /api/v1/tasks` and `GET /api/v1/projects/{id}/tasks` take `sprintId=<id>` (one sprint) or `sprintId=none` (the backlog). An unknown query parameter now answers 400 `unknown_parameter` naming it (`field.<id>` filters are still allowed).
 - MCP: `list_task_comments`, `edit_task_comment`, `delete_task_comment`, `edit_chat_message`, `delete_chat_message`.
+
+## AI agent members (R26, DF-3)
+
+Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as-members.md). Creating, keys and removal are in the People section (`POST /api/v1/agent-members`, `/agent-members/{id}/keys`, `DELETE /agent-members/{id}`). R26 adds:
+
+- `POST /api/v1/agent-members` also takes `avatarColor` (`#rrggbb`) and `inboxAgentId` (an existing agent inbox to link; mailbox stays optional). The answer's `member` carries `avatar: { color, initials }`, `disabled`, `inbox` and `keys`.
+- `GET /api/v1/agent-members`: `{ agents: [{ userId, name, title, bio, avatar, disabled, disabledAt, inbox, keys, joinedAt }] }`. Any key of the workspace.
+- `GET /api/v1/agent-members/{id}`: `{ agent }` for one, by user id. Another workspace's id answers 404.
+- `PATCH /api/v1/agent-members/{id}` with any of `{ name, title, bio, avatarColor, disabled, inboxAgentId }`. `disabled: true` pauses the agent: every key of it answers 401 until `disabled: false`. A paused agent stays in People and in task history, and leaves the assignee and mention pickers (`/api/tasks/assignees` marks it `paused: true`). Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403 `agent_key_scope`. One members row and one audit row (`agent_member.updated`, `agent_member.paused` or `agent_member.resumed`); an unchanged PATCH writes nothing.
+- Task assignees and chat people mark agent members `isAgent: true` (assignee `member:<userId>`), and a task assigned to one shows `assignee.isAgent: true` with no email.
+- Session routes for the app: `GET /api/team/agents`, `PATCH /api/team/agents/{userId}` (admins), and `POST /api/team/agents` with the same new fields.
+- MCP: `list_agent_members`, `create_agent_member`, `update_agent_member`.

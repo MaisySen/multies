@@ -15,6 +15,7 @@ import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrit
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { inChunks, SQL_IN_CHUNK } from "../../lib/sql-chunks";
+import { isAgentEmail } from "../people";
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -240,12 +241,15 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
 }
 type Lookups = Awaited<ReturnType<typeof lookups>>;
 
+/** R26 (DF-3): an AI agent member assignee shows no internal address and carries isAgent for the badge. */
+const memberEmail = (email: string | null | undefined) => (email && isAgentEmail(email) ? { email: null, isAgent: true as const } : { email: email ?? null });
+
 function presentTask(t: TaskRow, l: Lookups) {
   const st = l.statuses.get(t.statusId);
   const pr = l.projects.get(t.projectId);
   const assignee = t.assigneeType && t.assigneeId
     ? t.assigneeType === "member"
-      ? { type: "member" as const, id: t.assigneeId, name: l.members.get(t.assigneeId)?.name ?? "Former member", email: l.members.get(t.assigneeId)?.email ?? null }
+      ? { type: "member" as const, id: t.assigneeId, name: l.members.get(t.assigneeId)?.name ?? "Former member", ...memberEmail(l.members.get(t.assigneeId)?.email) }
       : { type: "agent" as const, id: t.assigneeId, name: l.agents.get(t.assigneeId)?.name ?? "Removed agent", email: null }
     : null;
   return {
@@ -833,12 +837,12 @@ export async function deleteView(deps: Deps, actor: SuiteActor, id: string) {
 /** Everyone a task can go to: members and agents. */
 export async function assignees(deps: Deps, orgId: string) {
   const [ms, ags] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
+    deps.db.select({ id: users.id, name: users.name, email: users.email, kind: members.kind, disabledAt: members.disabledAt }).from(members).innerJoin(users, eq(users.id, members.userId)).where(eq(members.organizationId, orgId)),
     deps.db.select({ id: agents.id, name: agents.name, status: agents.status }).from(agents).where(eq(agents.orgId, orgId)),
   ]);
   return [
     // An AI agent member is assigned like a person; its internal address is never shown.
-    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.kind === "agent" ? null : m.email as string | null, ...(m.kind === "agent" ? { isAgent: true } : {}) })),
+    ...ms.map((m) => ({ id: `member:${m.id}`, type: "member" as const, name: m.name, email: m.kind === "agent" ? null : m.email as string | null, ...(m.kind === "agent" ? { isAgent: true } : {}), ...(m.disabledAt ? { paused: true } : {}) })), // R26: pickers hide paused agents
     ...ags.map((a) => ({ id: `agent:${a.id}`, type: "agent" as const, name: a.name, email: null as string | null })),
   ];
 }

@@ -616,5 +616,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- DF-4 (R25): an invitation can carry the title and bio the new member starts with. Nullable, no index\n-- (read with the invitation row that accepting already loads). Existing invitations keep null.\nALTER TABLE `invitations` ADD `title` text;",
       "ALTER TABLE `invitations` ADD `bio` text;"
     ]
+  },
+  {
+    "name": "0057_r26_agent_members",
+    "statements": [
+      "-- DF-3 (R26): AI agent members can be paused, carry an avatar colour and link an existing agent inbox.\n-- All nullable, no index: read with the member row that People, the team list and API key checks already load.\nALTER TABLE `members` ADD `disabled_at` integer;",
+      "ALTER TABLE `members` ADD `avatar_color` text;",
+      "ALTER TABLE `members` ADD `linked_agent_id` text;"
+    ]
   }
 ];

@@ -6,7 +6,8 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { createAgentMember, createAgentMemberKey, getPerson, listAgentMemberKeys, listPeople, removeAgentMember, revokeAgentMemberKey, updateProfile } from "../services/people";
+import { createAgentMemberKey, getPerson, listAgentMemberKeys, listPeople, removeAgentMember, revokeAgentMemberKey, updateProfile } from "../services/people";
+import { createAgentMemberR26 } from "../services/suite/agent-members-r26";
 import type { SuiteActor } from "../services/suite/common";
 import { meetingIcs, updateMeeting } from "../services/suite/meetings";
 import { MeetingPatch } from "./suite-r7";
@@ -40,8 +41,8 @@ export function registerPeopleRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { person: await updateProfile(c.var.deps, auth(c), pid(c), await jsonBody(c, ProfileBody)) }));
 
   // ---------------------------------------------------------------- agent members
-  api.openapi(route("post", "/agent-members", "People", "Add an AI agent member", "Body: { name, title?, bio?, scope? }. Returns the member and its first API key (secret shown once). Agent members take no seat and no inbox; the Free plan includes 10. Needs a workspace key.", { request: body(AgentMemberBody) }),
-    async (c) => send(c, await createAgentMember(c.var.deps, auth(c), await jsonBody(c, AgentMemberBody)), 201));
+  api.openapi(route("post", "/agent-members", "People", "Add an AI agent member", "Body: { name, title?, bio?, scope?, avatarColor? (#rrggbb), inboxAgentId? (an existing agent inbox to link) }. Returns the member and its first API key (secret shown once). Agent members take no seat and no inbox; the Free plan includes 10. Mailbox optional. Needs a workspace key.", { request: body(AgentMemberBody) }),
+    async (c) => send(c, await createAgentMemberR26(c.var.deps, auth(c), await jsonBody(c, AgentMemberBody)), 201));
   api.openapi(route("delete", "/agent-members/{id}", "People", "Remove an AI agent member", "Removes the member and revokes its keys. What it posted stays under its name.", { request: { params: Id } }),
     async (c) => send(c, { removed: await removeAgentMember(c.var.deps, auth(c), pid(c)) }));
   api.openapi(route("get", "/agent-members/{id}/keys", "People", "List an agent member's keys", "Prefixes and scopes only; secrets are never shown again.", { request: { params: Id } }),

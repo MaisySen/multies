@@ -55,6 +55,7 @@ import { registerPeopleRoutes } from "./v1-people";
 import { registerAuthHookRoutes } from "./v1-auth-hooks";
 import { registerInviteRoutes } from "./v1-r25-invites"; // R25 (DF-7)
 import { registerR26CommentRoutes } from "./v1-r26-comments"; // R26 (MB-77)
+import { registerAgentMemberR26Routes } from "./v1-r26-agents"; // R26 (DF-3)
 
 // ---------------------------------------------------------------- schemas
 
@@ -447,6 +448,7 @@ export function v1Routes() {
   registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
   registerInviteRoutes(api); // R25 (DF-7): invite members with a workspace key
+  registerAgentMemberR26Routes(api); // R26 (DF-3): list, edit and pause agent members
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

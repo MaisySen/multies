@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pencil, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -339,11 +339,15 @@ function ProfileDialog({ onClose, member }: { onClose: () => void; member: TeamM
 }
 
 type AgentCreated = { member: { userId: string; name: string }; secret: string };
+type AgentExtra = { userId: string; avatar: { color: string; initials: string }; disabled: boolean; inbox: { agentId: string; address: string } | null; keys: number };
 
 /** AI agent members: no seat, no mailbox, their own API keys. */
 function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; limit: number; canManage: boolean; myId: string }) {
   const [adding, setAdding] = useState(false);
   const [secret, setSecret] = useState<{ name: string; secret: string } | null>(null);
+  // R26 (DF-3): avatar colour, paused state and linked inbox per agent member.
+  const extras = useQuery({ queryKey: [...qk.team, "agents"], queryFn: async () => (await api.get<{ agents: AgentExtra[] }>("/team/agents")).agents, enabled: agents.length > 0 });
+  const extraOf = (id: string) => extras.data?.find((x) => x.userId === id);
   if (!canManage && !agents.length) return null;
   return (
     <Card>
@@ -366,7 +370,7 @@ function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; 
         <EmptyState className="py-10" icon={<Bot />} title="No agents yet" body="Add an agent with a title and a short bio, then give its key to the tool that runs it." />
       ) : (
         <ul className="divide-y divide-line" aria-label="AI agents">
-          {agents.map((a) => <AgentRow key={a.userId} a={a} canManage={canManage} self={a.userId === myId} onKey={(s) => setSecret({ name: a.name, secret: s })} />)}
+          {agents.map((a) => <AgentRow key={a.userId} a={a} extra={extraOf(a.userId)} canManage={canManage} self={a.userId === myId} onKey={(s) => setSecret({ name: a.name, secret: s })} />)}
         </ul>
       )}
       {adding && <AddAgentDialog onClose={() => setAdding(false)} onCreated={(r) => { setAdding(false); setSecret({ name: r.member.name, secret: r.secret }); }} />}
@@ -385,8 +389,14 @@ function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; 
   );
 }
 
-function AgentRow({ a, canManage, self, onKey }: { a: TeamMember; canManage: boolean; self: boolean; onKey: (secret: string) => void }) {
+function AgentRow({ a, extra, canManage, self, onKey }: { a: TeamMember; extra?: AgentExtra; canManage: boolean; self: boolean; onKey: (secret: string) => void }) {
   const qc = useQueryClient();
+  const paused = !!extra?.disabled;
+  const pause = useMutation({
+    mutationFn: () => api.patch(`/team/agents/${a.userId}`, { disabled: !paused }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk.team }); toast.success(paused ? `${a.name} resumed` : `${a.name} paused. Its keys stop working until you resume it.`); },
+    onError: (e) => showError(e),
+  });
   const [profiling, setProfiling] = useState(false);
   const [removing, setRemoving] = useState(false);
   const newKey = useMutation({
@@ -401,11 +411,15 @@ function AgentRow({ a, canManage, self, onKey }: { a: TeamMember; canManage: boo
   });
   return (
     <li className="flex items-start gap-3 px-5 py-3.5" data-testid="agent-member">
-      <Avatar label={initials(a.name)} />
+      {extra
+        ? <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-white", paused && "opacity-50")} style={{ background: extra.avatar.color }} aria-hidden>{extra.avatar.initials}</span>
+        : <Avatar label={initials(a.name)} />}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <span className="truncate">{a.name}</span>
           <Badge tone="brand"><Bot className="h-3 w-3" />AI agent</Badge>
+          {paused && <span data-testid="agent-paused"><Badge>Paused</Badge></span>}
+          {extra?.inbox && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted"><Mail className="h-3 w-3" aria-hidden />{extra.inbox.address}</span>}
         </div>
         {a.title && <div className="truncate text-xs text-fg/80">{a.title}</div>}
         {a.bio && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{a.bio}</div>}
@@ -415,6 +429,7 @@ function AgentRow({ a, canManage, self, onKey }: { a: TeamMember; canManage: boo
         <Menu label={`Actions for ${a.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
           <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit profile</MenuItem>
           {canManage && <MenuItem icon={<KeyRound />} onSelect={() => newKey.mutate()}>New API key</MenuItem>}
+          {canManage && <MenuItem icon={paused ? <Play /> : <Pause />} onSelect={() => pause.mutate()}>{paused ? "Resume" : "Pause"}</MenuItem>}
           {canManage && <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(true)}>Remove</MenuItem>}
         </Menu>
       )}
