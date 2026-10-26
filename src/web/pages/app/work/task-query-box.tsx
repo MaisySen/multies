@@ -47,12 +47,12 @@ export function TaskQueryBox({ value, onApply, values }: { value: string; onAppl
 
   return (
     <div className="relative">
-      <div className={cn("flex h-8 w-72 items-center gap-1.5 rounded-lg border bg-elevated px-2 text-[13px] focus-within:border-brand", error && !items.length ? "border-bad" : "border-line")}>
+      <div className={cn("flex h-8 w-72 items-center gap-1.5 rounded-lg border bg-elevated px-2 text-[13px] transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/15 max-sm:h-11 max-sm:w-64 max-sm:px-3", error && !items.length ? "border-bad" : "border-line")}>
         <Search className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
         <input ref={ref} aria-label="Search tasks" role="combobox" aria-expanded={items.length > 0} aria-controls="task-query-suggestions" aria-autocomplete="list"
           aria-invalid={!!error} aria-describedby={error ? "task-query-error" : undefined}
           placeholder="Search or filter: assignee:me status:doing" value={text} spellCheck={false}
-          className="min-w-0 flex-1 bg-transparent font-mono text-[12.5px] outline-none placeholder:font-sans placeholder:text-subtle"
+          className="min-w-0 flex-1 bg-transparent font-mono text-[12.5px] outline-none placeholder:font-sans placeholder:text-subtle max-sm:text-base"
           onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)}
           onChange={(e) => { setText(e.target.value); setCursor(e.target.selectionStart ?? e.target.value.length); setOpen(true); setActive(0); setNavigated(false); }}
           onSelect={(e) => setCursor((e.target as HTMLInputElement).selectionStart ?? text.length)}
@@ -63,7 +63,7 @@ export function TaskQueryBox({ value, onApply, values }: { value: string; onAppl
             else if (e.key === "Enter") { e.preventDefault(); if (navigated && items.length) pick(active); else apply(); }
             else if (e.key === "Escape") { if (open) { e.stopPropagation(); setOpen(false); } }
           }} />
-        {text && <button type="button" aria-label="Clear the query" onClick={() => { setText(""); onApply(null); }} className="text-subtle hover:text-fg"><X className="h-3 w-3" /></button>}
+        {text && <button type="button" aria-label="Clear the query" onClick={() => { setText(""); onApply(null); }} className="grid place-items-center rounded text-subtle hover:text-fg max-sm:h-8 max-sm:w-8"><X className="h-3 w-3" /></button>}
       </div>
       {error && !items.length && <p id="task-query-error" role="alert" className="absolute left-0 top-9 z-30 w-80 rounded-md border border-bad/30 bg-elevated px-2 py-1 text-[12px] text-bad shadow-pop">{error.message}</p>}
       {items.length > 0 && (

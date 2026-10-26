@@ -10,7 +10,7 @@ import { dayPart } from "@/web/lib/format";
 
 function Section({ title, icon, items, empty, tone, testId }: { title: string; icon: ReactNode; items: MyWorkItem[]; empty: string; tone?: "danger"; testId: string }) {
   return (
-    <Card className="p-0" data-testid={testId}>
+    <Card className="min-w-0 overflow-hidden p-0" data-testid={testId}>
       <div className="flex items-center gap-2 border-b border-line px-4 py-3">
         <span className={cn("text-subtle [&_svg]:h-4 [&_svg]:w-4", tone === "danger" && items.length > 0 && "text-bad")}>{icon}</span>
         <h2 className="text-[14px] font-semibold text-fg">{title}</h2>
@@ -20,7 +20,7 @@ function Section({ title, icon, items, empty, tone, testId }: { title: string; i
         <ul className="divide-y divide-line">
           {items.map((it) => (
             <li key={it.id}>
-              <Link to={it.url} className="block px-4 py-2.5 hover:bg-hover">
+              <Link to={it.url} className="block px-4 py-2.5 transition-colors duration-150 hover:bg-hover focus-visible:bg-hover focus-visible:outline-none max-sm:py-3">
                 <span className="block truncate text-[13.5px] text-fg">{it.title}</span>
                 {it.subtitle && <span className="block truncate text-xs text-subtle">{it.subtitle}</span>}
               </Link>
@@ -42,13 +42,13 @@ export function MyWorkPage() {
   return (
     <div>
       <PageHeader eyebrow="My Work" title={`Good ${dayPart()}${first ? `, ${first}` : ""}`} description={w ? `What is waiting on you today, ${day}.` : "What is waiting on you today."}
-        actions={<Link to="/app/tasks" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted hover:bg-elevated hover:text-fg">All tasks</Link>} />
-      {q.isPending ? <div className="grid gap-4 md:grid-cols-2"><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /></div> : q.isError || !w ? (
+        actions={<Link to="/app/tasks" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">All tasks</Link>} />
+      {q.isPending ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2"><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /><Skeleton className="h-40" /></div> : q.isError || !w ? (
         <EmptyState icon={<Sun />} title="My Work didn't load" body="Check your connection and try again in a moment." />
       ) : (
         <>
           {nothing && <EmptyState className="mb-4" icon={<Sun />} title="You're clear for today" body="Nothing is due, nobody is waiting on you and there are no meetings today." />}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {w.overdue.length > 0 && <Section testId="mywork-overdue" title="Overdue" tone="danger" icon={<AlarmClock />} items={w.overdue} empty="" />}
             <Section testId="mywork-due" title="Due today" icon={<CheckSquare />} items={w.dueToday} empty="No tasks due today." />
             <Section testId="mywork-meetings" title="Today's meetings" icon={<Video />} items={w.meetings} empty="No meetings today." />

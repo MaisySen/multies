@@ -138,26 +138,26 @@ export function NotificationsPage() {
   return (
     <div>
       <PageHeader title="Notifications" description="Mentions, work assigned to you, comments, approvals and anything due soon. Mark each one done or snooze it until later."
-        actions={<div className="flex gap-2"><Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted hover:bg-elevated hover:text-fg">Settings</Link>
+        actions={<div className="flex gap-2"><Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">Settings</Link>
           <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><CheckCheck className="h-4 w-4" />Mark all read</Button>
           {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><Check className="h-4 w-4" />Mark all done</Button>}</div>} />
       <div className="mb-3 inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Notification views">
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
             className={cn("rounded-md px-3.5 py-1.5 text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-              view === v ? "bg-bg font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+              view === v ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg", "max-sm:min-h-10")}>
             {VIEW_LABELS[v]}<span className="ml-1.5 tabular-nums text-subtle" data-testid={`triage-count-${v}`}>{vc ? vc[v] : ""}</span>
           </button>
         ))}
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter notifications">
+      <div className="-mx-4 mb-4 flex items-center gap-1.5 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" role="group" aria-label="Filter notifications">
         {FILTERS.map((f) => (
           <button key={f} onClick={() => setFilter(f)} aria-pressed={filter === f}
-            className={cn("rounded-full border px-3 py-1 text-[12.5px]", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
+            className={cn("rounded-full border px-3 py-1 text-[12.5px] tabular-nums transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-9 max-sm:px-3.5", filter === f ? "border-fg bg-fg text-bg" : "border-line text-muted hover:border-line-strong hover:text-fg")}>
             {f === "all" ? "All" : CATEGORY_LABELS[f]}{f === "all" ? (q.data?.unread ? ` ${q.data.unread}` : "") : counts?.[f] ? ` ${counts[f]}` : ""}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted"><input type="checkbox" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
+        <label className="ml-auto flex items-center gap-2 text-[13px] text-muted max-sm:min-h-9 max-sm:pl-2"><input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={unreadOnly} onChange={(e) => setUnreadOnly(e.target.checked)} />Unread only</label>
       </div>
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : !items.length ? (
         view === "inbox" ? (
@@ -187,7 +187,7 @@ export function NotificationsPage() {
                           {n.snoozedUntil ? ` · back ${timeAgo(n.snoozedUntil).replace(/ ago$/, "")}` : ""}{n.read ? "" : " · unread"}
                         </span>
                       </button>
-                      <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none", focus === n.id && "opacity-100")}>
+                      <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", focus === n.id && "opacity-100")}>
                         {view !== "done" && <IconButton label="Mark done (E)" onClick={() => void done(n)}><Check /></IconButton>}
                         {view !== "done" && <IconButton label="Snooze (H)" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)}><Clock /></IconButton>}
                         {view !== "inbox" && <IconButton label="Move to inbox" onClick={() => void restore(n)}><Inbox /></IconButton>}
@@ -202,7 +202,7 @@ export function NotificationsPage() {
           </div>
         </Card>
       )}
-      <p className="mt-3 text-[12px] text-subtle">J and K to move, Enter to open, E done, H snooze, U read, Shift E undo.</p>
+      <p className="mt-3 text-[12px] text-subtle max-sm:hidden">J and K to move, Enter to open, E done, H snooze, U read, Shift E undo.</p>
     </div>
   );
 }
@@ -210,7 +210,7 @@ export function NotificationsPage() {
 function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
     <button type="button" aria-label={label} title={label} onClick={onClick}
-      className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&_svg]:h-4 [&_svg]:w-4">
+      className="grid h-7 w-7 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4">
       {children}
     </button>
   );

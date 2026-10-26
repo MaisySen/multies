@@ -5,7 +5,7 @@ import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
+import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X, ChevronLeft } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -350,11 +350,11 @@ export function ChatPage() {
       <section aria-label={current ? `Messages in ${current.name}` : "Messages"} className={cn("flex min-w-0 flex-1 flex-col", !channelId && "hidden sm:flex", threadId && "hidden lg:flex")}>
         {current ? (
           <>
-            <header className="flex items-center gap-2 border-b border-line px-4 py-3">
-              <Link to="/app/chat" className="-my-2 inline-flex min-h-10 items-center px-1 text-[13px] text-muted sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}>Back</Link>
-              <h2 className="truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
-              {current.guestAccess && <span className="rounded bg-ok/15 px-1.5 text-[11.5px] text-ok">shared with guests</span>}
-              <span className="truncate text-[12.5px] text-subtle">{current.topic}</span>
+            <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5">
+              <Link to="/app/chat" className="-my-2 -ml-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><ChevronLeft className="h-5 w-5" aria-hidden />Back</Link>
+              <h2 className="min-w-0 truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
+              {current.guestAccess && <span className="shrink-0 rounded bg-ok/15 px-1.5 text-[11.5px] text-ok max-sm:hidden">shared with guests</span>}
+              <span className="min-w-0 truncate text-[12.5px] text-subtle max-sm:hidden">{current.topic}</span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <CallHeaderStatus channelId={current.id} />
                 <ChatSearch channelId={current.id} onOpen={openResult} />
