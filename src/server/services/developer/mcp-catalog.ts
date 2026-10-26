@@ -6,15 +6,13 @@
  */
 import { z } from "zod";
 import { buildMcpServer } from "../../routes/mcp-server";
-import { SCOPE_AREAS, canUseTool, normalizeScopes, splitToolList, toolArea, toolScope, type ScopeArea } from "../../lib/api-scopes";
-import { CAPTURED, SCOPED_TOOL_LIST_MD, capturedExamplesMarkdown } from "./mcp-examples";
-export { CAPTURED, CAPTURED_AT, SCOPED_TOOL_LIST_MD, capturedExamplesMarkdown } from "./mcp-examples";
+import { SCOPE_AREAS, toolArea, toolScope, type ScopeArea } from "../../lib/api-scopes";
 import type { Deps } from "../../context";
 
 export interface CatalogParam { name: string; type: string; required: boolean; description: string; default?: unknown; values?: string[] }
 export interface CatalogTool {
   name: string; title: string; description: string; area: ScopeArea; areaLabel: string; scope: string; readOnly: boolean; destructive: boolean;
-  params: CatalogParam[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean; captured?: boolean };
+  params: CatalogParam[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean };
 }
 
 type JsonSchema = { type?: string | string[]; description?: string; default?: unknown; enum?: unknown[]; const?: unknown; items?: JsonSchema; properties?: Record<string, JsonSchema>; required?: string[]; anyOf?: JsonSchema[]; oneOf?: JsonSchema[]; format?: string; minimum?: number; examples?: unknown[] };
@@ -116,13 +114,10 @@ export function mcpCatalog(release = "dev"): CatalogTool[] {
     Object.assign(args, ARGS[name]);
     const readOnly = !!t.annotations?.readOnlyHint;
     const area = toolArea(name) ?? "admin";
-    const real = CAPTURED[name];
     tools.push({
       name, title: t.title ?? name, description: t.description ?? "", area, areaLabel: SCOPE_AREAS.find((a) => a.area === area)!.label,
       scope: toolScope(name, readOnly), readOnly, destructive: !!t.annotations?.destructiveHint, params,
-      example: real
-        ? { arguments: real.arguments, result: real.result, resultIsShape: false, captured: true }
-        : { arguments: args, result: RESULTS[name] ?? { content: [{ type: "text", text: "{ ...the result as JSON... }" }] }, resultIsShape: !RESULTS[name] },
+      example: { arguments: args, result: RESULTS[name] ?? { content: [{ type: "text", text: "{ ...the result as JSON... }" }] }, resultIsShape: !RESULTS[name] },
     });
   }
   cached = { release, tools };
@@ -138,7 +133,6 @@ export function mcpCatalogMarkdown(release = "dev"): string {
     `> Every tool the Multies MCP server at https://multies.si/api/v1/mcp offers (${tools.length} tools), generated from the server itself. Each tool names the API key scope it needs. Page: https://multies.si/developers/mcp`,
     "",
   ];
-  out.push(...SCOPED_TOOL_LIST_MD);
   for (const a of SCOPE_AREAS) {
     const list = tools.filter((t) => t.area === a.area);
     if (!list.length) continue;
@@ -153,18 +147,5 @@ export function mcpCatalogMarkdown(release = "dev"): string {
       out.push("Example call:", "", "```json", JSON.stringify({ name: t.name, arguments: t.example.arguments }), "```", "");
     }
   }
-  out.push(...capturedExamplesMarkdown());
   return `${out.join("\n")}\n`;
-}
-
-/**
- * R37: the tools one scope value can use, the same list an MCP client sees in tools/list when the key
- * (or the connection, with ?tools=scoped) hides the rest. Accepts "full", "read" or a per area list.
- */
-export function mcpCatalogView(release: string, scope: string): { ok: true; scope: string; total: number; tools: CatalogTool[] } | { ok: false; unknown: string[] } {
-  const plain = splitToolList(scope).scope;
-  const n = normalizeScopes(plain);
-  if (!n.ok) return n;
-  const all = mcpCatalog(release);
-  return { ok: true, scope: n.value, total: all.length, tools: all.filter((t) => canUseTool(n.value, t.name, t.readOnly)) };
 }

@@ -11,7 +11,7 @@ import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
-import { canUseTool, hasScope, isPresetScope, toolScope } from "../lib/api-scopes";
+import { hasScope, isPresetScope, toolScope } from "../lib/api-scopes";
 import { listMailboxes, updateMailbox } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
 import type { SearchType } from "../services/search";
@@ -56,6 +56,7 @@ import { registerCountsR34Tools } from "./counts-r34"; // R34
 import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification triage and catch-up
 import { registerTriageR32Tools } from "./mcp-r32-triage"; // R32: task triage list and actions
 import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
+import { registerScheduleR37Tools } from "./mcp-r37-schedule"; // R37: check_task_schedule, reschedule_task
 import { registerDocsR32Tools } from "./mcp-r32-docs"; // R32: docs_add_block (table, image, callout)
 import { registerChatLiveR32Tools } from "./mcp-r32-live"; // R32: chat_typing
 import { registerCalendarTools } from "./mcp-r23-calendar";
@@ -78,7 +79,7 @@ import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
 import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 import { registerAuthEmailSettingsTools } from "./mcp-r28-auth-email-settings"; // R28: Sign-up emails settings
 
-export type Scoped = Actor & { scope?: string; toolList?: "scoped" | "all" }; // R36: "full", "read" or a per area list (lib/api-scopes.ts). R37: toolList "scoped" hides tools the key can't use from tools/list
+export type Scoped = Actor & { scope?: string }; // R36: "full", "read" or a per area list (lib/api-scopes.ts)
 import { registerReportsR35Tools } from "./reports-r35"; // R35
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
@@ -284,6 +285,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerCountsR34Tools(server, deps, actor, tool); // R34: get_counts
   registerTriageR32Tools(server, deps, actor, writable, tool); // R32: task triage list and actions
   registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
+  registerScheduleR37Tools(server, deps, actor, writable, tool); // R37: dates along dependencies
   registerDocsR32Tools(server, deps, actor, writable, tool); // R32: docs_add_block
   registerChatLiveR32Tools(server, deps, actor, writable, tool); // R32: chat_typing
   registerTaskBulkTools(server, deps, actor, writable, tool);
@@ -311,25 +313,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
   registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
   registerAuthEmailSettingsTools(server, deps, actor, writable, tool); // R28: Sign-up emails settings
-  if (actor.toolList === "scoped") hideUnusableTools(server, actor.scope);
   return server;
-}
-
-/**
- * R37: "Show only the tools this key can use". tools/list leaves out every tool the key's scopes can't
- * run. The tools stay registered, so a client that calls a hidden tool by name still gets the same
- * 403 insufficient_scope (or read_only_key) answer as before, never a confusing "unknown tool".
- */
-function hideUnusableTools(server: McpServer, scope: string | undefined) {
-  if (!scope || scope === "full") return;
-  const registered = (server as unknown as { _registeredTools: Record<string, { annotations?: { readOnlyHint?: boolean } }> })._registeredTools;
-  const handlers = (server.server as unknown as { _requestHandlers: Map<string, (req: unknown, extra: unknown) => Promise<{ tools: { name: string }[] }>> })._requestHandlers;
-  const list = handlers.get("tools/list");
-  if (!list) return;
-  handlers.set("tools/list", async (req, extra) => {
-    const out = await list(req, extra);
-    return { ...out, tools: out.tools.filter((t) => canUseTool(scope, t.name, !!registered[t.name]?.annotations?.readOnlyHint)) };
-  });
 }
 
 /** Tasks, projects, docs and contacts. Internal work: no approval needed. Mail sends keep their rules. */

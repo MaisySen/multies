@@ -29,23 +29,20 @@ export function developerRoutes() {
     // R36: the scope list and presets the create and edit sheets show.
     .get("/scopes", (c) => c.json({ areas: SCOPE_AREAS, presets: SCOPE_PRESETS }))
     .post("/keys", async (c) => {
-      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: scopeInput.default("full"), showOnlyUsableTools: z.boolean().optional() }));
+      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: scopeInput.default("full") }));
       const { auth, deps } = c.var;
       const scope = toStoredScope(input.scope);
-      // R37: a new key with limited scopes hides the tools it can't use unless the admin turns it off.
-      const showOnlyUsableTools = scope === "full" ? false : input.showOnlyUsableTools ?? true;
-      const out = await createApiKey(deps, auth, { name: input.name, scope, showOnlyUsableTools });
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, scope, showOnlyUsableTools }, ip: c.var.ip });
+      const out = await createApiKey(deps, auth, { name: input.name, scope });
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, scope }, ip: c.var.ip });
       return c.json(out, 201);
     })
     // R36: edit a key's scopes. Essential write (one row on an admin's click).
     .patch("/keys/:id", async (c) => {
-      // R37: scope, the tool list option, or both. Leaving one out keeps it as it was.
-      const input = await parseBody(c, z.object({ scope: scopeInput.optional(), showOnlyUsableTools: z.boolean().optional() }).refine((v) => v.scope !== undefined || v.showOnlyUsableTools !== undefined, "Send scope or showOnlyUsableTools."));
+      const input = await parseBody(c, z.object({ scope: scopeInput }));
       const { auth, deps } = c.var;
-      const scope = input.scope === undefined ? undefined : toStoredScope(input.scope);
-      const apiKey = await updateApiKeyScope(deps, auth.orgId, c.req.param("id"), scope, input.showOnlyUsableTools);
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.scope_changed", targetType: "api_key", targetId: apiKey.id, metadata: { name: apiKey.name, scope: apiKey.scope, showOnlyUsableTools: apiKey.showOnlyUsableTools }, ip: c.var.ip });
+      const scope = toStoredScope(input.scope);
+      const apiKey = await updateApiKeyScope(deps, auth.orgId, c.req.param("id"), scope);
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.scope_changed", targetType: "api_key", targetId: apiKey.id, metadata: { name: apiKey.name, scope }, ip: c.var.ip });
       return c.json({ apiKey });
     })
     .delete("/keys/:id", async (c) => {
