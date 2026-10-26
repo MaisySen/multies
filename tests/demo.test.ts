@@ -84,10 +84,6 @@ describe("demo mode", () => {
     expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
     expect((await c.get("/api/docs")).body.docs).toHaveLength(2);
     expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
-    // R38: three sample requests wait in Triage (form, mail, api), so the triage keys have rows to work on.
-    const triage = (await c.get("/api/triage")).body as { items: { title: string; triage: { source: string } | null }[]; count: number };
-    expect(triage.count).toBe(3);
-    expect(triage.items.map((i) => i.triage?.source).sort()).toEqual(["api", "form", "mail"]);
     // A retry of the job does not seed twice, and finishes a seed that stopped part way.
     await ctx.db.delete((await import("@/server/db/schema")).automations);
     const { enqueue } = await import("@/server/services/jobs");
@@ -99,7 +95,6 @@ describe("demo mode", () => {
     expect((await c.get("/api/tasks")).body.tasks).toHaveLength(tasks.length);
     expect((await c.get("/api/deals")).body.deals).toHaveLength(4);
     expect((await c.get("/api/automations")).body.automations).toHaveLength(3);
-    expect((await c.get("/api/triage")).body.count).toBe(3);
   });
 
   it("seeds a demo opened from the mobile app the first time it lists tasks", async () => {

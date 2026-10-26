@@ -95,9 +95,10 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `bulk_update_tasks` | Change up to 500 tasks at once: status, assignee, priority, dates, labels, type (task, story, bug) or project (round 21, registered in src/server/routes/mcp-r21-table.ts) |
 | `comment_on_task` | Comment on a task |
 | `list_projects` | List projects |
-| `set_task_blocked_by` | Set a task as blocked by another |
-| `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `overlapDays` and `fix { taskId, start, due }` (R37, `tasks:read`) |
-| `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
+| `set_task_blocked_by` | Set a task as blocked by another; `lagDays` sets a wait after the blocker ends, negative for a lead (R38) |
+| `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
+| `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
+| `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
 | `create_custom_field` | Add a custom field to a project (any type; formula and rollup take a config) |
