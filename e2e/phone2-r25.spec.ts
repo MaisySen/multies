@@ -43,6 +43,10 @@ async function atLeast40(label: string, box: { width: number; height: number } |
   expect(box!.width, `${label} width`).toBeGreaterThanOrEqual(40);
   expect(box!.height, `${label} height`).toBeGreaterThanOrEqual(40);
 }
+/** Polled: under a loaded test run the sheet or toolbar can still be laying out when first measured. */
+async function atLeast40Settled(label: string, l: import("@playwright/test").Locator) {
+  await expect.poll(async () => { const b = await l.boundingBox(); return b ? Math.min(Math.round(b.width), Math.round(b.height)) : 0; }, { message: `${label} is at least 40 px`, timeout: 10_000 }).toBeGreaterThanOrEqual(40);
+}
 async function fullBox(l: import("@playwright/test").Locator) {
   const b = await l.boundingBox();
   return b && { x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height) };
@@ -170,8 +174,8 @@ test("walk: nav drawer, compose, task panel, meeting, docs toolbar and Settings 
     expect(b.x, `${name} left`).toBeGreaterThanOrEqual(0);
     expect(b.x + b.width, `${name} right`).toBeLessThanOrEqual(390);
   }
-  await atLeast40("Discard", await compose.getByRole("button", { name: "Discard" }).boundingBox());
-  await atLeast40("Close and save draft", await compose.getByRole("button", { name: "Close and save draft" }).boundingBox());
+  await atLeast40Settled("Discard", compose.getByRole("button", { name: "Discard" }));
+  await atLeast40Settled("Close and save draft", compose.getByRole("button", { name: "Close and save draft" }));
   const offscreen = await compose.evaluate((el) => [...el.querySelectorAll("button, select, input, textarea")].filter((c) => { const r = c.getBoundingClientRect(); return r.width > 0 && (r.right > 391 || r.left < -1); }).map((c) => c.getAttribute("aria-label") ?? c.textContent));
   expect(offscreen).toEqual([]);
   await noSidewaysScroll("compose");
@@ -203,8 +207,8 @@ test("walk: nav drawer, compose, task panel, meeting, docs toolbar and Settings 
   expect(barBox.x).toBeGreaterThanOrEqual(0);
   expect(barBox.x + barBox.width).toBeLessThanOrEqual(390);
   expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  for (const b of await bar.getByRole("button").all()) await atLeast40(`toolbar ${await b.getAttribute("aria-label")}`, await b.boundingBox());
-  await atLeast40("Delete doc", await page.getByRole("button", { name: "Delete doc" }).boundingBox());
+  for (const b of await bar.getByRole("button").all()) await atLeast40Settled(`toolbar ${await b.getAttribute("aria-label")}`, b);
+  await atLeast40Settled("Delete doc", page.getByRole("button", { name: "Delete doc" }));
   await bar.getByRole("button", { name: "Link a page or task" }).tap();
   await noSidewaysScroll("docs link picker");
   await page.keyboard.press("Escape");
