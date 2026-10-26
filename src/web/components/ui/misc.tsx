@@ -93,7 +93,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-[#0071E3]">{eyebrow}</p>}
+        {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-brand-hover">{eyebrow}</p>}
         <h1 className="large-title">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>
