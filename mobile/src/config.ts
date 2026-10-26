@@ -48,6 +48,8 @@ export const LINKS = {
   /** The published Fintex pages, the same URLs the store listings give (store/apple/listing.md). */
   privacy: "https://multies.si/privacy/",
   terms: "https://multies.si/terms/",
+  /** R35: the objectionable content and abusive users rules (Apple 1.2), linked from the sign in agree line. */
+  acceptableUse: "https://multies.si/acceptable-use/",
   accountSettings: `${API_BASE}/app/settings/account`,
   deleteAccount: `${API_BASE}/delete-account`,
   status: `${API_BASE}/status`,

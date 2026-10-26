@@ -643,7 +643,11 @@ export function useUnblockPerson() {
   const qc = useQueryClient();
   const key = [...keys.blocks, mode];
   return useMutation({
-    mutationFn: async (userId: string) => { await api.unblock(userId); return userId; },
+    // R35: the server answers 404 when there was no block to remove (it keeps other workspaces from being probed); that is the state we wanted.
+    mutationFn: async (userId: string) => {
+      try { await api.unblock(userId); } catch (e) { if (!(e instanceof ApiError && e.status === 404)) throw e; }
+      return userId;
+    },
     onMutate: (userId) => {
       animateList();
       const prev = qc.getQueryData<BlocksState>(key);

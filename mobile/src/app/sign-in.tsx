@@ -55,6 +55,14 @@ export default function SignIn() {
         <Text style={[font.small, { textAlign: "center", marginTop: space.sm }]}>
           Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.
         </Text>
+        {/* R35 (Apple 1.2): people agree to the terms, which have no tolerance for objectionable content or abusive users. */}
+        <Text style={[font.small, { textAlign: "center" }]} testID="agree-line">
+          By continuing you agree to the{" "}
+          <Text style={{ color: colors.brand }} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(LINKS.terms)}>Terms</Text>
+          {" "}and the{" "}
+          <Text style={{ color: colors.brand }} accessibilityRole="link" onPress={() => WebBrowser.openBrowserAsync(LINKS.acceptableUse)}>Acceptable use policy</Text>
+          , including no tolerance for objectionable content or abusive users.
+        </Text>
         <Button variant="ghost" label="Help signing in" onPress={() => WebBrowser.openBrowserAsync(LINKS.support)} />
       </ScrollView>
     </SafeAreaView>

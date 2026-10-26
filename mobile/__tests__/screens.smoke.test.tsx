@@ -31,6 +31,8 @@ it("sign in screen opens the Multies sign in page and offers the sample workspac
   const WebBrowser = require("expo-web-browser");
   const SignIn = require("@/app/sign-in").default;
   await wrap(<SignIn />);
+  // R35 (Apple 1.2): the agree line names the Terms and the Acceptable use policy.
+  expect(screen.getByTestId("agree-line")).toHaveTextContent(/agree to the Terms and the Acceptable use policy/);
   expect(await screen.findByText("Sign in to Multies")).toBeTruthy();
   expect(screen.queryByTestId("password")).toBeNull();
   await fireEvent.press(screen.getByTestId("sign-in"));
