@@ -985,6 +985,35 @@ A bad query answers 400 with `error.code` `bad_query`, a message and `error.deta
 where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
 one query. MCP: `search_tasks` with `q`.
 
+R34: `OR`, `AND` and `NOT` (upper case) and brackets. AND binds tighter than OR, and terms side by side are ANDed as
+before, so every older query means the same thing. History operators read each task's change log:
+
+    status:doing AND (label:bug OR priority:urgent)
+    NOT (label:wontfix OR label:duplicate) project:MB
+    status WAS doing                      the status now, or at any time before
+    assignee WAS me                       priority WAS low
+    status CHANGED                        assignee CHANGED TO none
+    status CHANGED FROM todo TO doing AFTER -7d BEFORE 2026-10-01 BY me
+
+`WAS` takes a value (commas mean any of); `CHANGED` takes any of `FROM` (status only), `TO`, `AFTER`, `BEFORE` (a date,
+today or -7d) and `BY` (me, a name or an email). A leading minus or NOT negates a history term too. Errors name the
+character: "Expected ) (at character 27)". A ref with no key (OPS-12) also finds the task by an old project key or the
+ref it had before it moved, and `project:OPS` matches a project whose key used to be OPS.
+
+## Unread counts (R34)
+
+One cheap read for every badge (web sidebar, tab title, the phone app's badge). Read only, private, cached 15 s, with
+an ETag: send `If-None-Match` and an unchanged answer is a 304 with no body. Query: `tz` (an IANA zone for "due
+today"; default UTC+10). Agent keys get 0 for mail, chat and notifications.
+
+    GET /api/v1/counts      (and GET /api/counts in the app)
+    { "mail": { "inbox": 3, "important": 2, "other": 1 }, "chat": { "unread": 5, "mentions": 1 },
+      "notifications": { "unread": 4 }, "triage": 2, "tasks": { "dueToday": 1, "overdue": 0 }, "at": "2026-10-26T12:40:00.000Z" }
+
+`mail.inbox` counts unread Inbox messages in the mailboxes you can open (not snoozed); `important` and `other` are the
+Inbox tabs. `chat` counts unread top level messages in your channels and DMs. `tasks` counts open tasks assigned to
+you. MCP: `get_counts`.
+
 ## Task watchers (R27)
 
 Watchers hear about a task's new comments (notification type `task.watch_comment`, category comment) and status

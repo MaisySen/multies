@@ -40,6 +40,11 @@ describe("after a key edit (OPS to PLAT)", () => {
     expect(await titles("OPS-1 OR OPS-2")).toEqual([]); // plain words without a key: one phrase
     expect(await titles("project:OPS priority:high")).toEqual(["Renew cert", "Rotate keys"]);
   });
+  it("links an old ref typed in chat to the task, with its ref now", async () => {
+    const general = ((await c.get("/api/chat/channels")).body.channels as { id: string; name: string }[]).find((x) => x.name === "general")!;
+    const m = (await c.post(`/api/chat/channels/${general.id}/messages`, { body: "see <#task:OPS-1>" })).body.message;
+    expect(m.links).toEqual([expect.objectContaining({ type: "task", id: t1.id, ref: "PLAT-1" })]);
+  });
   it("still refuses a ref that is nowhere", async () => {
     const r = await c.post("/api/tasks/bulk", { ids: ["OPS-1", "OPS-99"], patch: { priority: "high" } });
     expect(r.status).toBe(404);
