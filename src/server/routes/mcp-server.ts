@@ -7,6 +7,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validation/cfworker-provider.js";
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { z } from "zod";
+import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
@@ -73,6 +74,7 @@ function tool<A>(fn: (args: A) => Promise<unknown>) {
   return async (args: A) => {
     try { return ok(await fn(args)); } catch (err) {
       if (err instanceof HttpError) return fail(`${err.code}: ${err.message}`);
+      if (isD1BusyError(err)) return fail(`busy: ${BUSY_MESSAGE}`); // R28: a wait, not a bug
       throw err;
     }
   };

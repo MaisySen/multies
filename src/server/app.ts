@@ -1,5 +1,6 @@
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
+import { busyBody, d1BusyKind } from "./lib/d1-busy";
 import { writeBudget } from "./services/write-budget";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import type { AppEnv, Deps } from "./context";
@@ -91,6 +92,11 @@ export function createApp(deps: Deps) {
         return c.redirect("/login?error=read_only", 302);
       }
       return c.json(READ_ONLY_BODY, 503, { "retry-after": "600" });
+    }
+    const busy = d1BusyKind(err); // R28: an export, an overload or a lost connection is a wait, not a bug
+    if (busy) {
+      (c.var.log ?? deps.log)?.warn("database_busy", { method: c.req.method, path: c.req.path, reason: busy.kind, error: err.message.slice(0, 200) });
+      return c.json(busyBody(busy.kind), 503, { "retry-after": String(busy.retryAfter) });
     }
     console.error("[api] unhandled", err);
     const eventId = deps.reportError?.(err, { method: c.req.method, path: c.req.path });

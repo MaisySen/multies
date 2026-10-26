@@ -23,6 +23,15 @@ npx wrangler d1 export mymail-staging --remote --env staging --output mymail-sta
 
 The Cloudflare token for these commands is in "CREDENTIALS (owner email v7)", Cloudflare section.
 
+`wrangler d1 export` blocks every other query on that database for as long as it runs (Cloudflare's
+documented behaviour). At 02:20 UTC on 26 Oct 2026 a manual export of production made three writes
+fail within seconds (since R28 the API answers such failures with 503, `Retry-After` and the code
+`busy` instead of 500, and reads retry once). So avoid manual exports in busy hours (Sydney
+business hours are 21:00 to 07:00 UTC): before a deploy, prefer a Time Travel bookmark
+(`npx wrangler d1 time-travel info mymail-au` prints the current one; note it in the deploy log),
+which costs nothing and blocks nothing, and keep exports for quiet hours. The nightly dump is
+scheduled for 15:30 UTC (02:30 in Sydney) for the same reason.
+
 R2 needs a payment method on the Cloudflare account even for the free tier, so it is off until the owner enables it. To turn it on: enable R2 in the dashboard, create a bucket (for example `mymail-backups`) with a 90 day lifecycle rule, give the CI token "Workers R2 Storage: Edit", and set the repository variable `R2_BUCKET=mymail-backups`.
 
 ## Decide first

@@ -32,6 +32,7 @@ import { durablePresence } from "../server/collab/thread-presence";
 import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
+import { withReadRetry } from "../server/lib/d1-busy";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -54,7 +55,8 @@ let lastMaintenance = 0;
 async function boot(env: WorkerEnv) {
   // No migrations here: they run once per deploy (wrangler d1 migrations apply, or the
   // deploy hook below on hosts where wrangler cannot reach the database).
-  const db = drizzle(env.DB as never, { schema }) as unknown as DB;
+  // R28: a read retries once after a short pause when D1 is briefly unavailable (lib/d1-busy.ts).
+  const db = drizzle(withReadRetry(env.DB) as never, { schema }) as unknown as DB;
   const vars: Record<string, string | undefined> = { ...(typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) };
   for (const [k, v] of Object.entries(env)) if (typeof v === "string") vars[k] = v;
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
