@@ -1,4 +1,4 @@
-import { parseQuickAdd } from "@/lib/quick-add";
+import { parseQuickAdd, quickAddToTask } from "@/lib/quick-add";
 
 // Tuesday 27 Oct 2026, 10:00 local.
 const NOW = new Date(2026, 9, 27, 10, 0);
@@ -40,5 +40,18 @@ describe("R34 quick add parser", () => {
   });
   test("trailing 'by' is dropped", () => {
     expect(parseQuickAdd("Ship the build by friday", NOW)).toMatchObject({ title: "Ship the build", due: "2026-10-30" });
+  });
+});
+
+describe("R34 quick add to task", () => {
+  const projects = [{ id: "p1", key: "OPS", name: "Operations" }, { id: "p2", key: "MKT", name: "Marketing site" }];
+  const people = [{ id: "u1", name: "Ana Silva", email: "ana@acme.au" }, { id: "u2", name: "Lee Wong", email: null }];
+  test("matches project by key or name, person by email handle or first name", () => {
+    expect(quickAddToTask(parseQuickAdd("Fix footer #mkt @lee tomorrow !2", NOW), projects, people))
+      .toEqual({ title: "Fix footer", due: "2026-10-28", priority: "high", projectId: "p2", assigneeId: "u2", unmatched: [] });
+    expect(quickAddToTask(parseQuickAdd("Rota #operations @ana", NOW), projects, people)).toMatchObject({ projectId: "p1", assigneeId: "u1" });
+  });
+  test("unknown project or person is listed, not guessed", () => {
+    expect(quickAddToTask(parseQuickAdd("Thing #nope @zed", NOW), projects, people)).toEqual({ title: "Thing", unmatched: ["#nope", "@zed"] });
   });
 });

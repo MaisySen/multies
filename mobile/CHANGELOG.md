@@ -3,6 +3,20 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## Unreleased (R34, next OTA after 1.9.8 is promoted)
+
+- Native style icons: one icon set per platform, the iOS style set on iPhone and web and Material
+  Symbols Rounded on Android. The selected tab shows the filled icon.
+- Today: a new home tab with unread mail, tasks due today or overdue, the next meeting, mentions and
+  approvals waiting. Approvals now open from Today.
+- Large titles fold into a compact bar as you scroll Mail, Tasks and Approvals. The tab bar is
+  translucent with a fine edge.
+- Settings rows have coloured icon tiles. Empty lists show a small drawing.
+- Badges come from one server count, refreshed when you open the app, when a notification arrives
+  and every minute while the app is open.
+- Quick add: type "Call Ana tomorrow 3pm @ana #ops !high" and the date, person, project and
+  priority are set, with chips that show what was understood.
+
 ## 1.9.8 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
 - Stay signed in: when the connection drops or the server is slow, you stay signed in. The app

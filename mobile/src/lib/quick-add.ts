@@ -108,3 +108,27 @@ export function parseQuickAdd(input: string, now = new Date()): QuickAdd {
   out.title = s.replace(/\s+/g, " ").trim().replace(/\s+(on|by|due)$/i, "");
   return out;
 }
+
+/** What a quick add line sets on a new task, matched against known projects and people. */
+export function quickAddToTask<Id extends string = string>(
+  q: QuickAdd,
+  projects: readonly { id: string; key: string; name: string }[] = [],
+  people: readonly { id: Id; name: string; email: string | null }[] = [],
+): { title: string; due?: string; priority?: Priority; projectId?: string; assigneeId?: Id; unmatched: string[] } {
+  const out: { title: string; due?: string; priority?: Priority; projectId?: string; assigneeId?: Id; unmatched: string[] } = { title: q.title, unmatched: [] };
+  if (q.due) out.due = q.due;
+  if (q.priority) out.priority = q.priority;
+  if (q.project) {
+    const k = q.project.toLowerCase();
+    const p = projects.find((x) => x.key.toLowerCase() === k) ?? projects.find((x) => x.name.toLowerCase().replace(/\s+/g, "-") === k)
+      ?? projects.find((x) => x.name.toLowerCase().startsWith(k));
+    if (p) out.projectId = p.id; else out.unmatched.push(`#${q.project}`);
+  }
+  if (q.people[0]) {
+    const h = q.people[0].toLowerCase();
+    const a = people.find((x) => x.email?.toLowerCase().split("@")[0] === h) ?? people.find((x) => x.name.toLowerCase().split(" ")[0] === h)
+      ?? people.find((x) => x.name.toLowerCase().replace(/\s+/g, "") === h);
+    if (a) out.assigneeId = a.id; else out.unmatched.push(`@${q.people[0]}`);
+  }
+  return out;
+}
