@@ -24,7 +24,11 @@ test("team: invite with a title and bio, see the title on the pending invitation
   await expect(invite).toBeVisible();
   if (await invite.isDisabled()) {
     // The demo's seats are full: revoke one pending invitation to free a seat.
-    await page.getByRole("button", { name: /^Revoke invitation for / }).first().click();
+    // R33: revoking is a two-tap confirm ("Revoke?"), so tap the same button twice.
+    const revoke = page.getByRole("button", { name: /^Revoke invitation for / }).first();
+    await revoke.click();
+    await expect(revoke).toHaveText("Revoke?");
+    await revoke.click();
     await expect(invite).toBeEnabled();
   }
   await invite.click();
