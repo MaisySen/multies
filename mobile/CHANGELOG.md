@@ -3,6 +3,24 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.8 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
+
+- Stay signed in: when the connection drops or the server is slow, you stay signed in. The app
+  only signs you out when your session has really ended, and it renews the session quietly first.
+- Swipes you choose: short and long swipes on mail and tasks, left and right, set in Settings,
+  Swipe actions. A long swipe past two thirds of the row does the second action. Task rows swipe too.
+- Haptics: a light tick when a swipe crosses its point, a tap when an action lands, and a buzz on
+  errors. Turn them off in Settings; they follow Reduce Motion.
+- Works offline: edits you make offline wait on the phone and sync in order when you reconnect.
+  A pill shows how many changes are waiting.
+- Faster feel: new tasks show at once while they save, and loading screens match the rows they replace.
+- Undo for completing, deleting and moving tasks.
+- Badges: the Tasks tab shows work due today, and the app icon shows your unread count.
+- Shipped over the air (no store build): Settings reads Multies 1.9.8 (OTA).
+
+What to test: turn on airplane mode, complete two tasks, then turn it off and watch the pill clear.
+In Settings, Swipe actions, set a long left swipe on mail to Delete and try it. Complete a task and tap Undo.
+
 ## 1.9.7 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
 - Activity: a new tab for mentions, assignments, review requests and the rest, with Inbox, Later
