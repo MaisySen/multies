@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { makeTestApp, Client } from "./helpers";
 import { meter } from "./d1-meter";
 
+/** R33: rows written per action, table by table (docs/runbooks/d1-daily-limits.md, R33 table). */
 describe("R33 measure", () => {
   it("prints per action rows by table", async () => {
     const ctx = await makeTestApp();
@@ -43,6 +44,7 @@ describe("R33 measure", () => {
     await postMessage(ctx.deps, actor, g.id, { body: "hello" });
     out.chat = [take.byTable(), take()];
     console.log("R33MEASURE " + JSON.stringify(out));
-    expect(1).toBe(1);
+    const total = (k: string) => { const v = out[k] as unknown[]; return v[v.length - 1]; };
+    expect([total("create"), total("title"), total("move"), total("docSave")]).toEqual([9, 7, 8, 6]);
   });
 });
