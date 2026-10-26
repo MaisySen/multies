@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
-import { chatPollMs, useLiveChat } from "@/web/lib/live-chat"; // R32
+import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
@@ -23,7 +23,7 @@ import { MessageActionSheet, copyText } from "./chat-actions-r25";
 import { useProjects } from "./data";
 import { CallHeaderStatus } from "./call-r23";
 import { PendingBubbles } from "./chat-pending-r33";
-import { newClientMsgId } from "@/web/lib/chat-outbox";
+import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -234,6 +234,7 @@ export function ChatPage() {
   const [creating, setCreating] = useState<"channel" | "dm" | null>(null);
   // R32: live chat over a socket; while it is open the polls below slow to a 60 second safety net.
   const live = useLiveChat(myId);
+  const outboxItems = useOutbox(live.outbox);
   const channels = useQuery({ queryKey: ["chat", "channels"], refetchInterval: chatPollMs(live.live, 15_000), queryFn: async () => (await api.get<{ channels: ChatChannel[] }>("/chat/channels")).channels });
   const people = useQuery({ queryKey: ["chat", "people"], staleTime: 120_000, queryFn: async () => (await api.get<{ people: Person[] }>("/chat/people")).people });
   const list = channels.data ?? [];
@@ -364,7 +365,7 @@ export function ChatPage() {
             <div className="flex-1 overflow-y-auto px-2 py-2">
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
-              {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? (
+              {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length && !pendingFor(outboxItems, current.id, null).length ? (
                 <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
               ) : <ul>{messages.data.map((m) => row(m))}</ul>}
               <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={null} authorName={me.data?.user.name ?? undefined} />
