@@ -28,6 +28,8 @@ import { runDueJobs } from "../services/jobs";
 import { parseFieldFilters } from "../services/suite/fields";
 import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
 import { QUERY_MAX_LENGTH } from "../../shared/task-query";
+import { getBoardSettings, setBoardSettings } from "../services/suite/board-settings"; // R34 (MB-186)
+import { BoardPatchSchema } from "./board-schema-r34";
 
 type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
 /** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
@@ -46,7 +48,10 @@ export function projectRoutes() {
     .post("/", async (c) => c.json({ project: await createProject(c.var.deps, c.var.auth, await parseBody(c, ProjectCreate)) }, 201))
     .get("/:id", async (c) => c.json({ project: await getProject(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .patch("/:id", async (c) => c.json({ project: await updateProject(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ProjectPatch)) }))
-    .delete("/:id", requireAdmin, async (c) => c.json(await deleteProject(c.var.deps, c.var.auth, c.req.param("id"))));
+    .delete("/:id", requireAdmin, async (c) => c.json(await deleteProject(c.var.deps, c.var.auth, c.req.param("id"))))
+    // R34 (MB-186): board swimlanes and WIP limits.
+    .get("/:id/board", async (c) => c.json({ board: await getBoardSettings(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
+    .put("/:id/board", async (c) => c.json({ board: await setBoardSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, BoardPatchSchema)) }));
 }
 
 export function taskRoutes() {

@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 178 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 180 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -138,7 +138,6 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
 | `notification_list` | Your notifications by view: inbox, later (snoozed) or done, with viewCounts (R31) |
-| `get_counts` | Every unread count in one read: mail { inbox, important, other }, chat { unread, mentions }, notifications { unread }, triage, tasks { dueToday, overdue }; tz for due today (R34) |
 | `notification_done` | Mark one notification (id) or up to 500 (ids) done (R31) |
 | `notification_undone` | Move a notification back to the Inbox (R31) |
 | `notification_snooze` | Snooze a notification until a time or later_today, tomorrow, next_week (R31) |
@@ -452,6 +451,15 @@ Registered in src/server/routes/mcp-views.ts. `list_saved_views` is a read, so r
 | `create_saved_view` | Save a view of tasks: `view` board, list, calendar, timeline, sprints or workload, an optional `projectId`, and `filters` (assignee, status, priority, label, type, due, q); shared unless `shared` is false. One row written |
 | `delete_saved_view` | Remove a saved view by id; tasks are not touched |
 
+### Board swimlanes and column limits (R34, MB-186)
+
+Registered in src/server/routes/mcp-r34-board.ts. `get_board_settings` is a read, so read only keys and tokens can call it; `set_board_settings` needs a full key or token. The same settings are on REST as GET and PUT /api/v1/projects/{id}/board.
+
+| Tool | What it does |
+| --- | --- |
+| `get_board_settings` | A project board's `swimlanes` (none, assignee, epic, priority or project) and `limits` per column: `{ [statusId]: { max, min } }` |
+| `set_board_settings` | Change `swimlanes`, replace the whole `limits` map, or set one column with `column: { id, max, min }` (null clears a side). Whole numbers 1 to 999, min not above max. Cards can still go into a full column; the board shows it as over the limit. One row written |
+
 ### Branded auth emails (R25, MB-60)
 
 Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key or token (read only keys and tokens get `read_only_key`; agent and agent member keys are refused); another workspace's hook id is not found. The same change is on REST as `PATCH /api/v1/auth-email-hooks/{id}`, and `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` shows the result without sending.
@@ -529,7 +537,7 @@ Admin and full workspace keys only; an agent member's key gets 403.
 
 | Tool | What it does |
 |---|---|
-| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong. R34: OR, AND, NOT, brackets and history (`status WAS doing`, `status CHANGED FROM todo TO doing AFTER -7d BY me`) |
+| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |
 
 ### Task watchers and duplicate (R27)
 
