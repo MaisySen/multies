@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 145 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 150 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -407,6 +407,18 @@ Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key 
 | Tool | What it does |
 | --- | --- |
 | `update_auth_email_hook` | Set how a Supabase auth email hook's emails look: `branding` with `logoUrl` (https), `brandColor` (#RRGGBB), `replyTo`, `footer`, per type `templates` (signup, invite, magiclink, recovery, email_change, email, reauthentication: `subject`, `intro`, `buttonLabel`) and `secondaryLanguage` (`lang`, the same per type `templates`, `note`), shown under the main text. Plain text only, placeholders `{appName}`, `{code}`, `{email}`. Keys left out stay, null clears one, `branding: null` goes back to the default email. Also `appName` and `from`. One row written |
+
+### Sign-up emails settings (R28)
+
+Registered in src/server/routes/mcp-r28-auth-email-settings.ts, over the same service as Settings, Sign-up emails and `/api/v1/auth-email-settings` (R27), with the same rules: owners, admins and full workspace keys or tokens only (agent keys and agent member keys get `forbidden`), and writes need a full key (read only keys and tokens can get and preview; the rest answer `read_only_key`). The signing secret is in the one answer that made it, never in a later read, the audit log or the logs.
+
+| Tool | What it does |
+| --- | --- |
+| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
+| `update_auth_email_settings` | Create (`from` and `supabaseUrl` needed the first time; that answer carries `secret` once) or change any of `enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding` (merged, null clears), with the API's validation. Audited; a change that changes nothing writes nothing |
+| `regenerate_auth_email_secret` | A new signing secret, returned once as `secret`; the old one stops working at once. Audited without the value |
+| `preview_auth_email` | The email one `type` would send (signup by default), with a sample link and the code 123456, and unsaved `appName` or `branding` merged in. Nothing sent or stored |
+| `send_auth_email_test` | Sends one `type`, as saved, to your own address (a key's creator for a workspace key) with "Test:" before the subject. At most 5 an hour a workspace, shared with the page and REST (`rate_limited` after). Audited |
 
 ### Comments and chat messages: read back, edit, delete (R26, MB-77)
 

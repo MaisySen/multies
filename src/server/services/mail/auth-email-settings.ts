@@ -12,7 +12,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { AuthContext, Deps } from "../../context";
-import { authEmailHooks, domains, mailboxes } from "../../db/schema";
+import { authEmailHooks, domains, mailboxes, users } from "../../db/schema";
 import { decryptSecret, encryptSecret, newId } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { audit } from "../audit";
@@ -212,7 +212,9 @@ export async function sendAuthEmailTest(deps: Deps, a: Actor, body: { type?: str
   assertWritableKey(a);
   const type = body.type || "signup";
   checkType(type);
-  const to = (a.email ?? "").trim().toLowerCase();
+  let to = (a.email ?? "").trim().toLowerCase();
+  // R28: an API key or MCP caller reads as "api-key:<prefix>"; the test goes to the key's creator (still a member).
+  if (!to.includes("@") && a.userId) to = ((await deps.db.select({ email: users.email }).from(users).where(eq(users.id, a.userId)).get())?.email ?? "").trim().toLowerCase();
   if (!to || !to.includes("@")) throw bad("Your account has no email address to send the test to.");
   const h = await currentHook(deps, a.orgId);
   if (!h) throw notFound("Sign-up email settings");
