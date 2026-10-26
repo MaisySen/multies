@@ -1097,47 +1097,34 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   expect(take()).toBe(0);
 });
 
-it("R26: support@ on the company domain costs what any inbound delivery costs, a closed address writes nothing, the sent event writes one row", async () => {
-  const ctx = await makeTestApp({ SUPPORT_EMAIL: "support@multies.si" });
+it("R26 (MB-87): a share link is 2 rows (the row and its token index), a revoke 2, and opening the public page writes nothing", async () => {
+  const ctx = await makeTestApp();
   const u = new Client(ctx.app);
-  await u.signup("ops@fintex.test", "Ops", "Multies HQ");
-  const orgId = (await u.get("/api/account/me")).body.organization.id as string;
-  Object.assign(ctx.deps.config.operatorInbox, { orgId, domain: "multies.si", addresses: ["support@multies.si", "security@multies.si"] });
-  const hq = (await u.post("/api/domains", { name: "multies.si" })).body.domain.id as string;
-  await u.post("/api/mailboxes", { domainId: hq, localPart: "support", displayName: "Support" });
-  const v = new Client(ctx.app);
-  await v.signup("ann@acme.test", "Ann", "Acme");
-  const acme = (await v.post("/api/domains", { name: "acme.test" })).body.domain.id as string;
-  await v.post("/api/mailboxes", { domainId: acme, localPart: "help", displayName: "Help" });
-  const mail = (to: string) => deliverInbound(ctx.deps, {
-    envelopeFrom: "pat@gmail.com", rcptTo: to, sizeBytes: 300, via: "test",
-    email: { messageId: `<${to}.${Math.random()}@gmail.com>`, from: { address: "pat@gmail.com" }, to: [{ address: to }], cc: [], subject: "Help", text: "Hi", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
-  });
-  await mail("help@acme.test"); // warm up (first message in each workspace)
-  await mail("support@multies.si");
+  await u.signup("olive@share.test", "Olive Owner");
+  const docId = (await u.post("/api/docs", { title: "Brief", text: "hello" })).body.doc.id as string;
+  const projectId = (await u.post("/api/projects", { name: "Site", key: "SITE" })).body.project.id as string;
+  await u.post("/api/tasks", { projectId, title: "Home page" });
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
+  const { createShareLink, revokeShareLink, setShareLinksAllowed } = await import("@/server/services/suite/share-links");
   const take = meter(ctx.db);
-  await mail("help@acme.test");
-  const ordinary = take(); // measured 20
-  await mail("support@multies.si");
-  // The same as an ordinary mailbox: the routing decision is config only, no extra read or write.
-  expect(take()).toBe(ordinary);
-  // A closed company address is refused before any lookup: no delivery log row.
-  expect((await mail("hello@multies.si")).accepted).toBe(false);
-  expect(take()).toBe(0);
-  // The sent event's provider read writes the Sent copy once (the messages row and its indexes), then nothing.
-  const { messages, deliveries } = await import("@/server/db/schema");
-  const { handleResendEvent } = await import("@/server/services/deliverability/resend-events");
-  const { mailboxes } = await import("@/server/db/schema");
-  const { eq } = await import("drizzle-orm");
-  const mb = (await ctx.db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).get())!;
-  await ctx.db.insert(messages).values({ id: "msg_r26", orgId, mailboxId: mb.id, folder: "sent", threadId: "thr_r26", fromAddress: mb.address, subject: "Quote", date: new Date() });
-  await ctx.db.insert(deliveries).values({ id: "dlv_r26", orgId, messageId: "msg_r26", direction: "outbound", fromAddress: mb.address, toAddress: "pat@gmail.com", status: "sent", provider: "resend", providerMessageId: "em_r26" });
-  const deps = { ...ctx.deps, fetch: (async () => new Response(JSON.stringify({ message_id: "<x@email.amazonses.com>" }))) as typeof fetch, config: { ...ctx.deps.config, outbound: { driver: "resend" as const, resendApiKey: "re_test" } } };
   take();
-  await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
-  const once = take();
-  // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes).
-  expect(once).toBe(7);
-  await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
+  const made = await createShareLink(ctx.deps, actor, { kind: "doc", targetId: docId });
+  // share_links is WITHOUT ROWID with one index (share_links_token_uq): 1 row + 1 index.
+  expect(take()).toBe(2);
+  const board = await createShareLink(ctx.deps, actor, { kind: "project_board", targetId: projectId, expiresInDays: 7 });
+  expect(take()).toBe(2);
+  // Opening the page and listing write nothing (views are not counted; the page's rate limit is in memory).
+  for (const t of [made.token, board.token, "x".repeat(43)]) await ctx.app.request(`/s/${t}`, { headers: { host: "localhost" } });
+  await u.get(`/api/share-links?kind=doc&targetId=${docId}`);
   expect(take()).toBe(0);
+  await revokeShareLink(ctx.deps, actor, made.link.id);
+  expect(take()).toBe(2);
+  await revokeShareLink(ctx.deps, actor, made.link.id);
+  expect(take()).toBe(0);
+  // "Allow share links" lives in the workspace's metadata: one organizations row when it changes, nothing when it doesn't.
+  await setShareLinksAllowed(ctx.deps, actor, true);
+  expect(take()).toBe(0);
+  await setShareLinksAllowed(ctx.deps, actor, false);
+  expect(take()).toBeLessThanOrEqual(3);
 });

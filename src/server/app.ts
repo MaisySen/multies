@@ -31,6 +31,7 @@ import { mailAccessRoutes } from "./routes/mail-access";
 import { mailScheduleRoutes } from "./routes/mail-schedules";
 import { epicRoutes } from "./routes/suite-r21-types";
 import { sprintRoutes } from "./routes/sprints";
+import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 (MB-87): share links
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { docTreeRoutes, guestDocTreeRoutes, taskBacklinkRoutes } from "./routes/doc-tree";
@@ -304,6 +305,8 @@ export function createApp(deps: Deps) {
   app.route("/api/epics", epicRoutes());
   app.route("/api/calendar", calendarRoutes()); // Round 23: calendar feed and other calendars
   app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
+  app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
+  app.route("/s", sharePageRoutes()); // R26 (MB-87): the public page /s/<token>
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
   // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on
   // every new isolate. On the Workers Free plan the first request of an isolate pays for
