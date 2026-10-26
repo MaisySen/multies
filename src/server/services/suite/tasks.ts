@@ -474,8 +474,6 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     entityType: "task", entityId: id, op: "create", verb: source.threadId ? "created_from_email" : "created",
     data: { title, ref: task.ref, ...(source.subject ? { subject: source.subject } : {}) }, event: "task.created", eventData: { task },
   });
-  // R27: the creator and a member assignee start watching (agents and automations don't watch).
-  if (!triage) { const w = await import("./task-watchers-r27"); await w.autoWatch(deps, actor.orgId, id, [w.memberOf(actor), task.assignee?.type === "member" ? task.assignee.id : null]); }
   if (triage) {
     const { emitEvent } = await import("../developer/webhooks");
     const by = actorOf(actor);
@@ -590,12 +588,6 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     const { notify } = await import("./notify");
     await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}`, actorName: actor.name || actor.email });
   }
-  // R27: a new member assignee starts watching; watchers hear about a status change (not the person who made it).
-  if ((changed.assignee && task.assignee?.type === "member") || statusChanged) {
-    const w = await import("./task-watchers-r27");
-    if (changed.assignee && task.assignee?.type === "member") await w.autoWatch(deps, actor.orgId, t.id, [task.assignee.id]);
-    if (statusChanged) await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_status", title: `${task.ref} moved to ${task.statusName}: ${task.title}`, actorName: actor.name || actor.email }, [w.memberOf(actor)]);
-  }
   let out = task;
   if (statusChanged && fromCategory !== "done" && task.status === "done" && task.repeat) {
     await spawnRepeat(deps, actor, t.id);
@@ -671,11 +663,6 @@ export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (t.assigneeType === "member" && t.assigneeId && t.assigneeId !== actor.userId && !mentioned.includes(t.assigneeId)) {
     await notify(deps, actor.orgId, t.assigneeId, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}`, actorName: actor.name || actor.email });
   }
-  // R27: watchers hear about the comment (not its author, nor anyone told above); the author starts watching.
-  const w = await import("./task-watchers-r27");
-  await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_comment", title: `${actor.name || actor.email} commented on ${t.title}`, actorName: actor.name || actor.email },
-    [w.memberOf(actor), ...mentioned, t.assigneeType === "member" ? t.assigneeId : null]);
-  await w.autoWatch(deps, actor.orgId, t.id, [w.memberOf(actor)]);
   return comment;
 }
 

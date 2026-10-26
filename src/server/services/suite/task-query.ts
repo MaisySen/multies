@@ -102,8 +102,6 @@ function termCond(t: QueryTerm, ctx: TaskQueryCtx): SQL {
         case "done": return eq(tasks.status, "done");
         case "unassigned": return isNull(tasks.assigneeId);
         case "subtask": return isNotNull(tasks.parentId);
-        // R27: tasks I watch (a key-lookup on task_watchers' primary key). Agents watch nothing.
-        case "watching": return ctx.actor.agentId || !ctx.actor.userId ? sql`0` : sql`exists (select 1 from task_watchers w where w.task_id = ${tasks.id} and w.user_id = ${ctx.actor.userId})`;
         default: return termCond({ kind: "field", key: "assignee", op: "=", values: ["me"], negate: false, pos: t.pos }, ctx);
       }
     });
