@@ -161,7 +161,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
         <Command.Input value={search} onValueChange={setSearch}
           placeholder={picker ? picker.title.replace("...", "") : "Search mail, tasks, docs and chat, or jump to a page"}
           className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
-        <Kbd>Esc</Kbd>
+        <span className="max-sm:hidden"><Kbd>Esc</Kbd></span>
         <button type="button" onClick={close} className="hidden h-9 shrink-0 rounded-lg px-2 text-[15px] text-brand max-sm:block">Cancel</button>
       </div>
       <Command.List className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>

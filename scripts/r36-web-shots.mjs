@@ -34,7 +34,7 @@ try {
       await page.keyboard.press("Escape");
       if (scheme === "dark") { await ctx.close(); continue; }
       // Shortcuts sheet (desktop only, ? key).
-      if (w === 1440) { await go("/app/my-work"); await page.locator("body").click({ position: { x: 700, y: 450 } }).catch(() => {}); await page.keyboard.press("Shift+?"); await snap("shortcuts"); await page.keyboard.press("Escape"); }
+      if (w === 1440) { await go("/app/my-work"); await page.locator("main h1").first().click().catch(() => {}); await page.keyboard.press("Shift+?"); await snap("shortcuts"); await page.keyboard.press("Escape"); }
       await go("/app/tasks?view=list&q=zzzz-no-match"); await snap("tasks-empty");
       await go("/app/mail?folder=spam"); await snap("inbox-empty");
       await go("/app/tasks?view=board"); await snap("board");
