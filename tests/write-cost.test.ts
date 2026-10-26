@@ -1097,6 +1097,7 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   expect(take()).toBe(0);
 });
 
+
 it("R26 (DF-3): pausing or editing an agent member costs one members row plus one audit row, nothing when unchanged", async () => {
   const ctx = await makeTestApp();
   const take = meter(ctx.db);
@@ -1124,8 +1125,12 @@ it("R26 (DF-3): pausing or editing an agent member costs one members row plus on
   expect(paused).toBeLessThanOrEqual(8);
   expect(edited).toBeLessThanOrEqual(8);
   expect(same).toBe(0);
+});
+
+
 it("R26: support@ on the company domain costs what any inbound delivery costs, a closed address writes nothing, the sent event writes one row", async () => {
   const ctx = await makeTestApp({ SUPPORT_EMAIL: "support@multies.si" });
+  const u = new Client(ctx.app);
   await u.signup("ops@fintex.test", "Ops", "Multies HQ");
   const orgId = (await u.get("/api/account/me")).body.organization.id as string;
   Object.assign(ctx.deps.config.operatorInbox, { orgId, domain: "multies.si", addresses: ["support@multies.si", "security@multies.si"] });
@@ -1141,6 +1146,7 @@ it("R26: support@ on the company domain costs what any inbound delivery costs, a
   });
   await mail("help@acme.test"); // warm up (first message in each workspace)
   await mail("support@multies.si");
+  const take = meter(ctx.db);
   await mail("help@acme.test");
   const ordinary = take(); // measured 20
   await mail("support@multies.si");
@@ -1158,12 +1164,16 @@ it("R26: support@ on the company domain costs what any inbound delivery costs, a
   await ctx.db.insert(messages).values({ id: "msg_r26", orgId, mailboxId: mb.id, folder: "sent", threadId: "thr_r26", fromAddress: mb.address, subject: "Quote", date: new Date() });
   await ctx.db.insert(deliveries).values({ id: "dlv_r26", orgId, messageId: "msg_r26", direction: "outbound", fromAddress: mb.address, toAddress: "pat@gmail.com", status: "sent", provider: "resend", providerMessageId: "em_r26" });
   const deps = { ...ctx.deps, fetch: (async () => new Response(JSON.stringify({ message_id: "<x@email.amazonses.com>" }))) as typeof fetch, config: { ...ctx.deps.config, outbound: { driver: "resend" as const, resendApiKey: "re_test" } } };
+  take();
   await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
   const once = take();
   // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes).
   expect(once).toBe(7);
   await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
   expect(take()).toBe(0);
+});
+
+
 it("R26 (MB-87): a share link is 2 rows (the row and its token index), a revoke 2, and opening the public page writes nothing", async () => {
   const ctx = await makeTestApp();
   const u = new Client(ctx.app);
