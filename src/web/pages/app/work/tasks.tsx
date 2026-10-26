@@ -162,7 +162,7 @@ export function TasksPage() {
       </div>
 
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
-      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
+      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
