@@ -130,7 +130,7 @@ export function ImportExportSettings() {
   return (
     <div className="space-y-6" data-testid="import-export">
       <Section id="move-in" title="Bring your work in" description="Pick where your work lives now. You check the columns, people and statuses, see the first 20 rows, and can undo the whole import later.">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-2.5" role="list" aria-label="Import from">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(176px,1fr))]" role="list" aria-label="Import from">
           {SOURCES.map((s) => <div role="listitem" key={s.id} className="min-w-0"><Tile s={s} active={source?.id === s.id} onPick={() => setSource(s)} /></div>)}
         </div>
       </Section>
@@ -457,7 +457,7 @@ function ExportCard() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <a href={r.downloadPath} download className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90 max-sm:min-h-11" data-testid="move-download"><IconDownload className="h-4 w-4" aria-hidden />Download ZIP</a>
+              <a href={r.downloadPath} download className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-lg bg-brand px-4 text-sm font-medium text-brand-fg hover:bg-brand/90 max-sm:min-h-11" data-testid="move-download"><IconDownload className="h-4 w-4" aria-hidden />Download ZIP</a>
               <CopyButton value={link} label="Copy link" />
             </div>
           </div>

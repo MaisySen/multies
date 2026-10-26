@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 38: move your data (27 Oct 2026)
+
+- Settings, Import and export: pick where your work lives now from tiles (a spreadsheet, eight work tools, a calendar file, contacts, Markdown docs, or a Multies export), then a wizard checks the columns, maps people and statuses, shows the first 20 rows, imports with a progress ring and keeps an Undo that removes exactly what the import made. Imports write in batches, stay under the database's limits, and carry on from where they stopped.
+- Export everything: one ZIP with every record as JSON, CSV files, docs as Markdown, meetings as .ics, contacts as vCard and mail as mbox, behind a link that works for 24 hours. Owners and admins only, one every 10 minutes, written to the audit log. Importing that ZIP into another workspace brings the projects, tasks, contacts, meetings and docs back.
+- History of every import and export, with Undo. The same in the API (`/api/v1/data-moves`) and over MCP: 193 tools (`export_workspace`, `list_data_moves`, `import_file`, `undo_import`). The API guide has a section on keeping other tools in sync with webhooks, the changes feed or a scheduled export. Migration 0081.
+
 ### Round 38: timeline names never cut, dependencies round 2, seven new dashboard widgets, grouped settings (27 Oct 2026)
 
 - Timeline: a task name that does not fit inside its bar sits to the right of the bar in normal text; the key alone goes inside only when it fits, and no bar shows an ellipsis. The task column is wider, resizes by dragging the divider (remembered per device), and wraps names to two lines with the full name on hover or long press.
