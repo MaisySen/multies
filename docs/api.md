@@ -734,21 +734,6 @@ Widget: `{ id, type, title, source, groupBy, chart, size, position }`.
   `done`; `priority`; `label`; `type`; `q`; `due` as `overdue`, `week` or `none`). Inline filters go on
   top of a saved view's. `{ mailboxId }` narrows the mail widgets.
 - `chart`: `number`, `bar`, `donut`, `line` or `table`. `size`: 1 or 2 columns.
-- R38 types (the most used widgets of the big work apps that were missing):
-  - `calculation`: one number for `range` (`7d`, `30d`, `90d`, `180d`, ending today; default `30d`):
-    `metric` `done` (tasks done), `created`, `points` (points of tasks done) or `hours` (time tracked on
-    the widget's tasks), `op` `sum` or `avg` (per day), an optional `goal`. Data:
-    `{ value, previous, change, goal, progress, unit }`; `change` is the percent against the range
-    before (null when that was 0).
-  - `battery`: `{ total, done, donePercent, segments: [{ key, label, color, count }] }` for done, in
-    progress and to do.
-  - `pivot`: counts by `groupBy` rows and `columnBy` columns (`status`, `assignee`, `priority`,
-    `project`, `type`; never the same field twice), with row and column totals. At most 20 rows and 8
-    columns; the rest add up in Other.
-  - `created_completed`: created and completed per day (ranges up to 30 days) or per week, with `net`.
-  - `task_list`: up to 10 tasks and the `total`, `sort` `due`, `priority` or `updated`.
-  - `time_tracked`: hours per day or week in `range` and the top 5 people.
-  - `note`: `text` (up to 2,000 characters) shown as written; it reads nothing.
 
 Up to 24 widgets a dashboard and 50 dashboards a workspace. Breakdowns return at most 20 groups (the
 rest add up in Other). Tasks are read the way the task list reads them (this workspace, top level,

@@ -20,6 +20,7 @@ import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeO
 import { FieldCell } from "./fields";
 import { TASK_TYPES, TYPE_META, TypeIcon, typeOf, type TaskType } from "./task-type";
 import { useSprints } from "./sprint-fields";
+import { ClashBadge } from "./schedule-r38"; // R38: date clash badge
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 
 const PRIORITIES: Priority[] = ["urgent", "high", "medium", "low", "none"];
@@ -66,6 +67,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
         <span className={cn("truncate font-medium", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
         {t.source && <IconMail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
         <span className="shrink-0 text-[11.5px] text-subtle"><ChecklistChip checklist={t.checklist} /></span>
+        <ClashBadge id={t.id} />
       </span>
     ),
   },
