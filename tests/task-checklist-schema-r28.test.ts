@@ -31,7 +31,8 @@ beforeEach(async () => {
   await c.signup("owner@acme.io", "Olive Owner");
   key = (await c.post("/api/developer/keys", { name: "Mobile" })).body.secret;
   projectId = (await c.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
-  spec = (await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } }).then((r) => r.json())) as Spec;
+  const res = await ctx.app.request("/api/v1/openapi.json", { headers: { host: "localhost" } });
+  spec = (await res.json()) as Spec;
 });
 
 describe("v1 Task checklist", () => {
