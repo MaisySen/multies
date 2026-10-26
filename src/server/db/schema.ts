@@ -95,12 +95,6 @@ export const members = sqliteTable("members", {
   title: text("title"),
   bio: text("bio"),
   createdAt: createdAt(),
-  /** R26 (DF-3): set when an admin pauses an agent member. Its keys are refused until it is resumed. */
-  disabledAt: ts("disabled_at"),
-  /** R26 (DF-3): an agent member's avatar colour, a #rrggbb hex. Initials come from the name. */
-  avatarColor: text("avatar_color"),
-  /** R26 (DF-3): an optional agent inbox (agents.id) shown with this agent member. Mailbox stays optional. */
-  linkedAgentId: text("linked_agent_id"),
 }, (t) => [uniqueIndex("members_org_user_uq").on(t.organizationId, t.userId), index("members_user_idx").on(t.userId)]);
 
 /** Better Auth sessions. The cookie carries the token, signed with the app secret. */
@@ -1649,20 +1643,19 @@ export const dashboards = sqliteTable("dashboards", {
 }, (t) => [index("dashboards_org_idx").on(t.orgId)]);
 
 /**
- * R26 (MB-87): read only share links for a doc or a project board. Only the SHA-256 of the token is stored;
- * the public page /s/<token> looks it up by share_links_token_uq, the one index. Views are not counted, so
- * opening a link writes nothing. WITHOUT ROWID.
+ * R26 (MB-85): checklist items inside a task. Permissions follow the task. One index (task_id): a tick, a
+ * rename or a move writes one row plus that index. `assignee` is "member:<id>" or "agent:<id>".
  */
-export const shareLinks = sqliteTable("share_links", {
+export const taskChecklistItems = sqliteTable("task_checklist_items", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["doc", "project_board"] }).notNull(),
-  targetId: text("target_id").notNull(),
-  tokenHash: text("token_hash").notNull(),
-  /** Show the workspace name on the public page (on by default). */
-  showWorkspace: integer("show_workspace", { mode: "boolean" }).notNull().default(true),
-  createdBy: text("created_by").notNull(),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull().default(false),
+  position: real("position").notNull().default(0),
+  assignee: text("assignee"),
+  due: ts("due"),
+  createdBy: text("created_by"),
   createdAt: createdAt(),
-  expiresAt: ts("expires_at"),
-  revokedAt: ts("revoked_at"),
-}, (t) => [uniqueIndex("share_links_token_uq").on(t.tokenHash)]);
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);

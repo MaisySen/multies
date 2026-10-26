@@ -15,10 +15,11 @@ import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { tone } from "@/web/components/app-bits";
-import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeOption, type CustomField, type Priority, type Project, type Status, type Task, isAgentLike } from "./data";
+import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeOption, type CustomField, type Priority, type Project, type Status, type Task } from "./data";
 import { FieldCell } from "./fields";
 import { TASK_TYPES, TYPE_META, TypeIcon, typeOf, type TaskType } from "./task-type";
 import { useSprints } from "./sprint-fields";
+import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 
 const PRIORITIES: Priority[] = ["urgent", "high", "medium", "low", "none"];
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
@@ -63,6 +64,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
       <span className="flex min-w-0 items-center gap-2">
         <span className={cn("truncate font-medium", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
         {t.source && <Mail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
+        <span className="shrink-0 text-[11.5px] text-subtle"><ChecklistChip checklist={t.checklist} /></span>
       </span>
     ),
   },
@@ -74,7 +76,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     id: "assignee", header: "Assignee", width: "w-[150px]", editor: "assignee", hideOnPhone: true, sortKey: (t) => t.assignee?.name.toLowerCase() ?? "\uffff",
     render: (t) => t.assignee
-      ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{isAgentLike(t.assignee) && <Bot className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
+      ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{t.assignee.type === "agent" && <Bot className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
       : <span className="text-subtle">Nobody</span>,
   },
   {
@@ -297,7 +299,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
       case "priority": return <OptionList label="Priority" current={t.priority} onCancel={cancel} onPick={(v) => save(t, col, v)}
         options={PRIORITIES.map((p) => ({ value: p, label: <span className={PRIORITY_COLOR[p]}>{PRIORITY_LABEL[p]}</span> }))} />;
       case "assignee": return <OptionList label="Assignee" current={t.assigneeId ?? "none"} onCancel={cancel} onPick={(v) => save(t, col, v)}
-        options={[{ value: "none", label: <span className="text-muted">Nobody</span> }, ...people.map((p) => ({ value: p.id, label: <>{isAgentLike(p) ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</> }))]} />;
+        options={[{ value: "none", label: <span className="text-muted">Nobody</span> }, ...people.map((p) => ({ value: p.id, label: <>{p.type === "agent" ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</> }))]} />;
       case "status": return <OptionList label="Status" current={t.statusId} onCancel={cancel} onPick={(v) => save(t, col, v)}
         options={ctx.statusesFor(t).map((s) => ({ value: s.id, label: <><span className="h-2 w-2 rounded-full" style={{ background: tone(s.color) }} />{s.name}</> }))} />;
       case "type": return <OptionList label="Type" current={typeOf(t)} onCancel={cancel} onPick={(v) => save(t, col, v)}
@@ -471,7 +473,7 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
           {barButton("assignee", <UserRound className="h-4 w-4" />, "Assign to")}
           {pop === "assignee" && panel([
             item("none", <span className="text-muted">Nobody</span>, () => void run({ assignee: null }, assigneeDisplay(people, null))),
-            ...people.map((p) => item(p.id, <>{isAgentLike(p) ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void run({ assignee: p.id }, assigneeDisplay(people, p.id)))),
+            ...people.map((p) => item(p.id, <>{p.type === "agent" ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void run({ assignee: p.id }, assigneeDisplay(people, p.id)))),
           ], "Assign to")}
         </div>
         <div className="relative">

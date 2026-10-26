@@ -63,16 +63,6 @@ export class LogOutbound implements OutboundProvider {
   }
 }
 
-/** A plain text part from an HTML body, for a message written only in HTML. */
-export function plainFromHtml(html: string): string {
-  return html
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>|<\/(p|div|li|h[1-6]|tr)>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
-    .replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-}
-
 /** Resend (https://resend.com) transactional email API. */
 /** Resend's message when an address needs a verified sending domain first. */
 const NEEDS_DOMAIN = /verify a domain|domain is not verified|testing emails to your own email/i;
@@ -101,9 +91,8 @@ export class ResendOutbound implements OutboundProvider {
         bcc: msg.bcc?.length ? msg.bcc : undefined,
         replyTo: msg.replyTo,
         subject: msg.subject,
-        // Always a plain text part; the HTML part rides beside it when the message has one.
-        text: msg.text || (msg.html ? plainFromHtml(msg.html) : ""),
-        html: msg.html || undefined,
+        text: msg.text,
+        html: msg.html,
         headers,
         attachments: msg.attachments?.length ? msg.attachments.map((a) => ({ filename: a.filename, content: toB64(a.content), contentType: a.contentType })) : undefined,
       });
