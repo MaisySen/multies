@@ -9,7 +9,7 @@ import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  IconArrowLeft, IconArrowRight, IconBoard, IconCalendar, IconCheck, IconCheckCircle, IconChecklist, IconContacts, IconDatabaseBackup, IconDocs,
+  IconArrowLeft, IconArrowRight, IconBoard, IconCalendar, IconChat, IconMail, IconCheck, IconCheckCircle, IconChecklist, IconContacts, IconDatabaseBackup, IconDocs,
   IconDownload, IconFileUp, IconHistory, IconSheet, IconTable, IconTasks, IconUndo, IconUpload, IconWarning,
 } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
@@ -94,11 +94,11 @@ export function ProgressRing({ value, size = 72, label }: { value: number | null
 function Tile({ s, onPick, active }: { s: Source; onPick: () => void; active: boolean }) {
   return (
     <button type="button" onClick={onPick} data-testid={`move-source-${s.id}`} aria-pressed={active}
-      className={"group flex min-h-[64px] items-center gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-[0_4px_14px_rgb(0_0_0/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 " + (active ? "border-brand ring-1 ring-brand/40" : "border-line")}>
+      className={"group flex min-h-[64px] w-full min-w-0 items-center gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-[0_4px_14px_rgb(0_0_0/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 " + (active ? "border-brand ring-1 ring-brand/40" : "border-line")}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-white [&_svg]:h-[18px] [&_svg]:w-[18px]" style={{ background: s.tint }} aria-hidden>{s.icon}</span>
       <span className="min-w-0">
         <span className="block truncate text-[13.5px] font-semibold">{s.label}</span>
-        <span className="block truncate text-[12px] text-muted">{s.hint}</span>
+        <span className="block text-[12px] leading-snug text-muted">{s.hint}</span>
       </span>
     </button>
   );
@@ -108,12 +108,12 @@ const STEPS: Record<"tasks" | "other", string[]> = { tasks: ["Upload", "Columns"
 
 function Stepper({ steps, at }: { steps: string[]; at: number }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[12.5px]" aria-label="Import steps">
+    <ol className="flex items-center gap-x-2 gap-y-1.5 overflow-x-auto text-[12.5px] sm:flex-wrap" aria-label="Import steps">
       {steps.map((s, i) => (
-        <li key={s} className="flex items-center gap-2" aria-current={i === at ? "step" : undefined}>
+        <li key={s} className="flex shrink-0 items-center gap-2" aria-current={i === at ? "step" : undefined}>
           <span className={"grid h-5 w-5 place-items-center rounded-full text-[11px] font-semibold transition-colors duration-150 " + (i < at ? "bg-ok text-white" : i === at ? "bg-brand text-white" : "bg-fill text-muted")}>{i < at ? <IconCheck className="h-3 w-3" aria-hidden /> : i + 1}</span>
-          <span className={i === at ? "font-semibold" : "text-muted"}>{s}</span>
-          {i < steps.length - 1 && <span className="h-px w-4 bg-line-strong max-sm:hidden" aria-hidden />}
+          <span className={i === at ? "font-semibold" : "text-muted max-sm:sr-only"}>{s}</span>
+          {i < steps.length - 1 && <span className="h-px w-3 bg-line-strong sm:w-6" aria-hidden />}
         </li>
       ))}
     </ol>
@@ -130,13 +130,13 @@ export function ImportExportSettings() {
   return (
     <div className="space-y-6" data-testid="import-export">
       <Section id="move-in" title="Bring your work in" description="Pick where your work lives now. You check the columns, people and statuses, see the first 20 rows, and can undo the whole import later.">
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4" role="list" aria-label="Import from">
-          {SOURCES.map((s) => <div role="listitem" key={s.id}><Tile s={s} active={source?.id === s.id} onPick={() => setSource(s)} /></div>)}
-        </div>
-        <div ref={wizardRef} className="scroll-mt-20">
-          {source && <ImportWizard key={source.id} source={source} onClose={() => setSource(null)} />}
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-2.5" role="list" aria-label="Import from">
+          {SOURCES.map((s) => <div role="listitem" key={s.id} className="min-w-0"><Tile s={s} active={source?.id === s.id} onPick={() => setSource(s)} /></div>)}
         </div>
       </Section>
+      <div ref={wizardRef} className="scroll-mt-6 empty:hidden">
+        {source && <ImportWizard key={source.id} source={source} onClose={() => setSource(null)} />}
+      </div>
       {isAdmin && <ExportCard />}
       <HistoryCard />
       <ImportSection />
@@ -221,16 +221,19 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
   const pct = progress ? (progress.move.total ? progress.move.done / progress.move.total : progress.move.status === "done" ? 1 : null) : null;
 
   return (
-    <div className="mt-4 overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)] animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none" data-testid="move-wizard">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-fill/40 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-white [&_svg]:h-4 [&_svg]:w-4" style={{ background: source.tint }} aria-hidden>{source.icon}</span>
-          <div className="min-w-0"><h3 className="truncate text-[14px] font-semibold">Import from {source.label}</h3><Stepper steps={steps} at={step} /></div>
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_rgb(0_0_0/0.06)] animate-in fade-in slide-in-from-bottom-1 duration-200 motion-reduce:animate-none" data-testid="move-wizard">
+      <div className="space-y-3 border-b border-line bg-fill/40 px-4 py-3 md:px-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] text-white [&_svg]:h-4 [&_svg]:w-4" style={{ background: source.tint }} aria-hidden>{source.icon}</span>
+            <h3 className="truncate text-[15px] font-semibold">Import from {source.label}</h3>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={running}>Close</Button>
         </div>
-        <Button size="sm" variant="ghost" onClick={onClose} disabled={running}>Close</Button>
+        <Stepper steps={steps} at={step} />
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-4 md:p-6">
         {step === 0 && (
           <>
             <p className="rounded-lg bg-brand-soft/50 px-3 py-2 text-[13px] leading-relaxed text-fg">{source.how}</p>
@@ -381,8 +384,9 @@ function previewRows(p: Preview): string[][] {
 
 function ImportSummary({ move, stopped, onRetry, noun }: { move: Move; stopped: string | null; onRetry: () => void; noun: string }) {
   const [confirm, setConfirm] = useState(false);
-  const undo = useUndo(move.id, () => setConfirm(false));
-  if (move.status === "undone") return <p className="text-sm font-medium">Undone. Everything this import made is gone.</p>;
+  const [undone, setUndone] = useState(false);
+  const undo = useUndo(move.id, () => { setConfirm(false); setUndone(true); });
+  if (move.status === "undone" || undone) return <p className="text-sm font-medium">Undone. Everything this import made is gone.</p>;
   return (
     <div className="space-y-2">
       <p className="text-[15px] font-semibold">{move.status === "done" ? `Done: ${move.created} ${noun} brought in` : `${move.done} of ${move.total} in so far`}</p>
@@ -412,13 +416,15 @@ function useUndo(id: string, done: () => void) {
 // ------------------------------------------------------------------ export
 
 const INCLUDED = [
-  { label: "Tasks and projects", fmt: "JSON and CSV", icon: <IconTasks /> },
+  { label: "Tasks", fmt: "JSON and CSV", icon: <IconTasks /> },
   { label: "Docs", fmt: "Markdown", icon: <IconDocs /> },
   { label: "Calendar", fmt: ".ics", icon: <IconCalendar /> },
   { label: "Contacts", fmt: "vCard and CSV", icon: <IconContacts /> },
-  { label: "Chat", fmt: "JSON and CSV", icon: <IconChecklist /> },
-  { label: "Mail", fmt: "mbox", icon: <IconHistory /> },
+  { label: "Chat", fmt: "JSON and CSV", icon: <IconChat /> },
+  { label: "Mail", fmt: "mbox", icon: <IconMail /> },
 ];
+
+const plural = (n: number | undefined, word: string) => `${n ?? 0} ${word}${n === 1 ? "" : "s"}`;
 
 function ExportCard() {
   const qc = useQueryClient();
@@ -430,7 +436,7 @@ function ExportCard() {
   const link = r ? new URL(r.downloadPath, window.location.origin).toString() : "";
   return (
     <Section id="move-out" title="Export everything" description="One ZIP with all of your workspace in open formats any tool can read. Passwords, keys and private links are never in it.">
-      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2">
         {INCLUDED.map((i) => (
           <li key={i.label} className="flex items-center gap-2.5 rounded-xl border border-line bg-fill/30 px-3 py-2">
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface text-[#0071E3] shadow-[0_0_0_0.5px_rgb(0_0_0/0.06)] [&_svg]:h-4 [&_svg]:w-4" aria-hidden>{i.icon}</span>
@@ -444,10 +450,10 @@ function ExportCard() {
         {r && (
           <div className="flex w-full flex-col gap-3 rounded-xl border border-ok/30 bg-ok-soft/40 p-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <ProgressRing value={1} size={44} label="Export ready" />
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-ok text-white [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconCheck /></span>
               <div>
                 <p className="text-[14px] font-semibold">Your export is ready</p>
-                <p className="text-[12.5px] text-muted">{r.counts.tasks ?? 0} tasks, {r.counts.docs ?? 0} docs, {r.counts.meetings ?? 0} meetings, {r.counts.contacts ?? 0} contacts. The link works until {r.expiresAt ? new Date(r.expiresAt).toLocaleString() : "tomorrow"}.</p>
+                <p className="text-[12.5px] text-muted">{plural(r.counts.tasks, "task")}, {plural(r.counts.docs, "doc")}, {plural(r.counts.meetings, "meeting")}, {plural(r.counts.contacts, "contact")}. The link works until {r.expiresAt ? new Date(r.expiresAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "this time tomorrow"}.</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -482,7 +488,7 @@ function HistoryRow({ m }: { m: Move }) {
       <span className={"grid h-8 w-8 shrink-0 place-items-center rounded-[9px] [&_svg]:h-4 [&_svg]:w-4 " + (m.kind === "export" ? "bg-brand-soft text-brand" : "bg-fill text-muted")} aria-hidden>{m.kind === "export" ? <IconDownload /> : <IconUpload />}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] font-medium">{label}{m.fileName ? <span className="font-normal text-muted"> · {m.fileName}</span> : null}</p>
-        <p className="text-[12px] text-muted">{timeAgo(m.createdAt)}{m.by ? ` by ${m.by}` : ""}{m.kind === "import" ? ` · ${m.created} made${m.total ? `, ${m.done} of ${m.total}` : ""}` : ` · ${m.total} items`}</p>
+        <p className="text-[12px] text-muted">{timeAgo(m.createdAt)}{m.by ? ` by ${m.by}` : ""}{m.kind === "import" ? ` · ${plural(m.created, "item")} made${m.total && m.done < m.total ? `, ${m.done} of ${m.total} read` : ""}` : ` · ${plural(m.total, "item")}`}</p>
       </div>
       <Badge tone={st.tone}>{st.label}</Badge>
       {m.canUndo && <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} aria-label={`Undo ${label}`}><IconUndo className="h-4 w-4" aria-hidden />Undo</Button>}
