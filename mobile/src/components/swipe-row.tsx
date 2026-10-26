@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Animated, PanResponder, Text, View, type AccessibilityActionEvent } from "react-native";
 import { armedSide, clampTravel, releaseSide, shouldCaptureSwipe, type SwipeSide } from "@/lib/swipe";
 import { useReduceMotion } from "@/lib/motion";
@@ -14,14 +14,14 @@ export interface SwipeAction { label: string; icon: IconName; color: string; onA
  * Screen reader users get the same two actions as accessibility actions on the row.
  */
 export function SwipeRow({ right, left, children, testID }: { right?: SwipeAction; left?: SwipeAction; children: ReactNode; testID?: string }) {
-  const x = useRef(new Animated.Value(0)).current;
+  const [x] = useState(() => new Animated.Value(0));
   const width = useRef(360);
   const armed = useRef<SwipeSide | null>(null);
   const [showing, setShowing] = useState<SwipeSide | null>(null);
   const reduce = useReduceMotion();
   const enabled = useMemo(() => ({ right: !!right, left: !!left }), [right, left]);
   const latest = useRef({ right, left, enabled, reduce });
-  latest.current = { right, left, enabled, reduce };
+  useEffect(() => { latest.current = { right, left, enabled, reduce }; });
 
   const responder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_e, g) => shouldCaptureSwipe(g.dx, g.dy),

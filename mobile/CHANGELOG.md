@@ -3,6 +3,23 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.7 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
+
+- Activity: a new tab for mentions, assignments, review requests and the rest, with Inbox, Later
+  and Done. Swipe right when you've dealt with one, swipe left to snooze it until later today,
+  tomorrow or next week, and tap to open it. The tab shows how many are unread.
+- Quick actions: hold a task to change its status, assignee, priority, label or due date. Hold an
+  email to reply, archive, snooze, star, mark it read or unread, or move it to trash.
+- Swipe on mail: swipe right to archive and left to snooze. Undo is there for a few seconds.
+- Commands: the new command button in Mail, Tasks and Activity (or a long press on any tab) opens
+  one list of places and actions. Type to find one.
+- Agent runs: a running run now has a Cancel run button, with a check first.
+- Shipped over the air (no store build): Settings reads Multies 1.9.7 (OTA).
+
+What to test: hold an email and try Snooze, Tomorrow. Swipe another email right, then tap Undo.
+Open Activity, swipe a notification right, then check it under Done. Hold a task and set its
+priority to Urgent. Long press the Tasks tab and type "meet".
+
 ## 1.9.6 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
 - What's new: after an update this sheet shows once, with what changed in the version you just

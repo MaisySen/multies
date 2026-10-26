@@ -119,7 +119,7 @@ export function TriageInbox({ tab = false }: { tab?: boolean }) {
           <EmptyState icon="alert-circle" title="Couldn't load notifications" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />
         ) : items.length ? items.map((n) => (
           <SwipeRow key={n.id} {...swipes(n)} testID={`swipe-${n.id}`}>
-            <TriageRow n={n} onPress={() => open(n)} onLongPress={() => { tick(); setMenuFor(n); }} />
+            <TriageRow n={n} showBack={view === "later"} onPress={() => open(n)} onLongPress={() => { tick(); setMenuFor(n); }} />
           </SwipeRow>
         )) : view === "inbox" ? (
           <EmptyState icon="check-circle" title="You're all caught up" body="Mentions, assignments and review requests land here."
@@ -146,8 +146,8 @@ export function TriageInbox({ tab = false }: { tab?: boolean }) {
   );
 }
 
-function TriageRow({ n, onPress, onLongPress }: { n: AppNotification; onPress: () => void; onLongPress: () => void }) {
-  const later = n.snoozedUntil && !n.doneAt && Date.parse(n.snoozedUntil) > Date.now() ? backLabel(n.snoozedUntil) : null;
+function TriageRow({ n, showBack, onPress, onLongPress }: { n: AppNotification; showBack: boolean; onPress: () => void; onLongPress: () => void }) {
+  const later = showBack && n.snoozedUntil ? backLabel(n.snoozedUntil) : null;
   return (
     <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button"
       accessibilityLabel={`${n.read ? "" : "Unread. "}${n.title}, ${timeAgo(n.createdAt)}`} accessibilityHint="Opens it. Long press for more actions." testID={`notification-${n.id}`}

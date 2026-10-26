@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { AccessibilityInfo, Animated, Pressable, Text, View } from "react-native";
 import { useReduceMotion } from "@/lib/motion";
 import type { PendingAction } from "@/lib/swipe";
@@ -7,7 +7,7 @@ import { colors, motion, radius, space } from "@/theme";
 /** R31: "Archived. Undo" at the bottom of a list while a swiped action waits to run. */
 export function UndoToast({ pending, onUndo, bottom = space.lg }: { pending: PendingAction | null; onUndo: (key: string) => void; bottom?: number }) {
   const reduce = useReduceMotion();
-  const y = useRef(new Animated.Value(0)).current;
+  const [y] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (pending) AccessibilityInfo.announceForAccessibility?.(`${pending.label}. Undo is available.`);
     Animated.timing(y, { toValue: pending ? 1 : 0, duration: reduce ? 0 : motion.fast, useNativeDriver: true }).start();
