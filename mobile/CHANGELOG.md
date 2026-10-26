@@ -3,6 +3,18 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.3 (Android versionCode 14, iOS build 16), 26 October 2026
+
+- Checklists inside a task: the task shows "3 of 5 done" with a progress bar. Tap an item to tick
+  it, add items at the bottom, and long press an item (or tap its dots) to rename, move or delete
+  it. Changes show at once and come back if they can't be saved. Task rows show checklist progress.
+- A search box at the top of Tasks takes the same searches as the web app, for example
+  assignee:me due:<7d label:bug status:doing, with tappable starters. If a search can't be read,
+  the box says which part to fix. The phone remembers your last search.
+
+What to test: open a task with a checklist, tick an item and check the count on the Tasks list.
+Then search label:bug, tap Mine, and try a typo like foo:bar to see the message.
+
 ## 1.9.2 (Android versionCode 13, iOS build 15), 25 October 2026
 
 - A push saying someone mentioned you on an email thread now opens that mail thread (the server

@@ -5,6 +5,7 @@ import { Avatar, Badge, Banner, Button, Chip, EmptyState, Field, Icon, Loading }
 import { TaskTime } from "@/components/timer";
 import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
+import { ChecklistSection } from "@/components/checklist";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
@@ -89,6 +90,8 @@ export default function TaskDetail() {
           <Chip key={p.id} label={p.type === "agent" ? `${p.name} (agent)` : p.name} selected={t.assigneeId === p.id} onPress={() => t.assigneeId !== p.id && save({ assigneeId: p.id as AssigneeId })} />
         ))}
       </Group>
+
+      <ChecklistSection taskId={t.id} />
 
       {d.customFields?.length ? (
         <Section title="Fields">

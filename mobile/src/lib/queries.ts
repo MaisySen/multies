@@ -132,6 +132,8 @@ export function useTasks(filter: TaskQuery = {}) {
     queryFn: () => cached(kv(), `worklist:${mode}:${JSON.stringify(filter)}`, () => api.tasks(filter)),
     select: (d) => d.tasks,
     refetchInterval: 60_000,
+    // R27: a query the server refuses (400 bad_query) won't get better by asking again.
+    retry: (n, err) => n < 2 && ![400, 401].includes((err as { status?: number }).status ?? 0),
   });
 }
 

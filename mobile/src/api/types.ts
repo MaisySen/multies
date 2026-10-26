@@ -98,7 +98,24 @@ export interface Task {
   version: number;
   /** Custom field values by field id. Older servers leave it out. */
   fields?: FieldValues;
+  /** R27: checklist progress for the "3/5" badge. Servers before R26 leave it out. */
+  checklist?: { total: number; done: number };
 }
+
+/** R27: one checklist item inside a task (server R26, MB-85). */
+export interface ChecklistItem {
+  id: string;
+  taskId: string;
+  title: string;
+  done: boolean;
+  position: number;
+  assignee: string | null;
+  due: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChecklistView { taskId: string; items: ChecklistItem[]; total: number; done: number }
 
 export interface TaskComment { id: string; taskId: string; body: string; author: { type: string; id: string; name: string | null }; createdAt: string }
 
@@ -326,7 +343,8 @@ type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
 type Within<A, B> = [A] extends [B] ? true : false;
 export type SpecChecks = [
   // `fields` is checked apart so the app builds against specs from before and after custom fields.
-  Assert<Same<Exclude<keyof S["Task"], "fields">, Exclude<keyof Task, "fields">>>,
+  // `checklist` (R27) is on the session task rows; the v1 spec doesn't list it yet.
+  Assert<Same<Exclude<keyof S["Task"], "fields" | "checklist">, Exclude<keyof Task, "fields" | "checklist">>>,
   Assert<Same<keyof S["TaskComment"], keyof TaskComment>>,
   Assert<Same<keyof NonNullable<S["TaskDetail"]>, keyof TaskDetail>>,
   Assert<Within<keyof Project, keyof S["Project"]>>,

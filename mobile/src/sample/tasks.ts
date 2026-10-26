@@ -1,13 +1,14 @@
 import { ApiError } from "@/api/errors";
-import type { Assignee, AssigneeId, CustomField, Message, Project, Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskStatus } from "@/api/types";
+import type { Assignee, AssigneeId, ChecklistItem, CustomField, Message, Project, Task, TaskComment, TaskCreate, TaskDetail, TaskPatch, TaskStatus } from "@/api/types";
 import { latestOnly } from "./latest-text";
 import { applyFieldPatch, sampleFields, seedFieldValues } from "./fields";
+import { checklistRoute, filterByQuery, seedChecklists } from "./checklists";
 
 /**
  * Work management for the sample workspace: the same routes and shapes as /api/tasks, kept in
  * memory on the phone so "Explore with sample data" works with no server and no connection.
  */
-export interface SampleWork { project: Project; tasks: Task[]; comments: TaskComment[]; assignees: Assignee[]; seq: number; fields: CustomField[] }
+export interface SampleWork { project: Project; tasks: Task[]; comments: TaskComment[]; assignees: Assignee[]; seq: number; fields: CustomField[]; /** R27 */ checklists?: ChecklistItem[]; chkSeq?: number }
 
 const STATUS_IDS: Record<TaskStatus, { id: string; name: string; color: string }> = {
   todo: { id: "sts_todo", name: "To do", color: "#8a8f98" },
@@ -46,6 +47,7 @@ export function sampleWork(now: number, messages: Message[]): SampleWork {
   work.comments.push({ id: "cmt_1", taskId: chase.id, body: "Li says the remittance is attached. Check it against the bank feed before closing.", author: { type: "member", id: "usr_sample", name: "Mia Nguyen" }, createdAt: ago(70) });
   chase.commentCount = 1;
   seedFieldValues(work, day);
+  seedChecklists(work, ago(40));
   return work;
 }
 
@@ -70,7 +72,7 @@ function create(work: SampleWork, input: TaskCreate, at: string, source: Task["s
     id: `tsk_s${number}`, ref: `${work.project.key}-${number}`, projectId: work.project.id, number, title, notes: input.notes ?? "",
     ...statusOf(work.project, status), ...assigneeOf(work, input.assigneeId),
     priority: input.priority ?? "none", labels: input.labels ?? [], start: null, due: input.due ?? null, parentId: input.parentId ?? null,
-    position: number * 1000, source, subtasks: { total: 0, done: 0 }, commentCount: 0, completedAt: status === "done" ? at : null,
+    position: number * 1000, source, subtasks: { total: 0, done: 0 }, checklist: { total: 0, done: 0 }, commentCount: 0, completedAt: status === "done" ? at : null,
     createdBy: { type: "member", id: "usr_sample" }, createdAt: at, updatedAt: at, version: 1, fields: {},
   };
   work.tasks.unshift(t);
@@ -104,6 +106,8 @@ export function taskRoute(work: SampleWork, messages: Message[], method: string,
     if (method === "GET") return { enabled: false, devices: [] };
     return method === "POST" ? { ok: true, enabled: false } : { ok: true };
   }
+  const chk = checklistRoute(work, method, parts, body, (x) => find(work, x)); // R27
+  if (chk !== undefined) return chk;
   if (root !== "tasks") return undefined;
 
   if (!a && method === "GET") {
@@ -114,7 +118,7 @@ export function taskRoute(work: SampleWork, messages: Message[], method: string,
     if (f.assignee === "me") list = list.filter((t) => t.assigneeId === "member:usr_sample");
     else if (f.assignee === "none") list = list.filter((t) => !t.assigneeId);
     else if (f.assignee) list = list.filter((t) => t.assigneeId === f.assignee);
-    if (f.q) list = list.filter((t) => `${t.title} ${t.notes} ${t.ref}`.toLowerCase().includes(String(f.q).toLowerCase()));
+    if (f.q) list = filterByQuery(list, String(f.q)); // R27: the task query language, as the server answers it
     return { tasks: list };
   }
   if (!a && method === "POST") {

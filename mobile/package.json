@@ -1,6 +1,6 @@
 {
   "name": "mymail-mobile",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/metro-runtime": "~58.0.15",

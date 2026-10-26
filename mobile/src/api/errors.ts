@@ -29,6 +29,9 @@ export function toApiError(status: number, body: unknown): ApiError {
   const message = FRIENDLY[code.toUpperCase()] ?? nested?.message ?? (typeof raw.message === "string" ? raw.message : undefined) ?? `Something went wrong (${status}).`;
   const details: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (k !== "error" && k !== "code" && k !== "message") details[k] = v;
+  // { error: { code, message, details: { position } } }, as a bad task query answers.
+  const inner = nested && (nested as { details?: unknown }).details;
+  if (inner && typeof inner === "object") Object.assign(details, inner as Record<string, unknown>);
   return new ApiError(status, code.toLowerCase(), message, details);
 }
 

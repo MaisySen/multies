@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,6 +8,10 @@ import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
 import { useOffline } from "@/lib/offline";
+import { kv } from "@/lib/kv";
+import { progressBadge } from "@/lib/checklist";
+import { loadLastQuery, queryErrorText, saveLastQuery } from "@/lib/task-query";
+import { TaskQueryBox } from "@/components/task-query-box";
 import { STATUSES, dueLabel, moveLabel, nextStatus, senderName, sortTasks, type Task, type TaskStatus } from "@/lib/tasks";
 import { colors, radius, space } from "@/theme";
 
@@ -16,7 +20,12 @@ type Who = "all" | "me";
 export default function Tasks() {
   const [view, setView] = useState<"list" | "board">("list");
   const [who, setWho] = useState<Who>("all");
-  const tasks = useTasks(who === "me" ? { assignee: "me" } : {});
+  // R27: the query box. The last query is remembered on this phone.
+  const [query, setQuery] = useState("");
+  useEffect(() => { let live = true; loadLastQuery(kv()).then((q) => { if (live && q) setQuery(q); }); return () => { live = false; }; }, []);
+  const applyQuery = (q: string) => { setQuery(q); saveLastQuery(kv(), q); };
+  const tasks = useTasks({ ...(who === "me" ? { assignee: "me" as const } : {}), ...(query ? { q: query } : {}) });
+  const queryError = queryErrorText(tasks.error, query);
   const { update } = useTaskMutations();
   const offline = useOffline();
   const { width } = useWindowDimensions();
@@ -41,10 +50,15 @@ export default function Tasks() {
           <Chip label="All tasks" selected={who === "all"} onPress={() => setWho("all")} />
           <Chip label="Assigned to me" selected={who === "me"} onPress={() => setWho("me")} />
         </View>
+        <TaskQueryBox value={query} onSubmit={applyQuery} error={queryError} />
         {offline ? <Banner text="You're offline. Showing the tasks saved on this phone." /> : null}
       </View>
-      {tasks.isPending ? <Loading /> : tasks.isError && !list.length ? (
+      {tasks.isPending ? <Loading /> : queryError ? (
+        <EmptyState icon="search" title="Check the search" body="Fix the part named above, or clear the search." />
+      ) : tasks.isError && !list.length ? (
         <EmptyState icon="alert-circle" title="Couldn't load tasks" body={tasks.error.message} action={<Button label="Try again" icon="refresh-cw" onPress={() => tasks.refetch()} />} />
+      ) : !list.length && query ? (
+        <EmptyState icon="search" title="No tasks match" body={`Nothing matches ${query}.`} action={<Button label="Clear search" icon="x" onPress={() => applyQuery("")} />} />
       ) : !list.length ? (
         <EmptyState icon="check-square" title={who === "me" ? "Nothing assigned to you" : "No tasks yet"} body="Open an email and tap Make a task, or add one here."
           action={<Button label="New task" icon="plus" onPress={() => router.push("/task/new")} />} />
@@ -101,7 +115,8 @@ const open = (t: Task) => router.push({ pathname: "/task/[id]", params: { id: t.
 export function Meta({ t }: { t: Task }) {
   const due = t.status === "done" ? null : dueLabel(t.due);
   const urgent = t.priority === "urgent" || t.priority === "high";
-  const hasAny = due || urgent || t.assignee || t.source?.from || t.subtasks.total || t.commentCount;
+  const checklist = progressBadge(t.checklist);
+  const hasAny = due || urgent || t.assignee || t.source?.from || t.subtasks.total || t.commentCount || checklist;
   if (!hasAny) return null;
   return (
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
@@ -109,6 +124,7 @@ export function Meta({ t }: { t: Task }) {
       {urgent ? <Badge label={t.priority === "urgent" ? "Urgent" : "High"} tone={t.priority === "urgent" ? "bad" : "warn"} icon="flag" /> : null}
       {t.assignee ? <Badge label={t.assignee.name} icon={t.assignee.type === "agent" ? "cpu" : "user"} /> : null}
       {t.subtasks.total ? <Badge label={`${t.subtasks.done}/${t.subtasks.total}`} icon="list" /> : null}
+      {checklist ? <Badge label={checklist} icon="check-square" tone={t.checklist!.done === t.checklist!.total ? "ok" : "neutral"} /> : null}
       {t.commentCount ? <Badge label={String(t.commentCount)} icon="message-circle" /> : null}
       {t.source?.from ? <Text style={{ color: colors.subtle, fontSize: 12, flexShrink: 1 }} numberOfLines={1}>From email: {senderName(t.source.from)}</Text> : null}
     </View>

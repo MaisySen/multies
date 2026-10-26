@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
-  Agent, Approval, Assignee, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
+  Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
   CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
@@ -54,6 +54,15 @@ export function endpoints(t: Transport) {
     deleteTask: (id: string) => t.request<{ ok: true }>("DELETE", `/tasks/${encodeURIComponent(id)}`),
     addComment: (id: string, body: string) => t.request<{ comment: TaskComment }>("POST", `/tasks/${encodeURIComponent(id)}/comments`, { body }),
     assignees: () => t.request<{ assignees: Assignee[] }>("GET", "/tasks/assignees"),
+    // R27: checklists inside a task (server R26, MB-85).
+    checklist: (taskId: string) => t.request<ChecklistView>("GET", `/tasks/${encodeURIComponent(taskId)}/checklist`),
+    addChecklistItem: (taskId: string, title: string) =>
+      t.request<{ items: ChecklistItem[] }>("POST", `/tasks/${encodeURIComponent(taskId)}/checklist`, { title }),
+    updateChecklistItem: (id: string, patch: { title?: string; done?: boolean }) =>
+      t.request<{ item: ChecklistItem }>("PATCH", `/checklist-items/${encodeURIComponent(id)}`, patch),
+    deleteChecklistItem: (id: string) => t.request<unknown>("DELETE", `/checklist-items/${encodeURIComponent(id)}`),
+    reorderChecklist: (taskId: string, ids: string[]) =>
+      t.request<unknown>("POST", `/tasks/${encodeURIComponent(taskId)}/checklist/reorder`, { ids }),
     projects: () => t.request<{ projects: Project[] }>("GET", "/projects"),
     changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
     // Notifications inbox. No ids and no category marks everything read.
