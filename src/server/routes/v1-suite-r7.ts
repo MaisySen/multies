@@ -8,10 +8,9 @@ import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
-import { addDependency, dependenciesOf, removeDependency, resolveTaskId, setDependencyLag } from "../services/suite/tasks";
+import { addDependency, dependenciesOf, removeDependency, resolveTaskId } from "../services/suite/tasks";
 import { rescheduleTask, scheduleCheck } from "../services/suite/dependency-schedule-r37";
-import { DependencyLagBody, LagDays, RescheduleBody, ScheduleSettingsBody } from "../services/suite/dependency-schedule-r37-schema";
-import { getScheduleSettings, setScheduleSettings } from "../services/suite/schedule-settings-r38"; // R38
+import { RescheduleBody } from "../services/suite/dependency-schedule-r37-schema";
 import { addEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet } from "../services/suite/time";
 import { createForm, getForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
@@ -85,14 +84,8 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   async (c) => { const a = actor(c); return send(c, await dependenciesOf(c.var.deps, a.orgId, await resolveTaskId(c.var.deps, a.orgId, c.req.valid("param").id))); });
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/dependencies", tags: ["Tasks"], summary: "Mark a task as blocked by another", security: secured,
-    description: "lagDays (optional, R38): whole days to wait after the blocker ends (lag), or a negative number to let the task start that many days before it ends (lead).",
-    request: { params: Id, ...body(z.object({ blockedBy: z.string().min(1).openapi({ example: "OPS-3" }), lagDays: LagDays.optional().openapi({ example: 2 }) })) }, responses: { 201: json(Any, "The task's dependencies."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
-  async (c) => { const b = c.req.valid("json"); return send(c, await addDependency(c.var.deps, actor(c), c.req.valid("param").id, b.blockedBy, b.lagDays), 201); });
-
-  api.openapi(createRoute({ method: "patch", path: "/tasks/{id}/dependencies/{blockedBy}", tags: ["Tasks"], summary: "Set the lead or lag on a dependency", security: secured,
-    description: "R38. lagDays: whole days from -365 to 365. Positive waits that many days after the blocker ends; negative lets the task start that many days before. Counted in working days when the project uses working days only.",
-    request: { params: Id.extend({ blockedBy: z.string().openapi({ param: { name: "blockedBy", in: "path" } }) }), ...body(DependencyLagBody) }, responses: { 200: json(Any, "The task's dependencies, each with lagDays."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
-  async (c) => { const p = c.req.valid("param"); return send(c, await setDependencyLag(c.var.deps, actor(c), p.id, p.blockedBy, c.req.valid("json").lagDays)); });
+    request: { params: Id, ...body(z.object({ blockedBy: z.string().min(1).openapi({ example: "OPS-3" }) })) }, responses: { 201: json(Any, "The task's dependencies."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
+  async (c) => send(c, await addDependency(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").blockedBy), 201));
 
   api.openapi(createRoute({ method: "delete", path: "/tasks/{id}/dependencies/{blockedBy}", tags: ["Tasks"], summary: "Remove a dependency", security: secured,
     request: { params: Id.extend({ blockedBy: z.string().openapi({ param: { name: "blockedBy", in: "path" } }) }) }, responses: { 200: json(Any, "The task's dependencies."), 401: errors[401], 404: errors[404] } }),
@@ -105,20 +98,9 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, await scheduleCheck(c.var.deps, actor(c).orgId, c.req.valid("query").projectId)));
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/reschedule", tags: ["Tasks"], summary: "Move a task and the tasks that wait on it", security: secured,
-    description: "Sets start and/or due (YYYY-MM-DD, null clears). Unless moveDependents is false, every task that waits on it (down the chain) and would now start on or before a blocker's last day (plus the link's lag) shifts later by just enough, keeping its length; moving earlier never pulls tasks after it. In strict mode (the project's setting, or strict: true on the request) every waiting task moves by the same days, earlier or later. The answer says mode and workingDaysOnly. preview: true returns the plan and writes nothing. At most 50 tasks move at once (422 chain_too_long). Returns { preview, task, moved: [{ id, ref, title, from, to, days }] }.",
+    description: "Sets start and/or due (YYYY-MM-DD, null clears). Unless moveDependents is false, every task that waits on it (down the chain) and would now start on or before a blocker's last day shifts later by just enough, keeping its length. Moving earlier never pulls tasks after it. preview: true returns the plan and writes nothing. At most 50 tasks move at once (422 chain_too_long). Returns { preview, task, moved: [{ id, ref, title, from, to, days }] }.",
     request: { params: Id, ...body(RescheduleBody) }, responses: { 200: json(Any, "The task and the tasks that moved."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
   async (c) => send(c, await rescheduleTask(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json"))));
-
-  // ---------------------------------------------------------------- R38: schedule rules per project
-  api.openapi(createRoute({ method: "get", path: "/projects/{id}/schedule", tags: ["Projects"], summary: "A project's rules for dependency dates", security: secured,
-    description: "Answers { schedule: { projectId, workingDaysOnly, daysOff (0 Sunday to 6 Saturday), strict } }. Never saved: calendar days, Saturday and Sunday listed as days off, flexible moves.",
-    request: { params: Id }, responses: { 200: json(Any, "{ schedule }"), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, { schedule: await getScheduleSettings(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
-
-  api.openapi(createRoute({ method: "put", path: "/projects/{id}/schedule", tags: ["Projects"], summary: "Change a project's rules for dependency dates", security: secured,
-    description: "workingDaysOnly: lead, lag and shifts count working days and a moved task never starts or ends on a day off. strict: moving a task by N days moves every task that waits on it by the same N days, earlier or later (off: move later only, just enough). Fields left out keep their value. One row written.",
-    request: { params: Id, ...body(ScheduleSettingsBody) }, responses: { 200: json(Any, "{ schedule }"), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, { schedule: await setScheduleSettings(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
 
   // ---------------------------------------------------------------- forms
   api.openapi(createRoute({ method: "get", path: "/forms", tags: ["Forms"], summary: "List forms", security: secured,

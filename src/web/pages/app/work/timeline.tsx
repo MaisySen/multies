@@ -1,9 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { Gantt, Willow, WillowDark } from "@svar-ui/react-gantt";
 import { useAppearance } from "@/web/components/theme";
 import "@svar-ui/react-gantt/style.css";
 import type { Task } from "./data";
-import { TodayLine } from "./schedule-r38"; // R38: Today line
 
 const DAY = 86_400_000;
 const fmtMonth = (d: Date) => d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
@@ -14,12 +13,10 @@ const fmtDay = (d: Date) => String(d.getDate());
  * due date shows as one day. Dragging or resizing a bar saves the new dates. Arrows show
  * dependencies (blocked by); dragging from the end of one bar to another adds one.
  * R37: `late` (task ids) draws clashing bars in red; timeline-plan-r37.tsx wraps this with the schedule bar and sheets.
- * R38: a Today line (our own overlay: the chart core ignores its markers setting).
  */
 export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; late?: Set<string>; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
   const dated = tasks.filter((t) => t.due || t.start).sort((a, b) => (a.start ?? a.due ?? "").localeCompare(b.start ?? b.due ?? ""));
   const { resolved } = useAppearance();
-  const box = useRef<HTMLDivElement>(null);
   const Theme = resolved === "dark" ? WillowDark : Willow;
   const narrow = typeof window !== "undefined" && window.innerWidth < 640;
   const rows = useMemo(() => dated.map((t) => {
@@ -34,11 +31,9 @@ export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink 
   const max = rows.length ? new Date(Math.max(...rows.map((r) => r.end.getTime())) + 14 * DAY) : new Date(Date.now() + 30 * DAY);
   // R37: tasks that start before a task they wait on ends are drawn in red (the chart prefixes string ids with ":").
   const lateCss = late?.size ? [...late].map((id) => `.mm-gantt .wx-bar[data-task-id=':${CSS.escape(id)}'],.mm-gantt .wx-bar[data-task-id='${CSS.escape(id)}']`).join(",") + "{background:var(--color-bad)!important;border-color:var(--color-bad)!important;box-shadow:0 0 0 3px var(--color-bad-soft)}" : "";
-  const todayKey = rows.map((r) => `${r.id}:${r.start.getTime()}`).join(",") + resolved;
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
-    <div ref={box} className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
-      <TodayLine root={box} anchor={rows[0] ? { id: rows[0].id, start: rows[0].start } : undefined} cellWidth={36} version={todayKey} />
+    <div className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
       {lateCss && <style data-testid="timeline-late-style">{lateCss}</style>}
       <Theme fonts={false}>
         <Gantt

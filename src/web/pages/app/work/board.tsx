@@ -10,7 +10,6 @@ import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task, isAgentLike } from "./data";
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
-import { ClashBadge } from "./schedule-r38"; // R38: date clash badge
 import { CardQuickEdits, CardTitle } from "./board-card-edit"; // R36
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
@@ -31,7 +30,6 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
         {t.source && <IconMail className="h-3 w-3" aria-label="From email" />}
         {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><IconTasks className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
         <ChecklistChip checklist={t.checklist} />
-        <ClashBadge id={t.id} />
         {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><IconChat className="h-3 w-3" />{t.commentCount}</span>}
         <span className="ml-auto flex items-center gap-1.5">
           {project && <CardQuickEdits t={t} project={project} />}

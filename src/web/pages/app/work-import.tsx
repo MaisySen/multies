@@ -57,6 +57,7 @@ export function WorkToolsImport() {
   const [projectName, setProjectName] = useState("");
   const [result, setResult] = useState<RunResult | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
 
   const preview = useMutation({
     mutationFn: (b: { name: string; content: string; mapping?: Mapping }) => api.post<Preview>("/work-imports/preview", { fileName: b.name, content: b.content, mapping: b.mapping }),
@@ -94,6 +95,26 @@ export function WorkToolsImport() {
   return (
     <Section id="work-tools" title="Work tools" description="Bring boards and task lists over from Trello, Asana, ClickUp, monday.com, Jira, Linear or Notion. Export a CSV file (JSON from Trello, Excel or CSV from monday.com), upload it, check the columns, and import. Running it again with the same file only adds what is new.">
       <div className="space-y-5">
+        {/* R38 premium pass 3: a drop zone with the three steps, instead of a lone button on an empty card. */}
+        {!file && (
+          <div
+            role="button" tabIndex={0} data-testid="import-drop"
+            onClick={() => input.current?.click()}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.current?.click(); } }}
+            onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
+            onDrop={(e) => { e.preventDefault(); setOver(false); void pick(e.dataTransfer.files?.[0]); }}
+            className={"group grid cursor-pointer place-items-center rounded-xl border-[1.5px] border-dashed px-6 py-8 text-center transition-[background-color,border-color,transform] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none " + (over ? "scale-[1.01] border-brand bg-brand-soft" : "border-line-strong bg-fill/40 hover:border-brand/60 hover:bg-brand-soft/40")}
+          >
+            <span className="mb-3 grid h-11 w-11 place-items-center rounded-xl bg-surface text-[#0071E3] shadow-[0_0_0_0.5px_rgb(0_0_0/0.06),0_2px_6px_rgb(0_0_0/0.08)] [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>
+            <p className="text-[14px] font-semibold">Drop an export file here, or choose one</p>
+            <p className="mt-1 text-[12.5px] text-muted">CSV, JSON or Excel. Running it again only adds what is new.</p>
+            <ol className="mt-4 flex flex-wrap justify-center gap-2 text-[12px] text-muted">
+              {["Export from your old tool", "Drop the file here", "Check the columns, then import"].map((t, i) => (
+                <li key={t} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1"><span className="grid h-4 w-4 place-items-center rounded-full bg-brand text-[10px] font-semibold text-white">{i + 1}</span>{t}</li>
+              ))}
+            </ol>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <input ref={input} type="file" accept=".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Export file" className="sr-only" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
           <Button size="sm" variant="outline" onClick={() => input.current?.click()} loading={preview.isPending && !p}><IconFileUp className="h-4 w-4" aria-hidden />{file ? "Choose another file" : "Choose file"}</Button>
