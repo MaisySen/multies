@@ -4,12 +4,12 @@ import { taskFields } from "./computed-fields";
 import { TaskFiles } from "./task-files";
 import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
-import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
+import { Bot, Calendar, CheckCircle2, Circle, Copy, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
 import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
-import { TaskRuns } from "./task-runs"; // R27 (DF-3 slice 2)
+import { useDuplicateTask, WatchButton } from "./task-watch-r27"; // R27 teardown
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -39,6 +39,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   const people = useAssignees();
   const { update, create, remove, refresh } = useTaskMutations();
   const navigate = useNavigate();
+  const duplicate = useDuplicateTask(); // R27
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [labels, setLabels] = useState("");
@@ -82,11 +83,13 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         {t ? <span className="font-mono text-[12px] text-subtle">{t.ref}</span> : <Skeleton className="w-16" />}
         {project && <span className="truncate text-[12.5px] text-muted">in {project.name}</span>}
         <div className="ml-auto flex items-center gap-1">
+          {t && <WatchButton taskId={t.id} />}
           {t && (
             <Menu trigger={<button className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
               <MenuItem icon={<FileText />} onSelect={newDoc}>New doc for this task</MenuItem>
               <MenuItem icon={<Video />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
               <MenuItem icon={<FileText />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
+              <MenuItem icon={<Copy />} onSelect={() => void duplicate(t.id)}>Duplicate task</MenuItem>
               <MenuItem icon={<Trash2 />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
@@ -177,8 +180,6 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
 
           <TaskChecklist taskId={t.id} onSubtask={() => void q.refetch()} />
-
-          <TaskRuns taskId={t.id} refreshedAt={q.dataUpdatedAt} />
 
           <section className="mt-6" aria-label="Subtasks" hidden={t.type === "epic"}>
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>

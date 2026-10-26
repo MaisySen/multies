@@ -440,17 +440,19 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | `delete_checklist_item` | Remove an item from its task's checklist |
 | `checklist_item_to_subtask` | Turn an item into a subtask of its task (same title, assignee and due date) and remove the item |
 
-### Agent runs (R27, DF-3 slice 2)
-
-| Tool | What it does |
-|---|---|
-| `start_task_run` | With an agent member's key: start your run on a task you are assigned to or mentioned on, or claim a run queued for you (`taskId`, `moveToDoing?`, `note?`). With a person's or workspace key: queue a run for `agentUserId`. One queued or running run per agent and task |
-| `add_run_step` | Log one step in your run: `kind` note, tool, comment or status_change, `text` up to 1,000 characters; 200 steps per run. One row write |
-| `finish_task_run` | Finish with `status` succeeded, failed or cancelled and a `result`; `moveTo` done or review moves the task, `comment` posts the result as your comment. A person's or workspace key can only cancel |
-| `list_task_runs` | With `taskId`: that task's runs with steps and results. Without: runs across the workspace (no steps), by `agentUserId` and `status` (read only keys can call it) |
-
 ### Task queries (R26, MB-86)
 
 | Tool | What it does |
 |---|---|
 | `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |
+
+### Task watchers and duplicate (R27)
+
+| Tool | What it does |
+|---|---|
+| `list_task_watchers` | Who watches a task and whether you do (read only keys can call it). Watchers hear about new comments and status changes |
+| `watch_task` | Start watching a task: you, or the member named by `userId` (an agent key must name one). One row; twice changes nothing |
+| `unwatch_task` | Stop watching a task: you, or the member named by `userId` |
+| `duplicate_task` | Copy a task (new number, first to-do status) with notes, assignee, priority, dates, labels, type, estimate, sprint, repeat rule and custom fields; by default also its subtasks (3 levels, 200 tasks) and checklist (unticked). Options: `title`, `projectId`, `subtasks`, `checklist`, `assignee`, `dependencies` |
+
+`search_tasks` also takes `is:watching` for the tasks you watch.

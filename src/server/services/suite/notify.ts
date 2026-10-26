@@ -32,6 +32,8 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "goal.updated": "status",
   "task.recurred": "status",
   "thread_mention": "mention",
+  "task.watch_comment": "comment", // R27: watchers
+  "task.watch_status": "status", // R27: watchers
 };
 export const categoryOf = (type: string): Category => TYPE_CATEGORY[type] ?? "status";
 const typesOf = (c: Category) => Object.entries(TYPE_CATEGORY).filter(([, v]) => v === c).map(([k]) => k);
