@@ -9,6 +9,7 @@ import type { SuiteActor } from "../services/suite/common";
 import { addWidget, CHARTS, createDashboard, dashboardData, GROUP_BYS, listDashboards, MAX_WIDGETS, WIDGET_TYPES, type WidgetInput } from "../services/suite/dashboards";
 import type { Scoped } from "./mcp-server";
 import { LIST_SORTS, METRICS, NOTE_MAX, OPS, PIVOT_AXES, RANGES } from "../services/suite/dashboards-r38-schema";
+import { widgetCatalog } from "../services/suite/dashboard-widget-catalog-r39";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -53,6 +54,15 @@ export function registerDashboardTools(server: McpServer, deps: Deps, actor: Sco
     description: "Dashboards you can open (shared ones and your own), with their widget counts.",
     inputSchema: {},
   }, tool(async () => ({ dashboards: await listDashboards(deps, a) })) as never);
+  // R39: the widget catalog, so an agent can pick a type and its settings before add_dashboard_widget.
+  server.registerTool("list_dashboard_widget_types", {
+    title: "List dashboard widget types", annotations: { readOnlyHint: true, openWorldHint: false },
+    description: "Every dashboard widget type with what it shows, its group, the charts it can use, its default chart and size, the source it reads (savedViewId, projectId with filters, or mailboxId) and each setting it takes with the allowed values and the default. Use it before create_dashboard or add_dashboard_widget. Optional type returns one. Reads no data.",
+    inputSchema: { type: z.enum(WIDGET_TYPES).optional() },
+  }, tool(async (x: { type?: (typeof WIDGET_TYPES)[number] }) => {
+    const c = widgetCatalog();
+    return x.type ? { ...c, types: c.types.filter((t) => t.type === x.type) } : c;
+  }) as never);
   server.registerTool("get_dashboard_data", {
     title: "Dashboard data", annotations: { readOnlyHint: true, openWorldHint: false },
     description: "Every widget's numbers for one dashboard in one call, computed now (counts, groups, due and overdue tasks, completed per week, sprint burndown, goal progress, reply times, mail per day, workload, calculations with trend and goal, battery, pivot tables, created vs completed, task lists, time tracked, notes). Writes nothing.",

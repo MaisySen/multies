@@ -13,8 +13,6 @@ import { Field, Input } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { LOCALE } from "@/shared/locale";
-import { PlainStatusPill } from "@/web/components/premium5-r39";
-import { factorStatus } from "@/web/lib/premium5-r39";
 
 interface Factor { id: string; label: string; points: number; max: number; status: "good" | "warn" | "bad" | "unknown"; detail: string }
 interface Health { domainId: string; domain: string; score: number; grade: "healthy" | "attention" | "at_risk"; factors: Factor[]; stats: { sent: number; bounceRate: number; complaintRate: number; dmarcMessages: number; dmarcPassRate: number | null } }
@@ -68,28 +66,17 @@ function HealthSection() {
             <div className="mb-4 h-1.5 overflow-hidden rounded-full bg-line" role="img" aria-label={`Health score ${h.score} out of 100`}>
               <div className={cn("h-full rounded-full", h.grade === "healthy" ? "bg-ok" : h.grade === "attention" ? "bg-warn" : "bg-bad")} style={{ width: `${h.score}%` }} />
             </div>
-            {/* R39 premium pass 5: each factor a tile with a plain word pill (Good, Check this, Not set up). */}
-            <ul className="grid gap-2 sm:grid-cols-2" data-testid="health-factors">
+            <ul className="space-y-2">
               {h.factors.map((f) => (
-                <li key={f.id} className="min-w-0 rounded-[12px] border border-line bg-elevated/40 p-3 text-sm" data-testid="health-factor">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="min-w-0 truncate font-medium">{f.label}</span>
-                    <PlainStatusPill status={factorStatus(f.status)} />
+                <li key={f.id} className="flex items-start gap-3 text-sm">
+                  <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", f.status === "good" ? "bg-ok" : f.status === "warn" ? "bg-warn" : f.status === "bad" ? "bg-bad" : "bg-subtle/50")} aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex justify-between gap-2"><span className="font-medium">{f.label}</span><span className="font-mono text-xs tabular-nums text-subtle">{f.points}/{f.max}</span></div>
+                    <div className="text-[13px] text-muted">{f.detail}</div>
                   </div>
-                  <div className="mt-1 text-[13px] leading-snug text-muted">{f.detail}</div>
-                  <div className="mt-1.5 font-mono text-[11px] tabular-nums text-subtle">{f.points} of {f.max} points</div>
                 </li>
               ))}
             </ul>
-            {(() => {
-              const next = h.factors.find((f) => f.status !== "good");
-              return next ? (
-                <Link to={`/app/domains/${h.domainId}`} className="mt-3 flex min-h-11 items-center gap-2 rounded-[12px] bg-brand-soft px-3 text-[13px] text-fg transition-colors hover:bg-brand-soft/70" data-testid="health-next">
-                  <span className="min-w-0 flex-1"><span className="font-semibold text-brand-hover">Next step: </span>{next.label}. Open the domain to fix it.</span>
-                  <span aria-hidden className="text-brand-hover">›</span>
-                </Link>
-              ) : <p className="mt-3 text-[13px] text-muted" data-testid="health-next">Nothing to fix on this domain right now.</p>;
-            })()}
           </Card>
         ))}
       </div>

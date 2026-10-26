@@ -799,6 +799,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0080_r39_doc_versions",
+    "statements": [
+      "-- R39 page history: saved states of a doc (title and content) so a person or an agent can see and restore an earlier page.\n-- One row per doc per editing session at most (deferrable); the newest 50 unnamed rows per doc are kept, named rows always.\nCREATE TABLE `doc_versions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`doc_version` integer NOT NULL,\n\t`title` text NOT NULL,\n\t`content` text NOT NULL,\n\t`plain_text` text DEFAULT '' NOT NULL,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`reason` text DEFAULT 'edit' NOT NULL,\n\t`name` text,\n\t`saved_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`doc_id`) REFERENCES `docs`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `doc_versions_doc_idx` ON `doc_versions` (`doc_id`,`created_at`);"
+    ]
+  },
+  {
     "name": "0081_r38_data_moves",
     "statements": [
       "-- R38 (move your data): one row per import or export run, so a person can see the history, follow progress,\n-- download an export through a link that expires, and undo an import (the row lists exactly what it created).\n-- Writes: one insert when a run starts and one update per chunk of up to 50 items (essential: the person started it).\nCREATE TABLE `data_moves` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`kind` text NOT NULL,\n\t`source` text NOT NULL,\n\t`file_name` text,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`project_id` text,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`done` integer DEFAULT 0 NOT NULL,\n\t`created` text DEFAULT '{}' NOT NULL,\n\t`counts` text DEFAULT '{}' NOT NULL,\n\t`token_hash` text,\n\t`expires_at` integer,\n\t`error` text,\n\t`created_by_user_id` text,\n\t`created_by_email` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`finished_at` integer,\n\t`undone_at` integer\n);",

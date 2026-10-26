@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
+import { toast } from "sonner";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("rounded-xl border border-line bg-surface shadow-card", className)} {...rest}>{children}</div>;
@@ -39,13 +40,15 @@ export function EmptyState({ icon, art, title, body, action, className }: { icon
   );
 }
 
-export function CopyButton({ value, label = "Copy", className }: { value: string; label?: string; className?: string }) {
+/** R39: `toastText` also shows a toast naming what was copied (one tap copy on the domain records). */
+export function CopyButton({ value, label = "Copy", className, toastText }: { value: string; label?: string; className?: string; toastText?: string }) {
   const [done, setDone] = useState(false);
   return (
     <button
       type="button"
       onClick={async () => {
         try { await navigator.clipboard.writeText(value); } catch { /* clipboard blocked */ }
+        if (toastText) toast.success(toastText);
         setDone(true);
         setTimeout(() => setDone(false), 1400);
       }}
@@ -93,7 +96,7 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-brand-hover">{eyebrow}</p>}
+        {eyebrow && <p className="mb-0.5 text-[13px] font-semibold text-[#0071E3]">{eyebrow}</p>}
         <h1 className="large-title">{title}</h1>
         {description && <p className="mt-1 text-sm text-muted">{description}</p>}
       </div>

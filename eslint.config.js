@@ -18,6 +18,12 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  // R39: CommonJS helper scripts (the e2e shot scripts under e2e/support) load with require by design.
+  {
+    files: ["**/*.cjs"],
+    languageOptions: { sourceType: "commonjs" },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
   // R34 (MB-192): the browser's own confirm, prompt and alert boxes can't match dark mode, name the object or
   // validate input. Use useDialogs() / PromptDialog / ConfirmButton from src/web/components/ui/confirm.tsx.
   {

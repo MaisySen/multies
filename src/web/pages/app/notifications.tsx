@@ -15,10 +15,12 @@ import { cn } from "@/web/lib/cn";
 import { isTypingTarget } from "@/web/lib/shortcuts";
 import { groupByDay, moveOut, nextFocus, pickedDateIso, SNOOZE_LABELS, TRIAGE_VIEWS, triageActionFor, VIEW_LABELS, type SnoozePreset, type TriageView, type ViewCounts } from "@/web/lib/triage";
 import { Button } from "@/web/components/ui/button";
-import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
+import { Card, EmptyState, PageHeader, Switch } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { BrowserNotifications } from "@/web/components/browser-notifications-r32"; // R32: web push
 import { CaughtUpArt } from "@/web/components/illustrations"; // R36
+import { KindTile } from "@/web/components/premium4-r39"; // R39 premium pass 4
+import { NOTIFICATION_FILTER_KEY, readStoredFilter } from "@/web/lib/premium4-r39";
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -37,7 +39,9 @@ export function useUnreadNotifications(enabled: boolean) {
 
 export function NotificationsPage() {
   const [view, setView] = useState<TriageView>("inbox");
-  const [filter, setFilter] = useState<NotificationCategory | "all">("all");
+  // R39: the chosen filter chip sticks per device.
+  const [filter, setFilterState] = useState<NotificationCategory | "all">(() => readStoredFilter(FILTERS, "all"));
+  const setFilter = useCallback((f: NotificationCategory | "all") => { setFilterState(f); try { localStorage.setItem(NOTIFICATION_FILTER_KEY, f); } catch { /* storage blocked */ } }, []);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [snoozeFor, setSnoozeFor] = useState<string | null>(null);
@@ -179,16 +183,17 @@ export function NotificationsPage() {
                   {g.items.map((n) => (
                     <li key={n.id} id={`ntf-${n.id}`} aria-current={focus === n.id ? "true" : undefined} data-testid="notification-row" data-id={n.id}
                       onMouseEnter={() => setFocus(n.id)}
-                      className={cn("group relative flex items-start gap-3 border-b border-line px-4 py-3 last:border-0 transition-colors duration-150 motion-reduce:transition-none", focus === n.id && "bg-fill")}>
-                      <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.read ? "bg-transparent" : "bg-brand")} aria-hidden />
+                      className={cn("group relative flex flex-wrap items-start gap-3 border-b border-line py-3 pl-2.5 pr-4 last:border-0 sm:flex-nowrap transition-colors duration-150 motion-reduce:transition-none", focus === n.id && "bg-fill")}>
+                      <span className={cn("mt-4 h-2 w-2 shrink-0 rounded-full transition-colors duration-150 motion-reduce:transition-none", n.read ? "bg-transparent" : "bg-brand")} aria-hidden />
+                      <KindTile kind={n.category} actor={n.actor?.name} />
                       <button onClick={() => void open(n)} className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded">
-                        <span className={cn("block text-[14px]", !n.read && "font-semibold")}>{n.title}</span>
+                        <span className={cn("block text-[14px] leading-snug", !n.read && "font-semibold")}>{n.title}</span>
                         <span className="text-[12px] text-subtle">
                           {n.actor?.name ? `${n.actor.name} · ` : ""}{CATEGORY_LABELS[n.category]}{PLACE[n.entityType] ? ` in ${PLACE[n.entityType]}` : ""} · {timeAgo(n.createdAt)}
                           {n.snoozedUntil ? ` · back ${timeAgo(n.snoozedUntil).replace(/ ago$/, "")}` : ""}{n.read ? "" : " · unread"}
                         </span>
                       </button>
-                      <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", focus === n.id && "opacity-100")}>
+                      <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 max-sm:-mt-2 max-sm:basis-full max-sm:justify-end transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", focus === n.id && "opacity-100")}>
                         {view !== "done" && <IconButton label="Mark done (E)" onClick={() => void done(n)}><IconCheck /></IconButton>}
                         {view !== "done" && <IconButton label="Snooze (H)" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)}><IconClock /></IconButton>}
                         {view !== "inbox" && <IconButton label="Move to inbox" onClick={() => void restore(n)}><IconInbox /></IconButton>}
@@ -260,20 +265,21 @@ export function NotificationSettings() {
     <div className="space-y-4">
       <div><h2 className="text-[15px] font-semibold">Notifications</h2><p className="text-[13.5px] text-muted">Choose what shows in your inbox and what buzzes your phone. Phone alerts carry no message text, only what to open.</p></div>
       <BrowserNotifications />
-      {q.isPending ? <Skeleton className="h-64" /> : (
+      {q.isPending ? <Card className="p-0"><SkeletonRows rows={8} label="Loading notification settings" /></Card> : (
         <Card className="p-0">
-          <table className="w-full text-[13.5px]" data-testid="notification-settings">
-            <thead className="border-b border-line text-left text-[12px] text-subtle"><tr><th className="px-4 py-2 font-medium">Category</th><th className="px-4 py-2 font-medium">In the inbox</th><th className="px-4 py-2 font-medium">Phone</th></tr></thead>
-            <tbody>
-              {(Object.keys(CATEGORY_LABELS) as NotificationCategory[]).map((c) => (
-                <tr key={c} className="border-b border-line last:border-0">
-                  <td className="px-4 py-2.5">{CATEGORY_LABELS[c]}</td>
-                  <td className="px-4 py-2.5"><Switch label={`${CATEGORY_LABELS[c]} in the inbox`} checked={q.data?.[c]?.inApp ?? true} onChange={(v) => void save(c, { inApp: v })} /></td>
-                  <td className="px-4 py-2.5"><Switch label={`${CATEGORY_LABELS[c]} on my phone`} checked={q.data?.[c]?.push ?? true} onChange={(v) => void save(c, { push: v })} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* R39 premium pass 4: a grouped list with a kind tile per row instead of a bare table. */}
+          <div data-testid="notification-settings" role="table" aria-label="Notification settings" className="text-[13.5px]">
+            <div role="row" className="grid grid-cols-[minmax(0,1fr)_64px_64px] items-center border-b border-line px-4 py-2 text-[12px] font-medium text-subtle sm:grid-cols-[minmax(0,1fr)_96px_96px]">
+              <span role="columnheader">Category</span><span role="columnheader" className="text-center">In the inbox</span><span role="columnheader" className="text-center">Phone</span>
+            </div>
+            {(Object.keys(CATEGORY_LABELS) as NotificationCategory[]).map((c) => (
+              <div role="row" key={c} className="grid grid-cols-[minmax(0,1fr)_64px_64px] items-center border-b border-line px-4 py-2.5 last:border-0 sm:grid-cols-[minmax(0,1fr)_96px_96px]">
+                <span role="cell" className="flex min-w-0 items-center gap-3"><KindTile kind={c} size="sm" /><span className="truncate font-medium">{CATEGORY_LABELS[c]}</span></span>
+                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} in the inbox`} checked={q.data?.[c]?.inApp ?? true} onChange={(v) => void save(c, { inApp: v })} /></span>
+                <span role="cell" className="flex justify-center"><Switch label={`${CATEGORY_LABELS[c]} on my phone`} checked={q.data?.[c]?.push ?? true} onChange={(v) => void save(c, { push: v })} /></span>
+              </div>
+            ))}
+          </div>
         </Card>
       )}
     </div>

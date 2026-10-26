@@ -4,6 +4,7 @@
  * GET /api/dashboards/:id/data for every widget's numbers in one request (writes nothing).
  * Guests have no session here, so they are refused.
  */
+import { widgetCatalog } from "../services/suite/dashboard-widget-catalog-r39";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
@@ -40,6 +41,7 @@ export function savedDashboardRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => c.json({ dashboards: await listDashboards(c.var.deps, c.var.auth) }))
+    .get("/widget-types", (c) => c.json(widgetCatalog())) // R39: before /:id
     .post("/", async (c) => c.json({ dashboard: await createDashboard(c.var.deps, c.var.auth, parseBody(DashboardCreate, await body(c))) }, 201))
     .get("/:id", async (c) => c.json({ dashboard: await getDashboard(c.var.deps, c.var.auth, c.req.param("id")) }))
     .get("/:id/data", async (c) => c.json(await dashboardData(c.var.deps, c.var.auth, c.req.param("id"), { tz: c.req.query("tz") })))

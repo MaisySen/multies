@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { IconArrowRight, IconKey, IconPlug, IconRefresh, IconTrash } from "@/web/components/ui/icon";
+import { IconArrowRight, IconInbox, IconKey, IconPlug, IconRefresh, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
@@ -14,9 +14,6 @@ import { Field, Input } from "@/web/components/ui/input";
 import { ConnectMailboxForm, connectionsKey, useConnections } from "@/web/components/connect-mailbox";
 import type { ConnectionView } from "@/shared/mail-connect";
 import { Section } from "./settings";
-import { MailFolderArt } from "@/web/components/illustrations";
-import { AvatarTile, PlainStatusPill } from "@/web/components/premium5-r39";
-import { connectionStatus } from "@/web/lib/premium5-r39";
 
 const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   active: { label: "Connected", tone: "ok" },
@@ -51,7 +48,7 @@ export function ConnectionsSettings() {
         description={<>Your Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any other mailbox, inside Multies with your real address. New mail syncs every few minutes and replies go out through your own provider, so they land in its Sent folder too.</>}
       >
         {list.length === 0 && !adding ? (
-          <EmptyState icon={<IconPlug className="h-5 w-5" />} art={<MailFolderArt />} title="No connected mailboxes yet" body="Connect one with an app password from your provider. It takes about a minute." action={<Button onClick={() => setAdding(true)} data-testid="connect-start">Connect a mailbox</Button>} />
+          <EmptyState icon={<IconPlug className="h-5 w-5" />} title="No connected mailboxes yet" body="Connect one with an app password from your provider. It takes about a minute." action={<Button onClick={() => setAdding(true)} data-testid="connect-start">Connect a mailbox</Button>} />
         ) : (
           <div className="space-y-3" data-testid="connections-list">
             {list.map((c) => <ConnectionRow key={c.id} c={c} />)}
@@ -91,22 +88,19 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
     onError: showError,
   });
   const s = c.status === "active" && !c.initialDone ? { label: "Copying recent mail", tone: "brand" as const } : STATUS[c.status];
-  const plain = connectionStatus(c.status);
   return (
-    <Card className="p-4 transition-shadow duration-200 hover:shadow-[var(--shadow-e2)] motion-reduce:transition-none" data-testid="connection-row">
+    <Card className="p-4" data-testid="connection-row">
       <div className="flex items-start gap-3">
-        <AvatarTile label={c.email.slice(0, 1).toUpperCase()} name={c.email} />
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconInbox className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 truncate text-[15px] font-semibold" data-testid="connection-email">{c.email}</span>
-            <PlainStatusPill status={plain.status} />
+            <span className="truncate font-medium" data-testid="connection-email">{c.email}</span>
             <Badge tone={s.tone} dot>{s.label}</Badge>
           </div>
           <p className="mt-0.5 text-[13px] text-muted">
             {c.providerLabel} · {c.authKind === "oauth" ? "signed in with the provider" : "app password"} · {c.lastSyncAt ? `last sync ${timeAgo(c.lastSyncAt)}` : "first sync starting"} · {num(c.messagesSynced)} messages{c.initialDone ? "" : ", still copying recent mail"}
           </p>
           {c.lastError && c.status !== "active" && <p className="mt-1.5 text-[13px] text-bad" data-testid="connection-error">{c.lastError}</p>}
-          {plain.next && <p className="mt-2 flex items-start gap-1.5 rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] text-fg" data-testid="connection-next"><IconArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden /><span><span className="font-semibold">Next step: </span>{plain.next}</span></p>}
           <div className="mt-3 flex flex-wrap gap-2">
           <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
           <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync ${c.email} now`}><IconRefresh className="h-4 w-4" />Sync now</Button>
