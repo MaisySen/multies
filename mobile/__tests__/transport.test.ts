@@ -43,7 +43,8 @@ describe("HttpTransport", () => {
   });
 
   it("signals a lost session on a 401 from the app API", async () => {
-    const s = setup([res(401, { error: { code: "unauthorized", message: "Sign in to continue." } })]);
+    // R33: a 401 first asks for a fresh session; only a definite "no session" signs out.
+    const s = setup([res(401, { error: { code: "unauthorized", message: "Sign in to continue." } }), res(200, null)]);
     await expect(s.api.me()).rejects.toMatchObject({ status: 401 });
     expect(s.onUnauthorised).toHaveBeenCalledTimes(1);
   });

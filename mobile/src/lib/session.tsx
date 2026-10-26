@@ -10,6 +10,8 @@ import { JAR_KEY, MODE_KEY } from "./session-keys";
 import { registerPush, unregisterPush } from "./push";
 import { LEGACY_KEY } from "./tasks";
 import { signInAtIdp } from "./idp";
+import { verdictFor } from "./auth-keep";
+import { AppState } from "react-native";
 
 export type Status = "loading" | "signedOut" | "twoFactor" | "signedIn";
 export type Mode = "live" | "sample";
@@ -79,12 +81,22 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
         const who = await endpoints(live).me();
         if (!cancelled) { setMe(who); setStatus("signedIn"); }
       } catch (err) {
-        // Offline at launch with a saved session: open the app on cached mail.
-        if (!cancelled) setStatus((err as { status?: number }).status === 0 ? "signedIn" : "signedOut");
+        // R33: offline, a timeout or a busy server at launch keeps the saved session and opens the
+        // app on cached mail. Only a definite answer that the session is gone signs out (the
+        // transport already asked for a fresh session before giving that answer).
+        if (!cancelled) setStatus(verdictFor(err, true) === "signOut" ? "signedOut" : "signedIn");
       }
     })();
     return () => { cancelled = true; };
   }, [initialMode, live, sample, transportOverride]);
+
+  // R33: renew the session before it runs out, at launch and each time the app comes back.
+  useEffect(() => {
+    if (status !== "signedIn" || mode !== "live" || transportOverride) return;
+    live.refreshIfDue().catch(() => {});
+    const sub = AppState.addEventListener?.("change", (s) => { if (s === "active") live.refreshIfDue().catch(() => {}); });
+    return () => sub?.remove();
+  }, [status, mode, live, transportOverride]);
 
   // Once signed in (and at each launch, as tokens can change), register this phone for push if
   // notifications are already allowed. Never prompts here: the Settings button does that.

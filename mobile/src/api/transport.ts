@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { API_BASE } from "@/config";
 import { applySetCookie, cookieHeader, type Jar } from "@/lib/cookies";
 import { ApiError, NETWORK_ERROR, toApiError } from "./errors";
+import { refreshOutcome, sessionExpiry, shouldRefreshEarly, singleFlight, verdictFor, type RefreshOutcome } from "@/lib/auth-keep";
 
 export type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
@@ -67,9 +68,53 @@ export interface JarStore {
  */
 export class HttpTransport implements Transport {
   readonly kind = "live" as const;
+  /** When the session cookie runs out (ms), as the last Set-Cookie said; null when unknown. */
+  expiresAt: number | null = null;
+  lastRefreshAt = 0;
   constructor(private jar: JarStore, private onUnauthorised: () => void = () => {}, private base = API_BASE, private fetchImpl: typeof fetch = (...a) => fetch(...a)) {}
 
+  /**
+   * R33: one session check in flight at a time. It renews the session cookie (the server slides
+   * it forward) and says whether the session still exists.
+   */
+  readonly refresh: () => Promise<RefreshOutcome> = singleFlight(async () => {
+    let outcome: RefreshOutcome;
+    try { outcome = refreshOutcome({ body: await this.send<unknown>("GET", "/auth/get-session", undefined, {}) }); }
+    catch (error) { outcome = refreshOutcome({ error }); }
+    if (outcome === "ok") this.lastRefreshAt = Date.now();
+    return outcome;
+  });
+
+  /** Renews the session before it runs out (called at launch and when the app comes back). */
+  async refreshIfDue(now = Date.now()): Promise<RefreshOutcome | null> {
+    if (!shouldRefreshEarly(this.expiresAt, this.lastRefreshAt, now)) return null;
+    const outcome = await this.refresh();
+    if (outcome === "gone") this.onUnauthorised();
+    return outcome;
+  }
+
   async request<T>(method: Method, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+    try {
+      return await this.send<T>(method, path, body, opts);
+    } catch (err) {
+      if (path.startsWith("/auth/")) throw err;
+      const verdict = verdictFor(err);
+      if (verdict === "keep") throw err;
+      if (verdict === "signOut") { this.onUnauthorised(); throw err; }
+      // A 401: renew once (shared with every other request waiting on it), then retry once.
+      const outcome = await this.refresh();
+      if (outcome === "gone") { this.onUnauthorised(); throw err; }
+      if (outcome === "unknown") throw err; // no answer: keep the session, the caller shows cached data
+      try {
+        return await this.send<T>(method, path, body, opts);
+      } catch (again) {
+        if (verdictFor(again, true) === "signOut") this.onUnauthorised();
+        throw again;
+      }
+    }
+  }
+
+  private async send<T>(method: Method, path: string, body: unknown, opts: RequestOptions): Promise<T> {
     const headers: Record<string, string> = { accept: "application/json" };
     if (body !== undefined) headers["content-type"] = "application/json";
     if (Platform.OS !== "web") headers.origin = this.base;
@@ -96,15 +141,18 @@ export class HttpTransport implements Transport {
     if (!res) throw NETWORK_ERROR();
 
     const setCookie = res.headers.get("set-cookie");
-    if (setCookie) this.jar.set(applySetCookie(this.jar.get(), setCookie));
+    if (setCookie) {
+      this.jar.set(applySetCookie(this.jar.get(), setCookie));
+      const exp = sessionExpiry(setCookie);
+      if (exp !== null) this.expiresAt = exp;
+      if (setCookie.includes("session_token=")) this.lastRefreshAt = Date.now(); // the server just renewed it
+    }
 
     const text = await res.text();
     let json: unknown = null;
     try { json = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
     if (!res.ok) {
-      const err = toApiError(res.status, json);
-      if (res.status === 401 && !path.startsWith("/auth/")) this.onUnauthorised();
-      throw err;
+      throw toApiError(res.status, json);
     }
     return json as T;
   }
