@@ -20,7 +20,7 @@ export default function BlockedPeople() {
         <EmptyState icon="user-check" title="No one is blocked" body="To block someone, press and hold one of their messages in chat, or open the menu in your direct message with them." />
       ) : (
         <>
-          <Text style={[font.small, { marginHorizontal: space.sm }]}>You don't see messages from these people, and they can't message you. They aren't told.</Text>
+          <Text style={[font.small, { marginHorizontal: space.sm }]}>{"You don't see messages from these people, and they can't message you. They aren't told."}</Text>
           <View style={{ backgroundColor: colors.surface, borderRadius: radius.md, overflow: "hidden" }}>
             {list.map((b, i) => (
               <SwipeRow key={b.userId} testID={`blocked-${b.userId}`}

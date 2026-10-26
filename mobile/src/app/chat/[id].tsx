@@ -82,13 +82,13 @@ export default function ChannelScreen() {
             {feed.data?.hasMore ? <Button label="Show earlier messages" variant="ghost" loading={earlier.isPending} onPress={() => earlier.mutate()} testID="earlier" /> : null}
           </View>
         }
-        ListEmptyComponent={hidden ? null : <EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
+        ListEmptyComponent={hidden ? undefined : <EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
         renderItem={({ item }) => item.kind === "day" ? <DayLine label={item.label} />
           : <ChatMessageRow m={item.m} grouped={item.grouped} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
       />
       {otherBlocked ? (
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, padding: space.lg, gap: space.sm, alignItems: "center" }} testID="dm-blocked-bar">
-          <Text style={font.small}>You blocked {other?.name}. You won't see their messages.</Text>
+          <Text style={font.small}>{`You blocked ${other?.name ?? "them"}. You won't see their messages.`}</Text>
           <Button label="Unblock" variant="secondary" onPress={() => other && safety.unblock(other.userId)} testID="dm-unblock" />
         </View>
       ) : (

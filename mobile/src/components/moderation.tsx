@@ -147,7 +147,7 @@ export function ReportSheet({ target, onClose, onAlsoBlock, alreadyBlocked }: {
               placeholderTextColor={colors.subtle} accessibilityLabel="Note, optional" testID="report-note"
               style={{ minHeight: 88, backgroundColor: colors.surface, borderRadius: radius.md, padding: space.md, color: colors.fg, fontSize: 16, textAlignVertical: "top" }} />
             <Text style={{ color: colors.subtle, fontSize: 12, marginLeft: space.md }}>
-              {target.targetType === "message" ? "Our team sees this message as it is now, even if it is edited or deleted later." : `Our team reviews ${target.name}'s recent messages.`} {target.name} isn't told who reported.
+              {target.targetType === "message" ? "Our team sees this message as it is now, even if it is edited or deleted later." : `Our team reviews ${target.name}'s recent messages.`} {`${target.name} isn't told who reported.`}
             </Text>
             {error ? <Text style={{ color: colors.bad, fontSize: 14, marginLeft: space.md }} testID="report-error" accessibilityLiveRegion="assertive">{error}</Text> : null}
           </ScrollView>
