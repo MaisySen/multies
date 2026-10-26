@@ -3,7 +3,7 @@ import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Col
 import { ArrowDown, ArrowUp, Bot, CheckCircle2, Circle, Mail } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
-import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task, isAgentLike } from "./data";
+import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task } from "./data";
 import { FieldCell, formatValue } from "./fields";
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
@@ -50,7 +50,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     },
     {
       id: "assignee", header: "Assignee", accessorFn: (t) => t.assignee?.name ?? "~",
-      cell: ({ row }) => row.original.assignee ? <span className="inline-flex items-center gap-1 whitespace-nowrap">{isAgentLike(row.original.assignee) && <Bot className="h-3.5 w-3.5 text-brand-hover" />}{row.original.assignee.name}</span> : <span className="text-subtle">Nobody</span>,
+      cell: ({ row }) => row.original.assignee ? <span className="inline-flex items-center gap-1 whitespace-nowrap">{row.original.assignee.type === "agent" && <Bot className="h-3.5 w-3.5 text-brand-hover" />}{row.original.assignee.name}</span> : <span className="text-subtle">Nobody</span>,
     },
     { id: "priority", header: "Priority", accessorFn: (t) => PRIORITY_RANK[t.priority], cell: ({ row }) => <span className={PRIORITY_COLOR[row.original.priority]}>{row.original.priority === "none" ? "" : PRIORITY_LABEL[row.original.priority]}</span> },
     { id: "due", header: "Due", accessorFn: (t) => t.due ?? "9999", cell: ({ row }) => <span className={cn("whitespace-nowrap", isOverdue(row.original) && "text-bad")}>{dueLabel(row.original.due) ?? ""}</span> },

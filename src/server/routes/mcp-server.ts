@@ -41,7 +41,6 @@ import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerAssignTools } from "./mcp-r22-assign";
-import { registerAgentMemberTools } from "./mcp-r26-agents"; // R26 (DF-3)
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
@@ -251,7 +250,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
-  registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
   return server;
 }
 

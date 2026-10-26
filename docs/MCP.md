@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 122 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 119 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -62,7 +62,6 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
 | `create_agent_inbox` | Create an agent inbox |
-| `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
 | `schedule_send` | Send an email later, as an agent; its approval rules apply when it goes |
@@ -129,8 +128,6 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
 | `list_people` | List people and agents |
-| `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
-| `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
 
 ### Chat

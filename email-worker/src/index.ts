@@ -13,6 +13,8 @@
  *   MYMAIL_ROUTES        optional JSON: recipient domain to another Multies host, for example
  *                        {"multies.si": {"url": "https://multies.si/api/inbound/cloudflare", "keyId": "ink_...", "secret": "MYMAIL_KEY_SECRET_PROD"}}
  *                        where "secret" names another secret binding. Other domains use the defaults above.
+ *   MYMAIL_COPY_TO       optional JSON: recipient address to a verified Email Routing destination that also gets
+ *                        a copy once Multies accepted the message, for example {"support@multies.si": "someone@example.com"}
  */
 
 interface ForwardableEmailMessage {
@@ -30,6 +32,7 @@ export interface Env {
   MYMAIL_KEY_SECRET: string;
   FALLBACK_FORWARD?: string;
   MYMAIL_ROUTES?: string;
+  MYMAIL_COPY_TO?: string;
   [secret: string]: string | undefined;
 }
 
@@ -49,6 +52,19 @@ export function targetFor(env: Env, rcptTo: string): Target {
     }
   }
   return { url: env.MYMAIL_WEBHOOK_URL, keyId: env.MYMAIL_KEY_ID, secret: env.MYMAIL_KEY_SECRET };
+}
+
+/** The verified destination that keeps a copy of mail for this recipient (MYMAIL_COPY_TO), if any. */
+export function copyFor(env: Env, rcptTo: string): string | null {
+  if (!env.MYMAIL_COPY_TO) return null;
+  try {
+    const map = JSON.parse(env.MYMAIL_COPY_TO) as Record<string, unknown>;
+    const v = map[rcptTo.toLowerCase()];
+    return typeof v === "string" && v.includes("@") ? v : null;
+  } catch {
+    console.error("[mymail] MYMAIL_COPY_TO is not valid JSON; no copies");
+    return null;
+  }
 }
 
 const hex = (buf: ArrayBuffer) => Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -85,7 +101,12 @@ export async function deliver(message: ForwardableEmailMessage, env: Env, fetchF
   }
 
   const answer = (await res.json().catch(() => null)) as { action?: string; reason?: string } | null;
-  if (answer?.action === "accept") return;
+  if (answer?.action === "accept") {
+    // A copy for a person who used to get this address by forward. Its failure never bounces the original.
+    const copy = copyFor(env, message.to);
+    if (copy) await message.forward(copy).catch((err) => console.error(`[mymail] copy to ${copy} failed: ${String(err)}`));
+    return;
+  }
   if (answer?.action === "reject") return message.setReject(answer.reason ?? "Rejected by MyMail");
   return fallback(message, env, answer?.reason ?? `MyMail answered HTTP ${res.status}`);
 }

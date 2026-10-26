@@ -95,12 +95,6 @@ export const members = sqliteTable("members", {
   title: text("title"),
   bio: text("bio"),
   createdAt: createdAt(),
-  /** R26 (DF-3): set when an admin pauses an agent member. Its keys are refused until it is resumed. */
-  disabledAt: ts("disabled_at"),
-  /** R26 (DF-3): an agent member's avatar colour, a #rrggbb hex. Initials come from the name. */
-  avatarColor: text("avatar_color"),
-  /** R26 (DF-3): an optional agent inbox (agents.id) shown with this agent member. Mailbox stays optional. */
-  linkedAgentId: text("linked_agent_id"),
 }, (t) => [uniqueIndex("members_org_user_uq").on(t.organizationId, t.userId), index("members_user_idx").on(t.userId)]);
 
 /** Better Auth sessions. The cookie carries the token, signed with the app secret. */
