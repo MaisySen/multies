@@ -1124,4 +1124,44 @@ it("R26 (DF-3): pausing or editing an agent member costs one members row plus on
   expect(paused).toBeLessThanOrEqual(8);
   expect(edited).toBeLessThanOrEqual(8);
   expect(same).toBe(0);
+it("R26: support@ on the company domain costs what any inbound delivery costs, a closed address writes nothing, the sent event writes one row", async () => {
+  const ctx = await makeTestApp({ SUPPORT_EMAIL: "support@multies.si" });
+  await u.signup("ops@fintex.test", "Ops", "Multies HQ");
+  const orgId = (await u.get("/api/account/me")).body.organization.id as string;
+  Object.assign(ctx.deps.config.operatorInbox, { orgId, domain: "multies.si", addresses: ["support@multies.si", "security@multies.si"] });
+  const hq = (await u.post("/api/domains", { name: "multies.si" })).body.domain.id as string;
+  await u.post("/api/mailboxes", { domainId: hq, localPart: "support", displayName: "Support" });
+  const v = new Client(ctx.app);
+  await v.signup("ann@acme.test", "Ann", "Acme");
+  const acme = (await v.post("/api/domains", { name: "acme.test" })).body.domain.id as string;
+  await v.post("/api/mailboxes", { domainId: acme, localPart: "help", displayName: "Help" });
+  const mail = (to: string) => deliverInbound(ctx.deps, {
+    envelopeFrom: "pat@gmail.com", rcptTo: to, sizeBytes: 300, via: "test",
+    email: { messageId: `<${to}.${Math.random()}@gmail.com>`, from: { address: "pat@gmail.com" }, to: [{ address: to }], cc: [], subject: "Help", text: "Hi", date: new Date(), attachments: [], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+  });
+  await mail("help@acme.test"); // warm up (first message in each workspace)
+  await mail("support@multies.si");
+  await mail("help@acme.test");
+  const ordinary = take(); // measured 20
+  await mail("support@multies.si");
+  // The same as an ordinary mailbox: the routing decision is config only, no extra read or write.
+  expect(take()).toBe(ordinary);
+  // A closed company address is refused before any lookup: no delivery log row.
+  expect((await mail("hello@multies.si")).accepted).toBe(false);
+  expect(take()).toBe(0);
+  // The sent event's provider read writes the Sent copy once (the messages row and its indexes), then nothing.
+  const { messages, deliveries } = await import("@/server/db/schema");
+  const { handleResendEvent } = await import("@/server/services/deliverability/resend-events");
+  const { mailboxes } = await import("@/server/db/schema");
+  const { eq } = await import("drizzle-orm");
+  const mb = (await ctx.db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).get())!;
+  await ctx.db.insert(messages).values({ id: "msg_r26", orgId, mailboxId: mb.id, folder: "sent", threadId: "thr_r26", fromAddress: mb.address, subject: "Quote", date: new Date() });
+  await ctx.db.insert(deliveries).values({ id: "dlv_r26", orgId, messageId: "msg_r26", direction: "outbound", fromAddress: mb.address, toAddress: "pat@gmail.com", status: "sent", provider: "resend", providerMessageId: "em_r26" });
+  const deps = { ...ctx.deps, fetch: (async () => new Response(JSON.stringify({ message_id: "<x@email.amazonses.com>" }))) as typeof fetch, config: { ...ctx.deps.config, outbound: { driver: "resend" as const, resendApiKey: "re_test" } } };
+  await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
+  const once = take();
+  // Measured 7: one UPDATE of the messages row (the meter counts the row and its 6 full indexes).
+  expect(once).toBe(7);
+  await handleResendEvent(deps, { type: "email.sent", data: { email_id: "em_r26" } });
+  expect(take()).toBe(0);
 });
