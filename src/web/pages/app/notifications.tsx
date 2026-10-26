@@ -145,7 +145,7 @@ export function NotificationsPage() {
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
             className={cn("rounded-md px-3.5 py-1.5 text-[13px] transition-colors duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
-              view === v ? "bg-bg font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+              view === v ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg", "max-sm:min-h-10")}>
             {VIEW_LABELS[v]}<span className="ml-1.5 tabular-nums text-subtle" data-testid={`triage-count-${v}`}>{vc ? vc[v] : ""}</span>
           </button>
         ))}
