@@ -8,23 +8,6 @@ Multies has three ways in, all served by the same Worker:
 | Public REST API | `/api/v1/...` | integrations, scripts, agents | `Authorization: Bearer mm_live_...` (workspace key or a scoped agent key, created in Settings, Developers). |
 | MCP | `/api/v1/mcp` | AI agents and MCP clients | the same API keys. Streamable HTTP, stateless. |
 
-## API key scopes (R36)
-
-A workspace key has **Full access**, **Read only**, or scopes per area that you pick when you create it (Settings, Developers; edit them any time with "Edit scopes"):
-
-| Area | Read | Write |
-| --- | --- | --- |
-| Mail | `mail:read` | `mail:send` |
-| Tasks and projects | `tasks:read` | `tasks:write` |
-| Chat | `chat:read` | `chat:write` |
-| Docs and forms | `docs:read` | `docs:write` |
-| Calendar and meetings | `calendar:read` | `calendar:write` |
-| Contacts and deals | `contacts:read` | `contacts:write` |
-| Workspace admin | `admin:read` | `admin:write` |
-
-A write scope includes its read scope. Every `/api/v1` route and every MCP tool needs one scope (GET needs the read scope, other methods the write scope); the MCP tools page at https://multies.si/developers/mcp shows each tool's. A call without it answers 403 `{"error":{"code":"insufficient_scope","message":"...","required":"tasks:write"}}` (on MCP, a tool error starting `insufficient_scope:`). Full access and Read only keys behave exactly as before. Session endpoints: `GET /api/developer/scopes` (areas and presets), `POST /api/developer/keys` with `scope` as `"full"`, `"read"` or a list, `PATCH /api/developer/keys/{id}` with `{ scope }`.
-
-
 The v1 OpenAPI 3.1 document is generated from the request schemas at `/api/v1/openapi.json`, with an
 interactive reference at `/api/v1/reference`. That document is the source of truth for request and
 response shapes; this page is the map. Mutating calls accept an `Idempotency-Key` header (8 to 255

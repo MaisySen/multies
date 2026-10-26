@@ -10,28 +10,30 @@ import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task, isAgentLike } from "./data";
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
+import { CardQuickEdits, CardTitle } from "./board-card-edit"; // R36
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
 import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
 import { limitState, wouldExceed, type BoardLimits, type ColumnLimit } from "@/shared/board-lanes";
 
-export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode }) {
+export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode; /** R36: given, the card edits in place. */ project?: Project }) {
   return (
     <div className={cn("group rounded-lg border border-line bg-elevated p-3 text-left shadow-sm transition-colors hover:border-line-strong", dragging && "rotate-1 border-brand/40 shadow-pop")}>
-      <button type="button" onClick={onOpen} className="block min-h-6 w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>
+      {project ? <CardTitle t={t} onOpen={onOpen} /> : <button type="button" onClick={onOpen} className="block min-h-6 w-full text-left text-[13.5px] font-medium leading-snug text-fg outline-none focus-visible:underline">{t.title}</button>}
       {t.labels.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-fill px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
       )}
       <div className="mt-2.5 flex items-center gap-2.5 text-[11.5px] text-subtle">
-        <span className="inline-flex items-center gap-1"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
-        {t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><IconFlag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
-        {t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
+        {!project && t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><IconFlag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
+        {!project && t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
         {t.source && <IconMail className="h-3 w-3" aria-label="From email" />}
         {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><IconTasks className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
         <ChecklistChip checklist={t.checklist} />
         {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><IconChat className="h-3 w-3" />{t.commentCount}</span>}
         <span className="ml-auto flex items-center gap-1.5">
-          {t.assignee && (isAgentLike(t.assignee)
+          {project && <CardQuickEdits t={t} project={project} />}
+          {!project && t.assignee && (isAgentLike(t.assignee)
             ? <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-hover" title={`${t.assignee.name} (agent)`}><IconAgent className="h-3 w-3" /></span>
             : <span title={t.assignee.name}><Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /></span>)}
           {handle}
@@ -41,14 +43,14 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
   );
 }
 
-export function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
+export function SortableCard({ t, onOpen, project }: { t: Task; onOpen: () => void; project?: Project }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, data: { statusId: t.statusId } });
   return (
     // The card drags by pointer anywhere on it; keyboard and screen reader users get a
     // separate handle, so the list item itself is not a button wrapping other buttons.
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...listeners}
       className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}>
-      <TaskCard t={t} onOpen={onOpen} handle={
+      <TaskCard t={t} onOpen={onOpen} project={project} handle={
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
           className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       } />
@@ -175,7 +177,7 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy
           <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}
             limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}>
             <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} onOpen={() => onOpen(t.id)} />)}
+              {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} />)}
             </SortableContext>
           </Column>
         ))}

@@ -25,7 +25,7 @@ export const SHARE_EXPIRY_DAYS = [7, 30] as const;
 /** Cards shown on a shared board (top level tasks, newest work first within a column). */
 export const SHARE_BOARD_MAX_CARDS = 500;
 
-type Actor = SuiteActor & { scope?: string; agentId?: string | null; guest?: boolean };
+type Actor = SuiteActor & { scope?: "full" | "read"; agentId?: string | null; guest?: boolean };
 
 const readMeta = (raw: string | null | undefined): Record<string, unknown> => {
   if (!raw) return {};

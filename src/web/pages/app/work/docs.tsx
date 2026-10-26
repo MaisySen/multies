@@ -1,4 +1,4 @@
-import { NoDocsArt } from "@/web/components/illustrations";
+import { NoDocsArt, NoSearchResultsArt } from "@/web/components/illustrations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -52,7 +52,7 @@ export function DocsPage() {
       <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><IconPlus className="h-4 w-4" />New doc</Button>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
-        <EmptyState icon={<IconDocs />} art={q ? undefined : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
+        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (

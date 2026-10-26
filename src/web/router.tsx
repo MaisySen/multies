@@ -10,7 +10,6 @@ import { AppSkeleton } from "./layouts/app-skeleton";
 // auth client and the app carries none of the marketing pages.
 const PricingPage = lazy(() => import("./pages/pricing").then((m) => ({ default: m.PricingPage })));
 const AgentsDevPage = lazy(() => import("./pages/agents").then((m) => ({ default: m.AgentsDevPage })));
-const McpDocsPage = lazy(() => import("./pages/mcp-docs").then((m) => ({ default: m.McpDocsPage }))); // R36
 // R34 (perf2): the sign in page's module, kept once loaded. On a prerendered /login main.tsx loads it before the first
 // render, so the page renders straight away (no Suspense fallback over the card that is already on screen).
 let authModule: typeof import("./pages/auth") | null = null;
@@ -122,7 +121,6 @@ export const router = createBrowserRouter([
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: publicPage(<PricingPage />) },
       { path: "/agents", element: publicPage(<AgentsDevPage />) },
-      { path: "/developers/mcp", element: publicPage(<McpDocsPage />) }, // R36: MCP tool docs
       { path: "/status", element: publicPage(<StatusPage />) },
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },

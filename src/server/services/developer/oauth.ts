@@ -133,7 +133,7 @@ export async function approve(deps: Deps, user: Pick<AuthContext, "userId">, q: 
   if (!ws) throw new HttpError(403, "forbidden", "You are not a member of that workspace.");
   if (ws.suspendedAt) throw new HttpError(403, "workspace_suspended", "This workspace is suspended.");
   // Never more than the app asked for.
-  const scope: "full" | "read" = req.requestedScope === "read" || choice.scope === "read" ? "read" : "full"; // R36: OAuth grants keep the two presets
+  const scope: ApiKeyScope = req.requestedScope === "read" ? "read" : choice.scope;
   const id = newId("mcpg");
   const secret = randomToken(24);
   const code = `${id}.${secret}`;

@@ -46,10 +46,6 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
   out as an agent (pass `agentId`), so guardrails always apply.
 - A **read only** key (or a read only OAuth connection) can call the read tools only.
 
-## Scopes and the full tool list
-
-Every tool needs one API key scope (for example `tasks:read` for list_tasks, `mail:send` for reply). A key with per area scopes gets a tool error starting `insufficient_scope:` for a tool outside them; Full access and Read only keys work as before. The page https://multies.si/developers/mcp (Markdown: https://multies.si/developers/mcp.md) lists every tool with its scope, parameters and an example call, generated from the server.
-
 ## Tools
 
 ### Mail and agent inboxes
