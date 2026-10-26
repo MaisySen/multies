@@ -1,4 +1,5 @@
 import type { Logger } from "../context";
+import { maskSecretText } from "../../shared/secret-mask";
 
 type Level = "debug" | "info" | "warn" | "error";
 
@@ -24,13 +25,24 @@ export function jsonLogger(base: Record<string, unknown> = {}, sink: (line: stri
 
 const SECRET_KEYS = /pass(word)?|secret|token|authorization|cookie|api[_-]?key|card|cvc/i;
 
-/** Drops values whose key looks like a credential, and turns errors into plain objects. */
+/**
+ * Drops values whose key looks like a credential, at any depth, turns errors into plain objects, and masks
+ * credential shapes inside strings (an error message can carry a URL with a token or a `client_secret=` pair).
+ */
 export function redact(fields?: Record<string, unknown>): Record<string, unknown> | undefined {
   if (!fields) return undefined;
+  return redactValue(fields, 0) as Record<string, unknown>;
+}
+
+function redactValue(v: unknown, depth: number): unknown {
+  if (typeof v === "string") return maskSecretText(v);
+  if (v instanceof Error) return { name: v.name, message: maskSecretText(v.message) };
+  if (v === null || typeof v !== "object") return v;
+  if (depth >= 4) return "[nested]";
+  if (Array.isArray(v)) return v.slice(0, 50).map((x) => redactValue(x, depth + 1));
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (SECRET_KEYS.test(k)) { out[k] = "[redacted]"; continue; }
-    out[k] = v instanceof Error ? { name: v.name, message: v.message } : v;
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    out[k] = SECRET_KEYS.test(k) ? "[redacted]" : redactValue(x, depth + 1);
   }
   return out;
 }

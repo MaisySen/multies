@@ -1205,3 +1205,30 @@ it("R26 (MB-87): a share link is 2 rows (the row and its token index), a revoke 
   await setShareLinksAllowed(ctx.deps, actor, false);
   expect(take()).toBeLessThanOrEqual(3);
 });
+
+it("R26 (MB-85): a checklist item costs its row plus two index entries to add, tick or delete; an unchanged tick writes no item and task queries write nothing", async () => {
+  const ctx = await makeTestApp();
+  const u = new Client(ctx.app);
+  await u.signup();
+  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
+  const taskId = (await u.post("/api/tasks", { title: "Ship", projectId })).body.task.id;
+  const take = meter(ctx.db);
+  const item = (await u.post(`/api/tasks/${taskId}/checklist`, { title: "One" })).body.items[0];
+  // Measured 6: 3 for the item (the row, its primary key index and task_checklist_items_task_idx) and 3 that every
+  // app write pays here (the local rate limit counter, kept in a binding in production). No activity rows.
+  expect(take()).toBe(6);
+  await u.post(`/api/tasks/${taskId}/checklist`, { items: [{ title: "Two" }, { title: "Three" }] });
+  expect(take()).toBe(9);
+  await u.patch(`/api/checklist-items/${item.id}`, { done: true });
+  expect(take()).toBe(6);
+  await u.patch(`/api/checklist-items/${item.id}`, { done: true });
+  expect(take()).toBe(3);
+  const list = (await u.get(`/api/tasks/${taskId}/checklist`)).body.items as { id: string }[];
+  // Moving the last item to the top rewrites the three positions: 3 rows at 3 each, plus the 3.
+  await u.post(`/api/tasks/${taskId}/checklist/reorder`, { ids: [list[2].id, list[0].id, list[1].id] });
+  expect(take()).toBeLessThanOrEqual(12);
+  await u.del(`/api/checklist-items/${item.id}`);
+  expect(take()).toBe(6);
+  await u.get(`/api/tasks?q=${encodeURIComponent("has:checklist status:todo -label:wontfix")}`);
+  expect(take()).toBe(0);
+});

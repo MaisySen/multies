@@ -15,6 +15,8 @@ export interface Task {
   start: string | null; due: string | null; parentId: string | null; position: number;
   source: { threadId: string | null; messageId: string | null; from: string; subject: string } | null;
   subtasks: { total: number; done: number }; commentCount: number; completedAt: string | null;
+  /** R26 (MB-85): checklist counts for the card chip. */
+  checklist?: { total: number; done: number };
   repeat?: { freq: "daily" | "weekly" | "monthly" | "yearly"; interval?: number; weekdays?: number[]; monthDay?: number; until?: string | null; text: string } | null;
   createdBy: { type: string; id: string | null }; createdAt: string; updatedAt: string; version: number;
   fields?: Record<string, FieldValue>;

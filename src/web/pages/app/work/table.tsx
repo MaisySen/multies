@@ -19,6 +19,7 @@ import { dueLabel, isOverdue, PRIORITY_COLOR, PRIORITY_LABEL, sk, type AssigneeO
 import { FieldCell } from "./fields";
 import { TASK_TYPES, TYPE_META, TypeIcon, typeOf, type TaskType } from "./task-type";
 import { useSprints } from "./sprint-fields";
+import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 
 const PRIORITIES: Priority[] = ["urgent", "high", "medium", "low", "none"];
 const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3, none: 4 };
@@ -63,6 +64,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
       <span className="flex min-w-0 items-center gap-2">
         <span className={cn("truncate font-medium", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
         {t.source && <Mail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
+        <span className="shrink-0 text-[11.5px] text-subtle"><ChecklistChip checklist={t.checklist} /></span>
       </span>
     ),
   },

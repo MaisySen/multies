@@ -57,6 +57,7 @@ import { registerInviteRoutes } from "./v1-r25-invites"; // R25 (DF-7)
 import { registerR26CommentRoutes } from "./v1-r26-comments"; // R26 (MB-77)
 import { registerAgentMemberR26Routes } from "./v1-r26-agents"; // R26 (DF-3)
 import { registerShareLinkRoutes } from "./v1-r26-share"; // R26 (MB-87)
+import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
 
 // ---------------------------------------------------------------- schemas
 
@@ -251,6 +252,7 @@ export function v1Routes() {
   api.use("/dashboards/*", apiKeyAuth); // R24.3: dashboards
   api.use("/views/*", apiKeyAuth); // DF-20: saved views ("/x/*" also matches "/x")
   api.use("/comments/*", apiKeyAuth); // R26 (MB-77): task comments by id
+  api.use("/checklist-items/*", apiKeyAuth); // R26 (MB-85): checklist items
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -452,6 +454,7 @@ export function v1Routes() {
   registerInviteRoutes(api); // R25 (DF-7): invite members with a workspace key
   registerAgentMemberR26Routes(api); // R26 (DF-3): list, edit and pause agent members
   registerShareLinkRoutes(api); // R26 (MB-87): read only share links
+  registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

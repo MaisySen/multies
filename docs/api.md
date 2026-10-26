@@ -838,3 +838,39 @@ A read only link to a doc or a project board for someone who is not in the works
 - Settings: `GET /api/share-links/settings` and `PUT /api/share-links/settings` `{ allowShareLinks }` (admins; on by default). Off makes create answer 403 `share_links_off` and every existing link show the inactive page; turning it back on brings unrevoked, unexpired links back.
 - Session routes (the app): `POST /api/share-links`, `GET /api/share-links?kind=&targetId=`, `DELETE /api/share-links/:id`.
 - MCP: `create_share_link`, `list_share_links`, `revoke_share_link` (see docs/MCP.md).
+
+## Checklists inside tasks (R26, MB-85)
+
+A task can hold a checklist: light to-dos with a title, done, order and an optional assignee and due date. Permissions
+follow the task. Read only keys can list; writes need a full key. Another workspace's ids answer 404.
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/v1/tasks/{id}/checklist` | Items in order, with `total` and `done`. `{id}` takes a task id or a reference like `OPS-12` |
+| POST | `/api/v1/tasks/{id}/checklist` | Add one item `{ title, done?, assignee?, due?, position? }` or `{ items: [...] }` (up to 200 per task) |
+| POST | `/api/v1/tasks/{id}/checklist/reorder` | `{ ids }`: every item id once, in the new order. Only items that move are written |
+| PATCH | `/api/v1/checklist-items/{id}` | Any of `{ title, done, assignee, due, position }`. A patch that changes nothing writes nothing |
+| DELETE | `/api/v1/checklist-items/{id}` | Remove the item |
+| POST | `/api/v1/checklist-items/{id}/to-subtask` | Make a subtask of the item's task (same title, assignee, due) and remove the item |
+
+Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
+its primary key and one index on task_id).
+
+## Task query language (R26, MB-86)
+
+`GET /api/v1/tasks?q=...` (and the app's task list) takes a typed query. Terms are ANDed, commas mean any of, a leading
+minus negates a term and quotes keep words together:
+
+    assignee:me status:doing label:bug priority:>=high due:<7d sprint:current type:bug project:MB "free text"
+    -label:wontfix created:>2026-10-01 points:>=3 has:subtasks is:overdue
+
+Keys: `assignee` (me, none, a name or email, member:<id>), `status` (todo, doing, done, open or a status name),
+`label`, `priority` (urgent, high, medium, low, none; `<`, `<=`, `>`, `>=` work), `due` (today, tomorrow, 2026-11-02,
+7d meaning 7 days from now, -3d, none), `sprint` (current, next, none or a sprint name), `type` (task, story, bug,
+epic), `project` (key or name), `created` and `updated` (a date or 7d meaning 7 days ago), `points` (a number or
+none), `has` (subtasks, checklist, due, assignee, labels, points, parent, notes), `is` (overdue, open, done,
+unassigned, subtask, mine) and `title`. Text with no key in it searches titles and notes, as before.
+
+A bad query answers 400 with `error.code` `bad_query`, a message and `error.details.position` (the 1 based character
+where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
+one query. MCP: `search_tasks` with `q`.

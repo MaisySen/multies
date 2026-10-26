@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 130 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 137 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -428,3 +428,20 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
 | `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
 | `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |
+
+### Checklists inside tasks (R26, MB-85)
+
+| Tool | What it does |
+|---|---|
+| `list_checklist` | A task's checklist items in order, with total and done counts (read only keys can call it) |
+| `add_checklist_items` | Add one or more items to the end of a task's checklist (title, done, assignee, due); up to 200 per task. One row per item |
+| `update_checklist_item` | Tick, untick, rename, or change an item's assignee or due date. One row; a patch that changes nothing writes nothing |
+| `reorder_checklist` | Put a task's checklist in a new order (every item id once); only items that move are written |
+| `delete_checklist_item` | Remove an item from its task's checklist |
+| `checklist_item_to_subtask` | Turn an item into a subtask of its task (same title, assignee and due date) and remove the item |
+
+### Task queries (R26, MB-86)
+
+| Tool | What it does |
+|---|---|
+| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |

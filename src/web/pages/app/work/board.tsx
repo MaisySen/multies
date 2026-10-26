@@ -9,6 +9,7 @@ import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, type CustomField, type Project, type Task, isAgentLike } from "./data";
+import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
 
@@ -25,6 +26,7 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
         {t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
         {t.source && <Mail className="h-3 w-3" aria-label="From email" />}
         {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><CheckSquare className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
+        <ChecklistChip checklist={t.checklist} />
         {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><MessageSquare className="h-3 w-3" />{t.commentCount}</span>}
         <span className="ml-auto flex items-center gap-1.5">
           {t.assignee && (isAgentLike(t.assignee)

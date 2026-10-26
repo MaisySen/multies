@@ -17,6 +17,7 @@ import { isComputed, ProjectRollups, taskFields } from "./computed-fields";
 import { GuestsDialog } from "./guests";
 import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
+import { TaskQueryBox } from "./task-query-box"; // R26 (MB-86)
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, isAgentLike } from "./data";
 import { tone } from "@/web/components/app-bits";
@@ -65,6 +66,18 @@ export function TasksPage() {
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [epicsOpen, setEpicsOpen] = useState(false);
   const tasks = useTasks({ projectId: projectId || undefined, ...filters, ...Object.fromEntries(fieldFilters) }, { enabled: !projects.isPending });
+  // R26 (MB-86): values the query box suggests: statuses, labels, people, projects and sprints.
+  const sprintList = useQuery({ queryKey: ["sprints-for-query", projectId], enabled: !!projectId, queryFn: async () => (await api.get<{ sprints: { name: string }[] }>(`/sprints?projectId=${projectId}`)).sprints });
+  const queryValues = useMemo(() => {
+    const list = projects.data ?? [];
+    return {
+    status: [...new Set(list.flatMap((p) => p.statuses.map((s) => s.name)))],
+    label: [...new Set((tasks.data ?? []).flatMap((t) => t.labels))].sort(),
+    assignee: (people.data ?? []).map((p) => p.name),
+    project: list.map((p) => p.key ?? p.name).filter(Boolean) as string[],
+    sprint: (sprintList.data ?? []).map((s) => s.name),
+    };
+  }, [projects.data, tasks.data, people.data, sprintList.data]);
   const deps = useQuery({ queryKey: ["task-deps", projectId], enabled: view === "timeline", queryFn: async () => (await api.get<{ links: { from: string; to: string }[] }>(`/tasks/dependencies${projectId ? `?projectId=${projectId}` : ""}`)).links });
   const addLink = useCallback(async (blocker: string, blocked: string) => {
     try { await api.post(`/tasks/${blocked}/dependencies`, { blockedBy: blocker }); } catch (e) { showError(e as Error); }
@@ -134,7 +147,7 @@ export function TasksPage() {
 
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
       <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
-        <Input aria-label="Search tasks" placeholder="Search tasks" defaultValue={filters.q ?? ""} onKeyDown={(e) => { if (e.key === "Enter") set({ q: (e.target as HTMLInputElement).value || null }); }} className="h-8 w-44! text-[13px]" />
+        <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
           {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}

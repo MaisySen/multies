@@ -51,7 +51,7 @@ Multies already had two kinds of agent:
 - Keep one identity: an agent member stays a `members` row with `kind = 'agent'` and its own `users`
   row. No new table. Assignee strings stay `member:<userId>`, so assignment, mentions (`<@member:...>`),
   workload, time and every existing filter work unchanged.
-- Migration 0057 adds three nullable columns to `members`, with no index: `disabled_at` (paused),
+- Migration 0056 adds three nullable columns to `members`, with no index: `disabled_at` (paused),
   `avatar_color` (`#rrggbb`; a stable default from the user id when unset) and `linked_agent_id`
   (an optional mail agent, checked to be in the same workspace).
 - Pausing: `resolveApiKey` refuses every key of a paused agent member (401) before it writes
