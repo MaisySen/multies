@@ -34,6 +34,8 @@ export interface SendExtras {
   attachments?: ParsedAttachment[];
   /** The agent that wrote this message (agent API keys, MCP, or an approved agent draft). */
   agentId?: string;
+  /** R27: the From display name, instead of the mailbox's (auth email hooks set a sender name). */
+  fromName?: string;
 }
 
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
@@ -106,7 +108,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const now = deps.now();
   const messageIdHeader = extra.messageIdHeader ?? `<${newId("m").slice(2)}.${now.getTime().toString(36)}@${conn ? conn.email.split("@")[1] : domain.name}>`;
   const atts = extra.attachments ?? [];
-  const from = { address: mb.address, name: mb.displayName };
+  const from = { address: mb.address, name: extra.fromName || mb.displayName };
   const toList = input.to.map((address) => ({ address }));
   const ccList = (input.cc ?? []).map((address) => ({ address }));
   const bccList = (input.bcc ?? []).map((address) => ({ address }));

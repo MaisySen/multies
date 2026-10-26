@@ -52,7 +52,7 @@ export function termCost(t: QueryTerm): number {
 export const PRIORITY_RANK: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3, urgent: 4 };
 export const QUERY_TYPES = ["task", "story", "bug", "epic"] as const;
 export const QUERY_HAS = ["subtasks", "checklist", "due", "assignee", "labels", "points", "parent", "notes"] as const;
-export const QUERY_IS = ["overdue", "open", "done", "unassigned", "subtask", "mine", "watching"] as const; // R27: is:watching
+export const QUERY_IS = ["overdue", "open", "done", "unassigned", "subtask", "mine"] as const;
 
 /** Keys, what they take and a hint, for autocomplete and the help popover. */
 export const QUERY_KEYS: { key: QueryKey; hint: string; values?: readonly string[]; compare?: boolean }[] = [

@@ -228,6 +228,12 @@ export const authEmailHooks = sqliteTable("auth_email_hooks", {
   appName: text("app_name").notNull(),
   /** R25 (MB-60): logo, colour, reply-to, footer, per type text, second language. JSON; NULL is the default email. */
   branding: text("branding"),
+  /** R27: the Sign-up emails settings page. Off: the hook answers 503 and sends nothing. */
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  /** R27: the From name on auth emails; NULL uses the mailbox's display name. */
+  senderName: text("sender_name"),
+  /** R27: JSON number[] of recent "Send test email" times (ms), for its rate limit. */
+  testSends: text("test_sends"),
   lastUsedAt: ts("last_used_at"),
   createdAt: createdAt(),
 }, (t) => [index("auth_email_hooks_org_idx").on(t.orgId)]);
@@ -1684,40 +1690,3 @@ export const taskChecklistItems = sqliteTable("task_checklist_items", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);
-
-/**
- * R27 (DF-3 slice 2): an AI agent member's run on a task. `steps` is a JSON array of { at, kind, text }, appended in
- * place (one row write per step, no index touched). One run that is queued or running per agent and task, held by a
- * partial unique index. ADR 0008, "Slice 2: agent runs".
- */
-export const agentRuns = sqliteTable("agent_runs", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-  agentUserId: text("agent_user_id").notNull(),
-  status: text("status", { enum: ["queued", "running", "succeeded", "failed", "cancelled"] }).notNull(),
-  startedAt: ts("started_at"),
-  finishedAt: ts("finished_at"),
-  result: text("result"),
-  steps: text("steps").notNull().default("[]"),
-  stepCount: integer("step_count").notNull().default(0),
-  createdByUserId: text("created_by_user_id"),
-  createdAt: createdAt(),
-  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [
-  index("agent_runs_task_idx").on(t.taskId),
-  uniqueIndex("agent_runs_active_uq").on(t.taskId, t.agentUserId).where(sql`${t.status} IN ('queued', 'running')`),
-]);
-
-/**
- * R27: people watching a task (Jira watchers, Asana followers, ClickUp watchers). A watcher hears about new
- * comments and status changes on the task. The creator, the assignee and anyone who comments start watching on
- * their own (source "auto"); anyone can watch or stop watching by hand. WITHOUT ROWID, keyed (task_id, user_id).
- */
-export const taskWatchers = sqliteTable("task_watchers", {
-  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
-  createdAt: createdAt(),
-}, (t) => [primaryKey({ columns: [t.taskId, t.userId] })]);

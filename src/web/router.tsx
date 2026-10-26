@@ -72,6 +72,7 @@ const MailSettings = lazy(() => settings().then((m) => ({ default: m.MailSetting
 const AccountSettings = lazy(() => import("./pages/app/security").then((m) => ({ default: m.AccountSettings })));
 const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
 const BillingSettings = lazy(() => import("./pages/app/billing").then((m) => ({ default: m.BillingSettings })));
+const AuthEmailSettings = lazy(() => import("./pages/app/auth-email-settings").then((m) => ({ default: m.AuthEmailSettings }))); // R27
 const CalendarSettings = lazy(() => import("./pages/app/calendar-settings").then((m) => ({ default: m.CalendarSettings })));
 const ConnectionsSettings = lazy(() => import("./pages/app/connections").then((m) => ({ default: m.ConnectionsSettings })));
 const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
@@ -179,6 +180,7 @@ export const router = createBrowserRouter([
           { path: "connections", element: page(<ConnectionsSettings />) },
           { path: "mail-apps", element: page(<MailAppsSettings />) },
           { path: "developers", element: page(<DeveloperSettings />) },
+          { path: "sign-up-emails", element: page(<AuthEmailSettings />) }, // R27
           { path: "import", element: page(<ImportSettings />) },
         ],
       },

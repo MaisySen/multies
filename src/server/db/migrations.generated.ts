@@ -640,17 +640,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0059_r27_agent_runs",
+    "name": "0060_r27_auth_hook_settings",
     "statements": [
-      "-- R27 (DF-3 slice 2): an AI agent member's run on a task: start, ordered steps, result. One table with the steps as a\n-- JSON array, so appending a step is one row update (no index touched). Starting writes the row plus two index\n-- entries; finishing writes the row and drops it from the partial index. ADR 0008, \"Slice 2: agent runs\".\nCREATE TABLE `agent_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`agent_user_id` text NOT NULL,\n\t`status` text NOT NULL,\n\t`started_at` integer,\n\t`finished_at` integer,\n\t`result` text,\n\t`steps` text DEFAULT '[]' NOT NULL,\n\t`step_count` integer DEFAULT 0 NOT NULL,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n);",
-      "CREATE INDEX `agent_runs_task_idx` ON `agent_runs` (`task_id`);",
-      "CREATE UNIQUE INDEX `agent_runs_active_uq` ON `agent_runs` (`task_id`,`agent_user_id`) WHERE \"agent_runs\".\"status\" IN ('queued', 'running');"
-    ]
-  },
-  {
-    "name": "0061_r27_task_watchers",
-    "statements": [
-      "CREATE TABLE `task_watchers` (\n\t`task_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`source` text DEFAULT 'manual' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`task_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
+      "ALTER TABLE `auth_email_hooks` ADD `enabled` integer DEFAULT 1 NOT NULL;",
+      "ALTER TABLE `auth_email_hooks` ADD `sender_name` text;",
+      "ALTER TABLE `auth_email_hooks` ADD `test_sends` text;"
     ]
   }
 ];

@@ -1037,7 +1037,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(17) // measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(16) // measured on main 93dc6c7 before 0052: also 16;
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);

@@ -175,11 +175,13 @@ export function authEmail(app: string, type: string, link: string | null, token:
 }
 
 /** Handles one signed call from Supabase. Returns what Supabase expects: {} on success, or an error object. */
-export async function handleSupabaseHook(deps: Deps, id: string, body: string, headers: Headers): Promise<{ status: 200 | 401 | 404 | 500; body: unknown }> {
+export async function handleSupabaseHook(deps: Deps, id: string, body: string, headers: Headers): Promise<{ status: 200 | 401 | 404 | 500 | 503; body: unknown }> {
   const h = await deps.db.select({ h: authEmailHooks, mb: mailboxes }).from(authEmailHooks)
     .innerJoin(mailboxes, eq(mailboxes.id, authEmailHooks.mailboxId)).where(eq(authEmailHooks.id, id)).get();
-  const fail = (status: 401 | 404 | 500, message: string) => ({ status, body: { error: { http_code: status, message } } });
+  const fail = (status: 401 | 404 | 500 | 503, message: string) => ({ status, body: { error: { http_code: status, message } } });
   if (!h) return fail(404, "No such hook.");
+  // R27: switched off on the Sign-up emails settings page.
+  if (h.h.enabled === false) return fail(503, "Auth emails are turned off for this workspace in Multies settings.");
   let payload: SupabasePayload;
   try {
     const secret = await decryptSecret(deps.config.appSecret, h.h.secretEnc);
@@ -210,7 +212,7 @@ export async function handleSupabaseHook(deps: Deps, id: string, body: string, h
   try {
     for (const s of sends) {
       const mail = renderAuthEmail(parseBranding(h.h.branding), type, s.link, s.token, { appName: h.h.appName, email: s.to.toLowerCase() });
-      await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { replyTo: mail.replyTo } : {}) });
+      await sendMessage(deps, actor, { mailboxId: h.mb.id, to: [s.to.toLowerCase()], subject: mail.subject, text: mail.text, html: mail.html, ...(mail.replyTo ? { replyTo: mail.replyTo } : {}) }, h.h.senderName ? { fromName: h.h.senderName } : {});
     }
   } catch (err) {
     return fail(500, err instanceof Error ? err.message : "Sending failed.");

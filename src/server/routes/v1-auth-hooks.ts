@@ -7,6 +7,7 @@ import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { createAuthHook, deleteAuthHook, listAuthHooks } from "../services/mail/auth-email-hooks";
 import { registerAuthHookBrandingRoutes } from "./v1-r25-authmail";
+import { registerAuthEmailSettingsRoutes } from "./auth-email-settings-r27";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -49,4 +50,5 @@ export function registerAuthHookRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("delete", "/auth-email-hooks/{id}", "Remove an auth email hook", "Calls to its URL fail from then on.", { request: { params: Id } }),
     async (c) => send(c, { deleted: await deleteAuthHook(c.var.deps, auth(c), c.req.param("id") ?? "") }));
   registerAuthHookBrandingRoutes(api); // R25 (MB-60): PATCH and preview
+  registerAuthEmailSettingsRoutes(api); // R27: Sign-up emails settings
 }
