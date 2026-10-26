@@ -12,6 +12,7 @@ import { MakeTask } from "./work/make-task";
 import { NoteCount, ThreadNotes, useNoteCounts } from "./inbox-comments";
 import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee, type ThreadStatus } from "./inbox-assign";
 import { ThreadCollab } from "./inbox-presence";
+import { InboxZeroArt } from "@/web/components/illustrations"; // R36
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -45,7 +46,7 @@ export function TeamInboxPage() {
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", selected && "hidden lg:block")}>
           {threads.isPending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
             : threads.error ? <p className="p-6 text-sm text-bad">{threads.error.message}</p>
-            : !threads.data.data.length ? <EmptyState icon={<IconInbox />} title="No threads yet" body="Mail to your mailboxes and agent inboxes shows up here." />
+            : !threads.data.data.length ? <EmptyState icon={<IconInbox />} art={<InboxZeroArt />} title="No threads yet" body="Mail to your mailboxes and agent inboxes shows up here." />
             : (
               <ul className="divide-y divide-line">
                 {threads.data.data.map((t) => (

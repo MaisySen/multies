@@ -3,17 +3,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
-import { createApiKey, deleteApiKey, listApiKeys, updateApiKeyScope } from "../services/developer/api-keys";
-import { ALL_SCOPES, SCOPE_AREAS, SCOPE_PRESETS, normalizeScopes } from "../lib/api-scopes";
-import { HttpError } from "../lib/errors";
-
-/** R36: a preset ("full", "read") or a list of per area scopes. */
-const scopeInput = z.union([z.enum(["full", "read"]), z.array(z.string().max(32)).min(1, "Pick at least one scope.").max(ALL_SCOPES.length * 2)]);
-const toStoredScope = (input: string | string[]) => {
-  const n = normalizeScopes(input);
-  if (!n.ok) throw new HttpError(422, "invalid_scope", `Unknown scope: ${n.unknown.join(", ")}. Use ${ALL_SCOPES.join(", ")}.`);
-  return n.value;
-};
+import { createApiKey, deleteApiKey, listApiKeys } from "../services/developer/api-keys";
 import {
   WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, endpointSecret, listDeliveries, listEndpoints, sendTestEvent, updateEndpoint, replayFailed,
 } from "../services/developer/webhooks";
@@ -26,24 +16,12 @@ export function developerRoutes() {
     .use("*", requireAuth, requireAdmin)
     .get("/events", (c) => c.json({ events: WEBHOOK_EVENTS }))
     .get("/keys", async (c) => c.json({ apiKeys: await listApiKeys(c.var.deps, c.var.auth.orgId) }))
-    // R36: the scope list and presets the create and edit sheets show.
-    .get("/scopes", (c) => c.json({ areas: SCOPE_AREAS, presets: SCOPE_PRESETS }))
     .post("/keys", async (c) => {
-      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: scopeInput.default("full") }));
+      const input = await parseBody(c, z.object({ name: z.string().trim().min(1, "Name the key after what uses it.").max(60), scope: z.enum(["full", "read"]).default("full") }));
       const { auth, deps } = c.var;
-      const scope = toStoredScope(input.scope);
-      const out = await createApiKey(deps, auth, { name: input.name, scope });
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, scope }, ip: c.var.ip });
+      const out = await createApiKey(deps, auth, input);
+      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.created", targetType: "api_key", targetId: out.apiKey.id, metadata: { name: input.name, scope: input.scope }, ip: c.var.ip });
       return c.json(out, 201);
-    })
-    // R36: edit a key's scopes. Essential write (one row on an admin's click).
-    .patch("/keys/:id", async (c) => {
-      const input = await parseBody(c, z.object({ scope: scopeInput }));
-      const { auth, deps } = c.var;
-      const scope = toStoredScope(input.scope);
-      const apiKey = await updateApiKeyScope(deps, auth.orgId, c.req.param("id"), scope);
-      await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "api_key.scope_changed", targetType: "api_key", targetId: apiKey.id, metadata: { name: apiKey.name, scope }, ip: c.var.ip });
-      return c.json({ apiKey });
     })
     .delete("/keys/:id", async (c) => {
       const { auth, deps } = c.var;

@@ -14,7 +14,7 @@ import { forbidden, HttpError, notFound } from "../../lib/errors";
 import { audit } from "../audit";
 import { createAgentMember, type CreateAgentMemberInput } from "../people";
 
-type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role"> & { agentId?: string | null; apiKeyId?: string; scope?: string };
+type Actor = Pick<AuthContext, "orgId" | "userId" | "email" | "role"> & { agentId?: string | null; apiKeyId?: string; scope?: "full" | "read" };
 
 /** The palette the app offers; any #rrggbb is accepted from the API. */
 export const AGENT_COLORS = ["#0071E3", "#5E5CE6", "#BF5AF2", "#FF375F", "#FF9F0A", "#30B158", "#00A3A3", "#8E8E93"] as const;

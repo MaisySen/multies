@@ -1,4 +1,4 @@
-import { NoDocsArt } from "@/web/components/illustrations";
+import { NoDocsArt, NoSearchResultsArt } from "@/web/components/illustrations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -25,6 +25,7 @@ import { SlashMenu } from "./slash-menu"; // R31: "/" menu for every block
 import { uploadDocImage } from "@/web/lib/docs-blocks"; // R32: table, image and callout blocks
 import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteDocConfirm, useBracketTrigger, useDocTree } from "./doc-tree";
+import { recordRecent } from "@/web/lib/palette-recents"; // R36
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -52,7 +53,7 @@ export function DocsPage() {
       <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><IconPlus className="h-4 w-4" />New doc</Button>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
-        <EmptyState icon={<IconDocs />} art={q ? undefined : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
+        <EmptyState icon={<IconDocs />} art={q ? <NoSearchResultsArt /> : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (
@@ -93,6 +94,8 @@ const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none"
 const LIVE_EDITOR_PROPS = { ...EDITOR_PROPS, handleKeyDown: liveKeyDown, handleDOMEvents: liveDomEvents };
 
 function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }) {
+  // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
+  useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { confirm, dialogs } = useDialogs();
   const id = doc.id;
   const navigate = useNavigate();

@@ -24,7 +24,7 @@ export function isScannerAgent(ua: string | undefined | null): boolean {
   return NOT_A_PERSON.test(ua);
 }
 
-export interface PrefActor { orgId: string; userId: string; agentId?: string | null; scope?: string }
+export interface PrefActor { orgId: string; userId: string; agentId?: string | null; scope?: "full" | "read" }
 
 export async function getMailPrefs(deps: Deps, a: PrefActor) {
   if (!a.userId) return { readStatus: false };

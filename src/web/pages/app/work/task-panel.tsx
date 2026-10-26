@@ -23,6 +23,7 @@ import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task, isAgentLike } from "./data";
+import { recordRecent } from "@/web/lib/palette-recents"; // R36
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -48,6 +49,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   const [comment, setComment] = useState("");
   const [sub, setSub] = useState("");
   const t = q.data?.task;
+  // R36: a task you open anywhere joins "Recently opened" in the command menu (device only, no server write).
+  useEffect(() => { if (t) recordRecent({ kind: "item", id: `/app/tasks?task=${t.id}`, label: `${t.ref} ${t.title}`, url: `/app/tasks?task=${t.id}`, hint: "Task" }); }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!t) return;
     setTitle(t.title); setNotes(t.notes); setLabels(t.labels.join(", "));

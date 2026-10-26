@@ -20,8 +20,6 @@ const PUBLIC_OK = new Set([
   "POST /api/csp-report", "GET /api/v1/reference.js",
   // R29b: the phone app reads its update policy before sign in (cached 60 s, no account data).
   "GET /api/v1/app-config",
-  // R36: the public MCP tool docs (tool names, schemas and scopes from the server code; no workspace data).
-  "GET /api/mcp-tools",
 ]);
 
 const fill = (path: string) => path.replace(/:[a-zA-Z]+(\{[^}]*\})?/g, "x1").replace(/\*$/, "x1");
