@@ -14,6 +14,7 @@ import { createField } from "./fields";
 import { normaliseRule, type RepeatRule } from "./recurrence";
 import { createProject, createTask, getProject, resolveTaskId, type Category, type Priority } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
+import { checklistTitles, copyChecklist } from "./checklists"; // R26 (MB-85)
 
 export interface TemplateTask {
   title: string; notes?: string; status?: string; priority?: Priority; labels?: string[];
@@ -21,6 +22,8 @@ export interface TemplateTask {
   dueInDays?: number | null;
   subtasks?: string[];
   repeat?: RepeatRule | null;
+  /** R26 (MB-85): checklist item titles, made unticked when the template is used. */
+  checklist?: string[];
 }
 export interface ProjectTemplateData {
   project: { name: string; description?: string; color?: string; statuses?: { name: string; category: Category; color?: string }[] };
@@ -168,6 +171,7 @@ export function scratchData(kind: TemplateKind, raw: unknown): TemplateData {
       title, notes: text(x.notes, 5000) || undefined, priority, dueInDays, status: text(x.status, 60) || undefined,
       labels: Array.isArray(x.labels) ? x.labels.map((l) => text(l, 40)).filter(Boolean).slice(0, 10) : undefined,
       subtasks: Array.isArray(x.subtasks) ? x.subtasks.map((s) => text(s, 200)).filter(Boolean).slice(0, 50) : undefined,
+      ...(Array.isArray(x.checklist) ? { checklist: x.checklist.map((s) => text(s, 500)).filter(Boolean).slice(0, 200) } : {}), // R26 (MB-85)
     };
   };
   if (kind === "doc") {
@@ -193,6 +197,7 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSav
     name ||= input.kind === "project" ? (data as ProjectTemplateData).project.name : (data as TaskTemplateData | DocTemplateData).title;
     return insertTemplate(deps, a, input, data, name);
   }
+  const checklistOf = async (taskId: string) => { const titles = await checklistTitles(deps, taskId); return titles.length ? { checklist: titles } : {}; }; // R26 (MB-85)
   const subtasksOf = async (taskId: string) => (await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, taskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.position))).map((s) => s.title);
   if (input.kind === "project") {
     if (!input.fromProjectId) throw new HttpError(422, "validation_failed", "Pass fromProjectId, or data to write the template from scratch.");
@@ -208,6 +213,7 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSav
         title: t.title, notes: t.notes || undefined, status: statusName.get(t.statusId), priority: t.priority, labels: JSON.parse(t.labels) as string[],
         dueInDays: t.dueAt && earliest !== null ? Math.round((t.dueAt.getTime() - earliest) / 86_400_000) : null,
         subtasks: await subtasksOf(t.id), repeat: t.repeatRule ? JSON.parse(t.repeatRule) as RepeatRule : null,
+        ...await checklistOf(t.id), // R26 (MB-85)
       });
     }
     data = {
@@ -228,7 +234,7 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSav
     const id = await resolveTaskId(deps, a.orgId, input.fromTaskId);
     const t = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, a.orgId), eq(tasks.id, id))).get();
     if (!t) throw new HttpError(404, "not_found", "Task not found.");
-    data = { title: t.title, notes: t.notes || undefined, priority: t.priority, labels: JSON.parse(t.labels) as string[], subtasks: await subtasksOf(t.id), repeat: t.repeatRule ? JSON.parse(t.repeatRule) as RepeatRule : null };
+    data = { title: t.title, notes: t.notes || undefined, priority: t.priority, labels: JSON.parse(t.labels) as string[], subtasks: await subtasksOf(t.id), repeat: t.repeatRule ? JSON.parse(t.repeatRule) as RepeatRule : null, ...await checklistOf(t.id) };
     name ||= t.title;
   }
   return insertTemplate(deps, a, input, data, name);
@@ -259,6 +265,7 @@ async function makeTask(deps: Deps, a: SuiteActor, projectId: string, t: Templat
     repeat: t.repeat ? normaliseRule(t.repeat) : null,
   });
   for (const s of t.subtasks ?? []) await createTask(deps, a, { title: s, projectId, parentId: task.id });
+  if (t.checklist?.length) await copyChecklist(deps, a, t.checklist, task.id); // R26 (MB-85)
   return task;
 }
 

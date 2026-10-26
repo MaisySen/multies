@@ -64,6 +64,17 @@ describe("checklists in the app", () => {
     expect((await c.get(`/api/tasks/${taskId}`)).body.subtasks.length).toBe(1);
   });
 
+  it("carries the checklist into a task template and back out, unticked", async () => {
+    await c.post(`/api/tasks/${taskId}/checklist`, { items: [{ title: "Book the room", done: true }, { title: "Send the agenda" }] });
+    const tpl = await c.post("/api/templates", { kind: "task", fromTaskId: taskId, name: "Launch task" });
+    expect(tpl.status).toBe(201);
+    const projectId = (await c.get(`/api/tasks/${taskId}`)).body.task.projectId;
+    const used = await c.post(`/api/templates/${tpl.body.template.id}/use`, { projectId });
+    expect(used.status).toBeLessThan(300);
+    const copy = (await c.get(`/api/tasks/${used.body.task.id}/checklist`)).body;
+    expect(copy.items.map((i: { title: string; done: boolean }) => `${i.title}:${i.done}`)).toEqual(["Book the room:false", "Send the agenda:false"]);
+  });
+
   it("refuses another workspace's task and items, and hides items of a deleted task", async () => {
     const item = (await c.post(`/api/tasks/${taskId}/checklist`, { title: "Private step" })).body.items[0];
     const other = new Client(ctx.app);
