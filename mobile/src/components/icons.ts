@@ -1,11 +1,12 @@
 import {
-  Activity, Archive, ArrowRight, AtSign, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, CircleAlert, CircleCheck, Clock, Columns3, Compass, Copy, CornerDownRight, CornerUpLeft, CornerUpRight, Cpu, DollarSign, Download, Ellipsis, ExternalLink, Eye, FileText, Flag, Funnel, Globe, GripVertical, HardDrive, Hash, Inbox, Info, Key, Layers, LifeBuoy, Link, List, Lock, LogOut, Mail, MapPin, MessageCircle, MessageSquare, Minus, Moon, Paperclip, Pause, PenLine, Play, Plus, RefreshCw, Search, Send, Settings, Shield, SlidersHorizontal, Smartphone, Square, SquareCheck, SquarePen, Star, Sun, Tag, Trash2, Undo2, User, UserCheck, UserX, Users, Video, WifiOff, X, Zap,
+  Activity, AlarmClock, Archive, ArrowRight, AtSign, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, CircleAlert, CircleCheck, CircleStop, Clock, Command, Columns3, Compass, Copy, CornerDownRight, CornerUpLeft, CornerUpRight, Cpu, DollarSign, Download, Ellipsis, ExternalLink, Eye, FileText, Flag, Funnel, Globe, GripVertical, HardDrive, Hash, Inbox, Info, Key, Layers, LifeBuoy, Link, List, Lock, LogOut, Mail, MailOpen, MapPin, MessageCircle, MessageSquare, Minus, Moon, Paperclip, Pause, PenLine, Play, Plus, RefreshCw, Search, Send, Settings, Shield, SlidersHorizontal, Smartphone, Square, SquareCheck, SquarePen, Star, Sun, Tag, Trash2, Undo2, User, UserCheck, UserX, Users, Video, WifiOff, X, Zap,
   type LucideIcon,
 } from "lucide-react-native";
 
 /** The icons the app uses, by name. All are Lucide line icons (ISC licence). */
 export const ICONS = {
   "activity": Activity,
+  "alarm-clock": AlarmClock,
   "alert-circle": CircleAlert,
   "archive": Archive,
   "arrow-right": ArrowRight,
@@ -22,7 +23,9 @@ export const ICONS = {
   "chevron-right": ChevronRight,
   "chevron-up": ChevronUp,
   "circle": Circle,
+  "circle-stop": CircleStop,
   "clock": Clock,
+  "command": Command,
   "columns": Columns3,
   "compass": Compass,
   "copy": Copy,
@@ -53,6 +56,7 @@ export const ICONS = {
   "lock": Lock,
   "log-out": LogOut,
   "mail": Mail,
+  "mail-open": MailOpen,
   "map-pin": MapPin,
   "message-circle": MessageCircle,
   "message-square": MessageSquare,

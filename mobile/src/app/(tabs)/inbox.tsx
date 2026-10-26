@@ -5,6 +5,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { Banner, Chip, EmptyState, IconButton, Loading, Button, LargeTitle } from "@/components/ui";
 import { MessageRow } from "@/components/message-row";
+import { SwipeRow } from "@/components/swipe-row";
+import { UndoToast } from "@/components/undo-toast";
+import { useMailRowActions } from "@/components/mail-actions";
+import { useUndoQueue } from "@/lib/undo-queue";
+import { openCommandSheet } from "@/lib/command-sheet-store";
+import { command } from "@/lib/commands";
 import { useAgents, useMessages, useOverview } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { useSession } from "@/lib/session";
@@ -23,7 +29,11 @@ export default function Inbox() {
   const agents = useAgents();
   const offline = useOffline();
   const { mode } = useSession();
-  const rows = useMemo(() => list.data?.pages.flatMap((p) => p.messages) ?? [], [list.data]);
+  // R31: swipe right to archive, left to snooze, long-press for every action. Swiped rows hide at once with Undo.
+  const undo = useUndoQueue();
+  const actions = useMailRowActions(undo.push);
+  const swipeable = folder === "inbox" || folder === "starred";
+  const rows = useMemo(() => (list.data?.pages.flatMap((p) => p.messages) ?? []).filter((m) => !undo.hidden.has(m.id)), [list.data, undo.hidden]);
   const people = overview.data?.filter((m) => m.kind !== "agent") ?? [];
   const unread = (id?: string) => overview.data?.filter((m) => !id || m.id === id).reduce((n, m) => n + (m.folders.inbox?.unread ?? 0), 0) ?? 0;
 
@@ -45,7 +55,17 @@ export default function Inbox() {
         <FlatList
           data={rows}
           keyExtractor={(m) => m.id}
-          renderItem={({ item }) => <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onPress={() => router.push({ pathname: "/thread/[id]", params: { id: item.id } })} />}
+          renderItem={({ item }) => {
+            const row = <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onLongPress={() => actions.openMenu(item)}
+              onPress={() => router.push({ pathname: "/thread/[id]", params: { id: item.id } })} />;
+            return swipeable ? (
+              <SwipeRow testID={`swipe-${item.id}`}
+                right={{ label: command("mail-archive").title, icon: "archive", color: colors.ok, onAction: () => actions.archive(item) }}
+                left={{ label: command("mail-snooze").title, icon: "alarm-clock", color: colors.warn, onAction: () => actions.pickSnooze(item) }}>
+                {row}
+              </SwipeRow>
+            ) : row;
+          }}
           refreshControl={<RefreshControl refreshing={list.isRefetching && !list.isFetchingNextPage} onRefresh={() => { list.refetch(); }} tintColor={colors.brand} colors={[colors.brand]} />}
           onEndReached={() => list.hasNextPage && !list.isFetchingNextPage && list.fetchNextPage()}
           onEndReachedThreshold={0.4}
@@ -54,6 +74,8 @@ export default function Inbox() {
           contentContainerStyle={{ paddingBottom: 96 }}
         />
       )}
+      {actions.sheets}
+      <UndoToast pending={undo.newest} onUndo={undo.undo} bottom={space.lg + 64} />
       <View style={{ position: "absolute", right: space.lg, bottom: space.lg }}>
         <Button label="Compose" icon="edit-3" onPress={() => router.push("/compose")} testID="compose" style={{ borderRadius: 28, paddingHorizontal: 22, shadowColor: "#000", shadowOpacity: 0.18, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 }} />
       </View>
@@ -68,6 +90,7 @@ function Header({ onSearch }: { onSearch: () => void }) {
     <LargeTitle title="Mail" subtitle={me?.organization?.name} top={insets.top} right={(
       <>
         <NotificationBell />
+        <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />
         <IconButton icon="search" label="Search mail" onPress={onSearch} testID="open-search" />
       </>
     )} />

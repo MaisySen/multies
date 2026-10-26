@@ -324,8 +324,17 @@ export interface AppNotification {
   id: string; type: string; category?: NotificationCategory | string;
   entityType: "task" | "message" | "chat_message" | "approval" | "goal" | string | null; entityId: string | null;
   title: string; actor?: { type: string; id: string; name: string } | null; read: boolean; createdAt: string; link?: string;
+  /** R31 triage: set when the item is marked done; null or absent while it is open. */
+  doneAt?: string | null;
+  /** R31 triage: the item is in Later until this time. */
+  snoozedUntil?: string | null;
 }
-export interface NotificationPage { notifications: AppNotification[]; unread: number; counts: Partial<Record<string, number>>; hasMore: boolean }
+export type NotificationView = "inbox" | "later" | "done";
+export interface NotificationPage {
+  notifications: AppNotification[]; unread: number; counts: Partial<Record<string, number>>; hasMore: boolean;
+  /** R31: present when the server understood ?view= (an older server leaves it out). */
+  viewCounts?: { inbox: number; later: number; done: number };
+}
 export interface NotificationPref { inApp: boolean; push: boolean }
 export type NotificationSettings = Record<string, NotificationPref>;
 

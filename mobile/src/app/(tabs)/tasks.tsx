@@ -7,6 +7,9 @@ import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, LargeTitle, 
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
+import { TaskActions } from "@/components/task-actions";
+import { openCommandSheet } from "@/lib/command-sheet-store";
+import { tick } from "@/lib/haptics";
 import { useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
 import { progressBadge } from "@/lib/checklist";
@@ -33,12 +36,17 @@ export default function Tasks() {
   const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } });
   const list = tasks.data ?? [];
   const col = Math.min(width * 0.82, 340);
+  // R31: long-press a task for Status, Assignee, Priority, Label and Due date (the registry's task commands).
+  const [actionsFor, setActionsFor] = useState<Task | null>(null);
+  const knownLabels = [...new Set(list.flatMap((t) => t.labels ?? []))];
+  const longPress = (t: Task) => { tick(); setActionsFor(t); };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <LargeTitle title="Tasks" top={insets.top} right={(
         <>
           <NotificationBell />
+          <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />
           <IconButton icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="open-meetings" />
           <IconButton icon="plus" label="New task" onPress={() => router.push("/task/new")} testID="new-task" />
         </>
@@ -71,7 +79,7 @@ export default function Tasks() {
             return (
               <View key={s.id} style={{ gap: space.sm }}>
                 <Text style={{ color: colors.subtle, fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 }} accessibilityRole="header">{s.label} ({rows.length})</Text>
-                {rows.map((t) => <TaskRow key={t.id} t={t} onToggle={() => move(t, t.status === "done" ? "todo" : "done")} />)}
+                {rows.map((t) => <TaskRow key={t.id} t={t} onToggle={() => move(t, t.status === "done" ? "todo" : "done")} onLongPress={() => longPress(t)} />)}
               </View>
             );
           })}
@@ -89,7 +97,7 @@ export default function Tasks() {
                 <ScrollView contentContainerStyle={{ gap: space.sm }} showsVerticalScrollIndicator={false}>
                   {rows.map((t) => (
                     <View key={t.id} style={{ backgroundColor: colors.elevated, borderRadius: radius.md, padding: space.md, gap: space.sm }}>
-                      <Pressable onPress={() => open(t)} accessibilityRole="button" accessibilityLabel={`${t.title}. ${s.label}`} style={{ gap: 6 }}>
+                      <Pressable onPress={() => open(t)} onLongPress={() => longPress(t)} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`${t.title}. ${s.label}`} accessibilityHint="Long press for more actions" style={{ gap: 6 }}>
                         <Text style={{ color: colors.subtle, fontSize: 12, fontWeight: "600" }}>{t.ref}</Text>
                         <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "600" }}>{t.title}</Text>
                         <Meta t={t} />
@@ -105,6 +113,7 @@ export default function Tasks() {
           })}
         </ScrollView>
       )}
+      <TaskActions task={actionsFor} knownLabels={knownLabels} onClose={() => setActionsFor(null)} />
     </View>
   );
 }
@@ -131,7 +140,7 @@ export function Meta({ t }: { t: Task }) {
   );
 }
 
-function TaskRow({ t, onToggle }: { t: Task; onToggle: () => void }) {
+function TaskRow({ t, onToggle, onLongPress }: { t: Task; onToggle: () => void; onLongPress?: () => void }) {
   const done = t.status === "done";
   return (
     <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line }}>
@@ -139,8 +148,8 @@ function TaskRow({ t, onToggle }: { t: Task; onToggle: () => void }) {
         testID={`toggle-${t.id}`} style={{ width: 52, minHeight: 56, alignItems: "center", justifyContent: "center" }}>
         <Icon name={done ? "check-circle" : "circle"} size={22} color={done ? colors.ok : colors.subtle} />
       </Pressable>
-      <Pressable onPress={() => open(t)} accessibilityRole="button" accessibilityLabel={`Open task ${t.title}`}
-        style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
+      <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`Open task ${t.title}`}
+        accessibilityHint="Long press for more actions" testID={`task-row-${t.id}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
         <Text style={{ color: done ? colors.subtle : colors.fg, fontSize: 16, textDecorationLine: done ? "line-through" : "none" }}>{t.title}</Text>
         <Meta t={t} />
       </Pressable>

@@ -5,12 +5,12 @@ import { Avatar, Badge, Icon } from "./ui";
 import { displayName, shortDate } from "@/lib/format";
 import { colors, space } from "@/theme";
 
-export const MessageRow = memo(function MessageRow({ m, agents, onPress, showRecipient }: { m: MessageSummary; agents?: Agent[]; onPress: () => void; showRecipient?: boolean }) {
+export const MessageRow = memo(function MessageRow({ m, agents, onPress, onLongPress, showRecipient }: { m: MessageSummary; agents?: Agent[]; onPress: () => void; onLongPress?: () => void; showRecipient?: boolean }) {
   const agent = m.sentByAgentId ? agents?.find((a) => a.id === m.sentByAgentId) : undefined;
   const who = showRecipient ? `To: ${m.to.map(displayName).join(", ")}` : agent?.name ?? displayName(m.from);
   const label = `${m.isRead ? "" : "Unread. "}${who}. ${m.subject || "No subject"}. ${m.snippet}. ${shortDate(m.date)}${agent ? `. Written by agent ${agent.name}` : ""}`;
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Opens the conversation"
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={label} accessibilityHint={onLongPress ? "Opens the conversation. Long press for more actions." : "Opens the conversation"}
       style={({ pressed }) => [s.row, pressed && { backgroundColor: colors.surface }]}>
       <View style={s.dotCol}>{!m.isRead ? <View style={s.dot} /> : null}</View>
       <Avatar name={displayName(m.from)} agent={!!m.sentByAgentId} />

@@ -1,8 +1,9 @@
 import type { Transport } from "./transport";
+import type { SnoozePreset } from "@/lib/snooze";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
   AgentRun, Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
+  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, NotificationView, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
@@ -36,6 +37,8 @@ export function endpoints(t: Transport) {
     updateMessage: (id: string, patch: { isRead?: boolean; isStarred?: boolean; folder?: "inbox" | "archive" | "spam" | "trash" }) =>
       t.request<{ ok: true }>("PATCH", `/mail/messages/${encodeURIComponent(id)}`, patch),
     trash: (id: string) => t.request<{ ok: true }>("DELETE", `/mail/messages/${encodeURIComponent(id)}`),
+    // R31: snooze a conversation (server R20.3 mail schedules). It leaves the inbox and comes back at the time.
+    snoozeMessage: (messageId: string, preset: SnoozePreset) => t.request<unknown>("POST", "/mail-schedules/snooze", { messageId, preset }),
     send: (input: SendInput, idempotencyKey: string) => t.request<SendResult>("POST", "/mail/send", input, { idempotencyKey }),
 
     approvals: (status?: Approval["status"]) => t.request<{ approvals: Approval[] }>("GET", `/approvals${q({ status })}`),
@@ -68,12 +71,20 @@ export function endpoints(t: Transport) {
     runs: (p: { agentUserId?: string; status?: string; limit?: number } = {}) =>
       t.request<{ runs: AgentRun[] }>("GET", `/agent-runs${q({ agentUserId: p.agentUserId, status: p.status, limit: p.limit ?? 50 })}`),
     run: (id: string) => t.request<{ run: AgentRun }>("GET", `/agent-runs/${encodeURIComponent(id)}`),
+    // R31: cancel a queued or running run (server R30, the same rules as POST /api/v1/runs/{id}/cancel).
+    cancelRun: (id: string, reason?: string) => t.request<{ run: AgentRun }>("POST", `/agent-runs/${encodeURIComponent(id)}/cancel`, reason ? { reason } : {}),
     taskRuns: (taskId: string) => t.request<{ taskId: string; ref: string; runs: AgentRun[] }>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`),
     projects: () => t.request<{ projects: Project[] }>("GET", "/projects"),
     changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
     // Notifications inbox. No ids and no category marks everything read.
-    notifications: (p: { unread?: boolean; category?: string; limit?: number; before?: string } = {}) =>
-      t.request<NotificationPage>("GET", `/notifications${q({ unread: p.unread ? 1 : undefined, category: p.category, limit: p.limit, before: p.before })}`),
+    notifications: (p: { unread?: boolean; category?: string; limit?: number; before?: string; view?: NotificationView } = {}) =>
+      t.request<NotificationPage>("GET", `/notifications${q({ view: p.view, unread: p.unread ? 1 : undefined, category: p.category, limit: p.limit, before: p.before })}`),
+    // R31 triage: done, back to Inbox, snooze (a preset or an exact time) and done in bulk.
+    notificationDone: (id: string) => t.request<{ ok: true }>("POST", `/notifications/${encodeURIComponent(id)}/done`, {}),
+    notificationUndone: (id: string) => t.request<{ ok: true }>("POST", `/notifications/${encodeURIComponent(id)}/undone`, {}),
+    notificationSnooze: (id: string, when: { preset: SnoozePreset } | { until: string }) =>
+      t.request<{ ok: true }>("POST", `/notifications/${encodeURIComponent(id)}/snooze`, when),
+    notificationsDone: (ids: string[]) => t.request<{ ok: true; updated?: number }>("POST", "/notifications/done", { ids }),
     readNotifications: (p: { ids?: string[]; category?: string } = {}) =>
       t.request<{ ok: true; updated: number }>("POST", "/notifications/read", { ...(p.ids ? { ids: p.ids } : {}), ...(p.category ? { category: p.category } : {}) }),
     unreadNotification: (id: string) => t.request<{ ok: true }>("POST", `/notifications/${encodeURIComponent(id)}/unread`, {}),

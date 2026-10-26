@@ -1,4 +1,6 @@
 import { ApiError } from "@/api/errors";
+import { viewOf } from "@/lib/triage";
+import { snoozeUntil, type SnoozePreset } from "@/lib/snooze";
 import type { AppNotification, ChatAttachment, ChatChannel, ChatLink, ChatMention, ChatMessage, ChatPerson, Message, NotificationSettings } from "@/api/types";
 import { taskRoute, type SampleWork } from "./tasks";
 
@@ -165,10 +167,36 @@ export function chatRoute(chat: SampleChat, work: SampleWork, mail: Message[], m
     }
     if (method === "GET" && !a) {
       let list = [...chat.notifications].sort((x, y) => y.createdAt.localeCompare(x.createdAt));
+      // R31 triage: the same views as the server (Inbox, Later, Done) with their counts.
+      const nowMs = Date.now();
+      const viewCounts = { inbox: 0, later: 0, done: 0 };
+      for (const x of chat.notifications) viewCounts[viewOf(x, nowMs)]++;
+      const view = params.view === "later" || params.view === "done" || params.view === "inbox" ? params.view : null;
+      if (view) list = list.filter((x) => viewOf(x, nowMs) === view);
       if (params.category) list = list.filter((x) => x.category === params.category);
-      if (params.unread === "1") list = list.filter((x) => !x.read);
+      if (params.unread === "1") list = list.filter((x) => !x.read && viewOf(x, nowMs) === "inbox");
       const limit = Number(params.limit) || 50;
-      return { notifications: list.slice(0, limit), unread: chat.notifications.filter((x) => !x.read).length, counts: counts(chat), hasMore: list.length > limit };
+      const unread = chat.notifications.filter((x) => !x.read && viewOf(x, nowMs) === "inbox").length;
+      return { notifications: list.slice(0, limit), unread, counts: counts(chat), hasMore: list.length > limit, viewCounts };
+    }
+    if (method === "POST" && a === "done" && !b) {
+      const ids = Array.isArray(input.ids) ? (input.ids as string[]) : [];
+      let updated = 0;
+      for (const x of chat.notifications) if (ids.includes(x.id) && !x.doneAt) { x.doneAt = now; x.snoozedUntil = null; x.read = true; updated++; }
+      return { ok: true, updated };
+    }
+    if (method === "POST" && a && (b === "done" || b === "undone" || b === "snooze")) {
+      const x = chat.notifications.find((y) => y.id === a);
+      if (!x) throw new ApiError(404, "not_found", "Notification not found.");
+      if (b === "done") { x.doneAt = now; x.snoozedUntil = null; x.read = true; }
+      else if (b === "undone") { x.doneAt = null; x.snoozedUntil = null; }
+      else {
+        const until = typeof input.until === "string" ? input.until
+          : snoozeUntil((input.preset as SnoozePreset) ?? "tomorrow").toISOString();
+        if (!(Date.parse(until) > Date.now())) throw new ApiError(422, "bad_time", "Pick a time in the future.");
+        x.snoozedUntil = until; x.doneAt = null; x.read = true;
+      }
+      return { ok: true };
     }
     if (method === "POST" && a === "read") {
       const ids = Array.isArray(input.ids) ? (input.ids as string[]) : null;

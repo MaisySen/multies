@@ -1,8 +1,11 @@
-import { RefreshControl, ScrollView, Text, View } from "react-native";
+import { Alert, RefreshControl, ScrollView, Text, View } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { Avatar, Banner, Button, Card, EmptyState, Icon, Loading, Row } from "@/components/ui";
 import { RunStatusChip } from "@/components/runs";
 import { useRun } from "@/lib/run-queries";
+import { useCancelRun } from "@/lib/triage-queries";
+import { command, createHandlers } from "@/lib/commands";
+import { success } from "@/lib/haptics";
 import { useOffline } from "@/lib/offline";
 import { useNow } from "@/lib/time";
 import { durationLabel, isActive, stepKind } from "@/lib/runs";
@@ -11,12 +14,25 @@ import { ApiError } from "@/api/errors";
 import type { RunStep } from "@/api/types";
 import { colors, font, radius, space } from "@/theme";
 
-/** R29: one agent run, read only: who ran it, on which task, each step in order, and the result. */
+/** R29: one agent run: who ran it, on which task, each step in order, and the result. R31: cancel while it runs. */
 export default function RunDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const q = useRun(id);
   const offline = useOffline();
   const now = useNow(!!q.data && isActive(q.data));
+  // R31: cancel a queued or running run, after a confirm. The title comes from the command registry.
+  const cancel = useCancelRun();
+  const cancelTitle = command("run-cancel").title;
+  const handlers = createHandlers({
+    navigate: (href) => router.push(href as never), openWeb: () => {},
+    cancelRun: (runId) => Alert.alert("Cancel this run?", "The agent stops at its next step. What it already did stays.", [
+      { text: "Keep running", style: "cancel" },
+      { text: cancelTitle, style: "destructive", onPress: () => cancel.mutate(runId, {
+        onSuccess: () => success(),
+        onError: (e) => Alert.alert(e instanceof ApiError && e.status === 409 ? "This run has already finished" : "Couldn't cancel the run", e instanceof ApiError && e.status === 409 ? undefined : e.message),
+      }) },
+    ]),
+  });
 
   if (q.isPending) return <Loading label="Loading run" rows={4} />;
   if (q.error) {
@@ -42,6 +58,9 @@ export default function RunDetail() {
         <Facts label="Started" value={r.startedAt ? longDate(r.startedAt) : "Not started yet"} />
         {r.finishedAt ? <Facts label="Finished" value={longDate(r.finishedAt)} /> : null}
         <Facts label="Duration" value={durationLabel(r, now)} />
+        {isActive(r) && !offline ? (
+          <Button label={cancelTitle} variant="danger" icon="circle-stop" loading={cancel.isPending} onPress={() => handlers["run-cancel"]({ runId: r.id })} testID="run-cancel" />
+        ) : null}
       </Card>
 
       {r.task ? (

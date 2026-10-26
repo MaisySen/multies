@@ -93,6 +93,14 @@ export class SampleTransport implements Transport {
         Object.assign(m, body as Partial<Message>);
         return json({ ok: true });
       }
+      case "POST /mail-schedules/snooze": {
+        // R31: the conversation leaves the inbox until the time (the sample keeps it in Archive).
+        const b = (body ?? {}) as { messageId?: string };
+        const m = d.messages.find((x) => x.id === b.messageId);
+        if (!m) throw new ApiError(404, "not_found", "Message not found.");
+        d.messages.filter((x) => x.threadId === m.threadId).forEach((x) => { if (x.folder === "inbox") x.folder = "archive"; });
+        return json({ ok: true });
+      }
       case "DELETE /mail/messages/:id": {
         const m = d.messages.find((x) => x.id === id);
         if (m) m.folder = "trash";

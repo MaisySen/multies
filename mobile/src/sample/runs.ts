@@ -43,6 +43,16 @@ export function sampleRuns(now: number, work: SampleWork): AgentRun[] {
 
 /** Answers /agent-runs, /agent-runs/:id and /tasks/:id/runs. Undefined when the path is something else. */
 export function runsRoute(runs: AgentRun[], work: SampleWork, method: string, parts: string[], params: Record<string, string>): unknown {
+  // R31: cancel a queued or running run, as the server does (409 once it has finished).
+  if (method === "POST" && parts[0] === "agent-runs" && parts.length === 3 && parts[2] === "cancel") {
+    const run = runs.find((x) => x.id === decodeURIComponent(parts[1]));
+    if (!run) throw new ApiError(404, "not_found", "Run not found.");
+    if (run.status === "cancelled") return { run };
+    if (run.status !== "queued" && run.status !== "running") throw new ApiError(409, "run_finished", "This run has already finished.");
+    run.status = "cancelled";
+    run.finishedAt = new Date().toISOString();
+    return { run };
+  }
   if (method !== "GET") return undefined;
   const newest = (list: AgentRun[]) => [...list].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   if (parts[0] === "agent-runs" && parts.length === 1) {

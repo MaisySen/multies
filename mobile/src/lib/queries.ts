@@ -115,9 +115,9 @@ export function useMessageAction() {
   const { api } = useSession();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: string; action: "archive" | "inbox" | "star" | "unstar" | "unread" | "trash" }) => {
+    mutationFn: (v: { id: string; action: "archive" | "inbox" | "star" | "unstar" | "read" | "unread" | "trash" }) => {
       if (v.action === "trash") return api.trash(v.id);
-      const patch = v.action === "archive" || v.action === "inbox" ? { folder: v.action } : v.action === "star" || v.action === "unstar" ? { isStarred: v.action === "star" } : { isRead: false };
+      const patch = v.action === "archive" || v.action === "inbox" ? { folder: v.action } : v.action === "star" || v.action === "unstar" ? { isStarred: v.action === "star" } : { isRead: v.action === "read" };
       return api.updateMessage(v.id, patch);
     },
     onSettled: () => { qc.invalidateQueries({ queryKey: ["messages"] }); qc.invalidateQueries({ queryKey: ["thread"] }); },

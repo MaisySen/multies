@@ -23,7 +23,7 @@ jest.mock("expo-notifications", () => ({
 jest.mock("expo-task-manager", () => ({ defineTask: jest.fn(), isTaskDefined: jest.fn(() => false) }));
 jest.mock("expo-device", () => ({ isDevice: true }));
 jest.mock("expo-haptics", () => ({
-  impactAsync: jest.fn(async () => {}), notificationAsync: jest.fn(async () => {}),
+  impactAsync: jest.fn(async () => {}), selectionAsync: jest.fn(async () => {}), notificationAsync: jest.fn(async () => {}),
   ImpactFeedbackStyle: { Medium: "medium" }, NotificationFeedbackType: { Success: "success" },
 }));
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})), openAuthSessionAsync: jest.fn(async () => ({ type: "cancel" })) }));

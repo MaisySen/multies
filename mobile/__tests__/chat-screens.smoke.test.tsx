@@ -132,8 +132,8 @@ it("new message starts a DM with the picked people", async () => {
   await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({ pathname: "/chat/[id]", params: { id: expect.stringMatching(/^dm_s/) } }));
 });
 
-it("notifications inbox: unread dots, filters, tap marks read and routes, mark all read", async () => {
-  const Inbox = require("@/app/notifications").default;
+it("notifications inbox (plain list, kept for servers before R31 triage): unread dots, filters, tap marks read and routes, mark all read", async () => {
+  const Inbox = require("@/components/notifications-legacy").LegacyNotifications;
   await wrap(<Inbox />);
   expect(await screen.findByText("Josh Tran mentioned you in #general")).toBeTruthy();
   expect(screen.getByText("4 unread")).toBeTruthy();
