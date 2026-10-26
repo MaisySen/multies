@@ -41,7 +41,9 @@ normally the commit's short hash; if you use another id, write down the commit i
 npx wrangler d1 migrations apply mymail-staging --remote --env staging
 npx wrangler deploy --env staging --var RELEASE:$RELEASE
 scripts/smoke.sh https://mymail-staging.mymail-app.workers.dev "$RELEASE"
-E2E_BASE_URL=https://mymail-staging.mymail-app.workers.dev npx playwright test e2e/smoke.spec.ts e2e/launch-checklist.spec.ts
+curl -s https://mymail-staging.mymail-app.workers.dev/api/config   # "release" must equal $RELEASE
+# Remote E2E writes to the shared D1 budget: only read-only checks, one spec, with a grep:
+E2E_ALLOW_REMOTE=1 E2E_BASE_URL=https://mymail-staging.mymail-app.workers.dev npx playwright test e2e/launch-checklist.spec.ts --grep 'real 404|robots|sitemap'
 ```
 
 Then by hand: sign in to a demo, open mail, chat and tasks, and check Sentry for new staging issues.
@@ -53,7 +55,7 @@ A remote E2E run can hit the sign up and demo rate limits; see [../testing.md](.
 npx wrangler d1 migrations apply mymail-au --remote
 npx wrangler deploy --env="" --var RELEASE:$RELEASE
 scripts/smoke.sh https://mymail.mymail-app.workers.dev "$RELEASE"
-E2E_BASE_URL=https://mymail.mymail-app.workers.dev npx playwright test e2e/launch-checklist.spec.ts
+E2E_ALLOW_REMOTE=1 E2E_BASE_URL=https://mymail.mymail-app.workers.dev npx playwright test e2e/launch-checklist.spec.ts --grep 'real 404|robots|sitemap'
 curl -s https://mymail.mymail-app.workers.dev/api/config     # "release" must equal $RELEASE
 ```
 

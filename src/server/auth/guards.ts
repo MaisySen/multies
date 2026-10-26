@@ -1,4 +1,5 @@
 import type { MiddlewareHandler } from "hono";
+import { authHeaders } from "../lib/host-cookie";
 import { and, eq } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "../context";
 import { forbidden, HttpError, unauthorized } from "../lib/errors";
@@ -22,7 +23,9 @@ import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
  * workspace yet (a brand-new or social sign-in) gets a personal one here, so every
  * sign-in path ends in the same place.
  */
-export async function resolveAuth(deps: Deps, headers: Headers): Promise<AuthContext | null> {
+export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<AuthContext | null> {
+  // R32: the WebSocket upgrades reach here without the app's cookie middleware; read the __Host- cookie too.
+  const headers = authHeaders(rawHeaders, deps.config.mode === "production");
   const getSession = () => authFor(deps).api.getSession({ headers });
   let s: Awaited<ReturnType<typeof getSession>>;
   try {

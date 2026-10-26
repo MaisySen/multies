@@ -42,6 +42,21 @@ export function rewriteRequestCookie(header: string | null): { header: string | 
   return { header: rest.map((p) => `${p.name}=${p.value}`).join("; "), legacyValue: null };
 }
 
+/**
+ * R32: the headers Better Auth should read for a request that did not pass through the app's middleware
+ * (the chat and docs WebSockets are upgraded by the entries before the app). Without this the browser's
+ * __Host- cookie was unknown to Better Auth there, and both sockets answered 401 in production.
+ */
+export function authHeaders(headers: Headers, enabled: boolean): Headers {
+  if (!enabled) return headers;
+  const cookie = headers.get("cookie");
+  const { header } = rewriteRequestCookie(cookie);
+  if (header === cookie) return headers;
+  const out = new Headers(headers);
+  if (header) out.set("cookie", header); else out.delete("cookie");
+  return out;
+}
+
 /** One Set-Cookie line, renamed to the __Host- form when it is the session cookie. */
 export function rewriteSetCookie(line: string): string {
   if (!line.startsWith(`${SECURE_SESSION_COOKIE}=`)) return line;

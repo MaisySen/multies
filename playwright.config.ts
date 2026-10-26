@@ -11,7 +11,8 @@ const IDP_PORT = process.env.E2E_IDP_PORT ?? "8790";
 // E2E_BASE_URL needs E2E_ALLOW_REMOTE=1 and a --grep, never the whole suite. Confirm a deploy with
 // one GET of /api/config instead (docs/runbooks/d1-daily-limits.md).
 const remote = process.env.E2E_BASE_URL && !/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(process.env.E2E_BASE_URL);
-if (remote) {
+// Playwright loads this file again in each worker, without the CLI flags; the runner already checked.
+if (remote && !process.env.TEST_WORKER_INDEX) {
   const grep = process.argv.some((a) => a === "--grep" || a === "-g" || a.startsWith("--grep="));
   if (process.env.E2E_ALLOW_REMOTE !== "1" || !grep) {
     throw new Error(`Refusing to run E2E against ${process.env.E2E_BASE_URL}: it writes to a shared D1 database with a daily cap. Run locally, or set E2E_ALLOW_REMOTE=1 and pass --grep for one spec.`);

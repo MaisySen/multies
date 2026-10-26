@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
-import { HOST_SESSION_COOKIE, SECURE_SESSION_COOKIE, hostSessionCookie, rewriteRequestCookie, rewriteSetCookie } from "../src/server/lib/host-cookie";
+import { HOST_SESSION_COOKIE, SECURE_SESSION_COOKIE, authHeaders, hostSessionCookie, rewriteRequestCookie, rewriteSetCookie } from "../src/server/lib/host-cookie";
 
 function app(enabled = true) {
   const a = new Hono();
@@ -58,5 +58,13 @@ describe("R31 __Host- session cookie", () => {
     expect(res.headers.getSetCookie()).toEqual([]);
     const dev = await app(false).request("/login", { method: "POST" });
     expect(dev.headers.getSetCookie().some((s) => s.startsWith(`${SECURE_SESSION_COOKIE}=tok`))).toBe(true);
+  });
+  it("R32: requests that skip the middleware (the chat and docs sockets) read the __Host- cookie too", () => {
+    const h = new Headers({ cookie: `${HOST_SESSION_COOKIE}=new.sig`, origin: "https://multies.si" });
+    expect(authHeaders(h, true).get("cookie")).toBe(`${SECURE_SESSION_COOKIE}=new.sig`);
+    expect(authHeaders(h, true).get("origin")).toBe("https://multies.si");
+    expect(authHeaders(h, false)).toBe(h);
+    const done = new Headers({ cookie: `${SECURE_SESSION_COOKIE}=x` });
+    expect(authHeaders(done, true)).toBe(done);
   });
 });
