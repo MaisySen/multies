@@ -21,6 +21,7 @@ import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from ".
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, isAgentLike } from "./data";
 import { tone } from "@/web/components/app-bits";
 import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
+import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
@@ -116,6 +117,7 @@ export function TasksPage() {
         {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" />Fields</Button>}
         {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" />Guests</Button>}
         {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><Mountain className="h-4 w-4" />Epics</Button>}
+        {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
         <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Project</Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">

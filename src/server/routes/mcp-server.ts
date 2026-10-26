@@ -56,6 +56,7 @@ import { registerSavedViewTools } from "./mcp-views";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
 import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
+import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -254,6 +255,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
   registerR26CommentTools(server, deps, actor, writable, tool); // R26 (MB-77): comments and chat messages
   registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
+  registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
   return server;
 }
 
