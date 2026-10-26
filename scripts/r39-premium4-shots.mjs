@@ -7,7 +7,7 @@ const base = process.env.BASE || "http://localhost:8977";
 const PAGES = [
   ["billing", "/app/settings/billing"], ["notifications", "/app/notifications"], ["domain", "DOMAIN"],
   ["domains", "/app/domains"], ["mailboxes", "/app/mailboxes"], ["deliverability", "/app/deliverability"],
-  ["team", "/app/settings/team"], ["connections", "/app/settings/connections"], ["developers", "/app/settings/developers"], ["notification-settings", "/app/settings/notifications"],
+  ["team", "/app/settings/team"], ["connections", "/app/settings/connections"], ["developers", "/app/settings/developers"], ["notification-settings", "/app/settings/notifications"], ["domain-pending", "PENDING"],
 ].filter(([n]) => !only || only.split(",").includes(n));
 const browser = await chromium.launch();
 try {
@@ -24,6 +24,19 @@ try {
       let domainId = null;
       for (const [name, p0] of PAGES) {
         let p = p0;
+        if (p === "PENDING") {
+          // A freshly added domain shows the stepper on step 2 and Pending pills (skipped when the plan has no room).
+          const origin = { headers: { origin: base } };
+          // Demo workspaces add add-ons freely and nothing is charged: room for a second domain.
+          const cur = await (await page.request.get(base + "/api/billing")).json().catch(() => ({}));
+          const addons = { ...(cur.addons ?? {}), domain: (cur.addons?.domain ?? 0) + 1 };
+          const add = await page.request.post(base + "/api/billing/addons", { ...origin, data: { addons } }).catch(() => null);
+          if (add && !add.ok()) console.log("add-on refused:", add.status(), (await add.text()).slice(0, 160));
+          let r = await page.request.post(base + "/api/domains", { ...origin, data: { name: `shots-${tag}-${scheme}.example` } });
+          const j = await r.json().catch(() => ({}));
+          if (!j.domain?.id) console.log("pending domain skipped:", r.status(), JSON.stringify(j).slice(0, 200));
+          if (!j.domain?.id) continue; p = `/app/domains/${j.domain.id}`; r = null;
+        }
         if (p === "DOMAIN") {
           if (!domainId) { const r = await page.request.get(base + "/api/domains"); const j = await r.json().catch(() => ({})); domainId = (j.domains ?? [])[0]?.id ?? null; }
           if (!domainId) continue; p = `/app/domains/${domainId}`;
