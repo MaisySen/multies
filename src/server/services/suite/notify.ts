@@ -3,12 +3,13 @@
  * mail, in one place per person. Each person chooses per category whether it shows in the inbox
  * and whether it buzzes their phone. A push carries only an event type and an id.
  */
-import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { notificationPrefs, notifications } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { sortableId } from "./common";
 import { pushToUsers } from "./push";
+import { inIds } from "../../lib/sql-chunks";
 
 export const CATEGORIES = ["mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -32,8 +33,6 @@ export const TYPE_CATEGORY: Record<string, Category> = {
   "goal.updated": "status",
   "task.recurred": "status",
   "thread_mention": "mention",
-  "task.watch_comment": "comment", // R27: watchers
-  "task.watch_status": "status", // R27: watchers
 };
 export const categoryOf = (type: string): Category => TYPE_CATEGORY[type] ?? "status";
 const typesOf = (c: Category) => Object.entries(TYPE_CATEGORY).filter(([, v]) => v === c).map(([k]) => k);
@@ -95,7 +94,7 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
     if (!(CATEGORIES as readonly string[]).includes(opts.category)) throw new HttpError(422, "validation_failed", `Unknown category: ${opts.category}`);
     const c = opts.category as Category;
     // "status" also holds every type not listed anywhere else.
-    typeFilter = c === "status" ? sql`${notifications.type} not in (${sql.join(Object.keys(TYPE_CATEGORY).filter((t) => TYPE_CATEGORY[t] !== "status").map((t) => sql`${t}`), sql`, `)})` : inArray(notifications.type, typesOf(c));
+    typeFilter = c === "status" ? sql`${notifications.type} not in (${sql.join(Object.keys(TYPE_CATEGORY).filter((t) => TYPE_CATEGORY[t] !== "status").map((t) => sql`${t}`), sql`, `)})` : inIds(notifications.type, typesOf(c));
   }
   const base = and(eq(notifications.orgId, orgId), eq(notifications.userId, userId));
   const rows = await deps.db.select().from(notifications)
@@ -111,7 +110,7 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
   const channelOf = new Map<string, string>();
   if (chatIds.length) {
     const { chatMessages } = await import("../../db/schema");
-    for (const m of await deps.db.select({ id: chatMessages.id, channelId: chatMessages.channelId }).from(chatMessages).where(inArray(chatMessages.id, chatIds))) channelOf.set(m.id, m.channelId);
+    for (const m of await deps.db.select({ id: chatMessages.id, channelId: chatMessages.channelId }).from(chatMessages).where(inIds(chatMessages.id, chatIds))) channelOf.set(m.id, m.channelId);
   }
   return {
     notifications: page.map((r) => ({
@@ -126,10 +125,10 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
 export async function markNotificationsRead(deps: Deps, orgId: string, userId: string, ids?: string[], category?: string) {
   const now = deps.now();
   let filter;
-  if (ids) filter = inArray(notifications.id, ids.length ? ids : ["-"]);
+  if (ids) filter = inIds(notifications.id, ids);
   else if (category && category !== "all") {
     if (!(CATEGORIES as readonly string[]).includes(category)) throw new HttpError(422, "validation_failed", `Unknown category: ${category}`);
-    filter = inArray(notifications.type, typesOf(category as Category).length ? typesOf(category as Category) : ["-"]);
+    filter = inIds(notifications.type, typesOf(category as Category).length ? typesOf(category as Category) : ["-"]);
   }
   const res = await deps.db.update(notifications).set({ readAt: now })
     .where(and(eq(notifications.orgId, orgId), eq(notifications.userId, userId), isNull(notifications.readAt), filter))

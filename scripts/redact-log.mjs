@@ -9,6 +9,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline";
+import { parseCredentials, secretTokens } from "./creds.mjs";
 
 const NAME = /pass(word)?|secret|token|authorization|cookie|api[_-]?key|private[_-]?key|dsn|cvc/i;
 const MASK = "[masked]";
@@ -33,7 +34,7 @@ export function knownValues(root = process.cwd(), env = process.env) {
       if (f === ".dev.vars" || f.startsWith(".env") || f === "preview.env.local" || f === "CREDENTIALS.local.md") files.push(path.join(dir, f));
     }
   }
-  const vals = files.flatMap((f) => { try { return valuesFromText(readFileSync(f, "utf8")); } catch { return []; } });
+  const vals = files.flatMap((f) => { try { const t = readFileSync(f, "utf8"); return [...valuesFromText(t), ...secretTokens(parseCredentials(t), 6)]; } catch { return []; } });
   for (const [k, v] of Object.entries(env)) if (NAME.test(k) && typeof v === "string" && v.length >= 6) vals.push(v);
   return [...new Set(vals)].sort((a, b) => b.length - a.length);
 }

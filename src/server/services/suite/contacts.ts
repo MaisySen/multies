@@ -3,11 +3,12 @@
  * Every correspondent outside the workspace becomes a contact the first time mail
  * goes either way; work domains become companies. Free mail domains never do.
  */
-import { and, asc, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { aliases, appSettings, companies, contacts, deals, domains, mailboxes, messages, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, scopeOf, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
+import { inIds } from "../../lib/sql-chunks";
 
 const FREE_MAIL = new Set([
   "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "hotmail.com.au", "live.com", "live.com.au", "msn.com", "yahoo.com", "yahoo.com.au", "ymail.com",
@@ -164,7 +165,7 @@ export type Contact = ReturnType<typeof presentContact>;
 async function companyMap(deps: Deps, ids: (string | null)[]) {
   const list = [...new Set(ids.filter(Boolean) as string[])];
   if (!list.length) return new Map<string, CompanyRow>();
-  return new Map((await deps.db.select().from(companies).where(inArray(companies.id, list))).map((c) => [c.id, c]));
+  return new Map((await deps.db.select().from(companies).where(inIds(companies.id, list))).map((c) => [c.id, c]));
 }
 
 export async function listContacts(deps: Deps, orgId: string, q: { q?: string; companyId?: string; limit?: number; offset?: number } = {}) {
@@ -183,7 +184,7 @@ export async function listContacts(deps: Deps, orgId: string, q: { q?: string; c
 
 export async function contactsByIds(deps: Deps, orgId: string, ids: string[]) {
   if (!ids.length) return [];
-  const rows = await deps.db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.id, ids), isNull(contacts.deletedAt)));
+  const rows = await deps.db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inIds(contacts.id, ids), isNull(contacts.deletedAt)));
   const cm = await companyMap(deps, rows.map((r) => r.companyId));
   return rows.map((r) => presentContact(r, r.companyId ? cm.get(r.companyId) : null));
 }
@@ -205,7 +206,7 @@ async function threadsWith(deps: Deps, orgId: string, email: string, scope: stri
   const rows = await deps.db.select({ threadId: messages.threadId, subject: messages.subject, date: messages.date, folder: messages.folder, mailboxId: messages.mailboxId, snippet: messages.snippet, id: messages.id })
     .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.folder} not in ('drafts','trash')`,
       or(eq(sql`lower(${messages.fromAddress})`, email), like(sql`lower(${messages.to})`, pattern), like(sql`lower(${messages.cc})`, pattern)),
-      scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+      scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(desc(messages.date)).limit(400);
   const byThread = new Map<string, { threadId: string; subject: string; lastAt: Date; firstAt: Date; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string; mailboxId: string }>();
   for (const r of rows) {
@@ -228,7 +229,7 @@ export async function contactDetail(deps: Deps, actor: SuiteActor & { role?: "ow
     timeline(deps, actor.orgId, "contact", c.id, 50),
   ]);
   const threadIds = threads.map((t) => t.threadId);
-  const fromThreads = threadIds.length ? await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.threadId, threadIds.slice(0, 200)), isNull(tasks.deletedAt))) : [];
+  const fromThreads = threadIds.length ? await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.threadId, threadIds.slice(0, 200)), isNull(tasks.deletedAt))) : [];
   const taskIds = [...new Set([...linkedTaskIds, ...fromThreads.map((t) => t.id)])];
   const all = taskIds.length ? (await listTasks(deps, actor, { includeSubtasks: true, limit: 1000 })).filter((t) => taskIds.includes(t.id)) : [];
   // One merged timeline: threads, tasks and deals, newest first.

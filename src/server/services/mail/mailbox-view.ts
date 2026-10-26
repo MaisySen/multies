@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql, type SQL } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxes, mailConnections, messages } from "../../db/schema";
 import { notFound } from "../../lib/errors";
 import type { Address, Folder } from "@/shared/mail";
+import { inIds } from "../../lib/sql-chunks";
 
 type Row = typeof messages.$inferSelect;
 
@@ -35,7 +36,7 @@ export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[]
 
 /** `scope` limits results to these mailbox ids (a member's grants); null means all. */
 export type Scope = string[] | null;
-const inScope = (scope: Scope) => (scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined);
+const inScope = (scope: Scope) => (scope ? inIds(messages.mailboxId, scope) : undefined);
 
 export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null) {
   const boxes = (await db.select().from(mailboxes).where(eq(mailboxes.orgId, orgId)).orderBy(mailboxes.address))
@@ -97,7 +98,7 @@ export async function getThread(db: DB, orgId: string, m: Row) {
     .where(and(eq(messages.orgId, orgId), eq(messages.mailboxId, m.mailboxId), eq(messages.threadId, m.threadId), sql`${messages.folder} <> 'drafts'`))
     .orderBy(messages.date);
   const atts = rows.length
-    ? await db.select().from(attachments).where(inArray(attachments.messageId, rows.map((r) => r.id)))
+    ? await db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)))
     : [];
   return rows.map((r) => presentMessage(r, atts.filter((a) => a.messageId === r.id)));
 }

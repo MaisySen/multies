@@ -1684,16 +1684,3 @@ export const taskChecklistItems = sqliteTable("task_checklist_items", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);
-
-/**
- * R27: people watching a task (Jira watchers, Asana followers, ClickUp watchers). A watcher hears about new
- * comments and status changes on the task. The creator, the assignee and anyone who comments start watching on
- * their own (source "auto"); anyone can watch or stop watching by hand. WITHOUT ROWID, keyed (task_id, user_id).
- */
-export const taskWatchers = sqliteTable("task_watchers", {
-  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-  userId: text("user_id").notNull(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
-  createdAt: createdAt(),
-}, (t) => [primaryKey({ columns: [t.taskId, t.userId] })]);

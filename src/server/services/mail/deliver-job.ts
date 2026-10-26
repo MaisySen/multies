@@ -5,13 +5,14 @@
  * the delivery is marked failed and the sender gets a non-delivery notice in their
  * inbox, as a mail server would send.
  */
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { attachments, deliveries, mailboxes, messages } from "../../db/schema";
 import { attachmentBytes } from "./store";
 import { PermanentJobError, RetryableJobError, registerJob } from "../jobs";
 import { deliverInbound } from "./delivery";
 import { OutboundError } from "./outbound";
+import { inIds } from "../../lib/sql-chunks";
 
 /** Attachments to send, from the database or the body store. */
 async function outboundAttachments(atts: { filename: string; contentType: string; contentB64: string | null; storageKey: string | null }[], deps: Deps) {
@@ -69,7 +70,7 @@ export async function runDeliver(deps: Deps, payload: unknown) {
       attachments: await outboundAttachments(atts, deps),
     });
     await deps.db.update(deliveries).set({ status: res.status, provider: res.provider, providerMessageId: res.providerMessageId ?? null, detail: res.detail ?? "Delivered after a retry." })
-      .where(and(eq(deliveries.messageId, m.id), eq(deliveries.status, "delayed"), inArray(deliveries.toAddress, all(p))));
+      .where(and(eq(deliveries.messageId, m.id), eq(deliveries.status, "delayed"), inIds(deliveries.toAddress, all(p))));
   } catch (err) {
     if (err instanceof OutboundError && !err.retryable) throw new PermanentJobError(err.message);
     throw new RetryableJobError(err instanceof Error ? err.message : "Send failed");
@@ -80,7 +81,7 @@ export async function onDeliverDead(deps: Deps, payload: unknown, _job: unknown,
   const p = payload as DeliverJobPayload;
   const m = await deps.db.select().from(messages).where(eq(messages.id, p.messageId)).get();
   await deps.db.update(deliveries).set({ status: "failed", detail: `Gave up after retries: ${error}` })
-    .where(and(eq(deliveries.messageId, p.messageId), eq(deliveries.status, "delayed"), inArray(deliveries.toAddress, all(p))));
+    .where(and(eq(deliveries.messageId, p.messageId), eq(deliveries.status, "delayed"), inIds(deliveries.toAddress, all(p))));
   if (!m) return;
   const mb = await deps.db.select().from(mailboxes).where(eq(mailboxes.id, m.mailboxId)).get();
   if (!mb) return;

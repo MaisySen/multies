@@ -14,7 +14,7 @@ import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
-import { inChunks, SQL_IN_CHUNK } from "../../lib/sql-chunks";
+import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
 
 export type Category = "todo" | "doing" | "done";
@@ -61,7 +61,7 @@ export async function listProjects(deps: Deps, orgId: string, opts: { includeArc
   if (!ps.length) return [];
   const ids = ps.map((p) => p.id);
   const [sts, counts] = await Promise.all([
-    deps.db.select().from(projectStatuses).where(and(inArray(projectStatuses.projectId, ids), isNull(projectStatuses.deletedAt))),
+    deps.db.select().from(projectStatuses).where(and(inIds(projectStatuses.projectId, ids), isNull(projectStatuses.deletedAt))),
     deps.db.select({ projectId: tasks.projectId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
       .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId, tasks.status),
   ]);
@@ -206,14 +206,14 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     inChunks(agentIds, (ids) => deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, ids), eq(agents.orgId, orgId)))),
     // D1 allows 100 bound variables per query: IN lists go in chunks of SQL_IN_CHUNK (R25, Sentry MYMAIL-API-V).
     inChunks(parentIds, (ids) => deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
-      .where(and(eq(tasks.orgId, orgId), inArray(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
+      .where(and(eq(tasks.orgId, orgId), inIds(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
     inChunks(parentIds, (ids) => deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
-      .where(and(inArray(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
+      .where(and(inIds(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),
     valuesForTasks(deps, orgId, parentIds),
     // R26 (MB-85): checklist counts for the "3/5" chip on cards.
     inChunks(parentIds, (ids) => deps.db.select({ taskId: taskChecklistItems.taskId, total: sql<number>`count(*)`, done: sql<number>`coalesce(sum(${taskChecklistItems.done}), 0)` }).from(taskChecklistItems)
-      .where(inArray(taskChecklistItems.taskId, ids)).groupBy(taskChecklistItems.taskId)),
+      .where(inIds(taskChecklistItems.taskId, ids)).groupBy(taskChecklistItems.taskId)),
   ]);
   const subtasks = new Map<string, { total: number; done: number }>();
   for (const s of subs) {
@@ -474,8 +474,6 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     entityType: "task", entityId: id, op: "create", verb: source.threadId ? "created_from_email" : "created",
     data: { title, ref: task.ref, ...(source.subject ? { subject: source.subject } : {}) }, event: "task.created", eventData: { task },
   });
-  // R27: the creator and a member assignee start watching (agents and automations don't watch).
-  if (!triage) { const w = await import("./task-watchers-r27"); await w.autoWatch(deps, actor.orgId, id, [w.memberOf(actor), task.assignee?.type === "member" ? task.assignee.id : null]); }
   if (triage) {
     const { emitEvent } = await import("../developer/webhooks");
     const by = actorOf(actor);
@@ -590,12 +588,6 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     const { notify } = await import("./notify");
     await notify(deps, actor.orgId, task.assignee.id, { type: "task.assigned", entityType: "task", entityId: t.id, title: `${task.ref} assigned to you: ${task.title}`, actorName: actor.name || actor.email });
   }
-  // R27: a new member assignee starts watching; watchers hear about a status change (not the person who made it).
-  if ((changed.assignee && task.assignee?.type === "member") || statusChanged) {
-    const w = await import("./task-watchers-r27");
-    if (changed.assignee && task.assignee?.type === "member") await w.autoWatch(deps, actor.orgId, t.id, [task.assignee.id]);
-    if (statusChanged) await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_status", title: `${task.ref} moved to ${task.statusName}: ${task.title}`, actorName: actor.name || actor.email }, [w.memberOf(actor)]);
-  }
   let out = task;
   if (statusChanged && fromCategory !== "done" && task.status === "done" && task.repeat) {
     await spawnRepeat(deps, actor, t.id);
@@ -671,11 +663,6 @@ export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string,
   if (t.assigneeType === "member" && t.assigneeId && t.assigneeId !== actor.userId && !mentioned.includes(t.assigneeId)) {
     await notify(deps, actor.orgId, t.assigneeId, { type: "task.commented", entityType: "task", entityId: t.id, title: `New comment on ${t.title}`, actorName: actor.name || actor.email });
   }
-  // R27: watchers hear about the comment (not its author, nor anyone told above); the author starts watching.
-  const w = await import("./task-watchers-r27");
-  await w.notifyWatchers(deps, actor.orgId, t.id, { type: "task.watch_comment", title: `${actor.name || actor.email} commented on ${t.title}`, actorName: actor.name || actor.email },
-    [w.memberOf(actor), ...mentioned, t.assigneeType === "member" ? t.assigneeId : null]);
-  await w.autoWatch(deps, actor.orgId, t.id, [w.memberOf(actor)]);
   return comment;
 }
 
@@ -707,7 +694,7 @@ export async function listComments(deps: Deps, orgId: string, taskId: string) {
 export async function threadForTask(deps: Deps, actor: SuiteActor, threadId: string) {
   const scope = await scopeOf(deps, actor);
   const rows = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName, subject: messages.subject, text: messages.text, date: messages.date, sentByAgentId: messages.sentByAgentId })
-    .from(messages).where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"), scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+    .from(messages).where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), ne(messages.folder, "drafts"), scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(asc(messages.date)).limit(200);
   return rows.map((m) => ({
     id: m.id, mailboxId: m.mailboxId, direction: m.folder === "sent" ? "outbound" as const : "inbound" as const,
@@ -730,7 +717,7 @@ export async function taskDetail(deps: Deps, actor: SuiteActor, idOrRef: string)
     import("./time").then(({ taskTime }) => taskTime(deps, actor, task.id)),
     listFields(deps, actor.orgId, task.projectId),
   ]);
-  const docRows = linkedDocs.length ? await deps.db.select({ id: docs.id, title: docs.title, updatedAt: docs.updatedAt }).from(docs).where(and(inArray(docs.id, linkedDocs), isNull(docs.deletedAt))) : [];
+  const docRows = linkedDocs.length ? await deps.db.select({ id: docs.id, title: docs.title, updatedAt: docs.updatedAt }).from(docs).where(and(inIds(docs.id, linkedDocs), isNull(docs.deletedAt))) : [];
   const { contactsByIds } = await import("./contacts");
   return {
     task, subtasks, comments, thread, activity: history,
@@ -765,7 +752,7 @@ export async function linked(deps: Deps, orgId: string, type: string, id: string
 
 async function tasksByIds(deps: Deps, orgId: string, ids: string[]) {
   if (!ids.length) return [];
-  const rows = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, ids.slice(0, 500)), isNull(tasks.deletedAt)));
+  const rows = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, ids.slice(0, 500)), isNull(tasks.deletedAt)));
   const l = await lookups(deps, orgId, rows);
   return rows.map((r) => presentTask(r, l));
 }
@@ -776,7 +763,7 @@ export async function dependencyLinks(deps: Deps, orgId: string, projectId?: str
     .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "task"), eq(entityLinks.toType, "task"), eq(entityLinks.relation, "blocks"))).limit(5000);
   if (!projectId || !rows.length) return rows;
   const ids = [...new Set(rows.flatMap((r) => [r.from, r.to]))];
-  const inProject = new Set((await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.projectId, projectId), inArray(tasks.id, ids.slice(0, 900))))).map((t) => t.id));
+  const inProject = new Set((await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.projectId, projectId), inIds(tasks.id, ids.slice(0, 900))))).map((t) => t.id));
   return rows.filter((r) => inProject.has(r.from) || inProject.has(r.to));
 }
 

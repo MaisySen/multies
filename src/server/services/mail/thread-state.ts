@@ -11,6 +11,7 @@ import { mailboxAccess, mailThreadState, members, messages, users } from "../../
 import { badRequest, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
+import { inIds } from "../../lib/sql-chunks";
 
 export const THREAD_STATUSES = ["open", "waiting", "done"] as const;
 export type ThreadStatus = (typeof THREAD_STATUSES)[number];
@@ -81,7 +82,7 @@ async function assertAssignable(deps: Deps, orgId: string, userId: string, mailb
   if (!m) throw badRequest("That person isn't in this workspace.");
   if (m.role !== "member") return;
   const grant = await deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess)
-    .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.userId, userId), inArray(mailboxAccess.mailboxId, mailboxIds))).limit(1).get();
+    .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.userId, userId), inIds(mailboxAccess.mailboxId, mailboxIds))).limit(1).get();
   if (!grant) throw badRequest("That person can't open this thread's mailbox. Give them access to it first.");
 }
 
@@ -91,7 +92,7 @@ export async function assignableMembers(deps: Deps, actor: SuiteActor, threadId:
   const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email, role: members.role, kind: members.kind }).from(members).innerJoin(users, eq(users.id, members.userId))
     .where(eq(members.organizationId, actor.orgId));
   const granted = new Set((await deps.db.select({ userId: mailboxAccess.userId }).from(mailboxAccess)
-    .where(and(eq(mailboxAccess.orgId, actor.orgId), inArray(mailboxAccess.mailboxId, t.mailboxIds)))).map((r) => r.userId));
+    .where(and(eq(mailboxAccess.orgId, actor.orgId), inIds(mailboxAccess.mailboxId, t.mailboxIds)))).map((r) => r.userId));
   return rows.filter((r) => r.role !== "member" || granted.has(r.id)).map((r) => ({ id: r.id, name: r.name, email: r.email, agent: r.kind === "agent" }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -162,7 +163,7 @@ export async function myAssignedThreads(deps: Deps, actor: SuiteActor) {
   if (!rows.length) return [];
   const scope = await scopeOf(deps, actor);
   const msgs = await deps.db.select({ threadId: messages.threadId, subject: messages.subject, fromName: messages.fromName, fromAddress: messages.fromAddress, folder: messages.folder, date: messages.date }).from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), inArray(messages.threadId, rows.map((r) => r.threadId)), sql`${messages.folder} not in ('trash', 'drafts')`, scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+    .where(and(eq(messages.orgId, actor.orgId), inIds(messages.threadId, rows.map((r) => r.threadId)), sql`${messages.folder} not in ('trash', 'drafts')`, scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(desc(messages.date)).limit(1000);
   const byThread = new Map<string, typeof msgs>();
   for (const m of msgs) byThread.set(m.threadId, [...(byThread.get(m.threadId) ?? []), m]);
@@ -207,7 +208,7 @@ export async function replyStats(deps: Deps, actor: SuiteActor, q: { mailboxId?:
   const cap = Math.min(Math.max(q.cap ?? STATS_THREAD_CAP, 1), STATS_THREAD_CAP);
   const empty = { from: from.toISOString(), to: to.toISOString(), groupBy, hours: "calendar" as const, sampled: false, threadsScanned: 0, rows: [] as ReplyStatsRow[], total: null as ReplyStatsRow | null };
   if (scope && !scope.length) return empty;
-  const boxCond = q.mailboxId ? sql`and m.mailbox_id = ${q.mailboxId}` : scope ? sql`and m.mailbox_id in (${sql.join(scope.map((s) => sql`${s}`), sql`, `)})` : sql``;
+  const boxCond = q.mailboxId ? sql`and m.mailbox_id = ${q.mailboxId}` : scope ? sql`and ${inIds(sql.raw("m.mailbox_id"), scope)}` : sql``;
   const rows = await deps.db.all<{ thread_id: string; mailbox_id: string; first_in: number; first_out: number | null; out_user: string | null; out_agent: string | null; done_at: number | null; status: string | null }>(sql`
     with firsts as (
       select m.thread_id, m.mailbox_id, min(m.date) as first_in from ${messages} m

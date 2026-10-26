@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 141 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 137 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -445,14 +445,3 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | Tool | What it does |
 |---|---|
 | `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |
-
-### Task watchers and duplicate (R27)
-
-| Tool | What it does |
-|---|---|
-| `list_task_watchers` | Who watches a task and whether you do (read only keys can call it). Watchers hear about new comments and status changes |
-| `watch_task` | Start watching a task: you, or the member named by `userId` (an agent key must name one). One row; twice changes nothing |
-| `unwatch_task` | Stop watching a task: you, or the member named by `userId` |
-| `duplicate_task` | Copy a task (new number, first to-do status) with notes, assignee, priority, dates, labels, type, estimate, sprint, repeat rule and custom fields; by default also its subtasks (3 levels, 200 tasks) and checklist (unticked). Options: `title`, `projectId`, `subtasks`, `checklist`, `assignee`, `dependencies` |
-
-`search_tasks` also takes `is:watching` for the tasks you watch.

@@ -1,11 +1,12 @@
 /** Simple rich text docs (Tiptap JSON) linked to projects, tasks, threads or contacts. */
-import { and, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, desc, eq, isNull, like, or } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { contacts, deals, docs, entityLinks, messages, projects, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { link, linked } from "./tasks";
 import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
+import { inIds } from "../../lib/sql-chunks";
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
 interface PMNode { type?: string; text?: string; content?: PMNode[]; attrs?: Record<string, unknown> }
@@ -90,7 +91,7 @@ export async function listDocs(deps: Deps, orgId: string, q: { q?: string; proje
   if (q.linkedTo) ids = await linked(deps, orgId, q.linkedTo.type, q.linkedTo.id, "doc");
   if (ids && !ids.length) return [];
   const rows = await deps.db.select().from(docs).where(and(eq(docs.orgId, orgId), isNull(docs.deletedAt),
-    q.projectId ? eq(docs.projectId, q.projectId) : undefined, ids ? inArray(docs.id, ids) : undefined,
+    q.projectId ? eq(docs.projectId, q.projectId) : undefined, ids ? inIds(docs.id, ids) : undefined,
     q.q ? or(like(docs.title, `%${q.q}%`), like(docs.plainText, `%${q.q}%`)) : undefined)).orderBy(desc(docs.updatedAt)).limit(200);
   return rows.map((d) => presentDoc(d));
 }
