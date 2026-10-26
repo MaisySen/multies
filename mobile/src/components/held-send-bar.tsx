@@ -17,7 +17,7 @@ export function HeldSendBar() {
   const path = usePathname();
   if (!items.length) return null;
   // Above the tab bar on the tab screens, at the bottom edge elsewhere.
-  const onTabs = ["/inbox", "/chat", "/approvals", "/tasks", "/settings"].includes(path);
+  const onTabs = ["/today", "/inbox", "/chat", "/approvals", "/tasks", "/settings"].includes(path);
   return (
     <View pointerEvents="box-none" style={{ position: "absolute", left: space.md, right: space.md, bottom: insets.bottom + (onTabs ? 58 : space.md), gap: space.sm }}>
       {items.map((it) => <HeldRow key={it.hold.id} item={it} />)}

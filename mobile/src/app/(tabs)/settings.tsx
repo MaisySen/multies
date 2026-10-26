@@ -66,26 +66,26 @@ export default function Settings() {
       </Card>
 
       <SectionTitle>Workspace</SectionTitle>
-      <Row icon="briefcase" label="Workspace" value={me?.organization?.name} />
-      <Row icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
-      <Row icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
-      <Row icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
-      <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
-      <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
-      <Row icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
-      <Row icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
-      <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
+      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} />
+      <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
+      <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
+      <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
+      <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
+      <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
+      <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
+      <Row tile="purple" icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
+      <Row tile="gray" icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
 
       <SectionTitle>Notifications</SectionTitle>
-      <Row icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
-      <Row icon="sliders" label="Notification settings" onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
-      <Row icon="bell" label={allowed ? "Notifications allowed" : "Turn on notifications"} value={allowed ? "On" : undefined} onPress={turnOnPush} testID="push" />
+      <Row tile="red" icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />
+      <Row tile="red" icon="sliders" label="Notification settings" onPress={() => router.push("/notification-settings")} testID="notification-settings-link" />
+      <Row tile="red" icon="bell" label={allowed ? "Notifications allowed" : "Turn on notifications"} value={allowed ? "On" : undefined} onPress={turnOnPush} testID="push" />
       {push?.kind === "allowed" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.note}</Text> : null}
       {push?.kind === "unsupported" ? <Text style={[font.tiny, { marginHorizontal: space.lg }]}>{push.reason}</Text> : null}
 
       <SectionTitle>This phone</SectionTitle>
-      <Row icon="globe" label="Language and region" value={`English (Australia)${locale?.regionCode && locale.regionCode !== "AU" ? `, phone set to ${locale.regionCode}` : ""}`} />
-      <Row icon="download" label="Clear saved mail" onPress={clearCache} />
+      <Row tile="blue" icon="globe" label="Language and region" value={`English (Australia)${locale?.regionCode && locale.regionCode !== "AU" ? `, phone set to ${locale.regionCode}` : ""}`} />
+      <Row tile="gray" icon="download" label="Clear saved mail" onPress={clearCache} />
       <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.sm, gap: space.sm }} testID="undo-send-setting">
         <Text style={{ color: colors.fg, fontSize: 16 }} nativeID="undo-send-label">Undo send</Text>
         <Segmented label="Undo send window" value={String(undoSeconds)} onChange={(v) => setUndoSeconds(parseUndoSeconds(v))}
@@ -98,13 +98,13 @@ export default function Settings() {
       <UpdateRows />
 
       <SectionTitle>Help and legal</SectionTitle>
-      <Row icon="activity" label="Service status" onPress={() => open(LINKS.status)} />
-      <Row icon="lock" label="Privacy policy" onPress={() => open(LINKS.privacy)} />
-      <Row icon="file-text" label="Terms of service" onPress={() => open(LINKS.terms)} />
-      <Row icon="life-buoy" label="Contact support" onPress={() => open(LINKS.support)} />
+      <Row tile="green" icon="activity" label="Service status" onPress={() => open(LINKS.status)} />
+      <Row tile="blue" icon="lock" label="Privacy policy" onPress={() => open(LINKS.privacy)} />
+      <Row tile="gray" icon="file-text" label="Terms of service" onPress={() => open(LINKS.terms)} />
+      <Row tile="orange" icon="life-buoy" label="Contact support" onPress={() => open(LINKS.support)} />
 
       <SectionTitle>Account</SectionTitle>
-      <Row icon="log-out" label={mode === "sample" ? "Leave the sample workspace" : "Sign out"} onPress={confirmSignOut} testID="sign-out" />
+      <Row tile="gray" icon="log-out" label={mode === "sample" ? "Leave the sample workspace" : "Sign out"} onPress={confirmSignOut} testID="sign-out" />
       <Row icon="user-x" label="Delete my account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
 
       <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]} testID="app-version">

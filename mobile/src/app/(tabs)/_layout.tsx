@@ -4,9 +4,9 @@ import { Tabs } from "expo-router";
 import { Icon } from "@/components/ui";
 import { Platform } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
-import { keys, useApprovals, useChatUnread, useCounts, useNotificationCount, useOverview, useTasks } from "@/lib/queries";
-import { setAppBadge, taskBadgeCount } from "@/lib/badges";
-import { badgesFrom } from "@/lib/counts";
+import { keys, useApprovals } from "@/lib/queries";
+import { setAppBadge } from "@/lib/badges";
+import { useBadges } from "@/lib/use-badges";
 import { chrome } from "@/components/chrome";
 import { CommandSheet } from "@/components/command-sheet";
 import { SyncPill, useCommandQueueRunner } from "@/components/sync-pill";
@@ -18,18 +18,7 @@ import { colors } from "@/theme";
 
 export default function TabsLayout() {
   const pending = useApprovals("pending");
-  const overview = useOverview();
-  const chat = useChatUnread();
-  // R31: unread items in the Activity (triage) inbox.
-  const notif = useNotificationCount();
-  const mine = useTasks({ assignee: "me" });
-  // R34: one server call carries every badge count (GET /api/counts, ETag). Lists stay the fallback.
-  const counts = useCounts();
-  const b = badgesFrom(counts.data, {
-    inbox: overview.data?.reduce((n, m) => n + (m.folders.inbox?.unread ?? 0), 0) ?? 0,
-    chat: chat.data?.total ?? 0, mentions: chat.data?.mentions ?? 0,
-    activity: notif.data ?? 0, tasks: taskBadgeCount(mine.data), approvals: pending.data?.length ?? 0,
-  });
+  const b = useBadges();
   const unread = b.inbox, waiting = b.approvals, chatUnread = b.chat, chatMentions = b.mentions, activity = b.activity;
   const due = FEATURES.tasks ? b.tasks : 0;
   const iconTotal = b.icon;
@@ -73,8 +62,10 @@ export default function TabsLayout() {
       tabBarBadgeStyle: { backgroundColor: colors.bad, color: "#FFFFFF", fontWeight: "600", fontSize: 11 },
       sceneStyle: { backgroundColor: colors.bg },
     }}>
+      <Tabs.Screen name="today" options={{ title: "Today", tabBarIcon: ({ color, focused }) => <Icon name="today" size={25} filled={focused} color={color as string} />,
+        tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Today, ${waiting} approvals waiting` : "Today" }} />
       <Tabs.Screen name="inbox" options={{ title: "Inbox", tabBarIcon: ({ color, focused }) => <Icon name="inbox" size={25} filled={focused} color={color as string} />, tabBarBadge: unread || undefined, tabBarAccessibilityLabel: unread ? `Inbox, ${unread} unread` : "Inbox" }} />
-      <Tabs.Screen name="approvals" options={{ title: "Approvals", tabBarIcon: ({ color, focused }) => <Icon name="approvals" size={25} filled={focused} color={color as string} />, tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
+      <Tabs.Screen name="approvals" options={{ title: "Approvals", href: null, tabBarIcon: ({ color, focused }) => <Icon name="approvals" size={25} filled={focused} color={color as string} />, tabBarBadge: waiting || undefined, tabBarAccessibilityLabel: waiting ? `Approvals, ${waiting} waiting` : "Approvals" }} />
       <Tabs.Screen name="chat" options={{ title: "Chat", tabBarIcon: ({ color, focused }) => <Icon name="chat" size={25} filled={focused} color={color as string} />, tabBarBadge: chatUnread || undefined,
         tabBarAccessibilityLabel: chatUnread ? `Chat, ${chatUnread} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
       <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: ({ color, focused }) => <Icon name="bell" size={25} filled={focused} color={color as string} />, tabBarBadge: activity || undefined,

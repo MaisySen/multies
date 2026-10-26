@@ -8,6 +8,7 @@ import { initials } from "@/lib/format";
 import { useReduceMotion } from "@/lib/motion";
 import { Icon as PlatformIcon } from "./Icon";
 import type { IconName } from "./icons";
+import { artFor, EmptyIllustration, type EmptyArt } from "./empty-art";
 
 export type { IconName } from "./icons";
 
@@ -109,10 +110,12 @@ export function Avatar({ name, agent, size = 40 }: { name: string; agent?: boole
   );
 }
 
-export function EmptyState({ icon, title, body, action }: { icon: IconName; title: string; body?: string; action?: ReactNode }) {
+export function EmptyState({ icon, title, body, action, art }: { icon: IconName; title: string; body?: string; action?: ReactNode; art?: EmptyArt | null }) {
+  // R34: the main lists show a small illustration in the brand blue; other screens keep the icon disc.
+  const drawing = art === undefined ? artFor(icon) : art;
   return (
     <View style={styles.empty} accessible accessibilityLabel={`${title}. ${body ?? ""}`}>
-      <View style={styles.emptyIcon}><Icon name={icon} size={26} color={colors.brand} /></View>
+      {drawing ? <EmptyIllustration art={drawing} /> : <View style={styles.emptyIcon}><Icon name={icon} size={26} color={colors.brand} /></View>}
       <Text style={[font.heading, { textAlign: "center" }]}>{title}</Text>
       {body ? <Text style={[font.small, { textAlign: "center", maxWidth: 300 }]}>{body}</Text> : null}
       {action}
@@ -160,10 +163,19 @@ export function SectionTitle({ children }: { children: string }) {
   return <Text style={styles.section} accessibilityRole="header">{children}</Text>;
 }
 
-export function Row({ icon, label, value, onPress, danger, testID }: { icon: IconName; label: string; value?: string; onPress?: () => void; danger?: boolean; testID?: string }) {
+/** R34: iOS Settings style tile colours for Row's `tile`. Status colours stay for status only. */
+export const TILE = {
+  blue: "#007AFF", green: "#34C759", orange: "#FF9500", red: "#FF3B30", purple: "#AF52DE", indigo: "#5856D6",
+  teal: "#30B0C7", gray: "#8E8E93", pink: "#FF2D55", yellow: "#F5B400", brand: "#0071E3",
+} as const;
+export type TileColor = keyof typeof TILE;
+
+export function Row({ icon, label, value, onPress, danger, testID, tile }: { icon: IconName; label: string; value?: string; onPress?: () => void; danger?: boolean; testID?: string; tile?: TileColor }) {
   const content = (
     <>
-      <Icon name={icon} size={19} color={danger ? colors.bad : colors.muted} />
+      {tile ? (
+        <View style={[styles.tile, { backgroundColor: TILE[tile] }]} testID={testID ? `${testID}-tile` : undefined}><Icon name={icon} size={17} color="#FFFFFF" filled /></View>
+      ) : <Icon name={icon} size={19} color={danger ? colors.bad : colors.muted} />}
       <Text style={{ flex: 1, color: danger ? colors.bad : colors.fg, fontSize: 16 }}>{label}</Text>
       {value ? <Text style={{ color: colors.subtle, fontSize: 14, maxWidth: "50%" }} numberOfLines={1}>{value}</Text> : null}
       {onPress ? <Icon name="chevron-right" size={18} color={colors.subtle} /> : null}
@@ -273,6 +285,7 @@ export const styles = StyleSheet.create({
   badgeText: { fontSize: 12, fontWeight: "600" },
   avatar: { alignItems: "center", justifyContent: "center" },
   empty: { alignItems: "center", gap: space.md, paddingVertical: 56, paddingHorizontal: space.xl },
+  tile: { width: 29, height: 29, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   emptyIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.brandSoft, alignItems: "center", justifyContent: "center", marginBottom: space.xs },
   segmented: { flexDirection: "row", gap: 4, padding: 4, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface },
   segment: { flex: 1, minHeight: 38, borderRadius: 8, alignItems: "center", justifyContent: "center" },

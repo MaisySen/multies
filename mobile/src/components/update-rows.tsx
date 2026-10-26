@@ -23,9 +23,9 @@ export function UpdateRows() {
   return (
     <>
       <SectionTitle>Updates</SectionTitle>
-      <Row icon="refresh-cw" label="Check for updates" value={updateStatusLabel(state.status)} onPress={busy ? undefined : () => { void controller.checkNow(); }} testID="check-updates" />
+      <Row tile="green" icon="refresh-cw" label="Check for updates" value={updateStatusLabel(state.status)} onPress={busy ? undefined : () => { void controller.checkNow(); }} testID="check-updates" />
       {state.status === "ready" ? (
-        <Row icon="download" label="Restart to update" onPress={() => { void controller.restartNow(); }} testID="restart-to-update" />
+        <Row tile="blue" icon="download" label="Restart to update" onPress={() => { void controller.restartNow(); }} testID="restart-to-update" />
       ) : null}
     </>
   );
