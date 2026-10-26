@@ -11,7 +11,7 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
 import { contacts, dataMoves, docs, meetings, projectStatuses, projects, tasks } from "../../db/schema";
@@ -421,7 +421,7 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
     for (let i = 0; i < (ids ?? []).length; i += 90) {
       const part = ids!.slice(i, i + 90);
       // Essential writes: one delete per row; foreign keys remove comments, checklist items and field values.
-      const gone = await deps.db.delete(table).where(and(eq(table.orgId, actor.orgId), inArray(table.id, part))).returning({ id: table.id });
+      const gone = await deps.db.delete(table).where(and(eq(table.orgId, actor.orgId), inIds(table.id, part))).returning({ id: table.id });
       removed += gone.length;
     }
   };
