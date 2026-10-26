@@ -100,35 +100,6 @@ export function PageHeader({ title, description, actions, eyebrow }: { title: st
   );
 }
 
-/**
- * R33: one headline number. Label on top, a large tabular figure, an optional hint underneath and an icon chip,
- * the way Linear and Vercel dashboards set a stat. Tone colours the chip only, never the number.
- */
-export function StatTile({ label, value, hint, icon, tone = "neutral", className }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode; tone?: Tone; className?: string }) {
-  const chip: Record<Tone, string> = { neutral: "bg-fill text-muted", ok: "bg-ok-soft text-ok", warn: "bg-warn-soft text-warn", bad: "bg-bad-soft text-bad", brand: "bg-brand-soft text-brand-hover" };
-  return (
-    <Card className={cn("flex min-w-0 flex-col gap-3 p-4", className)}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[12.5px] font-medium text-muted">{label}</span>
-        {icon && <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg [&_svg]:h-3.5 [&_svg]:w-3.5", chip[tone])} aria-hidden>{icon}</span>}
-      </div>
-      <div className="text-[26px] font-semibold leading-none tracking-tight tabular-nums">{value}</div>
-      {hint && <div className="-mt-1 text-xs text-subtle">{hint}</div>}
-    </Card>
-  );
-}
-
-/** R33: the shared look for admin data tables: a quiet header band, roomy rows, a hover tint. */
-export const tableStyles = {
-  wrap: "overflow-x-auto rounded-xl border border-line",
-  table: "w-full text-sm",
-  head: "bg-fill/60 text-left text-[12px] font-medium text-muted",
-  th: "px-4 py-2.5 font-medium whitespace-nowrap",
-  body: "divide-y divide-line",
-  row: "transition-colors hover:bg-hover/50",
-  td: "px-4 py-3 align-middle",
-};
-
 export function Meter({ value, max, className, label }: { value: number; max: number; className?: string; label?: string }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (

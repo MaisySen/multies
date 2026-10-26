@@ -90,6 +90,10 @@ export function webPushPayload(e: WebPushEvent) {
     body: "Open in Multies",
     url: webPushUrl(e),
     tag: `${e.type.split(".")[0]}:${e.id}`.slice(0, 64),
+    // R33: the worker drops a push that reaches a sleeping browser after this long (seconds), and skips one
+    // for a page already open in front (src/web/sw/sw-routes.ts pushDecision).
+    sentAt: Date.now(),
+    ttl: 6 * 60 * 60,
   };
 }
 
@@ -106,7 +110,7 @@ export async function webPushToUsers(deps: Deps, orgId: string, userIds: string[
   const failed: { id: string; failures: number }[] = [];
   await Promise.all(subs.map(async (s) => {
     try {
-      const req = await buildWebPushRequest(s, payload, keys, { topic: payload.tag.replace(/[^A-Za-z0-9]/g, ""), urgency: "normal" });
+      const req = await buildWebPushRequest(s, payload, keys, { topic: payload.tag.replace(/[^A-Za-z0-9]/g, ""), urgency: "normal", ttl: payload.ttl });
       const res = await deps.fetch(req.url, { ...req.init, signal: AbortSignal.timeout(timeoutMs) });
       if (res.status === 404 || res.status === 410) gone.push(s.id);
       else if (res.ok) { if (s.failures > 0 || !s.lastOkAt || now.getTime() - s.lastOkAt.getTime() > LAST_OK_EVERY_MS) okStale.push(s.id); }

@@ -74,7 +74,7 @@ describe("service worker routes (R32)", () => {
     expect(clickTarget("/apples")).toBe("/app/notifications");
     expect(clickTarget(undefined)).toBe("/app/notifications");
     const n = notificationFor({ title: "Maya assigned you Q3 plan", url: "/app/tasks?task=t1", tag: "task:t1" });
-    expect(n).toEqual({ title: "Maya assigned you Q3 plan", options: { body: "Open in Multies", icon: "/icon-192.png", badge: "/favicon-32.png", tag: "task:t1", data: { url: "/app/tasks?task=t1" } } });
+    expect(n).toEqual({ title: "Maya assigned you Q3 plan", options: { body: "Open in Multies", icon: "/icon-192.png", badge: "/favicon-32.png", tag: "task:t1", renotify: false, data: { url: "/app/tasks?task=t1" } } });
     expect(notificationFor(null).title).toBe("Multies");
   });
 

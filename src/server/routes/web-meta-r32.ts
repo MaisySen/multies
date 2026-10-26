@@ -7,9 +7,10 @@
  */
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { LLMS_FULL_TXT, LLMS_TXT } from "../generated/llms.generated";
+import { DOCS_MD, LLMS_FULL_TXT, LLMS_TXT } from "../generated/llms.generated";
 
-export const WEB_META_PATHS = new Set(["/version.json", "/llms.txt", "/llms-full.txt"]);
+// R33: plus a Markdown copy of each docs page (/docs/api.md, /docs/mcp.md), generated with llms.txt.
+export const WEB_META_PATHS = new Set(["/version.json", "/llms.txt", "/llms-full.txt", ...Object.keys(DOCS_MD)]);
 
 export function versionPayload(release: string, criticalRelease: string | undefined) {
   return { release, critical: !!criticalRelease && criticalRelease === release };
@@ -28,3 +29,13 @@ const text = (c: Context<AppEnv>, body: string) => {
 };
 export const llmsTxt = (c: Context<AppEnv>) => text(c, LLMS_TXT);
 export const llmsFullTxt = (c: Context<AppEnv>) => text(c, LLMS_FULL_TXT);
+
+/** R33: /docs/<page>.md, the same Markdown that llms-full.txt carries, one page at a time. */
+export const docsMarkdown = (c: Context<AppEnv>) => {
+  const body = DOCS_MD[new URL(c.req.url).pathname];
+  if (body === undefined) return c.notFound();
+  c.header("content-type", "text/markdown; charset=utf-8");
+  c.header("cache-control", "public, max-age=3600");
+  return c.body(body);
+};
+export const DOCS_MD_PATHS = Object.keys(DOCS_MD);

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
+import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
 
 export type SearchType = "mail" | "tasks" | "docs" | "chat" | "contacts" | "deals";
 export interface SearchItem { type: SearchType; id: string; title: string; subtitle: string; snippet: string; url: string; at: string | null }
@@ -39,5 +40,6 @@ export function useContentSearch(raw: string, enabled = true) {
 
 /** "Today" is the person's own time zone (or the workspace's), worked out on the server. */
 export function useMyWork() {
-  return useQuery({ queryKey: ["my-work"], refetchInterval: 60_000, queryFn: () => api.get<MyWork>("/my-work") });
+  // R33: offline, the last stored copy for this person and workspace shows instead of the empty state.
+  return useQuery({ queryKey: ["my-work"], refetchInterval: 60_000, networkMode: "offlineFirst", queryFn: withOfflineCopy("my-work", () => api.get<MyWork>("/my-work")) });
 }

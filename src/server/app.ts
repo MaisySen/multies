@@ -1,4 +1,4 @@
-import { llmsFullTxt, llmsTxt, versionJson } from "./routes/web-meta-r32";
+import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, versionJson } from "./routes/web-meta-r32";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
@@ -220,6 +220,7 @@ export function createApp(deps: Deps) {
   app.get("/version.json", versionJson);
   app.get("/llms.txt", llmsTxt);
   app.get("/llms-full.txt", llmsFullTxt);
+  for (const p of DOCS_MD_PATHS) app.get(p, docsMarkdown); // R33: a .md copy of each docs page
   app.get("/healthz", health);
 
   // RFC 9116: where to report a vulnerability.

@@ -4,7 +4,7 @@
  * Messages from the page: {type:"SKIP_WAITING"} (the update prompt), {type:"CLEAR_CACHES"} (sign out).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { cacheNames, clickTarget, isStorable, isStorableApi, typeMatches, NAV_TIMEOUT_MS, notificationFor, OFFLINE_PATH, SHELL_KEY, staleCaches, swStrategy, CACHE_PREFIX } from "./sw-routes";
+import { cacheNames, clickTarget, isStorable, isStorableApi, typeMatches, NAV_TIMEOUT_MS, notificationFor, OFFLINE_PATH, pushDecision, SHELL_KEY, staleCaches, swStrategy, CACHE_PREFIX } from "./sw-routes";
 
 declare const __SW_VERSION__: string;
 declare const __SW_PRECACHE__: string[];
@@ -115,7 +115,17 @@ sw.addEventListener("push", (event: any) => {
   let data: unknown;
   try { data = event.data?.json() ?? {}; } catch { data = {}; }
   const n = notificationFor(data);
-  event.waitUntil(sw.registration.showNotification(n.title, n.options));
+  // R33: skip the banner when the page is already open and in front; drop pushes past their TTL.
+  event.waitUntil((async () => {
+    const wins = await sw.clients.matchAll({ type: "window", includeUncontrolled: true });
+    const decision = pushDecision(data, wins.map((w: any) => ({ url: w.url, focused: w.focused, visibilityState: w.visibilityState })), sw.location.origin);
+    if (decision.action === "drop") return;
+    if (decision.action === "skip" && decision.client !== undefined) {
+      wins[decision.client].postMessage({ type: "PUSH_ON_PAGE", url: n.options.data.url, tag: n.options.tag });
+      return;
+    }
+    await sw.registration.showNotification(n.title, n.options);
+  })());
 });
 
 sw.addEventListener("notificationclick", (event: any) => {
