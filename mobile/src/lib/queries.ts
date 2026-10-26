@@ -13,6 +13,7 @@ import { commandQueue, type NewCommand } from "./command-queue";
 import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
 import { blockedIds, isMissingEndpoint, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
 import { success, warning } from "./haptics";
+import { animateList } from "./motion";
 
 /** R33: what a mutation answers when its call went into the offline command queue. */
 export const QUEUED = "queued" as const;
@@ -620,6 +621,7 @@ export function useBlockPerson() {
     mutationFn: async (p: { userId: string; name: string }) => { await api.block(p.userId); return p; },
     onMutate: (p) => {
       warning();
+      animateList();
       const prev = qc.getQueryData<BlocksState>(key);
       qc.setQueryData<BlocksState>(key, { blocks: withBlock(prev?.blocks ?? [], p), missing: prev?.missing ?? false });
       return { prev };
@@ -643,6 +645,7 @@ export function useUnblockPerson() {
   return useMutation({
     mutationFn: async (userId: string) => { await api.unblock(userId); return userId; },
     onMutate: (userId) => {
+      animateList();
       const prev = qc.getQueryData<BlocksState>(key);
       qc.setQueryData<BlocksState>(key, { blocks: withoutBlock(prev?.blocks ?? [], userId), missing: prev?.missing ?? false });
       return { prev };

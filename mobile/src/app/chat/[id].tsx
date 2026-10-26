@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, KeyboardAvoidingView, Platform, Text, View } from "react-native";
 import { router, Stack, useIsFocused, useLocalSearchParams } from "expo-router";
 import { Banner, Button, EmptyState, IconButton, Loading } from "@/components/ui";
 import { HiddenMessagesRow, PersonSafetySheet, useSafety } from "@/components/moderation";
 import { canBlockAuthor, filterBlocked, userIdOf } from "@/lib/moderation";
+import { groupMessages, type ChatItem } from "@/lib/chat-group";
 import { ChatMessageRow, Composer, MessageMenu } from "@/components/chat";
 import { useChannelMessages, useChatChannel, useChatPeople, useEarlierMessages, useMarkChannelRead, useMessageToTask, useSendChat } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
@@ -29,7 +30,7 @@ export default function ChannelScreen() {
   const [menu, setMenu] = useState<ChatMessage | null>(null);
   const [personMenu, setPersonMenu] = useState(false);
   const safety = useSafety();
-  const list = useRef<FlatList<ChatMessage>>(null);
+  const list = useRef<FlatList<ChatItem>>(null);
 
   // A push or notification for a reply opens the channel, then the thread on top.
   const openedThread = useRef(false);
@@ -41,6 +42,7 @@ export default function ChannelScreen() {
   const all = feed.data?.messages ?? [];
   // R35: messages from people you blocked never show, even from the cache or an older server.
   const { messages, hidden } = filterBlocked(all, safety.blocked);
+  const items = useMemo(() => groupMessages(messages), [messages]);
   const lastId = messages[messages.length - 1]?.id;
   useEffect(() => {
     if (focused && id && lastId) markRead.mutate({ id, messageId: lastId });
@@ -70,8 +72,8 @@ export default function ChannelScreen() {
       <FlatList
         ref={list}
         testID="chat-messages"
-        data={messages}
-        keyExtractor={(m) => m.id}
+        data={items}
+        keyExtractor={(it) => it.id}
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
         ListHeaderComponent={
           <View style={{ paddingHorizontal: space.lg, paddingTop: space.lg, paddingBottom: space.sm, gap: space.sm }}>
@@ -81,7 +83,8 @@ export default function ChannelScreen() {
           </View>
         }
         ListEmptyComponent={<EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
-        renderItem={({ item }) => <ChatMessageRow m={item} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
+        renderItem={({ item }) => item.kind === "day" ? <DayLine label={item.label} />
+          : <ChatMessageRow m={item.m} grouped={item.grouped} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
       />
       {otherBlocked ? (
         <View style={{ borderTopWidth: 1, borderTopColor: colors.line, padding: space.lg, gap: space.sm, alignItems: "center" }} testID="dm-blocked-bar">
@@ -98,5 +101,16 @@ export default function ChannelScreen() {
       <PersonSafetySheet person={other} visible={personMenu} onClose={() => setPersonMenu(false)} safety={safety} context="dm" />
       {safety.ui}
     </KeyboardAvoidingView>
+  );
+}
+
+/** R35: the day line between days, centred and quiet like a native messenger. */
+function DayLine({ label }: { label: string }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: space.xs }} accessibilityRole="header" testID={`day-${label}`}>
+      <View style={{ flex: 1, height: 0.5, backgroundColor: colors.line }} />
+      <Text style={{ color: colors.subtle, fontSize: 12, fontWeight: "600" }}>{label}</Text>
+      <View style={{ flex: 1, height: 0.5, backgroundColor: colors.line }} />
+    </View>
   );
 }

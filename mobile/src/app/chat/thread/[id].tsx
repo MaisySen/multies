@@ -7,6 +7,7 @@ import { useChatPeople, useChatThread, useMessageToTask, useSendChat } from "@/l
 import { useSession } from "@/lib/session";
 import { memberId } from "@/lib/chat";
 import { filterBlocked, canBlockAuthor } from "@/lib/moderation";
+import { GROUP_GAP_MS } from "@/lib/chat-group";
 import { HiddenMessagesRow, useSafety } from "@/components/moderation";
 import type { ChatMessage } from "@/api/types";
 import { colors, font, space } from "@/theme";
@@ -42,7 +43,8 @@ export default function ChatThread() {
           <View style={{ flex: 1, height: 1, backgroundColor: colors.line }} />
         </View>
         {hidden && !parentHidden ? <HiddenMessagesRow /> : null}
-        {replies.map((r) => <ChatMessageRow key={r.id} m={r} meId={meId} sample={mode === "sample"} onLongPress={setMenu} showReplies={false} />)}
+        {replies.map((r, i) => <ChatMessageRow key={r.id} m={r} grouped={i > 0 && replies[i - 1].author.id === r.author.id && !replies[i - 1].deleted
+          && new Date(r.createdAt).getTime() - new Date(replies[i - 1].createdAt).getTime() < GROUP_GAP_MS} meId={meId} sample={mode === "sample"} onLongPress={setMenu} showReplies={false} />)}
       </ScrollView>
       <Composer people={people.data ?? []} placeholder="Reply in thread" sending={send.isPending} testID="thread-composer"
         onSend={(body, files, onProgress) => send.mutateAsync({ body, parentId: message.id, attachments: files, onProgress })} />

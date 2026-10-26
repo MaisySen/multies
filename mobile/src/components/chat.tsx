@@ -12,6 +12,7 @@ import { encodeMentions, filterPeople, insertMention, linkLabel, mentionQuery, m
 import type { ChatAttachment, ChatLink, ChatMessage, ChatPerson } from "@/api/types";
 import { colors, font, radius, space, TOUCH } from "@/theme";
 import { useReduceMotion } from "@/lib/motion";
+import { thud } from "@/lib/haptics";
 
 const LINK_ICON: Record<ChatLink["type"], IconName> = { task: "check-square", thread: "mail", doc: "file-text" };
 
@@ -75,23 +76,26 @@ function AttachmentRow({ a, messageId, sample }: { a: ChatAttachment; messageId:
 }
 
 /** One chat message: author, time, the body with "@Name" mentions, chips for linked items, files and the reply count. */
-export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, showReplies = true }: {
+export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, showReplies = true, grouped = false }: {
   m: ChatMessage; meId: string | null; sample: boolean; onLongPress?: (m: ChatMessage) => void; onOpenThread?: (m: ChatMessage) => void; showReplies?: boolean;
+  /** R35: a follow on message from the same person within a few minutes shows without the name and avatar. */
+  grouped?: boolean;
 }) {
   const parts = segments(m, meId);
   const agent = m.author.type === "agent";
   return (
-    <Pressable onLongPress={() => onLongPress?.(m)} delayLongPress={350} testID={`chat-msg-${m.id}`}
+    <Pressable onLongPress={() => { thud(); onLongPress?.(m); }} delayLongPress={350} testID={`chat-msg-${m.id}`}
+      accessibilityLabel={grouped ? `${m.author.name}, ${messageTime(m.createdAt)}` : undefined}
       accessibilityHint={onLongPress ? "Press and hold for more actions" : undefined}
-      style={({ pressed }) => ({ flexDirection: "row", gap: space.md, paddingHorizontal: space.lg, paddingVertical: 10, backgroundColor: pressed ? colors.surface : "transparent" })}>
-      <Avatar name={m.author.name} agent={agent} size={36} />
+      style={({ pressed }) => ({ flexDirection: "row", gap: space.md, paddingHorizontal: space.lg, paddingTop: grouped ? 2 : 10, paddingBottom: grouped ? 4 : 6, backgroundColor: pressed ? colors.surface : "transparent" })}>
+      {grouped ? <View style={{ width: 36 }} /> : <Avatar name={m.author.name} agent={agent} size={36} />}
       <View style={{ flex: 1, gap: 6 }}>
-        <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm, flexWrap: "wrap" }}>
+        {grouped ? null : <View style={{ flexDirection: "row", alignItems: "baseline", gap: space.sm, flexWrap: "wrap" }}>
           <Text style={{ color: colors.fg, fontWeight: "700", fontSize: 15 }}>{m.author.name}</Text>
           {agent ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>Agent</Text> : null}
           {m.author.type === "guest" ? <Text style={{ color: colors.warn, fontSize: 12, fontWeight: "600" }}>Guest</Text> : null}
           <Text style={font.tiny}>{messageTime(m.createdAt)}{m.editedAt ? " (edited)" : ""}</Text>
-        </View>
+        </View>}
         {m.deleted ? <Text style={[font.small, { fontStyle: "italic" }]}>This message was deleted.</Text> : (
           <Text style={font.body} selectable>
             {parts.map((s, i) => s.kind === "text" ? <Text key={i}>{s.text}</Text>
