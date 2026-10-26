@@ -7,7 +7,8 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
-import { channelMessages, createChannel, getThread, listChannels, listPins, messageToTask, pinMessage, postMessage, updateChannel } from "../services/suite/chat";
+import { channelMessages, createChannel, getThread, listChannels, listPins, messageToTask, pinMessage, postMessageAcked, updateChannel } from "../services/suite/chat";
+import { ackFor } from "../services/suite/chat-ack-r33";
 import { getTemplate, listTemplates, saveTemplate, useTemplate } from "../services/suite/templates";
 import { addKeyResult, createGoal, getGoal, goalTree, updateGoal, updateKeyResult } from "../services/suite/goals";
 import { parseAssignee } from "../services/suite/tasks";
@@ -49,10 +50,11 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, { message: await pinMessage(c.var.deps, actor(c), pid(c), false) }));
   api.openapi(route("get", "/chat/channels/{id}/messages", "Chat", "Read a channel", "Top level messages, oldest first. Query: limit, before (a message id) or since (ISO time, for polling). Each message carries mentions, links to tasks, threads and docs, attachments and its reply count.", { request: { params: Id } }),
     async (c) => send(c, await channelMessages(c.var.deps, actor(c), pid(c), MessagesQuery.parse(c.req.query()))));
-  api.openapi(route("post", "/chat/channels/{id}/messages", "Chat", "Post a message", "Body: { body, parentId?, attachments?: [{ filename, contentType?, contentBase64 }] }. Markup: <@member:USER_ID> mentions a person, <@agent:AGENT_ID> an agent, <!channel> everyone; <#task:ID>, <#thread:ID> and <#doc:ID> link items. An agent key posts as its agent.", { request: { params: Id, ...body(ChatPost) } }),
+  api.openapi(route("post", "/chat/channels/{id}/messages", "Chat", "Post a message", "Body: { body, parentId?, attachments?: [{ filename, contentType?, contentBase64 }], clientMsgId? }. clientMsgId (9 base 36 characters of send time in ms, then 8 to 40 more) makes the send safe to repeat: a repeat answers 200 with the first message, and the answer carries ack { type, reply_to, ok, message: { id, ts }, deduped }. Markup: <@member:USER_ID> mentions a person, <@agent:AGENT_ID> an agent, <!channel> everyone; <#task:ID>, <#thread:ID> and <#doc:ID> link items. An agent key posts as its agent.", { request: { params: Id, ...body(ChatPost) } }),
     async (c) => {
       const b = await jsonBody(c, ChatPost);
-      return send(c, { message: await postMessage(c.var.deps, actor(c), pid(c), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments) }) }, 201);
+      const r = await postMessageAcked(c.var.deps, actor(c), pid(c), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId });
+      return send(c, { message: r.message, ...(b.clientMsgId ? { ack: ackFor(b.clientMsgId, r.message, r.deduped) } : {}) }, r.deduped ? 200 : 201);
     });
   api.openapi(route("get", "/chat/messages/{id}/thread", "Chat", "Read a thread", "The top level message and its replies.", { request: { params: Id } }),
     async (c) => send(c, await getThread(c.var.deps, actor(c), pid(c))));

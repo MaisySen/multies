@@ -21,6 +21,7 @@ import { reactionsFor } from "./chat-reaction-summary";
 import { inChunks, inIds } from "../../lib/sql-chunks";
 import { publishChat } from "../../realtime/publish";
 import { deferrableWrite } from "../write-priority";
+import { messageIdForClient } from "./chat-ack-r33";
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -447,7 +448,7 @@ async function storeFiles(deps: Deps, orgId: string, channelId: string, messageI
 }
 
 /** The one write path for a new message, shared by people, agents and guests. */
-async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Author, input: { body: string; parentId?: string | null; files?: Upload[] }) {
+async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Author, input: { body: string; parentId?: string | null; files?: Upload[]; id?: string | null; clientMsgId?: string }) {
   const body = (input.body ?? "").trim();
   const files = input.files ?? [];
   if (!body && !files.length) throw new HttpError(422, "validation_failed", "Write a message or attach a file.");
@@ -466,7 +467,8 @@ async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Au
   if (parsed.everyone) mentions.push({ type: "channel", id: c.id, name: "channel" });
   const links = await resolveLinks(deps, a, parsed.links);
   const now = deps.now();
-  const id = sortableId("chm", now.getTime());
+  // R33: a send with a client id gets the id worked out from it (chat-ack-r33.ts), so a retry finds it.
+  const id = input.id ?? sortableId("chm", now.getTime());
   await deps.db.insert(chatMessages).values({
     id, orgId: c.orgId, channelId: c.id, parentId: parent?.id ?? null, authorType: author.type, authorId: author.id, authorName: author.name.slice(0, 120),
     body, mentions: JSON.stringify(mentions), mentionKeys: mentions.map((m) => (m.type === "channel" ? "channel" : `${m.type}:${m.id}`)).join(" "),
@@ -478,12 +480,12 @@ async function writeMessage(deps: Deps, a: SuiteActor, c: ChannelRow, author: Au
   // The author has read everything up to their own message.
   if (author.type === "member" && author.id) await deps.db.update(chatMembers).set({ lastReadAt: now }).where(and(eq(chatMembers.channelId, c.id), eq(chatMembers.userId, author.id)));
   const m = (await present(deps, [(await messageRow(deps, c.orgId, id))]))[0];
-  await afterPost(deps, c, m, parent, author);
+  await afterPost(deps, c, m, parent, author, input.clientMsgId);
   return m;
 }
 
 /** Inbox entries, pushes and webhooks for a new message. */
-async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: MessageRow | null, author: Author) {
+async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: MessageRow | null, author: Author, clientMsgId?: string) {
   const authorUser = author.type === "member" ? author.id : null;
   const members = (await deps.db.select({ userId: chatMembers.userId }).from(chatMembers).where(eq(chatMembers.channelId, c.id))).map((r) => r.userId);
   const canSee = (u: string) => (c.kind === "dm" || c.isPrivate ? members.includes(u) : true);
@@ -507,23 +509,40 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
   const channel = { id: c.id, kind: c.kind, name: c.kind === "dm" ? null : c.name };
   await emitEvent(deps, c.orgId, "chat.message.created", { message: m, channel });
   // R32: live chat. Open chats see the message within a second (the poll stays as the fallback).
-  await publishChat(deps, c, { t: "message", op: "created", channelId: c.id, message: m }, { members });
+  await publishChat(deps, c, { t: "message", op: "created", channelId: c.id, message: m, ...(clientMsgId ? { clientMsgId } : {}) }, { members });
   const agentMentions = m.mentions.filter((x) => x.type === "agent");
   if (agentMentions.length) await emitEvent(deps, c.orgId, "chat.mention", { message: m, channel, agents: agentMentions.map((x) => ({ id: x.id, name: x.name })) });
 }
 
-export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[] }) {
+export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }) {
+  return (await postMessageAcked(deps, a, channelId, input)).message;
+}
+
+/**
+ * R33: posts a message and says whether it was a repeat. A send that carries a client id the
+ * server has already written (the same author, the same workspace) returns that message and
+ * writes nothing: no second row, no second notification, no second live event.
+ */
+export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }): Promise<{ message: ChatMessage; deduped: boolean }> {
   assertWritable(a);
   const c = await visibleChannel(deps, a, channelId);
   const who = actorOf(a);
+  const fixedId = messageIdForClient(a.orgId, `${who.type}:${who.id ?? ""}`, input.clientMsgId, deps.now().getTime());
+  if (fixedId) {
+    const seen = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.id, fixedId), eq(chatMessages.orgId, a.orgId))).get();
+    if (seen) {
+      if (seen.channelId !== c.id || seen.authorId !== who.id) throw new HttpError(409, "conflict", "That message id is already used.");
+      return { message: (await present(deps, [seen]))[0], deduped: true };
+    }
+  }
   // People who post in a public channel join it, so they see its unread count from then on.
   if (who.type === "member" && who.id && !isKey(a) && c.kind === "channel" && !c.isPrivate) {
     await deps.db.insert(chatMembers).values({ channelId: c.id, userId: who.id, orgId: a.orgId, lastReadAt: deps.now(), joinedAt: deps.now() }).onConflictDoNothing();
   }
-  const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, input);
+  const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, { ...input, id: fixedId, clientMsgId: fixedId ? input.clientMsgId : undefined });
   // R24.4: chat_message_posted rules (channels only; posts made by rules never come back here).
   if (c.kind === "channel" && !a.system) await (await import("./automations-r24")).runChatPosted(deps, a, { id: out.id, text: out.body, channelId: c.id, channelName: c.name, author: who.name || "Someone", authorId: who.id });
-  return out;
+  return { message: out, deduped: false };
 }
 
 export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: string) {

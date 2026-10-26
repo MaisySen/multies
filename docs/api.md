@@ -40,6 +40,9 @@ Clients poll `GET /unread` every 15 s and the open channel with `?since=` every 
 Public API: `GET` and `POST /api/v1/chat/channels`, `PATCH /api/v1/chat/channels/{id}` (`name?`, `topic?`, `archived?`,
 `projectId?`, `guestAccess?`), `GET` and `POST /api/v1/chat/channels/{id}/messages`, `GET /api/v1/chat/messages/{id}/thread`,
 `POST /api/v1/chat/messages/{id}/task`, `POST` and `DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`.
+Round 33: a post may carry `clientMsgId` (9 base 36 characters of the send time in ms, then 8 to 40 more). The answer then carries
+`ack { type: "ack", reply_to, ok, message: { id, ts }, deduped }`, and a repeat with the same id answers 200 with the first message
+(no second row, notification or live event). The live socket's first frame is `{ t: "hello", serverTime, seq }`; the app holds sends until it.
 Round 21: `POST /api/v1/chat/messages/{id}/reactions` (`{ emoji }`, toggles the key's reaction; read only keys get 403) and
 `GET /api/v1/chat/search?q=&channelId=&limit=` (public channels only, newest first, limit 1 to 50).
 

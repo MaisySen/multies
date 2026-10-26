@@ -2,9 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { makeTestApp } from "./helpers";
 import { versionPayload } from "@/server/routes/web-meta-r32";
-import { DOCS_MD, LLMS_FULL_TXT, LLMS_TXT } from "@/server/generated/llms.generated";
-import { buildLlms, LINKS, MD_RULE, PUBLIC_DOCS, renderModule, SITE } from "../scripts/build-llms";
-import { WEB_META_PATHS } from "@/server/routes/web-meta-r32";
+import { LLMS_FULL_TXT, LLMS_TXT } from "@/server/generated/llms.generated";
+import { buildLlms, LINKS, PUBLIC_DOCS, renderModule, SITE } from "../scripts/build-llms";
 import { compareRelease, POLL_MS, watchRelease, type VersionInfo } from "@/web/lib/update-check";
 import { firstOpenStatus, snoozePresets } from "@/web/pages/app/work/triage";
 
@@ -91,32 +90,11 @@ describe("R32 llms.txt", () => {
     for (const u of urls) {
       expect(u.startsWith(SITE + "/")).toBe(true);
       const path = new URL(u).pathname;
-      expect([...LINKS.map((l) => l.path), ...PUBLIC_DOCS.map((d) => d.path)]).toContain(path); // R33: the .md docs pages
+      expect(LINKS.map((l) => l.path)).toContain(path);
       if (path === "/") continue; // the SPA home is served by the static assets
       const r = await ctx.app.request(path, { headers: { host: "localhost" } });
       expect(r.status, path).toBe(200);
     }
-  });
-});
-
-describe("R33 docs as Markdown", () => {
-  it("serves a .md copy of each docs page as text/markdown, cacheable, and llms.txt says so", async () => {
-    const ctx = await makeTestApp();
-    expect(Object.keys(DOCS_MD).sort()).toEqual(["/docs/api.md", "/docs/mcp.md"]);
-    for (const d of PUBLIC_DOCS) {
-      const r = await ctx.app.request(d.path, { headers: { host: "localhost" } });
-      expect(r.status, d.path).toBe(200);
-      expect(r.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
-      expect(r.headers.get("cache-control")).toContain("max-age=3600");
-      const body = await r.text();
-      expect(body).toBe(`${readFileSync(d.file, "utf8").trim()}\n`);
-      expect(WEB_META_PATHS.has(d.path)).toBe(true);
-      expect(LLMS_TXT).toContain(`(${SITE}${d.path})`);
-    }
-    expect(LLMS_TXT).toContain(MD_RULE);
-    expect(buildLlms().pages).toEqual(DOCS_MD);
-    const miss = await ctx.app.request("/docs/nothing.md", { headers: { host: "localhost" } });
-    expect(miss.headers.get("content-type") ?? "").not.toContain("text/markdown");
   });
 });
 

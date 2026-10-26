@@ -24,14 +24,6 @@ test("the app opens offline after one online visit, with a quiet offline strip",
 
   await page.addInitScript(() => localStorage.setItem("mymail-sw", "1"));
   await signUp(page, "Paula Offline");
-  // R33: one overdue task of hers, so My Work has a row to keep for offline.
-  const me = await (await page.request.get("/api/account/me")).json() as { user: { id: string } };
-  const projects = (await (await page.request.get("/api/projects")).json()).projects as { id: string }[];
-  const due = new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
-  const made = await page.request.post("/api/tasks", { data: { projectId: projects[0].id, title: "Send the offline report", assignee: `member:${me.user.id}`, dueAt: due } });
-  expect(made.ok()).toBe(true);
-  await page.goto("/app/my-work");
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
   // The worker installs after load and claims this page; the shell is precached by then.
   await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration())?.active, null, { timeout: 30_000 });
   await page.reload();
@@ -42,13 +34,9 @@ test("the app opens offline after one online visit, with a quiet offline strip",
   await context.setOffline(true);
   await page.goto("/app/my-work");
   await expect(page.getByTestId("offline-banner")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("offline-banner")).toContainText("You are offline");
   // The page itself comes from the stored chunks: the frame, the greeting (account from the offline copy).
   await expect(page.getByRole("heading", { name: /Good (morning|afternoon|evening), Paula/ })).toBeVisible({ timeout: 15_000 });
-  // R33: My Work shows its last stored copy (not the empty or error state) and says from when.
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByTestId("offline-copy-at")).toContainText(/Offline\. Showing your last copy from \d{1,2}:\d{2}/);
-  await page.reload();
-  await expect(page.getByText("Send the offline report")).toBeVisible({ timeout: 15_000 });
   await page.screenshot({ path: `${SHOTS}/pwa-offline.png` });
 
   // An /app page this browser never opened still opens from the same shell.
@@ -72,14 +60,6 @@ test("the app opens offline after one online visit, with a quiet offline strip",
   expect(left).not.toContain("/api/account/me");
   expect(left).not.toContain("/app");
   expect(left.filter((u) => u.startsWith("/api/") && !["/api/config", "/api/account/providers"].includes(u))).toEqual([]);
-  // R33: the stored list copies are gone too.
-  const kept = await page.evaluate(() => new Promise<number>((resolve) => {
-    const req = indexedDB.open("multies-offline", 1);
-    req.onupgradeneeded = () => { req.result.createObjectStore("lists", { keyPath: "key" }); };
-    req.onsuccess = () => { const c = req.result.transaction("lists", "readonly").objectStore("lists").count(); c.onsuccess = () => { resolve(c.result); req.result.close(); }; };
-    req.onerror = () => resolve(-1);
-  }));
-  expect(kept).toBe(0);
 });
 
 test("browser notifications: ask, subscribe and save this browser from Settings", async ({ page, context }) => {

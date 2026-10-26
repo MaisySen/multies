@@ -1,7 +1,6 @@
 /** Types and data hooks for the suite pages (tasks, projects, docs, contacts, deals, automations). */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
 import { showError } from "@/web/lib/show-error";
 
 export type Category = "todo" | "doing" | "done";
@@ -62,7 +61,7 @@ export const sk = {
   views: ["task-views"] as const,
 };
 
-export const useProjects = () => useQuery({ queryKey: sk.projects, networkMode: "offlineFirst", queryFn: withOfflineCopy("projects", async () => (await api.get<{ projects: Project[] }>("/projects")).projects), staleTime: 30_000 });
+export const useProjects = () => useQuery({ queryKey: sk.projects, queryFn: async () => (await api.get<{ projects: Project[] }>("/projects")).projects, staleTime: 30_000 });
 export const useAssignees = () => useQuery({ queryKey: sk.assignees, queryFn: async () => (await api.get<{ assignees: AssigneeOption[] }>("/tasks/assignees")).assignees.filter((p) => !p.paused), staleTime: 120_000 });
 export const useFields = (projectId: string | undefined) =>
   useQuery({ queryKey: ["fields", projectId ?? ""], enabled: !!projectId, staleTime: 30_000, queryFn: async () => (await api.get<{ fields: CustomField[] }>(`/fields?projectId=${projectId}`)).fields });
@@ -71,8 +70,7 @@ export const useViews = () => useQuery({ queryKey: sk.views, queryFn: async () =
 export function useTasks(f: Record<string, string | undefined>, opts: { enabled?: boolean } = {}) {
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString();
   // Polls the change feed's effect cheaply: lists refresh every 20 s and on focus.
-  // R33: the lists the person opened keep a stored copy for offline (offline-lists.ts).
-  return useQuery({ queryKey: sk.tasks(f), networkMode: "offlineFirst", queryFn: withOfflineCopy(`tasks?${qs}`, async () => (await api.get<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ""}`)).tasks), refetchInterval: 20_000, enabled: opts.enabled ?? true });
+  return useQuery({ queryKey: sk.tasks(f), queryFn: async () => (await api.get<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ""}`)).tasks, refetchInterval: 20_000, enabled: opts.enabled ?? true });
 }
 
 export const useTaskDetail = (id: string | null) =>
