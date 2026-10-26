@@ -451,15 +451,6 @@ Registered in src/server/routes/mcp-views.ts. `list_saved_views` is a read, so r
 | `create_saved_view` | Save a view of tasks: `view` board, list, calendar, timeline, sprints or workload, an optional `projectId`, and `filters` (assignee, status, priority, label, type, due, q); shared unless `shared` is false. One row written |
 | `delete_saved_view` | Remove a saved view by id; tasks are not touched |
 
-### Board swimlanes and column limits (R34, MB-186)
-
-Registered in src/server/routes/mcp-r34-board.ts. `get_board_settings` is a read, so read only keys and tokens can call it; `set_board_settings` needs a full key or token. The same settings are on REST as GET and PUT /api/v1/projects/{id}/board.
-
-| Tool | What it does |
-| --- | --- |
-| `get_board_settings` | A project board's `swimlanes` (none, assignee, epic, priority or project) and `limits` per column: `{ [statusId]: { max, min } }` |
-| `set_board_settings` | Change `swimlanes`, replace the whole `limits` map, or set one column with `column: { id, max, min }` (null clears a side). Whole numbers 1 to 999, min not above max. Cards can still go into a full column; the board shows it as over the limit. One row written |
-
 ### Branded auth emails (R25, MB-60)
 
 Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key or token (read only keys and tokens get `read_only_key`; agent and agent member keys are refused); another workspace's hook id is not found. The same change is on REST as `PATCH /api/v1/auth-email-hooks/{id}`, and `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` shows the result without sending.
