@@ -1,9 +1,10 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow, WillowDark } from "@svar-ui/react-gantt";
 import { useAppearance } from "@/web/components/theme";
 import "@svar-ui/react-gantt/style.css";
 import type { Task } from "./data";
 import { TodayLine } from "./schedule-r38"; // R38: Today line
+import { LagGaps, type GapLink } from "./timeline-gaps-r39"; // R39: lead and lag drawn on the chart
 
 const DAY = 86_400_000;
 const fmtMonth = (d: Date) => d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
@@ -25,26 +26,50 @@ export function barLabelMode(barWidth: number, fullWidth: number, keyWidth: numb
   return "none";
 }
 
-type BarRow = { id: string | number; ref?: string; title?: string; text?: string; $w?: number };
-/** Bar content: what fits goes inside, the rest of the name sits to the right of the bar in normal text colour. */
+/** R39: which side of its bar an outside label goes. Right when the whole name fits before the chart's right edge, else
+ * left when it fits after the chart's left edge. When neither side holds it on one line, the roomier side, wrapping to
+ * that room (`max`), so it never runs past either edge and never gets an ellipsis. Pixels are chart content pixels. */
+export function barOutsideSide(barLeft: number, barRight: number, labelWidth: number, chartWidth: number, gap = 10, edge = 8): { side: "right" | "left"; max?: number } {
+  const rightRoom = chartWidth - edge - (barRight + gap);
+  const leftRoom = barLeft - gap - edge;
+  if (labelWidth <= rightRoom) return { side: "right" };
+  if (labelWidth <= leftRoom) return { side: "left" };
+  return rightRoom >= leftRoom ? { side: "right", max: Math.max(80, Math.floor(rightRoom)) } : { side: "left", max: Math.max(80, Math.floor(leftRoom)) };
+}
+
+type BarRow = { id: string | number; ref?: string; title?: string; text?: string; $w?: number; $x?: number };
+/** Bar content: what fits goes inside, the rest of the name sits beside the bar in normal text colour: on the right,
+ * or (R39) on the left when the right would run past the chart's edge. */
 function BarLabel({ data }: { data: BarRow }) {
+  const root = useRef<HTMLDivElement>(null);
   const full = useRef<HTMLSpanElement>(null);
   const key = useRef<HTMLSpanElement>(null);
+  const outMeasure = useRef<HTMLSpanElement>(null);
   const ref = data.ref ?? "";
   const title = data.title ?? data.text ?? "";
   const name = ref ? `${ref} ${title}` : title;
   const w = data.$w ?? 0;
   const [mode, setMode] = useState<"full" | "key" | "none">("none");
+  const [place, setPlace] = useState<{ side: "right" | "left"; max?: number }>({ side: "right" });
   useLayoutEffect(() => {
     setMode(barLabelMode(w, full.current?.offsetWidth ?? Infinity, ref ? key.current?.offsetWidth ?? Infinity : Infinity));
   }, [w, name, ref]);
   const outside = mode === "full" ? "" : mode === "key" ? title : name;
+  useLayoutEffect(() => {
+    const el = root.current;
+    const bar = el?.closest<HTMLElement>(".wx-bar");
+    const area = el?.closest<HTMLElement>(".wx-area");
+    if (!outside || !bar || !area || !outMeasure.current) return;
+    const next = barOutsideSide(bar.offsetLeft, bar.offsetLeft + bar.offsetWidth, outMeasure.current.offsetWidth, area.scrollWidth || area.offsetWidth);
+    setPlace((p) => (p.side === next.side && p.max === next.max ? p : next));
+  }, [outside, w, data.$x]);
   return (
-    <div className="mm-bar-label" data-testid="timeline-bar-label" data-mode={mode} data-name={name}>
+    <div ref={root} className="mm-bar-label" data-testid="timeline-bar-label" data-mode={mode} data-name={name} data-side={outside ? place.side : undefined}>
       {mode !== "none" && <span className="mm-bar-in">{mode === "full" ? name : ref}</span>}
-      {outside && <span className="mm-bar-out" data-testid="timeline-bar-out">{outside}</span>}
+      {outside && <span className="mm-bar-out" data-testid="timeline-bar-out" data-wrap={place.max ? "" : undefined} style={place.max ? { maxWidth: place.max, width: "max-content" } : undefined}>{outside}</span>}
       <span aria-hidden className="mm-bar-in mm-bar-measure" ref={full}>{name}</span>
       <span aria-hidden className="mm-bar-in mm-bar-measure" ref={key}>{ref}</span>
+      {outside && <span aria-hidden className="mm-bar-out mm-bar-measure" ref={outMeasure}>{outside}</span>}
     </div>
   );
 }
@@ -74,7 +99,7 @@ function NameCell({ row }: { row: BarRow }) {
  * R37: `late` (task ids) draws clashing bars in red; timeline-plan-r37.tsx wraps this with the schedule bar and sheets.
  * R38: a Today line (our own overlay: the chart core ignores its markers setting).
  */
-export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; late?: Set<string>; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
+export function TaskTimeline({ tasks, links = [], late, daysOff, onOpen, onDates, onLink }: { tasks: Task[]; links?: GapLink[]; late?: Set<string>; /** R39: shaded on the chart (pass only when working days only is on). */ daysOff?: number[]; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
   const dated = tasks.filter((t) => t.due || t.start).sort((a, b) => (a.start ?? a.due ?? "").localeCompare(b.start ?? b.due ?? ""));
   const { resolved } = useAppearance();
   const box = useRef<HTMLDivElement>(null);
@@ -93,16 +118,21 @@ export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink 
   // R37: tasks that start before a task they wait on ends are drawn in red (the chart prefixes string ids with ":").
   const lateCss = late?.size ? [...late].map((id) => `.mm-gantt .wx-bar[data-task-id=':${CSS.escape(id)}'],.mm-gantt .wx-bar[data-task-id='${CSS.escape(id)}']`).join(",") + "{background:var(--color-bad)!important;border-color:var(--color-bad)!important;box-shadow:0 0 0 3px var(--color-bad-soft)}" : "";
   const [gridWidth] = useState(savedGrid);
-  const todayKey = rows.map((r) => `${r.id}:${r.start.getTime()}`).join(",") + resolved;
+  const todayKey = rows.map((r) => `${r.id}:${r.start.getTime()}:${r.end.getTime()}`).join(",") + resolved;
+  const refs = useMemo(() => new Map(dated.map((t) => [t.id, t.ref])), [dated]);
+  // R39: days off shaded (the chart core's own weekend cell class, so the colours follow the theme).
+  const offKey = (daysOff ?? []).join(",");
+  const highlight = useCallback((d: Date, unit: "day" | "hour") => (unit === "day" && daysOff?.includes(d.getDay()) ? "wx-weekend" : ""), [offKey]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
     <div ref={box} className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
       <TodayLine root={box} anchor={rows[0] ? { id: rows[0].id, start: rows[0].start } : undefined} cellWidth={36} version={todayKey} />
+      <LagGaps root={box} links={links} refs={refs} cellWidth={36} version={todayKey + offKey} workingDays={!!daysOff} />
       {lateCss && <style data-testid="timeline-late-style">{lateCss}</style>}
       <Theme fonts={false}>
         <Gantt
           tasks={rows} links={arrows as never} start={min} end={max} cellWidth={36} cellHeight={40} scaleHeight={30}
-          taskTemplate={BarLabel as never} gridWidth={gridWidth}
+          taskTemplate={BarLabel as never} gridWidth={gridWidth} {...(daysOff?.length ? { highlightTime: highlight } : {})}
           scales={[{ unit: "month", step: 1, format: fmtMonth }, { unit: "day", step: 1, format: fmtDay }]}
           columns={[{ id: "text", header: "Task", flexgrow: 1, cell: NameCell }] as never} {...({ displayMode: narrow ? "chart" : "all" } as object)}
           init={(api) => {

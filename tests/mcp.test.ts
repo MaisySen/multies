@@ -120,6 +120,7 @@ describe("MCP server", () => {
       "list_channels",
       "list_checklist",
       "list_custom_fields",
+      "list_dashboard_widget_types",
       "list_dashboards",
       "list_epics",
       "list_forms",

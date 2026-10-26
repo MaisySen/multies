@@ -126,7 +126,7 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
           </label>
         </span>
       </div>
-      <TaskTimeline tasks={tasks} links={check.data?.links ?? []} late={late} onLink={(a, b) => void addLink(a, b)} onOpen={onOpen} onDates={(id, s, d) => void dragged(id, s, d)} />
+      <TaskTimeline tasks={tasks} links={check.data?.links ?? []} late={late} daysOff={rules?.workingDaysOnly ? rules.daysOff : undefined} onLink={(a, b) => void addLink(a, b)} onOpen={onOpen} onDates={(id, s, d) => void dragged(id, s, d)} />
 
       <Dialog open={!!plan} onClose={cancelPlan} title={plan ? (plan.moved.length === 1 ? `Move 1 task that waits on ${plan.task.ref}?` : `Move ${plan.moved.length} tasks that wait on ${plan.task.ref}?`) : ""}
         description={plan ? (plan.mode === "strict"

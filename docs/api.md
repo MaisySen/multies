@@ -765,7 +765,10 @@ saved views, projects and mailboxes are refused when a dashboard is saved (404).
   can list and read; creating, saving, adding and removing need a full key. A key sees its maker's
   private dashboards; an agent key acts as its agent and sees shared dashboards only, and a dashboard
   it makes is shared.
-- MCP: `list_dashboards`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
+- Widget catalog (R39): `GET /api/dashboards/widget-types` and `GET /api/v1/dashboards/widget-types` answer
+  `{ types, common, maxWidgets }`: each type's label, group, what it shows, the charts it can use, its default chart
+  and size, its source fields and each setting with allowed values and the default. It reads no data.
+- MCP: `list_dashboards`, `list_dashboard_widget_types`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
 - Who can change what: the owner changes everything; anyone in the workspace can change a shared
   dashboard's name and widgets; sharing and removing a shared one is for its owner or an admin.
 
