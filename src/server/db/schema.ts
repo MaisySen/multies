@@ -969,6 +969,8 @@ export const entityLinks = sqliteTable("entity_links", {
   toType: text("to_type").notNull(),
   toId: text("to_id").notNull(),
   relation: text("relation").notNull().default("related"),
+  /** R38: lead (negative) or lag (positive) in days on a task "blocks" link. 0 elsewhere. */
+  lagDays: integer("lag_days").notNull().default(0),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.fromType, t.fromId, t.toType, t.toId] }), index("entity_links_to_idx").on(t.orgId, t.toType, t.toId)]);
 
@@ -1926,6 +1928,8 @@ export const boardSettings = sqliteTable("board_settings", {
   swimlanes: text("swimlanes", { enum: ["none", "assignee", "epic", "priority", "project"] }).notNull().default("none"),
   /** JSON: { [columnId]: { max?: number, min?: number } }. */
   limits: text("limits").notNull().default("{}"),
+  /** R38: JSON { workingDaysOnly?, daysOff?: number[], strict? } for dependency dates on the timeline. */
+  schedule: text("schedule").notNull().default("{}"),
   updatedBy: text("updated_by"),
   updatedAt: ts("updated_at").notNull(),
 });

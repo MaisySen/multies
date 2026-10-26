@@ -19,13 +19,14 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Switch } from "@/web/components/ui/misc";
 import { IconArrowRight, IconCheckCircle, IconWarning } from "@/web/components/ui/icon";
 import { TaskTimeline } from "./timeline";
+import { LagChip, MoveMode, ScheduleRules, clashText, useScheduleRules } from "./schedule-r38"; // R38
 import type { Task } from "./data";
 
 interface Brief { id: string; ref: string; title: string; start: string | null; due: string | null }
-export interface Clash { from: string; to: string; overlapDays: number; fix: { taskId: string; start: string | null; due: string | null }; blocker: Brief; blocked: Brief }
-interface Check { links: { from: string; to: string }[]; conflicts: Clash[] }
+export interface Clash { from: string; to: string; lag?: number; overlapDays: number; fix: { taskId: string; start: string | null; due: string | null }; blocker: Brief; blocked: Brief }
+interface Check { links: { from: string; to: string; lag?: number }[]; conflicts: Clash[] }
 interface Moved { id: string; ref: string; title: string; from: { start: string | null; due: string | null }; to: { start: string | null; due: string | null }; days: number }
-interface Plan { preview: boolean; task: Moved; moved: Moved[] }
+interface Plan { preview: boolean; task: Moved; moved: Moved[]; mode?: "strict" | "flexible"; workingDaysOnly?: boolean }
 
 const PREF = "mm.timeline.moveDependents";
 const fmt = (d: string | null) => (d ? new Date(`${d.slice(0, 10)}T00:00:00Z`).toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone: "UTC" }) : "No date");
@@ -44,6 +45,7 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
   const [plan, setPlan] = useState<Plan | null>(null);
   const [clashesOpen, setClashesOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const { rules } = useScheduleRules(projectId); // R38: working days only, and how waiting tasks move
   const refresh = useCallback(() => { void qc.invalidateQueries({ queryKey: ["tasks"] }); void qc.invalidateQueries({ queryKey: ["task"] }); void qc.invalidateQueries({ queryKey: ["task-schedule"] }); }, [qc]);
   useCommandHandlers({ "timeline-clashes": () => setClashesOpen(true) }, true);
 
@@ -69,12 +71,18 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
     if (!plan) return;
     setBusy(true);
     try {
-      const r = await api.post<Plan>(`/tasks/${plan.task.id}/reschedule`, { start: plan.task.to.start, due: plan.task.to.due, moveDependents: all });
+      const r = await api.post<Plan>(`/tasks/${plan.task.id}/reschedule`, { start: plan.task.to.start, due: plan.task.to.due, moveDependents: all, strict: plan.mode === "strict" });
       toast.success(all ? `Moved ${r.moved.length + 1} tasks` : `Moved ${plan.task.ref}`);
     } catch (e) { showError(e as Error); }
     setBusy(false); setPlan(null); refresh();
   };
   const cancelPlan = () => { setPlan(null); refresh(); }; // puts the dragged bar back
+  // R38: switch the rule for this move only, or change a gap, and see the plan again.
+  const replan = async (strict: boolean) => {
+    if (!plan) return;
+    try { setPlan(await api.post<Plan>(`/tasks/${plan.task.id}/reschedule`, { start: plan.task.to.start, due: plan.task.to.due, preview: true, strict })); } catch (e) { showError(e as Error); }
+  };
+  const linkInto = (id: string) => (check.data?.links ?? []).find((l) => l.to === id && (l.from === plan?.task.id || plan?.moved.some((m) => m.id === l.from)));
 
   const fix = async (c: Clash) => {
     await api.post(`/tasks/${c.fix.taskId}/reschedule`, { start: c.fix.start, due: c.fix.due });
@@ -110,7 +118,9 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
             </span>
           )}
         <span className="hidden text-[12px] text-subtle md:inline">{check.data?.links.length ? `${check.data.links.length} ${check.data.links.length === 1 ? "link" : "links"}. Drag from the end of one bar to another to add one.` : "Drag from the end of one bar to another to make it wait."}</span>
-        <label className="ml-auto inline-flex items-center gap-2 text-[12.5px] text-muted">
+        <span className="ml-auto" />
+        <ScheduleRules projectId={projectId} />
+        <label className="inline-flex items-center gap-2 text-[12.5px] text-muted">
           <span>Move tasks that wait</span>
           <Switch checked={moveOn} onChange={setMoveOn} label="Move tasks that wait" />
         </label>
@@ -118,12 +128,20 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
       <TaskTimeline tasks={tasks} links={check.data?.links ?? []} late={late} onLink={(a, b) => void addLink(a, b)} onOpen={onOpen} onDates={(id, s, d) => void dragged(id, s, d)} />
 
       <Dialog open={!!plan} onClose={cancelPlan} title={plan ? (plan.moved.length === 1 ? `Move 1 task that waits on ${plan.task.ref}?` : `Move ${plan.moved.length} tasks that wait on ${plan.task.ref}?`) : ""}
-        description={plan ? `${plan.task.ref} now runs ${range(plan.task.to)}. The tasks after it would start before it ends, so they move later by just enough, keeping their length.` : undefined}
+        description={plan ? (plan.mode === "strict"
+          ? `${plan.task.ref} now runs ${range(plan.task.to)}. Every task that waits on it moves by the same ${plan.workingDaysOnly ? "working " : ""}days, keeping its length.`
+          : `${plan.task.ref} now runs ${range(plan.task.to)}. The tasks after it would start too early, so they move later by just enough, keeping their length.`) + (plan.workingDaysOnly ? " Weekends are skipped." : "") : undefined}
         footer={plan && <>
           <Button variant="secondary" onClick={() => void apply(false)} disabled={busy}>Only {plan.task.ref}</Button>
           <Button onClick={() => void apply(true)} loading={busy} autoFocus data-testid="schedule-move-all">Move all {plan.moved.length + 1}</Button>
         </>}>
-        {plan && <MoveList rows={plan.moved} />}
+        {plan && (
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-fill/60 px-2.5 py-2" data-testid="schedule-move-mode">
+            <span className="text-[12px] text-muted">{plan.mode === "strict" ? "Same days is on" : "Just enough is on"}{rules && (rules.strict ? plan.mode !== "strict" : plan.mode === "strict") ? " for this move" : " for this project"}</span>
+            <MoveMode size="sm" strict={plan.mode === "strict"} onChange={(v) => void replan(v)} />
+          </div>
+        )}
+        {plan && <MoveList rows={plan.moved} workingDays={!!plan.workingDaysOnly} linkInto={linkInto} onLag={() => { void qc.invalidateQueries({ queryKey: ["task-schedule"] }).then(() => replan(plan.mode === "strict")); }} />}
       </Dialog>
 
       <Dialog open={clashesOpen} onClose={() => setClashesOpen(false)} title={clashes.length ? (clashes.length === 1 ? "1 date clash" : `${clashes.length} date clashes`) : "Dates line up"}
@@ -138,7 +156,7 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bad-soft text-bad"><IconWarning className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
                 <button type="button" className="block max-w-full truncate text-left text-[13.5px] font-medium text-fg hover:underline" onClick={() => { setClashesOpen(false); onOpen(c.blocked.id); }}>{c.blocked.ref} {c.blocked.title}</button>
-                <p className="line-clamp-2 text-[12px] text-muted">Starts {fmt(c.blocked.start ?? c.blocked.due)}, but {c.blocker.ref} {c.blocker.title} ends {fmt(c.blocker.due ?? c.blocker.start)}</p>
+                <p className="line-clamp-2 text-[12px] text-muted">{clashText(c)}</p>
               </div>
               <span className="hidden shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11.5px] tabular-nums text-muted sm:inline">{days(c.overlapDays)} over</span>
               <Button size="sm" variant="secondary" onClick={() => void fixOne(c)} disabled={busy} aria-label={`Fix ${c.blocked.ref}`}>Fix</Button>
@@ -150,16 +168,17 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
   );
 }
 
-function MoveList({ rows }: { rows: Moved[] }) {
+function MoveList({ rows, workingDays, linkInto, onLag }: { rows: Moved[]; workingDays?: boolean; linkInto?: (id: string) => { from: string; to: string; lag?: number } | undefined; onLag?: () => void }) {
   return (
     <ul className="max-h-[50vh] divide-y divide-line overflow-auto" data-testid="schedule-move-list">
       {rows.map((m) => (
-        <li key={m.id} className="flex items-center gap-3 py-2.5">
+        <li key={m.id} className="group flex items-center gap-3 py-2.5">
           <div className="min-w-0 flex-1">
             <p className="truncate text-[13.5px] font-medium text-fg">{m.ref} {m.title}</p>
             <p className="flex items-center gap-1.5 text-[12px] text-muted"><span className="line-through decoration-subtle/60">{range(m.from)}</span><IconArrowRight className="h-3 w-3 text-subtle" /><span className="text-fg">{range(m.to)}</span></p>
           </div>
-          <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11.5px] font-medium tabular-nums text-brand-hover">+{days(m.days)}</span>
+          {linkInto?.(m.id) && <LagChip blockedId={m.id} blockerId={linkInto(m.id)!.from} lag={linkInto(m.id)!.lag ?? 0} workingDays={workingDays} onSaved={onLag} />}
+          <span className={m.days < 0 ? "shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11.5px] font-medium tabular-nums text-muted" : "shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11.5px] font-medium tabular-nums text-brand-hover"}>{m.days < 0 ? "-" : "+"}{days(Math.abs(m.days))}</span>
         </li>
       ))}
     </ul>

@@ -193,6 +193,7 @@ describe("MCP server", () => {
       "set_board_settings",
       "set_mailbox_reply_to",
       "set_project_health",
+      "set_project_schedule",
       "set_task_blocked_by",
       "set_task_fields",
       "set_task_repeat",

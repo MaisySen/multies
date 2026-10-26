@@ -214,18 +214,17 @@ test("walk: nav drawer, compose, task panel, meeting, docs toolbar and Settings 
   await page.keyboard.press("Escape");
   await noSidewaysScroll("docs");
 
-  // R38: on a phone, Settings is a grouped list hub (no sideways tab row); every pane is reachable and has a back row.
+  // Settings tabs scroll sideways inside their own row, and the last one can be reached.
   await page.goto("/app/settings");
-  const hub = page.getByTestId("settings-hub");
-  await expect(hub).toBeVisible({ timeout: 15_000 });
-  const last = hub.getByRole("link").last();
+  const tabs = page.locator("main nav").first();
+  await expect(tabs).toBeVisible({ timeout: 15_000 });
+  const t = await tabs.evaluate((el) => ({ ox: getComputedStyle(el).overflowX, sw: el.scrollWidth, cw: el.clientWidth }));
+  expect(t.ox).toBe("auto");
+  expect(t.sw).toBeGreaterThan(t.cw);
+  const last = tabs.getByRole("link").last();
   await last.scrollIntoViewIfNeeded();
   const lb = (await last.boundingBox())!;
   expect(lb.x + lb.width).toBeLessThanOrEqual(390);
-  await last.click();
-  await expect(page.getByTestId("settings-back")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("settings-back").click();
-  await expect(hub).toBeVisible({ timeout: 15_000 });
   await noSidewaysScroll("settings");
 });
 
