@@ -82,7 +82,7 @@ export default function ChannelScreen() {
             {feed.data?.hasMore ? <Button label="Show earlier messages" variant="ghost" loading={earlier.isPending} onPress={() => earlier.mutate()} testID="earlier" /> : null}
           </View>
         }
-        ListEmptyComponent={<EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
+        ListEmptyComponent={hidden ? null : <EmptyState icon="message-circle" title="No messages yet" body="Say hello. Type @ to mention someone." />}
         renderItem={({ item }) => item.kind === "day" ? <DayLine label={item.label} />
           : <ChatMessageRow m={item.m} grouped={item.grouped} meId={meId} sample={mode === "sample"} onLongPress={setMenu} onOpenThread={openThread} />}
       />
