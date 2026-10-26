@@ -41,6 +41,7 @@ import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { agentRunRoutes, agentRunTaskRoutes } from "./routes/agent-runs-r27"; // R27 (DF-3 slice 2)
+import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
@@ -274,6 +275,7 @@ export function createApp(deps: Deps) {
   app.route("/api/checklist-items", checklistItemRoutes()); // R26 (MB-85)
   app.route("/api/tasks", agentRunTaskRoutes()); // R27 (DF-3 slice 2): /api/tasks/:id/runs
   app.route("/api/agent-runs", agentRunRoutes()); // R27 (DF-3 slice 2)
+  app.route("/api/tasks", taskTeardownRoutes()); // R27 teardown: /api/tasks/:id/watchers, /duplicate
   app.route("/api/tasks", taskRoutes());
   app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
   app.route("/api/docs", docTreeRoutes()); // R24.5: tree, move, backlinks (before /:id)

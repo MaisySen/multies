@@ -72,6 +72,7 @@ describe("MCP server", () => {
       "delete_saved_view",
       "delete_task_comment",
       "delete_thread_comment",
+      "duplicate_task",
       "edit_chat_message",
       "edit_task_comment",
       "enable_automation_recipe",
@@ -118,6 +119,7 @@ describe("MCP server", () => {
       "list_sprints",
       "list_task_comments",
       "list_task_runs",
+      "list_task_watchers",
       "list_tasks",
       "list_templates",
       "list_thread_comments",
@@ -167,6 +169,7 @@ describe("MCP server", () => {
       "triage_decline",
       "triage_merge",
       "unassign_thread",
+      "unwatch_task",
       "update_agent_member",
       "update_auth_email_hook",
       "update_checklist_item",
@@ -175,6 +178,7 @@ describe("MCP server", () => {
       "upsert_contact",
       "use_template",
       "wait_for_email",
+      "watch_task",
     ]);
     const made = data(await mcp.callTool({ name: "create_agent_inbox", arguments: { name: "Research bot", localPart: "research" } }));
     expect(made.agent.address).toBe("research@acme.io");

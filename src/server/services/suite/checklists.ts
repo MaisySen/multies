@@ -9,7 +9,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks, taskChecklistItems } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { inChunks, inIds } from "../../lib/sql-chunks";
+import { chunkIds, inChunks, inIds } from "../../lib/sql-chunks";
 import { assertWritable, iso, parseDate, sortableId, actorOf, type SuiteActor } from "./common";
 import { createTask, parseAssignee, resolveTaskId, validateAssignee, type Task } from "./tasks";
 
@@ -98,7 +98,8 @@ export async function addChecklistItems(deps: Deps, a: SuiteActor, taskIdOrRef: 
       createdBy: by.id ? `${by.type}:${by.id}` : by.type, createdAt: now, updatedAt: now,
     });
   }
-  await deps.db.insert(taskChecklistItems).values(made);
+  // R27: 11 columns a row, so 8 rows an insert keeps under D1's 100 bound variables (a 10+ item add used to fail on D1).
+  for (const part of chunkIds(made, 8)) await deps.db.insert(taskChecklistItems).values(part);
   return made.map(present);
 }
 

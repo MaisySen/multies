@@ -77,9 +77,9 @@ async function present(deps: Deps, orgId: string, rows: Row[], withSteps = true)
   const taskIds = [...new Set(rows.map((r) => r.taskId))];
   const [agents, ts] = await Promise.all([
     inChunks(agentIds, (ids) => deps.db.select({ userId: users.id, name: users.name, avatarColor: members.avatarColor }).from(users)
-      .leftJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId))).where(inArray(users.id, ids))),
+      .leftJoin(members, and(eq(members.userId, users.id), eq(members.organizationId, orgId))).where(inArray(users.id, ids))), // D1: inside inChunks (chunks of 90)
     inChunks(taskIds, (ids) => deps.db.select({ id: tasks.id, title: tasks.title, number: tasks.number, key: projects.key }).from(tasks)
-      .innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, ids)))),
+      .innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, ids)))), // D1: inside inChunks (chunks of 90)
   ]);
   const am = new Map(agents.map((x) => [x.userId, x]));
   const tm = new Map(ts.map((x) => [x.id, x]));
@@ -155,7 +155,7 @@ export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, i
   }
 
   const active = await deps.db.select().from(agentRuns)
-    .where(and(eq(agentRuns.taskId, t.id), eq(agentRuns.agentUserId, agentUserId), inArray(agentRuns.status, ACTIVE))).get();
+    .where(and(eq(agentRuns.taskId, t.id), eq(agentRuns.agentUserId, agentUserId), inArray(agentRuns.status, ACTIVE))).get(); // D1: fixed two-status list
   let id: string;
   if (active && (active.status === "running" || !me)) {
     throw new HttpError(409, "run_in_progress", `${agentName} already has a ${active.status} run on ${t.ref}. Finish it first.`);
@@ -209,7 +209,7 @@ export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input
     steps: sql`json_insert(${agentRuns.steps}, '$[#]', json(${JSON.stringify(step)}))`,
     stepCount: sql`${agentRuns.stepCount} + 1`, updatedAt: now,
     ...(r.status === "queued" ? { status: "running" as const, startedAt: now } : {}),
-  }).where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE), sql`${agentRuns.stepCount} < ${RUN_STEPS_MAX}`)).returning({ n: agentRuns.stepCount });
+  }).where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE), sql`${agentRuns.stepCount} < ${RUN_STEPS_MAX}`)).returning({ n: agentRuns.stepCount }); // D1: fixed two-status list
   if (!res.length) throw new HttpError(409, "run_changed", "The run finished or filled up meanwhile.");
   return { runId: r.id, step, stepCount: res[0].n };
 }
@@ -246,7 +246,7 @@ export async function finishRun(deps: Deps, a: SuiteActor, runId: string, input:
   }
   const now = deps.now();
   const res = await deps.db.update(agentRuns).set({ status: input.status, finishedAt: now, startedAt: r.startedAt ?? now, result, updatedAt: now })
-    .where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE))).returning({ id: agentRuns.id });
+    .where(and(eq(agentRuns.id, r.id), inArray(agentRuns.status, ACTIVE))).returning({ id: agentRuns.id }); // D1: fixed two-status list
   if (!res.length) throw new HttpError(409, "run_finished", "This run finished meanwhile.");
   const agentName = me?.name ?? (await agentMember(deps, a.orgId, r.agentUserId))?.name ?? "Removed agent";
   await writeAudit(deps, a, "agent_run.finished", { id: r.id, agentUserId: r.agentUserId, status: input.status }, agentName, t);

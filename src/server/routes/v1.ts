@@ -60,6 +60,7 @@ import { registerShareLinkRoutes } from "./v1-r26-share"; // R26 (MB-87)
 import { registerInboundKeyRoutes } from "./v1-r26-inbound"; // R26 (DF-18)
 import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
 import { registerAgentRunRoutes } from "./v1-r27-agent-runs"; // R27 (DF-3 slice 2)
+import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: watchers, duplicate
 
 // ---------------------------------------------------------------- schemas
 
@@ -461,6 +462,7 @@ export function v1Routes() {
   registerInboundKeyRoutes(api); // R26 (DF-18): inbound keys for the Email Worker
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
+  registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

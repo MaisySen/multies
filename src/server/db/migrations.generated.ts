@@ -646,5 +646,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `agent_runs_task_idx` ON `agent_runs` (`task_id`);",
       "CREATE UNIQUE INDEX `agent_runs_active_uq` ON `agent_runs` (`task_id`,`agent_user_id`) WHERE \"agent_runs\".\"status\" IN ('queued', 'running');"
     ]
+  },
+  {
+    "name": "0061_r27_task_watchers",
+    "statements": [
+      "CREATE TABLE `task_watchers` (\n\t`task_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`source` text DEFAULT 'manual' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`task_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
+    ]
   }
 ];
