@@ -6,7 +6,7 @@ import { ReadStatusSection } from "./mail/splits"; // R31
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconCheck, IconDownload, IconKey, IconPlus, IconSend, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconSliders, IconSmartphone, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -22,37 +22,155 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LANGUAGES, LOCALE, cleanLocale } from "@/shared/locale";
 
-const TABS = [
-  { to: "/app/settings", label: "General", end: true },
-  { to: "/app/settings/team", label: "Team" },
-  { to: "/app/settings/billing", label: "Billing" },
-  { to: "/app/settings/account", label: "Account & security" },
-  { to: "/app/settings/notifications", label: "Notifications" },
-  { to: "/app/settings/calendar", label: "Calendar" },
-  { to: "/app/settings/connections", label: "Connected accounts" },
-  { to: "/app/settings/mail", label: "Mail routing" },
-  { to: "/app/settings/mail-apps", label: "Mail apps" },
-  { to: "/app/settings/developers", label: "Developers" },
-  { to: "/app/settings/sign-up-emails", label: "Sign-up emails" }, // R27
-  { to: "/app/settings/import", label: "Import" },
+/**
+ * R38 premium pass 3: settings as a grouped rail (desktop) and a grouped list hub (phone), the way native settings
+ * apps do it, instead of 12 tabs in one overflowing row. Every URL is unchanged. The large title names the pane you
+ * are on, "Settings" sits above it as the eyebrow, and a search box filters panes by name and by what is inside them.
+ * rea: files/teardowns/rea/linear/settings-nav-r38.md.
+ */
+type Pane = { to: string; label: string; end?: boolean; icon: React.ComponentType<{ className?: string }>; tint: string; keywords: string };
+export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
+  { label: "Workspace", items: [
+    { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys export delete workspace" },
+    { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
+    { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
+  ] },
+  { label: "You", items: [
+    { to: "/app/settings/account", label: "Account & security", icon: IconShieldCheck, tint: "#FF9500", keywords: "password two factor passkey sessions devices sign out delete account blocked people" },
+    { to: "/app/settings/notifications", label: "Notifications", icon: IconBell, tint: "#FF3B30", keywords: "push email digest quiet hours sounds badges" },
+    { to: "/app/settings/calendar", label: "Calendar", icon: IconCalendar, tint: "#FF2D55", keywords: "sync working hours booking events time zone" },
+    { to: "/app/settings/connections", label: "Connected accounts", icon: IconPlug, tint: "#5856D6", keywords: "mailbox imap smtp gmail outlook connect accounts" },
+  ] },
+  { label: "Mail", items: [
+    { to: "/app/settings/mail", label: "Mail routing", icon: IconMail, tint: "#0A84FF", keywords: "inbound outbound forwarding undo send saved replies read status dns" },
+    { to: "/app/settings/mail-apps", label: "Mail apps", icon: IconSmartphone, tint: "#32ADE6", keywords: "imap phone desktop app password apple mail" },
+    { to: "/app/settings/sign-up-emails", label: "Sign-up emails", icon: IconMailCheck, tint: "#AF52DE", keywords: "auth emails branded confirm reset hook secret" },
+    { to: "/app/settings/import", label: "Import", icon: IconDownload, tint: "#636366", keywords: "import csv mail tasks move from another app" },
+  ] },
+  { label: "Build", items: [
+    { to: "/app/settings/developers", label: "Developers", icon: IconCode, tint: "#1C1C1E", keywords: "api keys scopes mcp webhooks oauth apps tokens" },
+  ] },
 ];
+const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
+export function paneFor(path: string): Pane {
+  const clean = path.replace(/\/+$/, "") || "/app/settings";
+  return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
+}
+export function matchPanes(q: string): Pane[] {
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return ALL_PANES;
+  return ALL_PANES.filter((p) => { const hay = `${p.label} ${p.keywords}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+}
+
+function Tile({ pane, size = "md" }: { pane: Pane; size?: "sm" | "md" }) {
+  const I = pane.icon;
+  return (
+    <span className={cn("grid shrink-0 place-items-center text-white shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.18),0_1px_1px_rgb(0_0_0/0.12)]", size === "sm" ? "h-[22px] w-[22px] rounded-[6px] [&_svg]:h-[13px] [&_svg]:w-[13px]" : "h-[29px] w-[29px] rounded-[7px] [&_svg]:h-4 [&_svg]:w-4")} style={{ background: pane.tint }} aria-hidden>
+      <I />
+    </span>
+  );
+}
+
+function SettingsSearch({ value, onChange, onEnter }: { value: string; onChange: (v: string) => void; onEnter: () => void }) {
+  return (
+    <label className="relative block">
+      <span className="sr-only">Search settings</span>
+      <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
+      <input
+        type="search" value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(); } if (e.key === "Escape") onChange(""); }}
+        placeholder="Search settings" data-testid="settings-search"
+        className="h-8 w-full rounded-lg border border-line bg-fill/60 pl-8 pr-2 text-[13px] outline-none transition-[box-shadow,border-color] duration-150 placeholder:text-subtle focus:border-brand focus:bg-surface focus:shadow-[0_0_0_3px_rgb(0_113_227/0.18)] max-md:h-10 max-md:text-[15px]"
+      />
+    </label>
+  );
+}
 
 export function SettingsLayout() {
   const loc = useLocation();
+  const navigate = useNavigate();
+  const [q, setQ] = useState("");
   useEffect(() => { if (loc.hash) setTimeout(() => document.getElementById(loc.hash.slice(1))?.scrollIntoView({ behavior: "smooth" }), 100); }, [loc.hash]);
+  const pane = paneFor(loc.pathname);
+  const atHub = (loc.pathname.replace(/\/+$/, "") === "/app/settings") && !loc.hash;
+  useEffect(() => { const prev = document.title; document.title = `${pane.label} · Settings | Multies`; return () => { document.title = prev; }; }, [pane.label]);
+  const shown = matchPanes(q);
+  const groups = SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
+  const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (
-    <>
-      <PageHeader title="Settings" description="Workspace, team, security and how mail flows." />
-      <nav aria-label="Settings" className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-line px-1">
-        {TABS.map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.end} className={({ isActive }) => cn(
-            "-mb-px whitespace-nowrap border-b-2 px-3 py-2.5 text-[13.5px] transition-colors",
-            isActive ? "border-brand font-medium text-fg" : "border-transparent text-muted hover:text-fg",
-          )}>{t.label}</NavLink>
-        ))}
-      </nav>
-      <Outlet />
-    </>
+    <div className="md:grid md:grid-cols-[236px_minmax(0,1fr)] md:gap-8 lg:gap-10">
+      {/* Desktop: a sticky grouped rail. */}
+      <aside className="max-md:hidden">
+        <div className="sticky top-4 space-y-4">
+          <SettingsSearch value={q} onChange={setQ} onEnter={go} />
+          <nav aria-label="Settings" className="space-y-4" data-testid="settings-rail">
+            {groups.map((g) => (
+              <div key={g.label}>
+                <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">{g.label}</p>
+                <ul className="space-y-px">
+                  {g.items.map((t) => (
+                    <li key={t.to}>
+                      <NavLink to={t.to} end={t.end} onClick={() => setQ("")} aria-current={pane.to === t.to ? "page" : undefined} className={() => cn(
+                        "group flex h-8 items-center gap-2.5 rounded-lg px-2 text-[13.5px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
+                        pane.to === t.to ? "bg-brand-soft font-medium text-fg shadow-[inset_0_0_0_0.5px_rgb(0_113_227/0.25)]" : "text-muted hover:bg-hover hover:text-fg",
+                      )}>
+                        <Tile pane={t} size="sm" />
+                        <span className="truncate">{t.label}</span>
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            {!groups.length && <p className="px-2 text-[13px] text-muted">No setting matches “{q}”.</p>}
+          </nav>
+        </div>
+      </aside>
+
+      <div className="min-w-0">
+        {/* Phone: the hub is a grouped list; every pane gets a back row. */}
+        {atHub ? (
+          <div className="md:hidden">
+            <PageHeader title="Settings" />
+            <div className="mb-5"><SettingsSearch value={q} onChange={setQ} onEnter={go} /></div>
+            <nav aria-label="Settings" className="space-y-6" data-testid="settings-hub">
+              {groups.map((g) => (
+                <section key={g.label}>
+                  <h2 className="mb-1.5 px-4 text-[12.5px] font-medium uppercase tracking-[0.04em] text-subtle">{g.label}</h2>
+                  <ul className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-card">
+                    {g.items.map((t, i) => (
+                      <li key={t.to}>
+                        <NavLink to={t.to === "/app/settings" ? "/app/settings/general" : t.to} className="flex min-h-[48px] items-center gap-3 pl-4 pr-3 transition-colors duration-150 active:bg-hover">
+                          <Tile pane={t} />
+                          <span className={cn("flex min-h-[48px] flex-1 items-center justify-between gap-2 text-[16px]", i > 0 && "border-t border-line")}>
+                            <span className="truncate">{t.label}</span>
+                            <IconChevronRight className="h-4 w-4 shrink-0 text-subtle" />
+                          </span>
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              {!groups.length && <p className="px-4 text-[15px] text-muted">No setting matches “{q}”.</p>}
+            </nav>
+          </div>
+        ) : (
+          <NavLink to="/app/settings" end className="mb-2 inline-flex min-h-11 items-center gap-1 text-[16px] text-[#0071E3] md:hidden" data-testid="settings-back">
+            <IconBack className="h-5 w-5" />Settings
+          </NavLink>
+        )}
+        <div className={cn(atHub && "max-md:hidden")}>
+          <div className="mb-6 flex items-center gap-3">
+            <span className="max-md:hidden"><Tile pane={pane} /></span>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-[#0071E3]">Settings</p>
+              <h1 className="large-title" data-testid="settings-title">{pane.label}</h1>
+            </div>
+          </div>
+          <div className="settings-pane"><Outlet /></div>
+        </div>
+      </div>
+    </div>
   );
 }
 

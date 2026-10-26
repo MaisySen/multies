@@ -23,8 +23,6 @@ import { getWorkload } from "./workload";
 import { replyStats } from "../mail/thread-state";
 import { dateFormat } from "../../lib/intl-cache";
 import { inIds } from "../../lib/sql-chunks";
-import { R38_WIDGET_TYPES, R38WidgetFields, r38DefaultTitle, r38Settings, type R38WidgetSettings, type R38WidgetType } from "./dashboards-r38-schema";
-import { battery, calculation, createdCompleted, note, pivot, taskList, timeTracked } from "./dashboards-r38-widgets";
 
 const DAY = 86_400_000;
 export const MAX_WIDGETS = 24;
@@ -34,7 +32,7 @@ export const GROUP_CAP = 20;
 /** Tasks a list widget shows at most. */
 export const LIST_CAP = 10;
 
-export const WIDGET_TYPES = ["count", "breakdown", "due", "completed", "burndown", "goals", "reply_times", "mail_volume", "workload", ...R38_WIDGET_TYPES] as const;
+export const WIDGET_TYPES = ["count", "breakdown", "due", "completed", "burndown", "goals", "reply_times", "mail_volume", "workload"] as const;
 export type WidgetType = (typeof WIDGET_TYPES)[number];
 export const GROUP_BYS = ["status", "assignee", "priority", "project", "sprint", "type", "label"] as const;
 export type GroupBy = (typeof GROUP_BYS)[number];
@@ -67,22 +65,18 @@ export const WidgetInput = z.object({
   groupBy: z.enum([...GROUP_BYS, "mailbox", "person"]).nullable().optional(),
   chart: z.enum(CHARTS).optional(),
   size: z.union([z.literal(1), z.literal(2)]).optional(),
-  // R38: range, metric, op, goal, columnBy, sort and text, each kept only on the types that use it.
-  ...R38WidgetFields,
 });
 export type WidgetInput = z.input<typeof WidgetInput>;
-export interface Widget extends R38WidgetSettings {
+export interface Widget {
   id: string; type: WidgetType; title: string; source: z.infer<typeof WidgetSource>;
   groupBy: GroupBy | "mailbox" | "person" | null; chart: (typeof CHARTS)[number]; size: 1 | 2; position: number;
 }
 
 const DEFAULT_CHART: Record<WidgetType, Widget["chart"]> = {
   count: "number", breakdown: "bar", due: "table", completed: "line", burndown: "line", goals: "table", reply_times: "table", mail_volume: "line", workload: "bar",
-  calculation: "number", battery: "bar", pivot: "table", created_completed: "bar", task_list: "table", time_tracked: "bar", note: "table",
 };
 const GROUP_LABEL: Record<GroupBy, string> = { status: "status", assignee: "person", priority: "priority", project: "project", sprint: "sprint", type: "type", label: "label" };
-function defaultTitle(w: { type: WidgetType; groupBy?: string | null } & R38WidgetSettings) {
-  if ((R38_WIDGET_TYPES as readonly string[]).includes(w.type)) return r38DefaultTitle(w.type as R38WidgetType, w);
+function defaultTitle(w: { type: WidgetType; groupBy?: string | null }) {
   switch (w.type) {
     case "count": return "Tasks";
     case "breakdown": return `Tasks by ${GROUP_LABEL[(w.groupBy as GroupBy) ?? "status"] ?? "status"}`;
@@ -93,7 +87,6 @@ function defaultTitle(w: { type: WidgetType; groupBy?: string | null } & R38Widg
     case "reply_times": return "Reply times";
     case "mail_volume": return "Mail per day";
     case "workload": return "Workload per person";
-    default: return "Widget";
   }
 }
 
@@ -162,15 +155,12 @@ async function normalise(deps: Deps, actor: SuiteActor, input: WidgetInput[], ke
     let id = w.id && !used.has(w.id) ? w.id : sortableId("wdg", deps.now().getTime() + i).slice(0, 40);
     while (used.has(id)) id = `${id.slice(0, 36)}${i}`;
     used.add(id);
-    const extra = r38Settings(w.type, w);
     const groupBy = w.type === "breakdown" ? (GROUP_BYS.includes(w.groupBy as GroupBy) ? (w.groupBy as GroupBy) : "status")
-      : w.type === "reply_times" ? (w.groupBy === "person" ? "person" : "mailbox") : w.type === "pivot" ? extra.groupBy! : null;
-    delete extra.groupBy;
+      : w.type === "reply_times" ? (w.groupBy === "person" ? "person" : "mailbox") : null;
     const prev = old.get(id);
-    const wide = ["completed", "workload", "pivot", "created_completed", "time_tracked"].includes(w.type);
     return {
-      id, type: w.type, title: w.title || prev?.title || defaultTitle({ type: w.type, groupBy, ...extra }), source: w.source, groupBy,
-      chart: w.chart ?? DEFAULT_CHART[w.type], size: w.size ?? (wide ? 2 : 1), position: i, ...extra,
+      id, type: w.type, title: w.title || prev?.title || defaultTitle({ type: w.type, groupBy }), source: w.source, groupBy,
+      chart: w.chart ?? DEFAULT_CHART[w.type], size: w.size ?? (w.type === "completed" || w.type === "workload" ? 2 : 1), position: i,
     };
   });
 }
@@ -259,7 +249,7 @@ async function readableMailboxes(deps: Deps, actor: SuiteActor): Promise<string[
   return (await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(eq(mailboxes.orgId, actor.orgId))).map((m) => m.id);
 }
 
-export interface Ctx {
+interface Ctx {
   deps: Deps; actor: SuiteActor; tz: string; now: number;
   weekStart: number; weekEnd: number; todayStart: number;
   views: Map<string, { projectId: string | null; filters: Record<string, string> }>;
@@ -273,7 +263,7 @@ function zoneOffset(t: number, tz: string) {
   return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second)) - Math.floor(t / 1000) * 1000;
 }
 /** Local midnight of the calendar day holding t (or `days` later), in the zone. */
-export function midnight(t: number, tz: string, days = 0) {
+function midnight(t: number, tz: string, days = 0) {
   const local = t + zoneOffset(t, tz);
   const day = Math.floor(local / DAY) * DAY + days * DAY;
   let u = day - zoneOffset(day, tz);
@@ -285,10 +275,10 @@ function mondayStart(t: number, tz: string) {
   const dow = (local.getUTCDay() + 6) % 7;
   return midnight(t, tz, -dow);
 }
-export const dayKey = (t: number, tz: string) => new Date(t + zoneOffset(t, tz)).toISOString().slice(0, 10);
+const dayKey = (t: number, tz: string) => new Date(t + zoneOffset(t, tz)).toISOString().slice(0, 10);
 
 /** The task conditions for a widget: the list views' rules, then the saved filter, project and inline filters. */
-export function taskConds(c: Ctx, w: Widget): SQL[] {
+function taskConds(c: Ctx, w: Widget): SQL[] {
   const view = w.source.savedViewId ? c.views.get(w.source.savedViewId) : undefined;
   if (w.source.savedViewId && !view) throw new HttpError(404, "not_found", "This widget's saved filter was removed.");
   const projectId = w.source.projectId ?? view?.projectId ?? undefined;
@@ -481,13 +471,6 @@ async function widgetData(c: Ctx, w: Widget): Promise<unknown> {
     case "reply_times": return replyTimes(c, w);
     case "mail_volume": return mailVolume(c, w);
     case "workload": return workloadData(c, w);
-    case "calculation": return calculation(c, w);
-    case "battery": return battery(c, w);
-    case "pivot": return pivot(c, w);
-    case "created_completed": return createdCompleted(c, w);
-    case "task_list": return taskList(c, w);
-    case "time_tracked": return timeTracked(c, w);
-    case "note": return note(w);
   }
 }
 
