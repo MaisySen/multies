@@ -15,7 +15,7 @@ import { inIds } from "../../lib/sql-chunks";
 import { BULK_LOCAL_PARTS, SPLITS_MAX, type MailSplit, type SplitRuleT, type SplitTab } from "@/shared/mail-splits";
 import { snoozeHiddenCond } from "./schedules";
 
-export interface SplitActor { orgId: string; userId: string; agentId?: string | null; scope?: string }
+export interface SplitActor { orgId: string; userId: string; agentId?: string | null; scope?: "full" | "read" }
 
 function person(a: SplitActor) {
   if (!a.userId || a.agentId) throw new HttpError(403, "person_only", "Splits belong to a person. Use a personal key or sign in.");

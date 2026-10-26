@@ -11,7 +11,6 @@ import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
-import { hasScope, isPresetScope, toolScope } from "../lib/api-scopes";
 import { listMailboxes, updateMailbox } from "../services/addresses";
 import type { SuiteActor } from "../services/suite/common";
 import type { SearchType } from "../services/search";
@@ -78,7 +77,7 @@ import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
 import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 import { registerAuthEmailSettingsTools } from "./mcp-r28-auth-email-settings"; // R28: Sign-up emails settings
 
-export type Scoped = Actor & { scope?: string }; // R36: "full", "read" or a per area list (lib/api-scopes.ts)
+export type Scoped = Actor & { scope?: "full" | "read" };
 import { registerReportsR35Tools } from "./reports-r35"; // R35
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
@@ -101,17 +100,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
       ? "You are connected as one Multies agent inbox. Read threads, search, send or reply as this agent, and pick up tasks assigned to you (next_task), comment on them and mark them done. Sends may wait for a person to approve them; the result says so."
       : "You are connected to a Multies workspace. List inboxes, read and search mail, create agent inboxes, send or reply as an agent (pass agentId), and work with tasks, projects, docs and contacts." });
   const writable = () => { if (actor.scope === "read") throw new HttpError(403, "read_only_key", "This API key can only read."); };
-  // R36: one scope check for every tool, whichever file registers it. Preset keys ("full", "read")
-  // keep their exact old behaviour; a per area key needs the tool's scope (lib/api-scopes.ts).
-  if (!isPresetScope(actor.scope)) {
-    const register = server.registerTool.bind(server) as unknown as (n: string, cfg: unknown, cb: unknown) => unknown;
-    (server as unknown as { registerTool: unknown }).registerTool = (name: string, config: { annotations?: { readOnlyHint?: boolean } }, cb: (...a: unknown[]) => unknown) =>
-      register(name, config, async (...args: unknown[]) => {
-        const need = toolScope(name, !!config.annotations?.readOnlyHint);
-        if (need === "full" || !hasScope(actor.scope, need)) return fail(`insufficient_scope: This API key does not have the ${need} scope that ${name} needs. An admin can add it in Settings, Developers.`);
-        return cb(...args);
-      });
-  }
   const agentFor = async (agentId?: string) => {
     if (!actor.agentId && actor.role === "member") throw new HttpError(403, "agent_member_key_scope", "An agent member's key can't send mail as an agent inbox. Use that agent's own key.");
     const id = actor.agentId ?? agentId;

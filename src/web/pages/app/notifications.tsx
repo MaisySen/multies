@@ -18,6 +18,7 @@ import { Button } from "@/web/components/ui/button";
 import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { BrowserNotifications } from "@/web/components/browser-notifications-r32"; // R32: web push
+import { CaughtUpArt } from "@/web/components/illustrations"; // R36
 
 export type NotificationCategory = "mention" | "assignment" | "comment" | "approval" | "due_soon" | "chat" | "email" | "status";
 export interface InboxItem { id: string; type: string; category: NotificationCategory; entityType: string; entityId: string; title: string; actor: { name: string } | null; read: boolean; createdAt: string; link: string; doneAt: string | null; snoozedUntil: string | null }
@@ -161,12 +162,12 @@ export function NotificationsPage() {
       </div>
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : !items.length ? (
         view === "inbox" ? (
-          <EmptyState icon={<IconCheckCircle />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
+          <EmptyState icon={<IconCheckCircle />} art={<CaughtUpArt />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
             action={<Button size="sm" variant="secondary" onClick={() => setView("done")}>View done</Button>} />
         ) : view === "later" ? (
-          <EmptyState icon={<IconClock />} title="Nothing snoozed" body="Press H on a notification to snooze it. It comes back to your inbox at the time you pick." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconClock />} art={<CaughtUpArt />} title="Nothing snoozed" body="Press H on a notification to snooze it. It comes back to your inbox at the time you pick." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
         ) : (
-          <EmptyState icon={<IconBell />} title="Nothing done yet" body="Press E on a notification to mark it done. Done items stay here." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconBell />} art={<CaughtUpArt />} title="Nothing done yet" body="Press E on a notification to mark it done. Done items stay here." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
         )
       ) : (
         <Card className="p-0">

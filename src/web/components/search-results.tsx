@@ -12,7 +12,7 @@ const ICONS: Record<SearchType, React.ComponentType<{ className?: string }>> = {
 
 const groupClass = "px-1.5 pb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-subtle";
 
-export function ContentGroups({ state, search, onOpen }: { state: ReturnType<typeof UseContentSearch>; search: string; onOpen: (url: string) => void }) {
+export function ContentGroups({ state, search, onOpen }: { state: ReturnType<typeof UseContentSearch>; search: string; onOpen: (url: string, title?: string) => void }) {
   if (!state.active) return null;
   const groups = state.data?.groups ?? [];
   return (
@@ -27,7 +27,7 @@ export function ContentGroups({ state, search, onOpen }: { state: ReturnType<typ
         return (
           <Command.Group key={g.type} heading={g.label} forceMount className={groupClass} data-testid={`search-group-${g.type}`}>
             {g.items.map((it) => (
-              <Command.Item key={`${it.type}:${it.id}`} value={`content ${it.type} ${it.id}`} keywords={[search]} forceMount onSelect={() => onOpen(it.url)}
+              <Command.Item key={`${it.type}:${it.id}`} value={`content ${it.type} ${it.id}`} keywords={[search]} forceMount onSelect={() => onOpen(it.url, it.title)}
                 data-testid="search-result" data-url={it.url}
                 className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2 text-[13.5px] text-muted data-[selected=true]:bg-hover data-[selected=true]:text-fg">
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" />
