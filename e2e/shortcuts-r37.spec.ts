@@ -1,0 +1,349 @@
+import { test, expect, type Page } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+
+/**
+ * R37: every keyboard shortcut the ? sheet lists, pressed for real. Global keys and every G then key,
+ * the mail list and open message keys (checked against the server where the key changes state), the
+ * notifications keys, the Triage keys and the task list keys. Keys that only work inside an editor (chat Enter
+ * and Shift+Enter, doc slash, checklist Alt+Up and Enter, comment Cmd+Enter, saved reply Tab) and the meeting
+ * pre-join Enter have their own specs (chat, docs, tasks, comments, saved replies and meeting lobby e2e).
+ */
+const SHOTS = "/home/user/tab/files/multies-r37";
+let visitor = 0;
+test.beforeEach(async ({ context }) => {
+  if (!process.env.E2E_BASE_URL) await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.37.${test.info().workerIndex % 200}.${++visitor}` });
+});
+const mod = process.platform === "darwin" ? "Meta" : "Control";
+
+async function demo(page: Page) {
+  page.on("pageerror", (e) => console.log("PAGEERROR", e.message));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
+}
+/** Click a neutral spot so keys go to the page, not an input. */
+async function blur(page: Page) {
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  const h1 = page.locator("main h1").first();
+  if (await h1.isVisible().catch(() => false)) await h1.click({ timeout: 3_000 }).catch(() => null);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+}
+
+const GO: [string, RegExp][] = [
+  ["w", /\/app\/my-work/], ["o", /\/app\/?(\?|$)/], ["n", /\/app\/notifications/], ["i", /\/app\/mail/],
+  ["u", /\/app\/inbox/], ["c", /\/app\/chat/], ["t", /\/app\/tasks/], ["d", /\/app\/docs/], ["m", /\/app\/meetings/],
+  ["p", /\/app\/contacts/], ["a", /\/app\/agents/], ["r", /\/app\/triage/], ["s", /\/app\/settings/],
+];
+
+test("global keys: Cmd+K, ?, Esc and every G then key", async ({ page }) => {
+  test.setTimeout(240_000);
+  await demo(page);
+  await page.goto("/app/my-work");
+  await page.waitForLoadState("networkidle").catch(() => null);
+  for (const [key, url] of GO) {
+    await blur(page);
+    await page.keyboard.press("g");
+    await page.keyboard.press(key);
+    await expect(page, `G then ${key.toUpperCase()}`).toHaveURL(url, { timeout: 15_000 });
+    await page.waitForLoadState("networkidle").catch(() => null);
+  }
+  await page.goto("/app/my-work");
+  await blur(page);
+  const palette = page.getByRole("dialog", { name: "Command menu" });
+  // The menu's key handler mounts with the app shell; press again until it is in place (as search-r20 does).
+  await expect(async () => {
+    if (!(await palette.isVisible())) await page.keyboard.press(`${mod}+k`);
+    await expect(palette).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+  await blur(page);
+  await page.keyboard.press("?");
+  const sheet = page.getByTestId("shortcuts-sheet");
+  await expect(sheet).toBeVisible();
+  for (const group of ["General", "Go to", "Mail", "Tasks"]) await expect(sheet.getByRole("region", { name: group })).toBeVisible();
+  mkdirSync(SHOTS, { recursive: true });
+  await page.screenshot({ path: `${SHOTS}/keys-after-sheet-desktop-light.png` });
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+});
+
+type Msg = { id: string; isStarred?: boolean; isRead?: boolean; folder?: string };
+async function message(page: Page, id: string): Promise<Msg> {
+  return (await (await page.request.get(`/api/mail/messages/${id}`)).json()).message;
+}
+
+test("mail keys: J K C / and, on an open message, S U R A F T X H # Esc and Cmd+Z", async ({ page }) => {
+  test.setTimeout(420_000);
+  await demo(page);
+  await page.goto("/app/mail");
+  const first = page.getByText("Launch checklist for Friday").first();
+  // A loaded box can take a while to build the mail page the first time; reload once if it is still blank.
+  if (!(await first.isVisible({ timeout: 45_000 }).catch(() => false))) await page.reload();
+  await expect(first).toBeVisible({ timeout: 60_000 });
+  await page.waitForLoadState("networkidle").catch(() => null);
+
+  // C opens Compose; Esc closes it.
+  await blur(page);
+  await page.keyboard.press("c");
+  const compose = page.getByRole("dialog", { name: "New message" });
+  await expect(compose).toBeVisible();
+  await page.keyboard.press("Escape");
+  await compose.getByRole("button", { name: /close|discard/i }).first().click({ timeout: 3_000 }).catch(() => null);
+
+  // / focuses search.
+  await blur(page);
+  await page.keyboard.press("/");
+  await expect(page.getByRole("textbox", { name: "Search mail" })).toBeFocused();
+  await page.keyboard.press("Escape");
+
+  // J opens the next conversation in the list and K goes back.
+  await blur(page);
+  await page.keyboard.press("j");
+  await expect(page).toHaveURL(/[?&]m=/, { timeout: 10_000 });
+  const a = new URL(page.url()).searchParams.get("m");
+  await page.keyboard.press("j");
+  await expect.poll(() => new URL(page.url()).searchParams.get("m")).not.toBe(a);
+  await page.keyboard.press("k");
+  await expect.poll(() => new URL(page.url()).searchParams.get("m")).toBe(a);
+
+  // Open the known message.
+  await first.click();
+  await expect(page.getByRole("heading", { name: "Launch checklist for Friday", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await page.waitForLoadState("networkidle").catch(() => null);
+  const id = new URL(page.url()).searchParams.get("m")!;
+  const before = await message(page, id);
+
+  await blur(page);
+  await page.keyboard.press("s");
+  await expect.poll(async () => (await message(page, id)).isStarred, { timeout: 10_000 }).toBe(!before.isStarred);
+  // The key reads the star from the list, which refetches after the change; a person never presses twice inside it.
+  await page.waitForTimeout(1500);
+  await page.keyboard.press("s");
+  await expect.poll(async () => (await message(page, id)).isStarred, { timeout: 10_000 }).toBe(!!before.isStarred);
+
+  // U flips read and unread (reading the message back over the API marks it read, so the toast is the check).
+  await page.keyboard.press("u");
+  await expect(page.getByText("Marked unread").first()).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press("u");
+  await expect(page.getByText("Marked read").first()).toBeVisible({ timeout: 10_000 });
+
+  for (const [key, label] of [["r", /reply|send/i], ["a", /reply|send/i], ["f", /forward|send/i]] as const) {
+    await blur(page);
+    await page.keyboard.press(key);
+    const box = page.getByRole("dialog", { name: "New message" });
+    await expect(box, `key ${key}`).toBeVisible({ timeout: 10_000 });
+    await expect(box.getByRole("button", { name: label }).first()).toBeVisible();
+    await page.keyboard.press("Escape");
+    await box.getByRole("button", { name: /close|discard/i }).first().click({ timeout: 3_000 }).catch(() => null);
+    await expect(box).toBeHidden({ timeout: 10_000 });
+  }
+
+  // T makes a task from the open email: a toast names it and the task chip shows on the message.
+  await blur(page);
+  await page.keyboard.press("t");
+  await expect(page.getByText(/ created$/).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("linked-task").first()).toBeVisible({ timeout: 15_000 });
+
+  // X selects the conversation; H then opens the snooze menu for the selection; Esc clears it.
+  await blur(page);
+  await page.keyboard.press("x");
+  await expect(page.getByTestId("mail-select").first()).toHaveAttribute("aria-checked", "true", { timeout: 10_000 });
+  await page.keyboard.press("h");
+  await expect(page.getByRole("menu", { name: "Snooze until" })).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await blur(page);
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-testid="mail-select"][aria-checked="true"]')).toHaveCount(0, { timeout: 10_000 });
+
+  // # moves it to the trash and Cmd+Z brings it back.
+  await first.click();
+  await expect(page.getByRole("heading", { name: "Launch checklist for Friday", level: 1 })).toBeVisible({ timeout: 15_000 });
+  await blur(page);
+  await page.keyboard.press("#");
+  await expect.poll(async () => (await message(page, id)).folder, { timeout: 15_000 }).toBe("trash");
+  await blur(page);
+  await page.keyboard.press(`${mod}+z`);
+  await expect.poll(async () => (await message(page, id)).folder, { timeout: 15_000 }).not.toBe("trash");
+
+  // E archives the open message and Cmd+Z undoes that too.
+  await page.goto(`/app/mail?m=${id}`);
+  await expect(page.getByRole("heading", { name: "Launch checklist for Friday", level: 1 })).toBeVisible({ timeout: 30_000 });
+  const folderBefore = (await message(page, id)).folder;
+  await blur(page);
+  await page.keyboard.press("e");
+  await expect.poll(async () => (await message(page, id)).folder, { timeout: 15_000 }).toBe("archive");
+  await blur(page);
+  await page.keyboard.press(`${mod}+z`);
+  await expect.poll(async () => (await message(page, id)).folder, { timeout: 15_000 }).toBe(folderBefore);
+});
+
+test("mail list keys: Shift+X, Cmd+A, Esc and Tab or Shift+Tab between Inbox splits", async ({ page }) => {
+  test.setTimeout(300_000);
+  await demo(page);
+  await page.goto("/app/mail");
+  const rows = page.getByTestId("mail-select");
+  if (!(await rows.first().isVisible({ timeout: 45_000 }).catch(() => false))) await page.reload();
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  const checked = page.locator('[data-testid="mail-select"][aria-checked="true"]');
+
+  // J puts the cursor on a row; Shift+X selects it.
+  await blur(page);
+  await page.keyboard.press("j");
+  await expect(page).toHaveURL(/[?&]m=/, { timeout: 10_000 });
+  await blur(page);
+  await page.keyboard.press("Shift+X");
+  await expect(checked).not.toHaveCount(0, { timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await expect(checked).toHaveCount(0, { timeout: 10_000 });
+
+  // Cmd+A selects every conversation in the list; Esc clears it.
+  await page.goto("/app/mail");
+  await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+  const total = await rows.count();
+  await blur(page);
+  await page.keyboard.press(`${mod}+a`);
+  await expect(checked).toHaveCount(total, { timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await expect(checked).toHaveCount(0, { timeout: 10_000 });
+
+  // Tab and Shift+Tab step through the Inbox splits when the list has focus.
+  const tabs = page.getByTestId("split-tabs").getByRole("tab");
+  if ((await tabs.count()) < 2) {
+    test.info().annotations.push({ type: "note", description: "fewer than two Inbox splits, Tab not pressed" });
+    return;
+  }
+  const selected = () => page.getByTestId("split-tabs").getByRole("tab", { selected: true }).textContent();
+  const start = await selected();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press("Tab");
+  await expect.poll(selected, { timeout: 10_000 }).not.toBe(start);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+  await page.keyboard.press("Shift+Tab");
+  await expect.poll(selected, { timeout: 10_000 }).toBe(start);
+});
+
+test("task keys: J K, then S A P L D open their pickers, Shift+L folds board lanes", async ({ page }) => {
+  test.setTimeout(300_000);
+  await demo(page);
+  const projects = (await (await page.request.get("/api/projects")).json()).projects as { id: string }[];
+  const project = projects[0];
+  await page.goto(`/app/tasks?project=${project.id}&view=list`);
+  const rows = page.locator("[data-task-id]");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await blur(page);
+  await page.keyboard.press("j");
+  await expect(page.locator("[data-task-id][data-kb-focus]")).toHaveCount(1);
+  const firstId = await page.locator("[data-task-id][data-kb-focus]").getAttribute("data-task-id");
+  await page.keyboard.press("j");
+  await expect.poll(() => page.locator("[data-task-id][data-kb-focus]").getAttribute("data-task-id")).not.toBe(firstId);
+  await page.keyboard.press("k");
+  await expect.poll(() => page.locator("[data-task-id][data-kb-focus]").getAttribute("data-task-id")).toBe(firstId);
+  for (const key of ["s", "a", "p", "l", "d"]) {
+    await page.keyboard.press(key);
+    await expect(page.getByTestId("palette-picker"), `key ${key}`).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("palette-picker")).toBeHidden();
+  }
+
+  // Shift+L folds every swimlane on the board, and pressing it again opens them.
+  await page.goto(`/app/tasks?project=${project.id}&view=board&lanes=assignee`);
+  const toggles = page.getByTestId("lane-toggle");
+  if (!(await toggles.first().isVisible({ timeout: 30_000 }).catch(() => false))) {
+    test.info().annotations.push({ type: "note", description: "this board shows no swimlanes, Shift+L not pressed" });
+    return;
+  }
+  await blur(page);
+  await page.keyboard.press("Shift+L");
+  await expect(page.locator('[data-testid="lane-toggle"][aria-expanded="true"]')).toHaveCount(0, { timeout: 10_000 });
+  await blur(page);
+  await page.keyboard.press("Shift+L");
+  await expect(page.locator('[data-testid="lane-toggle"][aria-expanded="false"]')).toHaveCount(0, { timeout: 10_000 });
+});
+
+test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
+  test.setTimeout(300_000);
+  await demo(page);
+  await page.goto("/app/notifications");
+  const rows = page.getByTestId("notification-row");
+  await expect(page.getByTestId("notifications-list")).toBeVisible({ timeout: 60_000 });
+  await page.waitForLoadState("networkidle").catch(() => null);
+  const n = await rows.count();
+  test.skip(n < 2, "the demo has fewer than two notifications");
+  const current = page.locator('[data-testid="notification-row"][aria-current="true"]');
+  await blur(page);
+  await page.keyboard.press("j");
+  await expect(current).toHaveCount(1);
+  const a = await current.getAttribute("data-id");
+  await page.keyboard.press("j");
+  await expect.poll(() => current.getAttribute("data-id")).not.toBe(a);
+  await page.keyboard.press("k");
+  await expect.poll(() => current.getAttribute("data-id")).toBe(a);
+  // U flips read on the focused row (the server's list is the check).
+  const readOf = async () => ((await (await page.request.get("/api/notifications?view=inbox&limit=100")).json()).notifications as { id: string; read: boolean }[]).find((x) => x.id === a)?.read;
+  const r0 = await readOf();
+  await page.keyboard.press("u");
+  await expect.poll(readOf, { timeout: 10_000 }).toBe(!r0);
+  await page.keyboard.press("u");
+  await expect.poll(readOf, { timeout: 10_000 }).toBe(r0);
+  // H opens the snooze menu; Esc closes it.
+  await page.keyboard.press("h");
+  await expect(page.getByTestId("snooze-menu")).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("snooze-menu")).toBeHidden();
+  // E marks the focused one done and it leaves the list; Shift+E brings it back.
+  await blur(page);
+  await page.keyboard.press("e");
+  await expect(rows).toHaveCount(n - 1, { timeout: 10_000 });
+  // Shift+E undoes the last done once the server has taken it (the toast says so).
+  await expect(page.getByText("Marked done").first()).toBeVisible({ timeout: 10_000 });
+  await page.keyboard.press("Shift+E");
+  await expect(page.getByText("Back in the inbox").first()).toBeVisible({ timeout: 10_000 });
+  await expect(rows).toHaveCount(n, { timeout: 10_000 });
+  // O opens the focused notification (it leaves the notifications page).
+  await blur(page);
+  await page.keyboard.press("j");
+  await expect(current).toHaveCount(1);
+  await page.keyboard.press("o");
+  await expect(page).not.toHaveURL(/\/app\/notifications(\?|$)/, { timeout: 15_000 });
+});
+
+test("triage keys: J K, then A D H M open their bars and dialogs, O opens the task", async ({ page }) => {
+  test.setTimeout(300_000);
+  await demo(page);
+  await page.goto("/app/triage");
+  const rows = page.getByTestId("triage-row");
+  const any = await rows.first().isVisible({ timeout: 60_000 }).catch(() => false);
+  test.skip(!any, "the demo has nothing in Triage");
+  const current = page.locator('[data-testid="triage-row"][aria-current="true"]');
+  await blur(page);
+  if ((await rows.count()) > 1) {
+    const a = await current.textContent();
+    await page.keyboard.press("j");
+    await expect.poll(() => current.textContent()).not.toBe(a);
+    await page.keyboard.press("k");
+    await expect.poll(() => current.textContent()).toBe(a);
+  }
+  // A and D open the comment bar (accept or decline with a note); Esc or Cancel closes it.
+  for (const key of ["a", "d"]) {
+    await blur(page);
+    await page.keyboard.press(key);
+    const bar = page.getByRole("button", { name: /cancel/i }).first();
+    await expect(bar, `key ${key}`).toBeVisible({ timeout: 10_000 });
+    await bar.click();
+    await expect(bar).toBeHidden({ timeout: 10_000 });
+  }
+  // H opens snooze and M opens merge as a duplicate; both are dialogs.
+  for (const key of ["h", "m"]) {
+    await blur(page);
+    await page.keyboard.press(key);
+    const dialog = page.getByRole("dialog").first();
+    await expect(dialog, `key ${key}`).toBeVisible({ timeout: 10_000 });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden({ timeout: 10_000 });
+  }
+  await blur(page);
+  await page.keyboard.press("o");
+  await expect(page).toHaveURL(/\/app\/tasks\?task=/, { timeout: 15_000 });
+});

@@ -254,7 +254,11 @@ export function WebmailPage() {
   const move = (action: string) => {
     if (!current) return;
     const next = items[idx + 1] ?? items[idx - 1];
-    act.mutate({ ids: [current.id], action });
+    // R37: E and # on the open message take the same undoable path as a swipe or a bulk action on one id,
+    // so Cmd+Z (and the toast's Undo) bring it back, as the shortcuts sheet promises. Same single write as before.
+    const call = { action, ids: [current.id] } as BulkCall;
+    const plan = undoPlan(call, items);
+    ops.run({ kind: "ids", call, plan, apply: (c) => act.mutateAsync({ ...c, quiet: true }) }, { action: call.action, count: 1 });
     open(next?.id ?? null);
   };
   // Undo send (or a failed send) puts the message back into Compose, exactly as it was.
