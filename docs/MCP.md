@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 137 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 141 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -439,6 +439,15 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | `reorder_checklist` | Put a task's checklist in a new order (every item id once); only items that move are written |
 | `delete_checklist_item` | Remove an item from its task's checklist |
 | `checklist_item_to_subtask` | Turn an item into a subtask of its task (same title, assignee and due date) and remove the item |
+
+### Agent runs (R27, DF-3 slice 2)
+
+| Tool | What it does |
+|---|---|
+| `start_task_run` | With an agent member's key: start your run on a task you are assigned to or mentioned on, or claim a run queued for you (`taskId`, `moveToDoing?`, `note?`). With a person's or workspace key: queue a run for `agentUserId`. One queued or running run per agent and task |
+| `add_run_step` | Log one step in your run: `kind` note, tool, comment or status_change, `text` up to 1,000 characters; 200 steps per run. One row write |
+| `finish_task_run` | Finish with `status` succeeded, failed or cancelled and a `result`; `moveTo` done or review moves the task, `comment` posts the result as your comment. A person's or workspace key can only cancel |
+| `list_task_runs` | With `taskId`: that task's runs with steps and results. Without: runs across the workspace (no steps), by `agentUserId` and `status` (read only keys can call it) |
 
 ### Task queries (R26, MB-86)
 
