@@ -127,11 +127,11 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   return (
     <Command.Dialog open={open} onOpenChange={(v) => { if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
       onKeyDown={(e) => { if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); } }}
-      overlayClassName="fixed inset-0 z-[90] bg-black/40 backdrop-blur-[2px] animate-fade-in motion-reduce:animate-none"
-      contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in motion-reduce:animate-none max-sm:top-[max(12px,env(safe-area-inset-top))] max-sm:rounded-2xl">
+      overlayClassName="fixed inset-0 z-[90] bg-black/40 animate-fade-in"
+      contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in">
       {picker && (
         <div className="flex items-center gap-1.5 border-b border-line px-3.5 pt-2.5 pb-2 text-[12px] text-subtle">
-          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071E3]"><ChevronLeft className="h-3.5 w-3.5" /></button>
+          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071E3]"><ChevronLeft className="h-3.5 w-3.5" /></button>
           <span className="min-w-0 truncate" data-testid="palette-crumb">{taskTitle}</span>
         </div>
       )}

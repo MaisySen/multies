@@ -7,6 +7,18 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 33: fewer D1 writes, unique project keys, bulk mail jobs, live chat acks, offline lists, premium admin screens (26 Oct 2026)
+
+- D1: each change writes one row that serves both the activity feed (now a view) and the change log, and project numbers come from their own counter table instead of the projects row. Rows written per action: task create 14 to 9, title edit 10 to 7, move 13 to 8, comment 16 to 13, doc save 9 to 6. Migration 0073.
+- Projects: a key must be unique when you edit it too (409 `key_taken`, any case), in the app, the API and MCP `update_project`. Old task refs keep working after a key change.
+- Mail: "Select all" across a whole folder runs as one server job (`/v1/mail/bulk-jobs`, MCP `mail_bulk_job`) with a progress toast: Cancel, Undo for 8 seconds, Undoing, Undone, Retry. Migration 0074. MCP: 178 tools.
+- Chat: messages are acknowledged by id, sends wait for the server's hello after a reconnect, and an unacknowledged send retries after 12 seconds without doubling.
+- Triage: accept or decline with a comment is one step with one Undo; Shift+D opens the full dialog.
+- Offline: your last copy of My Work, task lists, projects and the first page of each mail folder opens offline, with "Showing your last copy from 10:42". Copies are per user and wiped on sign-out. A browser notification for the page you already have open is skipped and that page refreshes; notifications older than 6 hours are dropped.
+- Docs: images keep their shape while loading (no layout shift). Developer docs are also served as Markdown at `/docs/api.md` and `/docs/mcp.md`, linked from `/llms.txt`.
+- Look and feel: the operator console, invite, guest, team, integrations and sign-in screens got a premium pass: stat tiles, themed dialogs instead of browser prompts and confirms, two-tap confirm for revoke, remove and disconnect, 44 px tap targets on phones, larger headings.
+- Testing: `npm run test:e2e:staging-readonly` (404, favicon set, robots, sitemap) for a remote pass that writes nothing.
+
 ### Round 32: bulk mail, live chat, waiting room, triage queue, offline and web push, D1 write meter (26 Oct 2026)
 
 - Mail: X selects the open conversation, Shift+X or Shift+click a range, Cmd/Ctrl+A everything shown; a bar archives, snoozes, moves, marks read or unread and deletes the selection, with Undo for 8 seconds (also Cmd/Ctrl+Z). Same service over the API (`POST /v1/mail/messages/bulk`) and MCP (`mail_bulk_action`). First-time senders that pass SPF and DKIM and are not bulk mail land in Important.

@@ -69,7 +69,7 @@ export function DocsPage() {
 
 function ToolButton({ on, label, active, children }: { on: () => void; label: string; active?: boolean; children: React.ReactNode }) {
   return <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={on} aria-label={label} aria-pressed={active} title={label}
-    className={cn("inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted transition-colors duration-150 ease-out hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4", active && "bg-brand-soft text-brand-hover hover:bg-brand-soft hover:text-brand-hover")}>{children}</button>;
+    className={cn("inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4", active && "bg-elevated text-fg")}>{children}</button>;
 }
 
 export function DocPage() {
@@ -195,7 +195,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         </div>
       )}
       {e && (
-        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:[scrollbar-width:none]" role="toolbar" aria-label="Formatting">
+        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 backdrop-blur" role="toolbar" aria-label="Formatting">
           <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><Bold /></ToolButton>
           <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><Italic /></ToolButton>
           <ToolButton label="Heading" active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 /></ToolButton>

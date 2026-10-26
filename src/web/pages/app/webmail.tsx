@@ -11,7 +11,6 @@ import { api } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import type { Folder, Message, MailboxOverview, MessageListItem } from "@/web/lib/types";
 import { Avatar, EmptyState, Kbd, Skeleton } from "@/web/components/ui/misc";
-import { Select } from "@/web/components/ui/input";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { formatBytes, fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -390,18 +389,18 @@ export function WebmailPage() {
       {/* List */}
       <section className={cn("flex min-w-0 flex-col border-r border-line md:w-[340px] lg:w-[380px] xl:w-[420px]", selected ? "hidden md:flex" : "flex flex-1 md:flex-none")} aria-label="Messages">
         <div className="flex items-center gap-2 border-b border-line p-3">
-          <Select aria-label="Folder" value={q ? "search" : folder} onChange={(e) => setParam({ folder: e.target.value === "inbox" ? null : e.target.value, m: null, q: null })} className="h-9 w-auto! max-w-[9.5rem] shrink-0 text-[13px] font-medium md:hidden">
+          <select aria-label="Folder" value={q ? "search" : folder} onChange={(e) => setParam({ folder: e.target.value === "inbox" ? null : e.target.value, m: null, q: null })} className="h-9 rounded-lg border border-line bg-surface px-2 text-[13px] md:hidden">
             {q && <option value="search">Search</option>}
             {FOLDER_UI.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
             {SCHEDULE_VIEWS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-          </Select>
+          </select>
           <form className="relative flex-1" role="search" onSubmit={(e) => { e.preventDefault(); setParam({ q: search.trim() || null, m: null }); }}>
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mail" aria-label="Search mail"
-              className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-8 text-[13px] outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-subtle focus:border-brand/60 focus:ring-4 focus:ring-brand/10 max-sm:h-11 max-sm:text-base" />
-            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}
+              className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-8 text-[13px] outline-none placeholder:text-subtle focus:border-brand/60 focus:ring-4 focus:ring-brand/10" />
+            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-subtle hover:text-fg" aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}
           </form>
-          <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand/90 md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
+          <button className="inline-flex items-center justify-center rounded-lg border border-line p-2 text-muted md:hidden max-sm:h-10 max-sm:w-10" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
         </div>
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} />}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
@@ -466,7 +465,7 @@ export function WebmailPage() {
 function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onCheck }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
-    <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row">
+    <li className={cn("group relative border-b border-line", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row">
       <RowCheck checked={checked} visible={selecting} label={`Select ${m.subject || "(no subject)"}`} onToggle={onCheck} />
       <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}>
         <div className="flex items-baseline gap-2">
@@ -537,8 +536,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   replyRef.current = { reply: (all) => reply(all), forward };
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:gap-0.5 max-sm:px-2">
-        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:h-10 max-sm:w-10" aria-label="Back to list"><ArrowLeft className="h-[18px] w-[18px]" /></button>
+      <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3">
+        <button onClick={onBack} className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg md:hidden" aria-label="Back to list"><ArrowLeft className="h-4 w-4" /></button>
         {m.folder !== "sent" && m.folder !== "drafts" && <>
           <SnoozeMenu messageId={m.id} onDone={onBack} />
           <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><Archive /></IconBtn>
@@ -681,7 +680,7 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
 
 function IconBtn({ label, onClick, children, active }: { label: string; onClick: () => void; children: React.ReactNode; active?: boolean }) {
   return (
-    <button onClick={onClick} title={label} aria-label={label} className={cn("grid place-items-center rounded-md p-2 transition-colors duration-150 ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4 max-sm:[&_svg]:h-[18px] max-sm:[&_svg]:w-[18px]", active ? "text-warn" : "text-muted hover:text-fg")}>
+    <button onClick={onClick} title={label} aria-label={label} className={cn("rounded-md p-2 transition-colors hover:bg-hover [&_svg]:h-4 [&_svg]:w-4", active ? "text-warn" : "text-muted hover:text-fg")}>
       {children}
     </button>
   );
