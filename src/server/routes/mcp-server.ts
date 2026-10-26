@@ -1,5 +1,5 @@
 /**
- * The MCP server: Multies' agent tools for Claude, ChatGPT, Cursor and any MCP client.
+ * The MCP server: Multies' agent tools for any MCP client.
  * Streamable HTTP, stateless: each request builds a server bound to the caller's API key,
  * so an agent key only ever sees and sends as its own agent.
  */

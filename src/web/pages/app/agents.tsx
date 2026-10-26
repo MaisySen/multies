@@ -146,7 +146,7 @@ export function ConnectSnippets({ secret, agentId }: { secret: string; agentId: 
   return (
     <div className="space-y-3">
       {secret && <Snippet label="Agent key" value={secret} />}
-      <Snippet label="MCP (Cursor, Claude Code and other clients that take a URL and headers)" value={mcp} />
+      <Snippet label="MCP (code editors, terminal agents and other clients that take a URL and headers)" value={mcp} />
       <Snippet label="Read its threads" value={`curl ${origin}/api/v1/agents/${agentId}/threads \\\n  -H "Authorization: Bearer ${key}"`} />
     </div>
   );

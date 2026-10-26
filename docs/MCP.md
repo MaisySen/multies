@@ -1,11 +1,12 @@
 # Multies MCP server
 
-Multies runs a Model Context Protocol server, so Claude, ChatGPT, Cursor and any MCP client can work
-in a Multies workspace: mail and agent inboxes, tasks, projects, docs, contacts, chat, meetings and more.
+Multies runs a Model Context Protocol server, so any MCP client (a desktop chat app, a code editor,
+a terminal agent or your own agent) can work in a Multies workspace: mail and agent inboxes, tasks,
+projects, docs, contacts, chat, meetings and more.
 
-Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free. Multies never pays for
-or resells AI model calls. People who want the assistant inside webmail add their own OpenAI,
-Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at rest.
+Bring your own AI: connect any agent through MCP, free. Multies never pays for or resells AI model
+calls. People who want the assistant inside webmail add their own model provider key in Settings,
+General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
@@ -302,7 +303,7 @@ Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can 
 | `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
 ### Call recordings and transcripts (round 23)
 
-Registered in src/server/routes/mcp-r23-recordings.ts. Read only: read only keys and tokens can call it. Calls are recorded by a person in the meeting room and transcribed with the workspace's own OpenAI or Groq key; Multies keeps the text, not the audio.
+Registered in src/server/routes/mcp-r23-recordings.ts. Read only: read only keys and tokens can call it. Calls are recorded by a person in the meeting room and transcribed with the workspace's own speech to text key; Multies keeps the text, not the audio.
 
 | Tool | What it does |
 | --- | --- |
@@ -315,48 +316,24 @@ Registered in src/server/routes/mcp-r23-calendar.ts. Read only; nothing is writt
 | --- | --- |
 | `list_calendar_events` | Meetings (weekly series expanded) and task due dates between `from` and `to` (at most 100 days). Signed in as a person (OAuth): your meetings, your tasks' due dates and your other calendars (read only, `kind: external`). With a key: every meeting and due date in the workspace |
 
-## Claude (claude.ai and Claude Desktop)
+## Desktop chat apps
 
-Settings, Connectors, Add custom connector. Name it Multies and paste `https://multies.si/api/v1/mcp`.
-Claude opens the Multies sign in page; allow it and the tools appear.
+In the app's connector settings, choose "add custom connector" (some apps call it "add MCP server"),
+name it Multies and paste `https://multies.si/api/v1/mcp`. The app opens the Multies sign in page;
+allow it and the tools appear. Apps that register themselves (dynamic client registration) need
+nothing else.
 
-## Claude Code
+## Terminal agents
 
-```sh
-claude mcp add --transport http multies https://multies.si/api/v1/mcp
-```
+Most terminal agents add a remote server with one command or one entry in their settings file. Give
+it the name `multies`, the transport `http` and the URL `https://multies.si/api/v1/mcp`. The agent
+signs in with OAuth the first time it uses a Multies tool. To use an API key instead, add the header
+`Authorization: Bearer mm_live_YOUR_KEY`.
 
-Claude Code signs in with OAuth the first time you use a Multies tool (`/mcp` shows the status). To use
-an API key instead, add `--header "Authorization: Bearer mm_live_YOUR_KEY"`.
+## Code editors
 
-## ChatGPT
-
-In ChatGPT's connector settings (developer mode), create a connector with the URL
-`https://multies.si/api/v1/mcp` and OAuth authentication. ChatGPT registers itself and sends you to
-the Multies sign in page.
-
-With the OpenAI API (Responses API or the Agents SDK), use the remote MCP tool with an API key:
-
-```js
-const response = await openai.responses.create({
-  model: "gpt-5",
-  tools: [{
-    type: "mcp",
-    server_label: "multies",
-    server_url: "https://multies.si/api/v1/mcp",
-    headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" },
-    require_approval: "never",
-  }],
-  input: "Check my agent inbox for a verification code from Acme and tell me what it is.",
-});
-```
-
-`require_approval` there is OpenAI's own prompt. Multies' approval queue still decides whether a
-send goes out.
-
-## Cursor
-
-`~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project). With only the URL, Cursor signs in with OAuth:
+Editors that read an `mcp.json` settings file (per user or per project) take this entry. With only
+the URL, the editor signs in with OAuth:
 
 ```json
 {
@@ -367,6 +344,22 @@ send goes out.
 ```
 
 Or with a key: add `"headers": { "Authorization": "Bearer mm_live_YOUR_KEY" }`.
+
+## Your own agent (model APIs with a remote MCP tool)
+
+Model APIs that support remote MCP servers take the URL and a header. The shape is usually:
+
+```json
+{
+  "type": "mcp",
+  "server_label": "multies",
+  "server_url": "https://multies.si/api/v1/mcp",
+  "headers": { "Authorization": "Bearer mm_live_YOUR_AGENT_KEY" }
+}
+```
+
+Any approval prompt there belongs to the model API. Multies' own approval queue still decides
+whether a send goes out.
 
 ## Older clients
 
