@@ -116,7 +116,10 @@ Builds before these (iOS 16 and earlier, Android 14 and earlier) have no EAS Upd
 store to update them.
 
 The first update, 1.9.4 (OTA), went to preview and then production on 26 Oct 2026 (ids in
-docs/RELEASES.md).
+docs/RELEASES.md). 1.9.5 (OTA) followed the same day (agent runs and checklist drag to reorder).
+
+Commit docs about an update (RELEASES rows) only after production is published: the guard
+publishes to production only the exact commit that went to preview.
 
 ## Not proven on a device yet
 
