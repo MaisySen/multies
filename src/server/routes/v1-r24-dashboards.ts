@@ -9,7 +9,6 @@ import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addWidget, createDashboard, dashboardData, deleteDashboard, getDashboard, listDashboards, updateDashboard, WidgetInput } from "../services/suite/dashboards";
 import { DashboardCreate, DashboardPatch, parseBody } from "./dashboards";
-import { widgetCatalog } from "../services/suite/dashboard-widget-catalog-r39";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -30,9 +29,6 @@ export function registerDashboardRoutes(api: OpenAPIHono<AppEnv>) {
     description: "Body: name, shared (default false; a dashboard made by an agent key is always shared), widgets (up to 24; see GET /dashboards/{id}), or starter: \"team\" for Team overview (by status, by person, due this week, completed per week). One row write.",
     request: anyBody as any, responses: { 201: json("The dashboard."), ...common },
   }), async (c) => c.json({ dashboard: await createDashboard(c.var.deps, actor(c), parseBody(DashboardCreate, await c.req.json().catch(() => ({})))) } as any, 201) as any);
-  // R39: the widget catalog (registered before /dashboards/{id}).
-  api.openapi(createRoute({ method: "get", path: "/dashboards/widget-types", tags, security, summary: "List widget types", description: "Every widget type with label, group, what it shows, the data it reads, the charts it can use, its default chart and size, its source fields and each setting with allowed values and the default; plus the common fields and the widget limit. Reads no data; any key with tasks:read.", responses: { 200: json("{ types, common, maxWidgets }."), 401: common[401] } }),
-    async (c) => c.json(widgetCatalog() as any, 200) as any);
   api.openapi(createRoute({ method: "get", path: "/dashboards/{id}", tags, security, summary: "Get a dashboard", description: "The dashboard and its widgets: id, type (count, breakdown, due, completed, burndown, goals, reply_times, mail_volume, workload, and from R38 calculation, battery, pivot, created_completed, task_list, time_tracked, note), title, source ({ savedViewId } or { projectId } and inline filters { assignee, status, priority, label, type, q, due }, or { mailboxId }), groupBy, chart (number, bar, donut, line, table), size (1 or 2 columns), position, and the R38 settings: range (7d, 30d, 90d, 180d), metric (done, created, points, hours) and op (sum, avg) and goal for calculation, columnBy for pivot (status, assignee, priority, project, type), sort for task_list (due, priority, updated), text for note.", request: { params: IdParam }, responses: { 200: json("The dashboard."), ...common } }),
     async (c) => c.json({ dashboard: await getDashboard(c.var.deps, actor(c), c.req.param("id")) } as any, 200) as any);
   api.openapi(createRoute({

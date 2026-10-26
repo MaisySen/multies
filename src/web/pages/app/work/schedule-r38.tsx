@@ -15,7 +15,6 @@ import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Switch } from "@/web/components/ui/misc";
 import { IconCheck, IconHourglass, IconWarning } from "@/web/components/ui/icon";
-import { DaysOffPicker } from "./schedule-days-off-r39"; // R39: days off picker
 
 interface Brief { id: string; ref: string; title: string; start: string | null; due: string | null }
 export interface ClashInfo { from: string; to: string; lag?: number; overlapDays: number; fix: { taskId: string; start: string | null; due: string | null }; blocker: Brief; blocked: Brief }
@@ -109,7 +108,6 @@ export function ScheduleRules({ projectId }: { projectId?: string }) {
         <span>Working days<span className="max-sm:hidden"> only</span></span>
         <Switch checked={rules.workingDaysOnly} onChange={(v) => save({ workingDaysOnly: v })} label="Working days only" />
       </label>
-      <DaysOffPicker daysOff={rules.daysOff} active={rules.workingDaysOnly} onChange={(d) => save({ daysOff: d })} />
       <MoveMode strict={rules.strict} onChange={(v) => save({ strict: v })} />
     </span>
   );
