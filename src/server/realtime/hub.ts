@@ -25,24 +25,12 @@ export const CLOSE_EXPIRED = 4001;
 /** Close code for a full hub (poll instead; try again later). */
 export const CLOSE_FULL = 4013;
 
-/**
- * R33: the first frame on every socket. The browser holds its outgoing sends until it arrives
- * (so nothing is sent into a socket the server has not taken yet), then flushes them in order.
- * `seq` counts the events this hub has published since it started; it starts again at 0 when a
- * hub restarts (an evicted Durable Object), which tells a tab that saw a higher number to read
- * once to catch up. Nothing is stored for it.
- */
-export type ChatHello = { t: "hello"; serverTime: string; seq: number };
-export function helloFrame(seq: number, now: number): ChatHello {
-  return { t: "hello", serverTime: new Date(now).toISOString(), seq };
-}
-
 /** Who may receive an event: everyone in the workspace, or exactly these people. */
 export type ChatAudience = { all: true } | { userIds: string[] };
 
 /** What the hub pushes. Messages carry the same row the chat list renders. */
 export type ChatLiveEvent =
-  | { t: "message"; op: "created" | "updated"; channelId: string; message: { id: string; channelId: string; parentId: string | null } & Record<string, unknown>; /** R33: the sender's client id, so the sending tab swaps its pending bubble for this one. */ clientMsgId?: string }
+  | { t: "message"; op: "created" | "updated"; channelId: string; message: { id: string; channelId: string; parentId: string | null } & Record<string, unknown> }
   | { t: "reactions"; channelId: string; messageId: string; reactions: unknown[] }
   | { t: "typing"; channelId: string; userId: string; name: string }
   | { t: "read"; channelId: string; userId: string; at: string };
@@ -79,8 +67,6 @@ export interface ChatLiveBus {
 /** The same hub in this process (Node entry and tests): one set of sockets per workspace. */
 export class MemoryChatHub implements ChatLiveBus {
   readonly hubs = new Map<string, Set<HubConn>>();
-  /** R33: events published per workspace since this process started (the hello frame's seq). */
-  readonly seqs = new Map<string, number>();
   constructor(private readonly now: () => number = () => Date.now()) {}
 
   /** Adds a socket. False when the workspace hub is full. */
@@ -99,11 +85,7 @@ export class MemoryChatHub implements ChatLiveBus {
     if (!set.size) this.hubs.delete(orgId);
   }
 
-  /** The hello frame for a new socket in this workspace. */
-  hello(orgId: string): ChatHello { return helloFrame(this.seqs.get(orgId) ?? 0, this.now()); }
-
   async publish(orgId: string, audience: ChatAudience, event: ChatLiveEvent) {
-    this.seqs.set(orgId, (this.seqs.get(orgId) ?? 0) + 1);
     const set = this.hubs.get(orgId);
     if (set) deliver([...set], audience, event, this.now());
   }

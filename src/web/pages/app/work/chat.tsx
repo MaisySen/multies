@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
-import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
+import { chatPollMs, useLiveChat } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
@@ -22,8 +22,6 @@ import { useCompactActions, useLongPress } from "@/web/lib/use-compact";
 import { MessageActionSheet, copyText } from "./chat-actions-r25";
 import { useProjects } from "./data";
 import { CallHeaderStatus } from "./call-r23";
-import { PendingBubbles } from "./chat-pending-r33";
-import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
@@ -234,7 +232,6 @@ export function ChatPage() {
   const [creating, setCreating] = useState<"channel" | "dm" | null>(null);
   // R32: live chat over a socket; while it is open the polls below slow to a 60 second safety net.
   const live = useLiveChat(myId);
-  const outboxItems = useOutbox(live.outbox);
   const channels = useQuery({ queryKey: ["chat", "channels"], refetchInterval: chatPollMs(live.live, 15_000), queryFn: async () => (await api.get<{ channels: ChatChannel[] }>("/chat/channels")).channels });
   const people = useQuery({ queryKey: ["chat", "people"], staleTime: 120_000, queryFn: async () => (await api.get<{ people: Person[] }>("/chat/people")).people });
   const list = channels.data ?? [];
@@ -268,10 +265,8 @@ export function ChatPage() {
 
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["chat", "messages"] }), qc.invalidateQueries({ queryKey: ["chat", "thread"] }), qc.invalidateQueries({ queryKey: ["chat", "channels"] }), qc.invalidateQueries({ queryKey: ["chat", "pins"] })]);
   const send = (parentId?: string) => async (body: string, files: File[]) => {
-    // R33: text goes through the outbox (client id, held until the socket's hello, ack, one retry).
-    if (!files.length) { live.outbox.enqueue({ channelId: current!.id, parentId: parentId ?? null, body }); return; }
     const attachments = await Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || undefined, contentBase64: await toBase64(f) })));
-    await api.post(`/chat/channels/${current!.id}/messages`, { body, parentId, attachments: attachments.length ? attachments : undefined, clientMsgId: newClientMsgId() });
+    await api.post(`/chat/channels/${current!.id}/messages`, { body, parentId, attachments: attachments.length ? attachments : undefined });
     await refresh();
   };
   const makeTask = async (m: ChatMessage) => {
@@ -365,10 +360,9 @@ export function ChatPage() {
             <div className="flex-1 overflow-y-auto px-2 py-2">
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
-              {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length && !pendingFor(outboxItems, current.id, null).length ? (
+              {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? (
                 <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
               ) : <ul>{messages.data.map((m) => row(m))}</ul>}
-              <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={null} authorName={me.data?.user.name ?? undefined} />
               <div ref={bottom} />
             </div>
             <ChatLiveLine store={live.typing} channelId={current.id} degraded={live.degraded} />
@@ -384,7 +378,6 @@ export function ChatPage() {
           </header>
           <div className="flex-1 overflow-y-auto px-2 py-2">
             {thread.data ? <ul>{row(thread.data.message, true)}<li className="my-2 border-t border-line" aria-hidden />{thread.data.replies.map((m) => row(m, true))}</ul> : <Skeleton className="h-24" />}
-            {current && <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={threadId} authorName={me.data?.user.name ?? undefined} />}
           </div>
           {current && <Composer testId="thread-composer" people={people.data ?? []} placeholder="Reply in thread" onSend={send(threadId)} onType={() => live.onType(current.id)} />}
         </aside>
