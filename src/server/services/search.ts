@@ -119,10 +119,16 @@ async function searchTasks(deps: Deps, orgId: string, term: string, limit: numbe
   const key = TASK_KEY.exec(term);
   const cols = { id: tasks.id, title: tasks.title, notes: tasks.notes, number: tasks.number, status: tasks.status, projectId: tasks.projectId, updatedAt: tasks.updatedAt, key: projects.key, projectName: projects.name };
   const base = and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState), projectId ? eq(tasks.projectId, projectId) : undefined);
-  const exact = key
+  let exact = key
     ? await deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
       .where(and(base, eq(projects.orgId, orgId), sql`upper(${projects.key}) = ${key[1].toUpperCase()}`, eq(tasks.number, Number(key[2])))).limit(1)
     : [];
+  // R34: an old key (after a key edit) or the ref a task had before it moved still finds it. Only on a miss.
+  if (key && !exact.length) {
+    const { resolveOldRefs } = await import("./suite/task-refs-r34");
+    const id = (await resolveOldRefs(deps, orgId, [`${key[1]}-${key[2]}`])).get(`${key[1].toUpperCase()}-${key[2]}`);
+    if (id) exact = await deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId)).where(and(base, eq(tasks.id, id))).limit(1);
+  }
   const pattern = contains(term);
   const rows = await deps.db.select(cols).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(base, likeAny([sql`${tasks.title}`, sql`${tasks.notes}`], pattern)))

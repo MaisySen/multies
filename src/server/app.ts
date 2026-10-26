@@ -50,6 +50,7 @@ import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
 import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-triggers-r28"; // R28 (DF-3 slice 3)
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
+import { countsRoutes } from "./routes/counts-r34"; // R34
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
@@ -281,6 +282,7 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
+  app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
   app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)
   app.route("/api/mail/read-status", mailReadStatusRoutes()); // R31: read status of a sent message
   app.route("/api/mail", mailRoutes());

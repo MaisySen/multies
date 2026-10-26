@@ -21,15 +21,12 @@ import { GuestsDialog } from "./guests";
 import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
 import { useTaskListFocus } from "@/web/lib/commands/use-task-focus";
-import { useCommandHandlers } from "@/web/lib/commands/use-commands"; // R34
 import { TaskQueryBox } from "./task-query-box"; // R26 (MB-86)
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
-import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, type Task, isAgentLike } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, isAgentLike } from "./data";
 import { tone } from "@/web/components/app-bits";
 import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
-import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarget } from "./board-lanes"; // R34 (MB-186)
-import { NO_LANE, SWIMLANES, type Swimlanes } from "@/shared/board-lanes";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
@@ -69,12 +66,6 @@ export function TasksPage() {
   const fieldFilters = [...params.entries()].filter(([k]) => k.startsWith("field."));
   const groupField = view === "board" ? fields.find((f) => f.id === params.get("group") && f.type === "select") : undefined;
   const groupEpic = view === "board" && params.get("group") === "epic";
-  // R34 (MB-186): swimlanes and WIP limits saved with the board (one read, one write per change).
-  const board = useBoardSettings(view === "board" ? projectId || undefined : undefined);
-  const lanesOn = view === "board" && !groupField && !groupEpic && board.settings.swimlanes !== "none";
-  const [laneCollapse, setLaneCollapse] = useState(0);
-  useCommandHandlers({ "board-lanes-collapse": () => { setLaneCollapse((n) => n + 1); } }, lanesOn);
-  const setLimit = useCallback((id: string, v: { max?: number | null; min?: number | null }) => board.save({ column: { id, ...v } }), [board]);
   const [fieldsOpen, setFieldsOpen] = useState(false);
   const [guestsOpen, setGuestsOpen] = useState(false);
   const [epicsOpen, setEpicsOpen] = useState(false);
@@ -120,42 +111,6 @@ export function TasksPage() {
     } catch (e) { showError(e as Error); }
     void qc.invalidateQueries({ queryKey: ["tasks"] });
   }, [tasks.data, qc]);
-  // R34 (MB-186): a drop in a lane board sets the status (column) and the lane's field in one update.
-  const moveInLane = useCallback(async (id: string, to: LaneTarget, position: number) => {
-    const t = (tasks.data ?? []).find((x) => x.id === id);
-    if (!t || !project) return;
-    const st = project.statuses.find((s) => s.id === to.col);
-    const patch: Record<string, unknown> = { position };
-    if (st && st.id !== t.statusId) Object.assign(patch, { statusId: st.id, status: st.category, statusName: st.name });
-    const mode = board.settings.swimlanes;
-    const lane = to.lane === NO_LANE ? null : to.lane;
-    if (mode === "assignee") {
-      const cur = assigneeKey(t.assignee as never);
-      if (cur !== lane) {
-        // Sent as assigneeId ("member:<id>", null clears) so the optimistic merge keeps the assignee object the
-        // cards render; the object is set here first from the people list.
-        patch.assigneeId = lane;
-        const p = (people.data ?? []).find((x) => x.id === lane);
-        const obj = p ? { type: p.type, id: p.id.split(":")[1], name: p.name, email: p.email } : null;
-        for (const [key, list] of qc.getQueriesData<Task[]>({ queryKey: ["tasks"] })) {
-          if (Array.isArray(list)) qc.setQueryData<Task[]>(key, list.map((x) => (x.id === id ? { ...x, assignee: obj as Task["assignee"] } : x)));
-        }
-      }
-    } else if (mode === "priority") {
-      const cur = t.priority === "none" ? null : t.priority;
-      if (cur !== lane) patch.priority = lane ?? "none";
-    } else if (mode === "epic") {
-      const isEpic = (pid: string | null | undefined) => !!pid && (tasks.data ?? []).some((x) => x.id === pid && x.type === "epic");
-      const from = isEpic(t.parentId) ? t.parentId! : null;
-      if (from !== lane) {
-        try {
-          if (lane) await api.post(`/epics/${lane}/items`, { ids: [id] });
-          else if (from) await api.del(`/epics/${from}/items`, { ids: [id] });
-        } catch (e) { showError(e as Error); return; }
-      }
-    }
-    update.mutate({ id, patch: patch as never });
-  }, [tasks.data, project, board.settings.swimlanes, update, people.data, qc]);
   const [editing, setEditing] = useState<Project | "new" | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -238,11 +193,6 @@ export function TasksPage() {
             {fields.filter((f) => f.type === "select").map((f) => <option key={f.id} value={f.id}>Group by {f.name}</option>)}
           </Select>
         )}
-        {view === "board" && project && !groupField && !groupEpic && (
-          <Select aria-label="Swimlanes" data-testid="swimlanes-select" value={board.settings.swimlanes} onChange={(e) => board.save({ swimlanes: e.target.value as Swimlanes })} className="h-8 w-auto! text-[13px]">
-            {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "No swimlanes" : `Lanes: ${SWIMLANE_LABEL[s]}`}</option>)}
-          </Select>
-        )}
         {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><X className="h-3.5 w-3.5" />Clear</Button>}
         <Menu align="end" trigger={<Button variant="secondary" size="sm"><Bookmark className="h-3.5 w-3.5" />Saved views<ChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
@@ -265,12 +215,8 @@ export function TasksPage() {
           view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
         ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
           <TasksEmpty copy={emptyTasksCopy("list", filtered)} onClear={clearFilters} onNew={() => setNewTask({})} />
-        ) : lanesOn && project ? (
-          <LaneBoard project={project} tasks={tasks.data ?? []} mode={board.settings.swimlanes as Exclude<Swimlanes, "none">} projects={list} people={people.data ?? []}
-            limits={board.settings.limits} onSetLimit={setLimit} onOpen={open} collapseSignal={laneCollapse}
-            onMove={(id, to, position) => void moveInLane(id, to, position)} />
         ) : view === "board" && project ? (
-          <Board project={project} limits={board.settings.limits} onSetLimit={setLimit} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
+          <Board project={project} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
             onMove={(id, col, position) => groupEpic
               ? void moveToEpic(id, col, position)
               : groupField

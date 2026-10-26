@@ -1916,14 +1916,3 @@ export const mailBulkJobs = sqliteTable("mail_bulk_jobs", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [uniqueIndex("mail_bulk_jobs_client_idx").on(t.orgId, t.clientJobId)]);
-
-/** R34 (0075, MB-186): board swimlanes and WIP limits per project (services/suite/board-settings.ts). WITHOUT ROWID. */
-export const boardSettings = sqliteTable("board_settings", {
-  projectId: text("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  swimlanes: text("swimlanes", { enum: ["none", "assignee", "epic", "priority", "project"] }).notNull().default("none"),
-  /** JSON: { [columnId]: { max?: number, min?: number } }. */
-  limits: text("limits").notNull().default("{}"),
-  updatedBy: text("updated_by"),
-  updatedAt: ts("updated_at").notNull(),
-});
