@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ImportSection, XeroSection } from "./import-section";
 import { AiSection } from "./ai-section";
 import { SavedRepliesSection } from "./mail/saved-replies";
+import { ReadStatusSection } from "./mail/splits"; // R31
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -73,6 +74,7 @@ export function MailSettings() {
   return (
     <div className="space-y-6">
       <UndoSendSection />
+      <ReadStatusSection Section={Section} />
       <SavedRepliesSection Section={Section} />
       <InboundSection />
       <OutboundSection />

@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 156 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 169 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -53,7 +53,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | Tool | What it does |
 | --- | --- |
 | `list_inboxes` | List inboxes |
-| `list_threads` | List threads |
+| `list_threads` | List threads (R31: `split` narrows to an Inbox tab) |
 | `read_thread` | Read a thread |
 | `search` | Search mail |
 | `search_everything` | One search across mail, tasks (or a key like OPS-12), docs, chat, contacts and deals, grouped by type. Only what the key can open (read only) |
@@ -113,6 +113,8 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `upsert_contact` | Save a contact |
 | `list_forms` | List forms |
 | `create_form` | Create a public form |
+| `form_logic_set` | Set a question's "show if" logic, answer rules and required switch (R31); conditions use earlier questions only |
+| `form_results` | A form's results (R31): total, a summary per question and the newest responses |
 | `list_templates` | List project, task and doc templates |
 | `use_template` | Make a project, task or doc from a template |
 | `create_template` | Create a template from scratch |
@@ -133,6 +135,11 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
+| `notification_list` | Your notifications by view: inbox, later (snoozed) or done, with viewCounts (R31) |
+| `notification_done` | Mark one notification (id) or up to 500 (ids) done (R31) |
+| `notification_undone` | Move a notification back to the Inbox (R31) |
+| `notification_snooze` | Snooze a notification until a time or later_today, tomorrow, next_week (R31) |
+| `catchup_get` | What did I miss: a digest of a channel, task or doc since your last visit (R31) |
 
 ### Chat
 
@@ -233,6 +240,18 @@ Registered in src/server/routes/mcp-r22-snippets.ts. Read only keys and tokens c
 | `render_snippet` | A saved reply's subject and body filled in for a thread (its newest sender; the thread must be one the key can open) or a `to` address. Sends nothing |
 | `create_snippet` | Save a reply: name, body, optional subject, shortcut and `shared` (default true) |
 
+### Inbox splits and read status (R31)
+
+Registered in src/server/routes/mcp-r31-mail.ts. Splits are a person's own: personal keys and OAuth sign ins (agent keys get 403). Important is mail from people (someone the mailbox wrote to, a teammate, a saved contact, or a reply in a thread the mailbox wrote in) that is not bulk; Other is the rest. `list_threads` takes `split` (`important`, `other` or a split id).
+
+| Tool | What it does |
+| --- | --- |
+| `mail_split_list` | Your Inbox tabs (Important, Other, then your splits) with unread counts, plus each split's rules |
+| `mail_split_create` | Add a split: name, rules (fromContains, fromDomain, to, subjectContains, calendarInvite, fromTeammate), match all or any, leavesImportant (default true) |
+| `mail_split_update` | Rename, reorder (position) or change a split's rules |
+| `mail_split_delete` | Remove a split; its mail goes back to Important or Other |
+| `mail_read_status` | Whether a sent message was opened: tracked, opens, firstOpenAt, lastOpenAt (tracked is false when the sender had read status off) |
+
 ### Meeting notes (round 23)
 
 Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can read the notes; `create_action_items` needs a key that can write. Agent keys create tasks as their agent.
@@ -240,6 +259,7 @@ Registered in src/server/routes/mcp-r23-notes.ts. Read only keys and tokens can 
 | Tool | What it does |
 | --- | --- |
 | `get_meeting_notes` | A meeting's title, time and attendees with its notes doc as plain structure: agenda lines, notes lines, and action items (title, assignee, due date, and the task once made). `doc` is null before anyone took notes; `summary` is null unless a recording summary exists |
+| `meeting_summary_so_far` | For a live call or meeting: who is in it and since when, minutes elapsed, the notes doc's headings and to-dos, and decisions said in the call's chat. A deterministic digest labelled "So far" (no model call); `transcript` is always null (R31) |
 | `create_action_items` | With no `items`: every unchecked action item in the notes that is not a task yet becomes a task. With `items` ({ title, assignee?, due? }): each is added to the notes, then made a task. Items already made are skipped, so a second call creates nothing |
 ### Call recordings and transcripts (round 23)
 

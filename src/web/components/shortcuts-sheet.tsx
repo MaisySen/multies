@@ -1,20 +1,24 @@
 /**
- * R30: the keyboard shortcuts sheet ("?") and the global keys (? and G then a letter).
- * Everything it shows comes from the registry in lib/shortcuts.ts.
+ * R30: the keyboard shortcuts sheet ("?"). R31: the global key handler reads the one command
+ * registry (lib/commands): single keys, G then a letter, and keys on the focused task or message.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Search } from "lucide-react";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Kbd } from "@/web/components/ui/misc";
-import { OPEN_SHORTCUTS_EVENT, SHORTCUTS, displayKeys, filterShortcuts, groupShortcuts, isTypingTarget, readKey, type KeyState } from "@/web/lib/shortcuts";
+import { OPEN_SHORTCUTS_EVENT, displayKeys, filterShortcuts, groupForPath, groupShortcuts, isTypingTarget, openPalette, sheetShortcuts } from "@/web/lib/shortcuts";
+import { SEQUENCE_MS, activeScopes, commandById, getFocus, idleKeys, readKeys, runCommand, type CommandContext, type KeyState } from "@/web/lib/commands";
+import { useAppearance } from "@/web/components/theme";
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
+  const { pathname } = useLocation();
   useEffect(() => { if (!open) setQ(""); }, [open]);
-  const groups = useMemo(() => groupShortcuts(filterShortcuts(SHORTCUTS, q)), [q]);
+  // R31: read from the one command registry; the current page's keys come first.
+  const groups = useMemo(() => groupShortcuts(filterShortcuts(sheetShortcuts(), q), groupForPath(pathname)), [q, pathname]);
   return (
     <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description="Press ? anywhere to see this again." className="max-w-xl">
       <label className="flex items-center gap-2 rounded-lg border border-line bg-fill px-3">
@@ -49,27 +53,60 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   );
 }
 
-/** Mounted once in the app layout: listens for ? and G then a letter, and for the open event from menus. */
+/** Mounted once in the app layout: every single key and sequence from the command registry, and the open event from menus. */
 export function ShortcutsHost() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const appearance = useAppearance();
   const [open, setOpen] = useState(false);
-  const state = useRef<KeyState>({ pendingG: null });
+  const [hint, setHint] = useState<string[] | null>(null);
+  const state = useRef<KeyState>(idleKeys());
+  const path = useRef(location.pathname);
+  path.current = location.pathname;
+  const theme = useRef(appearance);
+  theme.current = appearance;
   useEffect(() => {
+    let hintTimer: ReturnType<typeof setTimeout> | undefined;
+    const ctx: CommandContext = {
+      navigate, openSheet: () => setOpen(true), openPalette,
+      toggleTheme: () => theme.current.set(theme.current.resolved === "dark" ? "light" : "dark"),
+    };
+    const reset = () => { state.current = idleKeys(); setHint(null); };
     const onOpen = () => setOpen(true);
     const onKey = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || isTypingTarget(e.target) || document.querySelector("dialog[open], [role=dialog]")) { state.current = { pendingG: null }; return; }
-      const r = readKey(state.current, e, Date.now());
-      state.current = r.state;
-      if (r.action.kind === "sheet") { e.preventDefault(); setOpen(true); }
-      else if (r.action.kind === "go") {
-        // The second key belongs to the go to, not to the page (C on Mail would otherwise also compose).
-        e.preventDefault(); e.stopImmediatePropagation();
-        navigate(r.action.to);
+      if (e.defaultPrevented || isTypingTarget(e.target) || document.querySelector("dialog[open], [role=dialog]:not([data-keys-pass])")) { reset(); return; }
+      if (e.key === "Escape") {
+        const close = commandById("mail-close");
+        if (close && getFocus().kind === "mail" && runCommand(close, ctx)) e.preventDefault();
+        return;
       }
+      const r = readKeys(state.current, e, Date.now(), activeScopes(path.current, getFocus()));
+      state.current = r.state;
+      clearTimeout(hintTimer);
+      if (r.result.kind === "pending") {
+        e.preventDefault();
+        setHint(r.result.keys);
+        hintTimer = setTimeout(reset, SEQUENCE_MS);
+        return;
+      }
+      setHint(null);
+      // The key belongs to the command, not to the page (C on Mail after G would otherwise also compose).
+      if (r.result.kind === "run" && runCommand(r.result.command, ctx)) { e.preventDefault(); e.stopImmediatePropagation(); }
     };
     window.addEventListener(OPEN_SHORTCUTS_EVENT, onOpen);
     window.addEventListener("keydown", onKey, true);
-    return () => { window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen); window.removeEventListener("keydown", onKey, true); };
+    return () => { clearTimeout(hintTimer); window.removeEventListener(OPEN_SHORTCUTS_EVENT, onOpen); window.removeEventListener("keydown", onKey, true); };
   }, [navigate]);
-  return <ShortcutsSheet open={open} onClose={() => setOpen(false)} />;
+  return (
+    <>
+      <ShortcutsSheet open={open} onClose={() => setOpen(false)} />
+      {hint && (
+        <div role="status" aria-live="polite" data-testid="sequence-hint"
+          className="pointer-events-none fixed bottom-4 left-4 z-[95] flex items-center gap-1.5 rounded-lg border border-line bg-surface/95 px-3 py-2 text-[12.5px] text-muted shadow-pop backdrop-blur animate-fade-in motion-reduce:animate-none">
+          {hint.map((k, i) => <Kbd key={i}>{k}</Kbd>)}
+          <span>then ...</span>
+        </div>
+      )}
+    </>
+  );
 }

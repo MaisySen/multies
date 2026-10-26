@@ -45,7 +45,7 @@ function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
     // The card drags by pointer anywhere on it; keyboard and screen reader users get a
     // separate handle, so the list item itself is not a button wrapping other buttons.
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...listeners}
-      className={cn("touch-none", isDragging && "opacity-40")} data-testid="board-card">
+      className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}>
       <TaskCard t={t} onOpen={onOpen} handle={
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
           className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><GripVertical className="h-3.5 w-3.5" aria-hidden /></button>

@@ -84,6 +84,8 @@ export interface MessageListItem {
   hasAttachments: boolean;
   /** Set when one of your agents wrote it. */
   sentByAgentId?: string | null;
+  /** R31: read status of a sent message (Sent and the thread), when the sender had it on. */
+  readStatus?: { tracked: boolean; opens: number; firstOpenAt: string | null; lastOpenAt: string | null } | null;
   /** The provider folder of a connected mailbox's message (round 19), or null. */
   remoteBox?: string | null;
 }

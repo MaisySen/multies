@@ -48,3 +48,20 @@ export function withPreloads(shell: string, files: string[]): string {
   if (!links.length) return shell;
   return shell.replace("</head>", `  ${links.join("\n    ")}\n  </head>`);
 }
+
+/** R31: the source module behind each page the app warms when idle (keep in step with LIKELY_NEXT in lib/prefetch.ts). */
+export const ROUTE_MODULES: Record<string, string> = {
+  "/app/my-work": "src/web/pages/app/my-work.tsx",
+  "/app/tasks": "src/web/pages/app/work/tasks.tsx",
+  "/app/mail": "src/web/pages/app/webmail.tsx",
+};
+
+/** R31: page path to the hashed files its code needs, from the Vite manifest; pages missing from the manifest are left out. */
+export function routeChunkMap(manifest: Record<string, { file: string; imports?: string[] }>, modules: Record<string, string>): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [route, mod] of Object.entries(modules)) {
+    const files = [...new Set(chunkFiles(manifest, mod))];
+    if (files.length) out[route] = files;
+  }
+  return out;
+}

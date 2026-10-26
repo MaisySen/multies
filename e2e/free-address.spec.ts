@@ -110,7 +110,8 @@ test("a new person in São Paulo is onboarded from the browser, takes a free add
   // Receive through the Email Worker, signed with the platform key.
   const inSubject = `Free address in ${stamp}`;
   expect(await receive(address, inSubject)).toBeNull();
-  await page.goto(`${BASE}/app/mail`);
+  // R31: mail from someone the person never wrote to lands in the Other tab of the split inbox.
+  await page.goto(`${BASE}/app/mail?split=other`);
   await expect(page.getByText(inSubject).first()).toBeVisible({ timeout: 15_000 });
   // A name nobody has bounces.
   expect(await receive(`nobody.${stamp}@free.multies.test`, "x")).toMatch(/No mailbox/);

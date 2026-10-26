@@ -3,13 +3,14 @@
  * mail, in one place per person. Each person chooses per category whether it shows in the inbox
  * and whether it buzzes their phone. A push carries only an event type and an id.
  */
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, eq, isNull, lt, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { notificationPrefs, notifications } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { sortableId } from "./common";
 import { pushToUsers } from "./push";
 import { inIds } from "../../lib/sql-chunks";
+import { inboxWhere, VIEW_ORDER, viewCountsFor, viewWhere, type TriageView } from "./notify-triage"; // R31 triage
 
 export const CATEGORIES = ["mention", "assignment", "comment", "approval", "due_soon", "chat", "email", "status"] as const;
 export type Category = (typeof CATEGORIES)[number];
@@ -89,7 +90,7 @@ export function linkFor(n: { entityType: string; entityId: string; type: string 
   }
 }
 
-export async function listNotifications(deps: Deps, orgId: string, userId: string, opts: { unread?: boolean; limit?: number; category?: string; before?: string } = {}) {
+export async function listNotifications(deps: Deps, orgId: string, userId: string, opts: { unread?: boolean; limit?: number; category?: string; before?: string; view?: TriageView } = {}) {
   const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
   let typeFilter;
   if (opts.category && opts.category !== "all") {
@@ -99,11 +100,18 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
     typeFilter = c === "status" ? sql`${notifications.type} not in (${sql.join(Object.keys(TYPE_CATEGORY).filter((t) => TYPE_CATEGORY[t] !== "status").map((t) => sql`${t}`), sql`, `)})` : inIds(notifications.type, typesOf(c));
   }
   const base = and(eq(notifications.orgId, orgId), eq(notifications.userId, userId));
+  // R31: Inbox (default), Later or Done. A snooze that has passed is back in the Inbox, ordered by when it came back.
+  const view: TriageView = opts.view ?? "inbox";
+  const now = deps.now();
   const rows = await deps.db.select().from(notifications)
-    .where(and(base, opts.unread ? isNull(notifications.readAt) : undefined, typeFilter, opts.before ? lt(notifications.id, opts.before) : undefined))
-    .orderBy(desc(notifications.id)).limit(limit + 1);
+    .where(and(base, viewWhere(view, now, !!opts.before), opts.unread ? isNull(notifications.readAt) : undefined, typeFilter, opts.before ? lt(notifications.id, opts.before) : undefined))
+    .orderBy(...VIEW_ORDER[view]).limit(limit + 1);
   const page = rows.slice(0, limit);
-  const unreadRows = await deps.db.select({ type: notifications.type, n: sql<number>`count(*)` }).from(notifications).where(and(base, isNull(notifications.readAt))).groupBy(notifications.type);
+  // The unread count (sidebar badge, category chips) counts the Inbox only.
+  const [unreadRows, viewCounts] = await Promise.all([
+    deps.db.select({ type: notifications.type, n: sql<number>`count(*)` }).from(notifications).where(and(base, isNull(notifications.readAt), inboxWhere(now))).groupBy(notifications.type),
+    viewCountsFor(deps, orgId, userId, now),
+  ]);
   const counts = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<Category, number>;
   let unread = 0;
   for (const r of unreadRows) { counts[categoryOf(r.type)] += Number(r.n); unread += Number(r.n); }
@@ -119,8 +127,9 @@ export async function listNotifications(deps: Deps, orgId: string, userId: strin
       id: r.id, type: r.type, category: categoryOf(r.type), entityType: r.entityType, entityId: r.entityId, title: r.title,
       actor: r.actorName ? { type: "member", id: null, name: r.actorName } : null, read: !!r.readAt, createdAt: r.createdAt.toISOString(),
       link: linkFor(r, channelOf.get(r.entityId)),
+      doneAt: r.doneAt ? r.doneAt.toISOString() : null, snoozedUntil: r.snoozedUntil && r.snoozedUntil > now ? r.snoozedUntil.toISOString() : null,
     })),
-    unread, counts, hasMore: rows.length > limit,
+    unread, counts, hasMore: rows.length > limit, view, viewCounts,
   };
 }
 

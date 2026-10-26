@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
@@ -18,6 +19,7 @@ import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSessi
 import { tone } from "@/web/components/app-bits";
 import { MeetingNotesBacklink } from "./meeting-notes";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
+import { SlashMenu } from "./slash-menu"; // R31: "/" menu for every block
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteConfirmText, useBracketTrigger, useDocTree } from "./doc-tree";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
@@ -140,7 +142,8 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const e = editor;
   const tree = useDocTree();
   const [picker, setPicker] = useState(false);
-  useBracketTrigger(editor, useCallback(() => setPicker(true), []));
+  const openPicker = useCallback(() => setPicker(true), []);
+  useBracketTrigger(editor, openPicker);
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className="mx-auto max-w-3xl">
@@ -175,6 +178,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         onBlur={() => void saveTitle()}
         className="w-full bg-transparent text-[26px] font-semibold tracking-tight outline-none" placeholder="Untitled" />
       <MeetingNotesBacklink docId={doc.id} />
+      <CatchupCard key={`catchup-${doc.id}`} type="doc" id={doc.id} className="mx-0" />
       {doc.links.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {doc.links.map((l) => (
@@ -198,6 +202,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
         </div>
       )}
       <div className="mt-4"><EditorContent editor={editor} /></div>
+      <SlashMenu editor={editor} onLinkPicker={openPicker} />
       <div className="pb-24"><LinkedFrom docId={id} /></div>
     </div>
   );

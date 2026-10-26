@@ -6,7 +6,7 @@
  * sends before they leave), the plan's monthly agent message allowance, and an audit log
  * entry for everything an agent does.
  */
-import { and, asc, count, desc, eq, gt, gte, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, lt, or, sql, type SQL } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
@@ -296,11 +296,12 @@ async function agentNames(deps: Deps, orgId: string) {
 const scopeCond = (scope: string[] | null) => (scope ? inIds(messages.mailboxId, scope) : undefined);
 
 /** Threads, newest first: one row per thread with its latest message. */
-export async function listThreads(deps: Deps, orgId: string, scope: string[] | null, q: { mailboxId?: string; folder?: string; unread?: boolean; before?: string; limit?: number; view?: ThreadView; assignee?: string; viewerUserId?: string | null }) {
+export async function listThreads(deps: Deps, orgId: string, scope: string[] | null, q: { mailboxId?: string; folder?: string; unread?: boolean; before?: string; limit?: number; view?: ThreadView; assignee?: string; viewerUserId?: string | null; extra?: SQL }) {
   const limit = Math.min(Math.max(q.limit ?? 25, 1), 100);
   if (q.mailboxId && scope && !scope.includes(q.mailboxId)) throw notFound("Mailbox");
   const conds = [eq(messages.orgId, orgId), scopeCond(scope), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, sql`${messages.folder} not in ('trash', 'drafts')`];
   if (q.folder) conds.push(eq(messages.folder, q.folder as "inbox"));
+  if (q.extra) conds.push(q.extra); // R31: an Inbox split
   const grouped = deps.db.select({
     threadId: messages.threadId,
     last: sql<number>`max(${messages.date})`.as("last"),

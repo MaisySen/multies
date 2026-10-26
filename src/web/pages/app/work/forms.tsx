@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDown, ArrowUp, ClipboardList, ExternalLink, Plus, Trash2 } from "lucide-react";
 import { api } from "@/web/lib/api";
@@ -11,13 +11,24 @@ import { Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/we
 import { Logo } from "@/web/components/logo";
 import { timeAgo } from "@/web/lib/format";
 import { useAssignees, useProjects, isAgentLike } from "./data";
+import { checkAnswers, checkLogic, MULTI_SEPARATOR, visibleFieldIds, type FormFieldType, type FormRoute } from "@/shared/form-logic";
+import { FormResults, LogicEditor, RoutingEditor, type BuilderField } from "./form-logic-ui";
+import { ApiError } from "@/web/lib/api";
 
-type FieldType = "text" | "email" | "textarea" | "phone" | "select" | "number" | "date";
-interface FormField { id?: string; label: string; type: FieldType; required?: boolean; options?: string[]; placeholder?: string }
-interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; submitCount: number; lastSubmitAt: string | null }
-interface Submission { id: string; data: Record<string, string>; entityType: string | null; entityId: string | null; createdAt: string }
+type FieldType = FormFieldType;
+type FormField = BuilderField;
+interface Form { id: string; name: string; description: string; slug: string; url: string; target: "task" | "contact"; projectId: string | null; assigneeId: string | null; fields: FormField[]; successMessage: string; enabled: boolean; triage?: boolean; routing?: FormRoute[]; submitCount: number; lastSubmitAt: string | null }
 
-const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", number: "Number", date: "Date" };
+const TYPES: Record<FieldType, string> = { text: "Short text", email: "Email", textarea: "Long text", phone: "Phone", select: "Choice", multiselect: "Several choices", number: "Number", date: "Date" };
+const withOptions = (t: FieldType) => t === "select" || t === "multiselect";
+/** R31: every builder field gets a stable id up front, so "show if" conditions can point at it. */
+const idFor = (label: string, taken: Set<string>, i: number) => {
+  let id = label.trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || `field_${i + 1}`;
+  while (taken.has(id)) id = `${id}_${i + 1}`;
+  taken.add(id);
+  return id;
+};
+const withIds = (fields: FormField[]) => { const taken = new Set(fields.map((x) => x.id).filter(Boolean) as string[]); return fields.map((x, i) => (x.id ? x : { ...x, id: idFor(x.label, taken, i) })); };
 
 export function FormsPage() {
   const qc = useQueryClient();
@@ -44,7 +55,7 @@ export function FormsPage() {
               <div className="flex items-center gap-2">
                 <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated"><ExternalLink className="h-3.5 w-3.5" />Open</a>
                 <CopyButton value={f.url} label="Copy link" />
-                <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Answers</Button>
+                <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>
               </div>
             </div>
           ))}
@@ -52,7 +63,7 @@ export function FormsPage() {
       )}
       {q.data && <p className="mt-3 text-[12px] text-subtle">{q.data.turnstile ? "Spam protection: a human check, a hidden trap field and a limit per sender." : "Spam protection: a hidden trap field, a minimum fill time and a limit per sender."}</p>}
       {editing && <FormEditor initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); void refresh(); }} />}
-      {viewing && <Answers id={viewing} onClose={() => setViewing(null)} />}
+      {viewing && <FormResults id={viewing} name={q.data?.forms.find((x) => x.id === viewing)?.name ?? "form"} onClose={() => setViewing(null)} />}
     </div>
   );
 }
@@ -60,20 +71,23 @@ export function FormsPage() {
 function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onClose: () => void; onSaved: () => void }) {
   const projects = useProjects();
   const people = useAssignees();
-  const [f, setF] = useState<Partial<Form>>({ ...initial, fields: initial.fields ?? [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }, { label: "What do you need?", type: "text", required: true }, { label: "Details", type: "textarea" }] });
+  const [f, setF] = useState<Partial<Form>>({ ...initial, fields: withIds(initial.fields ?? [{ label: "Your name", type: "text", required: true }, { label: "Email", type: "email", required: true }, { label: "What do you need?", type: "text", required: true }, { label: "Details", type: "textarea" }]) });
   const [busy, setBusy] = useState(false);
   const fields = f.fields ?? [];
   const setField = (i: number, patch: Partial<FormField>) => setF({ ...f, fields: fields.map((x, j) => (j === i ? { ...x, ...patch } : x)) });
   const move = (i: number, d: number) => { const next = [...fields]; const [x] = next.splice(i, 1); next.splice(i + d, 0, x); setF({ ...f, fields: next }); };
+  // R31: conditions on a removed question go with it; the first logic problem shows above Save.
+  const removeField = (i: number) => { const gone = fields[i].id; setF({ ...f, fields: fields.filter((_, j) => j !== i).map((x) => (x.logic && gone ? { ...x, logic: x.logic.conditions.some((c) => c.field === gone) ? (x.logic.conditions.filter((c) => c.field !== gone).length ? { ...x.logic, conditions: x.logic.conditions.filter((c) => c.field !== gone) } : null) : x.logic } : x)) }); };
+  const problem = checkLogic(fields.map((x) => ({ ...x, id: x.id ?? "", required: !!x.required })))[0];
   const save = async () => {
     setBusy(true);
-    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: x.type === "select" ? x.options : undefined })), ...(f.target !== "contact" ? { triage: f.triage ?? !f.id } : {}) };
+    const body = { name: f.name, description: f.description ?? "", target: f.target, projectId: f.projectId || null, assigneeId: f.assigneeId || null, successMessage: f.successMessage, fields: fields.map((x) => ({ ...x, options: withOptions(x.type) ? x.options : undefined, logic: x.logic ?? undefined, rules: x.rules ?? undefined })), ...(f.target !== "contact" ? { triage: f.triage ?? !f.id, routing: (f.routing ?? []).filter((r) => fields.some((x) => x.id === r.when.field)) } : {}) };
     try { if (f.id) await api.patch(`/forms/${f.id}`, body); else await api.post("/forms", body); onSaved(); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const remove = async () => { if (!f.id) return; try { await api.del(`/forms/${f.id}`); onSaved(); } catch (e) { showError(e as Error); } };
   return (
     <Dialog open onClose={onClose} title={f.id ? "Edit form" : "New form"} className="max-w-2xl"
-      footer={<>{f.id && <Button variant="ghost" className="mr-auto text-bad" onClick={() => void remove()}>Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={busy} disabled={!f.name?.trim()}>Save</Button></>}>
+      footer={<>{f.id && <Button variant="ghost" className="mr-auto text-bad" onClick={() => void remove()}>Delete</Button>}<Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => void save()} loading={busy} disabled={!f.name?.trim() || !!problem}>Save</Button></>}>
       <div className="space-y-3">
         <Field label="Name">{(fp) => (<Input {...fp} value={f.name ?? ""} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Website enquiry" />)}</Field>
         <Field label="Intro" hint="Shown at the top of the form.">{(fp) => (<Textarea {...fp} value={f.description ?? ""} onChange={(e) => setF({ ...f, description: e.target.value })} className="min-h-16" />)}</Field>
@@ -94,15 +108,18 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
                     <label className="flex items-center gap-1 text-[12px] text-muted"><input type="checkbox" checked={!!x.required} onChange={(e) => setField(i, { required: e.target.checked })} />Required</label>
                     <button disabled={i === 0} onClick={() => move(i, -1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
                     <button disabled={i === fields.length - 1} onClick={() => move(i, 1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => setF({ ...f, fields: fields.filter((_, j) => j !== i) })} className="p-1 text-subtle hover:text-bad" aria-label="Remove field"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => removeField(i)} className="p-1 text-subtle hover:text-bad" aria-label="Remove field"><Trash2 className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
-                {x.type === "select" && <Input aria-label="Choices" placeholder="Choices, separated by commas" value={(x.options ?? []).join(", ")} onChange={(e) => setField(i, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} className="mt-2 h-8 text-[13px]" />}
+                {withOptions(x.type) && <Input aria-label="Choices" placeholder="Choices, separated by commas" value={(x.options ?? []).join(", ")} onChange={(e) => setField(i, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} className="mt-2 h-8 text-[13px]" />}
+                <LogicEditor field={x} index={i} earlier={fields.slice(0, i)} onChange={(patch) => setField(i, patch)} />
               </li>
             ))}
           </ul>
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { label: "New question", type: "text" }] })}><Plus className="h-3.5 w-3.5" />Add field</Button>
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { id: idFor("question", new Set(fields.map((x) => x.id ?? "")), fields.length), label: "New question", type: "text" }] })}><Plus className="h-3.5 w-3.5" />Add field</Button>
+          {problem && <p role="alert" className="mt-2 text-[12.5px] text-bad" data-testid="logic-problem">{problem.message}</p>}
         </div>
+        {f.target === "task" && <RoutingEditor fields={fields} routes={f.routing ?? []} onChange={(routing) => setF({ ...f, routing })} projects={projects.data ?? []} people={(people.data ?? []).map((p) => ({ id: p.id, name: isAgentLike(p) ? `${p.name} (agent)` : p.name }))} />}
         {f.target !== "contact" && (
           <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">
             <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">New answers wait in Triage until someone accepts them.</div></div>
@@ -115,34 +132,14 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
   );
 }
 
-function Answers({ id, onClose }: { id: string; onClose: () => void }) {
-  const q = useQuery({ queryKey: ["form", id], queryFn: () => api.get<{ form: Form; submissions: Submission[] }>(`/forms/${id}`) });
-  return (
-    <Dialog open onClose={onClose} title={q.data ? `Answers to ${q.data.form.name}` : "Answers"} className="max-w-2xl">
-      {!q.data ? <Skeleton className="h-32" /> : !q.data.submissions.length ? <p className="text-[13px] text-muted">No answers yet. Share the link: {q.data.form.url}</p> : (
-        <ul className="max-h-[60vh] space-y-2 overflow-y-auto">
-          {q.data.submissions.map((s) => (
-            <li key={s.id} className="rounded-lg border border-line p-3 text-[13px]">
-              <div className="mb-1 flex items-center justify-between text-[12px] text-subtle"><span>{timeAgo(s.createdAt)}</span>
-                {s.entityType === "task" && s.entityId && <Link className="text-brand-hover hover:underline" to={`/app/tasks?view=list&task=${s.entityId}`}>Open task</Link>}
-                {s.entityType === "contact" && s.entityId && <Link className="text-brand-hover hover:underline" to={`/app/contacts/${s.entityId}`}>Open contact</Link>}
-              </div>
-              <dl className="grid grid-cols-[140px_1fr] gap-x-3 gap-y-0.5">{q.data!.form.fields.map((f) => s.data[f.id!] ? <><dt key={`${f.id}-k`} className="text-subtle">{f.label}</dt><dd key={`${f.id}-v`} className="whitespace-pre-wrap">{s.data[f.id!]}</dd></> : null)}</dl>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Dialog>
-  );
-}
-
 declare global { interface Window { turnstile?: { render: (el: HTMLElement, opts: { sitekey: string; callback: (t: string) => void; theme?: string }) => string; reset: (id?: string) => void } } }
 
 /** The public form at /f/<slug>. No sign-in. */
 export function PublicFormPage() {
   const { slug } = useParams();
   const q = useQuery({ queryKey: ["public-form", slug], retry: false, queryFn: async () => (await api.get<{ form: { name: string; description: string; workspace: string; fields: (FormField & { id: string })[]; turnstileSiteKey: string | null } }>(`/public/forms/${slug}`)).form });
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [trap, setTrap] = useState("");
   const [token, setToken] = useState<string | undefined>();
   const [done, setDone] = useState<string | null>(null);
@@ -160,14 +157,26 @@ export function PublicFormPage() {
     s.async = true; s.onload = mount;
     document.head.appendChild(s);
   }, [site]);
+  const f = q.data;
+  // R31: the same rules as the server (src/shared/form-logic.ts): hidden questions are skipped and never required.
+  const logicFields = (f?.fields ?? []).map((x) => ({ ...x, required: !!x.required }));
+  const shown = visibleFieldIds(logicFields, answers);
+  const focusFirst = (errs: Record<string, string>) => { const first = logicFields.find((x) => errs[x.id]); if (first) document.querySelector<HTMLElement>(`[name="${first.id}"]`)?.focus(); };
   const submit = async () => {
+    const checked = checkAnswers(logicFields, answers);
+    setErrors(checked.errors);
+    if (Object.keys(checked.errors).length) { focusFirst(checked.errors); return; }
     setBusy(true);
     try {
-      const r = await api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current });
+      const sendable = Object.fromEntries(Object.entries(answers).filter(([k]) => shown.has(k)));
+      const r = await api.post<{ ok: boolean; message: string }>(`/public/forms/${slug}`, { answers: sendable, website: trap, turnstileToken: token, elapsedMs: Date.now() - opened.current });
       setDone(r.message);
-    } catch (e) { showError(e as Error); window.turnstile?.reset(); } finally { setBusy(false); }
+    } catch (e) {
+      if (e instanceof ApiError && e.fields && Object.keys(e.fields).length) { setErrors(e.fields); focusFirst(e.fields); } else showError(e as Error);
+      window.turnstile?.reset();
+    } finally { setBusy(false); }
   };
-  const f = q.data;
+  const setAnswer = (id: string, v: string | string[]) => { setAnswers((a) => ({ ...a, [id]: v })); if (errors[id]) setErrors((er) => { const n = { ...er }; delete n[id]; return n; }); };
   return (
     <main className="min-h-dvh bg-bg px-4 py-10 text-fg">
       <div className="mx-auto max-w-lg">
@@ -180,13 +189,36 @@ export function PublicFormPage() {
             <p className="text-[12.5px] text-muted">{f.workspace}</p>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">{f.name}</h1>
             {f.description && <p className="mt-2 whitespace-pre-wrap text-[14px] text-muted">{f.description}</p>}
-            <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); void submit(); }} data-testid="public-form">
-              {f.fields.map((x) => {
-                const common = { name: x.id, required: x.required, value: answers[x.id] ?? "", placeholder: x.placeholder, onChange: (e: { target: { value: string } }) => setAnswers({ ...answers, [x.id]: e.target.value }) };
+            <form className="mt-6 space-y-4" noValidate onSubmit={(e) => { e.preventDefault(); void submit(); }} data-testid="public-form">
+              {f.fields.filter((x) => shown.has(x.id)).map((x) => {
+                const value = answers[x.id];
+                const text = Array.isArray(value) ? value.join(MULTI_SEPARATOR) : (value ?? "");
+                const common = { name: x.id, "aria-required": x.required || undefined, value: text, placeholder: x.placeholder, onChange: (e: { target: { value: string } }) => setAnswer(x.id, e.target.value) };
+                const label = `${x.label}${x.required ? "" : " (optional)"}`;
+                const animate = x.logic?.conditions.length ? "animate-pop-in motion-reduce:animate-none" : undefined;
+                if (x.type === "multiselect") {
+                  const picked = Array.isArray(value) ? value : [];
+                  return (
+                    <fieldset key={x.id} className={animate} aria-invalid={errors[x.id] ? true : undefined} aria-describedby={errors[x.id] ? `${x.id}-err` : undefined}>
+                      <legend className="mb-1.5 text-[13px] font-medium">{label}</legend>
+                      <div className="space-y-1.5">
+                        {x.options?.map((o, oi) => (
+                          <label key={o} className="flex items-center gap-2 text-[14px]">
+                            <input type="checkbox" name={oi === 0 ? x.id : undefined} className="h-4 w-4 rounded border-line accent-brand focus-visible:ring-2 focus-visible:ring-brand" checked={picked.includes(o)}
+                              onChange={(e) => setAnswer(x.id, e.target.checked ? [...picked, o] : picked.filter((p) => p !== o))} />{o}
+                          </label>
+                        ))}
+                      </div>
+                      {errors[x.id] && <p id={`${x.id}-err`} role="alert" className="mt-1 text-xs text-bad">{errors[x.id]}</p>}
+                    </fieldset>
+                  );
+                }
                 return (
-                  <Field key={x.id} label={`${x.label}${x.required ? "" : " (optional)"}`}>{(fp) => (x.type === "textarea" ? <Textarea {...fp} {...common} className="min-h-28" />
+                  <div key={x.id} className={animate} data-testid={`q-${x.id}`}>
+                    <Field label={label} error={errors[x.id]}>{(fp) => (x.type === "textarea" ? <Textarea {...fp} {...common} className="min-h-28" />
                       : x.type === "select" ? <Select {...fp} {...common}><option value="">Choose one</option>{x.options?.map((o) => <option key={o} value={o}>{o}</option>)}</Select>
-                      : <Input {...fp} {...common} type={x.type === "phone" ? "tel" : x.type === "text" ? "text" : x.type} autoComplete={x.type === "email" ? "email" : /name/i.test(x.label) ? "name" : undefined} />)}</Field>
+                      : <Input {...fp} {...common} type={x.type === "phone" ? "tel" : x.type === "text" ? "text" : x.type} inputMode={x.type === "number" ? "decimal" : undefined} autoComplete={x.type === "email" ? "email" : /name/i.test(x.label) ? "name" : undefined} />)}</Field>
+                  </div>
                 );
               })}
               {/* A trap for bots: hidden from people and screen readers. */}

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { GO_TO, SEQUENCE_MS, SHORTCUTS, SHORTCUT_GROUPS, displayKeys, filterShortcuts, goToTarget, groupShortcuts, isTypingTarget, readKey } from "@/web/lib/shortcuts";
+import { GO_TO, SHORTCUTS, SHORTCUT_GROUPS, displayKeys, filterShortcuts, goToTarget, groupShortcuts, isTypingTarget } from "@/web/lib/shortcuts";
+import { SEQUENCE_MS, idleKeys, readKeys } from "@/web/lib/commands";
 
 describe("R30 shortcuts registry", () => {
   it("has unique ids and every group is known", () => {
@@ -18,11 +19,20 @@ describe("R30 shortcuts registry", () => {
     }
   });
 
-  it("the mail keys in the sheet are the keys webmail.tsx handles (no drift)", () => {
+  it("the mail keys in the sheet are the keys webmail.tsx binds (no drift; R31: bound through the registry)", () => {
     const src = readFileSync("src/web/pages/app/webmail.tsx", "utf8");
-    const mail = SHORTCUTS.filter((s) => s.group === "Mail" && s.id !== "mail-task");
-    for (const s of mail) expect(src, s.id).toContain(`e.key === "${s.keys[0].toLowerCase()}"`);
+    const mail = SHORTCUTS.filter((s) => s.group === "Mail" && s.id !== "mail-task" && !s.id.startsWith("mail-split-")); // R31: split keys live in webmail's own Tab handler
+    for (const s of mail) expect(src, s.id).toContain(`"${s.id}": () =>`);
     expect(readFileSync("src/web/pages/app/work/make-task.tsx", "utf8")).toContain('e.key !== "t"');
+  });
+
+  it("R31: page keys (triage, Inbox splits, pre-join, docs slash) are listed in the sheet", () => {
+    const ids = SHORTCUTS.map((s) => s.id);
+    for (const id of ["triage-done", "triage-snooze", "mail-split-next", "prejoin-join", "doc-slash"]) expect(ids).toContain(id);
+    expect(SHORTCUTS.filter((s) => s.group === "Notifications").length).toBeGreaterThanOrEqual(6);
+    // The sheet's triage keys are the keys the page reads (src/web/lib/triage.ts TRIAGE_KEYS).
+    const src = readFileSync("src/web/lib/triage.ts", "utf8");
+    for (const s of SHORTCUTS.filter((x) => x.group === "Notifications")) expect(src, s.id).toMatch(new RegExp(`key: "[^"]*\\b${s.keys[s.keys.length - 1]}"`));
   });
 
   it("shows Cmd on a Mac and Ctrl elsewhere", () => {
@@ -47,23 +57,24 @@ describe("R30 shortcuts registry", () => {
     expect(groupShortcuts(SHORTCUTS).map((x) => x.group)).toEqual(SHORTCUT_GROUPS);
   });
 
-  it("G then a letter goes there within the window, and not after it", () => {
-    let r = readKey({ pendingG: null }, { key: "g" }, 1000);
-    expect(r.action.kind).toBe("arm");
-    r = readKey(r.state, { key: "t" }, 1500);
-    expect(r.action).toEqual({ kind: "go", to: "/app/tasks" });
-    expect(r.state.pendingG).toBeNull();
-    const late = readKey({ pendingG: 1000 }, { key: "t" }, 1000 + SEQUENCE_MS + 1);
-    expect(late.action.kind).toBe("none");
-    expect(readKey({ pendingG: 1000 }, { key: "x" }, 1100).action.kind).toBe("none");
+  it("G then a letter goes there within the window, and not after it (R31: read from the registry)", () => {
+    let r = readKeys(idleKeys(), { key: "g" }, 1000, ["global"]);
+    expect(r.result).toEqual({ kind: "pending", keys: ["G"] });
+    r = readKeys(r.state, { key: "t" }, 1500, ["global"]);
+    expect(r.result.kind === "run" && r.result.command.to).toBe("/app/tasks");
+    expect(r.state.pending).toEqual([]);
+    const late = readKeys({ pending: ["G"], at: 1000 }, { key: "t" }, 1000 + SEQUENCE_MS + 1, ["global"]);
+    expect(late.result.kind).toBe("none");
+    expect(readKeys({ pending: ["G"], at: 1000 }, { key: "x" }, 1100, ["global"]).result.kind).toBe("none");
     expect(goToTarget("I")).toBe("/app/mail");
     expect(goToTarget("?")).toBeNull();
   });
 
   it("? opens the sheet; modifiers cancel", () => {
-    expect(readKey({ pendingG: null }, { key: "?" }, 0).action.kind).toBe("sheet");
-    expect(readKey({ pendingG: 5 }, { key: "t", metaKey: true }, 6)).toEqual({ state: { pendingG: null }, action: { kind: "none" } });
-    expect(readKey({ pendingG: null }, { key: "g", ctrlKey: true }, 0).action.kind).toBe("none");
+    const r = readKeys(idleKeys(), { key: "?" }, 0, ["global"]);
+    expect(r.result.kind === "run" && r.result.command.id).toBe("sheet");
+    expect(readKeys({ pending: ["G"], at: 5 }, { key: "t", metaKey: true }, 6, ["global"])).toEqual({ state: idleKeys(), result: { kind: "none" } });
+    expect(readKeys(idleKeys(), { key: "g", ctrlKey: true }, 0, ["global"]).result.kind).toBe("none");
   });
 
   it("typing in a field is not a shortcut", () => {

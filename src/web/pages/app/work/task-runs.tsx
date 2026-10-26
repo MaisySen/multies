@@ -134,10 +134,13 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
                     </div>
                   )}
                   {live && (confirming === r.id ? (
-                    <div role="group" aria-label="Cancel this run" className="mt-2.5 flex flex-wrap items-center gap-2 rounded-md bg-fill/70 px-2.5 py-2" data-testid="run-cancel-confirm">
-                      <p className="mr-auto text-[12.5px] text-muted">{r.agent.name} stops and this run can't be picked up again.</p>
-                      <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>Keep running</Button>
-                      <Button size="sm" variant="danger" onClick={() => cancel.mutate(r.id)} autoFocus>Cancel run</Button>
+                    <div role="group" aria-label="Cancel this run" className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-md bg-fill/70 px-2.5 py-2" data-testid="run-cancel-confirm">
+                      {/* R31: the line takes its own row on narrow panels; the two buttons stay together on one line. */}
+                      <p className="min-w-[12rem] flex-1 basis-full text-[12.5px] text-muted sm:basis-0">{r.agent.name} stops and this run can't be picked up again.</p>
+                      <div className="ml-auto flex shrink-0 flex-nowrap items-center gap-2" data-testid="run-cancel-buttons">
+                        <Button size="sm" variant="ghost" className="whitespace-nowrap" onClick={() => setConfirming(null)}>Keep running</Button>
+                        <Button size="sm" variant="danger" className="whitespace-nowrap" onClick={() => cancel.mutate(r.id)} autoFocus>Cancel run</Button>
+                      </div>
                     </div>
                   ) : (
                     <Button size="sm" variant="ghost" className="mt-2 hover:text-bad" onClick={() => setConfirming(r.id)} disabled={cancel.isPending && cancel.variables === r.id}>

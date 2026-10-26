@@ -10,9 +10,11 @@ import { hmacSha256Hex, randomToken } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
 import { createTask, getProject, parseAssignee, validateAssignee } from "./tasks";
+import { checkAnswers, checkLogic, cleanLogic, FORM_FIELD_TYPES, LOGIC_OPS, MAX_ROUTES, normaliseLogic, normaliseRules, pickRoute, VALUELESS_OPS, type FormFieldType, type FormRoute, type LogicField } from "@/shared/form-logic";
 
-export type FieldType = "text" | "email" | "textarea" | "phone" | "select" | "number" | "date";
-export interface FormField { id: string; label: string; type: FieldType; required: boolean; options?: string[]; placeholder?: string }
+export type FieldType = FormFieldType;
+/** R31: a field can carry "show this question if" logic and answer rules (src/shared/form-logic.ts). */
+export interface FormField extends LogicField { placeholder?: string }
 type FormRow = typeof forms.$inferSelect;
 
 /** Submissions allowed from one sender per form in ten minutes. */
@@ -27,22 +29,36 @@ export const DEFAULT_TASK_FIELDS: FormField[] = [
   { id: "details", label: "Details", type: "textarea", required: false },
 ];
 
+const fieldId = (raw: unknown) => String(raw ?? "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+
 export function normaliseFields(input: unknown): FormField[] {
   if (!Array.isArray(input) || !input.length) throw new HttpError(422, "validation_failed", "A form needs at least one field.");
   if (input.length > 30) throw new HttpError(422, "validation_failed", "A form can have up to 30 fields.");
   const seen = new Set<string>();
-  return input.map((raw, i) => {
+  const fields = input.map((raw, i) => {
     const f = raw as Partial<FormField>;
     const label = String(f.label ?? "").trim().slice(0, 120);
     if (!label) throw new HttpError(422, "validation_failed", `Field ${i + 1} needs a label.`);
-    const type = (["text", "email", "textarea", "phone", "select", "number", "date"] as FieldType[]).includes(f.type as FieldType) ? (f.type as FieldType) : "text";
-    let id = String(f.id ?? "").trim().toLowerCase().replace(/[^a-z0-9_]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || `field_${i + 1}`;
+    const type = FORM_FIELD_TYPES.includes(f.type as FieldType) ? (f.type as FieldType) : "text";
+    let id = fieldId(f.id) || `field_${i + 1}`;
     while (seen.has(id)) id = `${id}_${i + 1}`;
     seen.add(id);
-    const options = type === "select" ? (Array.isArray(f.options) ? f.options.map((o) => String(o).trim().slice(0, 120)).filter(Boolean).slice(0, 50) : []) : undefined;
-    if (type === "select" && !options?.length) throw new HttpError(422, "validation_failed", `"${label}" needs at least one option.`);
-    return { id, label, type, required: !!f.required, ...(options ? { options } : {}), ...(f.placeholder ? { placeholder: String(f.placeholder).slice(0, 120) } : {}) };
+    const withOptions = type === "select" || type === "multiselect";
+    const options = withOptions ? (Array.isArray(f.options) ? [...new Set(f.options.map((o) => String(o).trim().slice(0, 120)).filter(Boolean))].slice(0, 50) : []) : undefined;
+    if (withOptions && !options?.length) throw new HttpError(422, "validation_failed", `"${label}" needs at least one option.`);
+    const logic = normaliseLogic(f.logic);
+    if (logic) logic.conditions = logic.conditions.map((c) => ({ ...c, field: fieldId(c.field) }));
+    const rules = normaliseRules(type, f.rules);
+    return {
+      id, label, type, required: !!f.required, ...(options ? { options } : {}), ...(f.placeholder ? { placeholder: String(f.placeholder).slice(0, 120) } : {}),
+      ...(logic ? { logic } : {}), ...(rules ? { rules } : {}),
+    } as FormField;
   });
+  // R31: a condition on a question that is gone is dropped; loops and conditions on later questions are refused.
+  const cleaned = cleanLogic(fields).map((f) => { if (f.logic === null) { const { logic: _drop, ...rest } = f; void _drop; return rest as FormField; } return f; });
+  const problems = checkLogic(cleaned);
+  if (problems.length) throw new HttpError(422, "validation_failed", problems[0].message, { field: problems[0].field, code: problems[0].code, problems });
+  return cleaned;
 }
 
 function present(f: FormRow, origin?: string) {
@@ -50,7 +66,7 @@ function present(f: FormRow, origin?: string) {
     id: f.id, name: f.name, description: f.description, slug: f.slug, url: `${origin ?? ""}/f/${f.slug}`,
     target: f.target, projectId: f.projectId, assigneeId: f.assigneeType && f.assigneeId ? `${f.assigneeType}:${f.assigneeId}` : null,
     fields: JSON.parse(f.fields) as FormField[], successMessage: f.successMessage, enabled: f.enabled,
-    submitCount: f.submitCount, lastSubmitAt: iso(f.lastSubmitAt), triage: !!f.triage, createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString(), version: f.version,
+    submitCount: f.submitCount, lastSubmitAt: iso(f.lastSubmitAt), triage: !!f.triage, routing: JSON.parse(f.routing || "[]") as FormRoute[], createdAt: f.createdAt.toISOString(), updatedAt: f.updatedAt.toISOString(), version: f.version,
   };
 }
 export type Form = ReturnType<typeof present>;
@@ -75,7 +91,34 @@ export async function getForm(deps: Deps, orgId: string, id: string) {
   };
 }
 
-export interface FormInput { name: string; description?: string; target?: "task" | "contact"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean; /** R21: submissions wait in Triage. */ triage?: boolean }
+export interface FormInput { /** R31: the first matching rule picks the task's project and assignee. */ routing?: unknown; name: string; description?: string; target?: "task" | "contact"; projectId?: string | null; assigneeId?: string | null; fields?: unknown; successMessage?: string; enabled?: boolean; /** R21: submissions wait in Triage. */ triage?: boolean }
+
+/**
+ * R31: checks routing rules against the form's questions and this workspace's projects and people.
+ * A rule on a question that is gone is dropped, like a "show if" condition.
+ */
+export async function normaliseRouting(deps: Deps, orgId: string, fields: FormField[], raw: unknown): Promise<FormRoute[]> {
+  if (raw === undefined || raw === null) return [];
+  if (!Array.isArray(raw)) throw new HttpError(422, "validation_failed", "Routing is a list of rules.");
+  if (raw.length > MAX_ROUTES) throw new HttpError(422, "validation_failed", `A form can have up to ${MAX_ROUTES} routing rules.`);
+  const ids = new Set(fields.map((f) => f.id));
+  const out: FormRoute[] = [];
+  for (const r of raw as { when?: { field?: unknown; op?: unknown; value?: unknown }; projectId?: unknown; assigneeId?: unknown }[]) {
+    const field = String(r?.when?.field ?? "").trim();
+    if (!ids.has(field)) continue;
+    const op = String(r?.when?.op ?? "") as FormRoute["when"]["op"];
+    if (!LOGIC_OPS.includes(op)) throw new HttpError(422, "validation_failed", "A routing rule has a condition we don't understand.");
+    const value = r?.when?.value === undefined || r?.when?.value === null ? "" : String(r.when.value).slice(0, 200);
+    if (!VALUELESS_OPS.includes(op) && !value.trim()) throw new HttpError(422, "validation_failed", "A routing rule needs a value to match.");
+    const projectId = r.projectId ? String(r.projectId) : null;
+    const assigneeId = r.assigneeId ? String(r.assigneeId) : null;
+    if (!projectId && !assigneeId) throw new HttpError(422, "validation_failed", "A routing rule needs a project or a person.");
+    if (projectId) await getProject(deps, orgId, projectId);
+    if (assigneeId) await validateAssignee(deps, orgId, parseAssignee(assigneeId));
+    out.push({ when: { field, op, ...(VALUELESS_OPS.includes(op) ? {} : { value }) }, projectId, assigneeId });
+  }
+  return out;
+}
 
 function checkTarget(target: "task" | "contact", fields: FormField[]) {
   if (target === "contact" && !fields.some((f) => f.type === "email")) throw new HttpError(422, "validation_failed", "A form that makes contacts needs an email field.");
@@ -99,6 +142,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
     target, projectId: input.projectId ?? null, assigneeType: assignee?.type ?? null, assigneeId: assignee?.id ?? null,
     fields: JSON.stringify(fields), successMessage: (input.successMessage ?? "Thanks, we got it. We'll be in touch.").slice(0, 500), enabled: input.enabled ?? true,
     triage: input.triage ?? false,
+    routing: JSON.stringify(await normaliseRouting(deps, actor.orgId, fields, input.routing)),
     ...createdBy(actor), createdAt: now, updatedAt: now,
   });
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "create", verb: "form.created", data: { name } });
@@ -118,6 +162,11 @@ export async function updateForm(deps: Deps, actor: SuiteActor, id: string, patc
   if (patch.successMessage !== undefined) set.successMessage = patch.successMessage.slice(0, 500);
   if (patch.enabled !== undefined) set.enabled = patch.enabled;
   if (patch.triage !== undefined) set.triage = patch.triage;
+  // R31: routing is checked against the fields being saved; new fields drop rules on removed questions.
+  if (patch.routing !== undefined || patch.fields !== undefined) {
+    const nextFields = JSON.parse(set.fields ?? f.fields) as FormField[];
+    set.routing = JSON.stringify(await normaliseRouting(deps, actor.orgId, nextFields, patch.routing !== undefined ? patch.routing : JSON.parse(f.routing || "[]")));
+  }
   checkTarget((set.target ?? f.target) as "task" | "contact", JSON.parse(set.fields ?? f.fields) as FormField[]);
   await deps.db.update(forms).set(set).where(eq(forms.id, id));
   await recordWrite(deps, actor, { entityType: "form", entityId: id, op: "update", version: f.version + 1, verb: "form.updated" });
@@ -160,18 +209,15 @@ export async function verifyTurnstile(deps: Deps, token: string | undefined, ip:
   }
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+/**
+ * Checks a submission against the form (R31: shared with the public page, src/shared/form-logic.ts).
+ * Hidden questions are skipped and never required. Problems answer 400 with every field's error
+ * in details.fields, and details.field names the first one.
+ */
 export function validateAnswers(fields: FormField[], raw: Record<string, unknown>) {
-  const answers: Record<string, string> = {};
-  for (const f of fields) {
-    const v = String(raw[f.id] ?? "").trim().slice(0, f.type === "textarea" ? 10_000 : 500);
-    if (!v) { if (f.required) throw new HttpError(422, "validation_failed", `Please fill in "${f.label}".`, { field: f.id }); continue; }
-    if (f.type === "email" && !EMAIL.test(v)) throw new HttpError(422, "validation_failed", `"${f.label}" doesn't look like an email address.`, { field: f.id });
-    if (f.type === "number" && !Number.isFinite(Number(v))) throw new HttpError(422, "validation_failed", `"${f.label}" should be a number.`, { field: f.id });
-    if (f.type === "select" && !f.options?.includes(v)) throw new HttpError(422, "validation_failed", `Pick one of the options for "${f.label}".`, { field: f.id });
-    answers[f.id] = v;
-  }
+  const { answers, errors } = checkAnswers(fields, raw);
+  const first = fields.find((f) => errors[f.id]);
+  if (first) throw new HttpError(400, "validation_failed", errors[first.id], { field: first.id, fields: errors });
   return answers;
 }
 
@@ -212,9 +258,12 @@ export async function submitForm(deps: Deps, slug: string, raw: Record<string, u
     const titleField = fields.find((x) => x.type === "text" && x.id !== nameField?.id && answers[x.id]);
     const who = nameField && answers[nameField.id] ? answers[nameField.id] : emailField ? answers[emailField.id] : "";
     const title = (titleField ? answers[titleField.id] : `${f.name}${who ? ` from ${who}` : ""}`).slice(0, 300);
+    // R31: the first routing rule that matches picks the project and the assignee.
+    const route = pickRoute(fields, JSON.parse(f.routing || "[]") as FormRoute[], answers);
+    const routedAssignee = route?.assigneeId ? parseAssignee(route.assigneeId) : null;
     const t = await createTask(deps, system, {
-      title, notes: `Sent through the form "${f.name}".\n\n${lines.join("\n\n")}`, projectId: f.projectId ?? undefined,
-      assignee: f.assigneeType && f.assigneeId ? { type: f.assigneeType, id: f.assigneeId } : undefined, labels: ["form"],
+      title, notes: `Sent through the form "${f.name}".\n\n${lines.join("\n\n")}`, projectId: route?.projectId ?? f.projectId ?? undefined,
+      assignee: routedAssignee ?? (f.assigneeType && f.assigneeId ? { type: f.assigneeType, id: f.assigneeId } : undefined), labels: ["form"],
       // R21: the form's own "Send to triage" switch, or the project's Triage setting.
       triage: { source: "form", when: f.triage ? "always" : "if_project", from: emailField ? answers[emailField.id] || null : null },
     });

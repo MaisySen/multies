@@ -4,7 +4,7 @@
  * the API (Hono middleware), the Workers asset handler and the Node static server.
  *
  * Notes on the CSP:
- * - script-src is 'self' only. The SPA ships no inline scripts.
+ * - script-src is 'self' plus the hash of the one inline theme script (R31). No 'unsafe-inline'.
  * - style-src allows 'unsafe-inline' because React sets style attributes and email
  *   bodies render in a sandboxed srcdoc iframe, which inherits this policy.
  * - img-src allows https: so a reader can opt in to remote images in a message; the
@@ -60,12 +60,20 @@ const CF_INSIGHTS_SCRIPT = "https://static.cloudflareinsights.com";
 const CF_INSIGHTS = "https://cloudflareinsights.com";
 const SENTRY_INGEST = ["https://*.ingest.sentry.io", "https://*.ingest.us.sentry.io", "https://*.ingest.de.sentry.io"];
 
+/**
+ * R31: the one inline script, in index.html (and the landing and sign in shells built from it): it sets the
+ * saved light or dark appearance before first paint, so it cannot wait for a file. Its sha256 is allowed by
+ * hash, never 'unsafe-inline'. tests/theme-inline-r31.test.ts keeps this hash equal to the script's bytes.
+ */
+export const THEME_SCRIPT = 'try{var t=localStorage.getItem("mymail-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}';
+export const THEME_SCRIPT_HASH = "'sha256-jvkpXW6eMxvAhWHOQ6tdMEiUzK0YDn6KJM3M2Qm7OHc='";
+
 export function appCsp(opts: CspOptions = {}): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     // Public form pages (/f/...) load Cloudflare Turnstile; every other page runs only our own scripts.
     // Cloudflare Web Analytics (cookieless) is allowed only when a beacon token is configured.
-    "script-src": ["'self'", ...(opts.analytics ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
+    "script-src": ["'self'", THEME_SCRIPT_HASH, ...(opts.analytics ? [CF_INSIGHTS_SCRIPT] : []), ...(opts.turnstile ? [TURNSTILE] : [])],
     "style-src": ["'self'", "'unsafe-inline'"],
     "img-src": ["'self'", "data:", "blob:", "https:"],
     "font-src": ["'self'", "data:"],

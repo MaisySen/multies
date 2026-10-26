@@ -45,7 +45,7 @@ export async function actionPeople(deps: Deps, orgId: string): Promise<ActionPer
 }
 
 /** Relative dates ("Friday", "tomorrow") read in the series' zone, else the person's, else the workspace's. */
-async function zoneOf(deps: Deps, actor: SuiteActor, m: { recurrenceTz: string | null }) {
+export async function zoneOf(deps: Deps, actor: SuiteActor, m: { recurrenceTz: string | null }) {
   if (m.recurrenceTz) return m.recurrenceTz;
   if (actor.userId) {
     const u = await deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, actor.userId)).get();
@@ -57,24 +57,29 @@ async function zoneOf(deps: Deps, actor: SuiteActor, m: { recurrenceTz: string |
 
 /** The notes doc, made on first use. Returns its id. */
 export async function ensureNotesDoc(deps: Deps, actor: SuiteActor, meetingId: string): Promise<string> {
+  return (await ensureNotesDocOnce(deps, actor, meetingId)).id;
+}
+
+/** Round 31: the same, with an optional title for a new doc, and whether this call made it (the race winner). */
+export async function ensureNotesDocOnce(deps: Deps, actor: SuiteActor, meetingId: string, opts: { title?: string } = {}): Promise<{ id: string; created: boolean }> {
   const m = await meetingRow(deps, actor.orgId, meetingId);
-  if (await liveDoc(deps, actor.orgId, m.docId)) return m.docId!;
+  if (await liveDoc(deps, actor.orgId, m.docId)) return { id: m.docId!, created: false };
   assertWritable(actor);
   const now = deps.now();
   const id = sortableId("doc", now.getTime());
   const body = notesTemplate();
-  const title = `${m.title} notes`.slice(0, 200);
+  const title = (opts.title ?? `${m.title} notes`).slice(0, 200);
   await runBatch(deps.db, [
     deps.db.insert(docs).values({ id, orgId: actor.orgId, title, content: JSON.stringify(body), plainText: plainTextOf(body as never), projectId: null, ...createdBy(actor), createdAt: now, updatedAt: now }),
     deps.db.update(meetings).set({ docId: id })
       .where(and(eq(meetings.orgId, actor.orgId), eq(meetings.id, meetingId), m.docId ? or(isNull(meetings.docId), eq(meetings.docId, m.docId)) : isNull(meetings.docId))),
   ]);
   const after = await deps.db.select({ docId: meetings.docId }).from(meetings).where(and(eq(meetings.orgId, actor.orgId), eq(meetings.id, meetingId))).get();
-  if (after?.docId === id) return id;
+  if (after?.docId === id) return { id, created: true };
   // Someone else's doc won the race: drop ours (never seen by anyone) and use theirs.
   await deps.db.delete(docs).where(and(eq(docs.orgId, actor.orgId), eq(docs.id, id)));
   if (!after?.docId) throw new HttpError(409, "conflict", "The notes doc could not be made. Try again.");
-  return after.docId;
+  return { id: after.docId, created: false };
 }
 
 export interface NotesActionItem {

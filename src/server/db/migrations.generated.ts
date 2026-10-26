@@ -677,5 +677,30 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R29: an agent trigger's History reads its last 50 fires and refusals from audit_logs by target_id, newest first.\n-- A partial index on agent trigger rows only: the read is a bounded range read instead of a scan of the workspace's\n-- audit log, and every other audit insert costs no extra D1 write. Building it writes one entry per existing agent\n-- trigger audit row (a few at most, since triggers shipped in R28).\nCREATE INDEX `audit_target_idx` ON `audit_logs` (`target_id`,`created_at`) WHERE \"audit_logs\".\"target_type\" = 'agent_trigger';"
     ]
+  },
+  {
+    "name": "0065_r31_notification_triage",
+    "statements": [
+      "-- R31: notification triage and catch-up. A notification can be marked done or snoozed until a time. The Inbox, Later\n-- and Done reads use the existing notifications_user_idx (user_id, org_id, created_at) and filter the two new columns\n-- on that person's rows; no new index on notifications, so a notification insert still costs the same D1 writes\n-- (tests/write-cost.test.ts). item_visits keeps one row per person and item (chat channel, task, doc) with the last\n-- time they caught up, written at most once a minute per item.\nALTER TABLE `notifications` ADD `done_at` integer;",
+      "ALTER TABLE `notifications` ADD `snoozed_until` integer;",
+      "CREATE TABLE `item_visits` (\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`item_type` text NOT NULL,\n\t`item_id` text NOT NULL,\n\t`last_visit_at` integer NOT NULL,\n\tPRIMARY KEY(`user_id`, `item_type`, `item_id`),\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
+  },
+  {
+    "name": "0066_r31_mail_splits",
+    "statements": [
+      "-- R31: split inbox and read status on sent mail.\n-- messages.is_bulk: set on inbound ingest from List-Unsubscribe, List-Id, Precedence and Auto-Submitted headers\n-- (null on older rows: the split reads the sender address instead, so no backfill write is needed).\nALTER TABLE `messages` ADD `is_bulk` integer;",
+      "-- A person's own inbox splits (per user per workspace), in order. rules_json: [{ field, value }]; match: all | any.\nCREATE TABLE `mail_splits` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`rules_json` text DEFAULT '[]' NOT NULL,\n\t`match` text DEFAULT 'all' NOT NULL,\n\t`position` integer DEFAULT 0 NOT NULL,\n\t`leaves_important` integer DEFAULT 1 NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_splits_user_idx` ON `mail_splits` (`org_id`,`user_id`,`position`);",
+      "-- Read status: one row per sent message that carried the open image. The token in the image URL is random (no PII).\nCREATE TABLE `mail_opens` (\n\t`token` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`message_id` text NOT NULL,\n\t`user_id` text,\n\t`opens` integer DEFAULT 0 NOT NULL,\n\t`first_open_at` integer,\n\t`last_open_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `mail_opens_message_idx` ON `mail_opens` (`message_id`);",
+      "-- Per person mail preferences. read_status: \"Show when people open my mail\" (off by default).\nCREATE TABLE `mail_prefs` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`read_status` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade\n);"
+    ]
+  },
+  {
+    "name": "0067_r31_form_routing",
+    "statements": [
+      "-- R31: a form's routing rules: after a submission, the first rule whose condition matches picks the task's project and assignee.\n-- JSON: [{ when: { field, op, value }, projectId, assigneeId }]. One column, no backfill: every existing form reads '[]'.\nALTER TABLE `forms` ADD `routing` text DEFAULT '[]' NOT NULL;"
+    ]
   }
 ];

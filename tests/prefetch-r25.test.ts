@@ -50,19 +50,19 @@ describe("R25 route prefetch", () => {
   it("warms the likely next pages when idle, and not at all on Save-Data", () => {
     const { t, calls } = table();
     const idle = vi.fn((cb: () => void) => { cb(); return 1; });
-    prefetchWhenIdle(["/app/my-work", "/app/tasks"], { requestIdleCallback: idle, setTimeout: vi.fn() }, {}, t);
+    prefetchWhenIdle(["/app/my-work", "/app/tasks"], { requestIdleCallback: idle, setTimeout: vi.fn() }, {}, t, null);
     expect(idle).toHaveBeenCalledOnce();
     expect(calls).toEqual(["my-work", "tasks"]);
     resetPrefetch();
     const idle2 = vi.fn();
-    prefetchWhenIdle(["/app/my-work"], { requestIdleCallback: idle2, setTimeout: vi.fn() }, { connection: { saveData: true } }, t);
+    prefetchWhenIdle(["/app/my-work"], { requestIdleCallback: idle2, setTimeout: vi.fn() }, { connection: { saveData: true } }, t, null);
     expect(idle2).not.toHaveBeenCalled();
   });
 
   it("falls back to a timer where there is no idle callback", () => {
     const { t } = table();
     const timer = vi.fn();
-    prefetchWhenIdle(["/app/tasks"], { setTimeout: timer }, {}, t);
+    prefetchWhenIdle(["/app/tasks"], { setTimeout: timer }, {}, t, null);
     expect(timer).toHaveBeenCalledWith(expect.any(Function), 2000);
   });
 

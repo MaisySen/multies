@@ -36,6 +36,8 @@ export interface StoreInput {
   threadId?: string;
   /** Large attachments go here instead of being dropped, when a body store is configured. */
   bodyStore?: BodyStore;
+  /** R31: bulk mail by its headers (split inbox). */
+  isBulk?: boolean;
 }
 
 /** An attachment's bytes, from the database or the body store; null when it wasn't kept. */
@@ -113,6 +115,7 @@ export async function storeMessage(db: DB, i: StoreInput): Promise<string> {
     authResults: i.authResults ? JSON.stringify(i.authResults) : null,
     sentByAgentId: i.sentByAgentId ?? null,
     sentByUserId: i.sentByUserId ?? null,
+    isBulk: i.isBulk ?? null,
     date: i.date,
   });
   for (const a of i.attachments ?? []) {

@@ -7,6 +7,20 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 31: one command list, triage, split inbox, form logic, pre-join (26 Oct 2026)
+
+- One command list drives Cmd+K, every shortcut and the ? sheet. G then I, T, D, C, M or N jumps to Inbox, Tasks, Docs, Chat, Meetings or Notifications. J and K move through tasks; on a focused task S, A, P, L and D change status, assignee, priority, label and due date inside the command menu, instantly, with undo on error. Mail adds R, A, F, U and H.
+- Notifications triage: Inbox, Later and Done with counts. E marks done (with undo), H snoozes (later today, tomorrow, next week or a date), U toggles read; a snoozed item comes back to the top of Inbox. The unread badge counts Inbox only. Migration 0065.
+- Catch-up: a "Since your last visit" card on channels, tasks and docs with a digest of what changed, who changed it and the latest decisions. "Write a summary" appears only when the workspace has its own AI key.
+- Mail: Inbox splits into Important (mail from people) and Other, plus your own splits by sender, domain, recipient, subject, invites or teammates, each with an unread count; Tab moves between them. Read status on sent mail, off by default (Settings > Mail). Migration 0066.
+- Forms: show a question only when earlier answers match, answer rules (length, number range, pick at least or at most, pattern) with errors next to each question, a "Several choices" type, routing by answer, and a Responses view with a table, a summary per question and CSV export. A public form that fails validation now answers 400 with every field's error. Migration 0067.
+- Docs: a "/" menu for every block, keyboard driven.
+- Meetings: a pre-join screen (camera preview, mic level, device pickers, speaker test, who is in; Enter joins). One notes doc per call, and a "So far" panel that opens on its own for anyone joining more than 5 minutes late.
+- Faster pages: the theme applies before first paint (inline script allowed by its CSP hash), the command menu, onboarding and call dock load on demand, and idle prefetch only downloads.
+- The session cookie is `__Host-mymail.session_token` in production; the old name is still read and moved over, so nobody is signed out. The unused API reference package is gone.
+- MCP: 169 tools (notification_list, notification_done, notification_undone, notification_snooze, catchup_get, mail_split_list, mail_split_create, mail_split_update, mail_split_delete, mail_read_status, form_logic_set, form_results, meeting_summary_so_far).
+- Mobile 1.9.7 (over the air): Activity tab with Inbox, Later and Done; hold a task or an email for quick actions; swipe mail right to archive and left to snooze, with Undo; a command button or a long press on any tab opens every place and action; Cancel a running agent run.
+
 ### Round 30: cancel agent runs, faster first load, tighter security headers, polish (26 Oct 2026)
 
 - Agents: cancel a queued or running run from the run detail (with a confirm and an instant Cancelled state that rolls back if the server refuses), over the API (`POST /api/v1/runs/{id}/cancel`, optional reason, same shape as GET run) and over MCP (`agent_run_cancel`). A cancelled run can't be picked up again; steps and finishes on it answer 409 `run_cancelled`. Every cancel writes one `agent_run.cancelled` audit entry. New MCP tool `agent_trigger_history`. MCP now has 156 tools.

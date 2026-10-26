@@ -62,10 +62,14 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   const { connectionForMailbox } = await import("../connect");
   const conn = await connectionForMailbox(deps, mb.id);
   const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
+  // R31: a retry carries the same open image as the first try, when the message has one.
+  const { existingToken, pixelUrl, withPixel } = await import("./read-status");
+  const openToken = await existingToken(deps, m.id);
+  const html = openToken ? withPixel(m.html ?? undefined, m.text, pixelUrl(deps.config.appUrl, openToken)) : m.html ?? undefined;
   try {
     const res = await outbound.send({
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
-      subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? fallbackMessageId(m.id, mb.address, deps.config.systemFrom.address),
+      subject: m.subject, text: m.text, html, messageId: m.messageIdHeader ?? fallbackMessageId(m.id, mb.address, deps.config.systemFrom.address),
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined, replyTo: m.replyTo ?? undefined,
       attachments: await outboundAttachments(atts, deps),
     });

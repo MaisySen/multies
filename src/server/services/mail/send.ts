@@ -11,6 +11,7 @@ import { addonHint, getOrg, getPlan } from "../plans";
 import { deliverInbound, isHosted, logDelivery, sentToday } from "./delivery";
 import { OutboundError } from "./outbound";
 import { storeMessage } from "./store";
+import { pixelUrl, trackingToken, withPixel } from "./read-status";
 import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
 import "./deliver-job";
@@ -154,6 +155,11 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
     else result.external.push({ address: rcpt, status: "failed", detail: r.reason });
   }
 
+  // R31: read status (opt in per person). Only the copy that leaves Multies carries the open image; mail
+  // to people inside Multies never does. A sandbox workspace tracks too, so read status can be tried there.
+  const openToken = external.length ? await trackingToken(deps, { orgId: auth.orgId, userId: auth.userId, messageId: sentId, agentId: extra.agentId ?? null }) : null;
+  const outHtml = openToken ? withPixel(input.html, input.text, pixelUrl(deps.config.appUrl, openToken)) : input.html;
+
   // Never send to addresses that hard bounced, complained, or were blocked by hand.
   const blocked = await suppressedAmong(db, auth.orgId, external);
   for (const address of blocked.keys()) {
@@ -179,7 +185,7 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       const outbound = conn ? (await import("../connect/outbound")).connectionOutbound(deps, conn) : deps.outbound;
       const sent = await outbound.send({
         from, to: only(input.to), cc: only(input.cc), bcc: only(input.bcc), replyTo,
-        subject: input.subject, text: input.text, html: input.html, messageId: messageIdHeader, inReplyTo, references,
+        subject: input.subject, text: input.text, html: outHtml, messageId: messageIdHeader, inReplyTo, references,
         attachments: atts,
       });
       for (const address of external) {

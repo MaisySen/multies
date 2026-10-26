@@ -27,6 +27,7 @@ import { registerAgentRoutes } from "./v1-agents";
 import { registerMcpRoute } from "./mcp";
 import { registerSuiteRoutes } from "./v1-suite";
 import { registerSuiteR7Routes } from "./v1-suite-r7";
+import { registerFormsR31Routes } from "./forms-r31";
 import { registerSuiteR8Routes } from "./v1-suite-r8";
 import { registerSuiteR10Routes } from "./v1-suite-r10";
 import { registerSuiteR11Routes } from "./v1-suite-r11";
@@ -34,8 +35,10 @@ import { registerSprintRoutes } from "./v1-sprints";
 import { registerTriageRoutes } from "./v1-triage";
 import { registerThreadCommentRoutes } from "./v1-r22-comments";
 import { isSnippetRender, registerSnippetRoutes } from "./v1-r22-snippets";
+import { isSplitPreview, registerMailR31Routes } from "./v1-r31-mail";
 import { isAuthHookPreview } from "./v1-r25-authmail"; // R25 (MB-60)
 import { registerMeetingNotesRoutes } from "./v1-r23-notes";
+import { registerMeetingLiveV1Routes } from "./meeting-live-r31";
 import { registerCalendarRoutes } from "./v1-r23-calendar";
 import { registerR22AssignRoutes } from "./v1-r22-assign";
 import { registerPresenceRoutes } from "./v1-r22-presence";
@@ -62,6 +65,7 @@ import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
 import { registerAgentRunRoutes } from "./v1-r27-agent-runs"; // R27 (DF-3 slice 2)
 import { registerAgentTriggerRoutes } from "./v1-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: watchers, duplicate
+import { registerTriageR31Routes } from "./v1-r31-triage"; // R31: notification triage and catch-up
 
 // ---------------------------------------------------------------- schemas
 
@@ -169,7 +173,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
-  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isSplitPreview(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();
@@ -253,6 +257,7 @@ export function v1Routes() {
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
+  api.use("/mail/*", apiKeyAuth); // R31: Inbox splits, mail settings, read status
   api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
   api.use("/workload/*", apiKeyAuth); // R24.2: workload (and /workload/capacity; "/x/*" also matches "/x")
   api.use("/automations/*", apiKeyAuth); // R24.4: automation recipes
@@ -263,6 +268,8 @@ export function v1Routes() {
   api.use("/checklist-items/*", apiKeyAuth); // R26 (MB-85): checklist items
   api.use("/runs/*", apiKeyAuth); // R27 (DF-3 slice 2): agent runs ("/x/*" also matches "/x")
   api.use("/agent-triggers/*", apiKeyAuth); // R28 (DF-3 slice 3): agent run triggers ("/x/*" also matches "/x")
+  api.use("/notifications/*", apiKeyAuth, workspaceKeyOnly); // R31: notification triage (a person's inbox)
+  api.use("/catchup/*", apiKeyAuth, workspaceKeyOnly); // R31: catch-up
   for (const r of ["agents", "approvals", "integrations", "incoming-hooks"]) api.use(`/${r}/*`, memberKeyReadOnly);
   // Safe retries: an Idempotency-Key header makes POST, PATCH and DELETE replay-safe.
   api.use("*", idempotency((c) => {
@@ -390,11 +397,14 @@ export function v1Routes() {
     request: { query: z.object({
       mailboxId: z.string().optional(), folder: Folder.optional(), search: z.string().max(200).optional(),
       cursor: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(50),
+      split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().openapi({ description: "R31: an Inbox tab with folder=inbox: important, other, or one of your split ids (GET /mail/splits)." }),
     }) },
-    responses: { 200: json(z.object({ data: z.array(MessageSummary), nextCursor: z.string().nullable() }), "A page of messages."), 401: errors[401], 422: errors[422] } }),
+    responses: { 200: json(z.object({ data: z.array(MessageSummary), nextCursor: z.string().nullable() }), "A page of messages."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
   async (c) => {
-    const q = c.req.valid("query");
-    const r = await listMessages(c.var.deps.db, c.var.auth.orgId, q);
+    const { split, ...q } = c.req.valid("query");
+    const { splitCond } = await import("../services/mail/splits");
+    const extra = split && q.folder === "inbox" && !q.search ? await splitCond(c.var.deps, c.var.auth as unknown as Parameters<typeof splitCond>[1], split) : undefined;
+    const r = await listMessages(c.var.deps.db, c.var.auth.orgId, { ...q, extra });
     return c.json({ data: r.messages.map((m) => ({ ...m, date: iso(m.date)! })) as z.infer<typeof MessageSummary>[], nextCursor: r.nextCursor }, 200);
   });
 
@@ -446,6 +456,7 @@ export function v1Routes() {
   registerR24DocRoutes(api); // R24.5: docs tree and backlinks (before /docs/{id})
   registerR26CommentRoutes(api); // R26 (MB-77): read back, edit and delete comments and chat messages
   registerSuiteRoutes(api);
+  registerFormsR31Routes(api); // R31: form logic and results (before /forms/{id})
   registerSuiteR7Routes(api);
   registerSuiteR8Routes(api);
   registerSuiteR10Routes(api);
@@ -454,7 +465,9 @@ export function v1Routes() {
   registerThreadCommentRoutes(api); // Round 22: internal notes on threads
   registerR22AssignRoutes(api);
   registerSnippetRoutes(api); // Round 22: saved replies
+  registerMailR31Routes(api); // R31: Inbox splits, mail settings, read status
   registerMeetingNotesRoutes(api); // Round 23: meeting notes and action items
+  registerMeetingLiveV1Routes(api); // R31: summary so far
   registerCalendarRoutes(api); // Round 23: calendar events and feed
   registerWorkImportRoutes(api);
   registerR21Routes(api, apiKeyAuth);
@@ -467,6 +480,7 @@ export function v1Routes() {
   registerInboundKeyRoutes(api); // R26 (DF-18): inbound keys for the Email Worker
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
+  registerTriageR31Routes(api); // R31: notification triage and catch-up
   registerAgentTriggerRoutes(api); // R28 (DF-3 slice 3): triggers and GET /agents/me/runs
   registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate
   registerSprintRoutes(api);

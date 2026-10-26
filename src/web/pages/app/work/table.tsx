@@ -361,7 +361,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
             {rows.map((t, r) => {
               const isPicked = selected.has(t.id);
               return (
-                <tr key={t.id} aria-selected={isPicked} data-task={t.ref} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}>
+                <tr key={t.id} aria-selected={isPicked} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}>
                   <td className="border-b border-line px-3 py-2">
                     <input type="checkbox" aria-label={`Select ${t.title}`} checked={isPicked} readOnly
                       onClick={(e) => { e.stopPropagation(); toggleRow(r, e.shiftKey); }} className="h-3.5 w-3.5 accent-[#0071E3]" />

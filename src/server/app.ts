@@ -44,10 +44,13 @@ import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
 import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { agentRunRoutes, agentRunTaskRoutes } from "./routes/agent-runs-r27"; // R27 (DF-3 slice 2)
+import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
 import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-triggers-r28"; // R28 (DF-3 slice 3)
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
+import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
+import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
 import { threadStateRoutes } from "./routes/thread-state";
 import { threadCollabRoutes } from "./routes/thread-collab";
@@ -65,11 +68,13 @@ import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverabili
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
 import { authEmailSettingsRoutes } from "./routes/auth-email-settings-r27";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
+import { formResultsRoutes } from "./routes/forms-r31";
 import { meetingRecordingRoutes } from "./routes/meeting-recordings";
 import { checkRoutes } from "./routes/check";
 import { guestSearchRoutes, myWorkRoutes, searchRoutes } from "./routes/search";
 import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes } from "./routes/suite-r8";
 import { installHttpCache } from "./lib/http-cache";
+import { hostSessionCookie } from "./lib/host-cookie";
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 /** Presence heartbeats and leaves (round 22): memory only, never a D1 write. */
@@ -106,6 +111,8 @@ export function createApp(deps: Deps) {
     return c.json({ error: { code: "internal", message: "Something went wrong on our side.", ...(eventId ? { details: { eventId } } : {}) } }, 500);
   };
 
+  // R31: the session cookie travels as __Host-mymail.session_token in production (dual read of the old name).
+  app.use("*", hostSessionCookie(deps.config.mode === "production"));
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
     const started = Date.now();
@@ -260,6 +267,9 @@ export function createApp(deps: Deps) {
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
+  app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
+  app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)
+  app.route("/api/mail/read-status", mailReadStatusRoutes()); // R31: read status of a sent message
   app.route("/api/mail", mailRoutes());
   app.route("/api/deliveries", deliveryRoutes());
   app.route("/api/dashboard", dashboardRoutes());
@@ -301,14 +311,18 @@ export function createApp(deps: Deps) {
   app.route("/api/automations/recipes", automationRecipeRoutes()); // R24.4: automation recipes
   app.route("/api/automations", automationRoutes());
   app.route("/api/notifications", notificationRoutes());
+  app.route("/api/catchup", catchupRoutes()); // R31
   app.route("/api/push", pushRoutes());
   app.route("/api/changes", changeRoutes());
   app.route("/api/time", timeRoutes());
   app.route("/api/forms", formRoutes());
+  app.route("/api/forms", formResultsRoutes()); // R31: logic and results
   app.route("/api/reports", reportRoutes());
   app.route("/api/meetings", meetingRoutes());
   app.route("/api/meeting-notes", meetingNotesRoutes()); // Round 23: agenda and notes doc, action items
   app.route("/api/meetings", meetingRecordingRoutes()); // Round 23: recording and transcript
+  app.route("/api/meeting-live", meetingLiveRoutes()); // R31: call notes and the So far digest
+  app.route("/api/public/meeting-live", publicMeetingLiveRoutes()); // R31: guest read only notes
   app.route("/api/public", publicRoutes());
   app.route("/api/check", checkRoutes());
   app.route("/api/fields", fieldRoutes());
@@ -331,6 +345,7 @@ export function createApp(deps: Deps) {
   app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
   app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
   app.route("/s", sharePageRoutes()); // R26 (MB-87): the public page /s/<token>
+  app.route("/r/o", openPixelRoutes()); // R31: read status open image /r/o/<token>.gif (public)
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
   // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on
   // every new isolate. On the Workers Free plan the first request of an isolate pays for

@@ -284,6 +284,8 @@ export const messages = sqliteTable("messages", {
   /** For a connected mailbox (mail_connections): which remote folder (a folder key: "inbox", "sent", "archive", "drafts", "spam", "trash" or "f:<path>") and IMAP UID the copy came from. A null UID means the copy is not tied to a provider folder right now (moved, or sent from Multies). */
   remoteBox: text("remote_box"),
   remoteUid: integer("remote_uid"),
+  /** R31 (0066): bulk mail (List-Unsubscribe, List-Id, Precedence bulk, Auto-Submitted), set on inbound ingest. Null on older rows. */
+  isBulk: integer("is_bulk", { mode: "boolean" }),
   date: ts("date").notNull(),
   createdAt: createdAt(),
 }, (t) => [
@@ -999,8 +1001,20 @@ export const notifications = sqliteTable("notifications", {
   title: text("title").notNull(),
   actorName: text("actor_name"),
   readAt: ts("read_at"),
+  /** R31 triage: done (out of the inbox) and snoozed until a time (back in the inbox, unread, once it passes). */
+  doneAt: ts("done_at"),
+  snoozedUntil: ts("snoozed_until"),
   createdAt: createdAt(),
 }, (t) => [index("notifications_user_idx").on(t.userId, t.orgId, t.createdAt)]);
+
+/** R31 catch-up: when a person last caught up on a chat channel, task or doc. Written at most once a minute per item. */
+export const itemVisits = sqliteTable("item_visits", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  itemType: text("item_type", { enum: ["channel", "task", "doc"] }).notNull(),
+  itemId: text("item_id").notNull(),
+  lastVisitAt: ts("last_visit_at").notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.itemType, t.itemId] })]);
 
 /** Phones registered for push (Expo push tokens). Payloads carry only an event type and an id. */
 export const pushDevices = sqliteTable("push_devices", {
@@ -1057,6 +1071,8 @@ export const forms = sqliteTable("forms", {
   lastSubmitAt: ts("last_submit_at"),
   /** R21: submissions wait in Triage instead of becoming tasks at once. */
   triage: integer("triage", { mode: "boolean" }).notNull().default(false),
+  /** R31 (0067): JSON [{ when: { field, op, value }, projectId, assigneeId }]; the first match routes the task. */
+  routing: text("routing").notNull().default("[]"),
   ...suiteCols(),
 }, (t) => [index("forms_org_idx").on(t.orgId), uniqueIndex("forms_slug_uq").on(t.slug)]);
 
@@ -1765,3 +1781,37 @@ export const taskWatchers = sqliteTable("task_watchers", {
   source: text("source", { enum: ["manual", "auto"] }).notNull().default("manual"),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.taskId, t.userId] })]);
+
+/** R31 (0066): a person's own inbox splits, in order. rules: [{ field, value }] (services/mail/splits.ts). */
+export const mailSplits = sqliteTable("mail_splits", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  rules: text("rules_json").notNull().default("[]"),
+  match: text("match", { enum: ["all", "any"] }).notNull().default("all"),
+  position: integer("position").notNull().default(0),
+  leavesImportant: integer("leaves_important", { mode: "boolean" }).notNull().default(true),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("mail_splits_user_idx").on(t.orgId, t.userId, t.position)]);
+
+/** R31 (0066): read status. One row per sent message that carried the open image; the token is random. */
+export const mailOpens = sqliteTable("mail_opens", {
+  token: text("token").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  messageId: text("message_id").notNull().references(() => messages.id, { onDelete: "cascade" }),
+  userId: text("user_id"),
+  opens: integer("opens").notNull().default(0),
+  firstOpenAt: ts("first_open_at"),
+  lastOpenAt: ts("last_open_at"),
+  createdAt: createdAt(),
+}, (t) => [index("mail_opens_message_idx").on(t.messageId)]);
+
+/** R31 (0066): per person mail preferences. readStatus: "Show when people open my mail", off by default. */
+export const mailPrefs = sqliteTable("mail_prefs", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  readStatus: integer("read_status", { mode: "boolean" }).notNull().default(false),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [primaryKey({ columns: [t.orgId, t.userId] })]);

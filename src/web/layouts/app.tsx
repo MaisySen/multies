@@ -1,15 +1,17 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListTodo, Sun, CalendarClock, Plug, Bell, MessageCircle, Target, LayoutTemplate, BarChart3, Briefcase, ClipboardList, Timer, Video, Activity, CheckSquare, Contact, FileText, Zap, Bot, Check, ClipboardCheck, MessagesSquare, Search, ShieldCheck, ChevronsUpDown, Keyboard, Plus, UserCog, Globe, Inbox, LayoutDashboard, LogOut, Menu as MenuIcon, Settings, Shield, FlaskConical, Users, X } from "lucide-react";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
-import { CommandPalette } from "@/web/components/command-palette";
+import { PaletteHost } from "@/web/components/palette-host"; // R31: the menu itself loads on demand
 import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
-import { openShortcutsSheet } from "@/web/lib/shortcuts";
+import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
 import { TimerChip } from "@/web/pages/app/work/time";
-import { CallDockHost } from "@/web/pages/app/work/call-r23";
+// R31: the call dock and onboarding load on demand (their code is not on the first paint path).
+const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
+const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
 import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
@@ -22,7 +24,6 @@ import { Field, Input } from "@/web/components/ui/input";
 import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
-import { Onboarding } from "@/web/pages/app/onboarding";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
@@ -74,7 +75,6 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
-  const [palette, setPalette] = useState(false);
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,
     queryFn: async () => (await api.get<{ approvals: unknown[] }>("/approvals?status=pending")).approvals,
@@ -114,7 +114,7 @@ export function AppLayout() {
       </div>
     );
   }
-  if (me.data.onboarding?.needed) return <Onboarding me={me.data} />;
+  if (me.data.onboarding?.needed) return <Suspense fallback={<AppSkeleton />}><Onboarding me={me.data} /></Suspense>;
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {
@@ -133,7 +133,7 @@ export function AppLayout() {
         <WorkspaceSwitcher current={organization} />
       </div>
       <div className="mt-3 shrink-0 px-3">
-        <button onClick={() => { setDrawer(false); setPalette(true); }} className="flex w-full items-center gap-2.5 rounded-lg bg-fill px-2.5 py-[6px] text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted max-sm:min-h-11">
+        <button onClick={() => { setDrawer(false); openPalette(); }} className="flex w-full items-center gap-2.5 rounded-lg bg-fill px-2.5 py-[6px] text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted max-sm:min-h-11">
           <Search className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd>
         </button>
       </div>
@@ -201,10 +201,10 @@ export function AppLayout() {
         <main className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
-        <CommandPalette open={palette} onOpenChange={setPalette} onSignOut={signOut} />
+        <PaletteHost onSignOut={signOut} />
         <ShortcutsHost />
         <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
-        <CallDockHost />
+        <Suspense fallback={null}><CallDockHost /></Suspense>
       </div>
     </div>
   );

@@ -41,6 +41,7 @@ import { registerSprintTools } from "./mcp-r21-sprints";
 import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
+import { registerMailR31Tools } from "./mcp-r31-mail";
 import { registerAssignTools } from "./mcp-r22-assign";
 import { registerAgentMemberTools } from "./mcp-r26-agents"; // R26 (DF-3)
 import { registerChecklistTools } from "./mcp-r26-checklists"; // R26 (MB-85)
@@ -49,11 +50,14 @@ import { registerTaskQueryTools } from "./mcp-r26-task-query"; // R26 (MB-86)
 import { registerAgentRunTools } from "./mcp-r27-agent-runs"; // R27 (DF-3 slice 2)
 import { registerAgentTriggerTools } from "./mcp-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerDocsR28Tools } from "./mcp-r28-docs"; // R28: docs_append (found by Haajir)
+import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification triage and catch-up
+import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
 import { registerRecordingTools } from "./mcp-r23-recordings";
 import { registerCallTools } from "./mcp-r23-calls";
+import { registerMeetingLiveTools } from "./meeting-live-r31";
 import { registerWorkloadTools } from "./mcp-r24-workload";
 import { registerRecipeTools } from "./mcp-r24-recipes";
 import { registerR24DocTools } from "./mcp-r24-docs";
@@ -118,10 +122,13 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
       mailboxId: z.string().optional(),
       unread: z.boolean().optional().describe("Only threads with unread mail."),
       limit: z.number().int().min(1).max(50).default(20),
+      split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().describe("Only this Inbox tab: important, other, or one of your split ids (mail_split_list)."),
     },
-  }, tool(async (a: { agentId?: string; mailboxId?: string; unread?: boolean; limit: number }) => {
+  }, tool(async (a: { agentId?: string; mailboxId?: string; unread?: boolean; limit: number; split?: string }) => {
     const scope = actor.agentId || a.agentId ? (await agentFor(a.agentId)).mailboxIds : await scopeFor(deps, actor);
-    return listThreads(deps, actor.orgId, scope, { mailboxId: a.mailboxId, unread: a.unread, limit: a.limit });
+    // R31: an Inbox split narrows to Inbox mail of that tab.
+    const extra = a.split ? await (await import("../services/mail/splits")).splitCond(deps, actor as never, a.split) : undefined;
+    return listThreads(deps, actor.orgId, scope, { mailboxId: a.mailboxId, unread: a.unread, limit: a.limit, ...(extra ? { extra, folder: "inbox" } : {}) });
   }));
 
   server.registerTool("read_thread", {
@@ -253,13 +260,17 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentRunTools(server, deps, actor, writable, tool); // R27 (DF-3 slice 2)
   registerAgentTriggerTools(server, deps, actor, writable, tool); // R28 (DF-3 slice 3)
   registerDocsR28Tools(server, deps, actor, writable, tool); // R28: docs_append
+  registerTriageR31Tools(server, deps, actor, writable, tool); // R31: notification triage and catch-up
+  registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
   registerTaskBulkTools(server, deps, actor, writable, tool);
   registerThreadCommentTools(server, deps, actor, writable, tool);
   registerPresenceTools(server, deps, actor, writable, tool);
   registerSnippetTools(server, deps, actor, writable, tool);
+  registerMailR31Tools(server, deps, actor, writable, tool); // R31: Inbox splits, read status
   registerMeetingNotesTools(server, deps, actor, writable, tool); // Round 23: meeting notes
   registerRecordingTools(server, deps, actor, writable, tool);
   registerCallTools(server, deps, actor, writable, tool); // Round 23
+  registerMeetingLiveTools(server, deps, actor, writable, tool); // R31: meeting_summary_so_far
   registerWorkloadTools(server, deps, actor, tool); // R24.2: workload
   registerRecipeTools(server, deps, actor, writable, tool); // R24.4: automation recipes
   registerR24DocTools(server, deps, actor, writable, tool); // R24.5: docs tree and backlinks

@@ -86,12 +86,20 @@ async function participants(deps: Deps, rooms: CallRooms, room: string, fresh = 
   }
 }
 
+/** Round 31: who is in a room now with when each joined (cached like presence). Empty when video is off. */
+export async function roomParticipants(deps: Deps, room: string): Promise<CallParticipant[]> {
+  const rooms = roomsFor(deps);
+  return rooms ? participants(deps, rooms, room) : [];
+}
+
 // ---------------------------------------------------------------- presence
 
 type MeetingRow = typeof meetings.$inferSelect;
 export type CallState = "live" | "waiting" | "ended";
 export interface CallStatus {
   meetingId: string; title: string; channelId: string | null; state: CallState;
+  /** Round 31: the call's notes doc, once someone joined (null before). */
+  docId: string | null;
   participants: { name: string }[]; count: number;
   startedAt: string; endedAt: string | null; durationMin: number | null;
 }
@@ -108,7 +116,7 @@ async function markEnded(deps: Deps, m: MeetingRow) {
 }
 
 async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fresh = false): Promise<CallStatus> {
-  const base = { meetingId: m.id, title: m.title, channelId: m.channelId ?? null, startedAt: m.startsAt.toISOString() };
+  const base = { meetingId: m.id, title: m.title, channelId: m.channelId ?? null, docId: m.docId ?? null, startedAt: m.startsAt.toISOString() };
   const ended = (): CallStatus => {
     const end = m.endedAt ?? deps.now();
     return { ...base, state: "ended", participants: [], count: 0, endedAt: m.endedAt?.toISOString() ?? null, durationMin: Math.max(1, Math.round((end.getTime() - m.startsAt.getTime()) / 60_000)) };
@@ -147,7 +155,7 @@ export async function guestChannelCallStatus(deps: Deps, g: GuestViewer, channel
   return presentChannel(deps, g.orgId, c.id);
 }
 
-async function visibleMeeting(deps: Deps, a: SuiteActor, meetingId: string) {
+export async function visibleMeeting(deps: Deps, a: SuiteActor, meetingId: string) {
   const m = await deps.db.select().from(meetings).where(and(eq(meetings.orgId, a.orgId), eq(meetings.id, meetingId), isNull(meetings.deletedAt))).get();
   if (!m) throw notFound("Meeting");
   // A call from a DM or private channel is visible only to the people who can open that chat.

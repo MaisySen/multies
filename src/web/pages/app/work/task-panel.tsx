@@ -4,6 +4,7 @@ import { taskFields } from "./computed-fields";
 import { TaskFiles } from "./task-files";
 import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
+import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { Bot, Calendar, CheckCircle2, Circle, Copy, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
 import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
@@ -79,7 +80,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   };
 
   return (
-    <aside role="dialog" aria-label="Task" className="fixed inset-0 z-40 flex flex-col bg-surface sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[520px] sm:border-l sm:border-line sm:shadow-pop">
+    <aside role="dialog" aria-label="Task" data-keys-pass className="fixed inset-0 z-40 flex flex-col bg-surface sm:inset-y-0 sm:left-auto sm:right-0 sm:w-[520px] sm:border-l sm:border-line sm:shadow-pop">
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-line px-4">
         {t ? <span className="font-mono text-[12px] text-subtle">{t.ref}</span> : <Skeleton className="w-16" />}
         {project && <span className="truncate text-[12.5px] text-muted">in {project.name}</span>}
@@ -101,6 +102,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="space-y-3 p-5">{q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <><Skeleton className="h-7 w-3/4" /><Skeleton className="w-1/2" /><Skeleton className="h-24" /></>}</div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10">
+          <CatchupCard key={`catchup-${t.id}`} type="task" id={t.id} className="mx-0 mb-0 mt-3" />
           <div className="flex items-start gap-2 pt-4">
             <button className="mt-1.5 text-muted hover:text-ok" aria-label={t.status === "done" ? "Mark as not done" : "Mark as done"} onClick={() => save({ status: t.status === "done" ? "todo" : "done" })}>
               {t.status === "done" ? <CheckCircle2 className="h-5 w-5 text-ok" /> : <Circle className="h-5 w-5" />}

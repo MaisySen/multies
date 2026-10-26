@@ -69,6 +69,23 @@ Categories: mention, assignment, comment, approval, due_soon, chat, email, statu
 data only (`{ type, id }`), for example `chat.mention`, `chat.dm`, `chat.reply`, `goal.updated`,
 `task.assigned`. MCP: `list_notifications`.
 
+Triage (R31): `GET /?view=inbox|later|done` (default `inbox`: not done, and not snoozed or the snooze has passed). Each
+item has `doneAt` and `snoozedUntil` (ISO or null); the answer adds `viewCounts { inbox, later, done }`, and `unread`
+counts the Inbox only. `POST /:id/done`, `POST /:id/undone` (clears done and snooze), `POST /:id/snooze` with
+`{ until }` (ISO, in the future, at most 90 days) or `{ preset: later_today | tomorrow | next_week }` in the person's time
+zone (UTC+10 when none is set), and `POST /done` with `{ ids }` (up to 500). A snoozed item comes back to the top of the
+Inbox, unread. The same on `/api/v1/notifications` (workspace keys). MCP: `notification_list`, `notification_done`,
+`notification_undone`, `notification_snooze`.
+
+## Catch-up
+
+`GET /api/catchup?type=channel|task|doc&id=&visit=1` (and `GET /api/v1/catchup`) answers what changed since the person's
+last visit: `counts` (messages, replies, comments, edits, statusChanges, assigneeChanges, mentions), `actors`,
+`decisions` (messages and comments that say decided, agreed, approved or we will, plus status and assignee changes),
+`latest` and `hasNew`. It is a deterministic digest (`mode: "digest"`). `visit=1` also records the visit, at most once a
+minute per item. `POST /api/catchup/visit` (`{ type, id }`) marks the item caught up now. With the workspace's own AI key,
+`POST /api/catchup/summary` writes a short summary on that key (409 `ai_key_required` without one). MCP: `catchup_get`.
+
 ## Repeating tasks
 
 A task's `repeat` field takes a rule: `{ freq: daily | weekly | monthly | yearly, interval?, weekdays?
@@ -135,6 +152,16 @@ JSON event and a `whsec_` secret, shown once. Each connection is an outgoing web
 
 - App API: `GET /api/connectors` (catalogue and connections), `GET /api/connectors/catalogue`, `POST /api/connectors` `{ connector, url, events?, name? }`, `PATCH /api/connectors/:id` `{ enabled?, events?, url?, name? }`, `POST /api/connectors/:id/test`, `DELETE /api/connectors/:id`
 - Public API: `GET /api/v1/integrations/catalogue`, `GET /api/v1/integrations`, `POST /api/v1/integrations`
+
+### Form logic and results (R31)
+
+A form field can carry `logic` and `rules`. `logic` is `{ "join": "all" | "any", "conditions": [{ "field": "<id of a question above>", "op": "is" | "is_not" | "contains" | "answered" | "not_answered" | "gt" | "lt", "value": "Yes" }] }`: the question shows only when the conditions hold. A hidden question is skipped, never required, and its answer is dropped. A condition can only use a question above it: a loop, a question that depends on itself or on a later one answers 422 (`details.code` is `cycle`, `self` or `later`), and a condition on a deleted question is removed when the form is saved. `rules` by type: `minLength`, `maxLength` (text, long text, email, phone), `min`, `max` (number), `minSelected`, `maxSelected` (the new `multiselect` type, answers stored as "A, B"), `pattern` and `patternMessage` (text, phone). A public submission that breaks a rule answers 400 `validation_failed` with every field's message in `details.fields` and the first in `details.field`.
+
+- `PUT /api/v1/forms/{id}/fields/{fieldId}/logic` with `{ logic?, rules?, required? }` (null clears logic or rules): `{ form, field }`. Read only keys get 403.
+- `GET /api/v1/forms/{id}/responses?q=&from=YYYY-MM-DD&to=YYYY-MM-DD&sort=createdAt|<question id>&dir=asc|desc&limit=50&offset=0`: `{ fields, responses: [{ id, answers, entityType, entityId, createdAt }], total, limit, offset }` (limit up to 200).
+- `GET /api/v1/forms/{id}/summary` (same q, from, to): `{ total, firstAt, lastAt, capped, questions }`, each question `kind: "choice"` with `counts`, `"number"` with `average`, `min`, `max`, or `"text"` with the 5 latest answers. Reads the newest 10,000 matching responses at most, a page of 500 at a time.
+- Routing (forms that make tasks): `routing: [{ "when": { "field", "op", "value" }, "projectId", "assigneeId": "member:..." | "agent:..." }]` on create and update (up to 10). After a submission the first rule that matches puts the task in that project and assigns it; otherwise the form's own project and assignee apply. A rule needs a project or a person (422), another workspace's project is a 404, and a rule on a removed question is dropped.
+- In the app the same routes live under `/api/forms/:id/...`, plus `GET /api/forms/:id/responses.csv` (a spreadsheet safe CSV of the matching responses).
 
 ### Incoming webhooks (from Zapier, Make, n8n, forms and scripts)
 
@@ -258,7 +285,7 @@ on read, so a task change costs no extra write; a completed sprint keeps its fin
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `form_logic_set`, `form_results`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -461,6 +488,7 @@ The project is the one given, else the meeting's source task's project, else the
 
 - App API: `GET /api/meeting-notes/:meetingId` (reads only; `doc` is null until made), `POST /api/meeting-notes/:meetingId` (makes the doc if missing, answers the same), `POST /api/meeting-notes/:meetingId/action-items` `{ projectId?, items?: [{ key?, title?, assignee?, due? }] }`, `GET /api/meeting-notes/by-doc/:docId` (the meeting a doc is the notes of, or null).
 - Public API: `GET /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/notes`, `POST /api/v1/meetings/{id}/action-items`. Read only keys can read the notes but not make the doc or tasks.
+- Round 31: `GET /api/v1/meetings/{id}/summary-so-far` returns the "So far" digest of a live call or meeting (who is here and since when, minutes elapsed, notes headings and to-dos, decisions said in the call's chat). No model call; `transcript` is always null. Call objects (`get_call_status`, `GET /api/v1/calls/...`) and meeting objects carry `docId`, the notes doc made once when the first person joins.
 - MCP: `get_meeting_notes`, `create_action_items`.
 - Another workspace's meeting answers 404; project guests and meeting guests have no workspace session (401).
 
@@ -1023,3 +1051,12 @@ Settings, Sign-up emails (workspace owners and admins) and the REST API manage t
 ## Database busy: 503 and Retry-After (R28, found by Haajir)
 
 When the database is briefly unavailable (an export in progress, overloaded, a lost network connection, a storage reset, or SQLite busy on a self hosted server), every API route answers `503` with a `Retry-After` header (seconds: 30 for an export, 5 when overloaded, 2 otherwise) and `{ "error": { "code": "busy", "message": "...", "details": { "reason": "export" | "overloaded" | "network" | "reset" | "locked" | "unavailable" } } }`. Wait for `Retry-After` and send the request again. A read (a plain SELECT) is retried once on the server after 150 ms before it gets this answer; writes are never retried by the server. MCP tools answer `busy: ...` as a tool error. Every other server error is still `500` with code `internal` and is reported to error tracking.
+
+### Split inbox and read status (R31)
+
+- Inbox tabs: Important (mail from people: someone the mailbox wrote to, a teammate, a saved contact, or a reply in a thread the mailbox wrote in, and not bulk), Other (the rest: newsletters, notifications, receipts) and a person's own splits. A split with `leavesImportant` (default true) takes its mail out of Important and Other. Bulk is read on inbound from List-Unsubscribe, List-Id, Precedence and Auto-Submitted (`messages.is_bulk`, migration 0066) and from robot sender addresses (noreply@, notifications@).
+- Rules: `{ field, value }` with field `fromContains`, `fromDomain`, `to` (an address or a mailbox id), `subjectContains`, `calendarInvite`, `fromTeammate`; `match` all or any. Up to 12 splits of 10 rules.
+- App API: `GET /api/mail/splits?mailboxId=` answers `{ splits, tabs: [{ id, name, unread, builtIn }] }`; `POST /api/mail/splits`; `POST /api/mail/splits/preview` `{ rules, match?, mailboxId? }` answers `{ threads }`; `POST /api/mail/splits/reorder` `{ ids }`; `GET|PATCH|DELETE /api/mail/splits/:id`; `GET /api/mail/messages?folder=inbox&split=important|other|<id>`.
+- Read status (opt in, Settings > Mail, off by default): `GET|PATCH /api/mail/prefs` `{ readStatus }`. When on, mail that leaves Multies carries a 1x1 image at `/r/o/<token>.gif` (public, random token, no PII, no-store). Opens in the first 10 seconds and from scanners are ignored; at most one write a minute per message. `GET /api/mail/messages?folder=sent` items and sent messages in `GET /api/mail/messages/:id` carry `readStatus: { tracked, opens, firstOpenAt, lastOpenAt }`; `GET /api/mail/read-status/:id`.
+- Public API: `GET|POST /api/v1/mail/splits`, `POST /api/v1/mail/splits/preview` (read only keys can call it), `POST /api/v1/mail/splits/reorder`, `GET|PATCH|DELETE /api/v1/mail/splits/{id}`, `GET|PATCH /api/v1/mail/prefs`, `GET /api/v1/mail/messages/{id}/read-status`, `GET /api/v1/messages?folder=inbox&split=`.
+- MCP: `mail_split_list`, `mail_split_create`, `mail_split_update`, `mail_split_delete`, `mail_read_status`; `list_threads` takes `split`.

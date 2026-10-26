@@ -19,6 +19,8 @@ import { localFolderFor, syncConnection } from "../services/connect/sync";
 import { snoozeHiddenCond } from "../services/mail/schedules";
 import { checkDraftSave, ownedBy, replyTarget } from "../services/suite/thread-collab";
 import { inIds } from "../lib/sql-chunks";
+import { splitCond } from "../services/mail/splits";
+import { readStatusFor } from "../services/mail/read-status";
 
 /** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
 const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash", spam: "spam", inbox: "inbox" };
@@ -70,7 +72,12 @@ export function mailRoutes() {
         q: z.string().max(200).optional().transform((v) => v || undefined),
         cursor: z.string().max(200).optional().transform((v) => v || undefined),
         limit: z.coerce.number().int().min(1).max(200).optional(),
+        /** R31: an Inbox tab, "important", "other" or a split id (services/mail/splits.ts). */
+        split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().transform((v) => v || undefined),
       }));
+      // R31: split inbox. Only Inbox has tabs; elsewhere the parameter is ignored.
+      const splitExtra = q.split && q.folder === "inbox" && !q.q && !q.remote ? await splitCond(c.var.deps, c.var.auth, q.split) : undefined;
+      const snoozeExtra = q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined;
       const result = await listMessages(c.var.deps.db, c.var.auth.orgId, {
         mailboxId: q.mailboxId,
         folder: q.remote ? undefined : (q.folder as Folder | "starred" | undefined),
@@ -80,8 +87,13 @@ export function mailRoutes() {
         limit: q.limit,
         scope: await mailboxScope(c.var.deps.db, c.var.auth),
         // Round 20: a snoozed thread stays out of Inbox until its time.
-        extra: q.folder === "inbox" && !q.q && !q.remote ? snoozeHiddenCond(c.var.deps.now()) : undefined,
+        extra: splitExtra && snoozeExtra ? and(snoozeExtra, splitExtra) : snoozeExtra,
       });
+      // R31: Sent shows read status when the sender has it on ("Opened 2x, last 3:14 PM").
+      if (q.folder === "sent" && result.messages.length) {
+        const status = await readStatusFor(c.var.deps, c.var.auth.orgId, result.messages.map((m) => m.id));
+        return c.json({ ...result, messages: result.messages.map((m) => ({ ...m, readStatus: status.get(m.id) ?? null })) });
+      }
       return c.json(result);
     })
     .get("/messages/:id", async (c) => {
@@ -95,7 +107,11 @@ export function mailRoutes() {
         const draft = presentMessage(m);
         return c.json({ message: draft, thread: [draft] });
       }
-      const thread = await getThread(db, c.var.auth.orgId, m);
+      const plain = await getThread(db, c.var.auth.orgId, m);
+      // R31: read status under each sent message in the thread.
+      const sentIds = plain.filter((t) => t.folder === "sent").map((t) => t.id);
+      const status = sentIds.length ? await readStatusFor(c.var.deps, c.var.auth.orgId, sentIds) : null;
+      const thread = status ? plain.map((t) => (t.folder === "sent" ? { ...t, readStatus: status.get(t.id) ?? null } : t)) : plain;
       return c.json({ message: thread.find((t) => t.id === m.id), thread });
     })
     .patch("/messages/:id", async (c) => {

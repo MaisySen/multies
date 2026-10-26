@@ -12,6 +12,7 @@ import { createForm, deleteForm, getForm, listForms, publicForm, submitForm, upd
 import { dashboard } from "../services/suite/reports";
 import { createMeeting, getMeeting, guestInfo, guestJoin, joinMeeting, listMeetings, meetingIcs, meetingsEnabled, sendInvites, updateMeeting } from "../services/suite/meetings";
 import { organizations } from "../db/schema";
+import { FieldLogicSchema, FieldRulesSchema, FormRouteSchema } from "./forms-r31";
 import { eq } from "drizzle-orm";
 
 export const TimeStart = z.object({ taskId: z.string().min(1), note: z.string().max(500).optional() });
@@ -25,12 +26,14 @@ export const TimeEntryCreate = z.object({
 export const TimeEntryPatch = z.object({ minutes: z.number().positive().max(1440).optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional() });
 export const TimeQuery = z.object({ from: z.string().optional(), to: z.string().optional(), person: z.string().optional(), projectId: z.string().optional(), taskId: z.string().optional() });
 
-const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "number", "date"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional() });
+const Field = z.object({ id: z.string().max(40).optional(), label: z.string().min(1).max(120), type: z.enum(["text", "email", "textarea", "phone", "select", "multiselect", "number", "date"]), required: z.boolean().optional(), options: z.array(z.string().max(120)).max(50).optional(), placeholder: z.string().max(120).optional(),
+  logic: FieldLogicSchema.optional(), rules: FieldRulesSchema.optional() }); // R31: show-if logic and answer rules
 export const FormCreate = z.object({
   name: z.string().trim().min(1).max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact"]).optional(),
   projectId: z.string().nullable().optional(), assigneeId: z.string().nullable().optional(), fields: z.array(Field).min(1).max(30).optional(),
   successMessage: z.string().max(500).optional(), enabled: z.boolean().optional(),
   triage: z.boolean().optional(),
+  routing: z.array(FormRouteSchema).max(10).optional(), // R31
 });
 export const FormPatch = FormCreate.partial();
 

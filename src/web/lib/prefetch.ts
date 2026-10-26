@@ -62,10 +62,54 @@ export function resetPrefetch(): void { started.clear(); }
 
 type IdleWindow = { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; setTimeout: (cb: () => void, ms: number) => unknown };
 
-/** Warm the likely next pages when the browser is idle, unless the connection says not to. */
-export function prefetchWhenIdle(paths: string[] = LIKELY_NEXT, win: IdleWindow = window, nav: Parameters<typeof shouldHoldBack>[0] = navigator as never, table: [string, Loader][] = ROUTE_LOADERS): void {
+/**
+ * R31: download only. The idle warm up fetches the files behind the likely next pages with
+ * <link rel="prefetch"> (lowest priority, into the HTTP cache, nothing runs) instead of import(), which would also
+ * parse and run every module. The build writes the page to files map (route-chunks.json, scripts/prerender-landing.ts).
+ */
+export interface DownloadOnly {
+  map: () => Promise<Record<string, string[]> | null>;
+  add: (file: string) => void;
+}
+const linked = new Set<string>();
+export const browserDownloadOnly: DownloadOnly = {
+  map: async () => {
+    try {
+      const r = await fetch("/route-chunks.json", { credentials: "same-origin" });
+      return r.ok ? ((await r.json()) as Record<string, string[]>) : null;
+    } catch { return null; }
+  },
+  add: (file) => {
+    if (linked.has(file) || document.querySelector(`script[src="/${file}"], link[href="/${file}"]`)) return;
+    linked.add(file);
+    const l = document.createElement("link");
+    l.rel = "prefetch";
+    l.as = "script";
+    l.href = `/${file}`;
+    l.crossOrigin = "anonymous";
+    document.head.appendChild(l);
+  },
+};
+
+/** The files to prefetch for these pages, each once, in page order. */
+export function filesFor(paths: string[], map: Record<string, string[]>): string[] {
+  return [...new Set(paths.flatMap((p) => map[p] ?? []))];
+}
+
+/**
+ * Warm the likely next pages when the browser is idle, unless the connection says not to. With a build map the
+ * files only download; without one (the dev server) the pages load as before.
+ */
+export function prefetchWhenIdle(paths: string[] = LIKELY_NEXT, win: IdleWindow = window, nav: Parameters<typeof shouldHoldBack>[0] = navigator as never, table: [string, Loader][] = ROUTE_LOADERS, dl: DownloadOnly | null = browserDownloadOnly): void {
   if (shouldHoldBack(nav)) return;
-  const run = () => { for (const p of paths) prefetchRoute(p, table); };
+  const viaImport = () => { for (const p of paths) prefetchRoute(p, table); };
+  const run = () => {
+    if (!dl) { viaImport(); return; }
+    void dl.map().then((map) => {
+      if (!map) { viaImport(); return; }
+      for (const f of filesFor(paths, map)) dl.add(f);
+    });
+  };
   if (typeof win.requestIdleCallback === "function") win.requestIdleCallback(run, { timeout: 4000 });
   else win.setTimeout(run, 2000);
 }

@@ -1,6 +1,7 @@
 /** Team chat: channels and direct messages, threads, @mentions, files, and links into tasks and mail. */
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
@@ -353,6 +354,7 @@ export function ChatPage() {
             </header>
             <PinnedBar pins={pins.data ?? []} onOpen={openPin} onUnpin={(m) => void togglePin(m)} />
             <div className="flex-1 overflow-y-auto px-2 py-2">
+              <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
               {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? (
                 <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />

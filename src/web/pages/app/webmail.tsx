@@ -23,7 +23,11 @@ import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provi
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask } from "./work/make-task";
+import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
+import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
+import { registerMailActions } from "@/web/lib/mail-actions"; // R31
+import type { ReadStatus } from "@/shared/mail-splits";
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -47,6 +51,10 @@ export function WebmailPage() {
   const folder = (params.get("folder") ?? "inbox") as View;
   const q = params.get("q") ?? "";
   const selected = params.get("m");
+  // R31: Inbox tabs (Important, Other, your splits). Only Inbox has them, and not while searching.
+  const splitsOn = folder === "inbox" && !q;
+  const split = splitsOn ? params.get("split") ?? DEFAULT_SPLIT : "";
+  const [editSplits, setEditSplits] = useState(false);
   const [search, setSearch] = useState(q);
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   const [invoiceOpen, setInvoiceOpen] = useState(false);
@@ -64,12 +72,14 @@ export function WebmailPage() {
     }, { replace: patch.m === undefined });
   }, [setParams]);
 
+  const splits = useSplits(mailboxId, splitsOn);
+  const splitTabs = useMemo(() => splits.data?.tabs ?? [], [splits.data]);
   const list = useInfiniteQuery({
-    queryKey: ["mail", "list", mailboxId, folder, q],
+    queryKey: ["mail", "list", mailboxId, folder, q, split],
     enabled: !!mailboxId && (!!q || !isScheduleView(folder)),
     initialPageParam: "",
     queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null }>(
-      `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(pageParam ? { cursor: pageParam } : {}) })}`,
+      `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
@@ -84,7 +94,7 @@ export function WebmailPage() {
   }, [list.data, returnedItems]);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
-  const listKey = ["mail", "list", mailboxId, folder, q];
+  const listKey = ["mail", "list", mailboxId, folder, q, split];
   const act = useMutation({
     mutationFn: ({ ids, action, to }: { ids: string[]; action: string; to?: string }) => api.post("/mail/messages/bulk", { ids, action, ...(to ? { to } : {}) }),
     // R30: optimistic. The list changes at once; a refusal puts it back and says why.
@@ -144,24 +154,59 @@ export function WebmailPage() {
     setParams((p) => { const n = new URLSearchParams(p); n.delete("compose"); return n; }, { replace: true });
   }, [wantsCompose, composeParam, mailboxes, mailboxId, setParams]);
 
-  // Keyboard shortcuts, Gmail-style.
+  // R31: mail keys come from the one command registry (lib/commands/modules/mail.ts); this page binds them.
+  useEffect(() => { setFocus("mail", selected); }, [selected]);
+  useEffect(() => () => setFocus("mail", null), []);
+  useCommandHandlers({
+    "mail-next": () => { if (!items.length) return false; open(items[Math.min(idx + 1, items.length - 1)].id); },
+    "mail-prev": () => { if (!items.length) return false; open(items[Math.max(idx - 1, 0)].id); },
+    "mail-compose": () => { startCompose(); },
+    "mail-search": () => { searchRef.current?.focus(); },
+    "mail-archive": () => { if (!current) return false; move("archive"); },
+    "mail-trash": () => { if (!current) return false; move("trash"); },
+    "mail-star": () => { if (!current) return false; act.mutate({ ids: [current.id], action: current.isStarred ? "unstar" : "star" }); },
+    "mail-read": () => {
+      if (!current) return false;
+      act.mutate({ ids: [current.id], action: current.isRead ? "unread" : "read" });
+      toast.success(current.isRead ? "Marked unread" : "Marked read");
+    },
+    "mail-close": () => { if (!selected) return false; open(null); },
+  }, !compose);
+
+  // R31: Tab and Shift+Tab move between Inbox splits while focus is on the page or the message list
+  // (inside a form, a menu or the reader, Tab keeps moving focus as usual).
+  const setSplit = useCallback((id: string) => setParam({ split: id === DEFAULT_SPLIT ? null : id, m: null }), [setParam]);
   useEffect(() => {
+    if (!splitsOn || !splitTabs.length) return;
     const on = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || compose || editSplits || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement;
-      if (compose || e.metaKey || e.ctrlKey || e.altKey || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable) return;
-      if (e.key === "j" && items.length) open(items[Math.min(idx + 1, items.length - 1)].id);
-      else if (e.key === "k" && items.length) open(items[Math.max(idx - 1, 0)].id);
-      else if (e.key === "c") { e.preventDefault(); startCompose(); }
-      else if (e.key === "/") { e.preventDefault(); searchRef.current?.focus(); }
-      else if (e.key === "e" && current) move("archive");
-      else if (e.key === "#" && current) move("trash");
-      else if (e.key === "s" && current) act.mutate({ ids: [current.id], action: current.isStarred ? "unstar" : "star" });
-      else if (e.key === "Escape" && selected) open(null);
-      else return;
+      const listFocus = t === document.body || !!t.closest?.("[data-mail-list]");
+      if (!listFocus) return;
+      e.preventDefault();
+      setSplit(stepSplit(splitTabs, split, e.shiftKey ? -1 : 1));
     };
     window.addEventListener("keydown", on);
     return () => window.removeEventListener("keydown", on);
-  });
+  }, [splitsOn, splitTabs, split, compose, editSplits, setSplit]);
+
+  // R31 (C): the mail actions the command registry calls by name (src/web/lib/mail-actions.ts).
+  // Handlers read the newest state through a ref, so they are registered once.
+  const latest = useRef({ items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit });
+  latest.current = { items, idx, current, split, splitTabs, move, act, open, startCompose, setSplit };
+  useEffect(() => registerMailActions({
+    archive: () => { const l = latest.current; if (l.current) l.move("archive"); },
+    trash: () => { const l = latest.current; if (l.current) l.move("trash"); },
+    star: () => { const l = latest.current; if (l.current) l.act.mutate({ ids: [l.current.id], action: l.current.isStarred ? "unstar" : "star" }); },
+    markUnread: () => { const l = latest.current; if (l.current) { l.act.mutate({ ids: [l.current.id], action: "unread" }); l.open(null); } },
+    next: () => { const l = latest.current; if (l.items.length) l.open(l.items[Math.min(l.idx + 1, l.items.length - 1)].id); },
+    prev: () => { const l = latest.current; if (l.items.length) l.open(l.items[Math.max(l.idx - 1, 0)].id); },
+    compose: () => latest.current.startCompose(),
+    search: () => searchRef.current?.focus(),
+    close: () => latest.current.open(null),
+    nextSplit: () => { const l = latest.current; if (l.splitTabs.length) l.setSplit(stepSplit(l.splitTabs, l.split, 1)); },
+    prevSplit: () => { const l = latest.current; if (l.splitTabs.length) l.setSplit(stepSplit(l.splitTabs, l.split, -1)); },
+  }), []);
 
   if (overview.isPending) return <div className="flex h-full"><div className="hidden w-60 border-r border-line p-4 md:block"><Skeleton className="mb-4 h-9" />{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="mb-2 h-7" />)}</div><div className="flex-1 p-4">{Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="mb-3 h-14" />)}</div></div>;
   if (!mailboxes.length) {
@@ -231,16 +276,17 @@ export function WebmailPage() {
           </form>
           <button className="inline-flex items-center justify-center rounded-lg border border-line p-2 text-muted md:hidden max-sm:h-10 max-sm:w-10" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
         </div>
+        {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} />}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
           {isScheduleView(folder) && !q ? <ScheduleListView view={folder} mailboxId={mailboxId} onOpen={open} onEdit={(it) => void editScheduled(it)} /> : <>
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
-              <EmptyState icon={q ? <Search /> : <Inbox />} title={q ? "No matches" : folder === "inbox" ? "Inbox zero" : "Nothing here"}
+              <EmptyState icon={q ? <Search /> : <Inbox />} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : "Nothing here"}
                 body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : "Messages you move here will show up in this folder."} />
             ) : (
               <ul>
@@ -270,6 +316,7 @@ export function WebmailPage() {
       </section>
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
+      {splitsOn && <EditSplitsDialog open={editSplits} onClose={() => setEditSplits(false)} mailboxId={mailboxId} splits={splits.data?.splits ?? []} />}
       {compose && <Compose key={JSON.stringify(compose).length + compose.subject} initial={compose} mailboxes={mailboxes} onClose={closeCompose} />}
     </div>
   );
@@ -295,6 +342,7 @@ function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; ac
           {m.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>
+        {folder === "sent" && <ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} className="mt-1" />}
       </button>
       <button onClick={onStar} data-testid="mail-star" className={cn("absolute right-0 top-1 inline-flex h-10 w-10 items-center justify-center rounded-lg transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
         <Star className={cn("h-4 w-4", m.isStarred && "fill-current")} />
@@ -306,7 +354,22 @@ function ListRow({ m, active, folder, onOpen, onStar }: { m: MessageListItem; ac
 function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: {
   id: string; mailboxes: MailboxOverview[]; onBack: () => void; onMove: (a: string) => void; onMoveTo: (m: Message, to: string) => void; onCompose: (d: Partial<ComposeDraft>) => void; onStar: (m: Message) => void;
 }) {
+  // R31: R, A, F and H on the open message (keys from the command registry).
+  const keys = useRef<{ reply?: (all: boolean) => void; forward?: () => void }>({});
+  useCommandHandlers({
+    "mail-reply": () => { if (!keys.current.reply) return false; keys.current.reply(false); },
+    "mail-reply-all": () => { if (!keys.current.reply) return false; keys.current.reply(true); },
+    "mail-forward": () => { if (!keys.current.forward) return false; keys.current.forward(); },
+    "mail-snooze": () => { const b = document.querySelector<HTMLElement>("[data-testid=snooze-menu]"); if (!b) return false; b.click(); },
+  });
   const qc = useQueryClient();
+  // R31 (C): reply, reply all and forward by name for the command registry, while a message is open.
+  const replyRef = useRef<{ reply: (all: boolean) => void; forward: () => void } | null>(null);
+  useEffect(() => registerMailActions({
+    reply: () => replyRef.current?.reply(false),
+    replyAll: () => replyRef.current?.reply(true),
+    forward: () => replyRef.current?.forward(),
+  }), []);
   const { data, isPending, error } = useQuery({
     queryKey: ["mail", "message", id],
     queryFn: () => api.get<{ message: Message; thread: Message[] }>(`/mail/messages/${id}`),
@@ -333,6 +396,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     text: `\n\n---------- Forwarded message ----------\nFrom: ${last.from.name ? `${last.from.name} <${last.from.address}>` : last.from.address}\nDate: ${fullDate(last.date)}\nSubject: ${last.subject}\nTo: ${last.to.map((t) => t.address).join(", ")}\n\n${last.text}`,
   });
 
+  keys.current = { reply, forward };
+  replyRef.current = { reply: (all) => reply(all), forward };
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3">
@@ -439,6 +504,7 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
       </button>
       {open && (
         <div className="px-4 pb-5 sm:pl-[60px]">
+          {m.folder === "sent" && <div className="mb-3"><ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} /></div>}
           {m.html ? <HtmlBody html={m.html} /> : <TextBody text={m.text} />}
           {m.attachments.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">

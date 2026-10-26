@@ -12,6 +12,7 @@ import { OutboundError } from "./outbound";
 import { getPlan } from "../plans";
 import { notifyAgentsOfInbound } from "../agents";
 import { operatorDecision } from "../suite/operator-inbox";
+import { isBulkMail } from "@/shared/mail-splits";
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -142,6 +143,7 @@ export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, 
       authResults: d.email.authResults,
       attachments: d.email.attachments,
       sizeBytes: d.sizeBytes,
+      isBulk: isBulkMail(d.email.headers ?? {}, d.email.from.address), // R31: split inbox
     });
     await logDelivery(db, { orgId: mb.orgId, messageId, direction: "inbound", fromAddress: d.envelopeFrom, toAddress: rcpt, subject, status: "delivered", provider: d.via, detail: spam ? "Filed as spam (DMARC fail)" : `Delivered to ${mb.address}` });
     if (d.raw) await mirrorInbound(deps, mb.id, d.raw, { spam });

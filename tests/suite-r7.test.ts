@@ -173,7 +173,7 @@ describe("forms", () => {
     expect(bot.body).toEqual({ ok: true, message: form.successMessage });
     const fast = await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 200 });
     expect(fast.body.created).toBeUndefined();
-    expect((await pub.post(`/api/public/forms/${form.slug}`, { answers: { name: "x" }, elapsedMs: 5000 })).status).toBe(422);
+    expect((await pub.post(`/api/public/forms/${form.slug}`, { answers: { name: "x" }, elapsedMs: 5000 })).status).toBe(400); // R31: per-field errors answer 400
     for (let i = 0; i < 4; i++) await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 5000 });
     expect((await pub.post(`/api/public/forms/${form.slug}`, { answers, elapsedMs: 5000 })).status).toBe(429);
     const detail = (await c.get(`/api/forms/${form.id}`)).body;

@@ -8,9 +8,13 @@ import { useQuery } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { RoomEvent } from "livekit-client";
-import { Maximize2, MonitorUp, PhoneOff, X } from "lucide-react";
+import { Maximize2, MonitorUp, NotebookPen, PhoneOff, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { closeCallDock, useCallDock } from "./call-r23";
+import { PreJoin, type JoinPrefs } from "./prejoin-r31";
+import { useCallNotesDoc } from "./call-panel-r31";
+import { roomMedia } from "@/web/lib/prejoin-prefs";
+import { useMe } from "@/web/lib/queries";
 
 /** Tells the server this app left the call, a moment after disconnecting, so an empty room ends the call once. */
 function reportLeft(meetingId: string) {
@@ -45,7 +49,13 @@ interface Join { url: string; token: string; room: string }
 export function CallDock() {
   const call = useCallDock();
   const navigate = useNavigate();
-  const [size, setSize] = useState({ w: 440, h: 300 });
+  const [size, setSize] = useState({ w: 440, h: 380 });
+  // Round 31: the pre-join step comes first; its choices carry into the room. The notes doc is made as the call starts.
+  const [prefs, setPrefs] = useState<JoinPrefs | null>(null);
+  const [prefsFor, setPrefsFor] = useState<string | undefined>(call?.meetingId);
+  if (prefsFor !== call?.meetingId) { setPrefsFor(call?.meetingId); setPrefs(null); }
+  const me = useMe();
+  const docId = useCallNotesDoc(prefs ? call?.meetingId : undefined, true);
   const drag = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const join = useQuery({
     queryKey: ["call-dock", call?.meetingId], enabled: !!call, retry: false, staleTime: Infinity, gcTime: 0,
@@ -66,12 +76,15 @@ export function CallDock() {
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">{call.title}</h2>
+        {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><NotebookPen className="h-3.5 w-3.5" aria-hidden />Notes</button>}
         <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><Maximize2 className="h-3.5 w-3.5" aria-hidden />Expand</button>
         <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><PhoneOff className="h-3.5 w-3.5" aria-hidden />Leave</button>
       </header>
       <div className="relative min-h-0 flex-1" data-lk-theme="default">
-        {join.data ? (
-          <LiveKitRoom serverUrl={join.data.url} token={join.data.token} connect video={false} audio onDisconnected={leave} style={{ height: "100%" }}>
+        {!prefs ? (
+          <div className="h-full overflow-y-auto"><PreJoin compact title={call.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} onJoin={setPrefs} onCancel={leave} /></div>
+        ) : join.data ? (
+          <LiveKitRoom serverUrl={join.data.url} token={join.data.token} connect {...roomMedia(prefs)} onDisconnected={leave} style={{ height: "100%" }}>
             <VideoConference />
             <CallRoomExtras meetingId={call.meetingId} />
           </LiveKitRoom>

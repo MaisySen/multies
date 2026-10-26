@@ -18,6 +18,7 @@ import {
 } from "../services/suite/contacts";
 import { automationUsage, createAutomation, deleteAutomation, listAutomations, RECIPES, updateAutomation } from "../services/suite/automations";
 import { getPrefs, listNotifications, markNotificationsRead, markNotificationUnread, setPrefs } from "../services/suite/notify";
+import { markDone, markManyDone, markUndone, snooze, SNOOZE_PRESETS, TRIAGE_VIEWS } from "../services/suite/notify-triage"; // R31 triage
 import { listDevices, registerDevice, unregisterDevice } from "../services/suite/push";
 import {
   AutomationCreate, AutomationPatch, CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, PushDevice,
@@ -146,13 +147,23 @@ export function automationRoutes() {
     .delete("/:id", requireAdmin, async (c) => c.json(await deleteAutomation(c.var.deps, c.var.auth, c.req.param("id"))));
 }
 
+/** R31: bodies for the triage actions (shared with v1 and MCP). */
+export const NotificationIds = z.object({ ids: z.array(z.string().min(1).max(64)).min(1).max(500) });
+export const SnoozeBody = z.object({ until: z.string().max(40).optional(), preset: z.enum(SNOOZE_PRESETS).optional() })
+  .refine((b) => !!b.until !== !!b.preset, { message: "Send until (an ISO date and time) or a preset, not both." });
+
 export function notificationRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional() }));
-      return c.json(await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: q.unread === "1" || q.unread === "true", category: q.category, limit: q.limit, before: q.before }));
+      const q = parseQuery(c, z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), view: z.enum(TRIAGE_VIEWS).optional() }));
+      return c.json(await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: q.unread === "1" || q.unread === "true", category: q.category, limit: q.limit, before: q.before, view: q.view }));
     })
+    // R31 triage: done, undone, snooze (until or preset), bulk done.
+    .post("/done", async (c) => c.json(await markManyDone(c.var.deps, c.var.auth.orgId, c.var.auth.userId, (await parseBody(c, NotificationIds)).ids)))
+    .post("/:id/done", async (c) => c.json(await markDone(c.var.deps, c.var.auth.orgId, c.var.auth.userId, c.req.param("id"))))
+    .post("/:id/undone", async (c) => c.json(await markUndone(c.var.deps, c.var.auth.orgId, c.var.auth.userId, c.req.param("id"))))
+    .post("/:id/snooze", async (c) => c.json(await snooze(c.var.deps, c.var.auth.orgId, c.var.auth.userId, c.req.param("id"), await parseBody(c, SnoozeBody))))
     .post("/read", async (c) => {
       const b = await parseBody(c, z.object({ ids: z.array(z.string()).max(500).optional(), category: z.string().max(20).optional() }));
       return c.json(await markNotificationsRead(c.var.deps, c.var.auth.orgId, c.var.auth.userId, b.ids, b.category));

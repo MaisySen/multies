@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
@@ -17,6 +17,10 @@ import { MeetingNotes } from "./meeting-notes";
 import { RecordingLayer, RecordingSection } from "./meeting-recording";
 import { useJoinFromDock } from "./call-r23";
 import { CallRoomExtras } from "./call-dock-r23";
+import { PreJoin, type JoinPrefs } from "./prejoin-r31";
+import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
+import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
+import { useMe } from "@/web/lib/queries";
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -84,17 +88,46 @@ interface Join { url: string; token: string; room: string; meeting?: { id: strin
 
 const when = zonedDateTime;
 
-function Room({ join, onLeave }: { join: Join; onLeave: () => void }) {
+/**
+ * The call, with the Round 31 side panel (Notes, So far). A connect that never succeeded shows a
+ * message instead of silently leaving; once connected, a disconnect leaves.
+ */
+function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeave: () => void; prefs?: JoinPrefs; member: boolean; guestToken?: string }) {
+  const meetingId = join.meeting?.id;
+  useCallNotesDoc(meetingId, member);
+  const panel = useCallPanel(meetingId, member);
+  const connected = useRef(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const media = roomMedia(prefs ?? loadPrefs());
   return (
-    <div data-lk-theme="default" className="relative h-[calc(100dvh-180px)] min-h-[420px] overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
-      <LiveKitRoom serverUrl={join.url} token={join.token} connect video audio onDisconnected={onLeave} style={{ height: "100%" }}>
-        <RecordingLayer join={join} />
-        <VideoConference />
-        <CallRoomExtras meetingId={join.meeting?.id} />
-      </LiveKitRoom>
+    <div className="space-y-2">
+      <div className="flex items-center justify-end"><CallToolbar tab={panel.tab} setTab={panel.setTab} member={member} /></div>
+      <div className="flex flex-col gap-3 md:flex-row">
+        <div data-lk-theme="default" className="relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
+          {failed ? (
+            <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 bg-[#1c1c1e] p-6 text-center text-[13px] text-white/85" data-testid="meeting-connect-failed">
+              <p>Couldn't connect to the call. Check your connection and try again.</p>
+              <Button variant="secondary" onClick={onLeave}>Back</Button>
+            </div>
+          ) : (
+            <LiveKitRoom serverUrl={join.url} token={join.token} connect video={media.video} audio={media.audio} options={media.options}
+              onConnected={() => { connected.current = true; }}
+              onError={(e) => { if (!connected.current) setFailed(e.message); }}
+              onDisconnected={() => { if (connected.current) onLeave(); else setFailed("disconnected"); }} style={{ height: "100%" }}>
+              <RecordingLayer join={join} />
+              <VideoConference />
+              <CallRoomExtras meetingId={meetingId} />
+            </LiveKitRoom>
+          )}
+        </div>
+        {panel.tab && <CallSidePanel meetingId={meetingId} guestToken={guestToken} member={member} tab={panel.tab} onClose={panel.close} so={panel.so} />}
+      </div>
     </div>
   );
 }
+
+/** Round 31: the pre-join footnote (recording is always visible to everyone in the call). */
+const PREJOIN_NOTE = "Press Enter to join. If the call is recorded, you see a banner while it is on.";
 
 const VIDEO_OFF = "Video calls aren't switched on for this workspace yet. You can still schedule meetings and send invites, and the same links start working once it is.";
 
@@ -176,23 +209,32 @@ export function MeetingPage() {
   const [join, setJoin] = useState<Join | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  // Round 31: Join now opens the pre-join screen; its choices carry into the call.
+  const [prejoin, setPrejoin] = useState(false);
+  const [prefs, setPrefs] = useState<JoinPrefs | undefined>();
+  const me = useMe();
   const m = q.data;
-  const enter = async () => {
+  const inCall = useQuery({
+    queryKey: ["call-status", id], enabled: prejoin && !!id, refetchInterval: prejoin ? 15_000 : false,
+    queryFn: () => api.get<{ participants: { name: string }[] }>(`/chat/calls/${id}`),
+  });
+  const enter = async (p?: JoinPrefs) => {
     setBusy(true);
-    try { setJoin(await api.post<Join>(`/meetings/${id}/join`, {})); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { setJoin(await api.post<Join>(`/meetings/${id}/join`, {})); setPrefs(p); setPrejoin(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23
+  useJoinFromDock(!!m?.videoEnabled && m.status === "scheduled" && !join, () => void enter()); // Round 23 (the dock already passed pre-join)
   const invite = async () => {
     try { const r = await api.post<{ status: string }>(`/meetings/${id}/invite`, {}); toast.success(r.status === "sent" ? "Invites sent" : "Invites are waiting for approval"); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); }
   };
   const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
   if (!m) return q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <Skeleton className="h-40" />;
-  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} onLeave={() => setJoin(null)} /></div>;
+  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} prefs={prefs} member onLeave={() => setJoin(null)} /></div>;
+  if (prejoin) return <div className="py-2"><PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
   const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: "the task" } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: "the contact" } : { to: `/app/mail`, label: "the thread" }) : null;
   return (
     <div data-testid="meeting-page">
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} minutes{source && <> · started from <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
-        actions={m.status === "scheduled" ? <Button onClick={() => void enter()} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><Video className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
+        actions={m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><Video className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
       {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><VideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
@@ -266,9 +308,10 @@ export function GuestMeetingPage() {
   const [join, setJoin] = useState<Join | null>(null);
   const [left, setLeft] = useState(false);
   const [busy, setBusy] = useState(false);
-  const go = async () => {
+  const [prefs, setPrefs] = useState<JoinPrefs | undefined>();
+  const go = async (p?: JoinPrefs) => {
     setBusy(true);
-    try { setJoin(await api.post<Join>(`/public/meetings/${token}/join`, { name })); setLeft(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { setJoin(await api.post<Join>(`/public/meetings/${token}/join`, { name: p?.name ?? name })); setPrefs(p); setLeft(false); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   const m = q.data;
   return (
@@ -276,9 +319,9 @@ export function GuestMeetingPage() {
       <div className="mx-auto max-w-5xl">
         <div className="mb-6 flex items-center justify-between"><Logo /><span className="text-[12px] text-subtle">Video meeting</span></div>
         {q.isPending ? <Skeleton className="h-40" /> : !m ? <Card className="p-8 text-center"><h1 className="text-lg font-semibold">This meeting link doesn't work</h1><p className="mt-1 text-[13px] text-muted">Ask whoever invited you for a new link.</p></Card>
-          : join ? <Room join={join} onLeave={() => { setJoin(null); setLeft(true); }} />
+          : join ? <Room join={join} prefs={prefs} member={false} guestToken={token} onLeave={() => { setJoin(null); setLeft(true); }} />
           : (
-            <Card className="mx-auto max-w-md p-6" data-testid="guest-meeting">
+            <Card className={m.status === "scheduled" && m.videoEnabled ? "mx-auto max-w-3xl p-6" : "mx-auto max-w-md p-6"} data-testid="guest-meeting">
               <p className="text-[12.5px] text-muted">{m.host} invited you to</p>
               <h1 className="mt-1 text-xl font-semibold">{m.title}</h1>
               <p className="mt-1 text-[13px] text-muted">{when(m.startsAt)} · {m.durationMin} minutes</p>
@@ -286,11 +329,7 @@ export function GuestMeetingPage() {
               {m.status !== "scheduled" ? <p className="mt-4 text-[13px]">{m.status === "cancelled" ? "This meeting was cancelled." : "This meeting has ended."}</p>
                 : !m.videoEnabled ? <p className="mt-4 text-[13px] text-muted">The video service isn't switched on yet. Try again at the meeting time, or reply to the invite.</p>
                 : (
-                  <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); void go(); }}>
-                    <Field label="Your name">{(fp) => (<Input {...fp} value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={60} />)}</Field>
-                    <Button type="submit" className="w-full" loading={busy} disabled={!name.trim()}><Video className="h-4 w-4" />Join meeting</Button>
-                    <p className="text-[12px] text-subtle">Your browser will ask to use your camera and microphone. If the call is recorded, you see a banner while it is on.</p>
-                  </form>
+                  <div className="mt-5"><PreJoin bare title={m.title} who={{ mode: "guest" }} busy={busy} joinLabel="Join meeting" footnote={PREJOIN_NOTE} onJoin={(p) => { setName(p.name ?? ""); void go(p); }} /></div>
                 )}
             </Card>
           )}

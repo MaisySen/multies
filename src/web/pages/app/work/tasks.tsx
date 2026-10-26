@@ -20,6 +20,7 @@ import { isComputed, ProjectRollups, taskFields } from "./computed-fields";
 import { GuestsDialog } from "./guests";
 import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
+import { useTaskListFocus } from "@/web/lib/commands/use-task-focus";
 import { TaskQueryBox } from "./task-query-box"; // R26 (MB-86)
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
 import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, isAgentLike } from "./data";
@@ -117,6 +118,8 @@ export function TasksPage() {
     setParams((p) => { const n = new URLSearchParams(p); for (const [k, v] of Object.entries(patch)) { if (v) n.set(k, v); else n.delete(k); } return n; }, { replace: true });
   }, [setParams]);
   const open = useCallback((id: string) => set({ task: id }), [set]);
+  // R31: J/K focus on the visible tasks; S, A, P, L and D act on the focused or open task (lib/commands).
+  useTaskListFocus(useMemo(() => (tasks.data ?? []).map((t) => t.id), [tasks.data]), openId);
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
 
   const saveView = async () => {
