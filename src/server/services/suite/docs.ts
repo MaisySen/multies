@@ -9,7 +9,6 @@ import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
 import { markdownToDoc } from "./markdown-doc";
 import { editorShape } from "./doc-editor-shape";
 import { inIds } from "../../lib/sql-chunks";
-import { snapshotBeforeEdit } from "./doc-versions-r39"; // R39: page history
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
 interface PMNode { type?: string; text?: string; content?: PMNode[]; attrs?: Record<string, unknown> }
@@ -148,7 +147,7 @@ export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: s
   return getDoc(deps, actor.orgId, id);
 }
 
-export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; ifVersion?: number; links?: LinkTarget[] }, opts: { history?: boolean } = {}) {
+export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; ifVersion?: number; links?: LinkTarget[] }) {
   assertWritable(actor);
   const d = await docRow(deps, actor.orgId, id);
   const expected = patch.version ?? patch.ifVersion; // R28: ifVersion is the API's name for it
@@ -156,9 +155,6 @@ export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch
   // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).
   const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? editorShape(docFromText(patch.text)) : undefined;
   await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
-  // R39: page history. A new editing session saves the page as it stood first (deferrable, never fails the edit).
-  const changesPage = body !== undefined || (patch.title !== undefined && (patch.title.trim() || "Untitled") !== d.title);
-  if (changesPage && opts.history !== false) await snapshotBeforeEdit(deps, actor, d);
   const written = await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),
     ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body) } : {}),
