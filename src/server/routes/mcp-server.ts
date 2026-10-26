@@ -46,6 +46,7 @@ import { registerChecklistTools } from "./mcp-r26-checklists"; // R26 (MB-85)
 import { registerTeardownR27Tools } from "./mcp-r27-teardown"; // R27 teardown: watchers, duplicate
 import { registerTaskQueryTools } from "./mcp-r26-task-query"; // R26 (MB-86)
 import { registerAgentRunTools } from "./mcp-r27-agent-runs"; // R27 (DF-3 slice 2)
+import { registerAgentTriggerTools } from "./mcp-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
@@ -247,6 +248,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerTeardownR27Tools(server, deps, actor, writable, tool); // R27 teardown
   registerTaskQueryTools(server, deps, actor, writable, tool); // R26 (MB-86)
   registerAgentRunTools(server, deps, actor, writable, tool); // R27 (DF-3 slice 2)
+  registerAgentTriggerTools(server, deps, actor, writable, tool); // R28 (DF-3 slice 3)
   registerTaskBulkTools(server, deps, actor, writable, tool);
   registerThreadCommentTools(server, deps, actor, writable, tool);
   registerPresenceTools(server, deps, actor, writable, tool);

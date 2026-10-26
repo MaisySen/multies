@@ -660,5 +660,16 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "CREATE TABLE `task_watchers` (\n\t`task_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`source` text DEFAULT 'manual' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`task_id`, `user_id`),\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0062_r28_agent_run_triggers",
+    "statements": [
+      "-- R28 (DF-3 slice 3): triggers that queue agent runs on a schedule or from a signed inbound webhook. One row per\n-- trigger (at most 20 per workspace). The cron pass finds due schedule triggers through a partial index that only\n-- holds enabled schedule rows, so firing writes the run row plus one trigger row update. ADR 0008, \"Slice 3\".\nCREATE TABLE `agent_triggers` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`agent_user_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`enabled` integer DEFAULT true NOT NULL,\n\t`task_id` text,\n\t`project_id` text,\n\t`title_template` text,\n\t`instructions` text,\n\t`every_hours` integer,\n\t`daily_at` text,\n\t`days` text,\n\t`timezone` text NOT NULL,\n\t`next_run_at` integer,\n\t`secret_enc` text,\n\t`secret_hint` text,\n\t`last_hook_ts` integer,\n\t`last_fired_at` integer,\n\t`fire_count` integer DEFAULT 0 NOT NULL,\n\t`created_by_user_id` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `agent_triggers_org_idx` ON `agent_triggers` (`org_id`);",
+      "CREATE INDEX `agent_triggers_due_idx` ON `agent_triggers` (`next_run_at`) WHERE \"agent_triggers\".\"enabled\" = 1 AND \"agent_triggers\".\"kind\" = 'schedule';",
+      "ALTER TABLE `agent_runs` ADD `trigger_id` text;",
+      "ALTER TABLE `agent_runs` ADD `input` text;",
+      "CREATE INDEX `agent_runs_queued_idx` ON `agent_runs` (`agent_user_id`) WHERE \"agent_runs\".\"status\" = 'queued';"
+    ]
   }
 ];

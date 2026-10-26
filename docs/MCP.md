@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 150 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 153 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -460,6 +460,16 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | `add_run_step` | Log one step in your run: `kind` note, tool, comment or status_change, `text` up to 1,000 characters; 200 steps per run. One row write |
 | `finish_task_run` | Finish with `status` succeeded, failed or cancelled and a `result`; `moveTo` done or review moves the task, `comment` posts the result as your comment. A person's or workspace key can only cancel |
 | `list_task_runs` | With `taskId`: that task's runs with steps and results. Without: runs across the workspace (no steps), by `agentUserId` and `status` (read only keys can call it) |
+
+### Agent run triggers (R28, DF-3 slice 3)
+
+Admin and full workspace keys only; an agent member's key gets 403.
+
+| Tool | What it does |
+|---|---|
+| `list_agent_triggers` | The workspace's triggers (at most 20): kind, agent, task or project, next run, last fired, fire count. `agentUserId?` filters |
+| `create_agent_trigger` | Queue runs for an agent member on a schedule (`everyHours` 1 or more, or `dailyAt` HH:MM with `days?` in the workspace zone) or from a signed webhook (the answer holds the URL and the secret, shown once). Target: `taskId`, or `projectId` plus `titleTemplate` ({trigger}, {date}, {datetime}) for a new task each time; `instructions` travel with each run |
+| `delete_agent_trigger` | Delete a trigger (`triggerId`); its webhook stops at once and runs already queued stay |
 
 ### Task queries (R26, MB-86)
 

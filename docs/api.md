@@ -881,6 +881,55 @@ D1 cost: a step is 1 row write (the steps are a JSON array on the run row, appen
 Starting is 4 (the row, its primary key, the task index and the one-active-run index) plus the audit row; finishing is
 2 plus the audit row. Moving the task or posting the comment costs what those writes always cost.
 
+## Agent run triggers (R28, DF-3 slice 3)
+
+A trigger queues a run for a named AI agent member, on a schedule or when a signed webhook arrives. Multies never calls
+an AI itself: the agent picks queued runs up with its own key and works them with the slice 2 calls above.
+
+| Method | Path | Who | What it does |
+|---|---|---|---|
+| GET | `/api/v1/agents/me/runs` | the agent member's own key | Its runs, newest first, without steps. `status=queued` lists the work triggers queued; each run carries `triggerId` and `input` (`{ source, triggerName, instructions, payload? }`). Claim one with `POST /api/v1/tasks/{taskId}/runs` or its first step |
+| GET | `/api/v1/agent-triggers` | an admin or a full workspace key | The workspace's triggers. `agentUserId` filters |
+| POST | `/api/v1/agent-triggers` | an admin or a full workspace key | `{ agentUserId, kind: schedule \| webhook, name, taskId? \| projectId? + titleTemplate?, instructions?, everyHours? \| dailyAt? + days?, timezone?, enabled? }`. A webhook trigger answers with `secret` once |
+| GET | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | One trigger (never the secret) |
+| PATCH | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | Any create field except `kind`. `enabled: false` turns it off |
+| DELETE | `/api/v1/agent-triggers/{id}` | an admin or a full workspace key | Deletes it; runs it queued stay |
+| POST | `/api/v1/agent-triggers/{id}/rotate-secret` | an admin or a full workspace key | A new webhook secret, once; the old one is refused at once |
+| POST | `/api/v1/agent-triggers/{id}/run` | an admin or a full workspace key | Fire now (same limits) |
+| POST | `/api/hooks/agent-runs/{id}` | anyone holding the trigger's secret | The webhook. Answers 202 `{ ok, run: { runId, taskId, taskRef, agentUserId, status: "queued" } }` |
+
+Schedules: `everyHours` (1 to 744) counts from the last fire; `dailyAt` is HH:MM in the trigger's zone (the workspace
+zone unless `timezone` is given), DST safe, on `days` (sun to sat) when given. Due triggers fire from the Worker's cron
+pass (every 15 minutes in production, hourly on staging), so a run is queued on the first pass after its time.
+
+Target: a named task (one active run per agent and task, so a second fire while one is queued or running is refused),
+or a project, where each fire makes a new task assigned to the agent, titled from `titleTemplate` (`{trigger}`,
+`{date}`, `{datetime}` in the trigger's zone) with the instructions as its notes.
+
+Signing a webhook: send `X-Multies-Timestamp` (unix seconds) and `X-Multies-Signature: sha256=<hex>`, where hex is
+HMAC-SHA256 with the trigger's secret over the string `<timestamp>.<raw body>`. The timestamp must be within 5 minutes
+of the server's clock and newer than the last accepted one (a replay answers 409 `replayed`). The compare is constant
+time.
+
+    ts=$(date +%s); body='{"service":"api"}'
+    sig=$(printf '%s.%s' "$ts" "$body" | openssl dgst -sha256 -hmac "$SECRET" -hex | sed 's/^.* //')
+    curl -X POST https://multies.si/api/hooks/agent-runs/$TRIGGER_ID -H "X-Multies-Timestamp: $ts" \
+      -H "X-Multies-Signature: sha256=$sig" -H 'content-type: application/json' -d "$body"
+
+Limits and answers: 20 triggers per workspace (409 `trigger_limit`); a webhook fires at most once a minute (429
+`trigger_rate_limited`); an agent holds at most 3 queued runs (429 `agent_queue_full`); a webhook body is at most 32 KB
+(413); a missing signature, a bad one or a stale timestamp is 401; a disabled, deleted or schedule trigger answers 404
+to the webhook; a paused or removed agent is 409 (`agent_paused`, `agent_not_member`). A JSON body reaches the run as
+`input.payload` (other bodies as text).
+
+Audit: `agent_trigger.created`, `updated`, `deleted`, `secret_rotated`, `fired` (with the run and task) and `refused`
+(with the reason: queue full, agent paused or removed, run in progress, task or project gone). A bad signature, a
+replay or a webhook over its rate writes nothing.
+
+D1 cost: an idle cron pass is one read on a partial index of enabled schedule triggers and writes nothing. A fire
+writes the trigger row once (claim, next run, counters), the run row with its indexes and one audit row; a new task
+adds the task's own writes. Secrets are stored encrypted with the app secret.
+
 ## Task query language (R26, MB-86)
 
 `GET /api/v1/tasks?q=...` (and the app's task list) takes a typed query. Terms are ANDed, commas mean any of, a leading

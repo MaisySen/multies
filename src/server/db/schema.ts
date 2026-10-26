@@ -1710,9 +1710,47 @@ export const agentRuns = sqliteTable("agent_runs", {
   createdByUserId: text("created_by_user_id"),
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+  /** R28 (DF-3 slice 3): the trigger that queued this run, and its input (instructions plus a webhook's body). */
+  triggerId: text("trigger_id"),
+  input: text("input"),
 }, (t) => [
   index("agent_runs_task_idx").on(t.taskId),
   uniqueIndex("agent_runs_active_uq").on(t.taskId, t.agentUserId).where(sql`${t.status} IN ('queued', 'running')`),
+  index("agent_runs_queued_idx").on(t.agentUserId).where(sql`${t.status} = 'queued'`),
+]);
+
+/**
+ * R28 (DF-3 slice 3): a trigger queues a run for an AI agent member on a schedule (every N hours, or daily at HH:MM
+ * in the trigger's zone, optionally on some weekdays) or when a signed webhook arrives. It names an existing task, or
+ * a project and a title template for a new task each time. The webhook secret is stored encrypted and shown once.
+ */
+export const agentTriggers = sqliteTable("agent_triggers", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  agentUserId: text("agent_user_id").notNull(),
+  name: text("name").notNull(),
+  kind: text("kind", { enum: ["schedule", "webhook"] }).notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  taskId: text("task_id"),
+  projectId: text("project_id"),
+  titleTemplate: text("title_template"),
+  instructions: text("instructions"),
+  everyHours: integer("every_hours"),
+  dailyAt: text("daily_at"),
+  days: text("days"),
+  timezone: text("timezone").notNull(),
+  nextRunAt: ts("next_run_at"),
+  secretEnc: text("secret_enc"),
+  secretHint: text("secret_hint"),
+  lastHookTs: integer("last_hook_ts"),
+  lastFiredAt: ts("last_fired_at"),
+  fireCount: integer("fire_count").notNull().default(0),
+  createdByUserId: text("created_by_user_id"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index("agent_triggers_org_idx").on(t.orgId),
+  index("agent_triggers_due_idx").on(t.nextRunAt).where(sql`${t.enabled} = 1 AND ${t.kind} = 'schedule'`),
 ]);
 
 /**
