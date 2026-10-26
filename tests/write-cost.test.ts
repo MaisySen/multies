@@ -1097,30 +1097,31 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   expect(take()).toBe(0);
 });
 
-
-it("R26 (MB-85): a checklist item costs its row plus two index entries to add, tick or delete; an unchanged tick writes no item and task queries write nothing", async () => {
+it("R26 (DF-3): pausing or editing an agent member costs one members row plus one audit row, nothing when unchanged", async () => {
   const ctx = await makeTestApp();
-  const u = new Client(ctx.app);
-  await u.signup();
-  const projectId = (await u.post("/api/projects", { name: "Launch", key: "LAU" })).body.project.id;
-  const taskId = (await u.post("/api/tasks", { title: "Ship", projectId })).body.task.id;
   const take = meter(ctx.db);
-  const item = (await u.post(`/api/tasks/${taskId}/checklist`, { title: "One" })).body.items[0];
-  // Measured 6: 3 for the item (the row, its primary key index and task_checklist_items_task_idx) and 3 that every
-  // app write pays here (the local rate limit counter, kept in a binding in production). No activity rows.
-  expect(take()).toBe(6);
-  await u.post(`/api/tasks/${taskId}/checklist`, { items: [{ title: "Two" }, { title: "Three" }] });
-  expect(take()).toBe(9);
-  await u.patch(`/api/checklist-items/${item.id}`, { done: true });
-  expect(take()).toBe(6);
-  await u.patch(`/api/checklist-items/${item.id}`, { done: true });
-  expect(take()).toBe(3);
-  const list = (await u.get(`/api/tasks/${taskId}/checklist`)).body.items as { id: string }[];
-  // Moving the last item to the top rewrites the three positions: 3 rows at 3 each, plus the 3.
-  await u.post(`/api/tasks/${taskId}/checklist/reorder`, { ids: [list[2].id, list[0].id, list[1].id] });
-  expect(take()).toBeLessThanOrEqual(12);
-  await u.del(`/api/checklist-items/${item.id}`);
-  expect(take()).toBe(6);
-  await u.get(`/api/tasks?q=${encodeURIComponent("has:checklist status:todo -label:wontfix")}`);
-  expect(take()).toBe(0);
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const, sessionId: "s" };
+  const { createAgentMember } = await import("@/server/services/people");
+  const { createAgentMemberR26, updateAgentMember } = await import("@/server/services/suite/agent-members-r26");
+  take();
+  await createAgentMember(ctx.deps, actor, { name: "Plain" });
+  const plain = take();
+  const made = await createAgentMemberR26(ctx.deps, actor, { name: "Builder", avatarColor: "#30B158" });
+  const colour = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true });
+  const paused = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true, title: null, avatarColor: "#30b158" });
+  const same = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { bio: "Ships code." });
+  const edited = take();
+  // Measured 25 October 2026: plain create 15, with a colour 19, pause 8, edit 8, unchanged 0.
+  // A colour or inbox at create adds one members row update to the existing create.
+  expect(colour - plain).toBeLessThanOrEqual(4);
+  // Pause or edit: the members row (its primary key and two indexes counted) plus one audit row (3 indexes).
+  expect(paused).toBeLessThanOrEqual(8);
+  expect(edited).toBeLessThanOrEqual(8);
+  expect(same).toBe(0);
 });

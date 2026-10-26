@@ -88,7 +88,12 @@ export const TaskQuery = z.object({
   dir: z.enum(["asc", "desc"]).optional(),
   type: z.enum(["task", "story", "bug", "epic"]).optional().openapi({ description: "Only this type: task, story, bug or epic." }),
   triage: z.enum(["pending"]).optional().openapi({ description: "R21: pending lists only items waiting in Triage; without it they are left out." }),
+  sprintId: z.string().max(64).optional().openapi({ description: "R26 (MB-72): only tasks in this sprint; none lists the backlog (tasks in no sprint)." }),
 });
+/** R26 (MB-72): GET /tasks answers 400 to a query parameter it does not know, instead of ignoring it. */
+export function unknownTaskParams(query: Record<string, string>, allowed: readonly string[] = Object.keys(TaskQuery.shape)) {
+  return Object.keys(query).filter((k) => !allowed.includes(k) && !/^field\.[A-Za-z0-9_-]{1,64}$/.test(k));
+}
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({
   projectId: z.string().nullable().optional(), name: z.string().trim().min(1).max(60), view: z.enum(["board", "list", "calendar", "timeline", "sprints", "workload"]),

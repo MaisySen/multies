@@ -18,7 +18,7 @@ import { GuestsDialog } from "./guests";
 import { TaskTable } from "./table";
 import { TaskPanel } from "./task-panel";
 import { EpicsDialog, TYPE_META, TASK_TYPES, TypePicker, type TaskType } from "./task-type";
-import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind } from "./data";
+import { PRIORITY_LABEL, sk, useAssignees, useFields, useProjects, useTaskMutations, useTasks, useViews, type Category, type Priority, type Project, type ViewKind, isAgentLike } from "./data";
 import { tone } from "@/web/components/app-bits";
 import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
 
@@ -135,7 +135,7 @@ export function TasksPage() {
         <Input aria-label="Search tasks" placeholder="Search tasks" defaultValue={filters.q ?? ""} onKeyDown={(e) => { if (e.key === "Enter") set({ q: (e.target as HTMLInputElement).value || null }); }} className="h-8 w-44! text-[13px]" />
         <Select aria-label="Assignee filter" value={filters.assignee ?? ""} onChange={(e) => set({ assignee: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Anyone</option><option value="me">Me</option><option value="none">Nobody</option>
-          {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{p.type === "agent" ? " (agent)" : ""}</option>)}
+          {people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}
         </Select>
         <Select aria-label="Priority filter" value={filters.priority ?? ""} onChange={(e) => set({ priority: e.target.value || null })} className="h-8 w-auto! text-[13px]">
           <option value="">Any priority</option>
