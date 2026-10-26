@@ -10,7 +10,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://preview.multies.si",
         "EXPO_PUBLIC_FEATURE_PUSH_SERVER": "1"
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -20,7 +21,8 @@
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://multies.si",
         "EXPO_PUBLIC_FEATURE_PUSH_SERVER": "1"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,

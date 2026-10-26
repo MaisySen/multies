@@ -18,10 +18,10 @@ function privacyFiles(dir: string, out: string[] = []): string[] {
 }
 
 describe("store config", () => {
-  it("is version 1.9.3, iOS build 16 and Android versionCode 14", () => {
+  it("is version 1.9.3, iOS build 17 and Android versionCode 15 (first builds with EAS Update)", () => {
     expect(app.version).toBe("1.9.3");
-    expect(app.ios.buildNumber).toBe("16");
-    expect(app.android.versionCode).toBe(14);
+    expect(app.ios.buildNumber).toBe("17");
+    expect(app.android.versionCode).toBe(15);
     expect(JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version).toBe("1.9.3");
   });
 
@@ -72,3 +72,22 @@ describe("store config", () => {
     for (const a of app.ios.privacyManifests.NSPrivacyAccessedAPITypes) for (const r of a.NSPrivacyAccessedAPITypeReasons) expect(ref).toContain(`<string>${r}</string>`);
   });
 });
+
+describe("EAS Update config", () => {
+  const app = JSON.parse(readFileSync(join(__dirname, "..", "app.json"), "utf8")).expo;
+  const eas = JSON.parse(readFileSync(join(__dirname, "..", "eas.json"), "utf8"));
+  it("uses the fingerprint runtime version and checks on launch without blocking it", () => {
+    expect(app.runtimeVersion).toEqual({ policy: "fingerprint" });
+    expect(app.updates.url).toBe(`https://u.expo.dev/${app.extra.eas.projectId}`);
+    expect(app.updates.checkAutomatically).toBe("ON_LOAD");
+    expect(app.updates.fallbackToCacheTimeout).toBe(0);
+    expect(app.updates.requestHeaders["expo-channel-name"]).toBe("production");
+  });
+  it("maps every build profile to its channel", () => {
+    expect(eas.build.development.channel).toBe("development");
+    expect(eas.build.preview.channel).toBe("preview");
+    expect(eas.build.production.channel).toBe("production");
+    expect(eas.build["production-local-credentials"].extends).toBe("production");
+  });
+});
+

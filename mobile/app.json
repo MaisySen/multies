@@ -12,7 +12,7 @@
     "primaryColor": "#0071E3",
     "ios": {
       "bundleIdentifier": "au.fintex.multies",
-      "buildNumber": "16",
+      "buildNumber": "17",
       "supportsTablet": false,
       "config": {
         "usesNonExemptEncryption": false
@@ -120,7 +120,7 @@
     },
     "android": {
       "package": "au.fintex.multies",
-      "versionCode": 14,
+      "versionCode": 15,
       "adaptiveIcon": {
         "backgroundColor": "#1D1D1F",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -213,6 +213,18 @@
         "projectId": "83c874f8-cc92-4440-8ccd-5b99c2d8ec1f"
       }
     },
-    "owner": "multies"
+    "owner": "multies",
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/83c874f8-cc92-4440-8ccd-5b99c2d8ec1f",
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    }
   }
 }

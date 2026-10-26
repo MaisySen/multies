@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Alert, Platform, ScrollView, Text, View } from "react-native";
 import { router } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
-import * as Application from "expo-application";
 import * as Localization from "expo-localization";
 import { Avatar, Badge, Card, LargeTitle, Row, SectionTitle, Segmented } from "@/components/ui";
 import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-send";
@@ -15,6 +14,7 @@ import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
 import { LINKS, WEB_PAGES } from "@/config";
 import { colors, font, space } from "@/theme";
+import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
 
@@ -24,6 +24,7 @@ export default function Settings() {
   const inbox = useNotificationCount();
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   const insets = useSafeAreaInsets();
+  const version = currentVersionFacts();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
@@ -99,9 +100,12 @@ export default function Settings() {
       <Row icon="log-out" label={mode === "sample" ? "Leave the sample workspace" : "Sign out"} onPress={confirmSignOut} testID="sign-out" />
       <Row icon="user-x" label="Delete my account" danger onPress={() => router.push("/delete-account")} testID="delete-account" />
 
-      <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]}>
-        Multies {Application.nativeApplicationVersion ?? "1.0.0"}{Application.nativeBuildVersion ? ` (${Application.nativeBuildVersion})` : ""}
+      <Text style={[font.tiny, { textAlign: "center", marginTop: space.xl }]} testID="app-version">
+        {versionLabel(version)}
       </Text>
+      {updateDetail(version) ? (
+        <Text style={[font.tiny, { textAlign: "center", marginTop: space.xs }]} testID="app-update">{updateDetail(version)}</Text>
+      ) : null}
     </ScrollView>
   );
 }
