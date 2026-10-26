@@ -123,4 +123,17 @@ function bundleEnv(easJson, channel) {
   return env;
 }
 
-module.exports = { CHANNELS, PLATFORMS, NATIVE_PATTERNS, nativeChanges, evaluateGuard, bundleEnv, stripVersions };
+/** Update group ids from `eas update:list --branch <b> --json` ({ currentPage: [{ group }] }), newest first, no repeats. */
+function groupIdsFromList(list) {
+  const rows = (list && (list.currentPage || list.updates)) || (Array.isArray(list) ? list : []);
+  const seen = [];
+  for (const r of rows) if (r && r.group && !seen.includes(r.group)) seen.push(r.group);
+  return seen;
+}
+
+/** Commit hashes from `eas update:view <group> --json` results (arrays of updates). */
+function commitsFromViews(views) {
+  return views.flat().map((u) => u && u.gitCommitHash).filter(Boolean);
+}
+
+module.exports = { groupIdsFromList, commitsFromViews, CHANNELS, PLATFORMS, NATIVE_PATTERNS, nativeChanges, evaluateGuard, bundleEnv, stripVersions };

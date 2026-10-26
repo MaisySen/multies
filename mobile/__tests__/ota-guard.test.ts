@@ -1,5 +1,5 @@
 /* The guard in front of npm run ota:preview and npm run ota:production (scripts/ota-guard.js). */
-const { bundleEnv, evaluateGuard, nativeChanges } = require("../scripts/ota-guard");
+const { bundleEnv, commitsFromViews, evaluateGuard, groupIdsFromList, nativeChanges } = require("../scripts/ota-guard");
 const eas = require("../eas.json");
 
 const store = { android: { runtimeVersion: "aaaaaaaaaaaaaaaa" }, ios: { runtimeVersion: "bbbbbbbbbbbbbbbb" } };
@@ -79,5 +79,19 @@ describe("bundle env", () => {
     expect(bundleEnv(eas, "preview").EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
     expect(bundleEnv(eas, "development").EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
     expect(() => bundleEnv(eas, "nope")).toThrow(/No build profile/);
+  });
+});
+
+describe("reading the preview branch from EAS", () => {
+  it("takes the update groups from update:list and the commits from update:view", () => {
+    const list = { name: "preview", currentPage: [
+      { branch: "preview", group: "4c10af8c", platforms: "ios" },
+      { branch: "preview", group: "dc7ed512", platforms: "android" },
+      { branch: "preview", group: "4c10af8c", platforms: "ios" },
+    ] };
+    expect(groupIdsFromList(list)).toEqual(["4c10af8c", "dc7ed512"]);
+    expect(groupIdsFromList({})).toEqual([]);
+    const views = [[{ group: "4c10af8c", gitCommitHash: "266dbef802de" }], [{ group: "dc7ed512", gitCommitHash: "266dbef802de" }, { group: "x" }]];
+    expect(commitsFromViews(views)).toEqual(["266dbef802de", "266dbef802de"]);
   });
 });

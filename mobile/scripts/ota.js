@@ -12,7 +12,7 @@
 const { execFileSync } = require("child_process");
 const { readFileSync } = require("fs");
 const { join } = require("path");
-const { bundleEnv, evaluateGuard, nativeChanges } = require("./ota-guard");
+const { bundleEnv, commitsFromViews, evaluateGuard, groupIdsFromList, nativeChanges } = require("./ota-guard");
 
 const root = join(__dirname, "..");
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts });
@@ -27,11 +27,15 @@ function fileAt(commit, path) {
   try { return JSON.parse(git("show", `${commit}:${path}`)); } catch { return null; }
 }
 
+function easJson(args) {
+  const out = run("eas", [...args, "--json"]);
+  return JSON.parse(out.slice(out.search(/[[{]/)));
+}
+
+/** Commits already published to the preview branch (newest 10 update groups). */
 function previewCommits() {
-  const out = run("eas", ["update:list", "--branch", "preview", "--json", "--non-interactive", "--limit", "50"]);
-  const data = JSON.parse(out.slice(out.search(/[[{]/)));
-  const rows = Array.isArray(data) ? data : data.currentPage || data.updates || data.updateGroups || [];
-  return rows.flatMap((r) => (Array.isArray(r) ? r : [r])).map((u) => u.gitCommitHash).filter(Boolean);
+  const groups = groupIdsFromList(easJson(["update:list", "--branch", "preview", "--limit", "20", "--non-interactive"])).slice(0, 10);
+  return commitsFromViews(groups.map((g) => easJson(["update:view", g])));
 }
 
 function main() {
