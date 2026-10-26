@@ -11,7 +11,6 @@ import { storeMessage } from "./store";
 import { OutboundError } from "./outbound";
 import { getPlan } from "../plans";
 import { notifyAgentsOfInbound } from "../agents";
-import { operatorDecision } from "../suite/operator-inbox";
 
 export type RecipientRoute =
   | { kind: "mailbox"; mailbox: typeof mailboxes.$inferSelect; domain: typeof domains.$inferSelect }
@@ -86,13 +85,9 @@ async function logDelivery(db: DB, row: Omit<typeof deliveries.$inferInsert, "id
 export async function deliverInbound(deps: Deps, d: InboundDelivery, depth = 0, seen = new Set<string>()): Promise<InboundResult> {
   const { db } = deps;
   const rcpt = baseAddress(d.rcptTo);
-  // R26 (DF-18): the company domain's listed addresses go only to the operator workspace; its other addresses stay closed.
-  const op = operatorDecision(deps.config, rcpt);
-  if (op?.kind === "closed") return { accepted: false, code: 550, reason: `No mailbox for ${rcpt}.`, storedIn: [], forwardedTo: [] };
   const route = await routeRecipient(db, rcpt);
   const subject = d.email.subject;
   const orgOf = (r: RecipientRoute) => (r.kind === "none" ? r.domain?.orgId : r.domain.orgId);
-  if (op && orgOf(route) !== op.orgId) return { accepted: false, code: 550, reason: `No mailbox for ${rcpt}.`, storedIn: [], forwardedTo: [] };
 
   if (d.requireOrgId && orgOf(route) && orgOf(route) !== d.requireOrgId) {
     return { accepted: false, code: 550, reason: "Recipient domain is not managed by this signing key.", storedIn: [], forwardedTo: [] };

@@ -805,3 +805,16 @@ The Supabase auth email hook (`/api/v1/auth-email-hooks`, see docs/transactional
   - Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403, another workspace's hook 404. One row written (an unchanged PATCH writes nothing).
 - `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` returns `{ preview: { type, to, subject, html, text, replyTo } }` with a sample link and the code `123456`. Nothing is sent or written. Optional body `{ email, branding }`: the address for `{email}` and unsaved branding to try (merged over the saved one). Read only keys can call it. An unknown `type` answers 422.
 - MCP: `update_auth_email_hook` (see docs/MCP.md).
+
+
+## AI agent members (R26, DF-3)
+
+Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as-members.md). Creating, keys and removal are in the People section (`POST /api/v1/agent-members`, `/agent-members/{id}/keys`, `DELETE /agent-members/{id}`). R26 adds:
+
+- `POST /api/v1/agent-members` also takes `avatarColor` (`#rrggbb`) and `inboxAgentId` (an existing agent inbox to link; mailbox stays optional). The answer's `member` carries `avatar: { color, initials }`, `disabled`, `inbox` and `keys`.
+- `GET /api/v1/agent-members`: `{ agents: [{ userId, name, title, bio, avatar, disabled, disabledAt, inbox, keys, joinedAt }] }`. Any key of the workspace.
+- `GET /api/v1/agent-members/{id}`: `{ agent }` for one, by user id. Another workspace's id answers 404.
+- `PATCH /api/v1/agent-members/{id}` with any of `{ name, title, bio, avatarColor, disabled, inboxAgentId }`. `disabled: true` pauses the agent: every key of it answers 401 until `disabled: false`. A paused agent stays in People and in task history, and leaves the assignee and mention pickers (`/api/tasks/assignees` marks it `paused: true`). Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403 `agent_key_scope`. One members row and one audit row (`agent_member.updated`, `agent_member.paused` or `agent_member.resumed`); an unchanged PATCH writes nothing.
+- Task assignees and chat people mark agent members `isAgent: true` (assignee `member:<userId>`), and a task assigned to one shows `assignee.isAgent: true` with no email.
+- Session routes for the app: `GET /api/team/agents`, `PATCH /api/team/agents/{userId}` (admins), and `POST /api/team/agents` with the same new fields.
+- MCP: `list_agent_members`, `create_agent_member`, `update_agent_member`.

@@ -11,7 +11,7 @@ import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
-import type { AssigneeOption, CustomField, FieldType, FieldValue } from "./data";
+import { isAgentLike, type AssigneeOption, type CustomField, type FieldType, type FieldValue } from "./data";
 import { ComputedCell, ComputedEditor, describeComputed, isComputed, type ComputedConfig } from "./computed-fields";
 
 export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
@@ -90,7 +90,7 @@ export function FieldInput({ field, value, people, onSave }: { field: CustomFiel
       return (
         <Select aria-label={label} value={(value as string) ?? ""} onChange={(e) => onSave(e.target.value || null)} className={cls}>
           <option value="">Nobody</option>
-          {people.map((p) => <option key={p.id} value={p.id}>{p.name}{p.type === "agent" ? " (agent)" : ""}</option>)}
+          {people.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}
         </Select>
       );
     case "date":

@@ -10,7 +10,8 @@ import {
 } from "../services/team";
 import { RateLimiter } from "../lib/rate-limit";
 import { tooMany } from "../lib/errors";
-import { agentMemberCount, createAgentMember, createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
+import { agentMemberCount, createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
+import { createAgentMemberR26, listAgentMembers, updateAgentMember } from "../services/suite/agent-members-r26";
 
 export const InviteBody = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address."),
@@ -31,6 +32,18 @@ export const AgentMemberBody = z.object({
   title: z.string().max(80).nullable().optional(),
   bio: z.string().max(500).nullable().optional(),
   scope: z.enum(["full", "read"]).default("full"),
+  /** R26 (DF-3): avatar colour (#rrggbb) and an optional agent inbox to link. */
+  avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour as #rrggbb.").nullable().optional(),
+  inboxAgentId: z.string().min(1).max(64).nullable().optional(),
+});
+/** R26 (DF-3): edit an agent member. disabled pauses it (its keys are refused) or resumes it. */
+export const AgentMemberPatchBody = z.object({
+  name: z.string().trim().min(1, "Give the agent a name.").max(80).optional(),
+  title: z.string().max(80).nullable().optional(),
+  bio: z.string().max(500).nullable().optional(),
+  avatarColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick a colour as #rrggbb.").nullable().optional(),
+  disabled: z.boolean().optional(),
+  inboxAgentId: z.string().min(1).max(64).nullable().optional(),
 });
 export const AgentKeyBody = z.object({ name: z.string().max(80).optional(), scope: z.enum(["full", "read"]).default("full") });
 const updateSchema = z.object({ role: z.enum(["admin", "member"]).optional(), mailboxIds: z.array(z.string()).max(500).optional() });
@@ -52,7 +65,10 @@ export function teamRoutes() {
       const person = await updateProfile(c.var.deps, c.var.auth, c.req.param("userId"), await parseBody(c, ProfileBody));
       return c.json({ person });
     })
-    .post("/agents", requireAdmin, async (c) => c.json(await createAgentMember(c.var.deps, c.var.auth, await parseBody(c, AgentMemberBody)), 201))
+    .post("/agents", requireAdmin, async (c) => c.json(await createAgentMemberR26(c.var.deps, c.var.auth, await parseBody(c, AgentMemberBody)), 201))
+    // R26 (DF-3): list with avatar, paused state and inbox; edit and pause.
+    .get("/agents", async (c) => c.json({ agents: await listAgentMembers(c.var.deps, c.var.auth.orgId) }))
+    .patch("/agents/:userId", requireAdmin, async (c) => c.json({ agent: await updateAgentMember(c.var.deps, c.var.auth, c.req.param("userId"), await parseBody(c, AgentMemberPatchBody)) }))
     .get("/agents/:userId/keys", requireAdmin, async (c) => c.json({ keys: await listAgentMemberKeys(c.var.deps, c.var.auth, c.req.param("userId")) }))
     .post("/agents/:userId/keys", requireAdmin, async (c) => c.json(await createAgentMemberKey(c.var.deps, c.var.auth, c.req.param("userId"), await parseBody(c, AgentKeyBody)), 201))
     .delete("/agents/:userId/keys/:keyId", requireAdmin, async (c) => {

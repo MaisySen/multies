@@ -5,7 +5,6 @@ import type { DB } from "../db";
 import { aliases, domains, mailboxes, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { conflict, notFound } from "../lib/errors";
-import { assertDomainAllowed, isOperatorDomainRow } from "./suite/operator-inbox";
 import { expectedRecords, runDnsChecks } from "./dns/checks";
 import { assertCanCreate } from "./plans";
 import { QUEUED_PREFIX, refreshProviderDomain, registerProviderDomain, removeProviderDomain } from "./mail/provider-domains";
@@ -71,7 +70,6 @@ export async function getDomain(db: DB, orgId: string, id: string) {
 export async function createDomain(deps: Deps, orgId: string, name: string, opts: { dkimKey?: { publicKeyB64: string; privateKeyPem: string } } = {}) {
   const { db, config } = deps;
   await assertCanCreate(db, orgId, "domains");
-  assertDomainAllowed(config, orgId, name);
   const existing = await db.select().from(domains).where(eq(domains.name, name)).get();
   if (existing) {
     throw conflict(existing.orgId === orgId
@@ -88,13 +86,10 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
     dkimPublicKey: publicKeyB64,
     dkimPrivateKeyEnc: await encryptSecret(config.appSecret, privateKeyPem),
   };
-  // R26: the company domain in the operator workspace is the deployment's own: verified, no provider registration.
-  const operatorDomain = isOperatorDomainRow(config, { orgId, name });
-  if (operatorDomain) Object.assign(row, { status: "verified", verifiedAt: deps.now(), lastCheckedAt: deps.now(), providerStatus: "verified" });
   await db.insert(domains).values(row);
   // Customer domains are registered with the outbound provider straight away, so the setup page
   // shows the provider's DKIM, return path and receiving MX. Sample and platform domains are not.
-  if (!opts.dkimKey && orgId !== "org_platform" && !operatorDomain) {
+  if (!opts.dkimKey && orgId !== "org_platform") {
     const p = await registerProviderDomain(deps, name);
     if (p) await db.update(domains).set(p).where(eq(domains.id, row.id!));
   }
@@ -104,11 +99,9 @@ export async function createDomain(deps: Deps, orgId: string, name: string, opts
 /** Runs a live DNS check and persists the outcome. Returns the report and whether status changed. */
 export async function verifyDomain(deps: Deps, d: DomainRow) {
   const now = deps.now();
-  // R26: the operator's company domain is set up by the deployment; a check shows the records but never demotes it.
-  const pinned = isOperatorDomainRow(deps.config, d);
   // Ask the provider to look again first, so the records checked below are its latest ones.
   // Only domains that went through provider registration (created since round 13) are refreshed.
-  const p = !pinned && (d.providerDomainId || d.providerStatus) ? await refreshProviderDomain(deps, d) : null;
+  const p = d.providerDomainId || d.providerStatus ? await refreshProviderDomain(deps, d) : null;
   if (p && (p.providerRecords || p.providerStatus !== d.providerStatus)) {
     const next = { ...p, providerRecords: p.providerRecords ?? d.providerRecords, providerDomainId: p.providerDomainId ?? d.providerDomainId };
     await deps.db.update(domains).set(next).where(eq(domains.id, d.id));
@@ -117,8 +110,7 @@ export async function verifyDomain(deps: Deps, d: DomainRow) {
   const report = await runDnsChecks(deps.dns, d, deps.config, now);
   const hadLookupErrors = report.records.some((r) => r.status === "error");
   let status: DomainRow["status"] = d.status;
-  if (pinned) status = d.status;
-  else if (report.verified) status = "verified";
+  if (report.verified) status = "verified";
   else if (!hadLookupErrors) status = d.status === "verified" ? "failed" : "pending";
   const verifiedAt = status === "verified" ? d.verifiedAt ?? now : d.verifiedAt;
   await deps.db.update(domains)
@@ -146,8 +138,6 @@ export async function recheckStaleDomains(deps: Deps, staleMs = 60 * 60_000, lim
       eq(organizations.isDemo, false),
       // The deployment's shared domain (free addresses) is set up once by the operator, not by these records.
       ne(domains.orgId, "org_platform"),
-      // R26: nor is the company domain (support@ and security@), held by the operator workspace.
-      deps.config.operatorInbox.domain ? ne(domains.name, deps.config.operatorInbox.domain) : undefined,
       or(
         isNull(domains.lastCheckedAt),
         and(ne(domains.status, "verified"), lt(domains.lastCheckedAt, cutoff)),

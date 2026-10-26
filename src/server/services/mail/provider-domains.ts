@@ -33,10 +33,9 @@ export function usesProviderDomains(deps: Pick<Deps, "config">): boolean {
   return deps.config.outbound.driver === "resend" && !!deps.config.outbound.resendApiKey;
 }
 
-async function call(deps: Deps, method: string, path: string, body?: unknown, timeoutMs?: number): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
+async function call(deps: Deps, method: string, path: string, body?: unknown): Promise<{ ok: boolean; status: number; json: Record<string, unknown> }> {
   const res = await deps.fetch(`${API}${path}`, {
     method,
-    signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
     headers: { authorization: `Bearer ${deps.config.outbound.resendApiKey}`, "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -154,33 +153,20 @@ export async function fetchReceivedEmail(deps: Deps, emailId: string): Promise<{
   return { raw, recipients: [...new Set(recipients.map((a) => (a.match(/<([^>]+)>/)?.[1] ?? a).trim().toLowerCase()))], from };
 }
 
-/** How long the sent event waits for the provider's answer before giving up (the reply then starts its own thread). */
-export const SENT_MESSAGE_ID_TIMEOUT_MS = 5000;
-
 /**
  * The Message-ID header a sent email actually went out with. Resend replaces ours with its own
- * (<...@email.amazonses.com>) and returns it as `message_id` on GET /emails/{id}, so outside replies
- * point at that one. Null when it can't be read; a failure or a timeout is logged, never thrown.
+ * (<...@email.amazonses.com>), so outside replies point at that one. Null when it can't be read.
  */
 export async function fetchSentMessageIdHeader(deps: Deps, emailId: string): Promise<string | null> {
   if (!usesProviderDomains(deps)) return null;
   try {
-    const got = await call(deps, "GET", `/emails/${encodeURIComponent(emailId)}`, undefined, SENT_MESSAGE_ID_TIMEOUT_MS);
-    if (!got.ok) {
-      deps.log?.warn("resend.sent_message_id_failed", { emailId, status: got.status });
-      return null;
-    }
+    const got = await call(deps, "GET", `/emails/${encodeURIComponent(emailId)}`);
+    if (!got.ok) return null;
     const v = (got.json as { message_id?: unknown }).message_id;
-    if (typeof v !== "string" || !v.trim()) {
-      deps.log?.warn("resend.sent_message_id_missing", { emailId });
-      return null;
-    }
+    if (typeof v !== "string" || !v.trim()) return null;
     const id = v.trim();
     return id.startsWith("<") ? id : `<${id}>`;
-  } catch (err) {
-    deps.log?.warn("resend.sent_message_id_failed", { emailId, error: err instanceof Error ? err.name : String(err) });
-    return null;
-  }
+  } catch { return null; }
 }
 
 /** Removes the domain from the provider when it leaves Multies. Never throws. */
