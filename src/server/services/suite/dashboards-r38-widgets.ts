@@ -45,7 +45,7 @@ export async function calculation(c: Ctx, w: Widget) {
   const metric = w.metric ?? "done", op = w.op ?? "sum";
   const { days, from, to, prevFrom } = window(c, w.range);
   const db = c.deps.db;
-  let cur = 0, prev = 0;
+  let cur: number, prev: number;
   if (metric === "hours") {
     const r = await db.select({
       cur: sql<number>`coalesce(sum(case when ${timeEntries.startedAt} >= ${from} then ${timeEntries.seconds} else 0 end), 0)`,
