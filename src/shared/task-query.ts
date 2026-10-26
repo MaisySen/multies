@@ -379,17 +379,49 @@ export function dateRange(v: string, now: Date, back = false): { from: Date; to:
   return { from, to: new Date(from.getTime() + DAY), instant: false };
 }
 
+/** R34: words after a history key (WAS, CHANGED), after CHANGED (FROM, TO, AFTER, BEFORE, BY) and their values. */
+function suggestR34(head: string, w: string, open: string, extra: Partial<Record<QueryKey, string[]>>) {
+  const words = head.trim().split(/\s+/);
+  const prev = words[words.length - 1] ?? "";
+  const clause = [...head.matchAll(/(status|assignee|priority)\s+(WAS|CHANGED)\b/g)].pop();
+  const key = (clause?.[1] ?? prev.toLowerCase().replace(/^[(-]+/, "")) as HistoryKey;
+  const up = w.toUpperCase();
+  const pickFrom = (list: string[], hint?: string) => list.filter((x) => x.toLowerCase().startsWith(w.toLowerCase())).slice(0, 12).map((x) => ({ label: x, insert: `${open}${/[\s,"]/.test(x) ? JSON.stringify(x) : x} `, hint }));
+  if ((HISTORY_KEYS as readonly string[]).includes(prev.toLowerCase().replace(/^[(-]+/, ""))) {
+    return [["WAS", "now or at any time before"], ["CHANGED", "changed at some point; add FROM, TO, AFTER, BEFORE, BY"]].filter(([o]) => o.startsWith(up)).map(([o, hint]) => ({ label: o, insert: `${o} `, hint }));
+  }
+  const meta = QUERY_KEYS.find((k) => k.key === key);
+  const values = [...(meta?.values ?? []), ...(extra[key as QueryKey] ?? [])].filter((v) => !/^[<>]/.test(v));
+  if (prev === "WAS" || prev === "TO" || prev === "FROM") return pickFrom(values);
+  if (prev === "BY") return pickFrom(["me", ...(extra.assignee ?? [])]);
+  if (prev === "AFTER" || prev === "BEFORE") return pickFrom(["-7d", "-30d", "today", "yesterday"], "a date or days ago");
+  if (clause?.[2] === "CHANGED" && /^[A-Z]*$/.test(w)) {
+    const used = new Set(head.slice(clause.index).split(/\s+/));
+    const hints: Record<string, string> = { FROM: "the value before (status only)", TO: "the value after", AFTER: "changed after a date", BEFORE: "changed before a date", BY: "who changed it" };
+    const list = Object.keys(hints).filter((o) => !used.has(o) && (key === "status" || o !== "FROM") && o.startsWith(up));
+    if (list.length) return list.map((o) => ({ label: o, insert: `${o} `, hint: hints[o] }));
+  }
+  return null;
+}
+
 /** Autocomplete for the token under the cursor: keys first, then that key's values (with any extra values passed in). */
 export function suggest(input: string, cursor: number, extra: Partial<Record<QueryKey, string[]>> = {}): { replaceFrom: number; items: { label: string; insert: string; hint?: string }[] } {
   const before = input.slice(0, cursor);
   const start = Math.max(before.lastIndexOf(" "), -1) + 1;
-  const word = before.slice(start);
+  const rawWord = before.slice(start);
+  // R34: an opening bracket stays in front of what is picked.
+  const open = /^\(*/.exec(rawWord)![0];
+  const word = rawWord.slice(open.length);
   const neg = word.startsWith("-") ? "-" : "";
   const w = word.slice(neg.length);
   const colon = w.indexOf(":");
   if (colon < 0) {
-    const items = QUERY_KEYS.filter((k) => k.key.startsWith(w.toLowerCase())).map((k) => ({ label: `${k.key}:`, insert: `${neg}${k.key}:`, hint: k.hint }));
-    return { replaceFrom: start, items };
+    const r34 = suggestR34(before.slice(0, start), w, open, extra);
+    if (r34) return { replaceFrom: start, items: r34 };
+    const items = QUERY_KEYS.filter((k) => k.key.startsWith(w.toLowerCase())).map((k) => ({ label: `${k.key}:`, insert: `${open}${neg}${k.key}:`, hint: k.hint }));
+    const ops = before.slice(0, start).trim() && w && !open && !neg ? ["OR", "AND", "NOT"].filter((o) => o.startsWith(w.toUpperCase()) && w.length >= 1).map((o) => ({ label: o, insert: `${o} `, hint: o === "OR" ? "either side matches" : o === "AND" ? "both sides match" : "leaves out what follows" })) : [];
+    const hist = !neg ? HISTORY_KEYS.filter((k) => k.startsWith(w.toLowerCase()) && w.length >= 2).map((k) => ({ label: `${k} WAS`, insert: `${open}${k} WAS `, hint: "now or at any time before" })) : [];
+    return { replaceFrom: start, items: [...ops, ...items, ...hist] };
   }
   const key = w.slice(0, colon).toLowerCase() as QueryKey;
   const meta = QUERY_KEYS.find((k) => k.key === key);
@@ -400,6 +432,6 @@ export function suggest(input: string, cursor: number, extra: Partial<Record<Que
   const items = pool.filter((v) => { const k = v.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return k.startsWith(typed) || (typed.length > 0 && k.includes(typed)); })
     .sort((a, b) => Number(!a.toLowerCase().startsWith(typed)) - Number(!b.toLowerCase().startsWith(typed)))
     .slice(0, 12)
-    .map((v) => ({ label: v, insert: `${neg}${key}:${/[\s,"]/.test(v) ? JSON.stringify(v) : v} ` }));
+    .map((v) => ({ label: v, insert: `${open}${neg}${key}:${/[\s,"]/.test(v) ? JSON.stringify(v) : v} ` }));
   return { replaceFrom: start, items };
 }

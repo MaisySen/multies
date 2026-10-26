@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { makeTestApp, Client, d1Violations } from "./helpers";
-import { parseTaskQuery, TaskQueryError, looksLikeQuery, QUERY_MAX_COST, type QueryNode } from "@/shared/task-query";
+import { parseTaskQuery, TaskQueryError, looksLikeQuery, QUERY_MAX_COST, suggest, type QueryNode } from "@/shared/task-query";
 
 /** R34: OR, AND, NOT, brackets and history operators (WAS, CHANGED FROM TO AFTER BEFORE BY) in the task query. */
 const shape = (n: QueryNode | undefined): unknown => {
@@ -61,6 +61,21 @@ describe("parser: history operators", () => {
     const many = Array.from({ length: 12 }, (_, i) => `status CHANGED TO s${i} BY person${i}`).join(" OR ");
     expect(err(many)).toMatch(/too many values/);
     expect(QUERY_MAX_COST).toBeLessThanOrEqual(80);
+  });
+});
+
+describe("autocomplete for the new words", () => {
+  const labels = (q: string) => suggest(q, q.length, { status: ["In review"] }).items.map((i) => i.label);
+  it("offers WAS and CHANGED after a history key, then CHANGED's words, then values", () => {
+    expect(labels("status ")).toEqual(["WAS", "CHANGED"]);
+    expect(labels("status CHANGED ")).toEqual(["FROM", "TO", "AFTER", "BEFORE", "BY"]);
+    expect(labels("assignee CHANGED ")).toEqual(["TO", "AFTER", "BEFORE", "BY"]);
+    expect(labels("status CHANGED FROM todo ")).toEqual(["TO", "AFTER", "BEFORE", "BY"]);
+    expect(labels("status WAS ")).toContain("In review");
+    expect(labels("status CHANGED BY ")).toEqual(["me"]);
+    expect(labels("label:bug O")).toContain("OR");
+    expect(suggest("(lab", 4).items[0].insert).toBe("(label:");
+    expect(labels("sta")).toContain("status WAS");
   });
 });
 
