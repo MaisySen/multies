@@ -6,7 +6,10 @@ import { useMessageAction } from "@/lib/queries";
 import { useMailSnooze } from "@/lib/triage-queries";
 import { MAIL_MENU, command, commandTitle, createHandlers, type CommandId } from "@/lib/commands";
 import { SNOOZE_PRESETS, snoozeLabel, type SnoozePreset } from "@/lib/snooze";
-import { tick } from "@/lib/haptics";
+import { tick, warning } from "@/lib/haptics";
+import type { MailSwipe } from "@/lib/prefs";
+import type { SwipeAction } from "./swipe-row";
+import { colors } from "@/theme";
 import type { MessageSummary } from "@/api/types";
 
 /** The snooze picker on its own (swipe left on a mail row or a notification). */
@@ -26,7 +29,7 @@ export function useMailRowActions(hideRow?: (id: string, label: string, run: () 
   const [menuFor, setMenuFor] = useState<MessageSummary | null>(null);
   const [snoozeFor, setSnoozeFor] = useState<MessageSummary | null>(null);
 
-  const fail = (what: string) => (e: Error) => Alert.alert(`Couldn't ${what}`, e.message);
+  const fail = (what: string) => (e: Error) => { warning(); Alert.alert(`Couldn't ${what}`, e.message); };
   const run = (m: MessageSummary, action: "archive" | "star" | "unstar" | "read" | "unread" | "trash") => {
     const go = () => act.mutate({ id: m.id, action }, { onError: fail(action === "trash" ? "move it to trash" : action === "read" || action === "unread" ? "change it" : action) });
     if ((action === "archive" || action === "trash") && hideRow) hideRow(m.id, action === "archive" ? "Archived" : "Moved to trash", go);
@@ -61,6 +64,16 @@ export function useMailRowActions(hideRow?: (id: string, label: string, run: () 
     openMenu: (m: MessageSummary) => { tick(); setMenuFor(m); },
     archive: (m: MessageSummary) => run(m, "archive"),
     pickSnooze: (m: MessageSummary) => setSnoozeFor(m),
+    /** R33: the swipe action the person chose in Settings for this slot, or none. */
+    swipeFor: (m: MessageSummary, choice: MailSwipe): SwipeAction | undefined => {
+      switch (choice) {
+        case "archive": return { label: "Archive", icon: "archive", color: colors.ok, onAction: () => run(m, "archive") };
+        case "snooze": return { label: "Snooze", icon: "alarm-clock", color: colors.warn, onAction: () => setSnoozeFor(m) };
+        case "read": return { label: m.isRead ? "Mark unread" : "Mark read", icon: m.isRead ? "mail" : "mail-open", color: colors.brand, onAction: () => run(m, m.isRead ? "unread" : "read") };
+        case "delete": return { label: "Delete", icon: "trash-2", color: colors.bad, onAction: () => run(m, "trash") };
+        default: return undefined;
+      }
+    },
     sheets,
   };
 }

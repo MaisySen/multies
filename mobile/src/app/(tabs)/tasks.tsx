@@ -9,7 +9,11 @@ import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
 import { TaskActions } from "@/components/task-actions";
 import { openCommandSheet } from "@/lib/command-sheet-store";
-import { tick } from "@/lib/haptics";
+import { tick, warning } from "@/lib/haptics";
+import { SwipeHint, SwipeRow, type SwipeAction } from "@/components/swipe-row";
+import { UndoToast } from "@/components/undo-toast";
+import { useUndoQueue } from "@/lib/undo-queue";
+import { usePrefs, type TaskSwipe } from "@/lib/prefs";
 import { useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
 import { progressBadge } from "@/lib/checklist";
@@ -29,12 +33,27 @@ export default function Tasks() {
   const applyQuery = (q: string) => { setQuery(q); saveLastQuery(kv(), q); };
   const tasks = useTasks({ ...(who === "me" ? { assignee: "me" as const } : {}), ...(query ? { q: query } : {}) });
   const queryError = queryErrorText(tasks.error, query);
-  const { update } = useTaskMutations();
+  const { update, remove } = useTaskMutations();
   const offline = useOffline();
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } });
-  const list = tasks.data ?? [];
+  const onFail = { onError: () => warning() };
+  const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } }, onFail);
+  // R33: complete, delete and move hide or change at once with Undo; the call runs when the window closes.
+  const undo = useUndoQueue();
+  const prefs = usePrefs();
+  const completeLater = (t: Task) => undo.push(t.id, t.status === "done" ? "Marked not done" : "Completed", () => move(t, t.status === "done" ? "todo" : "done"));
+  const deleteLater = (t: Task) => undo.push(t.id, "Task deleted", () => remove.mutate(t.id, onFail));
+  const moveLater = (t: Task, status: TaskStatus) => undo.push(t.id, `Moved to ${STATUSES.find((s) => s.id === status)?.label ?? status}`, () => move(t, status));
+  const swipeFor = (t: Task, choice: TaskSwipe): SwipeAction | undefined => {
+    switch (choice) {
+      case "complete": return { label: t.status === "done" ? "Not done" : "Complete", icon: "check-circle", color: colors.ok, onAction: () => completeLater(t) };
+      case "schedule": return { label: "Schedule", icon: "calendar", color: colors.warn, onAction: () => setActionsFor(t) };
+      case "delete": return { label: "Delete", icon: "trash-2", color: colors.bad, onAction: () => deleteLater(t) };
+      default: return undefined;
+    }
+  };
+  const list = (tasks.data ?? []).filter((x) => !undo.hidden.has(x.id));
   const col = Math.min(width * 0.82, 340);
   // R31: long-press a task for Status, Assignee, Priority, Label and Due date (the registry's task commands).
   const [actionsFor, setActionsFor] = useState<Task | null>(null);
@@ -73,13 +92,20 @@ export default function Tasks() {
       ) : view === "list" ? (
         <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.lg }}
           refreshControl={<RefreshControl refreshing={tasks.isRefetching} onRefresh={() => { tasks.refetch(); }} tintColor={colors.brand} />}>
+          <View style={{ marginHorizontal: -space.lg }}><SwipeHint testID="task-swipe-hint" /></View>
           {STATUSES.map((s) => {
             const rows = sortTasks(list.filter((t) => t.status === s.id));
             if (!rows.length) return null;
             return (
               <View key={s.id} style={{ gap: space.sm }}>
                 <Text style={{ color: colors.subtle, fontSize: 13, fontWeight: "600", textTransform: "uppercase", letterSpacing: 0.6 }} accessibilityRole="header">{s.label} ({rows.length})</Text>
-                {rows.map((t) => <TaskRow key={t.id} t={t} onToggle={() => move(t, t.status === "done" ? "todo" : "done")} onLongPress={() => longPress(t)} />)}
+                {rows.map((t) => (
+                  <SwipeRow key={t.id} testID={`swipe-task-${t.id}`}
+                    right={swipeFor(t, prefs.taskSwipes.rightShort)} rightLong={swipeFor(t, prefs.taskSwipes.rightLong)}
+                    left={swipeFor(t, prefs.taskSwipes.leftShort)} leftLong={swipeFor(t, prefs.taskSwipes.leftLong)}>
+                    <TaskRow t={t} onToggle={() => { tick(); move(t, t.status === "done" ? "todo" : "done"); }} onLongPress={() => longPress(t)} />
+                  </SwipeRow>
+                ))}
               </View>
             );
           })}
@@ -103,7 +129,7 @@ export default function Tasks() {
                         <Meta t={t} />
                       </Pressable>
                       <Button variant="ghost" label={moveLabel(t.status)} icon="arrow-right" testID={`move-${t.id}`}
-                        onPress={() => move(t, nextStatus(t.status))} style={{ minHeight: 36, alignSelf: "flex-start", paddingHorizontal: 0 }} />
+                        onPress={() => { tick(); moveLater(t, nextStatus(t.status)); }} style={{ minHeight: 36, alignSelf: "flex-start", paddingHorizontal: 0 }} />
                     </View>
                   ))}
                   {!rows.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingVertical: space.md }}>Nothing here</Text> : null}
@@ -114,6 +140,7 @@ export default function Tasks() {
         </ScrollView>
       )}
       <TaskActions task={actionsFor} knownLabels={knownLabels} onClose={() => setActionsFor(null)} />
+      <UndoToast pending={undo.newest} onUndo={undo.undo} />
     </View>
   );
 }

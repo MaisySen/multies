@@ -8,6 +8,8 @@ export type SwipeSide = "right" | "left";
 export const SWIPE = {
   /** Share of the row width that commits a slow swipe. */
   commitRatio: 0.35,
+  /** R33: share of the row width past which the long swipe action takes over. */
+  longRatio: 0.65,
   /** Minimum travel in points before a flick counts. */
   flickDistance: 48,
   /** Release speed in points per millisecond that counts as a flick. */
@@ -48,6 +50,19 @@ export function clampTravel(dx: number, enabled: { right: boolean; left: boolean
   if (dx < 0 && !enabled.left) return Math.max(dx * 0.15, -16);
   return dx;
 }
+
+/**
+ * R33: the stage a swipe is at. Past the long line, a side with a long action shows and runs that
+ * one instead of the short one. Each change of stage is a haptic tick.
+ */
+export type SwipeStage = { side: SwipeSide; long: boolean } | null;
+export function swipeStage(dx: number, width: number, enabled: { right: boolean; left: boolean }, long: { right: boolean; left: boolean }): SwipeStage {
+  const side = armedSide(dx, width, enabled);
+  if (!side) return null;
+  const past = Math.abs(dx) >= Math.max(width, 1) * SWIPE.longRatio;
+  return { side, long: past && long[side] };
+}
+export function stageKey(s: SwipeStage): string { return s ? `${s.side}${s.long ? ":long" : ""}` : ""; }
 
 // ---------------------------------------------------------------- undo queue
 

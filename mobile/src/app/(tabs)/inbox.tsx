@@ -5,12 +5,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { Banner, Chip, EmptyState, IconButton, Loading, Button, LargeTitle } from "@/components/ui";
 import { MessageRow } from "@/components/message-row";
-import { SwipeRow } from "@/components/swipe-row";
+import { SwipeHint, SwipeRow } from "@/components/swipe-row";
 import { UndoToast } from "@/components/undo-toast";
 import { useMailRowActions } from "@/components/mail-actions";
 import { useUndoQueue } from "@/lib/undo-queue";
+import { usePrefs } from "@/lib/prefs";
 import { openCommandSheet } from "@/lib/command-sheet-store";
-import { command } from "@/lib/commands";
 import { useAgents, useMessages, useOverview } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { useSession } from "@/lib/session";
@@ -32,6 +32,7 @@ export default function Inbox() {
   // R31: swipe right to archive, left to snooze, long-press for every action. Swiped rows hide at once with Undo.
   const undo = useUndoQueue();
   const actions = useMailRowActions(undo.push);
+  const prefs = usePrefs(); // R33: the swipe actions chosen in Settings
   const swipeable = folder === "inbox" || folder === "starred";
   const rows = useMemo(() => (list.data?.pages.flatMap((p) => p.messages) ?? []).filter((m) => !undo.hidden.has(m.id)), [list.data, undo.hidden]);
   const people = overview.data?.filter((m) => m.kind !== "agent") ?? [];
@@ -49,6 +50,7 @@ export default function Inbox() {
         {people.length > 1 ? <Chip label="All mailboxes" selected={!mailboxId} onPress={() => setMailboxId(undefined)} /> : null}
         {people.length > 1 ? people.map((m) => <Chip key={m.id} label={m.address.split("@")[0]} selected={mailboxId === m.id} onPress={() => setMailboxId(m.id)} />) : null}
       </ScrollView>
+      {swipeable && rows.length ? <SwipeHint /> : null}
       {list.isPending ? <Loading label="Loading mail" /> : list.error && !rows.length ? (
         <EmptyState icon="alert-circle" title="Couldn't load your mail" body={list.error.message} action={<Button label="Try again" variant="secondary" onPress={() => list.refetch()} />} />
       ) : (
@@ -60,8 +62,8 @@ export default function Inbox() {
               onPress={() => router.push({ pathname: "/thread/[id]", params: { id: item.id } })} />;
             return swipeable ? (
               <SwipeRow testID={`swipe-${item.id}`}
-                right={{ label: command("mail-archive").title, icon: "archive", color: colors.ok, onAction: () => actions.archive(item) }}
-                left={{ label: command("mail-snooze").title, icon: "alarm-clock", color: colors.warn, onAction: () => actions.pickSnooze(item) }}>
+                right={actions.swipeFor(item, prefs.mailSwipes.rightShort)} rightLong={actions.swipeFor(item, prefs.mailSwipes.rightLong)}
+                left={actions.swipeFor(item, prefs.mailSwipes.leftShort)} leftLong={actions.swipeFor(item, prefs.mailSwipes.leftLong)}>
                 {row}
               </SwipeRow>
             ) : row;
