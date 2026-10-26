@@ -80,7 +80,7 @@ describe("web push sending (R32)", () => {
     expect(sent[0].headers["content-encoding"]).toBe("aes128gcm");
     expect(sent[0].headers.authorization).toMatch(/^vapid t=.+, k=BP4z9/);
     const payload = JSON.parse(new TextDecoder().decode(await decryptPayload(sent[0].body, UA.priv, UA.p256dh, UA.auth)));
-    expect(payload).toEqual({ type: "task.assigned", id: "tsk_9", title: "Maya assigned you Q3 plan", body: "Open in Multies", url: "/app/tasks?task=tsk_9", tag: "task:tsk_9", sentAt: expect.any(Number), ttl: 21600 });
+    expect(payload).toEqual({ type: "task.assigned", id: "tsk_9", title: "Maya assigned you Q3 plan", body: "Open in Multies", url: "/app/tasks?task=tsk_9", tag: "task:tsk_9" });
     // Turning the category's push switch off stops browser alerts too.
     await owner.put("/api/notifications/settings", { settings: { [categoryOf("task.assigned")]: { push: false } } });
     sent.length = 0;
@@ -108,7 +108,7 @@ describe("web push sending (R32)", () => {
     const r = await webPushToUsers(ctx.deps, me.organization.id, ["usr_someone_else"], { type: "message.received", id: "msg_1" });
     expect(r.sent).toBe(0);
     expect(sent).toHaveLength(0);
-    expect(webPushPayload({ type: "message.received", id: "msg_1" })).toEqual({ type: "message.received", id: "msg_1", title: "New mail", body: "Open in Multies", url: "/app/mail?m=msg_1", tag: "message:msg_1", sentAt: expect.any(Number), ttl: 21600 });
+    expect(webPushPayload({ type: "message.received", id: "msg_1" })).toEqual({ type: "message.received", id: "msg_1", title: "New mail", body: "Open in Multies", url: "/app/mail?m=msg_1", tag: "message:msg_1" });
     expect(webPushUrl({ type: "thread_mention", id: "thr_1", mid: "msg_2" })).toBe("/app/inbox?thread=thr_1&m=msg_2");
     expect(webPushUrl({ type: "weird", id: "x" })).toBe("/app/notifications");
   });

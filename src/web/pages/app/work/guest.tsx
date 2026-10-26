@@ -9,13 +9,14 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { docBlockSchemaExtensions } from "@/web/lib/docs-blocks-schema"; // R32: tables, images, callouts read here too
-import { CheckCircle2, Circle, LogOut, MessageSquare, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Circle, ListTodo, LogOut, MessageSquare, X } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Logo } from "@/web/components/logo";
-import { Button } from "@/web/components/ui/button";
+import { Button, ButtonLink } from "@/web/components/ui/button";
+import { Spinner } from "@/web/components/ui/spinner";
 import { Textarea } from "@/web/components/ui/input";
-import { Card, Skeleton } from "@/web/components/ui/misc";
+import { Avatar, Card, Meter, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
 import type { Comment, CustomField, Status, Task, TaskFile } from "./data";
@@ -44,10 +45,18 @@ export function GuestAcceptPage() {
   }, [token, navigate]);
   return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 text-fg">
-      <Card className="max-w-md p-8 text-center">
-        <Logo />
-        {error ? <><h1 className="mt-4 text-lg font-semibold">This invite link doesn't work</h1><p className="mt-1 text-[13px] text-muted">{error}</p></>
-          : <p className="mt-4 text-[13px] text-muted" aria-busy="true">Opening the project</p>}
+      <Card className="w-full max-w-sm animate-pop-in p-8 text-center shadow-pop">
+        <div className="flex justify-center"><Logo /></div>
+        {error ? (
+          <>
+            <span className="mx-auto mt-6 grid h-11 w-11 place-items-center rounded-full bg-warn-soft text-warn" aria-hidden><AlertTriangle className="h-5 w-5" /></span>
+            <h1 className="mt-4 text-[17px] font-semibold tracking-tight">This invite link doesn't work</h1>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-muted">{error}</p>
+            <ButtonLink to="/" variant="secondary" className="mt-6 w-full">Go to Multies</ButtonLink>
+          </>
+        ) : (
+          <p className="mt-6 flex items-center justify-center gap-2 text-[13.5px] text-muted" aria-busy="true"><Spinner className="h-4 w-4" />Opening the project</p>
+        )}
       </Card>
     </main>
   );
@@ -118,49 +127,74 @@ export function GuestProjectPage() {
   const [openDoc, setOpenDoc] = useState<string | null>(null);
   const navigate = useNavigate();
   const signOut = async () => { await api.post("/guest/signout").catch(() => undefined); navigate("/", { replace: true }); };
-  if (q.isPending) return <main className="min-h-dvh bg-bg p-6"><Skeleton className="mx-auto h-64 max-w-4xl" /></main>;
+  if (q.isPending) return (
+    <main className="min-h-dvh bg-bg px-4 py-5" aria-busy>
+      <div className="mx-auto max-w-5xl space-y-4"><Skeleton className="h-9 w-40" /><Skeleton className="h-8 w-72" /><Skeleton className="h-64 rounded-xl" /></div>
+    </main>
+  );
   if (!q.data) return (
     <main className="grid min-h-dvh place-items-center bg-bg px-4 text-fg">
-      <Card className="max-w-md p-8 text-center"><Logo /><h1 className="mt-4 text-lg font-semibold">You're signed out</h1><p className="mt-1 text-[13px] text-muted">Open your invite link again, or ask for a new one.</p></Card>
+      <Card className="w-full max-w-sm p-8 text-center shadow-pop"><div className="flex justify-center"><Logo /></div><h1 className="mt-6 text-[17px] font-semibold tracking-tight">You're signed out</h1><p className="mt-1.5 text-[13.5px] text-muted">Open your invite link again, or ask for a new one.</p></Card>
     </main>
   );
   const h = q.data;
   const top = h.tasks.filter((t) => !t.parentId);
+  const doneCount = top.filter((t) => t.status === "done").length;
+  const who = h.guest.name || h.guest.email;
   return (
-    <main className="min-h-dvh bg-bg px-4 py-5 text-fg">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-5 flex items-center gap-3">
+    <main className="min-h-dvh bg-bg text-fg">
+      <header className="sticky top-0 z-20 border-b border-line bg-bg/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4">
           <Logo />
-          <span className="ml-auto truncate text-[12.5px] text-muted">{h.guest.name || h.guest.email} · guest of {h.workspace.name}</span>
-          <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4" />Sign out</Button>
-        </header>
-        <div className="mb-4 flex items-center gap-2">
-          <span className="h-3 w-3 rounded-sm" style={{ background: tone(h.project.color) }} aria-hidden />
-          <h1 className="text-xl font-semibold" data-testid="guest-project">{h.project.name}</h1>
+          <span className="ml-auto flex min-w-0 items-center gap-2 text-[12.5px] text-muted">
+            <Avatar label={who.slice(0, 2).toUpperCase()} className="h-7 w-7 text-[10px]" />
+            <span className="hidden min-w-0 truncate sm:inline"><span className="text-fg">{who}</span> · guest of {h.workspace.name}</span>
+          </span>
+          <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="h-4 w-4" /><span className="max-sm:sr-only">Sign out</span></Button>
         </div>
-        <p className="mb-4 text-[13px] text-muted">You can see this project's tasks, comments and docs, comment, and upload files.</p>
+      </header>
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <p className="mb-1 text-[13px] font-semibold text-brand-hover sm:hidden">Guest of {h.workspace.name}</p>
+        <div className="mb-2 flex items-center gap-2.5">
+          <span className="h-3.5 w-3.5 rounded" style={{ background: tone(h.project.color) }} aria-hidden />
+          <h1 className="large-title min-w-0 truncate" data-testid="guest-project">{h.project.name}</h1>
+          <span className="rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted">{h.project.key}</span>
+        </div>
+        <p className="mb-4 text-[13.5px] text-muted">You can see this project's tasks, comments and docs, comment, and upload files.</p>
+        {top.length > 0 && (
+          <div className="mb-5 flex max-w-sm items-center gap-3">
+            <Meter value={doneCount} max={top.length} label={`${doneCount} of ${top.length} tasks done`} className="h-2" />
+            <span className="shrink-0 text-[12.5px] tabular-nums text-muted">{doneCount} of {top.length} done</span>
+          </div>
+        )}
         <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <section aria-label="Tasks" className={cn((openTask || openDoc) && "hidden lg:block")}>
-            <ul className="divide-y divide-line rounded-xl border border-line" data-testid="guest-tasks">
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card" data-testid="guest-tasks">
               {top.map((t) => (
                 <li key={t.id}>
-                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); window.scrollTo(0, 0); }} className={cn("flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13.5px] hover:bg-hover", openTask === t.id && "bg-fill/60")}>
+                  <button onClick={() => { setOpenTask(t.id); setOpenDoc(null); window.scrollTo(0, 0); }} className={cn("flex w-full items-center gap-2.5 px-4 py-3 text-left text-[13.5px] transition-colors hover:bg-hover max-sm:min-h-12", openTask === t.id && "bg-brand-soft/60")}>
                     {t.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
                     <span className="font-mono text-[11.5px] text-subtle">{t.ref}</span>
                     <span className={cn("truncate", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
-                    <span className="ml-auto text-[12px] text-subtle">{t.statusName}</span>
+                    <span className="ml-auto shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11.5px] text-muted">{t.statusName}</span>
                     {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5 text-[11.5px] text-subtle"><MessageSquare className="h-3 w-3" />{t.commentCount}</span>}
                   </button>
                 </li>
               ))}
-              {!top.length && <li className="px-3 py-6 text-center text-[13px] text-muted">No tasks yet.</li>}
+              {!top.length && (
+                <li className="flex flex-col items-center px-6 py-10 text-center">
+                  <span className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-fill text-muted" aria-hidden><ListTodo className="h-5 w-5" /></span>
+                  <span className="text-[14px] font-semibold">No tasks yet</span>
+                  <span className="mt-1 text-[13px] text-muted">Tasks show here as {h.workspace.name} adds them.</span>
+                </li>
+              )}
             </ul>
             <GuestDocTree docs={h.docs} openId={openDoc} onOpen={(d) => { setOpenDoc(d); setOpenTask(null); }} />
           </section>
           <div className={cn(!openTask && !openDoc && "hidden lg:block")}>
             {openTask ? <TaskView id={openTask} fields={h.customFields} onClose={() => setOpenTask(null)} />
               : openDoc ? <DocView id={openDoc} onClose={() => setOpenDoc(null)} onOpen={(d) => { setOpenDoc(d); setOpenTask(null); }} />
-                : <Card className="p-6 text-[13px] text-muted">Pick a task or a doc to open it.</Card>}
+                : <Card className="grid min-h-48 place-items-center p-6 text-center text-[13px] text-muted">Pick a task or a doc to open it.</Card>}
           </div>
         </div>
       </div>

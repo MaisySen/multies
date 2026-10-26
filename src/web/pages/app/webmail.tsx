@@ -31,7 +31,6 @@ import type { ReadStatus } from "@/shared/mail-splits";
 import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
 import { Dialog } from "@/web/components/ui/dialog";
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
-import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
@@ -83,14 +82,9 @@ export function WebmailPage() {
     queryKey: ["mail", "list", mailboxId, folder, q, split],
     enabled: !!mailboxId && (!!q || !isScheduleView(folder)),
     initialPageParam: "",
-    // R33: the first page of each mailbox folder keeps a stored copy for offline (offline-lists.ts); search does not.
-    networkMode: "offlineFirst",
-    queryFn: ({ pageParam }) => {
-      const read = () => api.get<{ messages: MessageListItem[]; nextCursor: string | null; asOf?: string }>(
-        `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
-      );
-      return !pageParam && !q ? withOfflineCopy(`mail:${mailboxId}:${folder}:${split}`, read)() : read();
-    },
+    queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null; asOf?: string }>(
+      `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
+    ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     refetchInterval: 30_000,
   });

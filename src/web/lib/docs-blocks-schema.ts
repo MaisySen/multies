@@ -36,24 +36,6 @@ export function looksLikeImageUrl(text: string): boolean {
   } catch { return false; }
 }
 
-/** R33: a stored image dimension: a whole number of pixels from 1 to 20000, else none. */
-export function imageDim(v: unknown): number | null {
-  const n = typeof v === "string" ? Number.parseInt(v, 10) : typeof v === "number" ? Math.round(v) : NaN;
-  return Number.isFinite(n) && n >= 1 && n <= 20_000 ? n : null;
-}
-
-/**
- * R33: the image box's shape before the file arrives, so the page does not jump while it loads
- * (pattern from files/teardowns/rea/notion/image-aspect.md). width/height attributes let the browser
- * reserve the box from its own aspect-ratio mapping; the explicit style keeps it under our max-width rules.
- */
-export function aspectAttrs(width: unknown, height: unknown): Record<string, string> {
-  const w = imageDim(width);
-  const h = imageDim(height);
-  if (!w || !h) return {};
-  return { width: String(w), height: String(h), style: `aspect-ratio: ${w} / ${h}` };
-}
-
 export function imageSize(v: unknown): ImageSize {
   return (IMAGE_SIZES as readonly string[]).includes(v as string) ? (v as ImageSize) : "fit";
 }
@@ -68,13 +50,10 @@ export const DocImage = Image.extend({
         parseHTML: (el: HTMLElement) => imageSize(el.getAttribute("data-size")),
         renderHTML: (attrs: Record<string, unknown>) => ({ "data-size": imageSize(attrs.size) }),
       },
-      // R33: the natural size, stored when the image is inserted (or measured once and saved with the next edit).
-      width: { default: null, parseHTML: (el: HTMLElement) => imageDim(el.getAttribute("width")), renderHTML: () => ({}) },
-      height: { default: null, parseHTML: (el: HTMLElement) => imageDim(el.getAttribute("height")), renderHTML: () => ({}) },
     };
   },
-  renderHTML({ HTMLAttributes, node }) {
-    const attrs = { ...HTMLAttributes, ...aspectAttrs(node.attrs.width, node.attrs.height) };
+  renderHTML({ HTMLAttributes }) {
+    const attrs = { ...HTMLAttributes };
     if (!isSafeImageSrc(attrs.src)) delete attrs.src;
     return ["img", mergeAttributes({ class: "mm-doc-img", loading: "lazy", decoding: "async", referrerpolicy: "no-referrer" }, this.options.HTMLAttributes, attrs)];
   },

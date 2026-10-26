@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 import { IMAGE_SIZE_LABELS, imageSize, isSafeImageSrc, type ImageSize } from "@/web/lib/docs-blocks-schema";
-import { measureImage, type ImageUploader } from "@/web/lib/docs-blocks";
+import type { ImageUploader } from "@/web/lib/docs-blocks";
 
 /** Re-renders on every editor transaction (selection moves included). */
 function useEditorTick(editor: Editor | null) {
@@ -132,22 +132,19 @@ export function ImageInsertDialog({ editor, open, onClose, upload }: { editor: E
   const urlRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (open) { setUrl(""); setAlt(""); setErr(null); setBusy(false); setTimeout(() => urlRef.current?.focus(), 0); } }, [open]);
   if (!open || !editor) return null;
-  const insert = async (src: string) => {
-    // R33: store the natural size so the image box is reserved before the file loads.
-    setBusy(true);
-    const dims = await measureImage(src);
-    editor.chain().focus().insertContent({ type: "image", attrs: { src, alt: alt.trim() || null, ...(dims ?? {}) } }).run();
+  const insert = (src: string) => {
+    editor.chain().focus().insertContent({ type: "image", attrs: { src, alt: alt.trim() || null } }).run();
     onClose();
   };
   const fromUrl = () => {
     const s = url.trim();
     if (!isSafeImageSrc(s) || s.startsWith("data:")) { setErr("Use an https link to an image."); return; }
-    void insert(s);
+    insert(s);
   };
   const fromFile = async (f: File | undefined) => {
     if (!f || !upload) return;
     setBusy(true); setErr(null);
-    try { await insert(await upload(f)); } catch (e) { setErr((e as Error).message); setBusy(false); }
+    try { insert(await upload(f)); } catch (e) { setErr((e as Error).message); setBusy(false); }
   };
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 pt-[18vh] backdrop-blur-[1px]" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>

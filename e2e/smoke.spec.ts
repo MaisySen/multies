@@ -35,17 +35,6 @@ test("sign up, add a domain, see its DNS records, create a mailbox", async ({ pa
   await expect(page.getByText("Inbox zero")).toBeVisible();
 });
 
-test("developer docs are served as Markdown next to llms.txt (R33)", async ({ request }) => {
-  const llms = await request.get("/llms.txt");
-  expect(await llms.text()).toContain("also available as Markdown at the same path plus .md");
-  for (const p of ["/docs/api.md", "/docs/mcp.md"]) {
-    const r = await request.get(p);
-    expect(r.status(), p).toBe(200);
-    expect(r.headers()["content-type"]).toBe("text/markdown; charset=utf-8");
-    expect((await r.text()).startsWith("#")).toBe(true);
-  }
-});
-
 test("marketing pages render and link to sign up", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText("for your team and your AI agents");

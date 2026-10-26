@@ -8,11 +8,8 @@
  *    cache is deleted, so the next person on this device sees nothing of the last one's.
  */
 import { api } from "./api";
-import { wipeOfflineLists } from "./offline-lists"; // R33
 
 export const SW_UPDATE_EVENT = "mymail:sw-update";
-/** R33: fired on window when the worker skipped a notification because this page is already showing it. */
-export const PUSH_ON_PAGE_EVENT = "mymail:push-on-page";
 const CACHE_PREFIX = "multies-";
 
 function allowedHere(): boolean {
@@ -43,8 +40,6 @@ export function registerServiceWorker(opts: { navigate?: (url: string) => void }
   navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
     const d = e.data as { type?: string; url?: string } | null;
     if (d?.type === "OPEN_URL" && typeof d.url === "string" && d.url.startsWith("/app")) opts.navigate?.(d.url);
-    // R33: a push for the page already open was not shown; the page refreshes what it shows instead.
-    if (d?.type === "PUSH_ON_PAGE") window.dispatchEvent(new CustomEvent(PUSH_ON_PAGE_EVENT, { detail: { url: d.url } }));
   });
   if (document.readyState === "complete") void start();
   else window.addEventListener("load", () => void start(), { once: true });
@@ -69,7 +64,6 @@ export const CLEAR_CACHES_MESSAGE = { type: "CLEAR_CACHES" } as const;
 
 /** Sign out: forget this browser's push subscription, then delete every Multies cache. Never throws. */
 export async function clearOfflineData(): Promise<void> {
-  await wipeOfflineLists(); // R33: stored list copies go with the caches
   try {
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

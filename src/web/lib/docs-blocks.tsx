@@ -10,9 +10,7 @@ import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewP
 import { CircleCheck, Info, OctagonAlert, TriangleAlert } from "lucide-react";
 import { api, ApiError } from "@/web/lib/api";
 import { Callout, CALLOUT_LABELS, calloutVariant, nextCalloutVariant, type CalloutVariant } from "./docs-callout";
-import { docBlockSchemaExtensions, imageDim, isSafeImageSrc, looksLikeImageUrl } from "./docs-blocks-schema";
-import type { Node as PmNode } from "@tiptap/pm/model";
-import type { Transaction } from "@tiptap/pm/state";
+import { docBlockSchemaExtensions, isSafeImageSrc, looksLikeImageUrl } from "./docs-blocks-schema";
 
 export const CALLOUT_ICONS: Record<CalloutVariant, typeof Info> = { info: Info, success: CircleCheck, warning: TriangleAlert, danger: OctagonAlert };
 
@@ -86,87 +84,13 @@ function imageFiles(list: FileList | null | undefined): File[] {
   return Array.from(list ?? []).filter((f) => IMAGE_TYPES.includes(f.type));
 }
 
-// ---------------------------------------------------------------- R33: image sizes
-
-export interface ImageDims { width: number; height: number }
-
-/** The natural size of an image source (a link, our upload path or a local file's object URL); null if it does not load in time. */
-export function measureImage(src: string, timeoutMs = 4000): Promise<ImageDims | null> {
-  if (typeof Image === "undefined") return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const img = new Image();
-    const t = setTimeout(() => resolve(null), timeoutMs);
-    img.onload = () => { clearTimeout(t); const width = imageDim(img.naturalWidth); const height = imageDim(img.naturalHeight); resolve(width && height ? { width, height } : null); };
-    img.onerror = () => { clearTimeout(t); resolve(null); };
-    img.referrerPolicy = "no-referrer";
-    img.src = src;
-  });
-}
-
-async function measureFile(f: File): Promise<ImageDims | null> {
-  if (typeof URL === "undefined" || !URL.createObjectURL) return null;
-  const url = URL.createObjectURL(f);
-  try { return await measureImage(url); } finally { URL.revokeObjectURL(url); }
-}
-
-/** Image nodes with no stored size whose size is now known: [position, size] pairs for the next edit to save. */
-export function imagesToSize(doc: PmNode, measured: Map<string, ImageDims>): [number, ImageDims][] {
-  const out: [number, ImageDims][] = [];
-  doc.descendants((n, pos) => {
-    if (n.type.name !== "image") return true;
-    const dims = !imageDim(n.attrs.width) || !imageDim(n.attrs.height) ? measured.get(String(n.attrs.src ?? "")) : undefined;
-    if (dims) out.push([pos, dims]);
-    return false;
-  });
-  return out;
-}
-
-/** Writes the measured sizes into a transaction (no history entry). Returns false when there was nothing to write. */
-export function applyImageSizes(tr: Transaction, measured: Map<string, ImageDims>): boolean {
-  const todo = imagesToSize(tr.doc, measured);
-  for (const [pos, d] of todo) {
-    const node = tr.doc.nodeAt(pos);
-    if (node) tr.setNodeMarkup(pos, undefined, { ...node.attrs, width: d.width, height: d.height });
-  }
-  if (todo.length) tr.setMeta("addToHistory", false).setMeta(IMAGE_SIZES_META, true);
-  return todo.length > 0;
-}
-const IMAGE_SIZES_META = "mmImageSizes";
-
-/**
- * Older images have no stored size. Viewing a doc never writes: the editor notes each loaded image's size
- * and saves it with the person's next real edit (appendTransaction), so the next open reserves the box.
- */
-export function imageSizePlugin(): Plugin {
-  const measured = new Map<string, ImageDims>();
-  return new Plugin({
-    key: new PluginKey("docImageSizes"),
-    view(view) {
-      const onLoad = (e: Event) => {
-        const img = e.target as HTMLImageElement | null;
-        if (!img || img.tagName !== "IMG" || !img.classList.contains("mm-doc-img") || img.hasAttribute("width")) return;
-        const width = imageDim(img.naturalWidth); const height = imageDim(img.naturalHeight);
-        const src = img.getAttribute("src");
-        if (width && height && src && measured.size < 500) measured.set(src, { width, height });
-      };
-      view.dom.addEventListener("load", onLoad, true);
-      return { destroy: () => view.dom.removeEventListener("load", onLoad, true) };
-    },
-    appendTransaction(trs, _old, state) {
-      if (!measured.size || !trs.some((t) => t.docChanged && !t.getMeta(IMAGE_SIZES_META) && !t.getMeta("y-sync$"))) return null;
-      const tr = state.tr;
-      return applyImageSizes(tr, measured) ? tr : null;
-    },
-  });
-}
-
 async function insertFiles(view: EditorView, files: File[], pos: number | null, upload: ImageUploader, onError: (e: Error) => void) {
   for (const f of files) {
     try {
-      const [src, dims] = await Promise.all([upload(f), measureFile(f)]);
+      const src = await upload(f);
       if (!isSafeImageSrc(src)) continue;
       const type = view.state.schema.nodes.image;
-      const node = type.create({ src, ...(dims ?? {}), alt: f.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").slice(0, 120) || null });
+      const node = type.create({ src, alt: f.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").slice(0, 120) || null });
       const at = pos ?? view.state.selection.from;
       view.dispatch(view.state.tr.insert(Math.min(at, view.state.doc.content.size), node));
     } catch (e) { onError(e as Error); }
@@ -179,7 +103,7 @@ export const DocImagePaste = Extension.create<{ upload: ImageUploader | null; on
   addOptions() { return { upload: null, onError: () => {} }; },
   addProseMirrorPlugins() {
     const opts = this.options;
-    return [imageSizePlugin(), new Plugin({
+    return [new Plugin({
       key: new PluginKey("docImagePaste"),
       props: {
         handlePaste(view, event) {
@@ -189,7 +113,6 @@ export const DocImagePaste = Extension.create<{ upload: ImageUploader | null; on
           if (!event.clipboardData?.getData("text/html") && looksLikeImageUrl(text)) {
             const node = view.state.schema.nodes.image.create({ src: text.trim(), alt: null });
             view.dispatch(view.state.tr.replaceSelectionWith(node));
-            // R33: the size is saved with the next edit once it loads (imageSizePlugin).
             return true;
           }
           return false;
