@@ -50,6 +50,7 @@ import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
 import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-triggers-r28"; // R28 (DF-3 slice 3)
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
+import { countsRoutes } from "./routes/counts-r34"; // R34
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
@@ -157,10 +158,7 @@ export function createApp(deps: Deps) {
   installCspReport(app); // R30: CSP violation reports, logged only; before the limiters so it writes nothing
   installHttpCache(app); // R25 API speed: ETag and 304 for a few read only GETs (src/server/lib/http-cache.ts)
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
-  // R34: local E2E servers only (config.auth.localAddresslessUnlimited): a request with no address gets a key of
-  // its own instead of one shared "unknown" counter. Refused in production, where Cloudflare always sends one.
-  const addressless = deps.config.auth.localAddresslessUnlimited ? () => `unknown:${crypto.randomUUID()}` : null;
-  const ipKey = (c: { var: { ip: string } }) => (addressless && c.var.ip === "unknown" ? addressless() : c.var.ip);
+  const ipKey = (c: { var: { ip: string } }) => c.var.ip;
   const oauthLimiter = rateLimit("auth", ipKey);
   app.use("/api/auth/*", rateLimit("auth", ipKey));
   app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));
@@ -284,6 +282,7 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
+  app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
   app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)
   app.route("/api/mail/read-status", mailReadStatusRoutes()); // R31: read status of a sent message
   app.route("/api/mail", mailRoutes());

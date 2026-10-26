@@ -29,43 +29,6 @@ export function shellFor(pathname: string, shell: string, landing: string | null
   return shell;
 }
 
-/**
- * R34: the sign in shell asks for the providers answer (which buttons and fields the page shows) beside its code,
- * instead of after the code has run. The app's own fetch (credentials same-origin) picks the preloaded copy up.
- */
-export const AUTH_PROVIDERS_PRELOAD = '<link rel="preload" href="/api/account/providers" as="fetch" crossorigin>';
-export function withProvidersPreload(shell: string): string {
-  if (shell.includes(AUTH_PROVIDERS_PRELOAD)) return shell;
-  return shell.replace("</head>", `  ${AUTH_PROVIDERS_PRELOAD}\n  </head>`);
-}
-
-/**
- * R34: preconnect and dns-prefetch hints for the error tracker's ingest host, read from the browser DSN at request
- * time (the DSN is per deployment). Only an https sentry.io host is accepted; anything else adds nothing.
- */
-export function originHintsFor(dsn: string | null | undefined): string {
-  if (!dsn) return "";
-  try {
-    const u = new URL(dsn);
-    if (u.protocol !== "https:" || !/(^|\.)sentry\.io$/.test(u.hostname)) return "";
-    const origin = `https://${u.hostname}`;
-    return `<link rel="preconnect" href="${origin}" crossorigin><link rel="dns-prefetch" href="${origin}">`;
-  } catch {
-    return "";
-  }
-}
-export function withOriginHints(html: string, hints: string): string {
-  return hints && !html.includes(hints) ? html.replace("</head>", `${hints}</head>`) : html;
-}
-
-/** R34: cache rule for /brand/* (provider logos and marks, not hashed, but they do not change). */
-export const BRAND_CACHE = "public, max-age=31536000, stale-while-revalidate=604800";
-
-/** R34: HTML documents carry no-transform, so the edge never injects scripts of its own into them (CSP would block them and log a console error). */
-export function htmlCacheControl(base = "no-cache"): string {
-  return /\bno-transform\b/.test(base) ? base : `${base}, no-transform`;
-}
-
 /** Pages whose code (the auth chunk) the sign in shell preloads. Kept in step with lib/auth-providers.ts. */
 export const AUTH_SHELL_PATHS = /^\/(?:login|signup|forgot-password|reset-password|email-verified)\/?$/;
 

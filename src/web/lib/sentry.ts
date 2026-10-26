@@ -33,39 +33,6 @@ export async function startSentry() {
 
 export const sentryEnabled = () => !!sdk;
 
-type Target = Pick<Window, "addEventListener" | "removeEventListener">;
-
-/**
- * R34: errors thrown on the page before the SDK has loaded go into the small queue above and are sent once it
- * starts. The SDK installs its own global handlers when it starts, so these step aside then. Returns a stop function.
- */
-export function queueEarlyErrors(target: Target = window): () => void {
-  const onError = (e: Event) => captureError((e as ErrorEvent).error ?? new Error((e as ErrorEvent).message || "Script error"));
-  const onRejection = (e: Event) => captureError((e as PromiseRejectionEvent).reason);
-  target.addEventListener("error", onError);
-  target.addEventListener("unhandledrejection", onRejection);
-  return () => {
-    target.removeEventListener("error", onError);
-    target.removeEventListener("unhandledrejection", onRejection);
-  };
-}
-
-/** Errors waiting for the SDK (tests and the admin page read this). */
-export const queuedErrorCount = () => early.length;
-
-/**
- * R34: error tracking starts only after the page has loaded and the browser is idle (at most 4 s after load),
- * so its code is never on a page's critical path (sign in was spending 148 KB on it before first paint).
- */
-export function scheduleSentry(win: Window & typeof globalThis = window) {
-  const stopEarly = queueEarlyErrors(win);
-  const start = () => void startSentry().finally(stopEarly);
-  const ric = (win as { requestIdleCallback?: Window["requestIdleCallback"] }).requestIdleCallback;
-  const idle = () => (typeof ric === "function" ? ric.call(win, start, { timeout: 4000 }) : win.setTimeout(start, 1500));
-  if (win.document.readyState === "complete") idle();
-  else win.addEventListener("load", idle, { once: true });
-}
-
 /** Reports an error; errors raised before the SDK loads are queued (up to 10). */
 export function captureError(err: unknown) {
   if (sdk) sdk.captureException(err);

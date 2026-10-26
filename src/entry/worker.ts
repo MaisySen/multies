@@ -38,7 +38,7 @@ import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
-import { BRAND_CACHE, htmlCacheControl, originHintsFor, shellFor, withOriginHints } from "../shared/prerender-shell";
+import { shellFor } from "../shared/prerender-shell";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -320,21 +320,17 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const res = withSecurityHeaders(asset, headers);
     // Hashed build files never change; everything else revalidates.
     if (url.pathname.startsWith("/assets/")) res.headers.set("cache-control", "public, max-age=31536000, immutable");
-    // R34: brand marks (the provider logos on sign in) are kept a year, revalidated in the background after that.
-    else if (url.pathname.startsWith("/brand/")) res.headers.set("cache-control", BRAND_CACHE);
     // R32: the service worker is always checked for a newer copy.
     if (url.pathname === "/sw.js") res.headers.set("cache-control", "no-cache");
-    // R34: static HTML files (the offline page) get no-transform too, so nothing is injected into them.
-    if (res.headers.get("content-type")?.startsWith("text/html")) res.headers.set("cache-control", htmlCacheControl(res.headers.get("cache-control") ?? "no-cache"));
     return res;
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-    ? new Response(withOriginHints(shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
+    ? new Response(shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);
-  res.headers.set("cache-control", htmlCacheControl("no-cache"));
+  res.headers.set("cache-control", "no-cache");
   return request.method === "HEAD" ? res : withPageMeta(res, url.pathname);
 }
 

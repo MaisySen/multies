@@ -67,6 +67,7 @@ import { registerChecklistRoutes } from "./v1-r26-checklists"; // R26 (MB-85)
 import { registerAgentRunRoutes } from "./v1-r27-agent-runs"; // R27 (DF-3 slice 2)
 import { registerAgentTriggerRoutes } from "./v1-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: watchers, duplicate
+import { registerCountsR34Routes } from "./counts-r34"; // R34
 import { registerTriageR31Routes } from "./v1-r31-triage"; // R31: notification triage and catch-up
 import { registerTriageR32Routes } from "./v1-r32-triage"; // R32: task triage actions
 
@@ -261,6 +262,7 @@ export function v1Routes() {
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
   api.use("/mail/*", apiKeyAuth); // R31: Inbox splits, mail settings, read status
+  api.use("/counts/*", apiKeyAuth); // R34: unread counts ("/x/*" also matches "/x")
   api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
   api.use("/workload/*", apiKeyAuth); // R24.2: workload (and /workload/capacity; "/x/*" also matches "/x")
   api.use("/automations/*", apiKeyAuth); // R24.4: automation recipes
@@ -486,6 +488,7 @@ export function v1Routes() {
   registerChecklistRoutes(api); // R26 (MB-85): checklists inside tasks
   registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
   registerTriageR31Routes(api); // R31: notification triage and catch-up
+  registerCountsR34Routes(api); // R34: unread counts for badges
   registerTriageR32Routes(api); // R32: task triage actions
   registerAgentTriggerRoutes(api); // R28 (DF-3 slice 3): triggers and GET /agents/me/runs
   registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate

@@ -43,7 +43,7 @@ import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
 import { fakeAiAllowed, fakeAiFetch } from "../server/services/ai/fake-fetch";
-import { AUTH_SHELL_PATHS, BRAND_CACHE, originHintsFor, withOriginHints } from "../shared/prerender-shell";
+import { AUTH_SHELL_PATHS } from "../shared/prerender-shell";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -86,7 +86,6 @@ if (existsSync(webRoot)) {
   app.use("/*", compress());
   // R25: hashed build files never change, so browsers keep them a year (the Worker does the same).
   app.use("/assets/*", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", "public, max-age=31536000, immutable"); });
-  app.use("/brand/*", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", BRAND_CACHE); });
   // R32: the service worker is always checked for a newer copy.
   app.use("/sw.js", async (c, next) => { await next(); if (c.res.status === 200) c.header("cache-control", "no-cache"); });
   // R30: "/" gets the landing page prerendered at build time (scripts/prerender-landing.ts) when there is one.
@@ -99,8 +98,7 @@ if (existsSync(webRoot)) {
   // Read per request so a rebuilt web app is picked up without a restart.
   // R30: the auth pages get the shell that preloads their code (auth.html) when the build made one.
   const shellPath = (p: string) => (AUTH_SHELL_PATHS.test(p) && existsSync(path.join(webRoot, "auth.html")) ? "auth.html" : "index.html");
-  const hints = originHintsFor(config.sentry.dsnWeb); // R34: preconnect to the error tracker's host
-  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(readFileSync(path.join(webRoot, shellPath(c.req.path)), "utf8"), hints), isKnownPage(c.req.path) ? 200 : 404)));
+  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(readFileSync(path.join(webRoot, shellPath(c.req.path)), "utf8"), isKnownPage(c.req.path) ? 200 : 404)));
 }
 
 const port = Number(process.env.PORT ?? 8787);
