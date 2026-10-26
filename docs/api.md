@@ -869,11 +869,41 @@ Keys: `assignee` (me, none, a name or email, member:<id>), `status` (todo, doing
 7d meaning 7 days from now, -3d, none), `sprint` (current, next, none or a sprint name), `type` (task, story, bug,
 epic), `project` (key or name), `created` and `updated` (a date or 7d meaning 7 days ago), `points` (a number or
 none), `has` (subtasks, checklist, due, assignee, labels, points, parent, notes), `is` (overdue, open, done,
-unassigned, subtask, mine) and `title`. Text with no key in it searches titles and notes, as before.
+unassigned, subtask, mine, watching) and `title`. Text with no key in it searches titles and notes, as before.
 
 A bad query answers 400 with `error.code` `bad_query`, a message and `error.details.position` (the 1 based character
 where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
 one query. MCP: `search_tasks` with `q`.
+
+## Task watchers (R27)
+
+Watchers hear about a task's new comments (notification type `task.watch_comment`, category comment) and status
+changes (`task.watch_status`, category status) in their notifications inbox, under their own notification settings.
+The person who creates a task, a member it is assigned to and anyone who comments start watching on their own
+(`source: "auto"`); anyone can watch or stop by hand (`source: "manual"`). A person told about a comment by a mention
+or as the assignee is told once. Commenting again after stopping starts watching again.
+
+    GET    /api/v1/tasks/{id}/watchers            { taskId, watching, count, watchers: [{ userId, name, email, source, since }] }
+    POST   /api/v1/tasks/{id}/watchers            { userId? }  (default: the key's member; an agent key names one)
+    DELETE /api/v1/tasks/{id}/watchers/{userId}   ("me" is the key's member)
+
+`id` takes a task id or a reference like OPS-12. Read only keys can list. Up to 200 watchers per task; a non member
+answers 422 `invalid_member`. `q=is:watching` lists the tasks you watch. MCP: `list_task_watchers`, `watch_task`,
+`unwatch_task`.
+
+## Duplicate a task (R27)
+
+`POST /api/v1/tasks/{id}/duplicate` copies a task with a new number into the project's first to-do status. The copy
+keeps the notes, assignee, priority, dates, labels, type, estimate, sprint, repeat rule and custom field values, and is
+linked to the original (`duplicate_of`). Body, all optional:
+
+    { "title": "Launch, Android", "projectId": "prj_...", "subtasks": true, "checklist": true, "assignee": true, "dependencies": false }
+
+`title` defaults to "<title> (copy)". `subtasks` copies up to 3 levels and 200 tasks in all. `checklist` copies every
+item unticked. `dependencies` copies the "blocked by" links. A copy into another project keeps no sprint or custom
+field values. Comments, time, files and history stay with the original. Answers 201 with
+`{ task, from: { id, ref }, copied: { tasks, subtasks, checklistItems, dependencies } }`. Read only keys get 403.
+MCP: `duplicate_task`.
 
 ## Inbound keys (R26, DF-18)
 

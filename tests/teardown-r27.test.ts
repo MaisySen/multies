@@ -133,6 +133,18 @@ describe("task watchers", () => {
     expect((await c.post(`/api/tasks/${taskId}/comments`, { body: "Still fine." })).status).toBeLessThan(300);
   });
 
+  it("q=is:watching lists the tasks I watch", async () => {
+    const sam = await teammate();
+    const other = (await c.post("/api/tasks", { title: "Not mine to watch", projectId })).body.task.id;
+    await sam.client.post(`/api/tasks/${taskId}/watchers`, {});
+    const r = await sam.client.get(`/api/tasks?q=${encodeURIComponent("is:watching")}`);
+    expect(r.status).toBe(200);
+    expect(r.body.tasks.map((t: { id: string }) => t.id)).toEqual([taskId]);
+    const mine = (await c.get(`/api/tasks?q=${encodeURIComponent("is:watching")}`)).body.tasks.map((t: { id: string }) => t.id);
+    expect(mine.sort()).toEqual([taskId, other].sort());
+    expect((await sam.client.get(`/api/tasks?q=${encodeURIComponent("-is:watching")}`)).body.tasks.map((t: { id: string }) => t.id)).toEqual([other]);
+  });
+
   it("works over REST and MCP, with read only keys limited to the list", async () => {
     const sam = await teammate();
     const key = (await c.post("/api/developer/keys", { name: "Ops" })).body.secret;
