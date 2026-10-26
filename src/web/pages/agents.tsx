@@ -45,32 +45,44 @@ curl ${BASE}/api/v1/threads/$THREAD_ID \\
   },
 ];
 
+// R36: generic client labels (no vendor names in product copy). Every snippet uses the open MCP config
+// shapes; a snippet that needed one vendor's own command or SDK was dropped (see the R36 report).
 const MCP: Record<string, { label: string; code: string; note: string }> = {
-  claude: {
-    label: "Claude", note: "claude.ai or Claude Desktop: Settings, Connectors, Add custom connector. Paste the URL, then sign in to Multies and pick a workspace. No key needed.",
+  desktop: {
+    label: "Desktop app", note: "In your chat app's settings, add a custom connector (it may be called an integration or MCP server). Paste the URL, then sign in to Multies and pick a workspace. No key needed.",
     code: `${BASE}/api/v1/mcp`,
   },
-  claudeCode: {
-    label: "Claude Code", note: "Run once in your terminal. Claude Code asks you to sign in to Multies the first time. To use an agent key instead, add --header \"Authorization: Bearer mm_live_YOUR_AGENT_KEY\".",
-    code: `claude mcp add --transport http multies ${BASE}/api/v1/mcp`,
+  cli: {
+    label: "Command line agent", note: "Most command line agents read an mcp.json file in your home folder or project. They open the Multies sign in page the first time. To use an agent key instead, add the headers line.",
+    code: `{
+  "mcpServers": {
+    "multies": {
+      "type": "http",
+      "url": "${BASE}/api/v1/mcp",
+      "headers": { "Authorization": "Bearer mm_live_YOUR_AGENT_KEY" }
+    }
+  }
+}`,
   },
-  cursor: {
-    label: "Cursor", note: "~/.cursor/mcp.json, or .cursor/mcp.json in a project. Cursor opens the Multies sign in page; or add an Authorization header with an agent key.",
-    code: JSON.stringify({ mcpServers: { multies: { url: `${BASE}/api/v1/mcp` } } }, null, 2),
+  editor: {
+    label: "Code editor", note: "Add Multies to your editor's MCP settings (often mcp.json in the project or your user settings). The editor opens the Multies sign in page, or you can add an Authorization header with an agent key.",
+    code: `{
+  "mcpServers": {
+    "multies": { "url": "${BASE}/api/v1/mcp" }
+  }
+}`,
   },
-  openai: {
-    label: "ChatGPT / OpenAI API", note: "In ChatGPT, add a connector with the URL and OAuth sign in. With the OpenAI API, use the remote MCP tool with an agent key header.",
-    code: `const response = await openai.responses.create({
-  model: "gpt-5",
-  tools: [{
-    type: "mcp",
-    server_label: "mymail",
-    server_url: "${BASE}/api/v1/mcp",
-    headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" },
-    require_approval: "never",
-  }],
-  input: "Find the verification code Acme sent to my agent inbox.",
-});`,
+  any: {
+    label: "Any MCP client", note: "Build your own agent with the open MCP SDK. Streamable HTTP, with an agent key, a workspace key or an OAuth token.",
+    code: `import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+
+const client = new Client({ name: "my-agent", version: "1.0.0" });
+await client.connect(new StreamableHTTPClientTransport(new URL("${BASE}/api/v1/mcp"), {
+  requestInit: { headers: { Authorization: "Bearer mm_live_YOUR_AGENT_KEY" } },
+}));
+const { tools } = await client.listTools();
+const inbox = await client.callTool({ name: "list_threads", arguments: { unread: true } });`,
   },
 };
 
@@ -88,12 +100,12 @@ const TOOLS = [
 const GUARDRAILS = [
   { icon: IconClipboardCheck, title: "Approval queue", body: "Every send waits for a person by default. Approve, edit then approve, or reject with a note the agent receives." },
   { icon: IconShieldCheck, title: "Caps and allow lists", body: "A daily send cap per agent, plus addresses or whole domains it may write to." },
-  { icon: IconKey, title: "Scoped keys", body: "An agent key only reaches that agent's inbox and the shared mailboxes you give it. It can't touch domains, billing or other agents." },
+  { icon: IconKey, title: "Scoped keys", body: "An agent key only reaches that agent's inbox and the shared mailboxes you give it. Workspace keys get scopes per area, like mail:read or tasks:write, so a script can do its one job and nothing else." },
   { icon: IconFileCode, title: "Audit log", body: "Every read, send, approval and rejection, with the agent's name, and whether it came through the API or MCP." },
 ];
 
 export function AgentsDevPage() {
-  const [tab, setTab] = useState<keyof typeof MCP>("claude");
+  const [tab, setTab] = useState<keyof typeof MCP>("desktop");
   return (
     <>
       <section className="pt-32 sm:pt-40">
@@ -165,6 +177,7 @@ data: {"type":"message.received","data":{"subject":"Your code",
             </tbody>
           </table>
         </div>
+        <a href="/developers/mcp" className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-brand-hover hover:underline">See every tool, with scopes and examples <IconArrowRight className="h-4 w-4" aria-hidden /></a>
       </section>
 
       <section className="border-t border-line" aria-labelledby="guardrails">

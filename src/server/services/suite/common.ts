@@ -22,7 +22,7 @@ export function sortableId(prefix: string, now = Date.now()): string {
 }
 
 /** Whoever is acting: a person in the app, a workspace API key, an agent key or the system (automations). */
-export type SuiteActor = Pick<AuthContext, "orgId" | "userId" | "email" | "name"> & { role?: AuthContext["role"]; agentId?: string | null; apiKeyId?: string; scope?: "full" | "read"; system?: boolean };
+export type SuiteActor = Pick<AuthContext, "orgId" | "userId" | "email" | "name"> & { role?: AuthContext["role"]; agentId?: string | null; apiKeyId?: string; scope?: string; system?: boolean };
 
 export function actorOf(a: SuiteActor): { type: "member" | "agent" | "system"; id: string | null; name: string } {
   if (a.system) return { type: "system", id: null, name: a.name || "Automation" };

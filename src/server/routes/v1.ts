@@ -17,6 +17,7 @@ import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
 import { mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
+import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
 import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } from "../services/domains";
@@ -180,6 +181,12 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
   if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isSplitPreview(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  // R36: a key with per area scopes needs the route's scope (preset "full" and "read" keys keep the check above).
+  if (!isPresetScope(auth.scope) && !c.req.path.endsWith("/mcp")) {
+    const sub = c.req.path.replace(/^.*?\/api\/v1(?=\/|$)/, "") || "/";
+    const required = routeScopeForRequest(c.req.method, sub);
+    if (required !== null && (required === "full" || !hasScope(auth.scope, required))) return c.json(insufficientScopeBody(required), 403);
+  }
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();

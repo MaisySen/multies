@@ -16,7 +16,6 @@ import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import type { Project, Task } from "./data";
 import { useSprints, type Sprint } from "./sprint-fields";
-import { NoSprintsArt } from "@/web/components/illustrations"; // R36
 
 export type { Sprint };
 
@@ -86,7 +85,7 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
   if (!sprints.length) {
     return (
       <>
-        <EmptyState icon={<IconCalendarRange />} art={<NoSprintsArt />} title="No sprints yet" body="Plan a sprint, move tasks in from the backlog and watch the burndown as work gets done."
+        <EmptyState icon={<IconCalendarRange />} title="No sprints yet" body="Plan a sprint, move tasks in from the backlog and watch the burndown as work gets done."
           action={<Button onClick={() => setEditing("new")}><IconPlus className="h-4 w-4" />Plan a sprint</Button>} />
         <BacklogPanel tasks={backlog.data ?? []} sprints={open} unit={unit} onOpen={onOpen} onMove={(ids, to) => void move(ids, to)} className="mt-6" />
         {editing && <SprintDialog projectId={project.id} sprint={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(s) => { setPicked(s.id); refresh(); }} />}

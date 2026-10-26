@@ -23,7 +23,6 @@ import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./cal
 import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
 import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
-import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -152,7 +151,7 @@ export function MeetingsPage() {
       <CallMinutesUsage className="-mt-3 mb-4" />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
-        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
+        <Card><EmptyState icon={<IconVideo />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
       ) : (
         <div className="space-y-6">
           {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (

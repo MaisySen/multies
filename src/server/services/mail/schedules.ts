@@ -44,7 +44,7 @@ export interface ScheduleActor {
   role: AuthContext["role"];
   agentId?: string | null;
   apiKeyId?: string;
-  scope?: "full" | "read";
+  scope?: string;
 }
 
 export interface SendPayload {
