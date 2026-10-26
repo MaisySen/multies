@@ -42,13 +42,9 @@ npx wrangler d1 migrations apply mymail-staging --remote --env staging
 npx wrangler deploy --env staging --var RELEASE:$RELEASE
 scripts/smoke.sh https://mymail-staging.mymail-app.workers.dev "$RELEASE"
 curl -s https://mymail-staging.mymail-app.workers.dev/api/config   # "release" must equal $RELEASE
-# Remote E2E writes to the shared D1 budget: only the read-only pass (404, favicon set, robots, sitemap):
-npm run test:e2e:staging-readonly
+# Remote E2E writes to the shared D1 budget: only read-only checks, one spec, with a grep:
+E2E_ALLOW_REMOTE=1 E2E_BASE_URL=https://mymail-staging.mymail-app.workers.dev npx playwright test e2e/launch-checklist.spec.ts --grep 'real 404|robots|sitemap'
 ```
-
-The read-only pass reads public pages only and writes nothing to D1. Staging is a preview, so its robots.txt
-keeps every crawler out (`Disallow: /`); the robots check expects that on a staging URL and the app and API
-rules everywhere else. It needs no account and no demo, so it does not use up the 10-a-day demo cap.
 
 Then by hand: sign in to a demo, open mail, chat and tasks, and check Sentry for new staging issues.
 A remote E2E run can hit the sign up and demo rate limits; see [../testing.md](../testing.md).

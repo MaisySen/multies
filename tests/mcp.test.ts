@@ -141,6 +141,7 @@ describe("MCP server", () => {
       "list_triage",
       "log_time",
       "mail_bulk_action",
+      "mail_bulk_job",
       "mail_read_status",
       "mail_split_create",
       "mail_split_delete",
