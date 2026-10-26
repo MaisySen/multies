@@ -13,6 +13,7 @@ import { TimerChip } from "@/web/pages/app/work/time";
 // R31: the call dock and onboarding load on demand (their code is not on the first paint path).
 const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
 const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
+import { useUnreadNotifications } from "@/web/pages/app/notifications";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
 import { useDemoSeedCatchUp } from "@/web/lib/demo";
@@ -31,7 +32,6 @@ import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
 import { PLANS } from "@/shared/plans";
 import { prefetchWhenIdle } from "@/web/lib/prefetch";
-import { badgeTotal, useCounts, useTitleCount } from "@/web/lib/counts"; // R34: one counts query for every badge
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -86,13 +86,9 @@ export function AppLayout() {
     queryFn: async () => (await api.get<{ approvals: unknown[] }>("/approvals?status=pending")).approvals,
   });
   const pendingCount = approvals.data?.length ?? 0;
-  // R34: every badge reads GET /api/counts (one query, 304 when nothing moved) instead of one request per area.
-  const counts = useCounts(!!me.data?.organization);
-  const unreadNotes = { data: counts.data?.notifications.unread };
-  const triageCount = { data: counts.data?.triage };
-  const chatUnread = { data: counts.data ? { total: counts.data.chat.unread, mentions: counts.data.chat.mentions } : undefined };
-  const mailUnread = counts.data?.mail.inbox ?? 0;
-  useTitleCount(badgeTotal(counts.data));
+  const unreadNotes = useUnreadNotifications(!!me.data?.organization);
+  const triageCount = useQuery({ queryKey: ["triage", "count"], enabled: !!me.data?.organization, refetchInterval: 60_000, queryFn: async () => (await api.get<{ count: number }>("/triage/count")).count });
+  const chatUnread = useQuery({ queryKey: ["chat", "unread"], enabled: !!me.data?.organization, refetchInterval: 30_000, queryFn: () => api.get<{ total: number; mentions: number }>("/chat/unread") });
   useEffect(() => setDrawer(false), [loc.pathname]);
   // R25: the likely next pages load once the browser is idle (links warm their own page on hover, see main.tsx).
   useEffect(() => prefetchWhenIdle(), []);
@@ -157,7 +153,6 @@ export function AppLayout() {
           )}>
             <Icon className="h-4 w-4" />{label}
             {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
-            {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" aria-label={`${mailUnread} unread in Inbox`}>{mailUnread > 999 ? "999+" : mailUnread}</span>}
             {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
             {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${triageCount.data} waiting in Triage`}>{triageCount.data}</span>}
             {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
