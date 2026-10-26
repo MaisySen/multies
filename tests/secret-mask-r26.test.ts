@@ -33,7 +33,7 @@ describe("R26 secret masking", () => {
   });
 
   it("logger redacts nested credential keys and secrets inside error messages", () => {
-    const out = redact({ req: { headers: { authorization: "Bearer abcdefghijk" }, url: "/x?token=abcdefghijk" }, error: new Error("token 401 client_secret=abcdefghijk"), n: 3 }) as Record<string, any>;
+    const out = redact({ req: { headers: { authorization: "Bearer abcdefghijk" }, url: "/x?token=abcdefghijk" }, error: new Error("token 401 client_secret=abcdefghijk"), n: 3 }) as { req: { headers: { authorization: string }; url: string }; error: { message: string }; n: number };
     expect(out.req.headers.authorization).toBe("[redacted]");
     expect(out.req.url).not.toContain("abcdefghijk");
     expect(out.error.message).not.toContain("abcdefghijk");
