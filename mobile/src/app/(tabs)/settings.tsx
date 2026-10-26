@@ -8,7 +8,7 @@ import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/lib/session";
-import { useNotificationCount, useOverview } from "@/lib/queries";
+import { useBlocks, useNotificationCount, useOverview } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
@@ -26,6 +26,7 @@ export default function Settings() {
   const inbox = useNotificationCount();
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   const insets = useSafeAreaInsets();
+  const blocksQ = useBlocks();
   const version = currentVersionFacts();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
@@ -46,6 +47,7 @@ export default function Settings() {
     Alert.alert("Sign out?", "Mail and tasks saved on this phone are removed when you sign out.", [{ text: "Cancel", style: "cancel" }, { text: "Sign out", style: "destructive", onPress: () => signOut() }]);
   };
   const open = (url: string) => WebBrowser.openBrowserAsync(url);
+  const blockedCount = blocksQ.data?.blocks.length ?? 0;
   const locale = Localization.getLocales()[0];
   const used = overview.data?.reduce((n, m) => n + m.usedBytes, 0) ?? 0;
 
@@ -96,6 +98,11 @@ export default function Settings() {
       <GestureSettings />
 
       <UpdateRows />
+
+      <SectionTitle>Privacy and safety</SectionTitle>
+      <Row tile="red" icon="user-x" label="Blocked people" value={blockedCount ? String(blockedCount) : undefined} onPress={() => router.push("/blocked")} testID="blocked-link" />
+      <Row tile="gray" icon="flag" label="Community rules" onPress={() => open(LINKS.terms)} testID="community-rules" />
+      <Text style={[font.tiny, { marginHorizontal: space.lg, marginTop: space.xs }]}>To report a message, press and hold it in chat. Our team reviews reports within 24 hours.</Text>
 
       <SectionTitle>Help and legal</SectionTitle>
       <Row tile="green" icon="activity" label="Service status" onPress={() => open(LINKS.status)} />

@@ -115,16 +115,18 @@ export function ChatMessageRow({ m, meId, sample, onLongPress, onOpenThread, sho
 }
 
 /** The press and hold menu on a message. */
-export function MessageMenu({ m, onClose, onReply, onMakeTask, busy }: {
+export function MessageMenu({ m, onClose, onReply, onMakeTask, busy, onReport, onBlock }: {
   m: ChatMessage | null; onClose: () => void; onReply?: (m: ChatMessage) => void; onMakeTask: (m: ChatMessage) => void; busy?: boolean;
+  /** R35: report and block (guideline 1.2). onBlock is passed only when the author can be blocked (someone else, not an agent). */
+  onReport?: (m: ChatMessage) => void; onBlock?: (m: ChatMessage) => void;
 }) {
   const reduceMotion = useReduceMotion();
   if (!m) return null;
-  const item = (icon: IconName, label: string, run: () => void, testID: string) => (
+  const item = (icon: IconName, label: string, run: () => void, testID: string, danger = false) => (
     <Pressable onPress={run} accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={busy}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 52, paddingHorizontal: space.lg, backgroundColor: pressed ? colors.hover : "transparent" })}>
-      <Icon name={icon} size={19} color={colors.fg} />
-      <Text style={{ color: colors.fg, fontSize: 16 }}>{label}</Text>
+      <Icon name={icon} size={19} color={danger ? colors.bad : colors.fg} />
+      <Text style={{ color: danger ? colors.bad : colors.fg, fontSize: 16 }}>{label}</Text>
     </Pressable>
   );
   return (
@@ -135,6 +137,8 @@ export function MessageMenu({ m, onClose, onReply, onMakeTask, busy }: {
           {item("check-square", busy ? "Making task..." : "Make task", () => onMakeTask(m), "menu-make-task")}
           {onReply && !m.parentId ? item("corner-down-right", "Reply in thread", () => { onClose(); onReply(m); }, "menu-reply") : null}
           {item("copy", "Copy text", () => { Clipboard.setStringAsync(plainText(m)).catch(() => {}); onClose(); }, "menu-copy")}
+          {onReport && !m.deleted ? item("flag", "Report message", () => { onClose(); onReport(m); }, "menu-report", true) : null}
+          {onBlock ? item("user-x", `Block ${m.author.name}`, () => { onClose(); onBlock(m); }, "menu-block", true) : null}
           {item("x", "Cancel", onClose, "menu-cancel")}
         </View>
       </Pressable>

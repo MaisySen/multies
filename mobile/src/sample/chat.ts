@@ -279,3 +279,8 @@ export function chatRoute(chat: SampleChat, work: SampleWork, mail: Message[], m
   }
   return undefined;
 }
+
+/** R35: a sample person's name by user id, for the blocked people list. */
+export function samplePersonName(userId: string): string | undefined {
+  return PEOPLE.find((p) => p.id.endsWith(`:${userId}`))?.name;
+}

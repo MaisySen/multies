@@ -1,5 +1,6 @@
 import type { RequestOptions, Transport } from "./transport";
 import type { Counts } from "@/lib/counts";
+import type { BlockedPerson, ReportInput } from "@/lib/moderation";
 import type { SnoozePreset } from "@/lib/snooze";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
@@ -110,6 +111,11 @@ export function endpoints(t: Transport) {
     chatPeople: () => t.request<{ people: ChatPerson[] }>("GET", "/chat/people"),
     startDm: (userIds: string[]) => t.request<{ channel: ChatChannel }>("POST", "/chat/dms", { userIds }),
     chatMessageToTask: (id: string, input: { title?: string; projectId?: string } = {}) => t.request<{ task: Task }>("POST", `/chat/messages/${encodeURIComponent(id)}/task`, input),
+    // R35: report and block (App Store guideline 1.2). See lib/moderation.ts for the contract.
+    report: (input: ReportInput) => t.request<{ id: string; status: "open" }>("POST", "/reports", input),
+    blocks: () => t.request<{ blocks: BlockedPerson[] }>("GET", "/blocks"),
+    block: (userId: string) => t.request<unknown>("POST", "/blocks", { userId }),
+    unblock: (userId: string) => t.request<unknown>("DELETE", `/blocks/${encodeURIComponent(userId)}`),
 
     // Time tracking. One timer runs per person; starting a new one stops the old one first.
     runningTimer: () => t.request<{ entry: TimeEntry | null }>("GET", "/time/running"),

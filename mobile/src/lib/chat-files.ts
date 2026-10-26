@@ -77,6 +77,8 @@ export function progressLabel(fraction: number): string {
 /** Plain words for a failed send with files. */
 export function sendErrorText(e: unknown): string {
   if (e instanceof ApiError) {
+    // R35: the other person blocked you. The server's words; you are not told more than this.
+    if (e.status === 403 && e.code === "blocked") return "You can't message this person.";
     if (e.status === 413 || e.code === "file_too_large") return e.message || `Files can be up to ${LIMIT_TEXT}.`;
     if (e.isNetwork) return "Can't reach Multies. Check your connection and try again.";
     return e.message || "Couldn't send. Try again.";

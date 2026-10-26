@@ -6,7 +6,7 @@ import { taskRoute } from "./tasks";
 import { extrasRoute, sampleExtras, taskTime } from "./time-meetings";
 import { samplePortfolio } from "./fields";
 import { samplePeople } from "./people";
-import { chatRoute, sampleChat } from "./chat";
+import { chatRoute, sampleChat, samplePersonName } from "./chat";
 import { emailRoute, sampleEmail } from "./email";
 import { runsRoute, sampleRuns } from "./runs";
 
@@ -22,6 +22,9 @@ export class SampleTransport implements Transport {
   private chat = sampleChat(Date.now(), this.data.work, this.data.messages);
   private email = sampleEmail(Date.now());
   private runs = sampleRuns(Date.now(), this.data.work);
+  /** R35: report and block in the sample workspace, kept in memory only. */
+  private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
+  private reports = 0;
 
   constructor(private latencyMs = 0) {}
 
@@ -31,6 +34,8 @@ export class SampleTransport implements Transport {
     this.chat = sampleChat(Date.now(), this.data.work, this.data.messages);
     this.email = sampleEmail(Date.now());
     this.runs = sampleRuns(Date.now(), this.data.work);
+    this.blocks = [];
+    this.reports = 0;
   }
 
   async request<T>(method: Method, rawPath: string, body?: unknown, _opts?: RequestOptions): Promise<T> {
@@ -45,6 +50,26 @@ export class SampleTransport implements Transport {
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
 
+    // R35: report and block, the same shapes as the server.
+    if (path === "/reports" && method === "POST") {
+      const b = (body ?? {}) as { reason?: string };
+      if (!b.reason) throw new ApiError(400, "invalid", "Pick a reason.");
+      return json({ id: `rep_s${++this.reports}`, status: "open" });
+    }
+    if (path === "/blocks" && method === "GET") return json({ blocks: this.blocks });
+    if (path === "/blocks" && method === "POST") {
+      const userId = String((body as { userId?: string } | undefined)?.userId ?? "");
+      if (!userId || userId === "usr_sample") throw new ApiError(400, "invalid", "You can't block yourself.");
+      if (!this.blocks.some((x) => x.userId === userId)) {
+        const name = samplePersonName(userId) ?? "Someone";
+        this.blocks.unshift({ userId, name, avatarUrl: null, createdAt: new Date().toISOString() });
+      }
+      return json({ ok: true });
+    }
+    if (parts[0] === "blocks" && parts.length === 2 && method === "DELETE") {
+      this.blocks = this.blocks.filter((x) => x.userId !== decodeURIComponent(parts[1]));
+      return json({ ok: true });
+    }
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
     if (method === "GET" && path === "/team/people") return json(samplePeople(Date.now()));
     const mail = emailRoute(this.email, d.mailboxes, method, parts, body, Date.now(), params);

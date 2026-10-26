@@ -11,6 +11,8 @@ import { pendingTask } from "./pending";
 import { ApiError } from "@/api/errors";
 import { commandQueue, type NewCommand } from "./command-queue";
 import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
+import { blockedIds, isMissingEndpoint, reportBody, withBlock, withoutBlock, type BlockedPerson, type ReportInput } from "./moderation";
+import { success, warning } from "./haptics";
 
 /** R33: what a mutation answers when its call went into the offline command queue. */
 export const QUEUED = "queued" as const;
@@ -50,6 +52,7 @@ export const keys = {
   chatChannels: ["chat", "channels"] as const,
   chatUnread: ["chat", "unread"] as const,
   chatPeople: ["chat", "people"] as const,
+  blocks: ["blocks"] as const,
   chatChannel: (id: string) => ["chat", "channel", id] as const,
   chatMessages: (id: string) => ["chat", "messages", id] as const,
   chatThread: (id: string) => ["chat", "thread", id] as const,
@@ -570,4 +573,90 @@ export function useCounts() {
   const { refetch } = q;
   useEffect(() => { if (foreground) refetch().catch(() => {}); }, [foreground, refetch]);
   return q;
+}
+
+// ---------------------------------------------------------------- R35: report and block
+
+export interface BlocksState { blocks: BlockedPerson[]; /** The server has no blocks endpoint yet (404): menus still show, nothing is hidden. */ missing: boolean }
+
+/**
+ * The people you blocked: asked on start and whenever the app comes back to the foreground, saved
+ * on the phone for offline use. A server without the endpoint answers an empty list, silently.
+ */
+export function useBlocks() {
+  const { api, mode } = useSession();
+  const foreground = useForeground();
+  const q = useQuery<BlocksState>({
+    queryKey: [...keys.blocks, mode],
+    queryFn: async () => {
+      try {
+        const r = await cached(kv(), `meta:${mode}:blocks`, () => api.blocks());
+        return { blocks: r.blocks ?? [], missing: false };
+      } catch (err) {
+        if (isMissingEndpoint(err)) return { blocks: [], missing: true };
+        throw err;
+      }
+    },
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const { refetch } = q;
+  useEffect(() => { if (foreground) refetch().catch(() => {}); }, [foreground, refetch]);
+  return q;
+}
+
+/** The blocked people's ids as a set, for filtering message lists. Empty until the list loads. */
+export function useBlockedSet(): Set<string> {
+  const q = useBlocks();
+  return useMemo(() => blockedIds(q.data?.blocks), [q.data]);
+}
+
+/** Blocks a person: the list updates at once (their messages vanish), then the server confirms. */
+export function useBlockPerson() {
+  const { api, mode } = useSession();
+  const qc = useQueryClient();
+  const key = [...keys.blocks, mode];
+  return useMutation({
+    mutationFn: async (p: { userId: string; name: string }) => { await api.block(p.userId); return p; },
+    onMutate: (p) => {
+      warning();
+      const prev = qc.getQueryData<BlocksState>(key);
+      qc.setQueryData<BlocksState>(key, { blocks: withBlock(prev?.blocks ?? [], p), missing: prev?.missing ?? false });
+      return { prev };
+    },
+    onError: (err, _p, ctx) => {
+      // A server without the endpoint keeps the block on this phone only, so the person still stops seeing them.
+      if (isMissingEndpoint(err)) return;
+      if (ctx?.prev) qc.setQueryData(key, ctx.prev);
+    },
+    onSettled: (_r, err) => {
+      if (!isMissingEndpoint(err)) qc.invalidateQueries({ queryKey: key });
+      qc.invalidateQueries({ queryKey: keys.counts });
+    },
+  });
+}
+
+export function useUnblockPerson() {
+  const { api, mode } = useSession();
+  const qc = useQueryClient();
+  const key = [...keys.blocks, mode];
+  return useMutation({
+    mutationFn: async (userId: string) => { await api.unblock(userId); return userId; },
+    onMutate: (userId) => {
+      const prev = qc.getQueryData<BlocksState>(key);
+      qc.setQueryData<BlocksState>(key, { blocks: withoutBlock(prev?.blocks ?? [], userId), missing: prev?.missing ?? false });
+      return { prev };
+    },
+    onError: (err, _id, ctx) => { if (!isMissingEndpoint(err) && ctx?.prev) qc.setQueryData(key, ctx.prev); },
+    onSettled: (_r, err) => { if (!isMissingEndpoint(err)) qc.invalidateQueries({ queryKey: key }); },
+  });
+}
+
+/** Sends a report. Success plays the success haptic; the sheet shows the thanks line. */
+export function useReport() {
+  const { api } = useSession();
+  return useMutation({
+    mutationFn: (input: ReportInput) => api.report(reportBody(input)),
+    onSuccess: () => success(),
+  });
 }
