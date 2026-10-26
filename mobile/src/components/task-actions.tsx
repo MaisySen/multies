@@ -8,17 +8,14 @@ import { tick } from "@/lib/haptics";
 import type { AssigneeId, TaskPatch } from "@/api/types";
 import { colors, radius, space } from "@/theme";
 
-export type TaskField = Field;
 type Field = "status" | "assignee" | "priority" | "label" | "due";
 
 /**
  * R31: long-press on a task row. The first sheet lists the registry's task commands; each opens a
  * picker for that field. Changes save at once (optimistic, put back if the server says no).
  */
-export function TaskActions({ task, knownLabels = [], onClose, initialField = null }: { task: Task | null; knownLabels?: string[]; onClose: () => void; initialField?: Field | null }) {
-  const [chosen, setField] = useState<Field | null>(null);
-  // R37: the native context menu opens straight on the picker the person chose.
-  const field = chosen ?? initialField;
+export function TaskActions({ task, knownLabels = [], onClose }: { task: Task | null; knownLabels?: string[]; onClose: () => void }) {
+  const [field, setField] = useState<Field | null>(null);
   const [newLabel, setNewLabel] = useState("");
   const assignees = useAssignees();
   const { update } = useTaskMutations();

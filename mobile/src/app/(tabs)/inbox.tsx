@@ -6,7 +6,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, Stack } from "expo-router";
 import { Banner, Chip, EmptyState, IconButton, Loading, Button, LargeTitle } from "@/components/ui";
 import { MessageRow } from "@/components/message-row";
-import { NativeContextMenu, hasNativeMenu } from "@/components/native-menu";
 import { SwipeHint, SwipeRow } from "@/components/swipe-row";
 import { UndoToast } from "@/components/undo-toast";
 import { useMailRowActions } from "@/components/mail-actions";
@@ -62,11 +61,8 @@ export default function Inbox() {
           {...collapse.scrollProps}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => {
-            // R37: the native context menu on iOS 1.10.0 builds; the hold sheet everywhere else.
-            const native = hasNativeMenu();
-            const plain = <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onLongPress={native ? undefined : () => actions.openMenu(item)}
+            const row = <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onLongPress={() => actions.openMenu(item)}
               onPress={() => router.push({ pathname: "/thread/[id]", params: { id: item.id } })} />;
-            const row = native ? <NativeContextMenu items={actions.menuItems(item)} onSelect={(id) => actions.runCommand(item, id)}>{plain}</NativeContextMenu> : plain;
             return swipeable ? (
               <SwipeRow testID={`swipe-${item.id}`}
                 right={actions.swipeFor(item, prefs.mailSwipes.rightShort)} rightLong={actions.swipeFor(item, prefs.mailSwipes.rightLong)}

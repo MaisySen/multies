@@ -11,7 +11,6 @@ import type { MailSwipe } from "@/lib/prefs";
 import type { SwipeAction } from "./swipe-row";
 import { colors } from "@/theme";
 import type { MessageSummary } from "@/api/types";
-import type { IconName } from "./icons";
 
 /** The snooze picker on its own (swipe left on a mail row or a notification). */
 export function SnoozeSheet({ visible, title, onPick, onClose }: { visible: boolean; title: string; onPick: (p: SnoozePreset) => void; onClose: () => void }) {
@@ -63,10 +62,6 @@ export function useMailRowActions(hideRow?: (id: string, label: string, run: () 
 
   return {
     openMenu: (m: MessageSummary) => { tick(); setMenuFor(m); },
-    /** R37: the hold menu's items for one row, for the native context menu. */
-    menuItems: (m: MessageSummary) => MAIL_MENU.map((id) => ({ id, title: commandTitle(id, { starred: m.isStarred, read: m.isRead }), icon: command(id).icon as IconName, destructive: command(id).destructive })),
-    /** R37: runs one hold menu command on a row (the native context menu calls this). */
-    runCommand: (m: MessageSummary, id: string) => { tick(); handlersFor(m)[id as CommandId]({ messageId: m.id, starred: m.isStarred, read: m.isRead }); },
     archive: (m: MessageSummary) => run(m, "archive"),
     pickSnooze: (m: MessageSummary) => setSnoozeFor(m),
     /** R33: the swipe action the person chose in Settings for this slot, or none. */

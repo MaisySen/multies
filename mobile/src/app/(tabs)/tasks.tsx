@@ -8,10 +8,7 @@ import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, LargeTitle, 
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
 import { NotificationBell } from "@/components/notification-bell";
-import { TaskActions, type TaskField } from "@/components/task-actions";
-import { NativeContextMenu, hasNativeMenu } from "@/components/native-menu";
-import { TASK_MENU, command, commandTitle } from "@/lib/commands";
-import type { IconName } from "@/components/icons";
+import { TaskActions } from "@/components/task-actions";
 import { openCommandSheet } from "@/lib/command-sheet-store";
 import { tick, warning } from "@/lib/haptics";
 import { SwipeHint, SwipeRow, type SwipeAction } from "@/components/swipe-row";
@@ -68,12 +65,7 @@ export default function Tasks() {
   // R31: long-press a task for Status, Assignee, Priority, Label and Due date (the registry's task commands).
   const [actionsFor, setActionsFor] = useState<Task | null>(null);
   const knownLabels = [...new Set(list.flatMap((t) => t.labels ?? []))];
-  const [actionsField, setActionsField] = useState<TaskField | null>(null);
-  const longPress = (t: Task) => { tick(); setActionsField(null); setActionsFor(t); };
-  // R37: the native iOS context menu (1.10.0 builds) lists the same commands and opens the picker.
-  const nativeMenu = hasNativeMenu();
-  const menuItems = TASK_MENU.map((id) => ({ id, title: commandTitle(id), icon: command(id).icon as IconName }));
-  const pickFromMenu = (t: Task, id: string) => { tick(); setActionsField(id.replace("task-", "") as TaskField); setActionsFor(t); };
+  const longPress = (t: Task) => { tick(); setActionsFor(t); };
   const collapse = useCollapse(); // R34: large title folds on scroll
 
   return (
@@ -119,9 +111,7 @@ export default function Tasks() {
                   <SwipeRow key={t.id} testID={`swipe-task-${t.id}`}
                     right={swipeFor(t, prefs.taskSwipes.rightShort)} rightLong={swipeFor(t, prefs.taskSwipes.rightLong)}
                     left={swipeFor(t, prefs.taskSwipes.leftShort)} leftLong={swipeFor(t, prefs.taskSwipes.leftLong)}>
-                    <NativeContextMenu items={menuItems} title={t.title} onSelect={(id) => pickFromMenu(t, id)}>
-                      <TaskRow t={t} onToggle={() => { tick(); move(t, t.status === "done" ? "todo" : "done"); }} onLongPress={nativeMenu ? undefined : () => longPress(t)} />
-                    </NativeContextMenu>
+                    <TaskRow t={t} onToggle={() => { tick(); move(t, t.status === "done" ? "todo" : "done"); }} onLongPress={() => longPress(t)} />
                   </SwipeRow>
                 ))}
               </View>
@@ -157,7 +147,7 @@ export default function Tasks() {
           })}
         </ScrollView>
       )}
-      <TaskActions task={actionsFor} knownLabels={knownLabels} initialField={actionsField} onClose={() => { setActionsFor(null); setActionsField(null); }} />
+      <TaskActions task={actionsFor} knownLabels={knownLabels} onClose={() => setActionsFor(null)} />
       <UndoToast pending={undo.newest} onUndo={undo.undo} />
     </View>
   );
