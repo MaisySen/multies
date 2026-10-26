@@ -41,6 +41,7 @@ import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerAssignTools } from "./mcp-r22-assign";
+import { registerAgentMemberTools } from "./mcp-r26-agents"; // R26 (DF-3)
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
@@ -54,7 +55,6 @@ import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
-import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -251,7 +251,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
-  registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
+  registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
   return server;
 }
 

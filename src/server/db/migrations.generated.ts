@@ -618,10 +618,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0059_r26_share_links",
+    "name": "0057_r26_agent_members",
     "statements": [
-      "CREATE TABLE `share_links` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`target_id` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`show_workspace` integer DEFAULT true NOT NULL,\n\t`created_by` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\t`expires_at` integer,\n\t`revoked_at` integer,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;",
-      "CREATE UNIQUE INDEX `share_links_token_uq` ON `share_links` (`token_hash`);"
+      "-- DF-3 (R26): AI agent members can be paused, carry an avatar colour and link an existing agent inbox.\n-- All nullable, no index: read with the member row that People, the team list and API key checks already load.\nALTER TABLE `members` ADD `disabled_at` integer;",
+      "ALTER TABLE `members` ADD `avatar_color` text;",
+      "ALTER TABLE `members` ADD `linked_agent_id` text;"
     ]
   }
 ];

@@ -16,7 +16,6 @@ import { colourFor, meta, type CollabSession } from "./doc-collab";
 import { docExtensions, liveDomEvents, liveKeyDown, useCollabDoc, useCollabSession } from "./collab-editor";
 import { tone } from "@/web/components/app-bits";
 import { MeetingNotesBacklink } from "./meeting-notes";
-import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteConfirmText, useBracketTrigger, useDocTree } from "./doc-tree";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
@@ -147,7 +146,6 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           </div>
         )}
         <span className={cn(!session && "ml-auto")} role="status">{status}</span>
-        <ShareButton kind="doc" targetId={id} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-10 max-sm:min-w-10"
           onClick={async () => {
             // Save pending edits first: the template copies the stored doc.

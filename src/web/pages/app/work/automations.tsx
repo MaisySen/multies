@@ -8,7 +8,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Card, EmptyState, Meter, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
-import { useAssignees, useProjects } from "./data";
+import { useAssignees, useProjects, isAgentLike } from "./data";
 import { AssignThreadFields, describeAssign, MailboxField, usePeopleNames } from "./automation-assign";
 import { R24_ACTION_LABEL, R24_TRIGGER_LABEL, R24RuleFields, RecipesTab } from "./automation-recipes";
 
@@ -119,7 +119,7 @@ function RuleDialog({ rule, onClose, onSaved }: { rule: Partial<Rule>; onClose: 
         {(R24_TRIGGER_LABEL[r.trigger ?? ""] || NEWER_ACTIONS.includes(r.action ?? "")) && <R24RuleFields trigger={r.trigger ?? ""} action={r.action ?? ""} conditions={r.conditions ?? {}} actionConfig={r.actionConfig ?? {}} onConditions={(x) => setR({ ...r, conditions: x })} onActionConfig={(x) => setR({ ...r, actionConfig: x })} />}
         {r.action === "assign_thread" && r.trigger === "email_received" ? <AssignThreadFields config={r.actionConfig ?? {}} onChange={(cfg) => setR({ ...r, actionConfig: cfg })} /> : (r.action === "create_task" && r.trigger !== "due_soon") ? <div className="grid grid-cols-2 gap-3">
           <Field label="Project">{(f) => <Select {...f} value={String(a.projectId ?? "")} onChange={(e) => setA("projectId", e.target.value)}><option value="">First project</option>{projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>}</Field>
-          <Field label="Assign to">{(f) => <Select {...f} value={String(a.assignee ?? "")} onChange={(e) => setA("assignee", e.target.value)}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{p.type === "agent" ? " (agent)" : ""}</option>)}</Select>}</Field>
+          <Field label="Assign to">{(f) => <Select {...f} value={String(a.assignee ?? "")} onChange={(e) => setA("assignee", e.target.value)}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}</Select>}</Field>
           <Field label="Priority">{(f) => <Select {...f} value={String(a.priority ?? "")} onChange={(e) => setA("priority", e.target.value)}><option value="">None</option><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="urgent">Urgent</option></Select>}</Field>
           <Field label="Due in days">{(f) => <Input {...f} inputMode="numeric" value={String(a.dueInDays ?? "")} onChange={(e) => setA("dueInDays", Number(e.target.value) || undefined)} />}</Field>
         </div> : r.action !== "notify" ? null : <Field label="Notify">{(f) => <Select {...f} value={String(a.to ?? "assignee")} onChange={(e) => setA("to", e.target.value)}><option value="assignee">The assignee</option><option value="creator">Whoever made the task</option>{R24_TRIGGER_LABEL[r.trigger ?? ""] && <option value="lead">The project lead</option>}<option value="admins">Workspace admins</option>{people.data?.filter((p) => p.type === "member").map((p) => <option key={p.id} value={p.id.slice(7)}>{p.name}</option>)}</Select>}</Field>}

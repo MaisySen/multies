@@ -18,7 +18,7 @@ import { Avatar, Badge, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task } from "./data";
+import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task, isAgentLike } from "./data";
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -112,8 +112,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <dt className="text-subtle">Assignee</dt>
             <dd><Select aria-label="Assignee" value={t.assigneeId ?? ""} onChange={(e) => save({ assignee: e.target.value || null })} className="h-8 text-[13px]">
               <option value="">Nobody</option>
-              <optgroup label="People">{people.data?.filter((p) => p.type === "member").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
-              <optgroup label="Agents">{people.data?.filter((p) => p.type === "agent").map((p) => <option key={p.id} value={p.id}>{p.name} (agent)</option>)}</optgroup>
+              <optgroup label="People">{people.data?.filter((p) => !isAgentLike(p)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+              <optgroup label="Agents">{people.data?.filter(isAgentLike).map((p) => <option key={p.id} value={p.id}>{p.name} (agent)</option>)}</optgroup>
             </Select></dd>
             <dt className="text-subtle">Priority</dt>
             <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px]">

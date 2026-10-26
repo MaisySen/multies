@@ -1097,34 +1097,31 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   expect(take()).toBe(0);
 });
 
-it("R26 (MB-87): a share link is 2 rows (the row and its token index), a revoke 2, and opening the public page writes nothing", async () => {
+it("R26 (DF-3): pausing or editing an agent member costs one members row plus one audit row, nothing when unchanged", async () => {
   const ctx = await makeTestApp();
-  const u = new Client(ctx.app);
-  await u.signup("olive@share.test", "Olive Owner");
-  const docId = (await u.post("/api/docs", { title: "Brief", text: "hello" })).body.doc.id as string;
-  const projectId = (await u.post("/api/projects", { name: "Site", key: "SITE" })).body.project.id as string;
-  await u.post("/api/tasks", { projectId, title: "Home page" });
-  const me = (await u.get("/api/account/me")).body;
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const { createShareLink, revokeShareLink, setShareLinksAllowed } = await import("@/server/services/suite/share-links");
   const take = meter(ctx.db);
+  const u = new Client(ctx.app);
+  await u.signup("owner@acme.io", "Olive Owner");
+  const me = (await u.get("/api/account/me")).body;
+  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const, sessionId: "s" };
+  const { createAgentMember } = await import("@/server/services/people");
+  const { createAgentMemberR26, updateAgentMember } = await import("@/server/services/suite/agent-members-r26");
   take();
-  const made = await createShareLink(ctx.deps, actor, { kind: "doc", targetId: docId });
-  // share_links is WITHOUT ROWID with one index (share_links_token_uq): 1 row + 1 index.
-  expect(take()).toBe(2);
-  const board = await createShareLink(ctx.deps, actor, { kind: "project_board", targetId: projectId, expiresInDays: 7 });
-  expect(take()).toBe(2);
-  // Opening the page and listing write nothing (views are not counted; the page's rate limit is in memory).
-  for (const t of [made.token, board.token, "x".repeat(43)]) await ctx.app.request(`/s/${t}`, { headers: { host: "localhost" } });
-  await u.get(`/api/share-links?kind=doc&targetId=${docId}`);
-  expect(take()).toBe(0);
-  await revokeShareLink(ctx.deps, actor, made.link.id);
-  expect(take()).toBe(2);
-  await revokeShareLink(ctx.deps, actor, made.link.id);
-  expect(take()).toBe(0);
-  // "Allow share links" lives in the workspace's metadata: one organizations row when it changes, nothing when it doesn't.
-  await setShareLinksAllowed(ctx.deps, actor, true);
-  expect(take()).toBe(0);
-  await setShareLinksAllowed(ctx.deps, actor, false);
-  expect(take()).toBeLessThanOrEqual(3);
+  await createAgentMember(ctx.deps, actor, { name: "Plain" });
+  const plain = take();
+  const made = await createAgentMemberR26(ctx.deps, actor, { name: "Builder", avatarColor: "#30B158" });
+  const colour = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true });
+  const paused = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true, title: null, avatarColor: "#30b158" });
+  const same = take();
+  await updateAgentMember(ctx.deps, actor, made.member.userId, { bio: "Ships code." });
+  const edited = take();
+  // Measured 25 October 2026: plain create 15, with a colour 19, pause 8, edit 8, unchanged 0.
+  // A colour or inbox at create adds one members row update to the existing create.
+  expect(colour - plain).toBeLessThanOrEqual(4);
+  // Pause or edit: the members row (its primary key and two indexes counted) plus one audit row (3 indexes).
+  expect(paused).toBeLessThanOrEqual(8);
+  expect(edited).toBeLessThanOrEqual(8);
+  expect(same).toBe(0);
 });

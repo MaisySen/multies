@@ -62,6 +62,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
 | `create_agent_inbox` | Create an agent inbox |
+| `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
 | `schedule_send` | Send an email later, as an agent; its approval rules apply when it goes |
@@ -128,6 +129,8 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
 | `list_people` | List people and agents |
+| `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
+| `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
 
 ### Chat
@@ -404,13 +407,3 @@ Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key 
 | Tool | What it does |
 | --- | --- |
 | `update_auth_email_hook` | Set how a Supabase auth email hook's emails look: `branding` with `logoUrl` (https), `brandColor` (#RRGGBB), `replyTo`, `footer`, per type `templates` (signup, invite, magiclink, recovery, email_change, email, reauthentication: `subject`, `intro`, `buttonLabel`) and `secondaryLanguage` (`lang`, the same per type `templates`, `note`), shown under the main text. Plain text only, placeholders `{appName}`, `{code}`, `{email}`. Keys left out stay, null clears one, `branding: null` goes back to the default email. Also `appName` and `from`. One row written |
-
-### Share links (R26, MB-87)
-
-Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link needs a full workspace key or token (read only keys and tokens get `read_only_key`); agent keys are refused; another workspace's doc, project or link is not found. The same is on REST as `/api/v1/share-links`.
-
-| Tool | What it does |
-| --- | --- |
-| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
-| `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
-| `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |

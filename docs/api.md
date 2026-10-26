@@ -806,15 +806,15 @@ The Supabase auth email hook (`/api/v1/auth-email-hooks`, see docs/transactional
 - `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` returns `{ preview: { type, to, subject, html, text, replyTo } }` with a sample link and the code `123456`. Nothing is sent or written. Optional body `{ email, branding }`: the address for `{email}` and unsaved branding to try (merged over the saved one). Read only keys can call it. An unknown `type` answers 422.
 - MCP: `update_auth_email_hook` (see docs/MCP.md).
 
-## Share links (R26, MB-87)
 
-A read only link to a doc or a project board for someone who is not in the workspace (a client or a partner), without making them a guest.
+## AI agent members (R26, DF-3)
 
-- `POST /api/v1/share-links` with `{ kind: "doc" | "project_board", targetId, expiresInDays?: 7 | 30 | null, showWorkspaceName?: boolean }` answers 201 with `{ link: { id, kind, targetId, showWorkspaceName, createdBy, createdAt, expiresAt, url } }`. `url` is `https://multies.si/s/<token>` (32 random bytes, base64url) and is shown only this once: only the token's SHA-256 is stored. `showWorkspaceName` defaults to true (the page says "Shared by <workspace>"); false hides it. One row written.
-- `GET /api/v1/share-links?kind=&targetId=` lists active links (not revoked, not expired), newest first, at most 200, with `allowShareLinks`. Read only keys can list.
-- `DELETE /api/v1/share-links/{id}` revokes a link at once. Revoking twice is fine.
-- The page `GET /s/<token>` needs no sign in. A doc shows its title and body (comments dropped, mentions as plain names, links into the app as plain text). A board shows its columns by status with each card's title, assignee initials, due date and labels; never notes, comments, files or custom fields. An unknown, revoked or expired token, a deleted target, or share links turned off answer 404 with "This link is no longer active". Headers: `Cache-Control: private, max-age=0`, `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, and the app's page CSP. 60 opens a minute per IP (429 after). Opening a link writes nothing (views are not counted).
-- Who: workspace members and admins (a session, or a full workspace key acting as its creator). Guests, read only keys (for create and revoke), agent keys and agent member keys get 401 or 403; another workspace's doc, project or link is 404.
-- Settings: `GET /api/share-links/settings` and `PUT /api/share-links/settings` `{ allowShareLinks }` (admins; on by default). Off makes create answer 403 `share_links_off` and every existing link show the inactive page; turning it back on brings unrevoked, unexpired links back.
-- Session routes (the app): `POST /api/share-links`, `GET /api/share-links?kind=&targetId=`, `DELETE /api/share-links/:id`.
-- MCP: `create_share_link`, `list_share_links`, `revoke_share_link` (see docs/MCP.md).
+Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as-members.md). Creating, keys and removal are in the People section (`POST /api/v1/agent-members`, `/agent-members/{id}/keys`, `DELETE /agent-members/{id}`). R26 adds:
+
+- `POST /api/v1/agent-members` also takes `avatarColor` (`#rrggbb`) and `inboxAgentId` (an existing agent inbox to link; mailbox stays optional). The answer's `member` carries `avatar: { color, initials }`, `disabled`, `inbox` and `keys`.
+- `GET /api/v1/agent-members`: `{ agents: [{ userId, name, title, bio, avatar, disabled, disabledAt, inbox, keys, joinedAt }] }`. Any key of the workspace.
+- `GET /api/v1/agent-members/{id}`: `{ agent }` for one, by user id. Another workspace's id answers 404.
+- `PATCH /api/v1/agent-members/{id}` with any of `{ name, title, bio, avatarColor, disabled, inboxAgentId }`. `disabled: true` pauses the agent: every key of it answers 401 until `disabled: false`. A paused agent stays in People and in task history, and leaves the assignee and mention pickers (`/api/tasks/assignees` marks it `paused: true`). Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403 `agent_key_scope`. One members row and one audit row (`agent_member.updated`, `agent_member.paused` or `agent_member.resumed`); an unchanged PATCH writes nothing.
+- Task assignees and chat people mark agent members `isAgent: true` (assignee `member:<userId>`), and a task assigned to one shows `assignee.isAgent: true` with no email.
+- Session routes for the app: `GET /api/team/agents`, `PATCH /api/team/agents/{userId}` (admins), and `POST /api/team/agents` with the same new fields.
+- MCP: `list_agent_members`, `create_agent_member`, `update_agent_member`.

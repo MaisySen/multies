@@ -7,7 +7,7 @@ export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
 export interface Status { id: string; name: string; category: Category; color: string; position: number }
 export interface Project { id: string; name: string; description: string; key: string; color: string; archived: boolean; statuses: Status[]; counts: Record<Category, number>; version: number }
-export interface Assignee { type: "member" | "agent"; id: string; name: string; email: string | null }
+export interface Assignee { type: "member" | "agent"; id: string; name: string; email: string | null; /** R26: an AI agent member. */ isAgent?: boolean }
 export interface Task {
   id: string; ref: string; projectId: string; number: number; title: string; notes: string;
   statusId: string; statusName: string; statusColor: string; status: Category;
@@ -42,7 +42,9 @@ export interface TaskDetail {
   blockedBy?: Task[]; blocking?: Task[]; time?: { totalSeconds: number; entries: import("./time").TimeEntry[] };
   customFields?: CustomField[];
 }
-export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null }
+export interface AssigneeOption { id: string; type: "member" | "agent"; name: string; email: string | null; /** R26: an AI agent member (type member). */ isAgent?: boolean; paused?: boolean }
+/** R26 (DF-3): agent inboxes and AI agent members both get the Agent badge. */
+export const isAgentLike = (p: { type: string; isAgent?: boolean }) => p.type === "agent" || !!p.isAgent;
 export interface SavedView { id: string; projectId: string | null; name: string; view: ViewKind; filters: Record<string, string>; shared: boolean }
 export type ViewKind = "board" | "list" | "calendar" | "timeline" | "sprints" | "workload";
 
@@ -58,7 +60,7 @@ export const sk = {
 };
 
 export const useProjects = () => useQuery({ queryKey: sk.projects, queryFn: async () => (await api.get<{ projects: Project[] }>("/projects")).projects, staleTime: 30_000 });
-export const useAssignees = () => useQuery({ queryKey: sk.assignees, queryFn: async () => (await api.get<{ assignees: AssigneeOption[] }>("/tasks/assignees")).assignees, staleTime: 120_000 });
+export const useAssignees = () => useQuery({ queryKey: sk.assignees, queryFn: async () => (await api.get<{ assignees: AssigneeOption[] }>("/tasks/assignees")).assignees.filter((p) => !p.paused), staleTime: 120_000 });
 export const useFields = (projectId: string | undefined) =>
   useQuery({ queryKey: ["fields", projectId ?? ""], enabled: !!projectId, staleTime: 30_000, queryFn: async () => (await api.get<{ fields: CustomField[] }>(`/fields?projectId=${projectId}`)).fields });
 export const useViews = () => useQuery({ queryKey: sk.views, queryFn: async () => (await api.get<{ views: SavedView[] }>("/tasks/views")).views });
