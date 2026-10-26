@@ -146,10 +146,18 @@ export function authCardPage(pathname: string): AuthCardPage | null {
   return m ? (m[1] === "forgot-password" ? "forgot" : (m[1] as AuthCardPage)) : null;
 }
 
+export const AUTH_CARD_END = "mm-auth-end";
+
 export function injectAuthCard(shell: string, markup: string): string {
   if (!shell.includes(EMPTY_ROOT)) throw new Error("sign in shell has no empty #root");
   if (!markup.trim()) throw new Error("empty sign in markup");
-  return shell.replace(EMPTY_ROOT, `<div id="root" data-prerendered="auth">${markup}</div>`);
+  // R35: the card arrives over the network in pieces, and the page centres it, so a paint while only the logo was
+  // parsed drew a 60 px tall card that then grew to full size (Lighthouse CLS 0.14 to 0.17 on /login). The expect
+  // link holds rendering until the end marker after the card is parsed (Chrome 124+; other browsers ignore it).
+  const expect = `<link rel="expect" href="#${AUTH_CARD_END}" blocking="render">`;
+  return shell
+    .replace("</head>", `  ${expect}\n  </head>`)
+    .replace(EMPTY_ROOT, `<div id="root" data-prerendered="auth">${markup}</div><span id="${AUTH_CARD_END}" hidden></span>`);
 }
 
 /**

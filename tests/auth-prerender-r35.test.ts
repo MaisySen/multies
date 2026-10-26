@@ -74,3 +74,13 @@ describe("R35 social buttons are in the prerendered card", () => {
     expect(withGoogle).toContain("social-google-oauth2");
   });
 });
+
+describe("R35 no paint of a half parsed card", () => {
+  it("holds rendering until the end marker after the card is parsed", () => {
+    const k = loginVariantKey(prod);
+    const html = loginHtmlFor("/login", "", { shell, cards: { [k]: "<main>in</main>" } }, prod)!;
+    expect(html).toContain('<link rel="expect" href="#mm-auth-end" blocking="render">');
+    expect(html.indexOf('id="mm-auth-end"')).toBeGreaterThan(html.indexOf("<main>in</main>"));
+    expect(html.indexOf('rel="expect"')).toBeLessThan(html.indexOf("</head>"));
+  });
+});
