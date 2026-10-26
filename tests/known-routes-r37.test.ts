@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { isKnownPage } from "../src/shared/known-routes";
@@ -67,5 +67,19 @@ describe("public copy names no AI vendor (R37)", () => {
     const text = readFileSync(join(root, f), "utf8");
     const hit = text.match(VENDORS);
     expect(hit?.[0] ?? null, f).toBeNull();
+  });
+});
+
+// The MCP tool descriptions are public too (/api/mcp-tools, /developers/mcp and /developers/mcp.md).
+describe("MCP tool descriptions name no AI vendor (R37)", () => {
+  const dir = join(root, "src/server/routes");
+  const files = readdirSync(dir).filter((f) => /^mcp-.*\.ts$/.test(f));
+  it("finds the MCP tool files", () => expect(files.length).toBeGreaterThan(10));
+  it.each(files)("%s", (f) => {
+    const code = readFileSync(join(dir, f), "utf8")
+      .split("\n")
+      .filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l))
+      .join("\n");
+    expect(code.match(VENDORS)?.[0] ?? null, f).toBeNull();
   });
 });
