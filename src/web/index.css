@@ -343,3 +343,16 @@
 
 /* R31: the task or row that has keyboard focus (J/K). */
 [data-kb-focus] { outline: 2px solid #0071E3; outline-offset: -2px; border-radius: 8px; }
+
+/* R38 timeline labels: no ellipsis inside a bar; the rest of the name sits to the right of the bar. */
+.mm-gantt .mm-bar-label { position: relative; z-index: 2; display: flex; align-items: center; height: 100%; width: 100%; overflow: visible; }
+.mm-gantt .mm-bar-in { padding: 0 8px; white-space: nowrap; color: #fff; font-weight: 600; font-size: 12px; letter-spacing: -0.005em; }
+.mm-gantt .mm-bar-measure { position: absolute; left: 0; top: 0; visibility: hidden; pointer-events: none; }
+.mm-gantt .mm-bar-out { position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%); white-space: nowrap; color: var(--color-fg); font-size: 12.5px; font-weight: 500; pointer-events: none; padding: 1px 6px; margin-left: -6px; border-radius: 6px; background: var(--wx-background, var(--color-surface)); }
+.mm-gantt .wx-bar { overflow: visible; }
+.mm-gantt .mm-name-cell { position: relative; display: flex; align-items: center; height: 100%; width: 100%; padding-right: 8px; }
+.mm-gantt .mm-name-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; line-height: 1.25; font-size: 13px; color: var(--color-fg); overflow-wrap: anywhere; }
+.mm-gantt .mm-name-key { margin-right: 6px; font-size: 11.5px; font-weight: 600; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.mm-gantt .mm-name-tip { position: absolute; left: 0; top: calc(100% - 4px); z-index: 30; max-width: 320px; padding: 6px 10px; border-radius: 10px; background: var(--color-elevated); color: var(--color-fg); border: 1px solid var(--color-line); box-shadow: 0 8px 24px rgb(0 0 0 / 0.18); font-size: 12.5px; white-space: normal; }
+.mm-gantt .wx-resizer { cursor: col-resize; }
+.mm-gantt .wx-resizer:hover { background-color: var(--color-brand); }

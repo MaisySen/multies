@@ -193,7 +193,8 @@ export function TodayLine({ root, anchor, cellWidth, version }: { root: React.Re
   return createPortal(
     <div aria-hidden data-testid="timeline-today" className="pointer-events-none absolute inset-y-0 z-[5] motion-safe:animate-[fadeIn_200ms_ease-out]" style={{ left: spot.x - 1 }}>
       <div className="absolute inset-y-0 left-0 w-0.5 rounded-full bg-[#0071E3] opacity-90 shadow-[0_0_0_1px_rgb(0_113_227/0.12)]" />
-      <div className="absolute left-0 top-1 -translate-x-1/2 rounded-full bg-[#0071E3] px-1.5 py-px text-[10.5px] font-semibold leading-4 text-white shadow-sm">Today</div>
+      <div className="absolute left-0 top-0 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#0071E3]" />
+      <div className="absolute bottom-2 left-0 -translate-x-1/2 rounded-full bg-[#0071E3] px-1.5 py-px text-[10.5px] font-semibold leading-4 text-white shadow-sm">Today</div>
     </div>,
     spot.host,
   );

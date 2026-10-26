@@ -332,7 +332,7 @@ export function R38WidgetBody({ w, data }: { w: WidgetShape; data: any }): React
               <th scope="col" className="px-2 py-1.5 text-right font-semibold">Total</th></tr></thead>
             <tbody>{d.rows.map((r: any) => (
               <tr key={r.key} className="group">
-                <th scope="row" className="sticky left-0 max-w-[11rem] truncate bg-surface px-2 py-1.5 text-left font-normal">{r.label}</th>
+                <th scope="row" className="sticky left-0 max-w-[11rem] truncate bg-surface px-2 py-1.5 text-left font-normal" title={r.label}>{r.label}</th>
                 {d.columns.map((c: any) => { const n = r.cells[c.key] ?? 0; return (
                   <td key={c.key} className="px-0.5 py-0.5 text-right tabular-nums">
                     <span className={cn("block rounded-md px-1.5 py-1", !n && "text-subtle")} style={n ? { background: `rgb(0 113 227 / ${0.08 + 0.42 * (n / max)})` } : undefined}>{n || "0"}</span>
@@ -374,7 +374,7 @@ export function R38WidgetBody({ w, data }: { w: WidgetShape; data: any }): React
             <li key={t.id}><Link to={`/app/tasks?view=list&task=${t.id}`} className="flex items-center gap-2 rounded-md py-2 transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
               <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_DOT[t.status] }} aria-label={t.status === "done" ? "Done" : t.status === "doing" ? "In progress" : "To do"} />
               <span className="font-mono text-[12px] text-subtle">{t.ref}</span>
-              <span className={cn("truncate", t.status === "done" && "text-muted line-through")}>{t.title}</span>
+              <span className={cn("line-clamp-2 [overflow-wrap:anywhere]", t.status === "done" && "text-muted line-through")} title={t.title}>{t.title}</span>
               {(t.priority === "urgent" || t.priority === "high") && <IconFlag className={cn("h-3.5 w-3.5 shrink-0", t.priority === "urgent" ? "text-bad" : "text-warn")} aria-label={t.priority === "urgent" ? "Urgent" : "High priority"} />}
               <span className={cn("ml-auto shrink-0 text-[12px]", t.overdue ? "text-warn" : "text-muted")}>{t.due ? new Date(t.due).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : t.assignee ?? ""}</span>
             </Link></li>
@@ -396,7 +396,7 @@ export function R38WidgetBody({ w, data }: { w: WidgetShape; data: any }): React
             </BarChart></ResponsiveContainer></div>
           </div>
           <ul className="space-y-2 self-center text-[12.5px]">{d.people.map((p: any) => (
-            <li key={p.key}><div className="flex justify-between gap-2"><span className="truncate">{p.name}</span><span className="tabular-nums text-muted">{fmt(p.hours)} h</span></div>
+            <li key={p.key}><div className="flex justify-between gap-2"><span className="truncate" title={p.name}>{p.name}</span><span className="tabular-nums text-muted">{fmt(p.hours)} h</span></div>
               <div className="mt-1 h-1.5 rounded-full bg-fill"><div className="h-full rounded-full" style={{ width: `${(p.hours / d.people[0].hours) * 100}%`, background: BRAND }} /></div></li>
           ))}</ul>
         </div>

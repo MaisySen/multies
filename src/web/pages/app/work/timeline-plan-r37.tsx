@@ -156,7 +156,7 @@ export function PlannedTimeline({ tasks, projectId, onOpen, onDates }: { tasks: 
             <li key={`${c.from}-${c.to}`} className="flex items-center gap-3 py-3 motion-safe:animate-[fadeIn_160ms_ease-out]">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-bad-soft text-bad"><IconWarning className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
-                <button type="button" className="block max-w-full truncate text-left text-[13.5px] font-medium text-fg hover:underline" onClick={() => { setClashesOpen(false); onOpen(c.blocked.id); }}>{c.blocked.ref} {c.blocked.title}</button>
+                <button type="button" className="block max-w-full text-left text-[13.5px] font-medium leading-snug text-fg line-clamp-2 [overflow-wrap:anywhere] hover:underline" title={`${c.blocked.ref} ${c.blocked.title}`} onClick={() => { setClashesOpen(false); onOpen(c.blocked.id); }}>{c.blocked.ref} {c.blocked.title}</button>
                 <p className="line-clamp-2 text-[12px] text-muted">{clashText(c)}</p>
               </div>
               <span className="hidden shrink-0 rounded-full bg-fill px-2 py-0.5 text-[11.5px] tabular-nums text-muted sm:inline">{days(c.overlapDays)} over</span>
@@ -175,7 +175,7 @@ function MoveList({ rows, workingDays, linkInto, onLag }: { rows: Moved[]; worki
       {rows.map((m) => (
         <li key={m.id} className="group flex items-center gap-3 py-2.5">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13.5px] font-medium text-fg">{m.ref} {m.title}</p>
+            <p className="line-clamp-2 text-[13.5px] font-medium leading-snug text-fg [overflow-wrap:anywhere]" title={`${m.ref} ${m.title}`}>{m.ref} {m.title}</p>
             <p className="flex items-center gap-1.5 text-[12px] text-muted"><span className="line-through decoration-subtle/60">{range(m.from)}</span><IconArrowRight className="h-3 w-3 text-subtle" /><span className="text-fg">{range(m.to)}</span></p>
           </div>
           {linkInto?.(m.id) && <LagChip blockedId={m.id} blockerId={linkInto(m.id)!.from} lag={linkInto(m.id)!.lag ?? 0} workingDays={workingDays} onSaved={onLag} />}

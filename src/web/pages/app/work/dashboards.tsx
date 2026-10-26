@@ -225,7 +225,7 @@ function Donut({ rows }: { rows: { label: string; count: number; color?: string 
       </PieChart></ResponsiveContainer>
         <div className="pointer-events-none absolute inset-0 grid place-items-center"><div className="text-center"><div className="text-2xl font-semibold tabular-nums">{total}</div><div className="text-[11px] text-muted">tasks</div></div></div>
       </div>
-      <ul className="w-40 space-y-1.5 text-[12.5px]">{rows.map((r, i) => <li key={r.label} className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color || GREYS[i % GREYS.length] }} /><span className="truncate">{r.label}</span><span className="ml-auto tabular-nums text-muted">{r.count}</span></li>)}</ul>
+      <ul className="w-40 space-y-1.5 text-[12.5px]">{rows.map((r, i) => <li key={r.label} className="flex items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color || GREYS[i % GREYS.length] }} /><span className="truncate" title={r.label}>{r.label}</span><span className="ml-auto tabular-nums text-muted">{r.count}</span></li>)}</ul>
     </div>
   );
 }
@@ -240,7 +240,7 @@ function Lines({ rows, x, lines }: { rows: Record<string, unknown>[]; x: string;
 }
 
 function Table({ rows }: { rows: { label: string; value: string | number; muted?: string }[] }) {
-  return <ul className="divide-y divide-line text-[13px]">{rows.map((r, i) => <li key={i} className="flex items-center gap-2 py-2"><span className="truncate">{r.label}</span>{r.muted && <span className="text-[12px] text-subtle">{r.muted}</span>}<span className="ml-auto tabular-nums text-muted">{r.value}</span></li>)}</ul>;
+  return <ul className="divide-y divide-line text-[13px]">{rows.map((r, i) => <li key={i} className="flex items-center gap-2 py-2"><span className="line-clamp-2 [overflow-wrap:anywhere]" title={r.label}>{r.label}</span>{r.muted && <span className="text-[12px] text-subtle">{r.muted}</span>}<span className="ml-auto tabular-nums text-muted">{r.value}</span></li>)}</ul>;
 }
 
 function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
@@ -267,7 +267,7 @@ function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
           {!list.length ? <Empty text="Nothing is due this week." /> : (
             <ul className="divide-y divide-line text-[13px]">{list.map((t) => (
               <li key={t.id}><Link to={`/app/tasks?view=list&task=${t.id}`} className="flex items-center gap-2 py-2 hover:text-fg">
-                <span className="font-mono text-[12px] text-subtle">{t.ref}</span><span className="truncate">{t.title}</span>
+                <span className="font-mono text-[12px] text-subtle">{t.ref}</span><span className="line-clamp-2 [overflow-wrap:anywhere]" title={t.title}>{t.title}</span>
                 <span className={cn("ml-auto shrink-0 text-[12px]", t.overdue ? "text-warn" : "text-muted")}>{t.due ? new Date(t.due).toLocaleDateString(undefined, { day: "numeric", month: "short" }) : ""}</span>
               </Link></li>
             ))}</ul>
@@ -288,7 +288,7 @@ function WidgetBody({ w, data }: { w: Widget; data: unknown }) {
     case "goals": {
       const gs = d.goals as { id: string; name: string; progress: number }[];
       if (!gs.length) return <Empty text="No goals yet. Add them on the Goals page." />;
-      return <ul className="space-y-3 text-[13px]">{gs.map((g) => <li key={g.id}><div className="flex justify-between"><span className="truncate">{g.name}</span><span className="tabular-nums text-muted">{g.progress}%</span></div><div className="mt-1 h-1.5 rounded-full bg-fill"><div className="h-full rounded-full" style={{ width: `${g.progress}%`, background: BRAND }} /></div></li>)}</ul>;
+      return <ul className="space-y-3 text-[13px]">{gs.map((g) => <li key={g.id}><div className="flex justify-between"><span className="truncate" title={g.name}>{g.name}</span><span className="tabular-nums text-muted">{g.progress}%</span></div><div className="mt-1 h-1.5 rounded-full bg-fill"><div className="h-full rounded-full" style={{ width: `${g.progress}%`, background: BRAND }} /></div></li>)}</ul>;
     }
     case "reply_times": {
       const rows = d.rows as { key: string; label: string | null; replied: number; medianFirstResponseMs: number | null; medianResolutionMs: number | null }[];
