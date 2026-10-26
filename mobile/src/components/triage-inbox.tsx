@@ -11,6 +11,8 @@ import { UndoToast } from "./undo-toast";
 import { LegacyNotifications } from "./notifications-legacy";
 import { useReadNotifications } from "@/lib/queries";
 import { useTriage, useTriageAction } from "@/lib/triage-queries";
+import { useBlockedSet } from "@/lib/queries";
+import { dropEvent } from "@/lib/moderation";
 import { TRIAGE_VIEWS, backLabel, triageMode, type TriageView } from "@/lib/triage";
 import { command, commandTitle, createHandlers, type CommandId } from "@/lib/commands";
 import { openCommandSheet } from "@/lib/command-sheet-store";
@@ -62,7 +64,9 @@ export function TriageInbox({ tab = false }: { tab?: boolean }) {
     pickSnooze: () => setSnoozeFor(n),
   });
 
-  const items = useMemo(() => (mode.kind === "triage" ? mode.items.filter((n) => !undo.hidden.has(n.id)) : []), [mode, undo.hidden]);
+  // R35: activity from people you blocked (a mention, a reply) is left out on the phone too.
+  const blocked = useBlockedSet();
+  const items = useMemo(() => (mode.kind === "triage" ? mode.items.filter((n) => !undo.hidden.has(n.id) && !(n.actor && n.actor.type !== "agent" && dropEvent({ author: n.actor }, blocked))) : []), [mode, undo.hidden, blocked]);
 
   const header = tab ? (
     <LargeTitle title="Activity" top={insets.top} right={(
