@@ -104,3 +104,73 @@ export function routeChunkMap(manifest: Record<string, { file: string; imports?:
   }
   return out;
 }
+
+/**
+ * R34 (perf2): the sign in card, prerendered at build time for each way a deployment can be set up, so /login paints
+ * from the HTML and its inline CSS before any of the app's code has run (Lighthouse mobile: the card waited on about
+ * 210 KB of JS, 86% of LCP was render delay). The server picks the variant from its own config, the same config the
+ * providers answer and the public config come from, so the card the HTML shows is the card React then renders.
+ */
+export interface LoginVariant { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean }
+
+export const loginVariantKey = (v: LoginVariant) => `idp${+v.idp}-pw${+v.password}-g${+v.google}-gh${+v.github}-demo${+v.demo}`;
+
+/** Every setup the build prerenders: the identity provider (with or without the password form), or the app's own
+ * form with any mix of Google and GitHub; each with and without the demo button. Anything else gets the plain shell. */
+export const LOGIN_VARIANTS: LoginVariant[] = [true, false].flatMap((demo) => [
+  { idp: true, password: false, google: false, github: false, demo },
+  { idp: true, password: true, google: false, github: false, demo },
+  ...[false, true].flatMap((google) => [false, true].map((github) => ({ idp: false, password: true, google, github, demo }))),
+]);
+
+/** The build output for it: the sign in shell (critical CSS inline, main stylesheet non-blocking) and one card per variant. */
+export interface LoginPrerender { shell: string; cards: Record<string, string> }
+
+export const LOGIN_CARD_PATH = /^\/login\/?$/;
+
+export function injectAuthCard(shell: string, markup: string): string {
+  if (!shell.includes(EMPTY_ROOT)) throw new Error("sign in shell has no empty #root");
+  if (!markup.trim()) throw new Error("empty sign in markup");
+  return shell.replace(EMPTY_ROOT, `<div id="root" data-prerendered="auth">${markup}</div>`);
+}
+
+/**
+ * The prerendered sign in page for this request, or null for the usual shell. Only /login with no query: an error,
+ * sso, email or next parameter changes the card, so those keep the shell and the app draws the card as before.
+ */
+export function loginHtmlFor(pathname: string, search: string, prerender: LoginPrerender | null | undefined, variant: LoginVariant | null): string | null {
+  if (!prerender || !variant || !LOGIN_CARD_PATH.test(pathname) || (search && search !== "?")) return null;
+  const card = prerender.cards[loginVariantKey(variant)];
+  return card ? injectAuthCard(prerender.shell, card) : null;
+}
+
+/**
+ * Inlines the critical CSS and turns the main stylesheet into a non-blocking one: media="print" until main.tsx flips
+ * it to "all" (no inline script, so the CSP stays as it is), plus a noscript copy for browsers with JS off.
+ */
+export function withCriticalCss(shell: string, css: string): string {
+  const re = /<link rel="stylesheet" crossorigin href="([^"]+)">/g;
+  if (!re.test(shell)) throw new Error("shell has no stylesheet link");
+  if (!css.trim()) throw new Error("empty critical CSS");
+  let first = true;
+  return shell.replace(re, (_m, href: string) => {
+    const style = first ? `<style data-critical>${css.replace(/<\/style/gi, "<\\/style")}</style>\n    ` : "";
+    first = false;
+    return `${style}<link rel="stylesheet" crossorigin href="${href}" media="print" data-defer-css><noscript><link rel="stylesheet" crossorigin href="${href}"></noscript>`;
+  });
+}
+
+/**
+ * R34 (perf2): on the prerendered sign in page the app's code starts after the card has painted: the module script and
+ * its modulepreload links move into data attributes of /login-boot.js (a deferred file, so no inline script), which adds
+ * them back one frame after first paint. The card is HTML, so nothing waits on the code to be seen.
+ */
+export const LOGIN_BOOT = "/login-boot.js";
+export function startCodeAfterPaint(html: string): string {
+  const entry = html.match(/<script type="module" crossorigin(?: fetchpriority="low")? src="([^"]+)"><\/script>/);
+  if (!entry) throw new Error("shell has no module script");
+  const preloads: string[] = [];
+  let out = html.replace(/\s*<link rel="modulepreload" crossorigin(?: fetchpriority="low")? href="([^"]+)">/g, (_m, href: string) => { preloads.push(href); return ""; });
+  out = out.replace(entry[0], `<script src="${LOGIN_BOOT}" defer data-entry="${entry[1]}" data-preload="${preloads.join(" ")}"></script>`);
+  return out;
+}

@@ -5,6 +5,7 @@ import { api } from "@/web/lib/api";
 import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, StatTile, tableStyles as T } from "@/web/components/ui/misc";
 import { PromptDialog } from "@/web/components/ui/confirm";
+import { Dialog } from "@/web/components/ui/dialog"; // R34
 import { Building2, Globe, Inbox, Send, ShieldCheck, Users } from "lucide-react";
 import { Button } from "@/web/components/ui/button";
 import { showError } from "@/web/lib/show-error";
@@ -15,7 +16,7 @@ import { WriteBudgetMeter } from "./admin-write-budget"; // R32
 
 interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
-  tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null }[];
+  tenants: { id: string; name: string; plan: string; isDemo: boolean; createdAt: string; members: number; agents: number; domains: number; suspendedAt: string | null; suspendedReason: string | null; sendCapDaily: number | null; pastDueSince: string | null; meetingMinutesCap?: number | null; meetingMinutes?: number }[];
   integrations: Record<string, boolean | string>;
 }
 
@@ -122,13 +123,46 @@ function TenantControls({ t }: { t: Tenant }) {
   const suspend = useMutation({ mutationFn: (reason: string) => api.post(`/admin/workspaces/${t.id}/suspend`, { reason }), onSuccess: done("Workspace suspended"), onError: showError });
   const unsuspend = useMutation({ mutationFn: () => api.post(`/admin/workspaces/${t.id}/unsuspend`), onSuccess: done("Workspace restored"), onError: showError });
   const cap = useMutation({ mutationFn: (v: number | null) => api.put(`/admin/workspaces/${t.id}/send-cap`, { cap: v }), onSuccess: done("Send cap saved"), onError: showError });
-  const [ask, setAsk] = useState<"suspend" | "cap" | null>(null);
+  // R34 (MB-169): the kill switch, and (MB-166) mail a sending limit queued until tomorrow, with Send anyway.
+  const sendingOff = t.sendCapDaily === 0;
+  const sending = useMutation({ mutationFn: (enabled: boolean) => api.put(`/admin/workspaces/${t.id}/sending`, { enabled }), onSuccess: done(sendingOff ? "Sending turned on" : "Sending turned off"), onError: showError });
+  const [showQueued, setShowQueued] = useState(false);
+  const queued = useQuery({ queryKey: ["admin", "queued-sends", t.id], queryFn: () => api.get<{ queued: { id: string; subject: string; reason: string; recipients: number; dueAt: string; forced: boolean }[] }>(`/admin/workspaces/${t.id}/queued-sends`), enabled: showQueued });
+  const sendAnyway = useMutation({ mutationFn: (id: string) => api.post(`/admin/workspaces/${t.id}/queued-sends/${id}/send`), onSuccess: () => { toast.success("It goes on the next pass"); void queued.refetch(); }, onError: showError });
+  const minutes = useMutation({ mutationFn: (v: number | null) => api.put(`/admin/workspaces/${t.id}/meeting-cap`, { cap: v }), onSuccess: done("Call minutes cap saved"), onError: showError });
+  const [ask, setAsk] = useState<"suspend" | "cap" | "minutes" | null>(null);
+  // R34 (MB-171): free workspaces get 1,000 call participant-minutes a month unless the operator sets a cap.
+  const minuteCap = t.meetingMinutesCap ?? (t.plan === "starter" ? 1000 : null);
   return (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       {t.suspendedAt
         ? <Button size="sm" variant="secondary" loading={unsuspend.isPending} onClick={() => unsuspend.mutate()} title={t.suspendedReason ?? ""}>Restore</Button>
         : <Button size="sm" variant="ghost" loading={suspend.isPending} onClick={() => setAsk("suspend")}>Suspend</Button>}
-      <Button size="sm" variant="ghost" loading={cap.isPending} onClick={() => setAsk("cap")}>{t.sendCapDaily !== null ? `Cap ${t.sendCapDaily}` : "Set cap"}</Button>
+      <Button size="sm" variant={sendingOff ? "danger" : "ghost"} loading={sending.isPending} data-testid="admin-sending-toggle" aria-pressed={sendingOff} onClick={() => sending.mutate(sendingOff)}>{sendingOff ? "Sending off" : "Sending on"}</Button>
+      {!sendingOff && <Button size="sm" variant="ghost" loading={cap.isPending} onClick={() => setAsk("cap")}>{t.sendCapDaily !== null ? `Cap ${t.sendCapDaily}` : "Set cap"}</Button>}
+      <Button size="sm" variant="ghost" onClick={() => setShowQueued(true)}>Queued</Button>
+      <Dialog open={showQueued} onClose={() => setShowQueued(false)} title={`Queued until tomorrow: ${t.name}`} description="Mail a sending limit held. It goes at midnight UTC, or now with Send anyway.">
+        <ul className="divide-y divide-line px-6 pb-5">
+          {queued.data?.queued.length === 0 && <li className="py-3 text-sm text-muted">Nothing queued.</li>}
+          {queued.data?.queued.map((q) => (
+            <li key={q.id} className="flex items-start justify-between gap-3 py-3">
+              <span className="min-w-0 text-sm"><span className="block truncate font-medium">{q.subject || "(no subject)"}</span><span className="block text-xs text-subtle">{q.recipients} recipient{q.recipients === 1 ? "" : "s"}. {q.reason}</span></span>
+              <Button size="sm" variant="secondary" disabled={q.forced} loading={sendAnyway.isPending && sendAnyway.variables === q.id} onClick={() => sendAnyway.mutate(q.id)}>{q.forced ? "Sending" : "Send anyway"}</Button>
+            </li>
+          ))}
+        </ul>
+      </Dialog>
+      <Button size="sm" variant="ghost" loading={minutes.isPending} onClick={() => setAsk("minutes")} title="Call participant-minutes this month" data-testid="tenant-call-minutes">
+        {`Calls ${(t.meetingMinutes ?? 0).toLocaleString(LOCALE)}${minuteCap !== null ? ` of ${minuteCap.toLocaleString(LOCALE)}` : ""} min`}
+      </Button>
+      <PromptDialog
+        open={ask === "minutes"} onClose={() => setAsk(null)} busy={minutes.isPending}
+        title="Call minutes a month" description={`Participant-minutes ${t.name} can use on calls each month (two people for 30 minutes is 60). Used this month: ${(t.meetingMinutes ?? 0).toLocaleString(LOCALE)}.`}
+        label="Minutes a month" hint="Leave empty for the plan's rule: 1,000 on Free, no cap on paid plans. 0 stops new calls." inputMode="numeric" placeholder="Plan rule"
+        initial={t.meetingMinutesCap?.toString() ?? ""} confirmLabel="Save cap"
+        validate={(v) => (v.trim() === "" || /^\d+$/.test(v.trim()) ? null : "Enter a whole number, or leave it empty.")}
+        onSubmit={(v) => { minutes.mutate(v.trim() === "" ? null : Number(v.trim()), { onSettled: () => setAsk(null) }); }}
+      />
       <PromptDialog
         open={ask === "suspend"} onClose={() => setAsk(null)} busy={suspend.isPending}
         title={`Suspend ${t.name}?`} description="Sending and API access stop straight away. Mail still arrives. You can restore it any time."

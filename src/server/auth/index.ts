@@ -6,7 +6,7 @@
  */
 export { authOptions, createAuth, authFor, type Auth } from "./options";
 export { SSO_METHODS, loginMethodFor } from "./session";
-export { authMode, localPasswordEnabled, idpIssuer, type AuthMode } from "./config";
+export { authMode, providersAnswer, loginVariant, localPasswordEnabled, idpIssuer, type AuthMode } from "./config";
 export { idpLogoutUrl, IDP_ID } from "./providers";
 export { verifyIdToken, IdTokenError } from "./tokens";
 export { mayLinkByEmail } from "./linking";

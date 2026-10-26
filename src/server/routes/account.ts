@@ -9,7 +9,7 @@ import { accounts, members, organizations, sessions, users } from "../db/schema"
 import { deleteAuth0User, resendAuth0Verification, sendAuth0PasswordReset } from "../services/auth0-management";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
-import { authFor, authMode } from "../auth";
+import { authFor, providersAnswer } from "../auth";
 import { verifyPassword } from "../lib/crypto";
 import { RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
@@ -56,10 +56,8 @@ export function accountRoutes() {
   const demoLimiter = new RateLimiter(5, 60 * 60_000);
   return new Hono<AppEnv>()
     .get("/providers", (c) => {
-      const { auth } = c.var.deps.config;
-      const mode = authMode(c.var.deps.config);
       // idp: the one sign in and sign up page (Universal Login). password: the app's own form.
-      return c.json({ idp: mode.idp, password: mode.localPassword, google: !mode.idp && !!auth.social.google, github: !mode.idp && !!auth.social.github, auth0: mode.idp });
+      return c.json(providersAnswer(c.var.deps.config));
     })
     /** Opens a sandbox workspace with sample data. Only when DEMO_MODE is on. */
     .post("/demo", async (c) => {

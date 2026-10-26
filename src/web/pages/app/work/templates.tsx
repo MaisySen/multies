@@ -6,6 +6,7 @@ import { FileText, LayoutTemplate, Plus, Trash2 } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -16,6 +17,7 @@ interface Project { id: string; name: string }
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function TemplatesPage() {
+  const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [using, setUsing] = useState<Template | null>(null);
@@ -26,13 +28,14 @@ export function TemplatesPage() {
   const starters = (q.data ?? []).filter((t) => t.builtin);
   const mine = (q.data ?? []).filter((t) => !t.builtin);
   const remove = async (t: Template) => {
-    if (!window.confirm(`Delete the template "${t.name}"? Projects made from it stay.`)) return;
+    if (!(await confirm({ title: `Delete the template ${t.name}?`, description: "Projects made from it stay as they are.", confirmLabel: "Delete template" }))) return;
     try { await api.del(`/templates/${t.id}`); await qc.invalidateQueries({ queryKey: ["templates"] }); } catch (e) { showError(e as Error); }
   };
   const card = (t: Template) => (
     <Card key={t.id} className="flex flex-col gap-2" data-testid="template-card">
       <div className="flex items-start justify-between gap-2">
         <div><h3 className="font-semibold">{t.name}</h3><p className="text-[12px] text-subtle">{t.category} · {t.kind === "project" ? `project, ${t.taskCount} tasks` : t.kind === "doc" ? "doc" : "task"}</p></div>
+      {dialogs}
         {!t.builtin && <Button variant="ghost" size="icon" aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}><Trash2 className="h-4 w-4" /></Button>}
       </div>
       {t.description && <p className="text-[13.5px] text-muted">{t.description}</p>}

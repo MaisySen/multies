@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Lock, MessageSquareText, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Textarea } from "@/web/components/ui/input";
 import { Avatar, Card, Kbd } from "@/web/components/ui/misc";
 import { fullDate, initials, mailDate } from "@/web/lib/format";
@@ -119,6 +120,7 @@ function NoteEditor({ people, initial = "", submitLabel, busy, onSubmit, onCance
 
 /** "Team notes" under a thread's messages. */
 export function ThreadNotes({ threadId }: { threadId: string }) {
+  const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const key = ["thread-notes", threadId];
   const notes = useQuery({ queryKey: key, queryFn: () => api.get<NotesResponse>(`/threads/${encodeURIComponent(threadId)}/comments`), refetchInterval: 30_000 });
@@ -142,6 +144,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
 
   return (
     <Card className="border-warn/25 bg-warn-soft/60 p-4" aria-label="Team notes">
+      {dialogs}
       <div className="flex items-center gap-2">
         <Lock className="h-4 w-4 text-warn" aria-hidden />
         <h3 className="text-sm font-semibold">Team notes</h3>
@@ -162,7 +165,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
                     {n.editedAt && <span className="text-xs text-subtle">edited</span>}
                     <span className="ml-auto flex gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
                       {n.canEdit && <button type="button" onClick={() => setEditing(n.id)} className="rounded p-1 text-subtle hover:bg-hover hover:text-fg" aria-label="Edit note"><Pencil className="h-3.5 w-3.5" /></button>}
-                      {n.canDelete && <button type="button" onClick={() => { if (confirm("Delete this note?")) del.mutate(n.id); }} className="rounded p-1 text-subtle hover:bg-hover hover:text-bad" aria-label="Delete note"><Trash2 className="h-3.5 w-3.5" /></button>}
+                      {n.canDelete && <button type="button" onClick={async () => { if (await confirm({ title: "Delete this team note?", description: n.body.length > 80 ? `"${n.body.slice(0, 80)}..."` : `"${n.body}"`, confirmLabel: "Delete note" })) del.mutate(n.id); }} className="rounded p-1 text-subtle hover:bg-hover hover:text-bad" aria-label="Delete note"><Trash2 className="h-3.5 w-3.5" /></button>}
                     </span>
                   </div>
                   {editing === n.id

@@ -17,6 +17,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Card, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
@@ -109,6 +110,7 @@ function NameDialog({ open, title, initial, onClose, onSave }: { open: boolean; 
 }
 
 function DashboardView({ id }: { id: string }) {
+  const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const nav = useNavigate();
   const tz = zone();
@@ -146,6 +148,7 @@ function DashboardView({ id }: { id: string }) {
   if (doc.isError) return <EmptyState icon={<LayoutDashboard className="h-6 w-6" />} title="Dashboard not found" body="It was removed, or it is private to someone else." action={<Link to="/app/dashboards" className="text-brand-hover hover:underline">All dashboards</Link>} />;
   return (
     <div data-testid="dashboard-view">
+      {dialogs}
       <Link to="/app/dashboards" className="mb-2 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg"><ChevronLeft className="h-3.5 w-3.5" />Dashboards</Link>
       <PageHeader title={d?.name ?? ""}
         actions={d && <div className="flex items-center gap-3">
@@ -154,7 +157,7 @@ function DashboardView({ id }: { id: string }) {
           <Button onClick={() => setAdding(true)} disabled={widgets.length >= 24}><Plus className="h-4 w-4" />Add widget</Button>
           <Menu trigger={<Button variant="secondary" size="sm" aria-label="More"><MoreHorizontal className="h-4 w-4" /></Button>}>
             <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(true)}>Rename</MenuItem>
-            <MenuItem danger icon={<Trash2 className="h-4 w-4" />} onSelect={() => { if (window.confirm(`Remove ${d.name}? The widgets go with it; your tasks and mail stay as they are.`)) remove.mutate(); }}>Remove dashboard</MenuItem>
+            <MenuItem danger icon={<Trash2 className="h-4 w-4" />} onSelect={async () => { if (await confirm({ title: `Remove the dashboard ${d.name}?`, description: "The widgets go with it; your tasks and mail stay as they are.", confirmLabel: "Remove dashboard" })) remove.mutate(); }}>Remove dashboard</MenuItem>
           </Menu>
         </div>} />
       {!d ? <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-60" />)}</div>

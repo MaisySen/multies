@@ -10,6 +10,7 @@ import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
 import { GUEST_COOKIE, resolveGuest } from "../services/suite/guests";
 import { channelCallStatus, guestChannelCallStatus, leftCall, meetingCallStatus, setTestRoom } from "../services/suite/calls";
+import { meetingMinutesUsage } from "../services/suite/meeting-minutes-r34";
 
 export const TestRoomBody = z.object({ participants: z.array(z.object({ name: z.string().trim().min(1).max(60) })).max(50) });
 
@@ -17,6 +18,8 @@ export function chatR23CallRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/channels/:id/call", async (c) => c.json(await channelCallStatus(c.var.deps, c.var.auth, c.req.param("id"))))
+    // R34 (MB-171): this month's call participant-minutes against the workspace's cap (cap null: no limit). Reads only.
+    .get("/call-minutes", async (c) => c.json(await meetingMinutesUsage(c.var.deps, c.var.auth.orgId)))
     .get("/calls/:meetingId", async (c) => c.json(await meetingCallStatus(c.var.deps, c.var.auth, c.req.param("meetingId"))))
     .post("/calls/:meetingId/left", async (c) => c.json(await leftCall(c.var.deps, c.var.auth, c.req.param("meetingId"))))
     // Local E2E only: 404 unless CALLS_TEST_HOOK is on, which loadConfig refuses in production.

@@ -305,6 +305,14 @@ export async function sendInvites(deps: Deps, actor: SuiteActor, id: string, opt
 
 // ---------------------------------------------------------------- joining
 
+/** R34 (MB-171): a new call (an empty room) is refused once a capped workspace has used its month; a running call is never cut off. */
+async function minutesLeftForRoom(deps: Deps, m: { orgId: string; room: string }) {
+  if (!deps.config.meetings && !deps.config.callsTestHook && !deps.callRooms) return;
+  const { assertCanStartCall } = await import("./meeting-minutes-r34");
+  const { roomParticipants } = await import("./calls");
+  await assertCanStartCall(deps, m.orgId, async () => (await roomParticipants(deps, m.room)).length > 0);
+}
+
 export async function livekitToken(deps: Deps, room: string, who: { identity: string; name: string; host: boolean }) {
   const cfg = deps.config.meetings;
   if (!cfg) throw new HttpError(503, "meetings_off", "Video calls aren't switched on for this workspace yet. The guest link and invite still work once they are.");
@@ -319,6 +327,7 @@ export async function livekitToken(deps: Deps, room: string, who: { identity: st
 export async function joinMeeting(deps: Deps, actor: SuiteActor, id: string, opts: { name?: string } = {}) {
   const m = await meetingRow(deps, actor.orgId, id);
   if (m.status === "cancelled") throw new HttpError(409, "meeting_cancelled", "This meeting was cancelled.");
+  await minutesLeftForRoom(deps, m);
   const identity = actor.agentId ? `agent-${actor.agentId}` : `member-${actor.userId}`;
   return { meeting: out(deps, m), ...(await livekitToken(deps, m.room, { identity, name: cleanGuestName(opts.name) || actor.name || actor.email || "Host", host: true })) };
 }
@@ -343,5 +352,6 @@ export async function guestJoin(deps: Deps, token: string, name: string, lobbyId
   const admitted = deps.config.meetings ? await admittedGuest(deps, m, lobbyId) : null;
   const clean = admitted ?? name.trim().slice(0, 60);
   if (!clean) throw new HttpError(422, "validation_failed", "Tell the others your name.");
+  await minutesLeftForRoom(deps, m);
   return { title: m.title, ...(await livekitToken(deps, m.room, { identity: `guest-${urlToken(6)}`, name: clean, host: false })) };
 }

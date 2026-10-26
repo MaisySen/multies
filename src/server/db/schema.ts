@@ -59,6 +59,8 @@ export const organizations = sqliteTable("organizations", {
   suspendedReason: text("suspended_reason"),
   /** Operator override for outbound sends per day; null means the plan's limit. */
   sendCapDaily: integer("send_cap_daily"),
+  /** R34 (0077, MB-171): operator override for call participant-minutes a month; null means the plan's rule (free 1,000, paid none). */
+  meetingMinutesCap: integer("meeting_minutes_cap"),
   /** How the Stripe subscription bills: "month", or "year" when add-ons total under A$5 a month. */
   billingInterval: text("billing_interval", { enum: ["month", "year"] }),
   createdAt: createdAt(),

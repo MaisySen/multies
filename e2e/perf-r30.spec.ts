@@ -12,8 +12,13 @@ test("landing HTML is prerendered for / only, and the live page replaces it with
   expect(home).toContain('data-prerendered="landing"');
   expect(home).toContain('fetchpriority="low"');
   const login = await (await request.get("/login")).text();
-  expect(login).toContain('<div id="root"></div>');
-  expect(login).toMatch(/<link rel="modulepreload" crossorigin href="\/assets\/auth-[^"]+\.js">/);
+  // R34 (perf2): /login now arrives with the sign in card drawn (see the spec below); the other auth pages keep the empty shell.
+  expect(login).toContain('data-prerendered="auth"');
+  const signup = await (await request.get("/signup")).text();
+  expect(signup).toContain('<div id="root"></div>');
+  expect(signup).toMatch(/<link rel="modulepreload" crossorigin href="\/assets\/auth-[^"]+\.js">/);
+  // On the prerendered /login the same code starts one frame after the card paints (public/login-boot.js).
+  expect(login).toMatch(/<script src="\/login-boot\.js" defer data-entry="\/assets\/index-[^"]+\.js" data-preload="[^"]*\/assets\/auth-[^"]+\.js/);
 
   const ctx = await browser.newContext({ viewport: { width: 412, height: 823 }, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
   const page = await ctx.newPage();
@@ -47,6 +52,39 @@ test("sign in paints logo and card together: no layout shift on a phone", async 
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await expect(page.getByLabel("Email")).toBeVisible();
   await page.waitForTimeout(1200);
+  expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBeLessThan(0.02);
+  await ctx.close();
+});
+
+test("R34: /login shows the sign in card from the HTML alone (JS off), styled by its inline CSS", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 412, height: 823 }, javaScriptEnabled: false, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
+  const page = await ctx.newPage();
+  await page.goto("/login");
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  await expect(page.locator("#root[data-prerendered=auth] main")).toBeVisible();
+  // Styled before any JS: the card is centred at its 400 px max width, not a raw stack of unstyled elements.
+  const box = await page.locator("#root main").boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(400);
+  expect(box!.x).toBeGreaterThan(0);
+  expect(await page.locator("style[data-critical]").count()).toBe(1);
+  expect(await page.locator("link[data-defer-css]").getAttribute("media")).toBe("print");
+  await ctx.close();
+});
+
+test("R34: with JS on, the app takes over the prerendered card without layout shift", async ({ browser }) => {
+  const ctx = await browser.newContext({ viewport: { width: 412, height: 823 }, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
+  const page = await ctx.newPage();
+  await page.addInitScript(() => {
+    (window as unknown as { __cls: number }).__cls = 0;
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries() as unknown as { value: number; hadRecentInput: boolean }[]) if (!e.hadRecentInput) (window as unknown as { __cls: number }).__cls += e.value;
+    }).observe({ type: "layout-shift", buffered: true });
+  });
+  await page.goto("/login");
+  // React has rendered over the markup: the marker attribute is gone and the stylesheet is on.
+  await page.waitForFunction(() => !document.getElementById("root")?.dataset.prerendered && document.readyState === "complete");
+  expect(await page.locator("link[data-defer-css]").getAttribute("media")).toBe("all");
+  await page.waitForTimeout(800);
   expect(await page.evaluate(() => (window as unknown as { __cls: number }).__cls)).toBeLessThan(0.02);
   await ctx.close();
 });

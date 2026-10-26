@@ -27,6 +27,9 @@ export function adminRoutes() {
       const tenants = await db.select({
         id: organizations.id, name: organizations.name, plan: organizations.plan, isDemo: organizations.isDemo, createdAt: organizations.createdAt,
         suspendedAt: organizations.suspendedAt, suspendedReason: organizations.suspendedReason, sendCapDaily: organizations.sendCapDaily,
+        meetingMinutesCap: organizations.meetingMinutesCap,
+        // R34 (MB-171): this month's call participant-minutes (usage_counters, one row per workspace per month).
+        meetingMinutes: sql<number>`(select coalesce(sum(u."count"), 0) from "usage_counters" u where u."org_id" = "organizations"."id" and u."metric" = 'meeting_participant_minutes' and u."period" = ${new Date().toISOString().slice(0, 7)})`,
         pastDueSince: organizations.pastDueSince,
         // Qualified by hand: Drizzle renders columns unqualified in a one-table select, which bound "id" to the inner table.
         members: sql<number>`(select count(*) from "members" m where m."organization_id" = "organizations"."id" and m."kind" = 'human')`,
@@ -105,6 +108,38 @@ export function adminRoutes() {
       await deps.db.update(organizations).set({ sendCapDaily: cap }).where(eq(organizations.id, org.id));
       await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.send_cap_changed", metadata: { cap, by: "operator" }, ip: c.var.ip });
       return c.json({ ok: true, sendCapDaily: cap });
+    })
+    // R34 (MB-169): the per-workspace kill switch. Off = sendCapDaily 0 (sends refused with a clear message);
+    // on = back to the plan's cap (null). Audited.
+    .put("/workspaces/:id/sending", async (c) => {
+      const { enabled } = await parseBody(c, z.object({ enabled: z.boolean() }));
+      const { deps, auth } = c.var;
+      const org = await getOrg(deps.db, c.req.param("id"));
+      const cap = enabled ? null : 0;
+      await deps.db.update(organizations).set({ sendCapDaily: cap }).where(eq(organizations.id, org.id));
+      await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: enabled ? "workspace.sending_on" : "workspace.sending_off", metadata: { by: "operator" }, ip: c.var.ip });
+      return c.json({ ok: true, sending: enabled, sendCapDaily: cap });
+    })
+    // R34 (MB-166): messages a sending limit queued until tomorrow, and "Send anyway" (operator only).
+    .get("/workspaces/:id/queued-sends", async (c) => {
+      const { listQueuedSends } = await import("../services/mail/send-queue-r34");
+      return c.json({ queued: await listQueuedSends(c.var.deps, c.req.param("id")) });
+    })
+    .post("/workspaces/:id/queued-sends/:sid/send", async (c) => {
+      const { sendQueuedAnyway } = await import("../services/mail/send-queue-r34");
+      const { deps, auth } = c.var;
+      const out = await sendQueuedAnyway(deps, c.req.param("id"), c.req.param("sid"));
+      await audit(deps.db, { orgId: c.req.param("id"), actorUserId: auth.userId, actorEmail: auth.email, action: "message.queued_send_forced", targetType: "schedule", targetId: c.req.param("sid"), metadata: { by: "operator" }, ip: c.var.ip });
+      return c.json(out);
+    })
+    // R34 (MB-171): a workspace's call minutes a month. null goes back to the plan's rule (free 1,000, paid none); 0 blocks new calls.
+    .put("/workspaces/:id/meeting-cap", async (c) => {
+      const { cap } = await parseBody(c, z.object({ cap: z.number().int().min(0).max(10_000_000).nullable() }));
+      const { deps, auth } = c.var;
+      const org = await getOrg(deps.db, c.req.param("id"));
+      await deps.db.update(organizations).set({ meetingMinutesCap: cap }).where(eq(organizations.id, org.id));
+      await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.meeting_cap_changed", metadata: { cap, by: "operator" }, ip: c.var.ip });
+      return c.json({ ok: true, meetingMinutesCap: cap });
     })
     // Job queue: backlog, dead letters and replay.
     .get("/jobs", async (c) => {

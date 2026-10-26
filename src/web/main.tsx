@@ -3,7 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
-import { router } from "./router";
+import { preloadAuthPages, router } from "./router";
 import { api, ApiError } from "./lib/api";
 import { qk } from "./lib/queries";
 import type { PublicConfig } from "./lib/types";
@@ -55,7 +55,25 @@ if (isAuthLayoutPath(window.location.pathname)) {
   void queryClient.prefetchQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
 }
 
-createRoot(document.getElementById("root")!).render(
+// R34 (perf2): the server sent /login with the card already drawn (critical CSS inline, the main stylesheet as
+// media="print"). Turn the stylesheet on, then render once the page's code and both reads are in, so React draws the
+// same card over it in one step. A read that fails or a slow network (4 s) renders anyway, as before.
+const rootEl = document.getElementById("root")!;
+const prerenderedAuth = rootEl.dataset.prerendered === "auth";
+if (prerenderedAuth) document.querySelectorAll<HTMLLinkElement>("link[data-defer-css]").forEach((l) => { l.media = "all"; });
+const beforeRender = prerenderedAuth
+  ? Promise.race([
+    Promise.all([
+      preloadAuthPages(),
+      queryClient.fetchQuery(authProvidersQuery),
+      queryClient.fetchQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity }),
+    ]),
+    new Promise((resolve) => setTimeout(resolve, 4000)),
+  ]).catch(() => undefined)
+  : null;
+
+// The marker comes off as React takes over, so tests (and anyone reading the page) can tell the two apart.
+const render = () => { if (prerenderedAuth) delete rootEl.dataset.prerendered; createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary>
@@ -65,4 +83,6 @@ createRoot(document.getElementById("root")!).render(
       <AnalyticsBeacon subscribe={beaconRoutes} />
     </QueryClientProvider>
   </StrictMode>,
-);
+); };
+if (beforeRender) void beforeRender.then(render);
+else render();

@@ -33,6 +33,9 @@ type SendResult = { messageId?: string; internal: string[]; external: { address:
 
 /** The outcome toast after a held message has been posted. */
 function reportSent(r: SendResult) {
+  // R34: a sending limit queued the whole message until midnight UTC; Outbox (Scheduled) shows it with the reason.
+  const q = (r as SendResult & { queued?: { reason: string } }).queued;
+  if (q) { toast.warning("Queued until tomorrow", { duration: 10000, description: `${q.reason.replace(/ ?Queued until tomorrow[^.]*\./, "")} It's in Scheduled and goes at midnight UTC.`.trim() }); return; }
   const failed = r.external.filter((e) => e.status === "failed");
   const queued = r.external.filter((e) => e.status === "queued");
   if (failed.length) toast.error(`Couldn't deliver to ${failed.map((f) => f.address).join(", ")}`, { description: failed[0].detail });

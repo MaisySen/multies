@@ -91,6 +91,7 @@ describe("MCP server", () => {
       "get_auth_email_settings",
       "get_backlinks",
       "get_board_settings",
+      "get_call_minutes",
       "get_call_status",
       "get_computed_fields",
       "get_counts",

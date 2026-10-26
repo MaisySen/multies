@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from "@tanstack/react-table";
+import { flexRender, useTable, tableFeatures, rowSortingFeature, columnVisibilityFeature, columnSizingFeature, createSortedRowModel, sortFns, type ColumnDef, type SortingState } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, Bot, CheckCircle2, Circle, Mail } from "lucide-react";
 import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
@@ -7,6 +7,9 @@ import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOptio
 import { FieldCell, formatValue } from "./fields";
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
+
+// R34 (dependabot #9): TanStack Table 9 wants the features it uses named up front.
+const features = tableFeatures({ rowSortingFeature, columnVisibilityFeature, columnSizingFeature, sortedRowModel: createSortedRowModel(), sortFns });
 
 /** A sort key for a custom field value: numbers as numbers, select by option order, empty last. */
 function fieldSortKey(f: CustomField, t: Task, people: AssigneeOption[]): string | number {
@@ -24,7 +27,7 @@ const PRIORITY_RANK: Record<Priority, number> = { urgent: 0, high: 1, medium: 2,
 export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], people = [] }: { tasks: Task[]; projects: Project[]; onOpen: (id: string) => void; onToggle: (t: Task) => void; fields?: CustomField[]; people?: AssigneeOption[] }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const pname = useMemo(() => new Map(projects.map((p) => [p.id, p])), [projects]);
-  const columns = useMemo<ColumnDef<Task>[]>(() => [
+  const columns = useMemo<ColumnDef<typeof features, Task>[]>(() => [
     {
       id: "done", header: "", enableSorting: false, size: 36,
       cell: ({ row }) => (
@@ -55,7 +58,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     { id: "priority", header: "Priority", accessorFn: (t) => PRIORITY_RANK[t.priority], cell: ({ row }) => <span className={PRIORITY_COLOR[row.original.priority]}>{row.original.priority === "none" ? "" : PRIORITY_LABEL[row.original.priority]}</span> },
     { id: "due", header: "Due", accessorFn: (t) => t.due ?? "9999", cell: ({ row }) => <span className={cn("whitespace-nowrap", isOverdue(row.original) && "text-bad")}>{dueLabel(row.original.due) ?? ""}</span> },
     { id: "project", header: "Project", accessorFn: (t) => pname.get(t.projectId)?.name ?? "", cell: ({ getValue }) => <span className="whitespace-nowrap text-muted">{String(getValue())}</span> },
-    ...fields.map<ColumnDef<Task>>((f) => ({
+    ...fields.map<ColumnDef<typeof features, Task>>((f) => ({
       id: `field:${f.id}`, header: f.name, sortUndefined: "last", accessorFn: (t) => fieldSortKey(f, t, people),
       cell: ({ row }) => <FieldCell field={f} value={row.original.fields?.[f.id]} people={people} error={row.original.fieldErrors?.[f.id]} fields={fields} />,
     })),
@@ -63,7 +66,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
   ], [pname, onToggle, fields, people]);
   // With a project picked (its fields showing), the Project column says the same thing on every row.
   const columnVisibility = useMemo(() => ({ project: fields.length === 0 }), [fields.length]);
-  const table = useReactTable({ data: tasks, columns, state: { sorting, columnVisibility }, onSortingChange: setSorting, getCoreRowModel: getCoreRowModel(), getSortedRowModel: getSortedRowModel() });
+  const table = useTable({ features, data: tasks, columns, state: { sorting, columnVisibility }, onSortingChange: setSorting });
   const hideOnPhone = new Set(["project", "updated", "assignee", "priority", ...fields.slice(2).map((f) => `field:${f.id}`)]);
 
   return (

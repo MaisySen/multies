@@ -50,6 +50,17 @@ export function deleteConfirmText(tree: TreeNode[] | undefined, id: string) {
   return `Delete this doc? Its ${n === 1 ? "sub page moves" : `${n} sub pages move`} up to ${e?.parent ? `"${e.parent.title}"` : "the top level"}.`;
 }
 
+/** R34: the themed confirm for deleting a page names it, and says where its sub pages go. */
+export function deleteDocConfirm(tree: TreeNode[] | undefined, id: string, title?: string) {
+  const e = tree ? flatten(tree).find((x) => x.node.id === id) : undefined;
+  const name = (title ?? e?.node.title ?? "").trim() || "Untitled";
+  const n = e?.node.children.length ?? 0;
+  return {
+    title: `Delete the doc ${name}?`,
+    description: n ? `Its ${n === 1 ? "sub page moves" : `${n} sub pages move`} up to ${e?.parent ? `"${e.parent.title}"` : "the top level"}.` : undefined,
+  };
+}
+
 function useMove() {
   const qc = useQueryClient();
   return async (id: string, body: { parentId?: string | null; beforeId?: string; afterId?: string }) => {

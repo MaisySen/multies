@@ -38,7 +38,8 @@ import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
-import { BRAND_CACHE, htmlCacheControl, originHintsFor, shellFor, withOriginHints } from "../shared/prerender-shell";
+import { BRAND_CACHE, htmlCacheControl, LOGIN_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
+import { loginVariant, type LoginVariantOf } from "../server/auth/config";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -58,6 +59,23 @@ declare const __MYMAIL_SHELL_HTML__: string;
 declare const __MYMAIL_LANDING_HTML__: string;
 /** R30: the shell that preloads the sign in page's code, served for the auth pages (empty when not built). */
 declare const __MYMAIL_AUTH_HTML__: string;
+/** R34 (perf2): the sign in shell with critical CSS and one prerendered card per setup (null when not built). */
+declare const __MYMAIL_LOGIN_PRERENDER__: LoginPrerender | null;
+/** The prerendered card this deployment shows, read from its config once per isolate. */
+let loginCard: LoginVariantOf | null | undefined;
+function loginCardFor(env: WorkerEnv): LoginVariantOf | null {
+  if (loginCard !== undefined) return loginCard;
+  try {
+    const vars: Record<string, string | undefined> = { ...(typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) };
+    for (const [k, v] of Object.entries(env)) if (typeof v === "string") vars[k] = v;
+    // Only the sign in setup is read here; a deployment whose secret is generated and stored in D1 is not refused for it.
+    if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = "x".repeat(48);
+    loginCard = loginVariant(loadConfig(vars));
+  } catch {
+    loginCard = null; // a config the app itself would refuse: keep the plain sign in shell
+  }
+  return loginCard;
+}
 
 let ready: Promise<{ app: ReturnType<typeof createApp>; deps: Deps }> | null = null;
 let lastMaintenance = 0;
@@ -330,7 +348,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-    ? new Response(withOriginHints(shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
+    ? new Response(withOriginHints((LOGIN_CARD_PATH.test(url.pathname) && typeof __MYMAIL_LOGIN_PRERENDER__ === "object" ? loginHtmlFor(url.pathname, url.search, __MYMAIL_LOGIN_PRERENDER__, loginCardFor(env)) : null) ?? shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);

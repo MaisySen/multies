@@ -18,6 +18,25 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
     },
   },
+  // R34 (MB-192): the browser's own confirm, prompt and alert boxes can't match dark mode, name the object or
+  // validate input. Use useDialogs() / PromptDialog / ConfirmButton from src/web/components/ui/confirm.tsx.
+  {
+    files: ["src/web/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-globals": ["error",
+        { name: "confirm", message: "Use useDialogs().confirm or ConfirmButton (src/web/components/ui/confirm.tsx)." },
+        { name: "prompt", message: "Use useDialogs().prompt or PromptDialog (src/web/components/ui/confirm.tsx)." },
+        { name: "alert", message: "Use a toast or a themed Dialog." },
+      ],
+      "no-restricted-properties": ["error",
+        { object: "window", property: "confirm", message: "Use useDialogs().confirm or ConfirmButton (src/web/components/ui/confirm.tsx)." },
+        { object: "window", property: "prompt", message: "Use useDialogs().prompt or PromptDialog (src/web/components/ui/confirm.tsx)." },
+        { object: "window", property: "alert", message: "Use a toast or a themed Dialog." },
+        { object: "globalThis", property: "confirm", message: "Use useDialogs().confirm." },
+        { object: "globalThis", property: "prompt", message: "Use useDialogs().prompt." },
+      ],
+    },
+  },
   // k6 scripts run in k6's own runtime, which provides these globals.
   { files: ["load/**/*.js"], languageOptions: { globals: { __ENV: "readonly", __VU: "readonly", __ITER: "readonly" } } },
 );

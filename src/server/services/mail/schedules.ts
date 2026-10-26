@@ -53,6 +53,10 @@ export interface SendPayload {
   remindDays?: number;
   agentId?: string;
   apiKeyId?: string;
+  /** R34: why a send was queued by a sending limit ("Queued until tomorrow" in Outbox). */
+  held?: string;
+  /** R34: an operator pressed "Send anyway": the next pass sends it past the limits (never past the kill switch). */
+  force?: boolean;
 }
 
 // ---------------------------------------------------------------- time
@@ -247,7 +251,7 @@ function present(r: Row, m?: typeof messages.$inferSelect) {
     id: r.id, kind: r.kind, status: r.status, mailboxId: r.mailboxId, threadId: r.threadId, messageId: r.messageId,
     dueAt: r.dueAt.toISOString(), createdAt: r.createdAt.toISOString(), error: r.error,
     message: m ? presentListItem(m) : null,
-    send: p ? { to: p.input.to, cc: p.input.cc ?? [], bcc: p.input.bcc ?? [], subject: p.input.subject, text: p.input.text, inReplyToId: p.input.inReplyToId ?? null, remindDays: p.remindDays ?? null, agentId: p.agentId ?? null } : null,
+    send: p ? { to: p.input.to, cc: p.input.cc ?? [], bcc: p.input.bcc ?? [], subject: p.input.subject, text: p.input.text, inReplyToId: p.input.inReplyToId ?? null, remindDays: p.remindDays ?? null, agentId: p.agentId ?? null, held: p.held ?? null } : null,
   };
 }
 
@@ -391,7 +395,9 @@ async function sendScheduled(deps: Deps, r: Row) {
   const scope = await mailboxScope(deps.db, auth);
   if (!inScope(scope, p.input.mailboxId)) throw badRequest("You no longer have access to this mailbox, so it wasn't sent.");
   const { sendMessage } = await import("./send");
-  const result = await sendMessage(deps, auth, p.input);
+  const result = await sendMessage(deps, auth, p.input, p.force ? { overrideCap: true } : {});
+  // R34: still over a limit: sendMessage queued it again for the next midnight; nothing was sent.
+  if (result.queued) return result;
   const { audit } = await import("../audit");
   await audit(deps.db, { orgId: r.orgId, actorUserId: u.id, actorEmail: u.email, action: "message.sent", targetType: "message", targetId: result.messageId, metadata: { recipients: [...p.input.to, ...(p.input.cc ?? []), ...(p.input.bcc ?? [])].length, scheduled: true } });
   if (p.remindDays) {

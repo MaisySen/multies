@@ -3,7 +3,8 @@ import { emitEvent } from "../developer/webhooks";
 import { suppressedAmong } from "../deliverability/suppressions";
 import { and, eq, isNull, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { domains, mailboxes, messages } from "../../db/schema";
+import { domains, mailboxes, mailSchedules, messages } from "../../db/schema";
+import { decide, externalSentToday, guardConfig, newSenderCap, nextUtcMidnight, providerSentToday, sendingOff, SENDING_OFF_MESSAGE } from "./send-guard-r34";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound, planLimit } from "../../lib/errors";
 import type { SendMessageInput } from "@/shared/schemas";
@@ -15,14 +16,17 @@ import { pixelUrl, trackingToken, withPixel } from "./read-status";
 import { enqueue } from "../jobs";
 import type { DeliverJobPayload } from "./deliver-job";
 import "./deliver-job";
-import { maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
+import { countNewRecipients, maybeAutoSuspend, recentOutboundStats, recordAbuse, scoreOutbound, SPAM_FLAG_AT, SPAM_HOLD_AT } from "../abuse";
 import type { ParsedAttachment } from "./mime";
 
 /** Most recipients one message from a free address can have. */
 export const FREE_MAX_RECIPIENTS = 10;
 
 export interface SendResult {
+  /** Empty when the message was queued (R34): see `queued`. */
   messageId: string;
+  /** R34: held until midnight UTC by a sending limit, with the reason (Outbox shows it). */
+  queued?: { id: string; dueAt: string; reason: string };
   internal: string[];
   external: { address: string; status: "sent" | "queued" | "failed"; detail?: string }[];
 }
@@ -37,6 +41,23 @@ export interface SendExtras {
   agentId?: string;
   /** R27: the From display name, instead of the mailbox's (auth email hooks set a sender name). */
   fromName?: string;
+  /** R34: refuse over a sending limit instead of queueing (callers that can't hold a message). */
+  noQueue?: boolean;
+  /** R34: an operator's "Send anyway" on a queued message: skips the guard (never the kill switch). */
+  overrideCap?: boolean;
+}
+
+/** R34: holds a person's message until midnight UTC as a scheduled send that carries the reason. */
+async function queueUntilTomorrow(deps: Deps, auth: AuthContext, input: SendMessageInput, reason: string, recipients: string[]): Promise<SendResult> {
+  const dueAt = nextUtcMidnight(deps.now());
+  const id = newId("msch");
+  if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, input.mailboxId), eq(messages.folder, "drafts")));
+  // Essential write: the held message itself (one row), so nothing is lost.
+  await deps.db.insert(mailSchedules).values({
+    id, orgId: auth.orgId, mailboxId: input.mailboxId, userId: auth.userId || null, kind: "send", dueAt, createdAt: deps.now(),
+    payload: JSON.stringify({ via: "person", input: { ...input, draftId: undefined }, apiKeyId: (auth as { apiKeyId?: string }).apiKeyId, held: reason }),
+  });
+  return { messageId: "", internal: [], external: recipients.map((address) => ({ address, status: "queued" as const, detail: reason })), queued: { id, dueAt: dueAt.toISOString(), reason } };
 }
 
 /** Sends a message from one of the org's mailboxes. Internal recipients are delivered directly. */
@@ -76,8 +97,12 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   if (freeAddress && used + recipients.length > cap) {
     throw planLimit(`Free addresses can send to ${cap} recipients a day${newAccount ? " in their first week" : ""}. It resets at midnight UTC. Add your own domain to send more.`);
   }
-  if (used + recipients.length > cap) {
-    throw planLimit(org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends
+  // R34 (MB-169): the operator's kill switch refuses at once; nothing is queued.
+  if (sendingOff(org) && !org.isDemo) throw new HttpError(403, "sending_off", SENDING_OFF_MESSAGE);
+  const underReview = org.sendCapDaily !== null && org.sendCapDaily < plan.limits.dailySends;
+  // Agents, scheduled agent sends and callers that can't hold a message keep the old refusal (R34 queues the rest).
+  if (used + recipients.length > cap && (extra.agentId || extra.noQueue)) {
+    throw planLimit(underReview
       ? `This workspace can send to ${cap} recipients a day while its sending is under review. It resets at midnight UTC.`
       : `Daily sending limit reached (${cap} recipients a day). It resets at midnight UTC. ${addonHint("dailySends")}`);
   }
@@ -96,7 +121,8 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
   const externalCount = conn ? recipients.length : (await Promise.all(recipients.map((r) => isHosted(db, r)))).filter((h) => !h).length;
   if (externalCount && !org.isDemo) {
     const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
-    const verdict = scoreOutbound({ subject: input.subject, text: input.text, html: input.html, recipients: externalCount, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, auth.orgId) });
+    const verdict = scoreOutbound({ subject: input.subject, text: input.text, html: input.html, recipients: externalCount, workspaceAgeDays: ageDays, recent: await recentOutboundStats(deps, auth.orgId),
+      newRecipients: externalCount >= 10 ? await countNewRecipients(deps, auth.orgId, conn ? recipients : (await Promise.all(recipients.map(async (r) => ((await isHosted(db, r)) ? null : r)))).filter((r): r is string => !!r)) : 0 });
     // Free addresses share one domain's reputation, so they are held at the lower "flag" score too.
     if (verdict.score >= SPAM_HOLD_AT || (freeAddress && verdict.score >= SPAM_FLAG_AT)) {
       await recordAbuse(deps, auth.orgId, "outbound_held", verdict.score, verdict.reasons.join("; "));
@@ -104,6 +130,25 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       throw new HttpError(422, "message_held", "This message looks like spam to our filters, so it wasn't sent. Check the reasons, edit the message and try again.", { reasons: verdict.reasons, score: verdict.score });
     }
     if (verdict.score >= SPAM_FLAG_AT) await recordAbuse(deps, auth.orgId, "outbound_flagged", verdict.score, verdict.reasons.join("; "));
+  }
+
+  // R34 (MB-166, MB-169): over the plan cap, the new sender limit or the shared sender headroom, the message is
+  // queued until midnight UTC with the reason (services/mail/send-guard-r34.ts), never dropped.
+  if (!org.isDemo && !extra.overrideCap) {
+    const cfg = guardConfig(deps);
+    const ext = conn ? 0 : externalCount; // a connected address sends through its own provider
+    const ageDays = (deps.now().getTime() - new Date(org.createdAt).getTime()) / 86_400_000;
+    const verdictCap = decide({
+      cfg, used, cap, recipients: recipients.length, external: ext, underReview,
+      externalUsed: ext ? await externalSentToday(deps, auth.orgId) : 0,
+      newCap: ext ? newSenderCap(cfg, ageDays, await recentOutboundStats(deps, auth.orgId)) : null,
+      providerUsed: ext && cfg.providerDailyCap > 0 ? await providerSentToday(deps) : 0,
+    });
+    if (!verdictCap.ok) {
+      if (extra.agentId || extra.noQueue) throw planLimit(verdictCap.reason.replace("Queued until tomorrow.", "It resets at midnight UTC."));
+      await maybeUsageAlert(deps, org, used + recipients.length, cap).catch((err) => deps.reportError?.(err, { where: "usageAlert" }));
+      return queueUntilTomorrow(deps, auth, input, verdictCap.reason, recipients);
+    }
   }
 
   const now = deps.now();
@@ -212,7 +257,16 @@ export async function sendMessage(deps: Deps, auth: AuthContext, input: SendMess
       }
     }
   }
-  await maybeUsageAlert(deps, org, used + recipients.length, cap).catch((err) => deps.reportError?.(err, { where: "usageAlert" }));
+  const crossed = await maybeUsageAlert(deps, org, used + recipients.length, cap).catch((err) => { deps.reportError?.(err, { where: "usageAlert" }); return null; });
+  // R34 (MB-166): one ops mail per workspace per day, on the first threshold it crosses that day (80% or 100%).
+  if (crossed && !(org.usageAlerts ?? "").split(",").some((k) => k.startsWith(deps.now().toISOString().slice(0, 10)))) {
+    const { sendSystemEmail } = await import("../system-mail");
+    await sendSystemEmail(deps, {
+      to: deps.config.supportEmail, orgId: auth.orgId, template: "ops-send-cap",
+      subject: `${org.name} used ${crossed}% of its daily sends`,
+      text: `${org.name} (${org.id}) has sent to ${used + recipients.length} of ${cap} recipients today. Over the cap, mail is queued until midnight UTC. Operator console: ${deps.config.appUrl}/app/operator`,
+    } as never).catch(() => undefined);
+  }
   await emitEvent(deps, auth.orgId, "message.sent", {
     id: sentId, mailboxId: mb.id, from: mb.address, to: input.to, cc: input.cc ?? [], subject: input.subject,
     recipients: [...result.internal.map((address) => ({ address, status: "delivered" })), ...result.external],

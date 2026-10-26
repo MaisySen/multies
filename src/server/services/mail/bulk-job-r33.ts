@@ -19,11 +19,12 @@ import { badRequest, HttpError, notFound } from "../../lib/errors";
 import { SQL_IN_CHUNK, notInIds } from "../../lib/sql-chunks";
 import { mailboxScope } from "../team";
 import { runBulkMail, type BulkMailAction, type QueueFn } from "./bulk-r32";
-import { snoozeHiddenCond, type ScheduleActor } from "./schedules";
+import { resolveWhen, snoozeHiddenCond, type ScheduleActor, type WhenInput } from "./schedules";
 import { splitCond } from "./splits";
 
 /** Actions a job can run: the ones with a clear meaning over thousands of messages. */
-export const BULK_JOB_ACTIONS = ["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash"] as const;
+// R34: snooze (until one time for every thread) and move (to a connected mailbox's folder) run as a job too.
+export const BULK_JOB_ACTIONS = ["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash", "snooze", "move"] as const;
 export type BulkJobAction = (typeof BULK_JOB_ACTIONS)[number];
 /** The request body, the same for the app, v1 and MCP. */
 export const BulkJobBody = z.object({
@@ -36,11 +37,17 @@ export const BulkJobBody = z.object({
     q: z.string().max(200).optional(),
     split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
   }),
-  exclude_ids: z.array(z.string().min(1).max(64)).max(5000).optional(),
+  // R34: the unticked ids are kept on the job row (JSON) and reach SQL through notInIds (one bound variable), so the
+  // cap is the job's own ceiling, not the old 5,000.
+  exclude_ids: z.array(z.string().min(1).max(64)).max(20000).optional(),
+  /** R34: move only: the folder key ("archive", "f:Projects", ...). */
+  to: z.string().min(1).max(520).optional(),
+  /** R34: snooze only: when the threads come back (resolved once, so every chunk gets the same time). */
+  when: z.object({ preset: z.enum(["later_today", "tomorrow", "next_week"]).optional(), at: z.string().max(40).optional(), local: z.string().max(40).optional() }).optional(),
   max_received_at: z.union([z.string().max(40), z.number()]),
 });
 export type BulkJobBodyT = z.infer<typeof BulkJobBody>;
-export const bodyToInput = (b: BulkJobBodyT): BulkJobInput => ({ clientJobId: b.client_job_id, action: b.action, scope: b.scope, excludeIds: b.exclude_ids, maxReceivedAt: b.max_received_at });
+export const bodyToInput = (b: BulkJobBodyT): BulkJobInput => ({ clientJobId: b.client_job_id, action: b.action, scope: b.scope, excludeIds: b.exclude_ids, maxReceivedAt: b.max_received_at, to: b.to, when: b.when });
 /** The most messages one job takes. */
 export const BULK_JOB_MAX = 20000;
 /** Chunks per request: 10 x 90 = 900 messages, well inside a Worker request. */
@@ -50,12 +57,14 @@ export interface BulkJobScope { mailboxId: string; folder?: string; remote?: str
 export interface BulkJobInput {
   clientJobId: string; action: BulkJobAction; scope: BulkJobScope;
   excludeIds?: string[]; maxReceivedAt: string | number | Date;
+  /** R34: move destination and snooze time. */
+  to?: string; when?: WhenInput;
 }
 export type JobStatus = "running" | "done" | "reverting" | "reverted" | "failed";
 export interface JobView { id: string; clientJobId: string; action: string; status: JobStatus; done: number; total: number; undoable: boolean; undoDone: number; undoTotal: number }
 type Job = typeof mailBulkJobs.$inferSelect;
 type Row = typeof messages.$inferSelect;
-interface Params { scope: BulkJobScope; excludeIds: string[] }
+interface Params { scope: BulkJobScope; excludeIds: string[]; to?: string; dueAt?: string }
 interface UndoCall { action: BulkMailAction; ids: string[] }
 
 const undoTotal = (plan: UndoCall[]) => plan.reduce((n, c) => n + c.ids.length, 0);
@@ -108,6 +117,11 @@ export function undoFor(action: BulkJobAction, rows: Pick<Row, "id" | "folder" |
     case "unread": return only((r) => r.isRead, "read");
     case "star": return only((r) => !r.isStarred, "unstar");
     case "unstar": return only((r) => r.isStarred, "star");
+    // R34: Undo of a snooze clears the snooze on those threads (they show in the Inbox again).
+    case "snooze": return only((r) => r.folder !== "drafts", "unsnooze");
+    // R34: a move to a provider folder is handed to the provider at once and the message gets a new id there, so
+    // (like a single move) it has no Undo; the toast and the confirm say so.
+    case "move": return [];
     default: {
       const groups = new Map<string, string[]>();
       for (const r of rows) if (r.folder !== action) groups.set(r.folder, [...(groups.get(r.folder) ?? []), r.id]);
@@ -143,8 +157,9 @@ async function stepForward(deps: Deps, actor: ScheduleActor, j: Job, queue?: Que
     if (!rows.length) { finished = true; break; }
     const last = rows[rows.length - 1];
     cursor = `${last.date.getTime()}.${last.id}`;
-    // Essential write: the user's own action on these messages (one UPDATE per chunk).
-    await runBulkMail(deps, actor, { ids: rows.map((r) => r.id), action: j.action as BulkMailAction }, queue);
+    // Essential write: the user's own action on these messages (one UPDATE per chunk; snooze writes one schedule
+    // row per thread in chunks of 10).
+    await runChunk(deps, actor, j.action as BulkJobAction, params, rows, queue);
     plan = mergePlan(plan, undoFor(j.action as BulkJobAction, rows));
     done += rows.length;
     if (rows.length < SQL_IN_CHUNK) { finished = true; break; }
@@ -153,6 +168,17 @@ async function stepForward(deps: Deps, actor: ScheduleActor, j: Job, queue?: Que
   const set = { cursor, done, total: Math.max(j.total, done), undoPlan: JSON.stringify(plan), status: finished ? "done" : "running", updatedAt: deps.now() };
   await deps.db.update(mailBulkJobs).set(set).where(eq(mailBulkJobs.id, j.id));
   return { ...j, ...set };
+}
+
+/** One chunk of the job's action. Snooze uses the time fixed when the job began; move skips rows it can't move. */
+async function runChunk(deps: Deps, actor: ScheduleActor, action: BulkJobAction, params: Params, rows: Row[], queue?: QueueFn) {
+  if (action === "snooze") return runBulkMail(deps, actor, { ids: rows.map((r) => r.id), action, at: params.dueAt }, queue);
+  if (action === "move") {
+    const movable = rows.filter((r) => r.remoteBox && r.remoteUid && r.remoteBox !== params.to);
+    if (!movable.length) return { updated: 0 };
+    return runBulkMail(deps, actor, { ids: movable.map((r) => r.id), action, to: params.to }, queue);
+  }
+  return runBulkMail(deps, actor, { ids: rows.map((r) => r.id), action }, queue);
 }
 
 function cursorCond(cursor: string): SQL {
@@ -195,6 +221,11 @@ export async function runBulkJob(deps: Deps, actor: ScheduleActor, input: BulkJo
   const maxReceivedAt = new Date(input.maxReceivedAt);
   if (Number.isNaN(maxReceivedAt.getTime())) throw badRequest("max_received_at isn't a time.");
   const params: Params = { scope: input.scope, excludeIds: [...new Set(input.excludeIds ?? [])] };
+  if (input.action === "move") {
+    if (!input.to) throw badRequest("Say which folder to move to.");
+    params.to = input.to;
+  }
+  if (input.action === "snooze") params.dueAt = (await resolveWhen(deps, actor, input.when ?? {})).toISOString();
   const conds = await scopeConds(deps, actor, { params, maxReceivedAt });
   const total = Number((await deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(and(...conds)).get())?.n ?? 0);
   if (total > BULK_JOB_MAX) throw badRequest(`Up to ${BULK_JOB_MAX.toLocaleString("en-US")} messages at a time. Narrow it with a search or a folder.`);

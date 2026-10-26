@@ -69,6 +69,8 @@ test("select all across pages archives as one job, leaves a mid job arrival and 
   db.close();
 
   await page.keyboard.press("e");
+  // R34: a job whose total isn't known up front (more pages) asks first.
+  await page.getByTestId("bulk-job-confirm").click();
   await expect(page.getByText(/Archived [\d,]+ conversations/)).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(500); // the toast's fade in
   await page.screenshot({ path: "/home/user/tab/files/multies-r33/mail-select-all-toast.png" });

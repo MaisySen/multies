@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Deps } from "../context";
 import { HttpError } from "../lib/errors";
 import { channelCallStatus, meetingCallStatus } from "../services/suite/calls";
+import { meetingMinutesUsage } from "../services/suite/meeting-minutes-r34";
 import type { Scoped } from "./mcp-server";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
@@ -21,4 +22,10 @@ export function registerCallTools(server: McpServer, deps: Deps, actor: Scoped, 
     if (x.channelId) return channelCallStatus(deps, actor, x.channelId);
     throw new HttpError(422, "validation_failed", "Pass channelId or meetingId.");
   }) as never);
+  // R34 (MB-171): read only.
+  server.registerTool("get_call_minutes", {
+    title: "Call minutes this month", annotations: { readOnlyHint: true, openWorldHint: false },
+    description: "The workspace's call participant-minutes this calendar month (two people for 30 minutes is 60) against its cap: { used, cap, remaining, percent, warn, period, resetsOn }. cap is null when there is no limit (paid plans). Free workspaces get 1,000; new calls are refused once it is used up, and a running call is never cut off.",
+    inputSchema: {},
+  }, tool(async () => meetingMinutesUsage(deps, actor.orgId)) as never);
 }

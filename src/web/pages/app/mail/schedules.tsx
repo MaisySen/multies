@@ -223,6 +223,7 @@ export function ScheduleListView({ view, mailboxId, onOpen, onEdit }: {
                   {it.send?.remindDays ? `, reminder after ${it.send.remindDays} day${it.send.remindDays > 1 ? "s" : ""}` : ""}
                 </span>
                 {it.error && <span className="block text-[12px] text-bad">{it.error}</span>}
+                {(it.send as { held?: string | null } | null)?.held && <span className="block text-[12px] text-warn" data-testid="queued-reason">Queued until tomorrow: {(it.send as { held?: string | null }).held!.replace(/ ?Queued until tomorrow[^.]*\./, "")}</span>}
               </button>
               <div className="flex shrink-0 items-center gap-1">
                 {it.kind === "send" && (

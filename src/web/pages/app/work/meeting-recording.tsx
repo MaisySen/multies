@@ -16,6 +16,7 @@ import { useMe } from "@/web/lib/queries";
 import { zonedDateTime } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { Button, ButtonLink } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Badge, Card } from "@/web/components/ui/misc";
 import { blobToBase64, CallRecorder, decodeSignal, encodeSignal, RECORDING_TOPIC, UploadQueue, type Chunk, type RecordingSignal } from "@/web/lib/call-recorder";
@@ -199,6 +200,7 @@ export function RecordingLayer({ join }: { join: unknown }) {
 
 /** "Recording and transcript": every recording of the meeting with its summary and transcript. */
 export function RecordingSection({ meetingId }: { meetingId: string }) {
+  const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const key = ["meeting-recordings", meetingId];
   const q = useQuery({
@@ -209,7 +211,7 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
   });
   const refresh = () => void qc.invalidateQueries({ queryKey: key });
   const remove = async (r: Recording) => {
-    if (!window.confirm("Delete this recording and its transcript?")) return;
+    if (!(await confirm({ title: `Delete the recording from ${new Date(r.startedAt).toLocaleString()}?`, description: "Its transcript and summary go with it.", confirmLabel: "Delete recording" }))) return;
     try { await api.del(`/meetings/${meetingId}/recordings/${r.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
   const finish = async (r: Recording) => {
@@ -218,6 +220,7 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
   const data = q.data;
   return (
     <Card className="mt-4 p-5" data-testid="recording-section">
+      {dialogs}
       <div className="flex items-center gap-2">
         <FileText className="h-4 w-4 text-muted" />
         <h2 className="text-[13px] font-semibold">Recording and transcript</h2>

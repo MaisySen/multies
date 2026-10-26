@@ -693,7 +693,8 @@ it("calls in chat (round 23): presence polls write nothing; a DM call rings each
   rooms.set(room, []);
   for (let i = 0; i < 5; i++) await u.get(`/api/chat/channels/${dm.id}/call`);
   // Measured 5: the meeting row and its 4 indexes by the meter's rule (D1 skips indexes whose columns didn't change), once.
-  expect(take()).toBe(5);
+  // R34 (MB-171): plus 2 for the month's call minutes (one usage_counters upsert: the row and its primary key), once per call.
+  expect(take()).toBe(7);
   // A late "left" from the last client finds the call ended and writes nothing but the local rate limit counter (a binding in production).
   await u.post(`/api/chat/calls/${call.meeting.id}/left`, {});
   expect(take()).toBeLessThanOrEqual(4);

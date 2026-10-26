@@ -121,6 +121,8 @@ export interface AppConfig {
    * `dailySends` caps recipients a day from a free address, per workspace, to protect the shared domain.
    */
   freeMail: { domain?: string; dailySends: number; newAccountDailySends: number; dailyClaims: number };
+  /** R34 (MB-166, MB-169): shared sender headroom and the new sender limit (services/mail/send-guard-r34.ts). */
+  sendGuard?: { providerDailyCap: number; holdAt: number; newSenderDaily: number; newSenderDays: number };
   /** R26 (DF-18): the company domain, the workspace that receives its listed addresses, and the list. */
   operatorInbox: { orgId: string | null; domain: string | null; addresses: string[] };
   /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
@@ -286,6 +288,11 @@ const EnvSchema = z.object({
   FREE_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
   FREE_MAIL_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_NEW_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
+  // R34 (MB-166, MB-169): shared sender headroom and new sender limit (0 turns a check off).
+  MAIL_PROVIDER_DAILY_CAP: z.string().regex(/^\d+$/).optional(),
+  MAIL_PROVIDER_HOLD_AT: z.string().regex(/^\d+$/).optional(),
+  NEW_SENDER_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
+  NEW_SENDER_DAYS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_DAILY_CLAIMS: z.string().regex(/^\d+$/).optional(),
   // R26 (DF-18): the workspace that receives the company's own addresses (support@, security@).
   OPERATOR_INBOX_ORG_ID: z.string().optional(),
@@ -438,6 +445,12 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       dailySends: Number(env.FREE_MAIL_DAILY_SENDS ?? 50),
       newAccountDailySends: Number(env.FREE_MAIL_NEW_DAILY_SENDS ?? 20),
       dailyClaims: Number(env.FREE_MAIL_DAILY_CLAIMS ?? 300),
+    },
+    sendGuard: {
+      providerDailyCap: Number(env.MAIL_PROVIDER_DAILY_CAP ?? 100),
+      holdAt: Number(env.MAIL_PROVIDER_HOLD_AT ?? 90),
+      newSenderDaily: Number(env.NEW_SENDER_DAILY_SENDS ?? 20),
+      newSenderDays: Number(env.NEW_SENDER_DAYS ?? 7),
     },
     push: { enabled: env.PUSH_ENABLED === "1" || env.PUSH_ENABLED === "true", expoAccessToken: env.EXPO_ACCESS_TOKEN || undefined },
     ...(env.VAPID_PUBLIC_KEY?.trim() && env.VAPID_PRIVATE_KEY?.trim()

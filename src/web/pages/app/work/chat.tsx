@@ -11,6 +11,7 @@ import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
+import { requireText, useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -224,6 +225,7 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
 }
 
 export function ChatPage() {
+  const { confirm, prompt, dialogs } = useDialogs();
   const { id: channelId } = useParams();
   const [params, setParams] = useSearchParams();
   const threadId = params.get("thread");
@@ -281,12 +283,12 @@ export function ChatPage() {
     try { await api.post(`/chat/messages/${m.id}/task`, { triage: true }); await refresh(); navigate("/app/triage"); } catch (e) { showError(e as Error); }
   };
   const edit = async (m: ChatMessage) => {
-    const next = window.prompt("Edit message", m.body);
+    const next = await prompt({ title: "Edit message", label: "Message", initial: m.body, multiline: true, hint: "Cmd+Enter or Ctrl+Enter saves.", validate: requireText("a message") });
     if (next === null || !next.trim()) return;
     try { await api.patch(`/chat/messages/${m.id}`, { body: next }); await refresh(); } catch (e) { showError(e as Error); }
   };
   const remove = async (m: ChatMessage) => {
-    if (!window.confirm("Delete this message?")) return;
+    if (!(await confirm({ title: "Delete this message?", description: m.body.length > 80 ? `"${m.body.slice(0, 80)}..." is removed for everyone in the channel.` : `"${m.body}" is removed for everyone in the channel.`, confirmLabel: "Delete message" }))) return;
     try { await api.del(`/chat/messages/${m.id}`); await refresh(); } catch (e) { showError(e as Error); }
   };
   const togglePin = async (m: ChatMessage) => {
@@ -337,6 +339,7 @@ export function ChatPage() {
 
   return (
     <div className="-m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:h-dvh">
+      {dialogs}
       <h1 className="sr-only">Chat</h1>
       <nav aria-label="Channels" className={cn("w-full shrink-0 overflow-y-auto border-r border-line p-3 sm:w-60", current && channelId ? "hidden sm:block" : "block")}>
         <div className="mb-1 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Channels</h2>

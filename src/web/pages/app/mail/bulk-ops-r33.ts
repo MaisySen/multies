@@ -14,9 +14,11 @@ import type { BulkCall } from "@/web/lib/mail-selection";
 import { startToast, toastReduce, toastView, UNDONE_MS, type ToastEvent, type ToastState } from "@/web/lib/bulk-toast-r33";
 
 export interface JobBody {
-  client_job_id: string; action: "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash";
+  client_job_id: string; action: "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "snooze" | "move";
   scope: { mailboxId: string; folder?: string; remote?: string; q?: string; split?: string };
   exclude_ids: string[]; max_received_at: string;
+  /** R34: move destination; snooze time. */
+  to?: string; when?: { preset?: "later_today" | "tomorrow" | "next_week"; at?: string; local?: string };
 }
 interface JobView { id: string; status: "running" | "done" | "reverting" | "reverted" | "failed"; done: number; total: number; undoable: boolean }
 export type BulkOp =
@@ -110,7 +112,8 @@ export function useBulkOps(undoMs: number) {
   const run = useCallback((op: BulkOp, label: { action: BulkCall["action"]; count: number; folderLabel?: string }) => {
     const prev = live.current;
     if (prev?.timer) clearTimeout(prev.timer);
-    const undoable = op.kind === "job" || !!op.plan?.length;
+    // R34: a job moving mail to a synced folder has no Undo (the provider has it at once).
+    const undoable = op.kind === "job" ? op.body.action !== "move" : !!op.plan?.length;
     const l: Live = { key: `bulk-${Date.now().toString(36)}`, state: startToast(label.action, label.count, undoable, label.folderLabel), op };
     live.current = l;
     paint(l);

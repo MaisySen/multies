@@ -43,7 +43,8 @@ import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
 import { fakeAiAllowed, fakeAiFetch } from "../server/services/ai/fake-fetch";
-import { AUTH_SHELL_PATHS, BRAND_CACHE, originHintsFor, withOriginHints } from "../shared/prerender-shell";
+import { AUTH_SHELL_PATHS, BRAND_CACHE, LOGIN_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
+import { loginVariant } from "../server/auth/config";
 
 loadDotEnv();
 const config = loadConfig(process.env);
@@ -100,7 +101,14 @@ if (existsSync(webRoot)) {
   // R30: the auth pages get the shell that preloads their code (auth.html) when the build made one.
   const shellPath = (p: string) => (AUTH_SHELL_PATHS.test(p) && existsSync(path.join(webRoot, "auth.html")) ? "auth.html" : "index.html");
   const hints = originHintsFor(config.sentry.dsnWeb); // R34: preconnect to the error tracker's host
-  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(readFileSync(path.join(webRoot, shellPath(c.req.path)), "utf8"), hints), isKnownPage(c.req.path) ? 200 : 404)));
+  // R34 (perf2): /login gets the card prerendered for this deployment's setup, when the build made it.
+  const variant = loginVariant(config);
+  const loginPrerender = (): LoginPrerender | null => {
+    const file = path.join(webRoot, "auth-login.json");
+    try { return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as LoginPrerender) : null; } catch { return null; }
+  };
+  const pageHtml = (p: string, search: string) => loginHtmlFor(p, search, LOGIN_CARD_PATH.test(p) ? loginPrerender() : null, variant) ?? readFileSync(path.join(webRoot, shellPath(p)), "utf8");
+  app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(pageHtml(c.req.path, new URL(c.req.url).search), hints), isKnownPage(c.req.path) ? 200 : 404)));
 }
 
 const port = Number(process.env.PORT ?? 8787);

@@ -7,6 +7,7 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 
@@ -25,6 +26,7 @@ const fmt = (s: string) => new Date(s).toLocaleString(undefined, { weekday: "sho
 const WEEKDAYS: [string, string] = ["09:00", "17:00"];
 
 export function SchedulingPage() {
+  const { confirm, dialogs } = useDialogs();
   const config = useConfig();
   const qc = useQueryClient();
   const enabled = !!config.data?.scheduling;
@@ -62,13 +64,14 @@ export function SchedulingPage() {
     } catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   const cancel = async (b: Booking) => {
-    if (!window.confirm(`Cancel ${b.name}'s booking on ${fmt(b.startsAt)}? They will get an email.`)) return;
+    if (!(await confirm({ title: `Cancel ${b.name}'s booking?`, description: `${fmt(b.startsAt)}. They will get an email saying it is cancelled.`, confirmLabel: "Cancel booking" }))) return;
     try { await api.post(`/scheduling/bookings/${b.id}/cancel`); qc.invalidateQueries({ queryKey: ["scheduling", "bookings"] }); } catch (err) { showError(err as Error); }
   };
   const url = page.data?.url;
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {dialogs}
       <PageHeader title="Booking page" description="Share a link so clients and partners can pick a time that suits you. Bookings become meetings with a video link." />
       {url && (
         <Card className="flex flex-wrap items-center gap-3 p-4">

@@ -7,6 +7,7 @@ import { showError } from "@/web/lib/show-error";
 import { shortDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -30,14 +31,18 @@ function Bar({ value, label }: { value: number; label: string }) {
   );
 }
 
+/** A key result value: any number, decimals and negatives allowed. */
+export const numberCheck = (v: string) => (v.trim() === "" ? "Enter a number." : Number.isNaN(Number(v)) ? "That is not a number. Use digits, like 42 or 3.5." : null);
+
 export function GoalsPage() {
+  const { prompt, dialogs } = useDialogs();
   const qc = useQueryClient();
   const [creating, setCreating] = useState<{ parentId?: string } | null>(null);
   const [addingKr, setAddingKr] = useState<Goal | null>(null);
   const q = useQuery({ queryKey: ["goals"], queryFn: () => api.get<Tree>("/goals") });
   const refresh = () => qc.invalidateQueries({ queryKey: ["goals"] });
   const setCurrent = async (k: KeyResult) => {
-    const v = window.prompt(`New value for "${k.name}"`, String(k.current));
+    const v = await prompt({ title: "Update progress", label: `Current value for ${k.name}`, initial: String(k.current), inputMode: "numeric", validate: numberCheck });
     if (v === null || v.trim() === "" || Number.isNaN(Number(v))) return;
     try { await api.patch(`/key-results/${k.id}`, { current: Number(v) }); await refresh(); } catch (e) { showError(e as Error); }
   };
@@ -85,6 +90,7 @@ export function GoalsPage() {
   const s = q.data?.summary;
   return (
     <div>
+      {dialogs}
       <PageHeader title="Goals" description="Set goals with key results. Progress moves on its own as linked tasks are done, and rolls up into bigger goals."
         actions={<Button size="sm" onClick={() => setCreating({})}><Plus className="h-4 w-4" />New goal</Button>} />
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.goals.length ? (

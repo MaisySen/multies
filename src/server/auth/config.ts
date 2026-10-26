@@ -14,6 +14,20 @@ export function authMode(config: Pick<AppConfig, "auth">): AuthMode {
   return { idp, localPassword: localPasswordEnabled(config), mobile: !!config.auth.auth0?.nativeClientId };
 }
 
+/** R34: the providers answer (GET /api/account/providers), shared with the prerendered sign in card's variant pick. */
+export function providersAnswer(config: Pick<AppConfig, "auth">) {
+  const mode = authMode(config);
+  const { social } = config.auth;
+  return { idp: mode.idp, password: mode.localPassword, google: !mode.idp && !!social.google, github: !mode.idp && !!social.github, auth0: mode.idp };
+}
+
+/** R34: which prerendered sign in card this deployment shows (the providers answer plus the demo button). */
+export interface LoginVariantOf { idp: boolean; password: boolean; google: boolean; github: boolean; demo: boolean }
+export function loginVariant(config: Pick<AppConfig, "auth" | "demoEnabled">): LoginVariantOf {
+  const p = providersAnswer(config);
+  return { idp: p.idp, password: p.password, google: p.google, github: p.github, demo: !!config.demoEnabled };
+}
+
 export function localPasswordEnabled(config: Pick<AppConfig, "auth">): boolean {
   return config.auth.localPassword || !config.auth.auth0;
 }

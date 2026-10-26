@@ -774,5 +774,11 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R34 (MB-186): board settings per project: swimlanes (none, assignee, epic, priority, project) and WIP limits\n-- per column (status id -> { max, min }). One row per project, one write per change (essential: a person saved it).\n-- WITHOUT ROWID: the primary key is the row, so there is no second index entry.\nCREATE TABLE `board_settings` (\n\t`project_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`swimlanes` text DEFAULT 'none' NOT NULL,\n\t`limits` text DEFAULT '{}' NOT NULL,\n\t`updated_by` text,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0077_r34_meeting_minutes_cap",
+    "statements": [
+      "-- R34 (MB-171): operator override for call participant-minutes a month per workspace. Null means the plan's rule\n-- (free: 1,000; paid: no cap). Usage itself lives in usage_counters (metric meeting_participant_minutes), one upsert per call end.\nALTER TABLE `organizations` ADD `meeting_minutes_cap` integer;"
+    ]
   }
 ];

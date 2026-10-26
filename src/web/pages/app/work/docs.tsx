@@ -9,6 +9,7 @@ import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplat
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Input } from "@/web/components/ui/input";
 import { EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { timeAgo } from "@/web/lib/format";
@@ -22,7 +23,7 @@ import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { SlashMenu } from "./slash-menu"; // R31: "/" menu for every block
 import { uploadDocImage } from "@/web/lib/docs-blocks"; // R32: table, image and callout blocks
 import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
-import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteConfirmText, useBracketTrigger, useDocTree } from "./doc-tree";
+import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteDocConfirm, useBracketTrigger, useDocTree } from "./doc-tree";
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -91,6 +92,7 @@ const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none"
 const LIVE_EDITOR_PROPS = { ...EDITOR_PROPS, handleKeyDown: liveKeyDown, handleDOMEvents: liveDomEvents };
 
 function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }) {
+  const { confirm, dialogs } = useDialogs();
   const id = doc.id;
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -152,6 +154,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className="mx-auto max-w-3xl">
+      {dialogs}
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle">
         <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Docs</Link>
         {session && (
@@ -174,7 +177,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           }}>
           <LayoutTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!window.confirm(deleteConfirmText(tree.data?.tree, id))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
+        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
       </div>
       <DocBreadcrumbs docId={id} title={title} />
       <h1 className="sr-only">{title || "Untitled doc"}</h1>

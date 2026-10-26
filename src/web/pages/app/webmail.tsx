@@ -31,6 +31,7 @@ import { registerMailActions } from "@/web/lib/mail-actions"; // R31
 import type { ReadStatus } from "@/shared/mail-splits";
 import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
 import { Dialog } from "@/web/components/ui/dialog";
+import { jobActionFor, jobConfirmWords, needsConfirm, type JobAction } from "@/web/lib/bulk-confirm-r34"; // R34
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
@@ -157,26 +158,56 @@ export function WebmailPage() {
     const box = mailboxes.find((m) => m.id === mailboxId);
     return box?.folders[folder as Folder]?.total ?? null;
   };
-  const runJob = (action: JobBody["action"]) => {
+  // R34: a select-all job over more than BIG_JOB messages (or an unknown total with more pages) asks first.
+  const [confirmJob, setConfirmJob] = useState<{ action: JobAction; extra: { to?: string; when?: JobBody["when"] }; label?: string; title: string; description: string; button: string } | null>(null);
+  // R34: Enter confirms the big-job dialog wherever focus sits in it (Esc cancels through the dialog itself).
+  const confirmRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    if (!confirmJob) return;
+    const on = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" || e.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      confirmRef.current();
+    };
+    window.addEventListener("keydown", on, true);
+    return () => window.removeEventListener("keydown", on, true);
+  }, [confirmJob]);
+  const runJob = (action: JobAction, extra: { to?: string; when?: JobBody["when"] } = {}, label?: string, confirmed = false) => {
     const scope = jobScope();
     const exclude = everything ?? [];
     if (!scope) return;
+    const known = folderTotal();
+    const expected = known !== null ? Math.max(0, known - exclude.length) : null;
+    if (!confirmed && needsConfirm(expected, !!list.hasNextPage)) {
+      const where = q ? `“${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? "this folder";
+      const said = action === "snooze" ? label?.replace(/^until /, "") : label;
+      setConfirmJob({ action, extra, label, ...jobConfirmWords(action, expected, where, said) });
+      return;
+    }
     // The ceiling is when the list on screen was read (server clock); mail that reached Multies after that is left
     // alone. Older servers: the newest arrival among the loaded rows.
     const seen = list.data?.pages[0]?.asOf ?? items.reduce((m, i) => (i.receivedAt && i.receivedAt > m ? i.receivedAt : m), "");
-    const body: JobBody = { client_job_id: newJobId(), action, scope, exclude_ids: exclude, max_received_at: seen || new Date().toISOString() };
+    const body: JobBody = { client_job_id: newJobId(), action, scope, exclude_ids: exclude, max_received_at: seen || new Date().toISOString(), ...extra };
     const loaded = rowIds.filter((id) => !exclude.includes(id));
     // Optimistic: the loaded rows change at once; the job does the rest on the server.
-    qc.setQueryData<MailListData>(listKey, (d) => applyMailAction(d, loaded, action as MailAction, folder, !!q));
+    if (action !== "move") qc.setQueryData<MailListData>(listKey, (d) => applyMailAction(d, loaded, action as MailAction, folder, !!q));
     const total = folderTotal();
     setSel(emptySelection());
     setEverything(null);
     if (selected && loaded.includes(selected) && action !== folder && !["read", "unread", "star", "unstar"].includes(action)) open(null);
-    ops.run({ kind: "job", body, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, onSettled: () => { void refresh(); } }, { action, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length });
+    ops.run({ kind: "job", body, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, onSettled: () => { void refresh(); } }, { action, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, folderLabel: label });
   };
-  const JOB_ACTIONS = new Set(["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash"]);
+  confirmRef.current = () => { const c = confirmJob; setConfirmJob(null); if (c) runJob(c.action, c.extra, c.label, true); };
   const runBulk = (partial: Omit<BulkCall, "ids">, folderLabel?: string, confirmed = false) => {
-    if (everything && JOB_ACTIONS.has(partial.action)) { runJob(partial.action as JobBody["action"]); return; }
+    // R34: snooze, move and delete (to Trash, undoable) run as the server job too when everything is chosen.
+    const jobAction = everything ? jobActionFor(partial.action, folder) : null;
+    if (jobAction) {
+      const p = partial as Omit<BulkCall, "ids"> & { to?: string; preset?: "later_today" | "tomorrow" | "next_week"; at?: string; local?: string };
+      const extra = jobAction === "move" ? { to: p.to } : jobAction === "snooze" ? { when: { preset: p.preset, at: p.at, local: p.local } } : {};
+      runJob(jobAction, extra, jobAction === "snooze" && p.preset ? SNOOZE_WORDS[p.preset] : folderLabel);
+      return;
+    }
     const ids = everything ? rowIds.filter((id) => !everything.includes(id)) : sel.ids;
     if (!ids.length) return;
     const call: BulkCall = { ...partial, ids };
@@ -447,6 +478,10 @@ export function WebmailPage() {
       </section>
 
       <InvoiceReminderDialog open={invoiceOpen} onClose={() => setInvoiceOpen(false)} onCompose={startCompose} />
+      <Dialog open={!!confirmJob} onClose={() => setConfirmJob(null)} title={confirmJob?.title ?? ""} description={confirmJob?.description}
+        footer={<><Button variant="secondary" onClick={() => setConfirmJob(null)}>Cancel</Button><Button autoFocus data-testid="bulk-job-confirm" onClick={() => confirmRef.current()}>{confirmJob?.button ?? "Go"}</Button></>}>
+        <span className="sr-only">Enter confirms, Escape cancels.</span>
+      </Dialog>
       <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={confirmDelete ? `Delete ${confirmDelete.ids.length === 1 ? "1 conversation" : `${confirmDelete.ids.length} conversations`} forever?` : ""}
         description="They leave Trash for good. This can't be undone."
         footer={<><Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button><Button variant="danger" data-testid="bulk-delete-confirm" onClick={() => { const c = confirmDelete; setConfirmDelete(null); if (c) runBulk({ action: "delete" }, undefined, true); }}>Delete forever</Button></>}>

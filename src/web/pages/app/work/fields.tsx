@@ -8,6 +8,7 @@ import { ArrowUp, Check, ExternalLink, GripVertical, Plus, Trash2, X } from "luc
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
@@ -121,6 +122,7 @@ export function FieldInput({ field, value, people, onSave }: { field: CustomFiel
 
 /** Add, rename, reorder and delete a project's fields, and edit select options. */
 export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: string; fields: CustomField[]; open: boolean; onClose: () => void }) {
+  const { confirm, dialogs } = useDialogs();
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [type, setType] = useState<FieldType>("text");
@@ -139,11 +141,12 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
   };
   const patch = async (id: string, body: Record<string, unknown>) => { try { await api.patch(`/fields/${id}`, body); refresh(); } catch (e) { showError(e as Error); } };
   const remove = async (f: CustomField) => {
-    if (!window.confirm(`Delete the field "${f.name}" and its values on every task?`)) return;
+    if (!(await confirm({ title: `Delete the field ${f.name}?`, description: "Its values on every task in this project go with it.", confirmLabel: "Delete field" }))) return;
     try { await api.del(`/fields/${f.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
   return (
     <Dialog open={open} onClose={onClose} title="Custom fields" description="Fields show on every task in this project, as list columns and in filters.">
+      {dialogs}
       <ul className="space-y-2" aria-label="Fields">
         {fields.map((f, i) => (
           <li key={f.id} className="rounded-lg border border-line p-2.5">

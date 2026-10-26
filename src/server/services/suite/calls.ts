@@ -10,6 +10,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { guestChannel, visibleChannel, type GuestViewer } from "./chat";
 import { notify } from "./notify";
+import { liveMinutes, meetingMinutes, minutesState, participantMinutes, recordMeetingMinutes, type MinutesState, type SeenPerson } from "./meeting-minutes-r34";
 
 export interface CallParticipant { identity: string; name: string; joinedAt: number | null }
 /** Lists the people connected to a video room. Injectable (Deps.callRooms) so tests fake it. */
@@ -67,7 +68,26 @@ export function roomsFor(deps: Deps): CallRooms | null {
 // Per isolate: one in flight or recent read per room, and rooms seen with people (to tell "ended" from "not joined yet").
 const cache = new Map<string, { at: number; value: Promise<CallParticipant[]> }>();
 const seen = new Set<string>();
-export function clearCallCache() { cache.clear(); seen.clear(); }
+// R34 (MB-171): per room, each person's first and last sighting, so the call's participant-minutes are known at its end.
+const usageSeen = new Map<string, Map<string, SeenPerson>>();
+export function clearCallCache() { cache.clear(); seen.clear(); usageSeen.clear(); }
+
+function noteUsage(room: string, ps: CallParticipant[], now: number) {
+  let people = usageSeen.get(room);
+  if (!people) {
+    people = new Map();
+    usageSeen.set(room, people);
+    if (usageSeen.size > 2000) usageSeen.delete(usageSeen.keys().next().value!);
+  }
+  for (const p of ps) {
+    const had = people.get(p.identity);
+    const first = Math.min(had?.first ?? now, p.joinedAt ?? now);
+    people.set(p.identity, { first, last: now });
+  }
+}
+
+/** Test seam: what this isolate saw of a room. */
+export function usageSeenFor(room: string) { return usageSeen.get(room); }
 
 async function participants(deps: Deps, rooms: CallRooms, room: string, fresh = false) {
   const now = deps.now().getTime();
@@ -78,7 +98,7 @@ async function participants(deps: Deps, rooms: CallRooms, room: string, fresh = 
   if (cache.size > 500) for (const [k, v] of cache) if (now - v.at >= CALL_CACHE_MS) cache.delete(k);
   try {
     const ps = await value;
-    if (ps.length) { seen.add(room); if (seen.size > 2000) seen.delete(seen.values().next().value!); }
+    if (ps.length) { seen.add(room); if (seen.size > 2000) seen.delete(seen.values().next().value!); noteUsage(room, ps, deps.now().getTime()); }
     return ps;
   } catch (err) {
     cache.delete(room);
@@ -102,6 +122,17 @@ export interface CallStatus {
   docId: string | null;
   participants: { name: string }[]; count: number;
   startedAt: string; endedAt: string | null; durationMin: number | null;
+  /** R34 (MB-171): the workspace's call minutes this month, on a live call when a cap applies (else absent). */
+  minutes?: MinutesState;
+}
+
+/**
+ * R34 (MB-171): the call's participant-minutes from what this isolate saw. A call another isolate watched counts
+ * its length since it started, capped at 6 hours, for one person (the least it can have been).
+ */
+export function endedCallMinutes(m: { startsAt: Date }, people: Map<string, SeenPerson> | undefined, now: number) {
+  if (people?.size) return participantMinutes(people.values());
+  return Math.min(360, Math.max(1, Math.ceil((now - m.startsAt.getTime()) / 60_000)));
 }
 
 /** One write, only while the meeting is still scheduled: a second isolate or a repeat read writes nothing. */
@@ -112,6 +143,11 @@ async function markEnded(deps: Deps, m: MeetingRow) {
   if (done.length) { m.status = "ended"; m.endedAt = now; }
   // R24 polish: recipes listening for meeting_ended hear a call that emptied too. A failed rule never breaks the call status.
   if (done.length) await (await import("./automations-r24-events")).runCallEnded(deps, m).catch(() => 0);
+  // R34 (MB-171): one counter upsert per call end. A failed count never breaks the call status.
+  if (done.length) {
+    await recordMeetingMinutes(deps, m.orgId, endedCallMinutes(m, usageSeen.get(m.room), now.getTime())).catch(() => 0);
+    usageSeen.delete(m.room);
+  }
   return done.length > 0;
 }
 
@@ -123,7 +159,13 @@ async function statusOf(deps: Deps, rooms: CallRooms | null, m: MeetingRow, fres
   };
   if (m.status !== "scheduled" || !rooms) return m.status !== "scheduled" ? ended() : { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };
   const ps = await participants(deps, rooms, m.room, fresh);
-  if (ps.length) return { ...base, state: "live", participants: ps.map((p) => ({ name: p.name })), count: ps.length, endedAt: null, durationMin: null };
+  if (ps.length) {
+    const live: CallStatus = { ...base, state: "live", participants: ps.map((p) => ({ name: p.name })), count: ps.length, endedAt: null, durationMin: null };
+    // R34 (MB-171): reads only (cached 30 s); the call shows a warning at 80% and when 5 minutes remain.
+    const mm = await meetingMinutes(deps, m.orgId).catch(() => null);
+    if (mm && mm.cap !== null) live.minutes = minutesState(mm.used + liveMinutes(ps.map((p) => p.joinedAt), deps.now().getTime()), mm.cap, deps.now());
+    return live;
+  }
   // Empty after this isolate saw people in it: the call is over. Write once.
   if (seen.has(m.room) && (await markEnded(deps, m))) { seen.delete(m.room); return ended(); }
   return { ...base, state: "waiting", participants: [], count: 0, endedAt: null, durationMin: null };

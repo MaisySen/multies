@@ -130,12 +130,18 @@ describe("sending", () => {
 
   it("enforces the daily sending limit", async () => {
     await verifyDomain();
+    // Past its first week with a clean record, so the plan's cap (not the R34 new sender limit) is the one in play.
+    const { organizations } = await import("@/server/db/schema");
+    await ctx.deps.db.update(organizations).set({ createdAt: new Date(Date.now() - 30 * 86_400_000) });
+    // The shared sender headroom (90 a day across every workspace) would stop this first; turn it off here.
+    ctx.deps.config.sendGuard = { ...ctx.deps.config.sendGuard!, providerDailyCap: 0 };
     const many = Array.from({ length: 50 }, (_, i) => `r${i}@example.com`);
     expect((await c.post("/api/mail/send", { mailboxId: inbox.id, to: many, subject: "a", text: "a" })).status).toBe(201);
     expect((await c.post("/api/mail/send", { mailboxId: inbox.id, to: many, subject: "b", text: "b" })).status).toBe(201);
+    // R34 (MB-166): over the cap the message is queued until midnight UTC with the reason, never refused or dropped.
     const over = await c.post("/api/mail/send", { mailboxId: inbox.id, to: ["one-more@example.com"], subject: "c", text: "c" });
-    expect(over.status).toBe(403);
-    expect(over.body.error.code).toBe("plan_limit");
+    expect(over.status).toBe(202);
+    expect(over.body.queued.reason).toMatch(/Daily sending limit reached \(100 recipients a day\)/);
   });
 });
 

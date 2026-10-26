@@ -9,6 +9,7 @@ import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { requireText, useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
@@ -47,6 +48,7 @@ const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
 export function TasksPage() {
+  const { prompt, dialogs } = useDialogs();
   const [params, setParams] = useSearchParams();
   const projects = useProjects();
   const people = useAssignees();
@@ -171,7 +173,7 @@ export function TasksPage() {
   const activeFilters = FILTER_KEYS.filter((k) => filters[k]);
 
   const saveView = async () => {
-    const name = window.prompt("Name this view", activeFilters.length ? activeFilters.map((k) => filters[k]).join(", ") : `${project?.name ?? "All tasks"} ${view}`);
+    const name = (await prompt({ title: "Save view", label: "View name", initial: activeFilters.length ? activeFilters.map((k) => filters[k]).join(", ") : `${project?.name ?? "All tasks"} ${view}`, confirmLabel: "Save view", validate: requireText("a name") }))?.trim();
     if (!name) return;
     setSaving(true);
     try {
@@ -184,6 +186,7 @@ export function TasksPage() {
 
   return (
     <div className="flex min-h-[calc(100dvh-7rem)] flex-col">
+      {dialogs}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <h1 className="mr-2 large-title">Tasks</h1>
         <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px]">

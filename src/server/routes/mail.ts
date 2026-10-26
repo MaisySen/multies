@@ -182,6 +182,8 @@ export function mailRoutes() {
       const input = await parseBody(c, sendMessageSchema);
       await assertMailboxAccess(deps.db, auth, input.mailboxId);
       const result = await sendMessage(deps, auth, input);
+      // R34: a sending limit queued it until midnight UTC (202 with the reason), not sent.
+      if (result.queued) return c.json(result, 202);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "message.sent", targetType: "message", targetId: result.messageId, metadata: { recipients: [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].length }, ip: c.var.ip });
       return c.json(result, 201);
     })

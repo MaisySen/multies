@@ -6,6 +6,7 @@ import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
+import { requireText, useDialogs } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Textarea } from "@/web/components/ui/input";
 import { Avatar, Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -107,6 +108,7 @@ function AddContact({ onClose }: { onClose: () => void }) {
 }
 
 export function ContactPage() {
+  const { prompt, dialogs } = useDialogs();
   const { id = "" } = useParams();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -120,12 +122,13 @@ export function ContactPage() {
     try { await api.patch(`/contacts/${c.id}`, { notes }); await qc.invalidateQueries({ queryKey: ["contact", id] }); } catch (e) { showError(e as Error); }
   };
   const makeDeal = async () => {
-    const title = window.prompt("Deal name", c.company ? `${c.company.name} deal` : `${c.name || c.email} deal`);
+    const title = (await prompt({ title: "New deal", label: "Deal name", initial: c.company ? `${c.company.name} deal` : `${c.name || c.email} deal`, confirmLabel: "Create deal", validate: requireText("a deal name") }))?.trim();
     if (!title) return;
     try { await api.post("/deals", { title, contactId: c.id }); await qc.invalidateQueries({ queryKey: ["contact", id] }); } catch (e) { showError(e as Error); }
   };
   return (
     <div>
+      {dialogs}
       <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Avatar label={initials(c.name || c.email)} className="h-12 w-12 text-sm" />

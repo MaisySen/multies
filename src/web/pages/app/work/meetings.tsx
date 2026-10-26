@@ -22,6 +22,7 @@ import { askToJoin, GuestLobby, GuestsWaitSetting, LobbyRequests } from "./lobby
 import { CallSidePanel, CallToolbar, useCallNotesDoc, useCallPanel } from "./call-panel-r31";
 import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
+import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -121,6 +122,7 @@ function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeav
             </LiveKitRoom>
           )}
           {member && <LobbyRequests meetingId={meetingId} className="absolute right-3 top-3 z-30" />}
+          {member && <CallMinutesBanner meetingId={meetingId} className="absolute bottom-20 left-3 z-30" />}
         </div>
         {panel.tab && <CallSidePanel meetingId={meetingId} guestToken={guestToken} member={member} tab={panel.tab} onClose={panel.close} so={panel.so} />}
       </div>
@@ -146,6 +148,7 @@ export function MeetingsPage() {
   return (
     <div>
       <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Schedule</Button>} />
+      <CallMinutesUsage className="-mt-3 mb-4" />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><VideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
         <Card><EmptyState icon={<Video />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>

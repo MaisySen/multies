@@ -48,3 +48,38 @@ Before round 19 the same message waited for the next scheduled pass: 10 to 15 mi
 
 MAIL_LIVE=off in [vars] stops live windows; the beat still answers (reads only) and the scheduled
 pass carries on. MAIL_LIVE_MINUTES_PER_DAY changes the daily allowance.
+
+## Inbox placement check (R34, MB-170)
+
+Where does mail from multies.si land at the big providers: the inbox, a Promotions tab, or spam? `scripts/placement-check.ts`
+sends ONE test mail to seed mailboxes we own and reads where it landed.
+
+Setup, once (nothing secret goes in the repo):
+
+1. Make a seed mailbox at each provider that matters (Gmail, Outlook.com, Yahoo, iCloud). Turn on IMAP and make an app
+   password for each; never use a real person's mailbox.
+2. Put the seeds in the environment of the machine you run it on, or in a JSON file outside the repo:
+   - `PLACEMENT_SEEDS="gmail=seed1@gmail.com,outlook=seed2@outlook.com,yahoo=seed3@yahoo.com,icloud=seed4@icloud.com"`
+   - `PLACEMENT_IMAP_GMAIL="imap.gmail.com:993:seed1@gmail.com:<app password>"` (one per seed; a seed without one is checked by hand)
+   - or `PLACEMENT_SEEDS_FILE=/path/outside/repo/seeds.json` with `[{ "label", "address", "imap": { "host", "port", "user", "pass" } }]`
+   - `RESEND_API_KEY` (the production outbound key, injected with `node scripts/creds.mjs run RESEND_API_KEY -- ...`)
+   - `PLACEMENT_FROM` if not `Multies deliverability <check@multies.si>`
+
+Run:
+
+- `npx tsx scripts/placement-check.ts` is a dry run: it lists the seeds and sends nothing.
+- `npx tsx scripts/placement-check.ts --send` sends the one mail (subject `Multies placement check MPC-xxxxxxxxxx`),
+  waits 90 s (`--wait <s>`), then searches each seed's folders over IMAP: Inbox first, then Promotions, then Spam/Junk.
+  Gmail's Promotions tab is read from the message's labels.
+- `npx tsx scripts/placement-check.ts --check MPC-xxxxxxxxxx` reads the seeds again for an earlier send.
+
+It prints one line per seed and exits 0 only when every checked seed got it in the inbox (1 otherwise, 2 on a setup
+problem). Seeds without IMAP get a manual list: search for the token, note the folder, and open the original to check
+that SPF, DKIM and DMARC pass with DKIM `d=multies.si`.
+
+When to run it: after any DNS change (SPF, DKIM, DMARC), a change of outbound provider, or a spike in bounces or spam
+complaints; and once a month. Write each result below with the date.
+
+Results:
+
+- (none yet: no seed mailboxes are set up. That needs the owner to create the seed accounts.)

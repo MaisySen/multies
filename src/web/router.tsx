@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router";
 import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
@@ -10,8 +10,17 @@ import { AppSkeleton } from "./layouts/app-skeleton";
 // auth client and the app carries none of the marketing pages.
 const PricingPage = lazy(() => import("./pages/pricing").then((m) => ({ default: m.PricingPage })));
 const AgentsDevPage = lazy(() => import("./pages/agents").then((m) => ({ default: m.AgentsDevPage })));
-const authPages = () => import("./pages/auth");
-const LoginPage = lazy(() => authPages().then((m) => ({ default: m.LoginPage })));
+// R34 (perf2): the sign in page's module, kept once loaded. On a prerendered /login main.tsx loads it before the first
+// render, so the page renders straight away (no Suspense fallback over the card that is already on screen).
+let authModule: typeof import("./pages/auth") | null = null;
+const authPages = () => import("./pages/auth").then((m) => (authModule = m));
+export const preloadAuthPages = () => authPages();
+const LoginLazy = lazy(() => authPages().then((m) => ({ default: m.LoginPage })));
+function LoginPage() {
+  // Chosen once per mount, so a module that arrives later never swaps the component (and loses what was typed).
+  const [Loaded] = useState(() => authModule?.LoginPage ?? null);
+  return Loaded ? <Loaded /> : <LoginLazy />;
+}
 const SignupPage = lazy(() => authPages().then((m) => ({ default: m.SignupPage })));
 const ForgotPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ForgotPasswordPage })));
 const ResetPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ResetPasswordPage })));
