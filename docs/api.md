@@ -802,6 +802,12 @@ Saved views (the filters behind a board, list, calendar, timeline, sprints or wo
 - `DELETE /api/v1/views/{id}` removes it; tasks are not touched.
 
 
+## Board swimlanes and column limits (R34, MB-186)
+
+- `GET /api/v1/projects/{id}/board` answers `{ "board": { "projectId": "prj_...", "swimlanes": "assignee", "limits": { "sts_...": { "max": 5, "min": 1 } } } }`. A board never saved answers `swimlanes: "none"` and no limits. Read only keys can read.
+- `PUT /api/v1/projects/{id}/board` with any of `{ "swimlanes": "none" | "assignee" | "epic" | "priority" | "project" }`, `{ "limits": { ... } }` (replaces the map) or `{ "column": { "id": "sts_...", "max": 5, "min": null } }` (one column; null clears that side). Limits are whole numbers 1 to 999 and min is not above max (422 otherwise). One row written per change. Read only keys get 403, another workspace's project 404.
+- In the app: GET and PUT `/api/projects/{id}/board`. A limit never blocks a move: the column header shows "6 / 5" with "Over limit" and a red top edge, and the person sees a short note.
+
 ## Round 25: fixes found by Haajir
 
 - `GET /health` and `GET /healthz` answer the same JSON as `/api/health` (MB-53).

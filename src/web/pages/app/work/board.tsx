@@ -12,6 +12,8 @@ import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, positionBetween, t
 import { ChecklistChip } from "./task-checklist"; // R26 (MB-85)
 import { tone } from "@/web/components/app-bits";
 import { TypeIcon } from "./task-type";
+import { LimitChip, LimitMenu, overLimitToast } from "./board-lanes"; // R34 (MB-186)
+import { limitState, wouldExceed, type BoardLimits, type ColumnLimit } from "@/shared/board-lanes";
 
 export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: () => void; dragging?: boolean; handle?: React.ReactNode }) {
   return (
@@ -39,7 +41,7 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
   );
 }
 
-function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
+export function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, data: { statusId: t.statusId } });
   return (
     // The card drags by pointer anywhere on it; keyboard and screen reader users get a
@@ -54,15 +56,20 @@ function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
   );
 }
 
-function Column({ id, title, color, count, children, onAdd }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void }) {
+function Column({ id, title, color, count, children, onAdd, limit, onSetLimit }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+  /** R34 (MB-186): this column's WIP limit, and the header menu to change it. */
+  limit?: ColumnLimit; onSetLimit?: (v: { max?: number | null; min?: number | null }) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${id}`, data: { statusId: id } });
+  const over = limitState(count, limit) === "over";
   return (
-    <section aria-label={title} data-testid={`column-${title}`} className={cn("flex w-[min(280px,85vw)] shrink-0 snap-start flex-col rounded-xl border border-line bg-surface/70", isOver && "border-brand/40")}>
+    <section aria-label={title} data-testid={`column-${title}`} data-over={over ? "true" : undefined}
+      className={cn("flex w-[min(280px,85vw)] shrink-0 snap-start flex-col rounded-xl border border-t-2 border-line bg-surface/70 transition-colors duration-150 motion-reduce:transition-none", over ? "border-t-[#D70015]" : "border-t-transparent", isOver && "border-brand/40")}>
       <header className="flex items-center gap-2 px-3 py-2.5">
         <span className="h-2 w-2 rounded-full" style={{ background: tone(color) }} aria-hidden />
         <h2 className="text-[13px] font-semibold">{title}</h2>
-        <span className="text-[12px] text-subtle tabular-nums">{count}</span>
-        <button onClick={onAdd} className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1" aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
+        <LimitChip count={count} limit={limit} />
+        {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
+        <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
       </header>
       <ul ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">{children}</ul>
     </section>
@@ -89,8 +96,10 @@ export function epicKey(t: Pick<Task, "parentId">, cols: { id: string }[]) {
  * Kanban: columns are the project's statuses, or the options of a single select field when
  * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
  */
-export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy, byEpic }: {
+export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy, byEpic, limits, onSetLimit }: {
   project: Project; tasks: Task[]; onOpen: (id: string) => void;
+  /** R34 (MB-186): WIP limits per column id, and the header menu that changes them. */
+  limits?: BoardLimits; onSetLimit?: (columnId: string, v: { max?: number | null; min?: number | null }) => void;
   onMove: (id: string, columnId: string, position: number) => void; onAdd: (columnId: string) => void;
   groupBy?: CustomField;
   /** Round 22: one column per epic in the project, plus "No epic". Epics themselves are the columns, not cards. */
@@ -153,6 +162,9 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy
     }
     const position = positionBetween(list[index - 1]?.position, list[index]?.position);
     const t = tasks.find((x) => x.id === id);
+    if (t && keyOf(t) !== to && limits?.[to]?.max !== undefined && wouldExceed(list.length + 1, limits[to])) {
+      overLimitToast(cols.find((c) => c.id === to)?.name ?? "this column", limits[to]!.max!); // R34: the card still moves
+    }
     if (t && (keyOf(t) !== to || Math.abs(t.position - position) > 1e-9)) onMove(id, to, position);
   };
 
@@ -160,7 +172,8 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverrides({}); }}>
       <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-4 sm:snap-none" data-testid="board">
         {cols.map((s) => (
-          <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}>
+          <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}
+            limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}>
             <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} onOpen={() => onOpen(t.id)} />)}
             </SortableContext>

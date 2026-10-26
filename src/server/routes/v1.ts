@@ -48,6 +48,7 @@ import { registerRecordingRoutes } from "./v1-r23-recordings";
 import { registerCallRoutes } from "./v1-r23-calls";
 import { registerWorkloadRoutes } from "./v1-r24-workload";
 import { registerSavedViewRoutes } from "./v1-views";
+import { registerBoardRoutes } from "./v1-r34-board"; // R34 (MB-186)
 import { registerAutomationRecipeRoutes } from "./v1-r24-recipes";
 import { registerR24DocRoutes } from "./v1-r24-docs";
 import { registerDashboardRoutes } from "./v1-r24-dashboards";
@@ -495,6 +496,7 @@ export function v1Routes() {
   registerCallRoutes(api); // Round 23: call presence
   registerWorkloadRoutes(api); // R24.2: workload
   registerSavedViewRoutes(api); // DF-20: saved views
+  registerBoardRoutes(api); // R34 (MB-186): swimlanes and WIP limits
   registerAutomationRecipeRoutes(api); // R24.4: automation recipes
   registerDashboardRoutes(api); // R24.3: dashboards
   registerFormulaRoutes(api); // R24.1: formula and rollup fields

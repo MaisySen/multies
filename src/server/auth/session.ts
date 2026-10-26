@@ -39,21 +39,15 @@ export function resolveLoginMethod(ctx: { path?: string; params?: Record<string,
   return null;
 }
 
-/** The key Better Auth (1.7) gives a request whose client address it could not read. */
-export const ADDRESSLESS_KEY = "no-trusted-ip";
-
 /**
  * Rate limit counters for the auth endpoints, held in this app instance's memory (one per
  * Workers isolate): no database write per sign in attempt. A fixed window per key, at most
  * 10,000 keys, oldest dropped first.
  */
-export function instanceRateLimitStore(maxKeys = 10_000, opts: { localAddresslessUnlimited?: boolean } = {}) {
+export function instanceRateLimitStore(maxKeys = 10_000) {
   const hits = new Map<string, { count: number; resetAt: number }>();
   return {
     async consume(key: string, rule: { window: number; max: number }) {
-      // R34: Better Auth keys a request with no client address as "no-trusted-ip|<path>", so on a local
-      // machine every request shares one counter. Local E2E servers opt out of that one shared key only.
-      if (opts.localAddresslessUnlimited && key.startsWith(`${ADDRESSLESS_KEY}|`)) return { allowed: true, retryAfter: null };
       const now = Date.now();
       let e = hits.get(key);
       if (!e || now >= e.resetAt) {
