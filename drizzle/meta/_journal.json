@@ -491,6 +491,13 @@
       "when": 1793000074000,
       "tag": "0074_r33_mail_bulk_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1793000075000,
+      "tag": "0075_r34_board_settings",
+      "breakpoints": true
     }
   ]
 }

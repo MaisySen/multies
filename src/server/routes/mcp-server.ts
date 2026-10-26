@@ -69,6 +69,7 @@ import { registerR24DocTools } from "./mcp-r24-docs";
 import { registerDashboardTools } from "./mcp-r24-dashboards";
 import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
+import { registerBoardTools } from "./mcp-r34-board"; // R34 (MB-186)
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
 import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
@@ -287,6 +288,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerDashboardTools(server, deps, actor, writable, tool); // R24.3: dashboards
   registerFormulaTools(server, deps, actor, writable, tool); // R24.1: formula and rollup fields
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
+  registerBoardTools(server, deps, actor, writable, tool); // R34 (MB-186): swimlanes and WIP limits
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
   registerR26CommentTools(server, deps, actor, writable, tool); // R26 (MB-77): comments and chat messages
