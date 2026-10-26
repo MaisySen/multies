@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 146 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 154 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -409,6 +409,18 @@ Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key 
 | --- | --- |
 | `update_auth_email_hook` | Set how a Supabase auth email hook's emails look: `branding` with `logoUrl` (https), `brandColor` (#RRGGBB), `replyTo`, `footer`, per type `templates` (signup, invite, magiclink, recovery, email_change, email, reauthentication: `subject`, `intro`, `buttonLabel`) and `secondaryLanguage` (`lang`, the same per type `templates`, `note`), shown under the main text. Plain text only, placeholders `{appName}`, `{code}`, `{email}`. Keys left out stay, null clears one, `branding: null` goes back to the default email. Also `appName` and `from`. One row written |
 
+### Sign-up emails settings (R28)
+
+Registered in src/server/routes/mcp-r28-auth-email-settings.ts, over the same service as Settings, Sign-up emails and `/api/v1/auth-email-settings` (R27), with the same rules: owners, admins and full workspace keys or tokens only (agent keys and agent member keys get `forbidden`), and writes need a full key (read only keys and tokens can get and preview; the rest answer `read_only_key`). The signing secret is in the one answer that made it, never in a later read, the audit log or the logs.
+
+| Tool | What it does |
+| --- | --- |
+| `get_auth_email_settings` | The settings (`enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding`, `endpointUrl`, `secret: { set, masked }`, `testSendsLeft`) and the sender mailboxes on verified domains. `settings` is null before the first save. Writes nothing |
+| `update_auth_email_settings` | Create (`from` and `supabaseUrl` needed the first time; that answer carries `secret` once) or change any of `enabled`, `senderName`, `from`, `appName`, `supabaseUrl`, `branding` (merged, null clears), with the API's validation. Audited; a change that changes nothing writes nothing |
+| `regenerate_auth_email_secret` | A new signing secret, returned once as `secret`; the old one stops working at once. Audited without the value |
+| `preview_auth_email` | The email one `type` would send (signup by default), with a sample link and the code 123456, and unsaved `appName` or `branding` merged in. Nothing sent or stored |
+| `send_auth_email_test` | Sends one `type`, as saved, to your own address (a key's creator for a workspace key) with "Test:" before the subject. At most 5 an hour a workspace, shared with the page and REST (`rate_limited` after). Audited |
+
 ### Comments and chat messages: read back, edit, delete (R26, MB-77)
 
 Registered in src/server/routes/mcp-r26-comments.ts. Read only keys can list; edits and deletes need a full key. Only the author edits (an agent key edits what its agent wrote); the author, an owner or an admin deletes. The same calls are on REST as `GET /api/v1/tasks/{id}/comments`, `GET|PATCH|DELETE /api/v1/comments/{id}` and `GET|PATCH|DELETE /api/v1/chat/messages/{id}`.
@@ -449,6 +461,16 @@ Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link need
 | `add_run_step` | Log one step in your run: `kind` note, tool, comment or status_change, `text` up to 1,000 characters; 200 steps per run. One row write |
 | `finish_task_run` | Finish with `status` succeeded, failed or cancelled and a `result`; `moveTo` done or review moves the task, `comment` posts the result as your comment. A person's or workspace key can only cancel |
 | `list_task_runs` | With `taskId`: that task's runs with steps and results. Without: runs across the workspace (no steps), by `agentUserId` and `status` (read only keys can call it) |
+
+### Agent run triggers (R28, DF-3 slice 3)
+
+Admin and full workspace keys only; an agent member's key gets 403.
+
+| Tool | What it does |
+|---|---|
+| `list_agent_triggers` | The workspace's triggers (at most 20): kind, agent, task or project, next run, last fired, fire count. `agentUserId?` filters |
+| `create_agent_trigger` | Queue runs for an agent member on a schedule (`everyHours` 1 or more, or `dailyAt` HH:MM with `days?` in the workspace zone) or from a signed webhook (the answer holds the URL and the secret, shown once). Target: `taskId`, or `projectId` plus `titleTemplate` ({trigger}, {date}, {datetime}) for a new task each time; `instructions` travel with each run |
+| `delete_agent_trigger` | Delete a trigger (`triggerId`); its webhook stops at once and runs already queued stay |
 
 ### Task queries (R26, MB-86)
 

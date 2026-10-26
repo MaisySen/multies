@@ -76,6 +76,22 @@ const ACTIONS: Record<string, string> = {
   "agent_run.started": "started a run on",
   "agent_run.queued": "queued a run on",
   "agent_run.finished": "finished a run on",
+  "agent_trigger.created": "added the agent trigger",
+  "agent_trigger.updated": "edited the agent trigger",
+  "agent_trigger.deleted": "deleted the agent trigger",
+  "agent_trigger.secret_rotated": "rotated the secret of the agent trigger",
+  "agent_trigger.fired": "fired the agent trigger",
+  "agent_trigger.refused": "refused to fire the agent trigger",
+};
+
+/** R28 (DF-3 slice 3): why a trigger did not fire, in plain words. */
+const TRIGGER_REFUSALS: Record<string, string> = {
+  agent_queue_full: "the agent's queue is full",
+  agent_paused: "the agent is paused",
+  agent_not_member: "the agent was removed",
+  run_in_progress: "a run is already active",
+  task_missing: "its task was deleted",
+  project_missing: "its project is gone",
 };
 
 /** "approved an agent's message", for one audit action. */
@@ -92,6 +108,13 @@ export function describeAudit(e: AuditEntry): { verb: string; object?: string; s
     if (e.action === "agent_run.queued") return { verb, object: `${m.taskRef} for ${agent}` };
     const outcome = e.action === "agent_run.finished" && typeof m.status === "string" ? ` (${m.status})` : "";
     return { verb, object: `${m.taskRef}${outcome}`, subject: m.byAgent === false ? undefined : agent };
+  }
+  // R28 (DF-3 slice 3): "Trigger fired the agent trigger Nightly (MB-12 for Builder)".
+  if (e.action.startsWith("agent_trigger.") && typeof m.triggerName === "string") {
+    const verb = ACTIONS[e.action] ?? e.action.replace(/[._]/g, " ");
+    if (e.action === "agent_trigger.fired" && typeof m.taskRef === "string") return { verb, object: `${m.triggerName} (${m.taskRef} for ${typeof m.agentName === "string" ? m.agentName : "an agent"})` };
+    if (e.action === "agent_trigger.refused") return { verb, object: `${m.triggerName}: ${TRIGGER_REFUSALS[String(m.reason)] ?? String(m.reason ?? "refused")}` };
+    return { verb, object: m.triggerName };
   }
   const object = (m.name ?? m.address ?? m.email ?? (m.to ? `${m.from} → ${m.to}` : undefined)) as string | undefined;
   return { verb: ACTIONS[e.action] ?? e.action.replace(/[._]/g, " "), object };

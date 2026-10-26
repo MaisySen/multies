@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus } from "lucide-react";
+import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus, Zap } from "lucide-react";
+import { AgentTriggersDialog } from "./agent-triggers"; // R28 (DF-3 slice 3)
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -399,6 +400,7 @@ function AgentRow({ a, extra, canManage, self, onKey }: { a: TeamMember; extra?:
   });
   const [profiling, setProfiling] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [triggers, setTriggers] = useState(false);
   const newKey = useMutation({
     mutationFn: () => api.post<{ secret: string }>(`/team/agents/${a.userId}/keys`, {}),
     onSuccess: (r) => onKey(r.secret),
@@ -429,11 +431,13 @@ function AgentRow({ a, extra, canManage, self, onKey }: { a: TeamMember; extra?:
         <Menu label={`Actions for ${a.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
           <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit profile</MenuItem>
           {canManage && <MenuItem icon={<KeyRound />} onSelect={() => newKey.mutate()}>New API key</MenuItem>}
+          {canManage && <MenuItem icon={<Zap />} onSelect={() => setTriggers(true)}>Triggers</MenuItem>}
           {canManage && <MenuItem icon={paused ? <Play /> : <Pause />} onSelect={() => pause.mutate()}>{paused ? "Resume" : "Pause"}</MenuItem>}
           {canManage && <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(true)}>Remove</MenuItem>}
         </Menu>
       )}
       {profiling && <ProfileDialog onClose={() => setProfiling(false)} member={a} />}
+      {triggers && <AgentTriggersDialog agentUserId={a.userId} agentName={a.name} onClose={() => setTriggers(false)} />}
       <Dialog open={removing} onClose={() => setRemoving(false)} title={`Remove ${a.name}?`} description="Its API keys stop working at once. What it posted stays, under its name."
         footer={<><Button variant="secondary" onClick={() => setRemoving(false)}>Cancel</Button><Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>Remove</Button></>} />
     </li>
