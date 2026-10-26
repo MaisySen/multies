@@ -335,7 +335,8 @@ it("bulk task changes (round 21): a 50 task update is one batch with no per task
   // D1 bills a written row for the table and one for each index whose columns the write touches.
   const idxCols = new Map<string, string[][]>();
   for (const t of ["tasks", "changes", "activity", "task_field_values", "projects"]) {
-    idxCols.set(t, (prepare(`select name from pragma_index_list('${t}')`).all() as { name: string }[]).map((i) => (prepare(`select name from pragma_index_info('${i.name}')`).all() as { name: string }[]).map((x) => x.name)));
+    // R33: partial indexes are left out; a bulk change row has no verb, so it adds no changes_entity_idx entry (D1 bills none).
+    idxCols.set(t, (prepare(`select name from pragma_index_list('${t}') where partial = 0`).all() as { name: string }[]).map((i) => (prepare(`select name from pragma_index_info('${i.name}')`).all() as { name: string }[]).map((x) => x.name)));
   }
   let reads = 0, d1Rows = 0, outside = 0, inBatch = false;
   const batches: number[] = [];
@@ -1037,7 +1038,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(14) // R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(9) // R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);

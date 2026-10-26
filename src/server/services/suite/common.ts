@@ -1,11 +1,12 @@
 /**
  * Shared plumbing for the suite (tasks, projects, docs, contacts, automations).
- * One write path: every change saves the row, then an activity entry and a change entry,
- * so the timeline, the sync feed and webhooks all read the same truth.
+ * One write path: every change saves the row, then ONE change entry that carries the activity fields (R33, 0073),
+ * so the timeline, the sync feed and webhooks all read the same truth. The timeline reads `activity_feed`
+ * (old activity rows plus change rows with a verb).
  */
 import { and, desc, eq, gt } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { activity, changes } from "../../db/schema";
+import { activity, activityFeed, changes } from "../../db/schema";
 import { randomBytes } from "../../lib/crypto";
 import { HttpError } from "../../lib/errors";
 import { emitEvent, type WebhookEvent } from "../developer/webhooks";
@@ -51,34 +52,40 @@ export function assertWritable(a: SuiteActor) {
 
 export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "deal" | "automation" | "comment" | "view" | "time_entry" | "form" | "meeting" | "custom_field" | "guest" | "file" | "channel" | "chat_message" | "goal" | "key_result" | "template";
 
-/** Records the activity entry and the change entry for one write. Never throws into the caller's write. */
+/**
+ * Records one write: a single `changes` row carrying the activity fields (R33: 3 rows written with its indexes,
+ * where the old activity row plus change row cost 6). Essential write. Never throws into the caller's write.
+ */
 export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   entityType: EntityType; entityId: string; op: "create" | "update" | "delete"; version?: number;
   verb: string; data?: Record<string, unknown>; event?: WebhookEvent; eventData?: Record<string, unknown>;
 }) {
   const actor = actorOf(a);
-  const act: typeof activity.$inferInsert = {
-    id: sortableId("act", deps.now().getTime()), orgId: a.orgId, actorType: actor.type, actorId: actor.id, actorName: actor.name,
-    verb: w.verb, entityType: w.entityType, entityId: w.entityId, data: JSON.stringify(w.data ?? {}), createdAt: deps.now(),
-  };
-  const change: typeof changes.$inferInsert = { orgId: a.orgId, entityType: w.entityType, entityId: w.entityId, op: w.op, version: w.version ?? 1, createdAt: deps.now() };
+  const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), w);
   try {
-    if (deps.writeBuffer) {
-      deps.writeBuffer.activity.push(act);
-      deps.writeBuffer.changes.push(change);
-    } else {
-      await Promise.all([deps.db.insert(activity).values(act), deps.db.insert(changes).values(change)]);
-    }
+    if (deps.writeBuffer) deps.writeBuffer.changes.push(change);
+    else await deps.db.insert(changes).values(change);
   } catch (err) {
     deps.reportError?.(err, { where: "recordWrite", entity: w.entityType });
   }
   if (w.event) await emitEvent(deps, a.orgId, w.event, { ...(w.eventData ?? {}), actor: { type: actor.type, id: actor.id, name: actor.name } });
 }
 
+/** One change feed row that is also a timeline entry (R33). Batch writers (seeds, imports) use it too. */
+export function changeRow(orgId: string, actor: { type: "member" | "agent" | "system"; id: string | null; name: string }, at: Date, w: {
+  entityType: string; entityId: string; op: "create" | "update" | "delete"; version?: number; verb: string; data?: Record<string, unknown>;
+}): typeof changes.$inferInsert {
+  return {
+    orgId, entityType: w.entityType, entityId: w.entityId, op: w.op, version: w.version ?? 1, createdAt: at,
+    actorType: actor.type, actorId: actor.id, actorName: actor.name, verb: w.verb, data: JSON.stringify(w.data ?? {}),
+  };
+}
+
 export async function timeline(deps: Deps, orgId: string, entityType: EntityType, entityId: string, limit = 100) {
-  const rows = await deps.db.select().from(activity)
-    .where(and(eq(activity.orgId, orgId), eq(activity.entityType, entityType), eq(activity.entityId, entityId)))
-    .orderBy(desc(activity.createdAt)).limit(limit);
+  // R33: old activity rows and change rows with a verb, through the activity_feed view.
+  const rows = await deps.db.select().from(activityFeed)
+    .where(and(eq(activityFeed.orgId, orgId), eq(activityFeed.entityType, entityType), eq(activityFeed.entityId, entityId)))
+    .orderBy(desc(activityFeed.createdAt)).limit(limit);
   return rows.map((r) => ({ id: r.id, actor: { type: r.actorType, id: r.actorId, name: r.actorName }, verb: r.verb, data: JSON.parse(r.data) as Record<string, unknown>, at: r.createdAt.toISOString() }));
 }
 
@@ -105,7 +112,8 @@ export async function flushWriteBuffer(deps: Deps, buffer: NonNullable<Deps["wri
   const chs = buffer.changes as (typeof changes.$inferInsert)[];
   await runBatch(deps.db, [
     ...chunk(acts, 9).map((rows) => deps.db.insert(activity).values(rows)),
-    ...chunk(chs, 14).map((rows) => deps.db.insert(changes).values(rows)),
+    // R33: a change row binds 11 values, so 9 rows per statement stay under D1's 100.
+    ...chunk(chs, 9).map((rows) => deps.db.insert(changes).values(rows)),
   ]);
   buffer.activity.length = 0;
   buffer.changes.length = 0;

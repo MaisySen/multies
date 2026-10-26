@@ -152,7 +152,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => send(c, { project: await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
 
   api.openapi(createRoute({ method: "patch", path: "/projects/{id}", tags: tag("Projects"), summary: "Update a project or its statuses", security: secured,
-    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
+    request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
   async (c) => send(c, { project: await updateProject(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
 
   // ---------------------------------------------------------------- docs

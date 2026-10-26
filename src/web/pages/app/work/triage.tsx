@@ -18,7 +18,6 @@ import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
 import { useAssignees, useProjects, type Task } from "./data";
-import { TriageCommentBar, type CommentMode } from "./triage-comment-r33";
 
 type TriageSource = "mail" | "form" | "api" | "chat" | "agent";
 type TriageItem = Task & { triage: { state: "pending"; source: TriageSource | null; from: string | null; snoozedUntil?: string | null } | null };
@@ -65,8 +64,6 @@ export function TriagePage() {
   const [declining, setDeclining] = useState(false);
   const [merging, setMerging] = useState(false);
   const [snoozing, setSnoozing] = useState(false);
-  // R33: A / D open a one line comment under the item; Enter confirms, Esc cancels.
-  const [commenting, setCommenting] = useState<CommentMode | null>(null);
   const current = items[Math.min(cursor, Math.max(items.length - 1, 0))] as TriageItem | undefined;
   const projectName = (id: string) => projects.data?.find((p) => p.id === id)?.name ?? "";
   const statuses = projects.data?.find((p) => p.id === projectId)?.statuses ?? [];
@@ -85,36 +82,26 @@ export function TriagePage() {
     if (prev) qc.setQueryData(key, { ...prev, items: prev.items.filter((t) => t.id !== id), count: Math.max(0, prev.count - (view === "pending" ? 1 : 0)) });
     return () => { if (prev) qc.setQueryData(key, prev); };
   };
-  const undo = async (it: TriageItem, kind: "restore" | "unsnooze", commentId?: string) => {
-    try { await api.post(`/triage/${it.id}/action`, { action: kind, ...(commentId ? { commentId } : {}) }); toast.success(`${it.ref} is back in Triage`); await refresh(); } catch (e) { showError(e as Error); }
+  const undo = async (it: TriageItem, kind: "restore" | "unsnooze") => {
+    try { await api.post(`/triage/${it.id}/action`, { action: kind }); toast.success(`${it.ref} is back in Triage`); await refresh(); } catch (e) { showError(e as Error); }
   };
   const act = async (it: TriageItem, body: Record<string, unknown>, done: string, undoKind: "restore" | "unsnooze") => {
     const rollback = drop(it.id);
     setBusy(true);
     try {
-      const r = await api.post<{ comment?: { id: string } }>(`/triage/${it.id}/action`, body);
-      // R33: one Undo takes back the status change and the comment written with it.
-      const commentId = r?.comment?.id;
-      toast.success(done, { action: { label: "Undo", onClick: () => void undo(it, undoKind, commentId) } });
+      await api.post(`/triage/${it.id}/action`, body);
+      toast.success(done, { action: { label: "Undo", onClick: () => void undo(it, undoKind) } });
       await refresh();
     } catch (e) { rollback(); showError(e as Error); } finally { setBusy(false); }
   };
-  const accept = (it: TriageItem, comment?: string) => act(it, {
+  const accept = (it: TriageItem) => act(it, {
     action: "accept",
-    ...(comment ? { comment } : {}),
     accept: {
       ...(projectId && projectId !== it.projectId ? { projectId } : {}),
       ...(statusId ? { statusId } : {}),
       ...(assignee !== (it.assigneeId ?? "") ? { assignee: assignee || null } : {}),
     },
-  }, comment ? `${it.ref} is now a task, with your comment` : `${it.ref} is now a task`, "restore");
-  const declineWith = (it: TriageItem, comment: string) => act(it, { action: "decline", ...(comment ? { comment } : {}) }, comment ? `${it.ref} declined, with your comment` : `${it.ref} declined`, "restore");
-  const submitComment = (comment: string) => {
-    if (!current || !commenting) return;
-    const mode = commenting;
-    setCommenting(null);
-    void (mode === "accept" ? accept(current, comment) : declineWith(current, comment));
-  };
+  }, `${it.ref} is now a task`, "restore");
   const snooze = (it: TriageItem, until: string) => act(it, { action: "snooze", until }, `Snoozed until ${new Date(until).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}`, "unsnooze");
   const bulk = async (action: "accept" | "decline") => {
     setBusy(true);
@@ -131,15 +118,14 @@ export function TriagePage() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (e.metaKey || e.ctrlKey || e.altKey || declining || merging || snoozing || busy || commenting) return;
+      if (e.metaKey || e.ctrlKey || e.altKey || declining || merging || snoozing || busy) return;
       if (t && (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName))) return;
       const k = e.key.toLowerCase();
       if (k === "j") { e.preventDefault(); setCursor((c) => Math.min(c + 1, items.length - 1)); }
       else if (k === "k") { e.preventDefault(); setCursor((c) => Math.max(c - 1, 0)); }
       else if (!current) return;
-      else if (k === "a") { e.preventDefault(); setCommenting("accept"); }
-      else if (k === "d" && e.shiftKey) { e.preventDefault(); setDeclining(true); }
-      else if (k === "d") { e.preventDefault(); setCommenting("decline"); }
+      else if (k === "a") { e.preventDefault(); void accept(current); }
+      else if (k === "d") { e.preventDefault(); setDeclining(true); }
       else if (k === "h") { e.preventDefault(); if (view === "snoozed") void act(current, { action: "unsnooze" }, `${current.ref} is back in Triage`, "unsnooze"); else setSnoozing(true); }
       else if (k === "m") { e.preventDefault(); setMerging(true); }
       else if (k === "o" || e.key === "Enter") { e.preventDefault(); open(current); }
@@ -249,7 +235,6 @@ export function TriagePage() {
                 <Button variant="ghost" onClick={() => open(current)} disabled={busy}><ExternalLink className="h-4 w-4" />Open</Button>
                 <Button variant="ghost" className="ml-auto text-bad" onClick={() => setDeclining(true)} disabled={busy}><X className="h-4 w-4" />Decline</Button>
               </div>
-              {commenting && <TriageCommentBar key={`${current.id}-${commenting}`} mode={commenting} busy={busy} onSubmit={submitComment} onCancel={() => setCommenting(null)} onMore={() => { setCommenting(null); setDeclining(true); }} />}
             </Card>
           )}
         </div>

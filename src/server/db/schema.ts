@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, sqliteView, text, integer, real, index, uniqueIndex, primaryKey } from "drizzle-orm/sqlite-core";
 
 const ts = (name: string) => integer(name, { mode: "timestamp_ms" });
 const createdAt = () => ts("created_at").notNull().$defaultFn(() => new Date());
@@ -773,7 +773,7 @@ export const projects = sqliteTable("projects", {
   /** A short key shown before task numbers, e.g. OPS. */
   key: text("key").notNull(),
   color: text("color").notNull().default("#ff5a36"),
-  /** Next task number in this project. */
+  /** Next task number in this project. R33: no longer written; the live counter is project_counters (claimNumbers). Kept for rollback. */
   nextNumber: integer("next_number").notNull().default(1),
   archivedAt: ts("archived_at"),
   /** Health set by hand on the portfolio: on track, at risk or off track. */
@@ -787,6 +787,24 @@ export const projects = sqliteTable("projects", {
   triage: integer("triage", { mode: "boolean" }).notNull().default(false),
   ...suiteCols(),
 }, (t) => [index("projects_org_idx").on(t.orgId)]);
+
+/**
+ * R33 (0073): the next task number per project, off the wide projects row (1 row written per claim instead of 3).
+ * WITHOUT ROWID in the migration, so the primary key is the row and there is no second index entry. Filled on first
+ * claim from projects.next_number, which is kept (no longer written) so a rollback still works.
+ */
+export const projectCounters = sqliteTable("project_counters", {
+  projectId: text("project_id").primaryKey().references(() => projects.id, { onDelete: "cascade" }),
+  nextNumber: integer("next_number").notNull(),
+});
+
+/** R33 (0073): keys a project used before a key edit, so old refs (OPS-12) still open the task. WITHOUT ROWID. */
+export const projectKeyAliases = sqliteTable("project_key_aliases", {
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  projectId: text("project_id").notNull().references(() => projects.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.orgId, t.key] })]);
 
 /** Custom statuses per project, in board order. `category` maps each to to do, doing or done. */
 export const projectStatuses = sqliteTable("project_statuses", {
@@ -975,7 +993,30 @@ export const changes = sqliteTable("changes", {
   op: text("op", { enum: ["create", "update", "delete"] }).notNull(),
   version: integer("version").notNull().default(1),
   createdAt: createdAt(),
-}, (t) => [index("changes_org_seq_idx").on(t.orgId, t.seq)]);
+  /** R33 (0073): the activity fields ride the change row, so one write serves the timeline and the sync feed. Null on rows that are feed only (bulk per task rows). */
+  actorType: text("actor_type", { enum: ["member", "agent", "system"] }),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  verb: text("verb"),
+  data: text("data"),
+}, (t) => [index("changes_org_seq_idx").on(t.orgId, t.seq), index("changes_entity_idx").on(t.entityType, t.entityId, t.seq).where(sql`${t.verb} IS NOT NULL`)]);
+
+/**
+ * R33 (0073): the timeline as one read: old `activity` rows and change rows that carry a verb. A SQL view (see the
+ * migration); every timeline reader selects from this, so rows written before and after 0073 read the same way.
+ */
+export const activityFeed = sqliteView("activity_feed", {
+  id: text("id").notNull(),
+  orgId: text("org_id").notNull(),
+  actorType: text("actor_type", { enum: ["member", "agent", "system"] }).notNull(),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  verb: text("verb").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  data: text("data").notNull(),
+  createdAt: ts("created_at").notNull(),
+}).existing();
 
 /** Simple rules: when this happens, do that. No AI and no outside sends without approval. */
 export const automations = sqliteTable("automations", {

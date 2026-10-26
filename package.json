@@ -26,6 +26,7 @@
     "build:worker": "tsx scripts/build-llms.ts && tsx scripts/build-worker.ts",
     "build:preview": "npm run build:web && tsx scripts/build-worker.ts --profile preview",
     "test:e2e": "playwright test",
+    "test:e2e:staging-readonly": "E2E_ALLOW_REMOTE=1 E2E_BASE_URL=https://mymail-staging.mymail-app.workers.dev playwright test e2e/launch-checklist.spec.ts --grep \"real 404|robots|sitemap|favicon\" --workers=1",
     "check": "npm run typecheck && npm run lint && npm run lint:copy && npm test",
     "lint:copy": "tsx scripts/check-copy.ts",
     "mailserver:setup": "tsx scripts/stalwart-setup.ts",

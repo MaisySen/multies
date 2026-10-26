@@ -205,6 +205,7 @@ describe("MCP server", () => {
       "update_auth_email_settings",
       "update_checklist_item",
       "update_key_result",
+      "update_project",
       "update_task",
       "upsert_contact",
       "use_template",

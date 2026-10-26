@@ -40,9 +40,6 @@ Clients poll `GET /unread` every 15 s and the open channel with `?since=` every 
 Public API: `GET` and `POST /api/v1/chat/channels`, `PATCH /api/v1/chat/channels/{id}` (`name?`, `topic?`, `archived?`,
 `projectId?`, `guestAccess?`), `GET` and `POST /api/v1/chat/channels/{id}/messages`, `GET /api/v1/chat/messages/{id}/thread`,
 `POST /api/v1/chat/messages/{id}/task`, `POST` and `DELETE /api/v1/chat/messages/{id}/pin`, `GET /api/v1/chat/channels/{id}/pins`.
-Round 33: a post may carry `clientMsgId` (9 base 36 characters of the send time in ms, then 8 to 40 more). The answer then carries
-`ack { type: "ack", reply_to, ok, message: { id, ts }, deduped }`, and a repeat with the same id answers 200 with the first message
-(no second row, notification or live event). The live socket's first frame is `{ t: "hello", serverTime, seq }`; the app holds sends until it.
 Round 21: `POST /api/v1/chat/messages/{id}/reactions` (`{ emoji }`, toggles the key's reaction; read only keys get 403) and
 `GET /api/v1/chat/search?q=&channelId=&limit=` (public channels only, newest first, limit 1 to 50).
 
@@ -288,7 +285,7 @@ on read, so a task change costs no extra write; a completed sprint keeps its fin
 ## MCP tools
 
 The tools at the time of writing (the generated list is in [qa/inventory.md](qa/inventory.md)):
-`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `form_logic_set`, `form_results`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
+`append_to_doc`, `bulk_update_tasks`, `comment_on_task`, `contact_timeline`, `create_agent_inbox`, `set_mailbox_reply_to`, `create_custom_field`, `create_doc`, `create_form`, `form_logic_set`, `form_results`, `create_goal`, `create_incoming_hook`, `create_task`, `create_template`, `find_tasks_by_field`, `get_portfolio`, `get_report`, `get_task`, `get_timesheet`, `invite_guest`, `list_channels`, `list_custom_fields`, `list_forms`, `list_goals`, `list_bookings` (when scheduling is on), `list_guests`, `list_inboxes`, `list_integrations`, `list_meetings`, `list_notifications`, `list_projects`, `list_tasks`, `list_templates`, `list_threads`, `log_time`, `message_to_task`, `next_task`, `pin_message`, `post_message`, `read_channel`, `read_chat_thread`, `read_doc`, `read_thread`, `reply`, `schedule_meeting`, `search`, `search_contacts`, `search_docs`, `send_email`, `set_project_health`, `update_project` (R33), `set_task_blocked_by`, `set_task_fields`, `set_task_repeat`, `start_timer`, `stop_timer`, `update_key_result`, `update_task`, `upsert_contact`, `use_template`, `wait_for_email`.
 
 The tool list is in `src/server/routes/mcp-server.ts`. Agents act within their key's scope, and sends
 by agents can require a person's approval.
@@ -1065,3 +1062,9 @@ When the database is briefly unavailable (an export in progress, overloaded, a l
 - Read status (opt in, Settings > Mail, off by default): `GET|PATCH /api/mail/prefs` `{ readStatus }`. When on, mail that leaves Multies carries a 1x1 image at `/r/o/<token>.gif` (public, random token, no PII, no-store). Opens in the first 10 seconds and from scanners are ignored; at most one write a minute per message. `GET /api/mail/messages?folder=sent` items and sent messages in `GET /api/mail/messages/:id` carry `readStatus: { tracked, opens, firstOpenAt, lastOpenAt }`; `GET /api/mail/read-status/:id`.
 - Public API: `GET|POST /api/v1/mail/splits`, `POST /api/v1/mail/splits/preview` (read only keys can call it), `POST /api/v1/mail/splits/reorder`, `GET|PATCH|DELETE /api/v1/mail/splits/{id}`, `GET|PATCH /api/v1/mail/prefs`, `GET /api/v1/mail/messages/{id}/read-status`, `GET /api/v1/messages?folder=inbox&split=`.
 - MCP: `mail_split_list`, `mail_split_create`, `mail_split_update`, `mail_split_delete`, `mail_read_status`; `list_threads` takes `split`.
+
+## R33: project keys and the timeline
+
+- `PATCH /api/projects/{id}` and `PATCH /api/v1/projects/{id}` take `key` (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, compared without case, or one another project used before its own key edit, answers 409 `key_taken` with a plain message; nothing changes. MCP: `update_project` (name, description, color, key) answers the same refusal.
+- After a key edit the old key keeps resolving: `GET /api/v1/tasks/OPS-12` still opens the task after OPS became OPR (the task's `ref` reads OPR-12).
+- The task and contact timeline (`activity` in task detail) reads one change row per write since migration 0073; entries written after it have ids starting `chg_`. Shapes are unchanged.
