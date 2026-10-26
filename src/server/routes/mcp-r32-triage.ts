@@ -25,17 +25,16 @@ export function registerTriageR32Tools(server: McpServer, deps: Deps, actor: Sco
 
   server.registerTool("task_triage_action", {
     title: "Act on a task in Triage", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-    description: "action: accept (optional statusId, status, projectId, assignee member:<id> or agent:<id>), decline (optional reason), snooze (until: ISO date or date-time, at most a year out), unsnooze, duplicate (duplicateOf: the task id it repeats) or restore (undo an accept, decline or duplicate from the last day). comment: a one line note written with an accept or decline (the answer carries comment.id); pass that as commentId with restore to remove it in the same undo.",
+    description: "action: accept (optional statusId, status, projectId, assignee member:<id> or agent:<id>), decline (optional reason), snooze (until: ISO date or date-time, at most a year out), unsnooze, duplicate (duplicateOf: the task id it repeats) or restore (undo an accept, decline or duplicate from the last day).",
     inputSchema: {
       id: z.string(), action: z.enum(TRIAGE_ACTIONS),
       statusId: z.string().optional(), status: z.enum(["todo", "doing", "done"]).optional(), projectId: z.string().optional(), assignee: z.string().nullable().optional(),
       reason: z.string().max(500).optional(), until: z.string().max(40).optional(), duplicateOf: z.string().optional(),
-      comment: z.string().max(2000).optional(), commentId: z.string().max(64).optional(),
     },
-  }, tool(async (x: { id: string; action: TriageAction; statusId?: string; status?: "todo" | "doing" | "done"; projectId?: string; assignee?: string | null; reason?: string; until?: string; duplicateOf?: string; comment?: string; commentId?: string }) => {
+  }, tool(async (x: { id: string; action: TriageAction; statusId?: string; status?: "todo" | "doing" | "done"; projectId?: string; assignee?: string | null; reason?: string; until?: string; duplicateOf?: string }) => {
     writable();
     return triageAction(deps, a, x.id, {
-      action: x.action, until: x.until, duplicateOf: x.duplicateOf, comment: x.comment, commentId: x.commentId,
+      action: x.action, until: x.until, duplicateOf: x.duplicateOf,
       accept: { statusId: x.statusId, status: x.status, projectId: x.projectId, ...(x.assignee !== undefined ? { assignee: parseAssignee(x.assignee) } : {}) },
       decline: { reason: x.reason },
     });

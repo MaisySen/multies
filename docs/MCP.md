@@ -266,7 +266,7 @@ Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage pa
 | Tool | What it does |
 | --- | --- |
 | `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
-| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
+| `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day) |
 
 ### Inbox splits and read status (R31)
 
