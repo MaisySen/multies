@@ -42,7 +42,7 @@ describe("AI assistant: bring your own AI", () => {
   it("sells no AI: no AI actions on any plan and no AI add-on", () => {
     expect("ai" in ADDONS).toBe(false);
     for (const p of Object.values(PLANS)) expect(Object.keys(p.limits)).not.toContain("aiActionsMonthly");
-    expect(PLANS.starter.features).toContain("Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.");
+    expect(PLANS.starter.features).toContain("Bring your own AI: connect any AI app or agent through MCP, free.");
   });
 
   it("without a key, points people to MCP and their own key, and calls no model", async () => {
@@ -55,7 +55,7 @@ describe("AI assistant: bring your own AI", () => {
       const r = await c.post(path, { messageId });
       expect(r.status).toBe(409);
       expect(r.body.error.code).toBe("ai_key_required");
-      expect(r.body.error.message).toContain("Bring your own AI: connect Claude, ChatGPT or any agent through MCP, free.");
+      expect(r.body.error.message).toContain("Bring your own AI: connect any AI app or agent through MCP, free.");
     }
     expect(calls).toHaveLength(0);
     expect((await c.get("/api/billing")).body.usage).not.toHaveProperty("aiActions");
