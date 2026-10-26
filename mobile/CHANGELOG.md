@@ -3,6 +3,21 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.5 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
+
+- Agent runs: Settings, Agent runs lists what AI agent members have run, newest first, with a
+  status chip (queued, running, succeeded, failed, cancelled), the agent, the task, when it
+  started and how long it took. Filter by status and pull to refresh. Tap a run for each step in
+  order and the result. A task's own runs show on the task screen. Read only.
+- Checklists: hold the grip on the right of an item and drag it into place. The new order shows
+  at once and goes back with a short message if it can't be saved. VoiceOver and TalkBack users
+  get Move up and Move down actions on each item.
+- Shipped over the air (no store build): Settings reads Multies 1.9.5 (OTA).
+
+What to test: open Settings, Agent runs, try the Failed filter and open a run. Then open a task
+with a checklist, hold an item's grip, drag it down two rows and let go; reopen the task to check
+the order stuck.
+
 ## 1.9.3 (Android versionCode 15, iOS build 17), 26 October 2026
 
 - Over the air updates: the app now checks for an update each time it starts and uses it from the

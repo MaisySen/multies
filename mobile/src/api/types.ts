@@ -117,6 +117,28 @@ export interface ChecklistItem {
 
 export interface ChecklistView { taskId: string; items: ChecklistItem[]; total: number; done: number }
 
+/** R29: an AI agent member's run on a task (server R27 agent runs, read only in the app). */
+export type RunStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export type RunStepKind = "note" | "tool" | "comment" | "status_change";
+export interface RunStep { at: string; kind: RunStepKind | string; text: string }
+export interface AgentRun {
+  id: string;
+  taskId: string;
+  task: { ref: string; title: string } | null;
+  agent: { userId: string; name: string; avatarColor?: string; isAgent?: true };
+  status: RunStatus | string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  result: string | null;
+  stepCount: number;
+  /** Empty on the workspace list; filled on one run and on a task's runs. */
+  steps: RunStep[];
+  createdAt: string;
+  updatedAt: string;
+  triggerId?: string | null;
+}
+
 export interface TaskComment { id: string; taskId: string; body: string; author: { type: string; id: string; name: string | null }; createdAt: string }
 
 export interface TaskThreadItem {

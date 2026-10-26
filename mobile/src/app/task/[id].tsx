@@ -6,6 +6,7 @@ import { TaskTime } from "@/components/timer";
 import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
 import { ChecklistSection } from "@/components/checklist";
+import { TaskRuns } from "@/components/runs";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
@@ -25,6 +26,8 @@ export default function TaskDetail() {
   const [notes, setNotes] = useState("");
   const [comment, setComment] = useState("");
   const [subtask, setSubtask] = useState("");
+  // R29: the page holds still while a checklist item is being dragged.
+  const [dragging, setDragging] = useState(false);
   // Refill the editable fields whenever a newer copy of the task arrives (React's "adjust state
   // when a prop changes" pattern, without an effect).
   const [seen, setSeen] = useState<string | null>(null);
@@ -60,7 +63,7 @@ export default function TaskDetail() {
   ];
 
   return (
-    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl * 2 }} keyboardShouldPersistTaps="handled" scrollEnabled={!dragging}>
       <Stack.Screen options={{ title: t.ref }} />
       {offline ? <Banner text="You're offline. This is the copy saved on this phone." /> : null}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
@@ -91,7 +94,8 @@ export default function TaskDetail() {
         ))}
       </Group>
 
-      <ChecklistSection taskId={t.id} />
+      <ChecklistSection taskId={t.id} onDragChange={setDragging} />
+      <TaskRuns taskId={t.id} />
 
       {d.customFields?.length ? (
         <Section title="Fields">

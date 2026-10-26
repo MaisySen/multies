@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, ArrowRight, AtSign, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, CircleAlert, CircleCheck, Clock, Columns3, Compass, Copy, CornerDownRight, CornerUpLeft, CornerUpRight, Cpu, DollarSign, Download, Ellipsis, ExternalLink, Eye, FileText, Flag, Funnel, Globe, HardDrive, Hash, Inbox, Info, Key, Layers, LifeBuoy, Link, List, Lock, LogOut, Mail, MapPin, MessageCircle, MessageSquare, Minus, Moon, Paperclip, Pause, PenLine, Play, Plus, RefreshCw, Search, Send, Settings, Shield, SlidersHorizontal, Smartphone, Square, SquareCheck, SquarePen, Star, Sun, Tag, Trash2, Undo2, User, UserCheck, UserX, Users, Video, WifiOff, X, Zap,
+  Activity, Archive, ArrowRight, AtSign, Bell, Bot, Briefcase, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Circle, CircleAlert, CircleCheck, Clock, Columns3, Compass, Copy, CornerDownRight, CornerUpLeft, CornerUpRight, Cpu, DollarSign, Download, Ellipsis, ExternalLink, Eye, FileText, Flag, Funnel, Globe, GripVertical, HardDrive, Hash, Inbox, Info, Key, Layers, LifeBuoy, Link, List, Lock, LogOut, Mail, MapPin, MessageCircle, MessageSquare, Minus, Moon, Paperclip, Pause, PenLine, Play, Plus, RefreshCw, Search, Send, Settings, Shield, SlidersHorizontal, Smartphone, Square, SquareCheck, SquarePen, Star, Sun, Tag, Trash2, Undo2, User, UserCheck, UserX, Users, Video, WifiOff, X, Zap,
   type LucideIcon,
 } from "lucide-react-native";
 
@@ -40,6 +40,7 @@ export const ICONS = {
   "filter": Funnel,
   "flag": Flag,
   "globe": Globe,
+  "grip-vertical": GripVertical,
   "hard-drive": HardDrive,
   "hash": Hash,
   "inbox": Inbox,

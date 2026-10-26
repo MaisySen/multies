@@ -71,6 +71,7 @@ export default function Settings() {
       <Row icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
+      <Row icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
       <Row icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
 
       <SectionTitle>Notifications</SectionTitle>

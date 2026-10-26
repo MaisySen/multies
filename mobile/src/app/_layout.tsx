@@ -82,6 +82,8 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
         <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
+        <Stack.Screen name="runs" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Agent runs" }} />
+        <Stack.Screen name="run/[id]" options={{ title: "Run" }} />
         <Stack.Screen name="chat/[id]" options={{ title: "" }} />
         <Stack.Screen name="chat/thread/[id]" options={{ title: "Thread" }} />
         <Stack.Screen name="chat/message/[id]" options={{ title: "" }} />

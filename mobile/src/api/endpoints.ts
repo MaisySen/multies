@@ -1,7 +1,7 @@
 import type { Transport } from "./transport";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
-  Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
+  AgentRun, Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
   CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
 } from "./types";
 
@@ -63,6 +63,12 @@ export function endpoints(t: Transport) {
     deleteChecklistItem: (id: string) => t.request<unknown>("DELETE", `/checklist-items/${encodeURIComponent(id)}`),
     reorderChecklist: (taskId: string, ids: string[]) =>
       t.request<unknown>("POST", `/tasks/${encodeURIComponent(taskId)}/checklist/reorder`, { ids }),
+
+    // R29: agent runs, read only (server R27 session routes; the workspace list is /agent-runs).
+    runs: (p: { agentUserId?: string; status?: string; limit?: number } = {}) =>
+      t.request<{ runs: AgentRun[] }>("GET", `/agent-runs${q({ agentUserId: p.agentUserId, status: p.status, limit: p.limit ?? 50 })}`),
+    run: (id: string) => t.request<{ run: AgentRun }>("GET", `/agent-runs/${encodeURIComponent(id)}`),
+    taskRuns: (taskId: string) => t.request<{ taskId: string; ref: string; runs: AgentRun[] }>("GET", `/tasks/${encodeURIComponent(taskId)}/runs`),
     projects: () => t.request<{ projects: Project[] }>("GET", "/projects"),
     changes: (since: number) => t.request<ChangePage>("GET", `/changes${q({ since })}`),
     // Notifications inbox. No ids and no category marks everything read.
