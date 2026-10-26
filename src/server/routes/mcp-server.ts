@@ -51,6 +51,7 @@ import { registerTaskQueryTools } from "./mcp-r26-task-query"; // R26 (MB-86)
 import { registerAgentRunTools } from "./mcp-r27-agent-runs"; // R27 (DF-3 slice 2)
 import { registerAgentTriggerTools } from "./mcp-r28-agent-triggers"; // R28 (DF-3 slice 3)
 import { registerDocsR28Tools } from "./mcp-r28-docs"; // R28: docs_append (found by Haajir)
+import { registerCountsR34Tools } from "./counts-r34"; // R34
 import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification triage and catch-up
 import { registerTriageR32Tools } from "./mcp-r32-triage"; // R32: task triage list and actions
 import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
@@ -69,7 +70,6 @@ import { registerR24DocTools } from "./mcp-r24-docs";
 import { registerDashboardTools } from "./mcp-r24-dashboards";
 import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
-import { registerBoardTools } from "./mcp-r34-board"; // R34 (MB-186)
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
 import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
@@ -267,6 +267,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerAgentTriggerTools(server, deps, actor, writable, tool); // R28 (DF-3 slice 3)
   registerDocsR28Tools(server, deps, actor, writable, tool); // R28: docs_append
   registerTriageR31Tools(server, deps, actor, writable, tool); // R31: notification triage and catch-up
+  registerCountsR34Tools(server, deps, actor, tool); // R34: get_counts
   registerTriageR32Tools(server, deps, actor, writable, tool); // R32: task triage list and actions
   registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
   registerDocsR32Tools(server, deps, actor, writable, tool); // R32: docs_add_block
@@ -288,7 +289,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerDashboardTools(server, deps, actor, writable, tool); // R24.3: dashboards
   registerFormulaTools(server, deps, actor, writable, tool); // R24.1: formula and rollup fields
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
-  registerBoardTools(server, deps, actor, writable, tool); // R34 (MB-186): swimlanes and WIP limits
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
   registerR26CommentTools(server, deps, actor, writable, tool); // R26 (MB-77): comments and chat messages
