@@ -82,6 +82,8 @@ export interface MessageListItem {
   isRead: boolean;
   isStarred: boolean;
   hasAttachments: boolean;
+  /** R33: when it arrived (the select all job leaves later mail alone). */
+  receivedAt?: string;
   /** Set when one of your agents wrote it. */
   sentByAgentId?: string | null;
   /** R31: read status of a sent message (Sent and the thread), when the sender had it on. */

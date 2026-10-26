@@ -16,6 +16,8 @@ export function presentListItem(m: Row) {
     sentByAgentId: m.sentByAgentId ?? null,
     /** Round 19: the provider folder a connected mailbox's message is in (a folder key), or null. */
     remoteBox: m.remoteBox ?? null,
+    /** R33: when it arrived here (the select all job's ceiling, so later mail is left alone). */
+    receivedAt: m.createdAt,
   };
 }
 

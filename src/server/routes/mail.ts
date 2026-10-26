@@ -22,6 +22,7 @@ import { splitCond } from "../services/mail/splits";
 import { readStatusFor } from "../services/mail/read-status";
 import { BULK_MAIL_ACTIONS, BULK_MAIL_MAX, runBulkMail } from "../services/mail/bulk-r32";
 import { deferrableWrite } from "../services/write-priority";
+import { BulkJobBody, bodyToInput, getBulkJob, runBulkJob, stepBulkJob, undoBulkJob } from "../services/mail/bulk-job-r33"; // R33
 
 
 /** The provider side of a single message edit: read, star and folder moves. */
@@ -139,6 +140,12 @@ export function mailRoutes() {
       // R32: one service for the app, v1 and MCP (services/mail/bulk-r32.ts); the app also pushes moves at once.
       return c.json(await runBulkMail(c.var.deps, c.var.auth, b, (rows, action, opts) => queueChange(c, rows, action, opts)));
     })
+    // R33: "select all" as one server job (services/mail/bulk-job-r33.ts). Repeat the same body (or POST .../step) to
+    // continue it; undo puts back exactly what it changed.
+    .post("/bulk-jobs", async (c) => c.json(await runBulkJob(c.var.deps, c.var.auth, bodyToInput(await parseBody(c, BulkJobBody)), (rows, action, opts) => queueChange(c, rows, action, opts))))
+    .get("/bulk-jobs/:id", async (c) => c.json(await getBulkJob(c.var.deps, c.var.auth, c.req.param("id"))))
+    .post("/bulk-jobs/:id/step", async (c) => c.json(await stepBulkJob(c.var.deps, c.var.auth, c.req.param("id"), (rows, action, opts) => queueChange(c, rows, action, opts))))
+    .post("/bulk-jobs/:id/undo", async (c) => c.json(await undoBulkJob(c.var.deps, c.var.auth, c.req.param("id"), (rows, action, opts) => queueChange(c, rows, action, opts))))
     .delete("/messages/:id", async (c) => {
       const { db } = c.var.deps;
       const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
