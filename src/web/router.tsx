@@ -194,6 +194,7 @@ export const router = createBrowserRouter([
         element: page(<SettingsLayout />),
         children: [
           { index: true, element: page(<GeneralSettings />) },
+          { path: "general", element: page(<GeneralSettings />) }, // R38: the phone settings hub opens General here
           { path: "team", element: page(<TeamSettings />) },
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },

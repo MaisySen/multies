@@ -11,7 +11,7 @@ test("an admin edits sign-up emails and the preview follows", async ({ page }) =
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
   await page.setViewportSize({ width: 1280, height: 1100 });
   await page.goto("/app/settings/sign-up-emails");
-  await expect(page.getByRole("heading", { name: "Sign-up emails" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sign-up emails" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Sign-up emails" })).toHaveAttribute("aria-current", "page");
 
   await page.getByLabel("Sender name").fill("Haajir School");
