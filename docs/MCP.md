@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 193 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 194 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -99,6 +99,10 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
 | `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
+| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins) |
+| `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
+| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
+| `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
 | `create_custom_field` | Add a custom field to a project (any type; formula and rollup take a config) |
@@ -435,24 +439,14 @@ Registered in src/server/routes/mcp-r24-docs.ts. `get_doc_tree` and `get_backlin
 | `move_doc` | Puts a doc under another page (`parentId`, or null for the top level) and, optionally, right before or after a sibling (`beforeId` or `afterId`); with neither it goes last. A page can't go under itself or its own sub pages |
 | `get_backlinks` | The docs whose body links to a doc or a task (`type` doc or task, `id` an id or a task ref like OPS-12), newest first, each with a short snippet of the text around the link |
 
-### Page history (R39)
-
-Registered in src/server/routes/mcp-r39-doc-versions.ts. `list_doc_versions` and `read_doc_version` are reads (`docs:read`); `save_doc_version` and `restore_doc_version` need `docs:write`. A version is kept when a new editing session starts (10 minutes after the last save, or someone else edits), when someone saves one, and before every restore; the newest 50 unnamed versions per doc are kept, named ones always.
-
-| Tool | What it does |
-| --- | --- |
-| `list_doc_versions` | A doc's saved versions, newest first (id, docVersion, title, name, reason edit or restore, words, author, savedAt), and the page now (version, words, editedBy) |
-| `read_doc_version` | One version's title and text, and `sinceThen { added, removed, titleChanged }` against the page now; `diff: true` adds the line diff, `content: true` the Tiptap JSON |
-| `save_doc_version` | Keeps the page as it is now under a `name` (default "Version N"), for example before a big rewrite; never pruned |
-| `restore_doc_version` | Puts a doc back to a version; the page as it is now is saved first, so the restore can be undone. `ifVersion` fails with version_conflict if the doc changed since |
-
 ### Dashboards (R24.3)
 
-Registered in src/server/routes/mcp-r24-dashboards.ts. `list_dashboards` and `get_dashboard_data` read, so read only keys and tokens can call them and they write nothing; `create_dashboard` and `add_dashboard_widget` need a full key or token. A private dashboard is seen only by its owner (a key acts for the person who made it); a dashboard made by an agent key is shared.
+Registered in src/server/routes/mcp-r24-dashboards.ts. `list_dashboards`, `list_dashboard_widget_types` and `get_dashboard_data` read, so read only keys and tokens can call them and they write nothing; `create_dashboard` and `add_dashboard_widget` need a full key or token. A private dashboard is seen only by its owner (a key acts for the person who made it); a dashboard made by an agent key is shared.
 
 | Tool | What it does |
 | --- | --- |
 | `list_dashboards` | Dashboards you can open (shared ones and your own) with their widget counts |
+| `list_dashboard_widget_types` | R39: every widget type with what it shows, the charts it can use, its default chart and size, its source and each setting with allowed values and the default (`type` for one). Reads no data |
 | `get_dashboard_data` | Every widget's numbers for one dashboard in one call, computed now: counts, tasks grouped by status, person, priority, project, sprint, type or label, due this week and overdue, completed per week (8 weeks), the active sprint's burndown, goal progress, reply times, mail per day (14 days) and workload per person, and the R38 types: calculations with a goal and the change against the previous range, battery, pivot tables, created vs completed, task lists, time tracked and notes; a widget whose saved filter was removed carries an `error` |
 | `create_dashboard` | Make a dashboard with up to 24 widgets, or `starter: "team"` for Team overview (by status, by person, due this week, completed per week); private unless `shared` |
 | `add_dashboard_widget` | Add one widget at the end: `type`, `groupBy`, `chart`, `size`, and a source (`savedViewId`, or `projectId` with `filters`, or `mailboxId`). R38 types take `range`, `metric`, `op`, `goal` (calculation), `columnBy` (pivot), `sort` (task_list) and `text` (note) |

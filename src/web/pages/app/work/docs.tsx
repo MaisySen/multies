@@ -26,7 +26,6 @@ import { uploadDocImage } from "@/web/lib/docs-blocks"; // R32: table, image and
 import { ImageInsertDialog, ImageToolbar, TableMenu } from "./doc-block-menus";
 import { DocBreadcrumbs, DocTreeSidebar, LinkedFrom, PageLinkPicker, deleteDocConfirm, useBracketTrigger, useDocTree } from "./doc-tree";
 import { recordRecent } from "@/web/lib/palette-recents"; // R36
-import { DocHistoryButton, DocHistoryPanel } from "./doc-history-r39"; // R39: page history
 
 interface DocSummary { id: string; title: string; excerpt: string; updatedAt: string; projectId: string | null }
 interface Doc extends DocSummary { content: Record<string, unknown>; text: string; version: number; links: { type: string; id: string }[] }
@@ -82,14 +81,10 @@ export function DocPage() {
   const q = useQuery({ queryKey: ["doc", id], queryFn: async () => (await api.get<{ doc: Doc }>(`/docs/${id}`)).doc, refetchOnWindowFocus: false });
   // Co-editing when the room answers; otherwise the single person editor.
   const collab = useCollabSession(id);
-  // R39: a restore from page history replaces the page; the editor starts again from the restored doc.
-  const qc = useQueryClient();
-  const [replaced, setReplaced] = useState(0);
-  const onReplaced = useCallback((d: Doc) => { qc.setQueryData(["doc", id], d); setReplaced((n) => n + 1); }, [qc, id]);
 
   const body = q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
     : q.error ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
-    : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}:${replaced}`} doc={q.data} session={collab.session} onReplaced={onReplaced} />;
+    : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
   // R24.5: the page tree beside the doc.
   return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
 }
@@ -98,7 +93,7 @@ const EDITOR_PROPS = { attributes: { class: "mm-prose min-h-[50vh] outline-none"
 
 const LIVE_EDITOR_PROPS = { ...EDITOR_PROPS, handleKeyDown: liveKeyDown, handleDOMEvents: liveDomEvents };
 
-function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSession | null; onReplaced: (d: Doc) => void }) {
+function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }) {
   // R36: an opened doc joins "Recently opened" in the command menu (device only, no server write).
   useEffect(() => { recordRecent({ kind: "item", id: `/app/docs/${doc.id}`, label: doc.title || "Untitled", url: `/app/docs/${doc.id}`, hint: "Doc" }); }, [doc.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const { confirm, dialogs } = useDialogs();
@@ -160,8 +155,6 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
   const openImageDialog = useCallback(() => setImageDialog(true), []);
   const uploadImage = useCallback((f: File) => uploadDocImage(id, f), [id]);
   useBracketTrigger(editor, openPicker);
-  const [history, setHistory] = useState(false); // R39: page history panel
-  const openHistory = useCallback(() => setHistory(true), []);
   const status = state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : state === "conflict" ? "Changed elsewhere. Reload to see the latest." : "Saved";
   return (
     <div className="mx-auto max-w-3xl">
@@ -180,7 +173,6 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
         )}
         <span className={cn(!session && "ml-auto")} role="status">{status}</span>
         <ShareButton kind="doc" targetId={id} />
-        <DocHistoryButton onOpen={openHistory} />
         <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-10 max-sm:min-w-10"
           onClick={async () => {
             // Save pending edits first: the template copies the stored doc.
@@ -227,8 +219,6 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
       <ImageToolbar editor={editor} />
       <ImageInsertDialog editor={editor} open={imageDialog} onClose={() => setImageDialog(false)} upload={uploadImage} />
       <div className="pb-24"><LinkedFrom docId={id} /></div>
-      <DocHistoryPanel docId={id} open={history} onClose={() => setHistory(false)} currentText={editor?.getText({ blockSeparator: "\n" }) ?? doc.text}
-        beforeChange={async () => { if (state === "unsaved") { clearTimeout(timer.current); await save(); } }} onRestored={(d) => onReplaced(d as Doc)} />
     </div>
   );
 }

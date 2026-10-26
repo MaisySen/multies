@@ -322,6 +322,42 @@ Domains (`/api/domains`, `/api/v1/domains`) carry `sending: { status: verified |
 domain is registered with the outbound provider, and their `records` then list the provider's DKIM, return path
 (`return_mx`, `return_spf`) and receiving MX.
 
+## Move your data (import and export)
+
+Settings, Import and export brings a team in from the tools it uses now and lets it leave with everything. The same
+calls are in the public API (`data-moves`, admin area; a read only key may start an export) and over MCP
+(`export_workspace`, `list_data_moves`, `import_file`, `undo_import`).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
+| POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log |
+| POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
+| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
+| POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
+
+`kind` is `tasks` (a CSV, an Excel file as `xlsx-base64:...`, a board JSON, or a Markdown and CSV zip as `zip-base64:...`),
+`calendar` (.ics), `contacts` (.vcf, or a CSV with an email column), `docs` (a Markdown file, or a zip of pages) or
+`workspace` (the ZIP an export made, which brings back projects, tasks, contacts, meetings and docs). `statusMap` maps a
+status name in the file to a status id in the project; `people` maps a person in the file to a member's user id, or `""`
+to leave their tasks unassigned (the name stays on the task as a note). Imports write in batches of 50, stay under the
+database's 100 values per statement, stop at the day's cap of 2,000 tasks or the write budget, and carry on when sent again.
+
+The export ZIP holds `data/<table>.json` (every record with its ids), `csv/` (tasks, projects, comments, contacts,
+companies, deals, time entries, chat messages), `docs/<title>.md`, `calendar/meetings.ics`, `contacts/contacts.vcf`,
+`mail/<address>.mbox` and `mail/<address>.jsonl`, plus `workspace.json`, `members.csv` and `audit-log.csv`. Passwords,
+keys and private links are never in it.
+
+## Keep other tools in sync
+
+After a move, keep a spreadsheet, a warehouse or another app up to date in one of three ways:
+
+1. Outgoing webhooks (below): add an endpoint in Settings, Developers, pick events such as `task.created`,
+   `task.updated`, `contact.updated` or `meeting.created`, and verify each delivery with any Standard Webhooks library.
+   Deliveries retry for about nine hours, show in a delivery log, and can be replayed or sent as a test.
+2. Polling: `GET /api/v1/changes?since=<cursor>` answers every change in order, so a nightly job can copy only what moved.
+3. A scheduled export: call `POST /api/v1/data-moves/exports` (at most every 10 minutes) and read the CSV or JSON files.
+
 ## Outgoing webhooks
 
 Endpoints are added in Settings, Developers (or `/api/developer`). Deliveries follow
@@ -710,26 +746,6 @@ periodic snapshot through the normal update.
   `/api/guest/r24/tasks/:id/backlinks` show their project's docs only.
 - Another workspace's ids answer 404. MCP: `get_doc_tree`, `move_doc`, `get_backlinks`.
 
-### Page history (R39)
-
-Every doc keeps earlier states of itself. A version is saved when a new editing session starts (the last save was 10
-minutes ago or more, or someone else made it), when someone saves one by name, and before every restore. The newest 50
-unnamed versions per doc are kept; named versions are kept for good. Reads need `docs:read`, the rest `docs:write`.
-The app uses the same paths under `/api`.
-
-- `GET /api/v1/docs/{id}/versions`: `{ doc: { id, title, version, words, updatedAt, editedBy }, versions: [{ id, docVersion,
-  title, name, reason, words, author, savedAt }] }`, newest first. `reason` is `edit` (the page before an editing session)
-  or `restore` (the page just before a restore).
-- `POST /api/v1/docs/{id}/versions` with `{ name? }` (up to 80 characters; default "Version N"): saves the page as it is now. 201.
-- `GET /api/v1/docs/{id}/versions/{versionId}`: the version with `content` and `text`, `current { version, title }` and
-  `sinceThen { added, removed, titleChanged }` (lines added and removed between that version and now). `?diff=1` adds
-  `diff: [{ type: same | add | del, text }]`, at most 2,000 lines.
-- `PATCH /api/v1/docs/{id}/versions/{versionId}` with `{ name }` (null clears it).
-- `POST /api/v1/docs/{id}/versions/{versionId}/restore` with `{ ifVersion? }`: saves the page as it is now, then writes the
-  version's title and content as the next doc version. Answers `{ doc, restoredFrom, savedCurrentAs }`; a stale
-  `ifVersion` is 409 with `details.currentVersion`.
-- Another workspace's ids answer 404. MCP: `list_doc_versions`, `read_doc_version`, `save_doc_version`, `restore_doc_version`.
-
 D1 writes: a move is 1 docs row (more only when siblings must be spaced out again, once per sibling).
 A new link is 2 rows (the row and its target index), a removed link 2, an unchanged save 0. Deleting a
 page writes 1 row per sub page moved up. Reading the tree and backlinks writes nothing.
@@ -785,7 +801,10 @@ saved views, projects and mailboxes are refused when a dashboard is saved (404).
   can list and read; creating, saving, adding and removing need a full key. A key sees its maker's
   private dashboards; an agent key acts as its agent and sees shared dashboards only, and a dashboard
   it makes is shared.
-- MCP: `list_dashboards`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
+- Widget catalog (R39): `GET /api/dashboards/widget-types` and `GET /api/v1/dashboards/widget-types` answer
+  `{ types, common, maxWidgets }`: each type's label, group, what it shows, the charts it can use, its default chart
+  and size, its source fields and each setting with allowed values and the default. It reads no data.
+- MCP: `list_dashboards`, `list_dashboard_widget_types`, `get_dashboard_data`, `create_dashboard`, `add_dashboard_widget`.
 - Who can change what: the owner changes everything; anyone in the workspace can change a shared
   dashboard's name and widgets; sharing and removing a shared one is for its owner or an admin.
 

@@ -1,0 +1,20 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Ada Lovelace
+N:Lovelace;Ada;;;
+EMAIL;TYPE=INTERNET:ada@example.com
+TEL;TYPE=CELL:+61 400 000 001
+TITLE:Analyst
+ORG:Engines Pty Ltd;
+NOTE:Met at the meetup\, keen on reports
+END:VCARD
+BEGIN:VCARD
+VERSION:2.1
+N:Hopper;Grace
+EMAIL:GRACE@example.com
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:No Email Person
+TEL:+61 400 000 003
+END:VCARD

@@ -52,10 +52,10 @@ import { registerSavedViewRoutes } from "./v1-views";
 import { registerBoardRoutes } from "./v1-r34-board"; // R34 (MB-186)
 import { registerAutomationRecipeRoutes } from "./v1-r24-recipes";
 import { registerR24DocRoutes } from "./v1-r24-docs";
-import { registerDocVersionV1Routes } from "./doc-versions-r39"; // R39: page history
 import { registerDashboardRoutes } from "./v1-r24-dashboards";
 import { registerFormulaRoutes } from "./v1-r24-formulas";
 import { registerWorkImportRoutes } from "./v1-work-import";
+import { isDataExportStart, registerDataMoveRoutes } from "./v1-data-move";
 import { registerR21Routes } from "./v1-r21";
 import { registerEpicRoutes } from "./v1-r21-types";
 import { registerTaskBulkRoutes } from "./v1-tasks-bulk";
@@ -181,7 +181,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw unauthorized("Send an API key: Authorization: Bearer mm_live_...");
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
-  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isSplitPreview(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isSplitPreview(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path) && !isDataExportStart(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
   // R36: a key with per area scopes needs the route's scope (preset "full" and "read" keys keep the check above).
   if (!isPresetScope(auth.scope) && !c.req.path.endsWith("/mcp")) {
     const sub = c.req.path.replace(/^.*?\/api\/v1(?=\/|$)/, "") || "/";
@@ -261,6 +261,8 @@ export function v1Routes() {
   api.use("/free-address", apiKeyAuth, workspaceKeyOnly);
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
   api.use("/work-imports/*", apiKeyAuth);
+  api.use("/data-moves", apiKeyAuth);
+  api.use("/data-moves/*", apiKeyAuth);
   api.use("/epics/*", apiKeyAuth);
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);
@@ -471,7 +473,6 @@ export function v1Routes() {
   registerAgentRoutes(api);
   registerAuthHookRoutes(api);
   registerR24DocRoutes(api); // R24.5: docs tree and backlinks (before /docs/{id})
-  registerDocVersionV1Routes(api); // R39: page history
   registerR26CommentRoutes(api); // R26 (MB-77): read back, edit and delete comments and chat messages
   registerSuiteRoutes(api);
   registerFormsR31Routes(api); // R31: form logic and results (before /forms/{id})
@@ -490,6 +491,7 @@ export function v1Routes() {
   registerMeetingLobbyV1Routes(api); // R32: waiting room
   registerCalendarRoutes(api); // Round 23: calendar events and feed
   registerWorkImportRoutes(api);
+  registerDataMoveRoutes(api); // R38 move your data
   registerR21Routes(api, apiKeyAuth);
   registerEpicRoutes(api);
   registerTaskBulkRoutes(api);

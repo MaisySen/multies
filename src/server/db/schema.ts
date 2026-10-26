@@ -918,33 +918,6 @@ export const docs = sqliteTable("docs", {
   ...suiteCols(),
 }, (t) => [index("docs_org_idx").on(t.orgId, t.updatedAt)]);
 
-/**
- * R39: page history. A saved state of a doc (title and Tiptap JSON) from before an editing session, a named version, or the
- * safety copy taken before a restore. At most one new row per doc per 10 minute editing session (deferrable: a failed
- * snapshot never fails the edit); the 50 newest unnamed rows per doc are kept, named rows always.
- */
-export const docVersions = sqliteTable("doc_versions", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  docId: text("doc_id").notNull().references(() => docs.id, { onDelete: "cascade" }),
-  /** The doc's version number when this state was current. */
-  docVersion: integer("doc_version").notNull(),
-  title: text("title").notNull(),
-  content: text("content").notNull(),
-  plainText: text("plain_text").notNull().default(""),
-  /** Who saved this state, read from the doc's change feed when the snapshot was taken. */
-  authorType: text("author_type", { enum: ["member", "agent", "system"] }).notNull().default("member"),
-  authorId: text("author_id"),
-  authorName: text("author_name").notNull().default(""),
-  /** "edit": before someone else's editing session; "restore": the page as it was just before a restore. */
-  reason: text("reason", { enum: ["edit", "restore"] }).notNull().default("edit"),
-  /** A person's label; a named version is never pruned. */
-  name: text("name"),
-  /** When this state was saved (the doc's updated_at then). */
-  savedAt: ts("saved_at").notNull(),
-  createdAt: createdAt(),
-}, (t) => [index("doc_versions_doc_idx").on(t.docId, t.createdAt)]);
-
 export const companies = sqliteTable("companies", {
   id: text("id").primaryKey(),
   orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
@@ -1990,3 +1963,32 @@ export const userBlocks = sqliteTable("user_blocks", {
   blockedUserId: text("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }), index("user_blocks_blocked_idx").on(t.blockedUserId)]);
+
+/**
+ * R38 move your data: one row per import or export run. `created` is JSON listing what an import made
+ * ({ tasks: [ids], statuses: [ids], projectCreated, meetings: [ids], contacts: [ids], docs: [ids] }) so Undo
+ * removes exactly that. An export keeps a hash of its download token and when the link stops working.
+ * Writes: one insert per run, one update per chunk (essential: the person started it).
+ */
+export const dataMoves = sqliteTable("data_moves", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["import", "export"] }).notNull(),
+  source: text("source").notNull(),
+  fileName: text("file_name"),
+  status: text("status", { enum: ["running", "stopped", "done", "undone", "failed", "ready", "expired"] }).notNull().default("running"),
+  projectId: text("project_id"),
+  total: integer("total").notNull().default(0),
+  done: integer("done").notNull().default(0),
+  created: text("created").notNull().default("{}"),
+  counts: text("counts").notNull().default("{}"),
+  tokenHash: text("token_hash"),
+  expiresAt: ts("expires_at"),
+  error: text("error"),
+  createdByUserId: text("created_by_user_id"),
+  createdByEmail: text("created_by_email"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull(),
+  finishedAt: ts("finished_at"),
+  undoneAt: ts("undone_at"),
+}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt)]);
