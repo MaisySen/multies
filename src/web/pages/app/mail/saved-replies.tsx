@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { Lock, MessageSquareQuote, Pencil, Plus, Search, Settings2, Trash2, Users } from "lucide-react";
+import { IconChatQuote, IconEdit, IconLock, IconPlus, IconSearch, IconSettings2, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -84,7 +84,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
     <div ref={wrap} className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox" aria-label="Saved replies" title="Saved replies"
         className={cn("flex items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg", open && "bg-[#0071E3]/10 text-[#0071E3]")}>
-        <MessageSquareQuote className="h-4 w-4" aria-hidden />
+        <IconChatQuote className="h-4 w-4" aria-hidden />
       </button>
       {open && (
         <div role="dialog" aria-label="Saved replies" data-testid="saved-replies-picker"
@@ -93,7 +93,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
             if (e.key === "Escape") { e.stopPropagation(); e.preventDefault(); setOpen(false); bodyRef.current?.focus(); }
           }}>
           <div className="flex items-center gap-2 border-b border-line px-3">
-            <Search className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
+            <IconSearch className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search saved replies" aria-label="Search saved replies"
               className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-subtle"
               onKeyDown={(e) => {
@@ -114,7 +114,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
                   <span className="flex w-full items-center gap-2 text-[13px] font-medium">
                     <span className="truncate">{s.name}</span>
                     {s.shortcut && <span className="shrink-0 rounded bg-fill px-1.5 py-px font-mono text-[11px] text-muted">/{s.shortcut}</span>}
-                    {!s.shared && <Lock className="ml-auto h-3 w-3 shrink-0 text-subtle" aria-label="Only you" />}
+                    {!s.shared && <IconLock className="ml-auto h-3 w-3 shrink-0 text-subtle" aria-label="Only you" />}
                   </span>
                   <span className="line-clamp-1 text-[12px] text-subtle">{s.body}</span>
                 </button>
@@ -123,7 +123,7 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
           </ul>
           <div className="flex items-center justify-between border-t border-line px-3 py-2 text-[12px]">
             <span className="text-subtle">Type /shortcut then Tab</span>
-            <Link to="/app/settings#saved-replies" className="flex items-center gap-1 font-medium text-[#0071E3] hover:underline"><Settings2 className="h-3.5 w-3.5" aria-hidden />Manage</Link>
+            <Link to="/app/settings#saved-replies" className="flex items-center gap-1 font-medium text-[#0071E3] hover:underline"><IconSettings2 className="h-3.5 w-3.5" aria-hidden />Manage</Link>
           </div>
         </div>
       )}
@@ -200,27 +200,27 @@ export function SavedRepliesSection({ Section }: { Section: (p: { id?: string; t
           <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line">
             {items.map((s) => (
               <li key={s.id} className="flex items-start gap-3 px-4 py-3" data-testid="saved-reply-row">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0071E3]/10 text-[#0071E3]"><MessageSquareQuote className="h-3.5 w-3.5" aria-hidden /></span>
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#0071E3]/10 text-[#0071E3]"><IconChatQuote className="h-3.5 w-3.5" aria-hidden /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
                     <span className="truncate">{s.name}</span>
                     {s.shortcut && <span className="rounded bg-fill px-1.5 py-px font-mono text-[11px] font-normal text-muted">/{s.shortcut}</span>}
-                    <span className="flex items-center gap-1 text-[11px] font-normal text-subtle">{s.shared ? <><Users className="h-3 w-3" aria-hidden />Team</> : <><Lock className="h-3 w-3" aria-hidden />Only you</>}</span>
+                    <span className="flex items-center gap-1 text-[11px] font-normal text-subtle">{s.shared ? <><IconTeam className="h-3 w-3" aria-hidden />Team</> : <><IconLock className="h-3 w-3" aria-hidden />Only you</>}</span>
                   </div>
                   <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-[13px] text-muted">{s.body}</p>
                   <p className="mt-0.5 text-[11px] text-subtle">By {s.createdBy.name}</p>
                 </div>
                 {s.canEdit && (
                   <div className="flex shrink-0 items-center gap-1">
-                    <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} onClick={() => setForm({ id: s.id, name: s.name, shortcut: s.shortcut ?? "", subject: s.subject ?? "", body: s.body, shared: s.shared })}><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`} onClick={() => setDeleting(s)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" aria-label={`Edit ${s.name}`} onClick={() => setForm({ id: s.id, name: s.name, shortcut: s.shortcut ?? "", subject: s.subject ?? "", body: s.body, shared: s.shared })}><IconEdit className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" aria-label={`Delete ${s.name}`} onClick={() => setDeleting(s)}><IconTrash className="h-3.5 w-3.5" /></Button>
                   </div>
                 )}
               </li>
             ))}
           </ul>
         )}
-        <Button variant="secondary" size="sm" onClick={() => setForm({ ...EMPTY })}><Plus className="h-3.5 w-3.5" />New saved reply</Button>
+        <Button variant="secondary" size="sm" onClick={() => setForm({ ...EMPTY })}><IconPlus className="h-3.5 w-3.5" />New saved reply</Button>
       </div>
 
       <Dialog open={!!form} onClose={() => setForm(null)} title={form?.id ? "Edit saved reply" : "New saved reply"} className="sm:max-w-2xl"

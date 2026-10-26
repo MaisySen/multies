@@ -3,7 +3,7 @@ import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { eq } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { mailboxes, messages } from "@/server/db/schema";
+import { mailboxes, mailConnections, mailSyncOutbox, messages } from "@/server/db/schema";
 import { undoFor } from "@/server/services/mail/bulk-job-r33";
 import { mailSchedules } from "@/server/db/schema";
 
@@ -96,13 +96,21 @@ describe("R34: snooze, move and delete over everything", () => {
     expect(await folderCount("archive")).toBe(1);
   });
 
-  it("a move skips mail that isn't synced from a connected mailbox, and has no Undo", async () => {
+  it("a move skips mail that isn't synced from a connected mailbox (nothing to undo then)", async () => {
     await seedMany(5);
     const r = (await owner.post("/api/mail/bulk-jobs", { client_job_id: "job_move_all01", action: "move", to: "f:Projects", scope: { mailboxId, folder: "inbox" }, max_received_at: seen() })).body;
     expect(r).toMatchObject({ status: "done", done: 5, undoable: false });
     expect(await folderCount("inbox")).toBe(5);
-    expect(undoFor("move", [{ id: "a", folder: "inbox", isRead: false, isStarred: false }])).toEqual([]);
-    expect(undoFor("snooze", [{ id: "a", folder: "inbox", isRead: false, isStarred: false }, { id: "b", folder: "drafts", isRead: false, isStarred: false }])).toEqual([{ action: "unsnooze", ids: ["a"] }]);
+    expect(undoFor("move", [{ id: "a", folder: "inbox", isRead: false, isStarred: false, remoteBox: null, remoteUid: null }], { to: "f:Projects" })).toEqual([]);
+    expect(undoFor("snooze", [{ id: "a", folder: "inbox", isRead: false, isStarred: false, remoteBox: null, remoteUid: null }, { id: "b", folder: "drafts", isRead: false, isStarred: false, remoteBox: null, remoteUid: null }])).toEqual([{ action: "unsnooze", ids: ["a"] }]);
+  });
+
+  it("R35: the undo plan of a move remembers where each synced message came from", () => {
+    const row = (id: string, remoteBox: string | null, remoteUid: number | null, folder: "inbox" | "archive" | "sent" = "inbox") => ({ id, folder, isRead: false, isStarred: false, remoteBox, remoteUid });
+    expect(undoFor("move", [row("a", "inbox", 11), row("b", "f:Old", 7, "archive"), row("c", "inbox", 12), row("d", "f:Projects", 3, "archive"), row("e", "inbox", null), row("s", "sent", 9, "sent")], { to: "f:Projects" })).toEqual([
+      { action: "move", ids: ["a", "c"], to: "inbox", folder: "inbox", uids: [11, 12] },
+      { action: "move", ids: ["b"], to: "f:Old", folder: "archive", uids: [7] },
+    ]);
   });
 
   it("takes thousands of unticked ids (kept on the job, one bound variable in SQL)", async () => {
@@ -121,5 +129,46 @@ describe("R34: snooze, move and delete over everything", () => {
     expect(out).toMatchObject({ status: "done", done: 4 });
     expect(await snoozes()).toBe(4);
     await mcp.close();
+  });
+});
+
+describe("R35: Undo of a move over everything", () => {
+  async function seedSynced(n: number) {
+    await ctx.deps.db.insert(mailConnections).values({ id: "conn_r35", orgId, mailboxId, provider: "imap", email: "hello@acme.io", username: "hello@acme.io", imapHost: "imap.example.com", imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.example.com", smtpPort: 465, smtpSecurity: "tls", secretEnc: "x", syncState: JSON.stringify({ paths: { inbox: "INBOX", archive: "Archive" }, extra: ["Projects"] }) });
+    const ids = await seedMany(n);
+    for (const [i, id] of ids.entries()) await ctx.deps.db.update(messages).set({ remoteBox: "inbox", remoteUid: 100 + i }).where(eq(messages.id, id));
+    return ids;
+  }
+  const rowsNow = async () => (await ctx.deps.db.select({ id: messages.id, folder: messages.folder, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid }).from(messages).orderBy(messages.id).all());
+  const outbox = async () => await ctx.deps.db.select().from(mailSyncOutbox).all();
+
+  it("takes back a move the provider has not run yet: queued changes dropped, old folder and UIDs back", async () => {
+    const ids = await seedSynced(4);
+    const r = (await owner.post("/api/mail/bulk-jobs", { client_job_id: "job_move_r35a", action: "move", to: "f:Projects", scope: { mailboxId, folder: "inbox" }, max_received_at: seen() })).body;
+    expect(r).toMatchObject({ status: "done", done: 4, undoable: true, undoTotal: 4 });
+    expect((await rowsNow()).every((m) => m.folder === "archive" && m.remoteBox === "f:Projects" && m.remoteUid === null)).toBe(true);
+    expect(await outbox()).toHaveLength(4);
+    let u = (await owner.post(`/api/mail/bulk-jobs/${r.id}/undo`, {})).body;
+    while (u.status === "reverting") u = (await owner.post(`/api/mail/bulk-jobs/${r.id}/step`, {})).body;
+    expect(u.status).toBe("reverted");
+    expect(await outbox()).toHaveLength(0);
+    const back = await rowsNow();
+    expect(back.map((m) => [m.id, m.folder, m.remoteBox, m.remoteUid])).toEqual(ids.map((id, i) => [id, "inbox", "inbox", 100 + i]).sort());
+  });
+
+  it("moves back through the provider once it has run the move", async () => {
+    await seedSynced(3);
+    const r = (await owner.post("/api/mail/bulk-jobs", { client_job_id: "job_move_r35b", action: "move", to: "f:Projects", scope: { mailboxId, folder: "inbox" }, max_received_at: seen() })).body;
+    // The provider ran it: the queue is empty and each message has its new UID in Projects.
+    await ctx.deps.db.delete(mailSyncOutbox);
+    const moved = await rowsNow();
+    for (const [i, m] of moved.entries()) await ctx.deps.db.update(messages).set({ remoteUid: 500 + i }).where(eq(messages.id, m.id));
+    let u = (await owner.post(`/api/mail/bulk-jobs/${r.id}/undo`, {})).body;
+    while (u.status === "reverting") u = (await owner.post(`/api/mail/bulk-jobs/${r.id}/step`, {})).body;
+    expect(u.status).toBe("reverted");
+    const q = await outbox();
+    expect(q).toHaveLength(3);
+    expect(q.every((o) => o.action === "move" && o.dest === "inbox" && o.remoteBox === "f:Projects")).toBe(true);
+    expect((await rowsNow()).every((m) => m.folder === "inbox" && m.remoteBox === "inbox")).toBe(true);
   });
 });

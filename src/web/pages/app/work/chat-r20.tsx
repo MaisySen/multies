@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, Search, SmilePlus, Video, X } from "lucide-react";
+import { IconArrowDown, IconClose, IconReaction, IconSearch, IconVideo } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { mailDate } from "@/web/lib/format";
@@ -41,7 +41,7 @@ export function ReactionPicker({ onPick, className }: { onPick: (emoji: string) 
   const pick = (e: string) => { setOpen(false); onPick(e); };
   return (
     <div ref={ref} className={cn("relative", className)}>
-      <Button variant="ghost" size="sm" aria-label="Add reaction" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-testid="reaction-add"><SmilePlus className="h-4 w-4" /></Button>
+      <Button variant="ghost" size="sm" aria-label="Add reaction" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen((o) => !o)} data-testid="reaction-add"><IconReaction className="h-4 w-4" /></Button>
       {open && (
         <div role="dialog" aria-label="Pick a reaction" className="absolute right-0 z-50 mt-1.5 w-72 animate-pop-in rounded-xl border border-line bg-elevated p-2 shadow-pop" data-testid="reaction-picker">
           <div className="flex justify-between border-b border-line pb-2">
@@ -110,7 +110,7 @@ export function CallButton({ channelId, onStarted }: { channelId: string; onStar
       else navigate(`/app/meetings/${r.meeting.id}`);
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
-  return <Button variant="ghost" size="icon" aria-label="Start a call" title="Start a call" loading={busy} onClick={() => void start()} data-testid="chat-call"><Video className="h-4 w-4" /></Button>;
+  return <Button variant="ghost" size="icon" aria-label="Start a call" title="Start a call" loading={busy} onClick={() => void start()} data-testid="chat-call"><IconVideo className="h-4 w-4" /></Button>;
 }
 
 // ---------------------------------------------------------------- search
@@ -129,14 +129,14 @@ export function ChatSearch({ channelId, onOpen }: { channelId: string; onOpen: (
     queryKey: ["chat", "search", everywhere ? "" : channelId, q], enabled: open && q.length >= 2, staleTime: 10_000,
     queryFn: async () => (await api.get<{ results: ChatSearchResult[] }>(`/chat/search?q=${encodeURIComponent(q)}&limit=30${everywhere ? "" : `&channelId=${channelId}`}`)).results,
   });
-  if (!open) return <Button variant="ghost" size="icon" aria-label="Search messages" title="Search messages" onClick={() => setOpen(true)} data-testid="chat-search-open"><Search className="h-4 w-4" /></Button>;
+  if (!open) return <Button variant="ghost" size="icon" aria-label="Search messages" title="Search messages" onClick={() => setOpen(true)} data-testid="chat-search-open"><IconSearch className="h-4 w-4" /></Button>;
   return (
     <div ref={ref} className="relative">
       <div className="flex items-center gap-1 rounded-lg border border-line bg-surface px-2 focus-within:border-brand/70 focus-within:ring-4 focus-within:ring-brand/15">
-        <Search className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
+        <IconSearch className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />
         <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={everywhere ? "Search all chats" : "Search this chat"} aria-label="Search messages"
           className="h-8 w-40 bg-transparent text-[13px] focus:outline-none sm:w-56" data-testid="chat-search" />
-        <button type="button" aria-label="Close search" onClick={() => { setOpen(false); setText(""); }} className="text-subtle hover:text-fg"><X className="h-3.5 w-3.5" /></button>
+        <button type="button" aria-label="Close search" onClick={() => { setOpen(false); setText(""); }} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
       </div>
       <div className="absolute right-0 z-50 mt-1.5 w-80 rounded-xl border border-line bg-elevated p-1 shadow-pop" data-testid="chat-search-results">
         <div className="flex gap-1 p-1 text-[12px]" role="group" aria-label="Where to search">
@@ -190,7 +190,7 @@ export function JumpToUnread({ first, onJump }: { first: { messageId: string | n
     <div className="sticky top-0 z-10 flex justify-center py-1">
       <button type="button" onClick={() => { onJump(first.messageId!); setHidden(true); }} data-testid="jump-unread"
         className="inline-flex items-center gap-1.5 rounded-full border border-line bg-elevated px-3 py-1 text-[12.5px] font-medium shadow-pop hover:border-line-strong">
-        <ArrowDown className="h-3.5 w-3.5" aria-hidden />{first.unread === 1 ? "1 new message" : `${first.unread} new messages`}, jump to first
+        <IconArrowDown className="h-3.5 w-3.5" aria-hidden />{first.unread === 1 ? "1 new message" : `${first.unread} new messages`}, jump to first
       </button>
     </div>
   );

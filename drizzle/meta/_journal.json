@@ -505,6 +505,13 @@
       "when": 1793000077000,
       "tag": "0077_r34_meeting_minutes_cap",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1793000078000,
+      "tag": "0078_r35_reports_blocks",
+      "breakpoints": true
     }
   ]
 }

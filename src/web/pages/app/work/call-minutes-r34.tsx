@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Clock } from "lucide-react";
+import { IconClock } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { LOCALE } from "@/shared/locale";
 import { cn } from "@/web/lib/cn";
@@ -37,7 +37,7 @@ export function CallMinutesBanner({ meetingId, className }: { meetingId?: string
   return (
     <div role="status" data-testid="call-minutes-banner"
       className={cn("pointer-events-auto flex max-w-md items-start gap-2 rounded-xl border p-3 text-[12.5px] shadow-pop", urgent ? "border-bad/30 bg-elevated text-fg" : "border-line bg-elevated text-fg", className)}>
-      <Clock className={cn("mt-0.5 h-4 w-4 shrink-0", urgent ? "text-bad" : "text-warn")} aria-hidden />
+      <IconClock className={cn("mt-0.5 h-4 w-4 shrink-0", urgent ? "text-bad" : "text-warn")} aria-hidden />
       <p>{text}</p>
     </div>
   );

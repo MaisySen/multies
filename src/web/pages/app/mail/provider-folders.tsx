@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Folder as FolderIcon, FolderCog, RefreshCw } from "lucide-react";
+import { IconFolderCog, IconProject, IconRefresh } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -59,12 +59,12 @@ export function ProviderFolderNav({ connectionId, current, onPick }: { connectio
       <div className="flex items-center justify-between px-2.5 pb-1 text-[11px] font-medium uppercase tracking-wide text-subtle">
         <span>Your folders</span>
         <button type="button" onClick={() => setChoosing((v) => !v)} aria-expanded={choosing} aria-label="Choose folders to sync" title="Choose folders to sync"
-          className="rounded p-1 text-subtle hover:bg-hover hover:text-fg"><FolderCog className="h-3.5 w-3.5" /></button>
+          className="rounded p-1 text-subtle hover:bg-hover hover:text-fg"><IconFolderCog className="h-3.5 w-3.5" /></button>
       </div>
       {synced.map((f) => (
         <button key={f.key} type="button" onClick={() => onPick(f.key)} aria-current={current === f.key ? "page" : undefined}
           className={cn("flex w-full items-center gap-2.5 truncate rounded-lg px-2.5 py-1.5 text-left text-[13.5px] transition-colors", current === f.key ? "bg-fill font-medium text-fg" : "text-muted hover:bg-hover hover:text-fg")}>
-          <FolderIcon className="h-4 w-4 shrink-0" /><span className="truncate">{f.path}</span>
+          <IconProject className="h-4 w-4 shrink-0" /><span className="truncate">{f.path}</span>
         </button>
       ))}
       {!synced.length && !choosing && <p className="px-2.5 text-[12px] text-subtle">{own.length ? "Choose folders from your provider to see them here." : "No other folders at your provider."}</p>}
@@ -84,7 +84,7 @@ export function ProviderFolderNav({ connectionId, current, onPick }: { connectio
           </ul>
           <button type="button" onClick={() => refresh.mutate()} disabled={refresh.isPending}
             className="mt-1.5 flex items-center gap-1.5 px-1 text-[12px] text-brand hover:underline disabled:opacity-60">
-            <RefreshCw className={cn("h-3.5 w-3.5", refresh.isPending && "animate-spin")} />Refresh the list
+            <IconRefresh className={cn("h-3.5 w-3.5", refresh.isPending && "animate-spin")} />Refresh the list
           </button>
         </div>
       )}

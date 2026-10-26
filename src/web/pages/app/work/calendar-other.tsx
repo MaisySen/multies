@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarPlus, Eye, EyeOff } from "lucide-react";
+import { IconCalendarPlus, IconEye, IconEyeOff } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 
@@ -34,13 +34,14 @@ export function useOtherCalendars() {
   const list = (events.data?.events ?? []).filter((e) => e.kind === "external" && e.sourceId && !hidden.has(e.sourceId));
   const fcEvents = list.map((e) => ({
     id: `ext:${e.id}`, title: `${e.title}`, start: e.start, end: e.end, allDay: e.allDay, editable: false,
-    backgroundColor: "var(--color-fill)", borderColor: e.color ?? "#8E8E93", textColor: "var(--color-muted)",
-    classNames: ["mm-external-event"], extendedProps: { readOnly: true, sourceName: e.sourceName },
+    // R35 (FullCalendar 7): one colour per event, so the source colour shows as the left edge (--mm-src in index.css).
+    color: "var(--color-fill)", contrastColor: "var(--color-muted)",
+    className: "mm-external-event", extendedProps: { readOnly: true, sourceName: e.sourceName, sourceColor: e.color ?? "#8E8E93" },
   }));
   const meetings = showMeetings ? (events.data?.events ?? []).filter((e) => e.kind === "meeting").map((e) => ({
     id: `mtg:${e.id}`, title: e.title, start: e.start, end: e.end, allDay: false, editable: false,
-    backgroundColor: "#0071E3", borderColor: "#0071E3", textColor: "#FFFFFF",
-    classNames: ["mm-meeting-event"], extendedProps: { readOnly: true, href: appPath(e.url) },
+    color: "#0071E3", contrastColor: "#FFFFFF",
+    className: "mm-meeting-event", extendedProps: { readOnly: true, href: appPath(e.url) },
   })) : [];
   const toggle = (id: string) => setHidden((h) => { const n = new Set(h); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   return { setRange, events: [...meetings, ...fcEvents], meetingCount: meetings.length, showMeetings, toggleMeetings: () => setShowMeetings((v) => !v), sources: enabled, hidden, toggle, errors: events.data?.errors ?? [], loading: events.isFetching };
@@ -53,7 +54,7 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
         className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors", layer.showMeetings ? "border-line bg-fill text-fg" : "border-line text-subtle")}>
         <span className="size-2 rounded-full" style={{ background: layer.showMeetings ? "#0071E3" : "transparent", boxShadow: "inset 0 0 0 1.5px #0071E3" }} aria-hidden />
         Meetings
-        {layer.showMeetings ? <Eye className="size-3.5 text-muted" /> : <EyeOff className="size-3.5" />}
+        {layer.showMeetings ? <IconEye className="size-3.5 text-muted" /> : <IconEyeOff className="size-3.5" />}
       </button>
       <span className="font-medium text-muted">Other calendars</span>
       {layer.sources.map((s) => {
@@ -63,12 +64,12 @@ export function OtherCalendarsBar({ layer }: { layer: ReturnType<typeof useOther
             className={cn("inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 transition-colors", off ? "border-line text-subtle" : "border-line bg-fill text-fg")}>
             <span className="size-2 rounded-full" style={{ background: off ? "transparent" : s.color, boxShadow: `inset 0 0 0 1.5px ${s.color}` }} aria-hidden />
             {s.name}
-            {off ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5 text-muted" />}
+            {off ? <IconEyeOff className="size-3.5" /> : <IconEye className="size-3.5 text-muted" />}
           </button>
         );
       })}
       <Link to="/app/settings/calendar#other-calendars" className="inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[#0071E3] hover:bg-hover">
-        <CalendarPlus className="size-3.5" />Connect a calendar
+        <IconCalendarPlus className="size-3.5" />Connect a calendar
       </Link>
       {layer.errors.map((e) => <span key={e.name} className="text-[12px] text-[#C93400]">{e.name}: {e.message}</span>)}
     </div>

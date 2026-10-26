@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Briefcase } from "lucide-react";
+import { IconBriefcase } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -44,7 +44,7 @@ export function PortfolioPage() {
       <PageHeader title="Portfolio" description="Every project at a glance. Health is set by the team, so it says what people think, not a formula."
         actions={<label className="flex items-center gap-2 text-[13px] text-muted"><input type="checkbox" checked={archived} onChange={(e) => setArchived(e.target.checked)} />Show archived</label>} />
       {q.isPending ? <Skeleton className="h-64" /> : !rows.length ? (
-        <EmptyState icon={<Briefcase />} title="No projects yet" body="Projects you create in Tasks show here with their progress and health." />
+        <EmptyState icon={<IconBriefcase />} title="No projects yet" body="Projects you create in Tasks show here with their progress and health." />
       ) : (
         <>
           <div className="mb-4 flex flex-wrap gap-2 text-[12.5px]" aria-label="Health summary">

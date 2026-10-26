@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { LifeBuoy, Mail, Smartphone, Trash2 } from "lucide-react";
+import { IconHelp, IconMail, IconSmartphone, IconTrash } from "@/web/components/ui/icon";
 import { useConfig, useMe } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
@@ -23,22 +23,22 @@ export function SupportPage() {
       <p className="mt-2 text-muted">Questions about Multies on the web or the phone app, your account or your mail. A person reads every message.</p>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <section className={card} aria-labelledby="s-mail">
-          <Mail className="h-5 w-5 text-accent" aria-hidden />
+          <IconMail className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-mail" className="mt-3 font-semibold">Email us</h2>
           <p className="mt-1.5 text-[14px] text-muted">Use the <Link to="/contact" className="text-accent hover:underline">contact form</Link> or write to <SupportEmail />. Tell us the email address you sign in with and what you were doing. We aim to reply within two business days (Sydney time).</p>
         </section>
         <section className={card} aria-labelledby="s-status">
-          <LifeBuoy className="h-5 w-5 text-accent" aria-hidden />
+          <IconHelp className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-status" className="mt-3 font-semibold">Is something down?</h2>
           <p className="mt-1.5 text-[14px] text-muted">The <Link to="/status" className="text-accent hover:underline">status page</Link> shows live checks of sign in, the API and mail delivery.</p>
         </section>
         <section className={card} aria-labelledby="s-app">
-          <Smartphone className="h-5 w-5 text-accent" aria-hidden />
+          <IconSmartphone className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-app" className="mt-3 font-semibold">The phone app</h2>
           <p className="mt-1.5 text-[14px] text-muted">Sign in with your Multies email and password, or tap Explore with sample data to look around first. The app is free and has no purchases.</p>
         </section>
         <section className={card} aria-labelledby="s-delete">
-          <Trash2 className="h-5 w-5 text-accent" aria-hidden />
+          <IconTrash className="h-5 w-5 text-accent" aria-hidden />
           <h2 id="s-delete" className="mt-3 font-semibold">Delete your account</h2>
           <p className="mt-1.5 text-[14px] text-muted">In the app: Settings, then Delete my account. On the web: <Link to="/delete-account" className="text-accent hover:underline">delete your account here</Link>.</p>
         </section>

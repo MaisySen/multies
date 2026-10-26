@@ -1,5 +1,6 @@
 /** Request schemas for the suite, shared by the app routes, the REST API (v1) and MCP. */
 import { z } from "@hono/zod-openapi";
+import { SWIMLANES } from "../../shared/board-lanes";
 
 export const Category = z.enum(["todo", "doing", "done"]).openapi({ description: "The status group: to do, doing or done." });
 export const Priority = z.enum(["none", "low", "medium", "high", "urgent"]);
@@ -98,7 +99,10 @@ export function unknownTaskParams(query: Record<string, string>, allowed: readon
 export const CommentCreate = z.object({ body: z.string().trim().min(1).max(20_000) }).openapi("CommentCreate");
 export const ViewCreate = z.object({
   projectId: z.string().nullable().optional(), name: z.string().trim().min(1).max(60), view: z.enum(["board", "list", "calendar", "timeline", "sprints", "workload"]),
-  filters: z.record(z.string(), z.string().max(200)).default({}), shared: z.boolean().optional(),
+  filters: z.record(z.string(), z.string().max(200)).default({})
+    // R35: a board view may carry its own swimlanes ("lanes") and grouping ("group") beside the filters.
+    .refine((f) => f.lanes === undefined || (SWIMLANES as readonly string[]).includes(f.lanes), { message: `lanes must be one of ${SWIMLANES.join(", ")}.` }),
+  shared: z.boolean().optional(),
 });
 
 const LinkTarget = z.object({ type: z.enum(["project", "task", "thread", "contact", "deal"]), id: z.string().min(1) });

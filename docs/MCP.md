@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 182 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 186 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -139,6 +139,10 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `list_notifications` | Your notifications |
 | `notification_list` | Your notifications by view: inbox, later (snoozed) or done, with viewCounts (R31) |
 | `get_counts` | Every unread count in one read: mail { inbox, important, other }, chat { unread, mentions }, notifications { unread }, triage, tasks { dueToday, overdue }; tz for due today (R34) |
+| `create_report` | Report a chat message (messageId) or a person (userId) to the Multies team: reason spam, harassment, hate, sexual, violence, self_harm or other; note up to 500. 20 a day (R35) |
+| `list_blocks` | The people you blocked (R35) |
+| `add_block` | Block a person: their chat messages are hidden from you and they can't message you; they aren't told (R35) |
+| `remove_block` | Unblock a person (R35) |
 | `notification_done` | Mark one notification (id) or up to 500 (ids) done (R31) |
 | `notification_undone` | Move a notification back to the Inbox (R31) |
 | `notification_snooze` | Snooze a notification until a time or later_today, tomorrow, next_week (R31) |
@@ -250,7 +254,7 @@ Registered in src/server/routes/mcp-r32-mail.ts. Same service as the web app's s
 | Tool | What it does |
 | --- | --- |
 | `mail_bulk_action` | One action on up to 500 message ids: read, unread, star, unstar, archive, inbox, spam, trash, delete (forever), move (`to`), snooze (`until` or `preset`) or unsnooze. Inverses undo: inbox undoes archive or trash, unread undoes read, unsnooze undoes snooze |
-| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; no Undo). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
+| `mail_bulk_job` | Every message in a folder or search (up to 20,000) as one job: read, unread, star, unstar, archive, inbox, spam, trash (delete, undoable), snooze (`snooze_until` or `snooze_preset`; Undo clears it) or move (`to`, a synced folder; R35: Undo moves each message back to the folder it came from). Give your own `job_id`; call again with it to continue until `done` (900 per call). Mail that arrived after `max_received_at` is left alone. `undo: true` puts back exactly what the job changed |
 
 ### Live chat typing (R32)
 

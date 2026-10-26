@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Search } from "lucide-react";
+import { IconArrowRight, IconSearch } from "@/web/components/ui/icon";
 import { Button, buttonClass } from "@/web/components/ui/button";
 import { LOCALE } from "@/shared/locale";
 import { Input } from "@/web/components/ui/input";
@@ -39,7 +39,7 @@ export function CheckPage() {
           autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="url" autoComplete="off"
           className="h-11 sm:flex-1"
         />
-        <Button type="submit" className="h-11 sm:px-6" loading={q.isFetching}><Search className="h-4 w-4" aria-hidden />Check</Button>
+        <Button type="submit" className="h-11 sm:px-6" loading={q.isFetching}><IconSearch className="h-4 w-4" aria-hidden />Check</Button>
       </form>
 
       <div aria-live="polite" className="mt-8">
@@ -67,7 +67,7 @@ export function CheckPage() {
               <SwitchPlan check={c} className="mt-5" />
               {c.provider.kind !== "multies" && (
                 <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-line pt-5">
-                  <Link to="/signup" className={buttonClass("primary", "md")}>Start free with {c.domain}<ArrowRight className="h-4 w-4" aria-hidden /></Link>
+                  <Link to="/signup" className={buttonClass("primary", "md")}>Start free with {c.domain}<IconArrowRight className="h-4 w-4" aria-hidden /></Link>
                   <span className="text-[13px] text-subtle">One domain and three mailboxes free, no card.</span>
                 </div>
               )}

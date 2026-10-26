@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Crown, KeyRound, Link2, Mail, MoreHorizontal, Pause, Pencil, Play, Plus, RefreshCw, Shield, Trash2, UserMinus, UserPlus, Zap } from "lucide-react";
+import { IconAgent, IconAssign, IconCrown, IconEdit, IconKey, IconLink, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
 import { AgentTriggersDialog } from "./agent-triggers"; // R28 (DF-3 slice 3)
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -23,8 +23,8 @@ const ROLE_COPY: Record<Role, string> = {
 };
 
 function RoleBadge({ role }: { role: Role }) {
-  if (role === "owner") return <Badge tone="brand"><Crown className="h-3 w-3" />Owner</Badge>;
-  if (role === "admin") return <Badge tone="ok"><Shield className="h-3 w-3" />Admin</Badge>;
+  if (role === "owner") return <Badge tone="brand"><IconCrown className="h-3 w-3" />Owner</Badge>;
+  if (role === "admin") return <Badge tone="ok"><IconShield className="h-3 w-3" />Admin</Badge>;
   return <Badge>Member</Badge>;
 }
 
@@ -77,7 +77,7 @@ export function TeamSettings() {
               <Meter value={used} max={seats.limit} />
               <div className="mt-1.5 text-xs text-subtle tabular-nums" data-testid="agent-seats">{agentMembers.length} agent{agentMembers.length === 1 ? "" : "s"}, no seat needed</div>
             </div>
-            {canManage && <Button onClick={() => setInviting(true)} disabled={used >= seats.limit} title={used >= seats.limit ? "All seats are in use" : undefined}><UserPlus className="h-4 w-4" />Invite</Button>}
+            {canManage && <Button onClick={() => setInviting(true)} disabled={used >= seats.limit} title={used >= seats.limit ? "All seats are in use" : undefined}><IconAssign className="h-4 w-4" />Invite</Button>}
           </div>
         </div>
         <ul className="divide-y divide-line" aria-label="Members">
@@ -94,7 +94,7 @@ export function TeamSettings() {
             <p className="mt-1 text-sm text-muted">Invitation links work for 7 days and can be used once, only by the invited address.</p>
           </div>
           {invites.length === 0 ? (
-            <EmptyState className="py-10" icon={<Mail />} title="No pending invitations" body="Invite a teammate and they'll show up here until they join." />
+            <EmptyState className="py-10" icon={<IconMail />} title="No pending invitations" body="Invite a teammate and they'll show up here until they join." />
           ) : (
             <ul className="divide-y divide-line">
               {invites.map((i) => <InviteRow key={i.id} inv={i} onReissued={(r) => setCreated({ ...r, email: i.email })} />)}
@@ -112,7 +112,7 @@ export function TeamSettings() {
         footer={<Button onClick={() => setCreated(null)}>Done</Button>}>
         {created && (
           <div className="flex items-center gap-2 rounded-lg border border-line bg-surface p-2 pl-3">
-            <Link2 className="h-4 w-4 shrink-0 text-subtle" />
+            <IconLink className="h-4 w-4 shrink-0 text-subtle" />
             <code className="min-w-0 flex-1 truncate font-mono text-xs" data-testid="invite-link">{created.link}</code>
             <CopyButton value={created.link} label="Copy link" />
           </div>
@@ -160,13 +160,13 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
         <div className="sm:w-24"><RoleBadge role={m.role} /></div>
         <div className="w-8 max-sm:w-11">
           {(canEdit || canProfile) && (
-            <Menu label={`Actions for ${m.name}`} trigger={<button className="grid place-items-center rounded-md p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label={`Actions for ${m.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
-              {canProfile && <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit title and bio</MenuItem>}
-              {canEdit && m.role === "member" && <MenuItem icon={<Mail />} onSelect={() => setEditing(true)}>Mailbox access</MenuItem>}
-              {canEdit && myRole === "owner" && m.role === "member" && <MenuItem icon={<Shield />} onSelect={() => setRole.mutate("admin")}>Make admin</MenuItem>}
-              {canEdit && myRole === "owner" && m.role === "admin" && <MenuItem icon={<UserMinus />} onSelect={() => setRole.mutate("member")}>Make member</MenuItem>}
-              {myRole === "owner" && !self && <MenuItem icon={<Crown />} onSelect={() => setTransferring(true)}>Transfer ownership</MenuItem>}
-              {(canEdit || (self && m.role !== "owner")) && <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(true)}>{self ? "Leave workspace" : "Remove"}</MenuItem>}
+            <Menu label={`Actions for ${m.name}`} trigger={<button className="grid place-items-center rounded-md p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label={`Actions for ${m.name}`}><IconMore className="h-4 w-4" /></button>}>
+              {canProfile && <MenuItem icon={<IconEdit />} onSelect={() => setProfiling(true)}>Edit title and bio</MenuItem>}
+              {canEdit && m.role === "member" && <MenuItem icon={<IconMail />} onSelect={() => setEditing(true)}>Mailbox access</MenuItem>}
+              {canEdit && myRole === "owner" && m.role === "member" && <MenuItem icon={<IconShield />} onSelect={() => setRole.mutate("admin")}>Make admin</MenuItem>}
+              {canEdit && myRole === "owner" && m.role === "admin" && <MenuItem icon={<IconUserMinus />} onSelect={() => setRole.mutate("member")}>Make member</MenuItem>}
+              {myRole === "owner" && !self && <MenuItem icon={<IconCrown />} onSelect={() => setTransferring(true)}>Transfer ownership</MenuItem>}
+              {(canEdit || (self && m.role !== "owner")) && <MenuItem icon={<IconTrash />} danger onSelect={() => setRemoving(true)}>{self ? "Leave workspace" : "Remove"}</MenuItem>}
             </Menu>
           )}
         </div>
@@ -300,7 +300,7 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
   return (
     <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-hover/40 sm:flex-row sm:items-center max-sm:px-4">
       <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><Mail className="h-3.5 w-3.5" /></div>
+        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><IconMail className="h-3.5 w-3.5" /></div>
         <div className="min-w-0">
           <div className="truncate text-sm font-medium">{inv.email}{inv.title && <span className="font-normal text-muted"> · {inv.title}</span>}</div>
           <div className="text-xs text-muted">{inv.expired ? "Expired" : `Expires ${timeAgo(inv.expiresAt)}`}{inv.invitedByName ? ` · invited by ${inv.invitedByName}` : ""}</div>
@@ -308,8 +308,8 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
       </div>
       <div className="flex items-center gap-2 pl-11 sm:pl-0">
         <RoleBadge role={inv.role} />
-        <Button size="sm" variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><RefreshCw className="h-3.5 w-3.5" />{inv.expired ? "Renew" : "New link"}</Button>
-        <ConfirmButton armedLabel="Revoke?" loading={revoke.isPending} onConfirm={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><Trash2 className="h-3.5 w-3.5" /></ConfirmButton>
+        <Button size="sm" variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><IconRefresh className="h-3.5 w-3.5" />{inv.expired ? "Renew" : "New link"}</Button>
+        <ConfirmButton armedLabel="Revoke?" loading={revoke.isPending} onConfirm={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><IconTrash className="h-3.5 w-3.5" /></ConfirmButton>
       </div>
     </li>
   );
@@ -364,12 +364,12 @@ function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; 
               <div className="mb-1.5 flex justify-between text-xs text-muted"><span>Agents</span><span className="tabular-nums">{agents.length} / {limit}</span></div>
               <Meter value={agents.length} max={limit} />
             </div>
-            <Button onClick={() => setAdding(true)} disabled={agents.length >= limit} title={agents.length >= limit ? "Your plan's agent limit is reached" : undefined}><Plus className="h-4 w-4" />Add agent</Button>
+            <Button onClick={() => setAdding(true)} disabled={agents.length >= limit} title={agents.length >= limit ? "Your plan's agent limit is reached" : undefined}><IconPlus className="h-4 w-4" />Add agent</Button>
           </div>
         )}
       </div>
       {agents.length === 0 ? (
-        <EmptyState className="py-10" icon={<Bot />} title="No agents yet" body="Add an agent with a title and a short bio, then give its key to the tool that runs it." />
+        <EmptyState className="py-10" icon={<IconAgent />} title="No agents yet" body="Add an agent with a title and a short bio, then give its key to the tool that runs it." />
       ) : (
         <ul className="divide-y divide-line" aria-label="AI agents">
           {agents.map((a) => <AgentRow key={a.userId} a={a} extra={extraOf(a.userId)} canManage={canManage} self={a.userId === myId} onKey={(s) => setSecret({ name: a.name, secret: s })} />)}
@@ -380,7 +380,7 @@ function AgentsCard({ agents, limit, canManage, myId }: { agents: TeamMember[]; 
         footer={<Button onClick={() => setSecret(null)}>Done</Button>}>
         {secret && (
           <div className="flex items-center gap-2 rounded-lg border border-line bg-surface p-2 pl-3">
-            <KeyRound className="h-4 w-4 shrink-0 text-subtle" />
+            <IconKey className="h-4 w-4 shrink-0 text-subtle" />
             <code className="min-w-0 flex-1 truncate font-mono text-xs" data-testid="agent-key">{secret.secret}</code>
             <CopyButton value={secret.secret} label="Copy key" />
           </div>
@@ -420,21 +420,21 @@ function AgentRow({ a, extra, canManage, self, onKey }: { a: TeamMember; extra?:
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
           <span className="truncate">{a.name}</span>
-          <Badge tone="brand"><Bot className="h-3 w-3" />AI agent</Badge>
+          <Badge tone="brand"><IconAgent className="h-3 w-3" />AI agent</Badge>
           {paused && <span data-testid="agent-paused"><Badge>Paused</Badge></span>}
-          {extra?.inbox && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted"><Mail className="h-3 w-3" aria-hidden />{extra.inbox.address}</span>}
+          {extra?.inbox && <span className="inline-flex items-center gap-1 text-xs font-normal text-muted"><IconMail className="h-3 w-3" aria-hidden />{extra.inbox.address}</span>}
         </div>
         {a.title && <div className="truncate text-xs text-fg/80">{a.title}</div>}
         {a.bio && <div className="mt-0.5 line-clamp-2 text-xs text-muted">{a.bio}</div>}
         <div className="mt-0.5 text-xs text-subtle">{a.lastActiveAt ? `Active ${timeAgo(a.lastActiveAt)}` : `Added ${timeAgo(a.joinedAt)}`}</div>
       </div>
       {(canManage || self) && (
-        <Menu label={`Actions for ${a.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
-          <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit profile</MenuItem>
-          {canManage && <MenuItem icon={<KeyRound />} onSelect={() => newKey.mutate()}>New API key</MenuItem>}
-          {canManage && <MenuItem icon={<Zap />} onSelect={() => setTriggers(true)}>Triggers</MenuItem>}
-          {canManage && <MenuItem icon={paused ? <Play /> : <Pause />} onSelect={() => pause.mutate()}>{paused ? "Resume" : "Pause"}</MenuItem>}
-          {canManage && <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(true)}>Remove</MenuItem>}
+        <Menu label={`Actions for ${a.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.name}`}><IconMore className="h-4 w-4" /></button>}>
+          <MenuItem icon={<IconEdit />} onSelect={() => setProfiling(true)}>Edit profile</MenuItem>
+          {canManage && <MenuItem icon={<IconKey />} onSelect={() => newKey.mutate()}>New API key</MenuItem>}
+          {canManage && <MenuItem icon={<IconZap />} onSelect={() => setTriggers(true)}>Triggers</MenuItem>}
+          {canManage && <MenuItem icon={paused ? <IconPlay /> : <IconPause />} onSelect={() => pause.mutate()}>{paused ? "Resume" : "Pause"}</MenuItem>}
+          {canManage && <MenuItem icon={<IconTrash />} danger onSelect={() => setRemoving(true)}>Remove</MenuItem>}
         </Menu>
       )}
       {profiling && <ProfileDialog onClose={() => setProfiling(false)} member={a} />}

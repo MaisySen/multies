@@ -6,7 +6,7 @@ import { ReadStatusSection } from "./mail/splits"; // R31
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
+import { IconCheck, IconDownload, IconKey, IconPlus, IconSend, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -108,7 +108,7 @@ function WorkspaceExport() {
   return (
     <Section title="Export workspace data" description="A ZIP with your settings, members, domains, mailboxes, audit log and every message with its attachments, in JSON and CSV. Large workspaces take a minute.">
       <a href="/api/account/workspace/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
-        <Download className="h-4 w-4" aria-hidden />Download ZIP
+        <IconDownload className="h-4 w-4" aria-hidden />Download ZIP
       </a>
     </Section>
   );
@@ -127,7 +127,7 @@ function DangerZone() {
   if (me.data?.organization?.role !== "owner") return null;
   return (
     <Section title="Danger zone" description="Deleting a workspace removes its domains, mailboxes, mail and members' access. It can't be undone.">
-      <Button variant="danger" onClick={() => setOpen(true)}><Trash2 className="h-4 w-4" />Delete workspace</Button>
+      <Button variant="danger" onClick={() => setOpen(true)}><IconTrash className="h-4 w-4" />Delete workspace</Button>
       <Dialog open={open} onClose={() => setOpen(false)} title={`Delete ${me.data.organization.name}?`} description="Everything in this workspace is permanently deleted for every member."
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button variant="danger" loading={del.isPending} disabled={!password} onClick={() => del.mutate()}>Delete workspace</Button></>}>
         <Field label="Confirm with your password" error={del.error instanceof ApiError ? del.error.message : undefined}>
@@ -271,14 +271,14 @@ function InboundSection() {
           <div className="mt-2 space-y-2">
             {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.map((k) => (
               <div key={k.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
-                <div className="flex min-w-0 items-center gap-2.5"><KeyRound className="h-4 w-4 shrink-0 text-subtle" /><code className="truncate font-mono text-[12.5px]">{k.id}</code></div>
+                <div className="flex min-w-0 items-center gap-2.5"><IconKey className="h-4 w-4 shrink-0 text-subtle" /><code className="truncate font-mono text-[12.5px]">{k.id}</code></div>
                 <div className="flex shrink-0 items-center gap-3 text-xs text-subtle">
                   <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
-                  <button onClick={() => revoke.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke ${k.id}`}><Trash2 className="h-3.5 w-3.5" /></button>
+                  <button onClick={() => revoke.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke ${k.id}`}><IconTrash className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
             ))}
-            <Button size="sm" variant="secondary" onClick={() => create.mutate()} loading={create.isPending}><Plus className="h-4 w-4" />Create key</Button>
+            <Button size="sm" variant="secondary" onClick={() => create.mutate()} loading={create.isPending}><IconPlus className="h-4 w-4" />Create key</Button>
           </div>
         </Step>
         <Step n={3} title="Deploy the Email Worker">
@@ -290,7 +290,7 @@ npx wrangler secret put MYMAIL_KEY_SECRET`}</pre>
         </Step>
       </ol>
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Your new signing key" description="Copy the secret now. It won't be shown again."
-        footer={<Button onClick={() => setCreated(null)}><Check className="h-4 w-4" />I've saved it</Button>}>
+        footer={<Button onClick={() => setCreated(null)}><IconCheck className="h-4 w-4" />I've saved it</Button>}>
         {created && (
           <div className="space-y-3 text-sm">
             <Secret label="MYMAIL_KEY_ID" value={created.id} />
@@ -327,7 +327,7 @@ function OutboundSection() {
   return (
     <Section title="Outbound mail" description="How mail to addresses outside Multies leaves the platform.">
       <div className={cn("flex gap-3 border-l-2 py-1 pl-4 text-sm", live ? "border-ok" : "border-warn")}>
-        {live ? <Send className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
+        {live ? <IconSend className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
           <div className="font-medium">{live ? "Sending through Resend" : "No email provider connected"}</div>
           <p className="mt-0.5 text-muted">

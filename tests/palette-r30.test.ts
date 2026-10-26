@@ -10,7 +10,7 @@ describe("R30 command menu coverage", () => {
     const app = router.slice(router.indexOf('path: "/app"'), router.indexOf('path: "/f/:slug"'));
     const settingsAt = app.indexOf('path: "settings"');
     const paths = [...app.matchAll(/path: "([^"]+)"/g)].map((m) => ({ p: m[1], at: m.index! }))
-      .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin")
+      .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin" && !p.startsWith("admin/")) // operator pages stay out of the menu
       .map(({ p, at }) => (p === "settings" ? "/app/settings" : at > settingsAt ? `/app/settings/${p}` : `/app/${p}`));
     const covered = new Set(PALETTE_PAGES.map((x) => x.to));
     const missing = paths.filter((p) => !covered.has(p));

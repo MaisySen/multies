@@ -5,7 +5,7 @@ import { TaskFiles } from "./task-files";
 import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
-import { Bot, Calendar, CheckCircle2, Circle, Copy, FileText, Link2, Mail, MoreHorizontal, Trash2, User, Video, X } from "lucide-react";
+import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCopy, IconDocs, IconLink, IconMail, IconMore, IconTrash, IconUser, IconVideo } from "@/web/components/ui/icon";
 import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
@@ -87,15 +87,15 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="ml-auto flex items-center gap-1">
           {t && <WatchButton taskId={t.id} />}
           {t && (
-            <Menu trigger={<button className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="More"><MoreHorizontal className="h-4 w-4" /></button>}>
-              <MenuItem icon={<FileText />} onSelect={newDoc}>New doc for this task</MenuItem>
-              <MenuItem icon={<Video />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
-              <MenuItem icon={<FileText />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
-              <MenuItem icon={<Copy />} onSelect={() => void duplicate(t.id)}>Duplicate task</MenuItem>
-              <MenuItem icon={<Trash2 />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
+            <Menu trigger={<button className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="More"><IconMore className="h-4 w-4" /></button>}>
+              <MenuItem icon={<IconDocs />} onSelect={newDoc}>New doc for this task</MenuItem>
+              <MenuItem icon={<IconVideo />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
+              <MenuItem icon={<IconDocs />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
+              <MenuItem icon={<IconCopy />} onSelect={() => void duplicate(t.id)}>Duplicate task</MenuItem>
+              <MenuItem icon={<IconTrash />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
-          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="Close task"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="Close task"><IconClose className="h-4 w-4" /></button>
         </div>
       </div>
       {!t ? (
@@ -105,7 +105,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           <CatchupCard key={`catchup-${t.id}`} type="task" id={t.id} className="mx-0 mb-0 mt-3" />
           <div className="flex items-start gap-2 pt-4">
             <button className="mt-1.5 text-muted hover:text-ok" aria-label={t.status === "done" ? "Mark as not done" : "Mark as done"} onClick={() => save({ status: t.status === "done" ? "todo" : "done" })}>
-              {t.status === "done" ? <CheckCircle2 className="h-5 w-5 text-ok" /> : <Circle className="h-5 w-5" />}
+              {t.status === "done" ? <IconCheckCircle className="h-5 w-5 text-ok" /> : <IconCircle className="h-5 w-5" />}
             </button>
             <textarea aria-label="Title" rows={1} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && save({ title })}
               className="w-full resize-none bg-transparent text-lg font-semibold leading-snug outline-none [field-sizing:content]" />
@@ -159,7 +159,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">
               <div className="flex items-center justify-between">
-                <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><Mail className="h-3.5 w-3.5" />From email</h3>
+                <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconMail className="h-3.5 w-3.5" />From email</h3>
                 {t.source.messageId && <Link to={`/app/mail?m=${t.source.messageId}`} className="text-[12.5px] text-brand-hover hover:underline">Open thread</Link>}
               </div>
               <p className="mt-1.5 text-[13px] text-muted">{t.source.subject || "(no subject)"} · {t.source.from}</p>
@@ -168,7 +168,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
                   <li key={m.id} className={cn("rounded-lg border border-line p-3", m.direction === "outbound" ? "bg-fill/60" : "bg-elevated/60")}>
                     <div className="flex items-center gap-2 text-[12px]">
                       <span className="font-medium text-fg">{m.from.name || m.from.address}</span>
-                      {m.byAgent && <Badge tone="brand"><Bot className="h-3 w-3" />Agent</Badge>}
+                      {m.byAgent && <Badge tone="brand"><IconAgent className="h-3 w-3" />Agent</Badge>}
                       <span className="ml-auto text-subtle">{mailDate(m.date)}</span>
                     </div>
                     <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-muted">{m.latestText.slice(0, 600) || "(no text)"}</p>
@@ -192,7 +192,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               {q.data!.subtasks.map((s: Task) => (
                 <li key={s.id} className="flex items-center gap-2 rounded-md px-1 py-1 hover:bg-hover">
                   <button aria-label={s.status === "done" ? `Mark ${s.title} as not done` : `Mark ${s.title} as done`} onClick={() => update.mutate({ id: s.id, patch: { status: s.status === "done" ? "todo" : "done" } }, { onSuccess: () => void q.refetch() })}>
-                    {s.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
+                    {s.status === "done" ? <IconCheckCircle className="h-4 w-4 text-ok" /> : <IconCircle className="h-4 w-4 text-muted" />}
                   </button>
                   <span className={cn("text-[13px]", s.status === "done" && "text-subtle line-through")}>{s.title}</span>
                   {s.assignee && <span className="ml-auto text-[11.5px] text-subtle">{s.assignee.name}</span>}
@@ -210,14 +210,14 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           {q.data!.docs.length > 0 && (
             <section className="mt-6" aria-label="Docs">
               <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Docs</h3>
-              <ul className="mt-2 space-y-1">{q.data!.docs.map((d) => <li key={d.id}><Link to={`/app/docs/${d.id}`} className="flex items-center gap-2 text-[13px] text-fg hover:underline"><FileText className="h-3.5 w-3.5 text-muted" />{d.title}</Link></li>)}</ul>
+              <ul className="mt-2 space-y-1">{q.data!.docs.map((d) => <li key={d.id}><Link to={`/app/docs/${d.id}`} className="flex items-center gap-2 text-[13px] text-fg hover:underline"><IconDocs className="h-3.5 w-3.5 text-muted" />{d.title}</Link></li>)}</ul>
             </section>
           )}
 
           {q.data!.contacts.length > 0 && (
             <section className="mt-6" aria-label="Contacts">
               <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Contact</h3>
-              <ul className="mt-2 space-y-1">{q.data!.contacts.map((c) => <li key={c.id}><Link to={`/app/contacts/${c.id}`} className="flex items-center gap-2 text-[13px] hover:underline"><User className="h-3.5 w-3.5 text-muted" />{c.name || c.email}{c.company && <span className="text-subtle">· {c.company.name}</span>}</Link></li>)}</ul>
+              <ul className="mt-2 space-y-1">{q.data!.contacts.map((c) => <li key={c.id}><Link to={`/app/contacts/${c.id}`} className="flex items-center gap-2 text-[13px] hover:underline"><IconUser className="h-3.5 w-3.5 text-muted" />{c.name || c.email}{c.company && <span className="text-subtle">· {c.company.name}</span>}</Link></li>)}</ul>
             </section>
           )}
 
@@ -245,7 +245,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <ul className="mt-2 space-y-1.5">
               {q.data!.activity.slice(0, 20).map((a) => (
                 <li key={a.id} className="flex items-center gap-2 text-[12.5px] text-muted">
-                  {a.actor.type === "agent" ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : a.actor.type === "system" ? <Calendar className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
+                  {a.actor.type === "agent" ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : a.actor.type === "system" ? <IconCalendar className="h-3.5 w-3.5" /> : <IconUser className="h-3.5 w-3.5" />}
                   <span><span className="text-fg">{a.actor.name ?? "Someone"}</span> {describeActivity(a)}</span>
                   <span className="ml-auto shrink-0 text-subtle">{timeAgo(a.at)}</span>
                 </li>
@@ -271,16 +271,16 @@ function Dependencies({ task, blockedBy, blocking, onChange }: { task: Task; blo
   const open = blockedBy.filter((b) => b.status !== "done").length;
   const row = (x: Task, onRemove: () => void) => (
     <li key={x.id} className="group flex items-center gap-2 text-[13px]">
-      {x.status === "done" ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-ok" /> : <Circle className="h-3.5 w-3.5 shrink-0 text-muted" />}
+      {x.status === "done" ? <IconCheckCircle className="h-3.5 w-3.5 shrink-0 text-ok" /> : <IconCircle className="h-3.5 w-3.5 shrink-0 text-muted" />}
       <span className="font-mono text-[12px] text-subtle">{x.ref}</span>
       <span className={cn("truncate", x.status === "done" && "text-subtle line-through")}>{x.title}</span>
-      <button className="ml-auto text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label={`Remove dependency on ${x.ref}`} onClick={onRemove}><X className="h-3.5 w-3.5" /></button>
+      <button className="ml-auto text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label={`Remove dependency on ${x.ref}`} onClick={onRemove}><IconClose className="h-3.5 w-3.5" /></button>
     </li>
   );
   return (
     <section className="mt-6" aria-label="Dependencies" data-testid="dependencies">
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><Link2 className="h-3.5 w-3.5" />Dependencies {open > 0 && <span className="rounded bg-warn/15 px-1.5 py-px text-[11px] font-medium normal-case text-warn">Blocked</span>}</h3>
+        <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconLink className="h-3.5 w-3.5" />Dependencies {open > 0 && <span className="rounded bg-warn/15 px-1.5 py-px text-[11px] font-medium normal-case text-warn">Blocked</span>}</h3>
         <button className="text-[12.5px] text-brand-hover hover:underline" onClick={() => setAdding((v) => !v)}>Add blocker</button>
       </div>
       {adding && (

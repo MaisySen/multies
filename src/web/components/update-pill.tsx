@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import { useIsMutating } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RotateCw, X } from "lucide-react";
+import { IconClose, IconRotate } from "@/web/components/ui/icon";
 import { DISMISS_KEY, fetchVersion, watchRelease, type VersionInfo } from "@/web/lib/update-check";
 import { applyServiceWorkerUpdate, serviceWorkerUpdateWaiting, SW_UPDATE_EVENT } from "@/web/lib/sw-client";
 
@@ -56,11 +56,11 @@ export function UpdatePill() {
       <span>A new version of Multies is ready</span>
       <button type="button" onClick={reloadApp}
         className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-[#0071E3] px-3 py-1 font-medium text-white transition-colors duration-150 hover:bg-[#0077ED] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3] focus-visible:ring-offset-2">
-        <RotateCw className="h-3.5 w-3.5" aria-hidden />Reload
+        <IconRotate className="h-3.5 w-3.5" aria-hidden />Reload
       </button>
       <button type="button" onClick={dismiss} aria-label="Dismiss until the next version"
         className="grid h-7 w-7 place-items-center rounded-full text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]">
-        <X className="h-3.5 w-3.5" aria-hidden />
+        <IconClose className="h-3.5 w-3.5" aria-hidden />
       </button>
     </div>
   );

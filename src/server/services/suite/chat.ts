@@ -22,6 +22,7 @@ import { inChunks, inIds } from "../../lib/sql-chunks";
 import { publishChat } from "../../realtime/publish";
 import { deferrableWrite } from "../write-priority";
 import { messageIdForClient } from "./chat-ack-r33";
+import { assertCanPostInDm, assertNotBlockedInDm, blockedIds, notBlockedBy } from "./reports-r35"; // R35: blocks
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -91,13 +92,14 @@ async function membersOf(deps: Deps, channelIds: string[]) {
   return out;
 }
 
-function presentChannel(c: ChannelRow, viewerId: string | null, members: { id: string; name: string; email: string }[], extra: { unread?: number; mentions?: number; lastMessage?: { id: string; preview: string; authorName: string } | null } = {}) {
+function presentChannel(c: ChannelRow, viewerId: string | null, members: { id: string; name: string; email: string }[], extra: { unread?: number; mentions?: number; lastMessage?: { id: string; preview: string; authorName: string } | null } = {}, blocked?: Set<string>) {
   const others = members.filter((m) => m.id !== viewerId);
   return {
     id: c.id, kind: c.kind, name: c.kind === "dm" ? (others.map((m) => m.name || m.email).join(", ") || "Just you") : c.name,
     topic: c.topic, private: c.isPrivate, projectId: c.projectId, guestAccess: c.guestAccess, archived: c.archived,
     joined: viewerId ? members.some((m) => m.id === viewerId) : false,
-    members: members.map((m) => ({ id: `member:${m.id}`, name: m.name, email: m.email })),
+    // R35: blockedByMe lets clients show Unblock and the quiet "Messages from people you blocked are hidden" row.
+    members: members.map((m) => ({ id: `member:${m.id}`, name: m.name, email: m.email, blockedByMe: !!blocked?.has(m.id) })),
     unread: extra.unread ?? 0, mentions: extra.mentions ?? 0, lastMessageAt: iso(c.lastMessageAt), lastMessage: extra.lastMessage ?? null,
     createdAt: c.createdAt.toISOString(),
   };
@@ -141,7 +143,7 @@ async function unreadFor(deps: Deps, orgId: string, userId: string) {
   }).from(chatMessages)
     .innerJoin(chatMembers, and(eq(chatMembers.channelId, chatMessages.channelId), eq(chatMembers.userId, userId)))
     .where(and(eq(chatMessages.orgId, orgId), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt),
-      sql`${chatMessages.createdAt} > coalesce(${chatMembers.lastReadAt}, 0)`, sql`coalesce(${chatMessages.authorId}, '') <> ${userId}`))
+      sql`${chatMessages.createdAt} > coalesce(${chatMembers.lastReadAt}, 0)`, sql`coalesce(${chatMessages.authorId}, '') <> ${userId}`, notBlockedBy(chatMessages.authorId, userId)))
     .groupBy(chatMessages.channelId);
   return new Map(rows.map((r) => [r.channelId, { unread: Number(r.unread) || 0, mentions: Number(r.mentions) || 0 }]));
 }
@@ -155,14 +157,15 @@ export async function listChannels(deps: Deps, a: SuiteActor, opts: { includeArc
     .where(and(eq(chatChannels.orgId, a.orgId), isNull(chatChannels.deletedAt), visible, opts.includeArchived ? undefined : eq(chatChannels.archived, false)))
     .orderBy(asc(chatChannels.kind), asc(chatChannels.name));
   const ids = rows.map((r) => r.id);
-  const [mem, unread, last] = await Promise.all([
+  const [mem, unread, last, blocked] = await Promise.all([
     membersOf(deps, ids),
     viewer ? unreadFor(deps, a.orgId, viewer) : Promise.resolve(new Map<string, { unread: number; mentions: number }>()),
     ids.length ? deps.db.select().from(chatMessages).where(inArray(chatMessages.id, // D1: a subquery, not a bound list
-      deps.db.select({ id: sql<string>`max(${chatMessages.id})` }).from(chatMessages).where(and(inIds(chatMessages.channelId, ids), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt))).groupBy(chatMessages.channelId))) : Promise.resolve([] as MessageRow[]),
+      deps.db.select({ id: sql<string>`max(${chatMessages.id})` }).from(chatMessages).where(and(inIds(chatMessages.channelId, ids), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt), notBlockedBy(chatMessages.authorId, viewer))).groupBy(chatMessages.channelId))) : Promise.resolve([] as MessageRow[]),
+    blockedIds(deps, viewer),
   ]);
   const lastBy = new Map(last.map((m) => [m.channelId, { id: m.id, preview: plainText(m.body, JSON.parse(m.mentions), JSON.parse(m.links)).slice(0, 140), authorName: m.authorName }]));
-  const out = rows.map((r) => presentChannel(r, viewer, mem.get(r.id) ?? [], { ...(unread.get(r.id) ?? {}), lastMessage: lastBy.get(r.id) ?? null }));
+  const out = rows.map((r) => presentChannel(r, viewer, mem.get(r.id) ?? [], { ...(unread.get(r.id) ?? {}), lastMessage: lastBy.get(r.id) ?? null }, blocked));
   // DMs with recent messages first, channels by name.
   return out.sort((x, y) => (x.kind !== y.kind ? (x.kind === "channel" ? -1 : 1) : x.kind === "dm" ? (y.lastMessageAt ?? "").localeCompare(x.lastMessageAt ?? "") : x.name.localeCompare(y.name)));
 }
@@ -170,8 +173,8 @@ export async function listChannels(deps: Deps, a: SuiteActor, opts: { includeArc
 export async function getChannel(deps: Deps, a: SuiteActor, id: string) {
   const c = await visibleChannel(deps, a, id);
   const viewer = isKey(a) ? null : a.userId;
-  const [mem, unread] = await Promise.all([membersOf(deps, [c.id]), viewer ? unreadFor(deps, a.orgId, viewer) : Promise.resolve(new Map())]);
-  return presentChannel(c, viewer, mem.get(c.id) ?? [], unread.get(c.id) ?? {});
+  const [mem, unread, blocked] = await Promise.all([membersOf(deps, [c.id]), viewer ? unreadFor(deps, a.orgId, viewer) : Promise.resolve(new Map()), blockedIds(deps, viewer)]);
+  return presentChannel(c, viewer, mem.get(c.id) ?? [], unread.get(c.id) ?? {}, blocked);
 }
 
 async function orgUserIds(deps: Deps, orgId: string, ids: string[]) {
@@ -221,6 +224,8 @@ export async function openDm(deps: Deps, a: SuiteActor, userIds: string[]) {
   const dmKey = all.join(",");
   const existing = await deps.db.select().from(chatChannels).where(and(eq(chatChannels.orgId, a.orgId), eq(chatChannels.dmKey, dmKey))).get();
   if (existing) return { channel: await getChannel(deps, a, existing.id), created: false };
+  // R35: nobody starts a DM with someone who blocked them (they are not told more than this).
+  await assertNotBlockedInDm(deps, a.userId, all);
   const now = deps.now();
   const id = sortableId("chn", now.getTime());
   await deps.db.insert(chatChannels).values({ id, orgId: a.orgId, kind: "dm", name: "", isPrivate: true, dmKey, createdAt: now, updatedAt: now, ...createdBy(a) }).onConflictDoNothing();
@@ -357,16 +362,18 @@ async function present(deps: Deps, rows: MessageRow[]) {
   return rows.map((r) => ({ ...presentMessage(r, files.get(r.id), r.authorId ? who.get(r.authorId) : undefined), reactions: reactions.get(r.id) ?? [] }));
 }
 
-export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string }) {
+export async function listMessages(deps: Deps, channelId: string, q: { limit?: number; before?: string; since?: string }, viewer?: string | null) {
+  // R35: messages from people the viewer blocked are left out on the server (paging stays exact).
+  const hide = notBlockedBy(chatMessages.authorId, viewer);
   const limit = Math.min(Math.max(q.limit ?? 50, 1), 200);
   if (q.since) {
     const since = new Date(q.since);
     if (Number.isNaN(since.getTime())) throw new HttpError(422, "validation_failed", "since must be an ISO date-time.");
-    const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, channelId), isNull(chatMessages.parentId), gt(chatMessages.updatedAt, since)))
+    const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, channelId), isNull(chatMessages.parentId), gt(chatMessages.updatedAt, since), hide))
       .orderBy(asc(chatMessages.createdAt)).limit(limit);
     return { messages: await present(deps, rows), hasMore: rows.length === limit };
   }
-  const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, channelId), isNull(chatMessages.parentId), q.before ? lt(chatMessages.id, q.before) : undefined))
+  const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, channelId), isNull(chatMessages.parentId), q.before ? lt(chatMessages.id, q.before) : undefined, hide))
     .orderBy(desc(chatMessages.id)).limit(limit + 1);
   const hasMore = rows.length > limit;
   return { messages: await present(deps, rows.slice(0, limit).reverse()), hasMore };
@@ -374,7 +381,7 @@ export async function listMessages(deps: Deps, channelId: string, q: { limit?: n
 
 export async function channelMessages(deps: Deps, a: SuiteActor, channelId: string, q: { limit?: number; before?: string; since?: string }) {
   const c = await visibleChannel(deps, a, channelId);
-  return listMessages(deps, c.id, q);
+  return listMessages(deps, c.id, q, isKey(a) ? null : a.userId);
 }
 
 async function messageRow(deps: Deps, orgId: string, id: string) {
@@ -389,9 +396,9 @@ export async function getMessage(deps: Deps, a: SuiteActor, id: string) {
   return { message: (await present(deps, [m]))[0], channel };
 }
 
-export async function threadOf(deps: Deps, orgId: string, m: MessageRow) {
+export async function threadOf(deps: Deps, orgId: string, m: MessageRow, viewer?: string | null) {
   const root = m.parentId ? await messageRow(deps, orgId, m.parentId) : m;
-  const replies = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, root.channelId), eq(chatMessages.parentId, root.id))).orderBy(asc(chatMessages.createdAt)).limit(500);
+  const replies = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, root.channelId), eq(chatMessages.parentId, root.id), notBlockedBy(chatMessages.authorId, viewer))).orderBy(asc(chatMessages.createdAt)).limit(500);
   const [rootP, ...rest] = await present(deps, [root, ...replies]);
   return { message: rootP, replies: rest };
 }
@@ -399,7 +406,7 @@ export async function threadOf(deps: Deps, orgId: string, m: MessageRow) {
 export async function getThread(deps: Deps, a: SuiteActor, id: string) {
   const m = await messageRow(deps, a.orgId, id);
   await visibleChannel(deps, a, m.channelId);
-  return threadOf(deps, a.orgId, m);
+  return threadOf(deps, a.orgId, m, isKey(a) ? null : a.userId);
 }
 
 async function resolveLinks(deps: Deps, a: SuiteActor, raw: { type: ChatLink["type"]; id: string }[]): Promise<ChatLink[]> {
@@ -492,8 +499,11 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
   const preview = plainText(m.body, m.mentions, m.links).slice(0, 120) || (m.attachments.length ? `${m.attachments.length} file(s)` : "");
   const where = c.kind === "dm" ? "a direct message" : `#${c.name}`;
   const told = new Set<string>();
+  // R35: people who blocked the author get no mention, reply or DM notification (and so no push).
+  const { blockersOf } = await import("./reports-r35");
+  const blockers = await blockersOf(deps, authorUser);
   const tell = async (userId: string, type: string, title: string) => {
-    if (!userId || userId === authorUser || told.has(userId) || !canSee(userId)) return;
+    if (!userId || userId === authorUser || told.has(userId) || !canSee(userId) || blockers.has(userId)) return;
     told.add(userId);
     await notify(deps, c.orgId, userId, { type, entityType: "chat_message", entityId: m.id, title, actorName: author.name });
   };
@@ -526,6 +536,7 @@ export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, 
 export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }): Promise<{ message: ChatMessage; deduped: boolean }> {
   assertWritable(a);
   const c = await visibleChannel(deps, a, channelId);
+  await assertCanPostInDm(deps, c, isKey(a) ? null : a.userId); // R35: a DM with someone who blocked the sender: 403 blocked
   const who = actorOf(a);
   const fixedId = messageIdForClient(a.orgId, `${who.type}:${who.id ?? ""}`, input.clientMsgId, deps.now().getTime());
   if (fixedId) {
@@ -566,6 +577,24 @@ export async function editMessage(deps: Deps, a: SuiteActor, id: string, body: s
   return out;
 }
 
+/** The soft delete itself: clears the text and files, tells webhooks and open chats. R35: the moderation queue uses it too. */
+async function softDelete(deps: Deps, orgId: string, m: MessageRow, c: ChannelRow) {
+  const now = deps.now();
+  await deps.db.update(chatMessages).set({ deletedAt: now, updatedAt: now, body: "", mentions: "[]", mentionKeys: "", links: "[]" }).where(eq(chatMessages.id, m.id));
+  await deps.db.delete(chatFiles).where(eq(chatFiles.messageId, m.id));
+  await emitEvent(deps, orgId, "chat.message.deleted", { messageId: m.id, channelId: m.channelId });
+  // R32: open chats swap in the same "deleted" placeholder the next read would show.
+  await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: (await present(deps, [await messageRow(deps, orgId, m.id)]))[0] });
+}
+
+/** R35: the operator removes a reported message (no membership or role check: the operator console guards it). */
+export async function moderationDelete(deps: Deps, orgId: string, id: string) {
+  const m = await messageRow(deps, orgId, id);
+  if (m.deletedAt) return false;
+  await softDelete(deps, orgId, m, await channelRow(deps, orgId, m.channelId));
+  return true;
+}
+
 export async function deleteMessage(deps: Deps, a: SuiteActor, id: string) {
   assertWritable(a);
   const m = await messageRow(deps, a.orgId, id);
@@ -573,12 +602,7 @@ export async function deleteMessage(deps: Deps, a: SuiteActor, id: string) {
   const who = actorOf(a);
   const own = m.authorType === who.type && m.authorId === who.id;
   if (!own && !(a.role === "owner" || a.role === "admin") ) throw new HttpError(403, "forbidden", "Only the author or an admin can delete a message.");
-  const now = deps.now();
-  await deps.db.update(chatMessages).set({ deletedAt: now, updatedAt: now, body: "", mentions: "[]", mentionKeys: "", links: "[]" }).where(eq(chatMessages.id, m.id));
-  await deps.db.delete(chatFiles).where(eq(chatFiles.messageId, m.id));
-  await emitEvent(deps, a.orgId, "chat.message.deleted", { messageId: m.id, channelId: m.channelId });
-  // R32: open chats swap in the same "deleted" placeholder the next read would show.
-  await publishChat(deps, c, { t: "message", op: "updated", channelId: c.id, message: (await present(deps, [await messageRow(deps, a.orgId, id)]))[0] });
+  await softDelete(deps, a.orgId, m, c);
   return { ok: true };
 }
 
@@ -610,7 +634,7 @@ export async function pinMessage(deps: Deps, a: SuiteActor, id: string, pinned: 
 /** The pinned messages of a channel, newest pin first. */
 export async function listPins(deps: Deps, a: SuiteActor, channelId: string) {
   const c = await visibleChannel(deps, a, channelId);
-  const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, c.id), isNotNull(chatMessages.pinnedAt), isNull(chatMessages.deletedAt)))
+  const rows = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.channelId, c.id), isNotNull(chatMessages.pinnedAt), isNull(chatMessages.deletedAt), notBlockedBy(chatMessages.authorId, isKey(a) ? null : a.userId)))
     .orderBy(desc(chatMessages.pinnedAt)).limit(MAX_PINS);
   return { pins: await present(deps, rows) };
 }

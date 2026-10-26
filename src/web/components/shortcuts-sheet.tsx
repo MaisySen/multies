@@ -4,7 +4,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { Search } from "lucide-react";
+import { IconSearch } from "@/web/components/ui/icon";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Kbd } from "@/web/components/ui/misc";
 import { OPEN_SHORTCUTS_EVENT, displayKeys, filterShortcuts, groupForPath, groupShortcuts, isTypingTarget, openPalette, sheetShortcuts } from "@/web/lib/shortcuts";
@@ -22,7 +22,7 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   return (
     <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description="Press ? anywhere to see this again." className="max-w-xl">
       <label className="flex items-center gap-2 rounded-lg border border-line bg-fill px-3">
-        <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+        <IconSearch className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search shortcuts" aria-label="Search shortcuts"
           className="h-9 w-full bg-transparent text-[13.5px] text-fg outline-none placeholder:text-subtle" />
       </label>

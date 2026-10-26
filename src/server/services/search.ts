@@ -27,6 +27,7 @@ import { plainText } from "./suite/chat";
 import { linkFor } from "./suite/notify";
 import { dateFormat, dayInZone } from "../lib/intl-cache";
 import { inIds } from "../lib/sql-chunks";
+import { notBlockedBy } from "./suite/reports-r35"; // R35
 
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
@@ -173,7 +174,8 @@ async function searchChat(deps: Deps, v: SearchViewer, term: string, limit: numb
     id: chatMessages.id, channelId: chatMessages.channelId, parentId: chatMessages.parentId, authorName: chatMessages.authorName, body: chatMessages.body,
     mentions: chatMessages.mentions, links: chatMessages.links, createdAt: chatMessages.createdAt,
   }).from(chatMessages)
-    .where(and(eq(chatMessages.orgId, orgId), inIds(chatMessages.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt), likeAny([sql`${chatMessages.body}`], contains(term))))
+    .where(and(eq(chatMessages.orgId, orgId), inIds(chatMessages.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt), likeAny([sql`${chatMessages.body}`], contains(term)),
+      notBlockedBy(chatMessages.authorId, v.kind === "guest" || isKey(v.actor) ? null : v.actor.userId))) // R35: blocked people's messages stay out
     .orderBy(desc(chatMessages.createdAt)).limit(limit);
   return rows.map((m) => {
     const c = byId.get(m.channelId)!;

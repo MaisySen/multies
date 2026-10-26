@@ -1,7 +1,7 @@
 /** Invite clients to a project as guests: free, no seat, and they see only this project. */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Trash2, UserPlus, Users } from "lucide-react";
+import { IconAssign, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -37,7 +37,7 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
       <form className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]" onSubmit={(e) => { e.preventDefault(); void invite(); }}>
         <Input type="email" aria-label="Guest email" placeholder="client@company.com.au" value={email} onChange={(e) => setEmail(e.target.value)} className="h-9 text-[13px]" required />
         <Input aria-label="Guest name" placeholder="Name (optional)" value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
-        <Button type="submit" loading={busy}><UserPlus className="h-4 w-4" />Invite</Button>
+        <Button type="submit" loading={busy}><IconAssign className="h-4 w-4" />Invite</Button>
       </form>
       {last && (
         <p className="mt-3 rounded-lg border border-line bg-elevated/60 p-2.5 text-[12.5px] text-muted" role="status">
@@ -58,12 +58,12 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
               {g.status === "active" ? "Joined" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
             </Badge>
             {g.lastSeenAt && <span className="hidden text-[11.5px] text-subtle sm:inline">seen {timeAgo(g.lastSeenAt)}</span>}
-            <ConfirmButton armedLabel="Remove?" aria-label={`Remove ${g.email}`} title="They lose access straight away" onConfirm={() => void remove(g)}><Trash2 className="h-4 w-4" /></ConfirmButton>
+            <ConfirmButton armedLabel="Remove?" aria-label={`Remove ${g.email}`} title="They lose access straight away" onConfirm={() => void remove(g)}><IconTrash className="h-4 w-4" /></ConfirmButton>
           </li>
         ))}
         {q.data && !q.data.length && (
           <li className="flex items-center gap-3 py-4 text-[13px] text-muted">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-fill" aria-hidden><Users className="h-4 w-4" /></span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-fill" aria-hidden><IconTeam className="h-4 w-4" /></span>
             No guests yet. Invite a client above and they'll see only this project.
           </li>
         )}

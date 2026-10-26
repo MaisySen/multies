@@ -6,7 +6,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { PhoneOff, Video } from "lucide-react";
+import { IconPhoneOff, IconVideo } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { mailDate } from "@/web/lib/format";
 import { useConfig } from "@/web/lib/queries";
@@ -55,7 +55,7 @@ export function LiveCallCard({ path, by, at, channelId }: { path: string; by: st
   return (
     <div className={cn("mt-1 flex max-w-sm items-center gap-3 rounded-xl border bg-surface p-3", live ? "border-brand/40" : "border-line")} data-testid="call-card" data-state={call?.state ?? "plain"}>
       <span className={cn("relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full", done ? "bg-fill text-muted" : "bg-brand/10 text-brand")}>
-        {done ? <PhoneOff className="h-4 w-4" aria-hidden /> : <Video className="h-4 w-4" aria-hidden />}
+        {done ? <IconPhoneOff className="h-4 w-4" aria-hidden /> : <IconVideo className="h-4 w-4" aria-hidden />}
         {live && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-surface bg-ok" aria-hidden />}
       </span>
       <div className="min-w-0 flex-1">

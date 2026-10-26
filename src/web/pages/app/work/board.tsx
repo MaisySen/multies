@@ -4,7 +4,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Bot, CheckSquare, Flag, GripVertical, Mail, MessageSquare, Plus } from "lucide-react";
+import { IconAgent, IconChat, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -24,15 +24,15 @@ export function TaskCard({ t, onOpen, dragging, handle }: { t: Task; onOpen?: ()
       )}
       <div className="mt-2.5 flex items-center gap-2.5 text-[11.5px] text-subtle">
         <span className="inline-flex items-center gap-1"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
-        {t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><Flag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
+        {t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><IconFlag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
         {t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
-        {t.source && <Mail className="h-3 w-3" aria-label="From email" />}
-        {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><CheckSquare className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
+        {t.source && <IconMail className="h-3 w-3" aria-label="From email" />}
+        {t.subtasks.total > 0 && <span className="inline-flex items-center gap-0.5"><IconTasks className="h-3 w-3" />{t.subtasks.done}/{t.subtasks.total}</span>}
         <ChecklistChip checklist={t.checklist} />
-        {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><MessageSquare className="h-3 w-3" />{t.commentCount}</span>}
+        {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><IconChat className="h-3 w-3" />{t.commentCount}</span>}
         <span className="ml-auto flex items-center gap-1.5">
           {t.assignee && (isAgentLike(t.assignee)
-            ? <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-hover" title={`${t.assignee.name} (agent)`}><Bot className="h-3 w-3" /></span>
+            ? <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-hover" title={`${t.assignee.name} (agent)`}><IconAgent className="h-3 w-3" /></span>
             : <span title={t.assignee.name}><Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /></span>)}
           {handle}
         </span>
@@ -50,7 +50,7 @@ export function SortableCard({ t, onOpen }: { t: Task; onOpen: () => void }) {
       className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}>
       <TaskCard t={t} onOpen={onOpen} handle={
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
-          className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><GripVertical className="h-3.5 w-3.5" aria-hidden /></button>
+          className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       } />
     </li>
   );
@@ -69,7 +69,7 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit }:
         <h2 className="text-[13px] font-semibold">{title}</h2>
         <LimitChip count={count} limit={limit} />
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
-        <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><Plus className="h-3.5 w-3.5" /></button>
+        <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5" /></button>
       </header>
       <ul ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">{children}</ul>
     </section>

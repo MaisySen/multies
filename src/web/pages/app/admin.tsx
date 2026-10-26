@@ -6,13 +6,14 @@ import { sendSentryTest, sentryEnabled } from "@/web/lib/sentry";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, StatTile, tableStyles as T } from "@/web/components/ui/misc";
 import { PromptDialog } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog"; // R34
-import { Building2, Globe, Inbox, Send, ShieldCheck, Users } from "lucide-react";
+import { IconBuilding, IconGlobe, IconInbox, IconSend, IconShieldCheck, IconTeam } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
 import { Section } from "./settings";
 import { LOCALE } from "@/shared/locale";
 import { WriteBudgetMeter } from "./admin-write-budget"; // R32
+import { ModerationLink } from "./admin-moderation-r35"; // R35
 
 interface Overview {
   totals: { users: number; workspaces: number; domains: number; mailboxes: number; deliveries24h: number };
@@ -47,17 +48,18 @@ export function AdminPage() {
   const { totals, tenants, integrations } = q.data;
   const fmt = new Intl.NumberFormat(LOCALE);
   const tiles = [
-    { label: "Users", value: totals.users, icon: <Users />, tone: "brand" as const },
-    { label: "Customer workspaces", value: totals.workspaces, icon: <Building2 />, tone: "neutral" as const },
-    { label: "Domains", value: totals.domains, icon: <Globe />, tone: "neutral" as const },
-    { label: "Mailboxes", value: totals.mailboxes, icon: <Inbox />, tone: "neutral" as const },
-    { label: "Deliveries, 24h", value: totals.deliveries24h, icon: <Send />, tone: "ok" as const },
+    { label: "Users", value: totals.users, icon: <IconTeam />, tone: "brand" as const },
+    { label: "Customer workspaces", value: totals.workspaces, icon: <IconBuilding />, tone: "neutral" as const },
+    { label: "Domains", value: totals.domains, icon: <IconGlobe />, tone: "neutral" as const },
+    { label: "Mailboxes", value: totals.mailboxes, icon: <IconInbox />, tone: "neutral" as const },
+    { label: "Deliveries, 24h", value: totals.deliveries24h, icon: <IconSend />, tone: "ok" as const },
   ];
   const integrationList = Object.entries(integrations);
   const on = integrationList.filter(([, v]) => v && v !== "log").length;
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Platform" title="Operator console" description="Every workspace on this deployment. Only platform admins see this page." />
+      <ModerationLink />
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {tiles.map((t) => <StatTile key={t.label} label={t.label} value={fmt.format(t.value)} icon={t.icon} tone={t.tone} />)}
       </div>
@@ -85,7 +87,7 @@ export function AdminPage() {
       <AbuseQueue />
       <JobQueue />
       <Section title="Workspaces" description="Newest first, up to 100. Suspending stops sending and API access; receiving continues.">
-        {!tenants.length ? <EmptyState className="py-10" icon={<Building2 />} title="No workspaces yet" body="Workspaces show here as people sign up." /> : (
+        {!tenants.length ? <EmptyState className="py-10" icon={<IconBuilding />} title="No workspaces yet" body="Workspaces show here as people sign up." /> : (
         <div className={T.wrap} tabIndex={0} role="region" aria-label="Workspaces">
           <table className={T.table}>
             <thead className={T.head}><tr><th className={T.th}>Name</th><th className={T.th}>Plan</th><th className={`${T.th} text-right`}>People</th><th className={`${T.th} text-right`}>AI agents</th><th className={`${T.th} text-right`}>Domains</th><th className={T.th}>Created</th><th className={T.th}><span className="sr-only">Controls</span></th></tr></thead>
@@ -193,7 +195,7 @@ function AbuseQueue() {
   return (
     <Section title="Abuse signals" description="Held messages and automatic suspensions waiting for review.">
       {q.isPending ? <Skeleton className="h-16" /> : !events.length ? (
-        <div className="flex items-center gap-3 rounded-xl border border-line px-4 py-3 text-sm"><span className="grid h-8 w-8 place-items-center rounded-full bg-ok-soft text-ok"><ShieldCheck className="h-4 w-4" /></span><span><span className="font-medium">All clear</span><span className="block text-xs text-muted">Nothing is waiting for review.</span></span></div>
+        <div className="flex items-center gap-3 rounded-xl border border-line px-4 py-3 text-sm"><span className="grid h-8 w-8 place-items-center rounded-full bg-ok-soft text-ok"><IconShieldCheck className="h-4 w-4" /></span><span><span className="font-medium">All clear</span><span className="block text-xs text-muted">Nothing is waiting for review.</span></span></div>
       ) : (
         <>
           <ul className="divide-y divide-line rounded-xl border border-line text-sm">

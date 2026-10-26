@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useParams } from "react-router";
-import { AlertTriangle } from "lucide-react";
+import { IconWarning } from "@/web/components/ui/icon";
 import { LEGAL_DOCS, LEGAL_UPDATED, type Block, type LegalSlug } from "@/shared/legal";
 import { NotFound } from "./not-found";
 
@@ -32,7 +32,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
       <p className="mt-2 text-muted">{doc.summary}</p>
       <p className="mt-1 text-xs text-subtle">Last updated {LEGAL_UPDATED}</p>
       <div role="note" className="mt-6 flex gap-2.5 rounded-lg border border-warn/30 bg-warn/5 px-3.5 py-3 text-[13px] text-warn">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+        <IconWarning className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <span>Draft for review by an Australian lawyer before launch. It describes how Multies works today, but it is not yet legal advice or a final agreement.</span>
       </div>
       <nav aria-label="On this page" className="mt-8 rounded-lg border border-line p-4 text-sm">

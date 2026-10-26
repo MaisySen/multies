@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ArrowRight, AtSign, Bot, Check, Globe, Inbox, Send, UserRound, Users } from "lucide-react";
+import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { qk, useDashboard, useMe } from "@/web/lib/queries";
 import { api } from "@/web/lib/api";
@@ -18,19 +18,19 @@ export function DashboardPage() {
   const first = me.data?.user.name.split(" ")[0];
   return (
     <>
-      <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><Inbox className="h-4 w-4" />Open mail</ButtonLink>} />
+      <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />
       {error && <Card className="p-6 text-sm text-bad">Couldn't load the overview: {error.message}</Card>}
       {isPending ? <DashboardSkeleton /> : data && (
         <div className="space-y-6">
           {data.usage.domains === 0 && <FreeAddressCard />}
           {!data.onboarding.dismissed && !Object.values(data.onboarding.steps).every(Boolean) ? <GettingStarted data={data} /> : null}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
-            <Stat icon={<Globe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
-            <Stat icon={<Users />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
-            <Stat icon={<UserRound />} label="People" value={String(data.team.members)} sub={`of ${data.plan.limits.seats} seats`} used={data.team.members} max={data.plan.limits.seats}
-              note={<span className="inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" aria-hidden="true" />{data.team.agents === 1 ? "1 AI agent" : `${data.team.agents} AI agents`}, no seat used</span>} />
-            <Stat icon={<AtSign />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
-            <Stat icon={<Send />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
+            <Stat icon={<IconGlobe />} label="Domains" value={`${data.domains.filter((d) => d.status === "verified").length}/${data.usage.domains}`} sub={`verified, plan allows ${data.plan.limits.domains}`} used={data.usage.domains} max={data.plan.limits.domains} />
+            <Stat icon={<IconTeam />} label="Mailboxes" value={String(data.usage.mailboxes)} sub={`of ${data.plan.limits.mailboxes}`} used={data.usage.mailboxes} max={data.plan.limits.mailboxes} />
+            <Stat icon={<IconUserRound />} label="People" value={String(data.team.members)} sub={`of ${data.plan.limits.seats} seats`} used={data.team.members} max={data.plan.limits.seats}
+              note={<span className="inline-flex items-center gap-1"><IconAgent className="h-3.5 w-3.5" aria-hidden="true" />{data.team.agents === 1 ? "1 AI agent" : `${data.team.agents} AI agents`}, no seat used</span>} />
+            <Stat icon={<IconMention />} label="Aliases" value={String(data.usage.aliases)} sub={`of ${data.plan.limits.aliases.toLocaleString(LOCALE)}`} used={data.usage.aliases} max={data.plan.limits.aliases} />
+            <Stat icon={<IconSend />} label="Sent today" value={String(data.sentToday)} sub={`of ${data.plan.limits.dailySends.toLocaleString(LOCALE)}`} used={data.sentToday} max={data.plan.limits.dailySends} />
           </div>
           <div className="grid gap-4 lg:grid-cols-3">
             <Card className="p-5 lg:col-span-2">
@@ -150,12 +150,12 @@ function GettingStarted({ data }: { data: Dashboard }) {
           <li key={s.title} className="border-line [&:not(:last-child)]:border-b sm:[&:nth-child(odd)]:border-r lg:[&:nth-child(odd)]:border-r-0 lg:[&:not(:nth-child(3n))]:border-r lg:[&:nth-child(-n+3)]:border-b lg:[&:nth-child(n+4)]:border-b-0">
             <Link to={s.to} className={cn("flex h-full gap-3 p-4 transition-colors hover:bg-hover", i === next && "bg-fill/60")} aria-current={i === next ? "step" : undefined}>
               <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-semibold", s.done ? "border-ok/30 bg-ok-soft text-ok" : i === next ? "border-brand bg-brand text-brand-fg" : "border-line-strong text-subtle")}>
-                {s.done ? <Check className="h-3.5 w-3.5" aria-label="Done" /> : i + 1}
+                {s.done ? <IconCheck className="h-3.5 w-3.5" aria-label="Done" /> : i + 1}
               </span>
               <span>
                 <span className={cn("block text-sm font-medium", s.done && "text-muted line-through decoration-subtle")}>{s.title}</span>
                 <span className="mt-0.5 block text-xs text-subtle">{s.body}</span>
-                {i === next && <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-hover">Start <ArrowRight className="h-3 w-3" /></span>}
+                {i === next && <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-hover">Start <IconArrowRight className="h-3 w-3" /></span>}
               </span>
             </Link>
           </li>

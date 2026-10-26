@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Lock, MessageSquareText, Pencil, Trash2 } from "lucide-react";
+import { IconChatText, IconEdit, IconLock, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 import { useDialogs } from "@/web/components/ui/confirm";
@@ -146,7 +146,7 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
     <Card className="border-warn/25 bg-warn-soft/60 p-4" aria-label="Team notes">
       {dialogs}
       <div className="flex items-center gap-2">
-        <Lock className="h-4 w-4 text-warn" aria-hidden />
+        <IconLock className="h-4 w-4 text-warn" aria-hidden />
         <h3 className="text-sm font-semibold">Team notes</h3>
         <span className="text-xs text-warn">Only your team sees these</span>
       </div>
@@ -164,8 +164,8 @@ export function ThreadNotes({ threadId }: { threadId: string }) {
                     <time className="text-xs text-subtle" dateTime={n.createdAt} title={fullDate(n.createdAt)}>{mailDate(n.createdAt)}</time>
                     {n.editedAt && <span className="text-xs text-subtle">edited</span>}
                     <span className="ml-auto flex gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
-                      {n.canEdit && <button type="button" onClick={() => setEditing(n.id)} className="rounded p-1 text-subtle hover:bg-hover hover:text-fg" aria-label="Edit note"><Pencil className="h-3.5 w-3.5" /></button>}
-                      {n.canDelete && <button type="button" onClick={async () => { if (await confirm({ title: "Delete this team note?", description: n.body.length > 80 ? `"${n.body.slice(0, 80)}..."` : `"${n.body}"`, confirmLabel: "Delete note" })) del.mutate(n.id); }} className="rounded p-1 text-subtle hover:bg-hover hover:text-bad" aria-label="Delete note"><Trash2 className="h-3.5 w-3.5" /></button>}
+                      {n.canEdit && <button type="button" onClick={() => setEditing(n.id)} className="rounded p-1 text-subtle hover:bg-hover hover:text-fg" aria-label="Edit note"><IconEdit className="h-3.5 w-3.5" /></button>}
+                      {n.canDelete && <button type="button" onClick={async () => { if (await confirm({ title: "Delete this team note?", description: n.body.length > 80 ? `"${n.body.slice(0, 80)}..."` : `"${n.body}"`, confirmLabel: "Delete note" })) del.mutate(n.id); }} className="rounded p-1 text-subtle hover:bg-hover hover:text-bad" aria-label="Delete note"><IconTrash className="h-3.5 w-3.5" /></button>}
                     </span>
                   </div>
                   {editing === n.id
@@ -199,7 +199,7 @@ export function NoteCount({ n }: { n?: number }) {
   if (!n) return null;
   return (
     <span className="inline-flex items-center gap-1 rounded-md bg-warn-soft px-1.5 py-0.5 text-[11.5px] text-fg/80" title={n === 1 ? "1 team note" : `${n} team notes`} data-testid="note-count">
-      <MessageSquareText className="h-3 w-3" aria-hidden />{n}<span className="sr-only">{n === 1 ? " team note" : " team notes"}</span>
+      <IconChatText className="h-3 w-3" aria-hidden />{n}<span className="sr-only">{n === 1 ? " team note" : " team notes"}</span>
     </span>
   );
 }

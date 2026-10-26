@@ -30,7 +30,7 @@ export function registerMailR32Tools(server: McpServer, deps: Deps, actor: Scope
   // R33: "select all" as one server job.
   server.registerTool("mail_bulk_job", {
     title: "Act on every message in a folder or search", annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    description: `Archive, move to Inbox, spam, trash (delete; Undo restores), snooze (Undo clears it), move to a synced folder (no Undo), mark read or unread, star or unstar EVERY message in a folder or search (up to ${BULK_JOB_MAX}), as one job. Give your own job_id; calling again with the same job_id continues the job until status is "done" (each call does up to 900). Mail that arrived after max_received_at is left alone (default: now). undo: true puts back exactly what the job changed (repeat until "reverted").`,
+    description: `Archive, move to Inbox, spam, trash (delete; Undo restores), snooze (Undo clears it), move to a synced folder (Undo moves it back), mark read or unread, star or unstar EVERY message in a folder or search (up to ${BULK_JOB_MAX}), as one job. Give your own job_id; calling again with the same job_id continues the job until status is "done" (each call does up to 900). Mail that arrived after max_received_at is left alone (default: now). undo: true puts back exactly what the job changed (repeat until "reverted").`,
     inputSchema: {
       job_id: z.string().min(8).max(64).regex(/^[A-Za-z0-9_-]+$/),
       action: z.enum(BULK_JOB_ACTIONS).optional().describe("Needed to start a job."),

@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, AtSign, Check } from "lucide-react";
+import { IconArrowRight, IconCheck, IconMention } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
@@ -75,12 +75,12 @@ export function FreeAddressCard({ className, compact = false, onDone }: { classN
   if (mine) {
     return (
       <Card className={cn("flex flex-wrap items-center gap-3 p-4", className)} data-testid="free-address-done">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ok-soft text-ok"><Check className="h-4 w-4" aria-hidden /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ok-soft text-ok"><IconCheck className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-muted">Your free address</div>
           <div className="truncate font-medium" data-testid="free-address-value">{mine.address}</div>
         </div>
-        <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${mine.id}`}>Open inbox <ArrowRight className="h-4 w-4" /></ButtonLink>
+        <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${mine.id}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
       </Card>
     );
   }
@@ -96,7 +96,7 @@ export function FreeAddressCard({ className, compact = false, onDone }: { classN
   return (
     <Card className={cn("p-4 sm:p-5", className)} data-testid="free-address">
       <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand"><AtSign className="h-4 w-4" aria-hidden /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-brand-soft text-brand"><IconMention className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Get a free @{d.domain} address</h2>
           {!compact && <p className="mt-0.5 text-sm text-muted">Your own personal address, free. Send and receive straight away. You can connect your existing email or add your own domain any time.</p>}
@@ -114,7 +114,7 @@ export function FreeAddressCard({ className, compact = false, onDone }: { classN
           {error && <p id="free-local-error" role="alert" className="mt-1.5 text-[13px] text-bad">{error}</p>}
           {!error && check.data && check.data.address === `${value.trim().toLowerCase()}@${d.domain}` && (
             check.data.available
-              ? <p className="mt-1.5 flex items-center gap-1 text-[13px] text-ok" data-testid="free-address-available"><Check className="h-3.5 w-3.5" aria-hidden />Available</p>
+              ? <p className="mt-1.5 flex items-center gap-1 text-[13px] text-ok" data-testid="free-address-available"><IconCheck className="h-3.5 w-3.5" aria-hidden />Available</p>
               : <p className="mt-1.5 text-[13px] text-bad" data-testid="free-address-unavailable">{check.data.problem}</p>
           )}
         </div>

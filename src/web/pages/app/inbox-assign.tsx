@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, Check, CheckCircle2, CircleDot, Hourglass, UserMinus, UserPlus, UserRound } from "lucide-react";
+import { IconAssign, IconChart, IconCheck, IconCheckCircle, IconCircleDot, IconHourglass, IconUserMinus, IconUserRound } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { useMe, useTeam } from "@/web/lib/queries";
@@ -74,7 +74,7 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
           {seg("done", "Done")}
         </div>
         <Button variant={stats ? "secondary" : "ghost"} size="sm" className="ml-auto" onClick={() => setStats(!stats)} aria-pressed={stats}>
-          <BarChart3 className="h-4 w-4" aria-hidden />Reply times
+          <IconChart className="h-4 w-4" aria-hidden />Reply times
         </Button>
       </div>
       {stats && <ReplyTimesCard />}
@@ -103,8 +103,8 @@ export function AssigneeChip({ assignee, status, lastInboundAt }: { assignee?: T
       {ageMs != null && <span data-testid="thread-age" title="Since the customer last wrote" className={cn("text-[11px] font-medium tabular-nums", ageMs >= 86_400_000 ? "text-[#B25000]" : "text-subtle")}>{formatAge(ageMs)}</span>}
       {chip && (
         <span className="inline-flex items-center gap-1.5" data-testid="thread-assignee">
-          {status === "waiting" && <Hourglass className="h-3.5 w-3.5 text-subtle" aria-label="Waiting on the customer" />}
-          {status === "done" && <CheckCircle2 className="h-3.5 w-3.5 text-ok" aria-label="Done" />}
+          {status === "waiting" && <IconHourglass className="h-3.5 w-3.5 text-subtle" aria-label="Waiting on the customer" />}
+          {status === "done" && <IconCheckCircle className="h-3.5 w-3.5 text-ok" aria-label="Done" />}
           {assignee && <span title={`Assigned to ${assignee.name}`}><Avatar label={initials(assignee.name)} className="h-5 w-5 text-[9px]" /><span className="sr-only">Assigned to {assignee.name}</span></span>}
         </span>
       )}
@@ -139,20 +139,20 @@ export function ThreadAssignControls({ threadId }: { threadId: string }) {
     <div className="ml-auto flex shrink-0 items-center gap-1.5" data-testid="thread-assign">
       <Menu trigger={
         <Button variant="outline" size="sm" loading={assign.isPending} aria-label={state.assignee ? `Assigned to ${state.assignee.name}. Change` : "Assign"}>
-          {state.assignee ? <><Avatar label={initials(state.assignee.name)} className="h-5 w-5 text-[9px]" />{state.assignee.name}</> : <><UserPlus className="h-4 w-4" aria-hidden />Assign</>}
+          {state.assignee ? <><Avatar label={initials(state.assignee.name)} className="h-5 w-5 text-[9px]" />{state.assignee.name}</> : <><IconAssign className="h-4 w-4" aria-hidden />Assign</>}
         </Button>
       }>
-        {myId && state.assignee?.id !== myId && members.some((m) => m.id === myId) && <MenuItem icon={<UserRound />} onSelect={() => assign.mutate(myId)}>Assign to me</MenuItem>}
+        {myId && state.assignee?.id !== myId && members.some((m) => m.id === myId) && <MenuItem icon={<IconUserRound />} onSelect={() => assign.mutate(myId)}>Assign to me</MenuItem>}
         <MenuLabel>People who can open this thread</MenuLabel>
         {members.map((m) => (
-          <MenuItem key={m.id} icon={state.assignee?.id === m.id ? <Check /> : <Avatar label={initials(m.name)} className="h-4 w-4 text-[8px]" />} onSelect={() => assign.mutate(m.id)}>{m.name}</MenuItem>
+          <MenuItem key={m.id} icon={state.assignee?.id === m.id ? <IconCheck /> : <Avatar label={initials(m.name)} className="h-4 w-4 text-[8px]" />} onSelect={() => assign.mutate(m.id)}>{m.name}</MenuItem>
         ))}
-        {state.assignee && <MenuItem icon={<UserMinus />} onSelect={() => assign.mutate(null)}>Unassign</MenuItem>}
+        {state.assignee && <MenuItem icon={<IconUserMinus />} onSelect={() => assign.mutate(null)}>Unassign</MenuItem>}
       </Menu>
       {state.status === "open"
-        ? <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("waiting")} title="We replied; the customer has the ball. New mail from them reopens it."><Hourglass className="h-4 w-4" aria-hidden />Waiting</Button>
-        : <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("open")}><CircleDot className="h-4 w-4" aria-hidden />Reopen</Button>}
-      {state.status !== "done" && <Button variant="secondary" size="sm" loading={status.isPending} onClick={() => status.mutate("done")}><CheckCircle2 className="h-4 w-4" aria-hidden />Mark done</Button>}
+        ? <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("waiting")} title="We replied; the customer has the ball. New mail from them reopens it."><IconHourglass className="h-4 w-4" aria-hidden />Waiting</Button>
+        : <Button variant="ghost" size="sm" disabled={status.isPending} onClick={() => status.mutate("open")}><IconCircleDot className="h-4 w-4" aria-hidden />Reopen</Button>}
+      {state.status !== "done" && <Button variant="secondary" size="sm" loading={status.isPending} onClick={() => status.mutate("done")}><IconCheckCircle className="h-4 w-4" aria-hidden />Mark done</Button>}
     </div>
   );
 }

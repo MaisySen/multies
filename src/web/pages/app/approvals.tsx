@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Check, ClipboardCheck, Pencil, X } from "lucide-react";
+import { IconAgent, IconCheck, IconClipboardCheck, IconClose, IconEdit } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -45,7 +45,7 @@ export function ApprovalsPage() {
       {list.isPending ? <Card className="p-5"><Skeleton className="h-24" /></Card>
         : list.error ? <Card className="p-6 text-sm text-bad">{list.error.message}</Card>
         : !rows?.length ? (
-          <Card><EmptyState icon={<ClipboardCheck />} title={tab === "pending" ? "Nothing waiting" : "No decisions yet"}
+          <Card><EmptyState icon={<IconClipboardCheck />} title={tab === "pending" ? "Nothing waiting" : "No decisions yet"}
             body={tab === "pending" ? "When an agent asks to send, the message shows up here for you to approve or reject." : "Approved and rejected messages show up here."} /></Card>
         ) : <div className="space-y-4">{rows.map((a) => <ApprovalCard key={a.id} a={a} />)}</div>}
     </>
@@ -74,7 +74,7 @@ export function ApprovalCard({ a, compact }: { a: Approval; compact?: boolean })
   return (
     <Card role="article" aria-label={`${agent?.name ?? "Agent"}: ${a.subject || "(no subject)"}`} className={cn("p-4 sm:p-5", compact && "border-brand/40")}>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge tone="brand"><Bot className="h-3 w-3" aria-hidden />{agent?.name ?? "Agent"}</Badge>
+        <Badge tone="brand"><IconAgent className="h-3 w-3" aria-hidden />{agent?.name ?? "Agent"}</Badge>
         <span className="text-muted">wants to send to</span>
         <span className="min-w-0 break-all font-medium">{[...a.to, ...a.cc].join(", ")}</span>
         <span className="ml-auto flex items-center gap-2 text-xs text-subtle"><Badge tone={s.tone}>{s.label}</Badge>{timeAgo(a.createdAt)}</span>
@@ -95,9 +95,9 @@ export function ApprovalCard({ a, compact }: { a: Approval; compact?: boolean })
       )}
       {a.status === "pending" && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate()}><Check className="h-4 w-4" />{editing ? "Approve edited" : "Approve and send"}</Button>
-          <Button size="sm" variant="secondary" onClick={() => setEditing(!editing)}><Pencil className="h-4 w-4" />{editing ? "Cancel edit" : "Edit"}</Button>
-          <Button size="sm" variant="ghost" onClick={() => setRejecting(true)}><X className="h-4 w-4" />Reject</Button>
+          <Button size="sm" loading={approve.isPending} onClick={() => approve.mutate()}><IconCheck className="h-4 w-4" />{editing ? "Approve edited" : "Approve and send"}</Button>
+          <Button size="sm" variant="secondary" onClick={() => setEditing(!editing)}><IconEdit className="h-4 w-4" />{editing ? "Cancel edit" : "Edit"}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setRejecting(true)}><IconClose className="h-4 w-4" />Reject</Button>
           {a.threadId && !compact && <Link to={`/app/inbox?thread=${a.threadId}`} className="ml-auto text-xs text-brand-hover hover:underline">See the thread</Link>}
         </div>
       )}

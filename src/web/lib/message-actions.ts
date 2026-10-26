@@ -5,7 +5,7 @@
  * (tests/phone2-r25.test.ts); the hooks that use them are in ./use-compact.ts.
  */
 
-export type MessageActionId = "react" | "thread" | "copy" | "triage" | "task" | "pin" | "unpin" | "edit" | "delete";
+export type MessageActionId = "react" | "thread" | "copy" | "triage" | "task" | "pin" | "unpin" | "edit" | "delete" | "report" | "block";
 export interface MessageAction { id: MessageActionId; label: string; danger?: boolean }
 
 export interface MessageActionInput {
@@ -22,6 +22,9 @@ export interface MessageActionInput {
   pinned: boolean;
   canTriage: boolean;
   hasText: boolean;
+  /** R35: someone else's message from a person (not an agent or the system): Report message and Block. */
+  canReport?: boolean;
+  authorName?: string;
 }
 
 /** The actions a person may take on one message, in the order the sheet lists them. */
@@ -35,6 +38,10 @@ export function messageActions(i: MessageActionInput): MessageAction[] {
   if (i.canPin && !i.isReply) out.push(i.pinned ? { id: "unpin", label: "Unpin" } : { id: "pin", label: "Pin to channel" });
   if (i.mine) out.push({ id: "edit", label: "Edit" });
   if (i.mine || i.role === "owner" || i.role === "admin") out.push({ id: "delete", label: "Delete", danger: true });
+  if (i.canReport && !i.mine) {
+    out.push({ id: "report", label: "Report message" });
+    out.push({ id: "block", label: i.authorName ? `Block ${i.authorName}` : "Block", danger: true });
+  }
   return out;
 }
 

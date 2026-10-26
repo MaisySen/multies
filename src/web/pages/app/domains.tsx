@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Globe, Plus } from "lucide-react";
+import { IconChevronRight, IconGlobe, IconPlus } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { useDomains, qk } from "@/web/lib/queries";
 import { api, ApiError } from "@/web/lib/api";
@@ -20,12 +20,12 @@ export function DomainsPage() {
   const setOpen = (v: boolean) => { setOpenState(v); if (!v && params.has("add")) setParams({}, { replace: true }); };
   return (
     <>
-      <PageHeader title="Domains" description="Domains you send and receive mail on. Each one is verified live against DNS." actions={<Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>} />
+      <PageHeader title="Domains" description="Domains you send and receive mail on. Each one is verified live against DNS." actions={<Button size="sm" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add domain</Button>} />
       {error && <Card className="p-6 text-sm text-bad">{error.message}</Card>}
       {isPending ? (
         <Card className="divide-y divide-line">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="flex items-center gap-4 p-5"><Skeleton className="h-9 w-9 rounded-lg" /><Skeleton className="h-4 w-48" /><Skeleton className="ml-auto h-5 w-20 rounded-full" /></div>)}</Card>
       ) : data?.length === 0 ? (
-        <Card><EmptyState icon={<Globe />} title="Add your first domain" body="Bring a domain you own. We'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add domain</Button>} /></Card>
+        <Card><EmptyState icon={<IconGlobe />} title="Add your first domain" body="Bring a domain you own. We'll generate its DKIM key and walk you through every DNS record." action={<Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add domain</Button>} /></Card>
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {data?.map((d) => <DomainRow key={d.id} d={d} />)}
@@ -40,7 +40,7 @@ function DomainRow({ d }: { d: Domain }) {
   const passed = d.lastCheck?.records.filter((r) => r.status === "pass").length ?? 0;
   return (
     <Link to={`/app/domains/${d.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-hover sm:p-5">
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><Globe className="h-4 w-4" /></div>
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><IconGlobe className="h-4 w-4" /></div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2"><span className="truncate font-medium">{d.name}</span><DomainStatusBadge status={d.status} /></div>
         <div className="mt-0.5 text-xs text-subtle">
@@ -48,7 +48,7 @@ function DomainRow({ d }: { d: Domain }) {
           {passed}/5 records passing · checked {timeAgo(d.lastCheckedAt)}
         </div>
       </div>
-      <ChevronRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" />
+      <IconChevronRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
 }

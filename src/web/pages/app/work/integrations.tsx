@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowDownToLine, GitBranch, Hash, MessagesSquare, Plug, Plus, Sheet, Trash2, Users, Webhook, Workflow, Zap, type LucideIcon } from "lucide-react";
+import { IconArrowDownToLine, IconBranch, IconChats, IconHash, IconPlug, IconPlus, IconSheet, IconTeam, IconTrash, IconWebhook, IconWorkflow, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -17,7 +17,7 @@ interface Connection { id: string; url: string; description: string | null; even
 interface HookCall { at: string; ok: boolean; status: number; result?: { type: string; id: string }; error?: string }
 interface Hook { id: string; name: string; action: "task" | "chat" | "contact"; enabled: boolean; tokenHint: string; callCount: number; lastCalledAt: string | null; recent: HookCall[]; config: { projectId?: string; channelId?: string } }
 
-const ICONS: Record<string, LucideIcon> = { Hash, MessagesSquare, Users, Zap, Workflow, GitBranch, Sheet, Webhook };
+const ICONS: Record<string, IconComponent> = { Hash: IconHash, MessagesSquare: IconChats, Users: IconTeam, Zap: IconZap, Workflow: IconWorkflow, GitBranch: IconBranch, Sheet: IconSheet, Webhook: IconWebhook };
 const ACTIONS = { task: "Create a task", chat: "Post a chat message", contact: "Create a contact" } as const;
 const FIELDS = { task: ["title", "notes", "due", "assignee"], chat: ["text"], contact: ["email", "name", "phone", "notes"] } as const;
 const EVENT_LABEL: Record<string, string> = {
@@ -62,12 +62,12 @@ export function IntegrationsPage() {
       <section aria-labelledby="int-connected" className="space-y-3">
         <h2 id="int-connected" className="text-[15px] font-semibold">Connected</h2>
         {q.isLoading ? <Skeleton className="h-16" /> : !q.data?.connections.length ? (
-          <Card><EmptyState icon={<Plug />} title="Nothing connected yet" body="Pick an app below, paste its webhook URL and choose which events to send." /></Card>
+          <Card><EmptyState icon={<IconPlug />} title="Nothing connected yet" body="Pick an app below, paste its webhook URL and choose which events to send." /></Card>
         ) : (
           <Card className="divide-y divide-line">
             {q.data.connections.map((c) => {
               const meta = c.connector ? byId.get(c.connector) : undefined;
-              const Icon = ICONS[meta?.icon ?? "Webhook"] ?? Webhook;
+              const Icon = ICONS[meta?.icon ?? "Webhook"] ?? IconWebhook;
               return (
                 <div key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-fill text-muted" aria-hidden><Icon className="h-4 w-4" /></div>
@@ -77,7 +77,7 @@ export function IntegrationsPage() {
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => test(c)}>Send test</Button>
                   <Switch checked={c.enabled} onChange={(v) => toggle(c, v)} label={`Send events to ${c.description ?? meta?.name}`} />
-                  <ConfirmButton armedLabel="Disconnect?" aria-label={`Disconnect ${c.description ?? meta?.name}`} onConfirm={() => void remove(c)}><Trash2 className="h-4 w-4" /></ConfirmButton>
+                  <ConfirmButton armedLabel="Disconnect?" aria-label={`Disconnect ${c.description ?? meta?.name}`} onConfirm={() => void remove(c)}><IconTrash className="h-4 w-4" /></ConfirmButton>
                 </div>
               );
             })}
@@ -89,7 +89,7 @@ export function IntegrationsPage() {
         <h2 id="int-catalogue" className="text-[15px] font-semibold">Send events to</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {(q.data?.catalogue ?? []).map((c) => {
-            const Icon = ICONS[c.icon] ?? Webhook;
+            const Icon = ICONS[c.icon] ?? IconWebhook;
             return (
               <Card key={c.id} className="flex flex-col p-4">
                 <div className="flex items-center gap-3">
@@ -110,10 +110,10 @@ export function IntegrationsPage() {
             <h2 id="int-incoming" className="text-[15px] font-semibold">Incoming webhooks</h2>
             <p className="text-[13px] text-muted">A private URL that Zapier, Make, n8n, a website form or a script can post to.</p>
           </div>
-          <Button size="sm" onClick={() => setCreatingHook(true)}><Plus className="h-4 w-4" aria-hidden />New incoming webhook</Button>
+          <Button size="sm" onClick={() => setCreatingHook(true)}><IconPlus className="h-4 w-4" aria-hidden />New incoming webhook</Button>
         </div>
         {hooks.isLoading ? <Skeleton className="h-16" /> : !hooks.data?.length ? (
-          <Card><EmptyState icon={<ArrowDownToLine />} title="No incoming webhooks" body="Create one to turn posts from other tools into tasks, chat messages or contacts." /></Card>
+          <Card><EmptyState icon={<IconArrowDownToLine />} title="No incoming webhooks" body="Create one to turn posts from other tools into tasks, chat messages or contacts." /></Card>
         ) : (
           <Card className="divide-y divide-line">
             {hooks.data.map((h) => <HookRow key={h.id} hook={h} onToggle={(v) => toggleHook(h, v)} onDelete={() => removeHook(h)} />)}
@@ -140,7 +140,7 @@ function HookRow({ hook: h, onToggle, onDelete }: { hook: Hook; onToggle: (v: bo
         {last && <Badge tone={last.ok ? "ok" : "warn"}>{last.ok ? "Working" : `Last call failed (${last.status})`}</Badge>}
         <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Hide calls" : "Recent calls"}</Button>
         <Switch checked={h.enabled} onChange={onToggle} label={`Accept posts for ${h.name}`} />
-        <ConfirmButton armedLabel="Delete?" aria-label={`Delete ${h.name}`} title="Anything still posting to its URL will get an error" onConfirm={onDelete}><Trash2 className="h-4 w-4" /></ConfirmButton>
+        <ConfirmButton armedLabel="Delete?" aria-label={`Delete ${h.name}`} title="Anything still posting to its URL will get an error" onConfirm={onDelete}><IconTrash className="h-4 w-4" /></ConfirmButton>
       </div>
       {open && (
         <ul className="mt-3 space-y-1 rounded-lg bg-fill p-3 text-[12.5px]" aria-label={`Recent calls to ${h.name}`}>

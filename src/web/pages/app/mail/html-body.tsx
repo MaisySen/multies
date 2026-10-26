@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import DOMPurify from "dompurify";
-import { ImageOff } from "lucide-react";
+import { IconImageOff } from "@/web/components/ui/icon";
 
 /**
  * Renders untrusted email HTML: sanitized with DOMPurify, inside a sandboxed iframe
@@ -38,7 +38,7 @@ export function HtmlBody({ html }: { html: string }) {
     <div>
       {hasRemote && !images && (
         <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-fill/60 px-3 py-2 text-xs text-muted">
-          <span className="flex items-center gap-2"><ImageOff className="h-3.5 w-3.5" />Remote images are hidden to protect your privacy.</span>
+          <span className="flex items-center gap-2"><IconImageOff className="h-3.5 w-3.5" />Remote images are hidden to protect your privacy.</span>
           <button className="font-medium text-fg hover:underline" onClick={() => setImages(true)}>Show images</button>
         </div>
       )}

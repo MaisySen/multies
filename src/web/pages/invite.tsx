@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CalendarClock, ShieldCheck, User } from "lucide-react";
+import { IconCalendarClock, IconShieldCheck, IconUser, IconWarning } from "@/web/components/ui/icon";
 import { authClient } from "@/web/lib/auth-client";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -30,7 +30,7 @@ export function InvitePage() {
   if (invite.error || !invite.data) {
     return (
       <div className={card}>
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-warn-soft text-warn" aria-hidden><AlertTriangle className="h-5 w-5" /></span>
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-warn-soft text-warn" aria-hidden><IconWarning className="h-5 w-5" /></span>
         <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">This invitation link isn't valid</h1>
         <p className="mt-1 text-sm text-muted">Check that you copied the whole link, or ask for a new one.</p>
         <ButtonLink to="/" variant="secondary" className="mt-6 w-full">Go to Multies</ButtonLink>
@@ -47,9 +47,9 @@ export function InvitePage() {
       <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Join {inv.organization.name}</h1>
       <p className="mt-1 text-sm text-muted">{inv.invitedBy ? `${inv.invitedBy} invited you to work together in Multies.` : "You've been invited to work together in Multies."}</p>
       <ul className="mt-5 divide-y divide-line rounded-xl border border-line bg-elevated/60 text-[13px]">
-        <li className="flex items-center gap-2.5 px-3.5 py-2.5"><User className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="min-w-0 flex-1 truncate">{inv.email}</span></li>
-        <li className="flex items-center gap-2.5 px-3.5 py-2.5"><ShieldCheck className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="flex-1">Role</span><Badge tone={inv.role === "admin" ? "brand" : "neutral"}>{inv.role === "admin" ? "Admin" : "Member"}</Badge></li>
-        {!dead && <li className="flex items-center gap-2.5 px-3.5 py-2.5"><CalendarClock className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="flex-1">Link works until</span><span className="text-muted">{new Date(inv.expiresAt).toLocaleDateString(LOCALE, { day: "numeric", month: "short" })}</span></li>}
+        <li className="flex items-center gap-2.5 px-3.5 py-2.5"><IconUser className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="min-w-0 flex-1 truncate">{inv.email}</span></li>
+        <li className="flex items-center gap-2.5 px-3.5 py-2.5"><IconShieldCheck className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="flex-1">Role</span><Badge tone={inv.role === "admin" ? "brand" : "neutral"}>{inv.role === "admin" ? "Admin" : "Member"}</Badge></li>
+        {!dead && <li className="flex items-center gap-2.5 px-3.5 py-2.5"><IconCalendarClock className="h-4 w-4 shrink-0 text-subtle" aria-hidden /><span className="flex-1">Link works until</span><span className="text-muted">{new Date(inv.expiresAt).toLocaleDateString(LOCALE, { day: "numeric", month: "short" })}</span></li>}
       </ul>
       {dead ? (
         <p className="mt-6 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">

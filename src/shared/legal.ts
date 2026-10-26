@@ -30,7 +30,7 @@ export const LEGAL_LINE = {
 };
 export const LEGAL_LINE_TEXT = LEGAL_LINE.before + LEGAL_LINE.company + LEGAL_LINE.after;
 
-export const LEGAL_UPDATED = "25 October 2026";
+export const LEGAL_UPDATED = "27 October 2026";
 
 export type Block = string | { list: string[] } | { table: string[][] };
 export interface LegalSection { id: string; title: string; body: Block[] }
@@ -172,6 +172,7 @@ export const TERMS: LegalDoc = {
     ] },
     { id: "acceptable-use", title: "Acceptable use", body: [
       "You must follow the Acceptable use policy, which is part of these terms. It covers spam (including the Spam Act 2003), illegal content and abuse of the network. We may suspend sending, or a workspace, to stop serious harm, and will tell you why.",
+      "There is no tolerance for objectionable content or abusive users in chat, direct messages, meetings or anything else people share in Multies. Anyone can report a message or a person and block them. We review every report within 24 hours and can remove content and suspend accounts. The Acceptable use policy, section \"Objectionable content and abusive users\", sets out the rules.",
     ] },
     { id: "liability", title: "Liability", body: [
       "To the extent the law allows, our total liability for any claim is limited to the fees you paid us in the 12 months before the claim, and we are not liable for indirect or consequential loss. Where the Australian Consumer Law applies, our liability for failing to meet a guarantee for services not of a kind ordinarily acquired for personal use is limited to supplying the services again or paying for that.",
@@ -210,6 +211,18 @@ export const AUP: LegalDoc = {
         "Trying to get around rate limits, send caps or suspensions, or probing other customers' accounts.",
         "Reselling Multies as a bulk sending service without our written agreement.",
       ] },
+    ] },
+    { id: "objectionable", title: "Objectionable content and abusive users", body: [
+      "Multies has no tolerance for objectionable content or abusive users. This covers chat, direct messages, meeting chat, comments, docs and anything else you share with other people. Never post or send:",
+      { list: [
+        "Harassment, bullying, threats, or content that encourages violence or self harm.",
+        "Hate speech, or attacks on people for who they are.",
+        "Sexual content involving anyone without their consent, or involving any minor in any way.",
+        "Spam, scams or repeated unwanted messages.",
+        "Illegal content of any kind.",
+      ] },
+      "Anyone can report a message or a person, and block someone so they no longer see that person's messages and that person can't message them. The blocked person is not told.",
+      `We review every report within 24 hours. We can remove the content and suspend the account of anyone who breaks these rules, without notice for serious cases. To contact us about content or a person, write to ${E.abuseEmail}.`,
     ] },
     { id: "limits", title: "Sending limits", body: [
       "Each plan has a daily sending limit shown in your dashboard. Multies is built for person to person and transactional email. Newsletters are allowed to opted in lists that meet the rules above, at volumes your plan allows.",

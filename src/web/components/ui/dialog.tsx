@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { IconClose } from "./icon";
 import { cn } from "@/web/lib/cn";
 
 /** Modal built on the native <dialog>: focus trapping, Esc and inert background come for free. */
@@ -21,7 +21,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
       aria-labelledby="dialog-title"
       className={cn(
         // Centred card on larger screens; a bottom sheet on phones, the way iOS presents a form.
-        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-line bg-elevated p-0 text-fg shadow-pop backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-pop-in open:backdrop:animate-fade-in max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:open:animate-sheet-up",
+        "m-auto w-[calc(100%-2rem)] max-w-lg rounded-[var(--radius-r20)] border border-line bg-elevated p-0 text-fg elev-3 backdrop:bg-black/40 backdrop:backdrop-blur-[2px] open:animate-pop-in open:backdrop:animate-fade-in max-sm:mb-0 max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none max-sm:pb-[env(safe-area-inset-bottom)] max-sm:open:animate-sheet-up",
         className,
       )}
     >
@@ -33,7 +33,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
               {description && <p className="mt-1 text-sm text-muted">{description}</p>}
             </div>
             <button type="button" onClick={onClose} className="-mr-2 grid place-items-center rounded-full p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label="Close">
-              <X className="h-4 w-4" />
+              <IconClose className="h-4 w-4" />
             </button>
           </div>
           <div className="px-6 py-5">{children}</div>

@@ -21,7 +21,7 @@ export interface ToastState {
 }
 export type ToastEvent =
   | { type: "progress"; done: number; total: number }
-  | { type: "confirmed"; count?: number }
+  | { type: "confirmed"; count?: number; undoable?: boolean }
   | { type: "undo" }
   | { type: "undone" }
   | { type: "failed" }
@@ -39,7 +39,8 @@ export function toastReduce(s: ToastState, e: ToastEvent): ToastState {
       return { ...s, phase: e.done >= e.total ? s.phase : "running", done: e.done, total: e.total, count: Math.max(s.count, e.total) };
     case "confirmed":
       if (s.phase !== "pending" && s.phase !== "running") return s;
-      return { ...s, phase: "applied", count: e.count ?? s.count, done: e.count ?? s.total };
+      // R35: a server job says at the end whether it changed anything Undo can put back.
+      return { ...s, phase: "applied", count: e.count ?? s.count, done: e.count ?? s.total, undoable: e.undoable ?? s.undoable };
     case "undo":
       if (s.phase === "pending") return { ...s, cancelAsked: true };
       if ((s.phase === "applied" || s.phase === "running") && s.undoable) return { ...s, phase: "undoing" };

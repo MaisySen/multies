@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarClock, History as HistoryIcon, Pencil, Play, Plus, RefreshCw, Trash2, Webhook, Zap } from "lucide-react";
+import { IconCalendarClock, IconEdit, IconHistory, IconPlay, IconPlus, IconRefresh, IconTrash, IconWebhook, IconZap } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -56,7 +56,7 @@ export function AgentTriggersDialog({ agentUserId, agentName, onClose }: { agent
   return (
     <Dialog open onClose={onClose} title={`Triggers for ${agentName}`} className="sm:max-w-xl"
       description="A trigger queues a run for this agent on a schedule or when a signed webhook arrives. The agent picks queued runs up with its own key."
-      footer={<><Button variant="secondary" onClick={onClose}>Done</Button>{!adding && !editing && <Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Add trigger</Button>}</>}>
+      footer={<><Button variant="secondary" onClick={onClose}>Done</Button>{!adding && !editing && <Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add trigger</Button>}</>}>
       {secret && (
         <div className="mb-4 rounded-xl border border-brand/30 bg-brand/5 p-3 text-sm" data-testid="trigger-secret">
           <div className="font-medium">Copy the webhook secret now. It won't be shown again.</div>
@@ -68,7 +68,7 @@ export function AgentTriggersDialog({ agentUserId, agentName, onClose }: { agent
       {adding && <TriggerForm agentUserId={agentUserId} onCancel={() => setAdding(false)} onSaved={(r) => { setAdding(false); refresh(); if (r.secret && r.trigger.webhook) setSecret({ url: r.trigger.webhook.url, secret: r.secret }); }} />}
       {editing && <TriggerForm key={editing.id} agentUserId={agentUserId} initial={editing} onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(); }} />}
       {list.isLoading ? <SkeletonRows rows={2} rowHeight={64} label="Loading triggers" /> : triggers.length === 0 && !adding ? (
-        <EmptyState className="py-8" icon={<Zap />} title="No triggers yet" body="Add one to queue a run every morning, every few hours, or when another system calls a webhook." />
+        <EmptyState className="py-8" icon={<IconZap />} title="No triggers yet" body="Add one to queue a run every morning, every few hours, or when another system calls a webhook." />
       ) : (
         <ul className="divide-y divide-line rounded-xl border border-line" aria-label="Triggers">
           {triggers.map((t) => <TriggerRow key={t.id} t={t} onChanged={refresh} onSecret={setSecret} onEdit={() => { setAdding(false); setEditing(t); }} />)}
@@ -87,7 +87,7 @@ function TriggerRow({ t, onChanged, onSecret, onEdit }: { t: AgentTriggerView; o
   const run = useMutation({ mutationFn: () => api.post(`/agent-triggers/${t.id}/run`, {}), onSuccess: () => { onChanged(); refreshHistory(); toast.success(`Queued a run for ${t.agent.name}`); }, onError: (e) => { refreshHistory(); showError(e); } });
   const rotate = useMutation({ mutationFn: () => api.post<{ secret: string; trigger: AgentTriggerView }>(`/agent-triggers/${t.id}/rotate-secret`, {}), onSuccess: (r) => { onChanged(); if (r.trigger.webhook) onSecret({ url: r.trigger.webhook.url, secret: r.secret }); }, onError: (e) => showError(e) });
   const del = useMutation({ mutationFn: () => api.del(`/agent-triggers/${t.id}`), onSuccess: () => { onChanged(); toast.success(`${t.name} deleted`); }, onError: (e) => showError(e) });
-  const Icon = t.kind === "webhook" ? Webhook : CalendarClock;
+  const Icon = t.kind === "webhook" ? IconWebhook : IconCalendarClock;
   return (
     <li className="px-4 py-3" data-testid="agent-trigger">
      <div className="flex items-start gap-3">
@@ -105,11 +105,11 @@ function TriggerRow({ t, onChanged, onSecret, onEdit }: { t: AgentTriggerView; o
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">
-        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`History of ${t.name}`} aria-expanded={showHistory} title="History" onClick={() => setShowHistory((v) => !v)}><HistoryIcon className="h-4 w-4" /></button>
-        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Edit ${t.name}`} title="Edit" onClick={onEdit}><Pencil className="h-4 w-4" /></button>
-        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg disabled:opacity-40" aria-label={`Run ${t.name} now`} title="Run now" disabled={!t.enabled || run.isPending} onClick={() => run.mutate()}><Play className="h-4 w-4" /></button>
-        {t.kind === "webhook" && <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Rotate the secret of ${t.name}`} title="New secret" onClick={() => rotate.mutate()}><RefreshCw className="h-4 w-4" /></button>}
-        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-bad" aria-label={`Delete ${t.name}`} title="Delete" onClick={() => del.mutate()}><Trash2 className="h-4 w-4" /></button>
+        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`History of ${t.name}`} aria-expanded={showHistory} title="History" onClick={() => setShowHistory((v) => !v)}><IconHistory className="h-4 w-4" /></button>
+        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Edit ${t.name}`} title="Edit" onClick={onEdit}><IconEdit className="h-4 w-4" /></button>
+        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg disabled:opacity-40" aria-label={`Run ${t.name} now`} title="Run now" disabled={!t.enabled || run.isPending} onClick={() => run.mutate()}><IconPlay className="h-4 w-4" /></button>
+        {t.kind === "webhook" && <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Rotate the secret of ${t.name}`} title="New secret" onClick={() => rotate.mutate()}><IconRefresh className="h-4 w-4" /></button>}
+        <button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-bad" aria-label={`Delete ${t.name}`} title="Delete" onClick={() => del.mutate()}><IconTrash className="h-4 w-4" /></button>
         <Switch checked={t.enabled} onChange={(v) => toggle.mutate(v)} label={`${t.name} on`} />
       </div>
      </div>

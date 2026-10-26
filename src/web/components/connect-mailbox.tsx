@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, CircleAlert, CircleCheck, ExternalLink, KeyRound, Lock, Server } from "lucide-react";
+import { IconAlertCircle, IconCheckCircle, IconChevronDown, IconExternalLink, IconKey, IconLock, IconServer } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
@@ -83,18 +83,18 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
 
       {oauthFor && oauth.includes(oauthFor) && (
         <a href={`/api/connections/oauth/${oauthFor}/start`} className="flex items-center justify-center gap-2 rounded-xl border border-line bg-elevated px-4 py-2.5 text-sm font-medium hover:bg-fill">
-          <Lock className="h-4 w-4" aria-hidden />Sign in with {oauthFor === "google" ? "Google" : "Microsoft"} instead
+          <IconLock className="h-4 w-4" aria-hidden />Sign in with {oauthFor === "google" ? "Google" : "Microsoft"} instead
         </a>
       )}
 
       <div className="rounded-xl bg-fill px-4 py-3 text-sm text-muted" data-testid="connect-help">
         <div className="flex items-start gap-2">
-          <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-subtle" aria-hidden />
+          <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-subtle" aria-hidden />
           <div className="min-w-0">
             <p>{p.help}</p>
             {p.appPasswordUrl && (
               <a href={p.appPasswordUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 font-medium text-brand hover:underline">
-                Make an app password <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                Make an app password <IconExternalLink className="h-3.5 w-3.5" aria-hidden />
               </a>
             )}
           </div>
@@ -107,7 +107,7 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
 
       {preset !== "custom" && (
         <button type="button" onClick={() => setAdvanced((v) => !v)} className="inline-flex items-center gap-1 text-[13px] font-medium text-muted hover:text-fg" aria-expanded={advanced}>
-          <Server className="h-3.5 w-3.5" aria-hidden />Server settings<ChevronDown className={cn("h-3.5 w-3.5 transition-transform", advanced && "rotate-180")} aria-hidden />
+          <IconServer className="h-3.5 w-3.5" aria-hidden />Server settings<IconChevronDown className={cn("h-3.5 w-3.5 transition-transform", advanced && "rotate-180")} aria-hidden />
         </button>
       )}
       {showServers && (
@@ -122,7 +122,7 @@ export function ConnectMailboxForm({ onConnected, oauth = [], className }: { onC
 
       {result && (
         <p role={result.ok ? "status" : "alert"} data-testid="connect-result" className={cn("flex items-start gap-2 rounded-xl px-3 py-2.5 text-sm", result.ok ? "bg-ok-soft text-ok" : "bg-bad-soft text-bad")}>
-          {result.ok ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> : <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />}
+          {result.ok ? <IconCheckCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> : <IconAlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />}
           <span>{result.message}</span>
         </p>
       )}

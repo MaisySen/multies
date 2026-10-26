@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckSquare, ListPlus, Video } from "lucide-react";
+import { IconListPlus, IconTasks, IconVideo } from "@/web/components/ui/icon";
 import { startMeeting } from "./meeting-start";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -43,16 +43,16 @@ export function MakeTask({ messageId, threadId, compact, shortcut }: { messageId
       {linked.data?.map((t) => (
         <button key={t.id} onClick={() => navigate(`/app/tasks?view=list&task=${t.id}`)} data-testid="linked-task"
           className={cn("inline-flex items-center gap-1 rounded-full border border-line bg-elevated px-2 py-0.5 text-[12px] hover:border-line-strong", t.status === "done" ? "text-subtle line-through" : "text-fg")}>
-          <CheckSquare className="h-3 w-3" />{t.ref} {t.statusName}
+          <IconTasks className="h-3 w-3" />{t.ref} {t.statusName}
         </button>
       ))}
       <button onClick={make} disabled={busy} aria-label="Make task from this email" title={shortcut ? "Make task (t)" : "Make task"}
         className={cn("inline-flex items-center gap-1.5 rounded-md text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg disabled:opacity-50", compact ? "p-2" : "border border-line px-2.5 py-1.5")}>
-        <ListPlus className="h-4 w-4" />{!compact && "Make task"}
+        <IconListPlus className="h-4 w-4" />{!compact && "Make task"}
       </button>
       <button onClick={() => void startMeeting({ type: "thread", id: threadId }, navigate)} aria-label="Start a meeting about this email" title="Start a meeting"
         className={cn("inline-flex items-center gap-1.5 rounded-md text-[13px] text-muted transition-colors hover:bg-hover hover:text-fg", compact ? "p-2" : "border border-line px-2.5 py-1.5")}>
-        <Video className="h-4 w-4" />{!compact && "Meeting"}
+        <IconVideo className="h-4 w-4" />{!compact && "Meeting"}
       </button>
     </div>
   );

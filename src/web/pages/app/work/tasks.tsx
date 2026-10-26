@@ -1,8 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, CalendarDays, ChevronDown, ChevronUp, GanttChart, KanbanSquare, List, Mountain, Plus, Settings2, SlidersHorizontal, Trash2, UserPlus, X } from "lucide-react";
-import { IterationCw, Users } from "lucide-react";
+import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
+
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
@@ -30,20 +30,20 @@ import { tone } from "@/web/components/app-bits";
 import { isPhoneWidth, pickTaskView, readStoredTaskView, storeTaskView } from "@/web/lib/phone";
 import { ShareButton } from "./share-sheet"; // R26 (MB-87)
 import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarget } from "./board-lanes"; // R34 (MB-186)
-import { NO_LANE, SWIMLANES, type Swimlanes } from "@/shared/board-lanes";
+import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/shared/board-lanes";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
 const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
 const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
 const WorkloadView = lazy(() => import("./workload").then((m) => ({ default: m.WorkloadView })));
 
-const VIEWS: { id: ViewKind; label: string; icon: typeof List }[] = [
-  { id: "board", label: "Board", icon: KanbanSquare },
-  { id: "list", label: "List", icon: List },
-  { id: "calendar", label: "Calendar", icon: CalendarDays },
-  { id: "timeline", label: "Timeline", icon: GanttChart },
-  { id: "sprints", label: "Sprints", icon: IterationCw },
-  { id: "workload", label: "Workload", icon: Users },
+const VIEWS: { id: ViewKind; label: string; icon: IconComponent }[] = [
+  { id: "board", label: "Board", icon: IconBoard },
+  { id: "list", label: "List", icon: IconList },
+  { id: "calendar", label: "Calendar", icon: IconCalendarDays },
+  { id: "timeline", label: "Timeline", icon: IconTimeline },
+  { id: "sprints", label: "Sprints", icon: IconSprint },
+  { id: "workload", label: "Workload", icon: IconTeam },
 ];
 const FILTER_KEYS = ["q", "assignee", "priority", "label", "status", "type"] as const;
 
@@ -73,7 +73,11 @@ export function TasksPage() {
   const groupEpic = view === "board" && params.get("group") === "epic";
   // R34 (MB-186): swimlanes and WIP limits saved with the board (one read, one write per change).
   const board = useBoardSettings(view === "board" ? projectId || undefined : undefined);
-  const lanesOn = view === "board" && !groupField && !groupEpic && board.settings.swimlanes !== "none";
+  // R35: a saved view's own lanes (?lanes=) win over the board's setting while it is open.
+  const lanesParam = params.get("lanes");
+  const lanes = lanesFrom(lanesParam, board.settings.swimlanes);
+  const setLanes = (v: Swimlanes) => { if (lanesParam) set({ lanes: v }); else board.save({ swimlanes: v }); };
+  const lanesOn = view === "board" && !groupField && !groupEpic && lanes !== "none";
   const [laneCollapse, setLaneCollapse] = useState(0);
   useCommandHandlers({ "board-lanes-collapse": () => { setLaneCollapse((n) => n + 1); } }, lanesOn);
   const setLimit = useCallback((id: string, v: { max?: number | null; min?: number | null }) => board.save({ column: { id, ...v } }), [board]);
@@ -129,7 +133,7 @@ export function TasksPage() {
     const st = project.statuses.find((s) => s.id === to.col);
     const patch: Record<string, unknown> = { position };
     if (st && st.id !== t.statusId) Object.assign(patch, { statusId: st.id, status: st.category, statusName: st.name });
-    const mode = board.settings.swimlanes;
+    const mode = lanes;
     const lane = to.lane === NO_LANE ? null : to.lane;
     if (mode === "assignee") {
       const cur = assigneeKey(t.assignee as never);
@@ -160,7 +164,7 @@ export function TasksPage() {
       }
     }
     update.mutate({ id, patch: patch as never });
-  }, [tasks.data, project, board.settings.swimlanes, update, people.data, qc]);
+  }, [tasks.data, project, lanes, update, people.data, qc]);
   const [editing, setEditing] = useState<Project | "new" | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -177,7 +181,7 @@ export function TasksPage() {
     if (!name) return;
     setSaving(true);
     try {
-      await api.post("/tasks/views", { name, view, projectId: projectId || null, filters: Object.fromEntries(activeFilters.map((k) => [k, filters[k]!])) });
+      await api.post("/tasks/views", { name, view, projectId: projectId || null, filters: { ...Object.fromEntries(activeFilters.map((k) => [k, filters[k]!])), ...boardViewKeys(view, lanes, params.get("group")) } });
       await qc.invalidateQueries({ queryKey: sk.views });
     } catch (e) { showError(e as Error); } finally { setSaving(false); }
   };
@@ -193,12 +197,12 @@ export function TasksPage() {
           {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
-        {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><Mountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
+        {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><IconSettings2 className="h-4 w-4" /></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><IconSliders className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><IconAssign className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><IconMountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
         {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
-        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /><span className="max-sm:sr-only">Project</span></Button>
+        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">Project</span></Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
             {VIEWS.map((v) => (
@@ -208,7 +212,7 @@ export function TasksPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => setNewTask({})} aria-label="New task" className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><Plus className="h-4 w-4" /><span className="hidden min-[400px]:inline">New task</span></Button>
+          <Button onClick={() => setNewTask({})} aria-label="New task" className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><IconPlus className="h-4 w-4" /><span className="hidden min-[400px]:inline">New task</span></Button>
         </div>
       </div>
 
@@ -233,7 +237,7 @@ export function TasksPage() {
         {fieldFilters.map(([k, v]) => (
           <span key={k} className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-elevated px-2 text-[12.5px]">
             {describeFilter(fields.find((f) => f.id === k.slice(6)), v, people.data ?? [])}
-            <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><X className="h-3 w-3" /></button>
+            <button aria-label="Remove this filter" onClick={() => set({ [k]: null })} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
           </span>
         ))}
         {project && <FieldFilterPicker fields={fields.filter((f) => !isComputed(f))} people={people.data ?? []} onAdd={(id, raw) => set({ [`field.${id}`]: raw })} />}
@@ -245,19 +249,19 @@ export function TasksPage() {
           </Select>
         )}
         {view === "board" && project && !groupField && !groupEpic && (
-          <Select aria-label="Swimlanes" data-testid="swimlanes-select" value={board.settings.swimlanes} onChange={(e) => board.save({ swimlanes: e.target.value as Swimlanes })} className="h-8 w-auto! text-[13px]">
+          <Select aria-label="Swimlanes" data-testid="swimlanes-select" value={lanes} onChange={(e) => setLanes(e.target.value as Swimlanes)} className="h-8 w-auto! text-[13px]">
             {SWIMLANES.map((s) => <option key={s} value={s}>{s === "none" ? "No swimlanes" : `Lanes: ${SWIMLANE_LABEL[s]}`}</option>)}
           </Select>
         )}
-        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><X className="h-3.5 w-3.5" />Clear</Button>}
-        <Menu align="end" trigger={<Button variant="secondary" size="sm"><Bookmark className="h-3.5 w-3.5" />Saved views<ChevronDown className="h-3.5 w-3.5" /></Button>}>
+        {(activeFilters.length > 0 || fieldFilters.length > 0) && <Button variant="ghost" size="sm" onClick={() => set(Object.fromEntries([...FILTER_KEYS.map((k) => [k, null]), ...fieldFilters.map(([k]) => [k, null])]))}><IconClose className="h-3.5 w-3.5" />Clear</Button>}
+        <Menu align="end" trigger={<Button variant="secondary" size="sm"><IconBookmark className="h-3.5 w-3.5" />Saved views<IconChevronDown className="h-3.5 w-3.5" /></Button>}>
           <MenuLabel>Saved views</MenuLabel>
           {(views.data ?? []).map((v) => (
-            <MenuItem key={v.id} onSelect={() => set({ view: v.view, project: v.projectId, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, v.filters[k] ?? null])) })}>{v.name}</MenuItem>
+            <MenuItem key={v.id} onSelect={() => set({ view: v.view, project: v.projectId, ...Object.fromEntries(FILTER_KEYS.map((k) => [k, v.filters[k] ?? null])), lanes: v.filters.lanes ?? null, group: v.filters.group ?? null })}>{v.name}{v.filters.lanes && v.filters.lanes !== "none" ? <span className="ml-auto pl-3 text-[11.5px] text-subtle">Lanes: {SWIMLANE_LABEL[v.filters.lanes as Exclude<Swimlanes, "none">] ?? v.filters.lanes}</span> : null}</MenuItem>
           ))}
           {!views.data?.length && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">None yet</p>}
           <div className="my-1 border-t border-line" />
-          <MenuItem icon={<Plus />} onSelect={() => void saveView()}>{saving ? "Saving" : "Save this view"}</MenuItem>
+          <MenuItem icon={<IconPlus />} onSelect={() => void saveView()}>{saving ? "Saving" : "Save this view"}</MenuItem>
         </Menu>
       </div>
 
@@ -266,13 +270,13 @@ export function TasksPage() {
       {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
       <div className="min-h-0 flex-1">
         {!list.length ? (
-          <EmptyState icon={<KanbanSquare />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
+          <EmptyState icon={<IconBoard />} title="No projects yet" body="Make a task from any email, or start a project. Your first project is set up for you." action={<Button onClick={() => setNewTask({})}>New task</Button>} />
         ) : tasks.isPending ? (
           view === "board" && project ? <BoardSkeleton columns={Math.min(project.statuses.length || 4, 5)} /> : <SkeletonRows rows={8} rowHeight={41} label="Loading tasks" className="rounded-xl border border-line bg-surface" />
         ) : !(tasks.data ?? []).length && view !== "workload" && view !== "sprints" && (filtered || view === "list" || (view === "board" && !project)) ? (
           <TasksEmpty copy={emptyTasksCopy("list", filtered)} onClear={clearFilters} onNew={() => setNewTask({})} />
         ) : lanesOn && project ? (
-          <LaneBoard project={project} tasks={tasks.data ?? []} mode={board.settings.swimlanes as Exclude<Swimlanes, "none">} projects={list} people={people.data ?? []}
+          <LaneBoard project={project} tasks={tasks.data ?? []} mode={lanes as Exclude<Swimlanes, "none">} projects={list} people={people.data ?? []}
             limits={board.settings.limits} onSetLimit={setLimit} onOpen={open} collapseSignal={laneCollapse}
             onMove={(id, to, position) => void moveInLane(id, to, position)} />
         ) : view === "board" && project ? (
@@ -390,13 +394,13 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
                 <Select aria-label="Status group" value={s.category} onChange={(e) => setStatuses((x) => x.map((y, j) => (j === i ? { ...y, category: e.target.value as Category } : y)))} className="h-8 w-28! text-[13px]">
                   <option value="todo">To do</option><option value="doing">Doing</option><option value="done">Done</option>
                 </Select>
-                <button disabled={i === 0} onClick={() => move(i, -1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><ChevronUp className="h-4 w-4" /></button>
-                <button disabled={i === statuses.length - 1} onClick={() => move(i, 1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><ChevronDown className="h-4 w-4" /></button>
-                <button disabled={statuses.length <= 1} onClick={() => setStatuses((x) => x.filter((_, j) => j !== i))} className="rounded p-1 text-subtle hover:text-bad disabled:opacity-30" aria-label={`Remove ${s.name}`}><Trash2 className="h-4 w-4" /></button>
+                <button disabled={i === 0} onClick={() => move(i, -1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><IconChevronUp className="h-4 w-4" /></button>
+                <button disabled={i === statuses.length - 1} onClick={() => move(i, 1)} className="rounded p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><IconChevronDown className="h-4 w-4" /></button>
+                <button disabled={statuses.length <= 1} onClick={() => setStatuses((x) => x.filter((_, j) => j !== i))} className="rounded p-1 text-subtle hover:text-bad disabled:opacity-30" aria-label={`Remove ${s.name}`}><IconTrash className="h-4 w-4" /></button>
               </li>
             ))}
           </ul>
-          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><Plus className="h-3.5 w-3.5" />Add status</Button>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setStatuses((x) => [...x.slice(0, -1), { id: "", name: "", category: "doing", color: "#a855f7", position: x.length }, ...x.slice(-1)])}><IconPlus className="h-3.5 w-3.5" />Add status</Button>
           {project && <p className="mt-2 text-[12px] text-subtle">Removing a status moves its tasks to the first status in the same group.</p>}
         </div>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3 py-2.5">

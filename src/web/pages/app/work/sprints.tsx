@@ -5,7 +5,7 @@
  */
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRightLeft, CalendarRange, CheckCircle2, Circle, Flag, Pencil, Play, Plus, Target } from "lucide-react";
+import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconCircle, IconEdit, IconFlag, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -85,8 +85,8 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
   if (!sprints.length) {
     return (
       <>
-        <EmptyState icon={<CalendarRange />} title="No sprints yet" body="Plan a sprint, move tasks in from the backlog and watch the burndown as work gets done."
-          action={<Button onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Plan a sprint</Button>} />
+        <EmptyState icon={<IconCalendarRange />} title="No sprints yet" body="Plan a sprint, move tasks in from the backlog and watch the burndown as work gets done."
+          action={<Button onClick={() => setEditing("new")}><IconPlus className="h-4 w-4" />Plan a sprint</Button>} />
         <BacklogPanel tasks={backlog.data ?? []} sprints={open} unit={unit} onOpen={onOpen} onMove={(ids, to) => void move(ids, to)} className="mt-6" />
         {editing && <SprintDialog projectId={project.id} sprint={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(s) => { setPicked(s.id); refresh(); }} />}
       </>
@@ -111,15 +111,15 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
             <StatusBadge status={sprint.status} />
             <span className="text-[13px] text-muted">{dayLabel(sprint.startAt)} to {dayLabel(sprint.endAt)}</span>
             <div className="ml-auto flex items-center gap-2">
-              {sprint.status !== "completed" && <Button variant="ghost" size="sm" onClick={() => setEditing(sprint)}><Pencil className="h-3.5 w-3.5" />Edit</Button>}
-              <Button variant="secondary" size="sm" onClick={() => setEditing("new")}><Plus className="h-3.5 w-3.5" />Plan sprint</Button>
+              {sprint.status !== "completed" && <Button variant="ghost" size="sm" onClick={() => setEditing(sprint)}><IconEdit className="h-3.5 w-3.5" />Edit</Button>}
+              <Button variant="secondary" size="sm" onClick={() => setEditing("new")}><IconPlus className="h-3.5 w-3.5" />Plan sprint</Button>
               {sprint.status === "planned" && (
-                <Button size="sm" disabled={!!active} title={active ? `${active.name} is still running` : undefined} onClick={() => void start(sprint)}><Play className="h-3.5 w-3.5" />Start sprint</Button>
+                <Button size="sm" disabled={!!active} title={active ? `${active.name} is still running` : undefined} onClick={() => void start(sprint)}><IconPlay className="h-3.5 w-3.5" />Start sprint</Button>
               )}
-              {sprint.status === "active" && <Button size="sm" onClick={() => setCompleting(true)}><Flag className="h-3.5 w-3.5" />Complete sprint</Button>}
+              {sprint.status === "active" && <Button size="sm" onClick={() => setCompleting(true)}><IconFlag className="h-3.5 w-3.5" />Complete sprint</Button>}
             </div>
           </div>
-          {sprint.goal && <p className="mt-3 flex items-start gap-2 text-[13.5px] text-fg/90"><Target className="mt-0.5 h-4 w-4 shrink-0 text-brand" />{sprint.goal}</p>}
+          {sprint.goal && <p className="mt-3 flex items-start gap-2 text-[13.5px] text-fg/90"><IconTarget className="mt-0.5 h-4 w-4 shrink-0 text-brand" />{sprint.goal}</p>}
           <div className="mt-4 grid grid-cols-3 gap-3">
             <Stat label="Tasks" value={d ? `${d.tasks.filter((t) => t.status === "done").length} of ${d.tasks.length} done` : "..."} />
             <Stat label={unit === "hours" ? "Hours" : "Points"} value={d ? `${fmtNum(donePts)} of ${fmtNum(total)} done` : "..."} />
@@ -174,7 +174,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function TaskRow({ task: t, unit, onOpen, menu, compact }: { task: Task; unit: string; onOpen: (id: string) => void; menu?: React.ReactNode; compact?: boolean }) {
   return (
     <li className="group flex items-center gap-2.5 border-b border-line px-4 py-2 last:border-0 hover:bg-hover/60">
-      {t.status === "done" ? <CheckCircle2 className="h-4 w-4 shrink-0 text-ok" aria-label="Done" /> : <Circle className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
+      {t.status === "done" ? <IconCheckCircle className="h-4 w-4 shrink-0 text-ok" aria-label="Done" /> : <IconCircle className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
       <span className={cn("shrink-0 text-[12px] tabular-nums text-subtle", compact ? "w-12" : "w-14")}>{t.ref}</span>
       <button className={cn("min-w-0 flex-1 truncate text-left text-[13.5px]", t.status === "done" && "text-muted line-through")} onClick={() => onOpen(t.id)}>{t.title}</button>
       {!compact && <span className="hidden text-[12px] text-muted sm:inline">{t.statusName}</span>}
@@ -186,7 +186,7 @@ function TaskRow({ task: t, unit, onOpen, menu, compact }: { task: Task; unit: s
 
 function MoveMenu({ sprints, onMove, backlog }: { sprints: Sprint[]; onMove: (to: string | null) => void; backlog?: boolean }) {
   return (
-    <Menu label="Move to sprint" trigger={<button type="button" className="rounded-md p-1 text-subtle hover:bg-elevated hover:text-fg" aria-label="Move to sprint" title="Move to sprint"><ArrowRightLeft className="h-3.5 w-3.5" /></button>}>
+    <Menu label="Move to sprint" trigger={<button type="button" className="rounded-md p-1 text-subtle hover:bg-elevated hover:text-fg" aria-label="Move to sprint" title="Move to sprint"><IconArrowRightLeft className="h-3.5 w-3.5" /></button>}>
       <MenuLabel>Move to sprint</MenuLabel>
       {sprints.map((s) => <MenuItem key={s.id} onSelect={() => onMove(s.id)}>{s.name}{s.status === "active" ? " (active)" : ""}</MenuItem>)}
       {!sprints.length && !backlog && <p className="px-2.5 py-1.5 text-[12.5px] text-subtle">Plan a sprint first</p>}

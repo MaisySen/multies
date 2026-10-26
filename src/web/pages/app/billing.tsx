@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CreditCard, ExternalLink, FileText, Minus, Plus, PlugZap, Receipt } from "lucide-react";
+import { IconCreditCard, IconDocs, IconExternalLink, IconMinus, IconPlugZap, IconPlus, IconReceipt, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
@@ -117,7 +117,7 @@ export function BillingSettings() {
     <div className="space-y-6">
       {!b.enabled && (
         <div className="flex items-start gap-3 rounded-xl border border-line-strong bg-elevated/60 p-4" role="status">
-          <PlugZap className="mt-0.5 h-5 w-5 shrink-0 text-brand-hover" />
+          <IconPlugZap className="mt-0.5 h-5 w-5 shrink-0 text-brand-hover" />
           <div className="text-sm">
             <div className="font-medium">Paid add-ons aren't on sale yet</div>
             <p className="mt-0.5 text-muted">Add-ons apply instantly and nothing is charged for now.{platformAdmin && b.missing.length ? ` Operator: set ${b.missing.join(", ")} to take payments.` : ""}</p>
@@ -144,14 +144,14 @@ export function BillingSettings() {
         )}
         {b.dunning && (
           <p className={cn("mt-3 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm", b.dunning.sendingPaused ? "border-bad/25 bg-bad/5 text-bad" : "border-warn/25 bg-warn-soft text-warn")} role="alert">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <IconWarning className="h-4 w-4 shrink-0" />
             {b.dunning.sendingPaused
               ? "Sending is paused because the last payment didn't go through. Receiving still works. Update your card to resume sending."
               : `Your last payment didn't go through. Everything keeps working until ${new Date(b.dunning.graceEndsAt!).toLocaleDateString(LOCALE, { dateStyle: "long", timeZone: tz() })}; update your card before then.`}
           </p>
         )}
         {sub?.status === "past_due" && !b.dunning && (
-          <p className="mt-3 flex items-center gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn"><AlertTriangle className="h-4 w-4" />Your last payment failed. Update your card to keep your plan.</p>
+          <p className="mt-3 flex items-center gap-2 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn"><IconWarning className="h-4 w-4" />Your last payment failed. Update your card to keep your plan.</p>
         )}
         <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
           {meters.map((m) => (
@@ -162,7 +162,7 @@ export function BillingSettings() {
           ))}
         </div>
         {paidFlow && b.hasCustomer && isOwner && (
-          <Button variant="secondary" className="mt-5" loading={portal.isPending} onClick={() => portal.mutate()}><CreditCard className="h-4 w-4" />Manage billing<ExternalLink className="h-3.5 w-3.5 opacity-60" /></Button>
+          <Button variant="secondary" className="mt-5" loading={portal.isPending} onClick={() => portal.mutate()}><IconCreditCard className="h-4 w-4" />Manage billing<IconExternalLink className="h-3.5 w-3.5 opacity-60" /></Button>
         )}
       </Section>
 
@@ -182,9 +182,9 @@ export function BillingSettings() {
                   <Button size="sm" variant={qty ? "secondary" : "primary"} aria-pressed={!!qty} onClick={() => setQty(id, qty ? 0 : 1)}>{qty ? "Remove" : "Add"}</Button>
                 ) : (
                   <div className="flex items-center gap-1" role="group" aria-label={`${a.name} quantity`}>
-                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => setQty(id, qty - 1)}><Minus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => setQty(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
                     <output className="w-8 text-center tabular-nums" aria-live="polite">{qty}</output>
-                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => setQty(id, qty + 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => setQty(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
                   </div>
                 )) : <span className="text-sm tabular-nums text-muted">{qty ? `x ${qty}` : "Not added"}</span>}
               </li>
@@ -214,9 +214,9 @@ export function BillingSettings() {
 
       <Section title="Invoices" description="Receipts for every payment, with PDF downloads.">
         {!b.enabled ? (
-          <EmptyState className="py-8" icon={<Receipt />} title="No invoices" body="Invoices appear here once billing is connected and you add something paid." />
+          <EmptyState className="py-8" icon={<IconReceipt />} title="No invoices" body="Invoices appear here once billing is connected and you add something paid." />
         ) : invoices.isPending ? <Skeleton className="h-20" /> : !invoices.data?.length ? (
-          <EmptyState className="py-8" icon={<Receipt />} title="No invoices yet" body="Your first invoice appears here after checkout." />
+          <EmptyState className="py-8" icon={<IconReceipt />} title="No invoices yet" body="Your first invoice appears here after checkout." />
         ) : (
           <div className="overflow-x-auto rounded-lg border border-line" tabIndex={0} role="region" aria-label="Invoices">
             <table className="w-full text-sm">
@@ -229,7 +229,7 @@ export function BillingSettings() {
                     <td className="px-3 py-2.5 tabular-nums">{money(i.total, i.currency)}</td>
                     <td className="px-3 py-2.5"><Badge tone={i.status === "paid" ? "ok" : i.status === "open" ? "warn" : "neutral"}>{i.status}</Badge></td>
                     <td className="px-3 py-2.5 text-right">
-                      {i.pdfUrl && <a className="inline-flex items-center gap-1 text-xs text-brand-hover hover:underline" href={i.pdfUrl} target="_blank" rel="noreferrer"><FileText className="h-3.5 w-3.5" />PDF</a>}
+                      {i.pdfUrl && <a className="inline-flex items-center gap-1 text-xs text-brand-hover hover:underline" href={i.pdfUrl} target="_blank" rel="noreferrer"><IconDocs className="h-3.5 w-3.5" />PDF</a>}
                     </td>
                   </tr>
                 ))}

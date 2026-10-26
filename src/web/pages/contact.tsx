@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
-import { Mail, Send } from "lucide-react";
+import { IconMail, IconSend } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
@@ -66,11 +66,11 @@ export function ContactUsPage() {
           <label>Website<input name="website" tabIndex={-1} autoComplete="off" /></label>
         </div>
         <Button type="submit" size="lg" className="w-full" loading={busy} data-testid="contact-submit">
-          {!busy && <Send className="h-4 w-4" aria-hidden />}{busy ? "Sending" : "Send message"}
+          {!busy && <IconSend className="h-4 w-4" aria-hidden />}{busy ? "Sending" : "Send message"}
         </Button>
         <p className="text-xs text-subtle">We use your details only to reply. See our <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">privacy policy</Link>.</p>
       </form>
-      <p className="mt-6 flex items-center gap-2 text-sm text-muted"><Mail className="h-4 w-4 text-accent" aria-hidden />Prefer email? Write to <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>.</p>
+      <p className="mt-6 flex items-center gap-2 text-sm text-muted"><IconMail className="h-4 w-4 text-accent" aria-hidden />Prefer email? Write to <a href={`mailto:${email}`} className="font-medium text-accent hover:underline">{email}</a>.</p>
     </article>
   );
 }

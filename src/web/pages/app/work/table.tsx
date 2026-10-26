@@ -8,7 +8,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Bot, CalendarDays, Check, FolderInput, IterationCw, Mail, Shapes, Tag, Trash2, UserRound, X, CircleDot } from "lucide-react";
+import { SwipeTr } from "@/web/components/ui/swipe-row";
+import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
@@ -63,7 +64,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
     render: (t) => (
       <span className="flex min-w-0 items-center gap-2">
         <span className={cn("truncate font-medium", t.status === "done" && "text-subtle line-through")}>{t.title}</span>
-        {t.source && <Mail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
+        {t.source && <IconMail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
         <span className="shrink-0 text-[11.5px] text-subtle"><ChecklistChip checklist={t.checklist} /></span>
       </span>
     ),
@@ -76,7 +77,7 @@ export const TABLE_COLUMNS: TableColumn[] = [
   {
     id: "assignee", header: "Assignee", width: "w-[150px]", editor: "assignee", hideOnPhone: true, sortKey: (t) => t.assignee?.name.toLowerCase() ?? "\uffff",
     render: (t) => t.assignee
-      ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{isAgentLike(t.assignee) && <Bot className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
+      ? <span className="inline-flex min-w-0 items-center gap-1 whitespace-nowrap">{isAgentLike(t.assignee) && <IconAgent className="h-3.5 w-3.5 shrink-0 text-brand-hover" />}<span className="truncate">{t.assignee.name}</span></span>
       : <span className="text-subtle">Nobody</span>,
   },
   {
@@ -179,7 +180,7 @@ function OptionList<T extends string>({ options, current, onPick, onCancel, labe
         <div key={o.value} role="option" aria-selected={o.value === current} onMouseEnter={() => setI(n)} onMouseDown={(e) => { e.preventDefault(); onPick(o.value); }}
           className={cn("flex cursor-default items-center gap-2 rounded-lg px-2.5 py-1.5 text-[13px]", n === i && "bg-hover")}>
           <span className="flex min-w-0 flex-1 items-center gap-2">{o.label}</span>
-          {o.value === current && <Check className="h-3.5 w-3.5 text-brand" />}
+          {o.value === current && <IconCheck className="h-3.5 w-3.5 text-brand" />}
         </div>
       ))}
     </div>
@@ -214,7 +215,7 @@ function LabelEditor({ value, onSave, onCancel }: { value: string[]; onSave: (v:
       {list.map((l) => (
         <span key={l} className="inline-flex items-center gap-0.5 rounded-md bg-fill px-1.5 text-[11.5px] text-muted">
           {l}
-          <button type="button" aria-label={`Remove ${l}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setList(list.filter((x) => x !== l))} className="text-subtle hover:text-fg"><X className="h-3 w-3" /></button>
+          <button type="button" aria-label={`Remove ${l}`} onMouseDown={(e) => e.preventDefault()} onClick={() => setList(list.filter((x) => x !== l))} className="text-subtle hover:text-fg"><IconClose className="h-3 w-3" /></button>
         </span>
       ))}
       <input autoFocus aria-label="Add a label" value={draft} placeholder={list.length ? "" : "Add label"} onChange={(e) => setDraft(e.target.value.replace(",", ""))}
@@ -299,7 +300,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
       case "priority": return <OptionList label="Priority" current={t.priority} onCancel={cancel} onPick={(v) => save(t, col, v)}
         options={PRIORITIES.map((p) => ({ value: p, label: <span className={PRIORITY_COLOR[p]}>{PRIORITY_LABEL[p]}</span> }))} />;
       case "assignee": return <OptionList label="Assignee" current={t.assigneeId ?? "none"} onCancel={cancel} onPick={(v) => save(t, col, v)}
-        options={[{ value: "none", label: <span className="text-muted">Nobody</span> }, ...people.map((p) => ({ value: p.id, label: <>{isAgentLike(p) ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</> }))]} />;
+        options={[{ value: "none", label: <span className="text-muted">Nobody</span> }, ...people.map((p) => ({ value: p.id, label: <>{isAgentLike(p) ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : <IconUserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</> }))]} />;
       case "status": return <OptionList label="Status" current={t.statusId} onCancel={cancel} onPick={(v) => save(t, col, v)}
         options={ctx.statusesFor(t).map((s) => ({ value: s.id, label: <><span className="h-2 w-2 rounded-full" style={{ background: tone(s.color) }} />{s.name}</> }))} />;
       case "type": return <OptionList label="Type" current={typeOf(t)} onCancel={cancel} onPick={(v) => save(t, col, v)}
@@ -350,7 +351,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                   {col.sortKey ? (
                     <button type="button" tabIndex={-1} className="inline-flex items-center gap-1 hover:text-fg" onClick={() => toggleSort(col.id)}>
                       {col.header}
-                      {sort?.id === col.id ? (sort.desc ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />) : null}
+                      {sort?.id === col.id ? (sort.desc ? <IconArrowDown className="h-3 w-3" /> : <IconArrowUp className="h-3 w-3" />) : null}
                     </button>
                   ) : col.header}
                 </th>
@@ -360,9 +361,15 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
           <tbody>
             {rows.map((t, r) => {
               const isPicked = selected.has(t.id);
+              const doneStatus = ctx.statusesFor(t).find((s) => s.category === "done");
               return (
-                <tr key={t.id} aria-selected={isPicked} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}>
-                  <td className="border-b border-line px-3 py-2">
+                <SwipeTr key={t.id} aria-selected={isPicked} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}
+                  disabled={selected.size > 0 || editing !== null}
+                  right={doneStatus && t.status !== "done" ? { label: "Done", icon: IconCheckCircle, tone: "green", onCommit: () => void writes.edit(t, { statusId: doneStatus.id }, statusDisplay(doneStatus)) } : undefined}
+                  left={{ label: "More", icon: IconMore, tone: "grey", onCommit: () => onOpen(t.id) }}
+                  edge={(edge) => (<>
+                  <td className="relative border-b border-line px-3 py-2">
+                    {edge}
                     <input type="checkbox" aria-label={`Select ${t.title}`} checked={isPicked} readOnly
                       onClick={(e) => { e.stopPropagation(); toggleRow(r, e.shiftKey); }} className="h-3.5 w-3.5 accent-[#0071E3]" />
                   </td>
@@ -388,7 +395,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                       </td>
                     );
                   })}
-                </tr>
+                  </>)} />
               );
             })}
             {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
@@ -464,20 +471,20 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
         <span className="mr-1 whitespace-nowrap text-[13px] font-medium tabular-nums" aria-live="polite">{tasks.length} selected</span>
         <span className="mx-1 h-5 w-px bg-line" />
         <div className="relative">
-          {barButton("status", <CircleDot className="h-4 w-4" />, "Set status")}
+          {barButton("status", <IconCircleDot className="h-4 w-4" />, "Set status")}
           {pop === "status" && panel(one
             ? one.statuses.map((s) => item(s.id, <><span className="h-2 w-2 rounded-full" style={{ background: tone(s.color) }} />{s.name}</>, () => void run({ statusId: s.id }, statusDisplay(s))))
             : categories.map((c) => item(c.value, c.name, () => void run({ status: c.value }, (t) => ({ ...t, status: c.value })))), "Set status")}
         </div>
         <div className="relative">
-          {barButton("assignee", <UserRound className="h-4 w-4" />, "Assign to")}
+          {barButton("assignee", <IconUserRound className="h-4 w-4" />, "Assign to")}
           {pop === "assignee" && panel([
             item("none", <span className="text-muted">Nobody</span>, () => void run({ assignee: null }, assigneeDisplay(people, null))),
-            ...people.map((p) => item(p.id, <>{isAgentLike(p) ? <Bot className="h-3.5 w-3.5 text-brand-hover" /> : <UserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void run({ assignee: p.id }, assigneeDisplay(people, p.id)))),
+            ...people.map((p) => item(p.id, <>{isAgentLike(p) ? <IconAgent className="h-3.5 w-3.5 text-brand-hover" /> : <IconUserRound className="h-3.5 w-3.5 text-subtle" />}{p.name}</>, () => void run({ assignee: p.id }, assigneeDisplay(people, p.id)))),
           ], "Assign to")}
         </div>
         <div className="relative">
-          {barButton("due", <CalendarDays className="h-4 w-4" />, "Due date")}
+          {barButton("due", <IconCalendarDays className="h-4 w-4" />, "Due date")}
           {pop === "due" && panel(
             <div className="space-y-2 p-2">
               <input type="date" aria-label="Due date for the selected tasks" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px]" />
@@ -488,7 +495,7 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
             </div>, "Due date")}
         </div>
         <div className="relative">
-          {barButton("labels", <Tag className="h-4 w-4" />, "Labels")}
+          {barButton("labels", <IconTag className="h-4 w-4" />, "Labels")}
           {pop === "labels" && panel(
             <div className="space-y-2 p-2">
               <input autoFocus aria-label="Label" placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={40}
@@ -506,12 +513,12 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
             </div>, "Labels")}
         </div>
         <div className="relative">
-          {barButton("type", <Shapes className="h-4 w-4" />, "Type")}
+          {barButton("type", <IconShapes className="h-4 w-4" />, "Type")}
           {pop === "type" && panel((["task", "story", "bug"] as const).map((k) => item(k, <><TypeIcon type={k} />{TYPE_META[k].label}</>, () => void run({ type: k }, (t) => ({ ...t, type: k })))), "Set type")}
         </div>
         {one && openSprints.length > 0 && (
           <div className="relative">
-            {barButton("sprint", <IterationCw className="h-4 w-4" />, "Sprint")}
+            {barButton("sprint", <IconSprint className="h-4 w-4" />, "Sprint")}
             {pop === "sprint" && panel([
               ...openSprints.map((s) => item(s.id, <>{s.name}<span className="ml-auto text-xs text-subtle">{s.status === "active" ? "Active" : "Planned"}</span></>, () => void toSprint(s.id))),
               item("backlog", <span className="text-muted">Backlog</span>, () => void toSprint(null)),
@@ -519,15 +526,15 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
           </div>
         )}
         <div className="relative">
-          {barButton("project", <FolderInput className="h-4 w-4" />, "Move to")}
+          {barButton("project", <IconMove className="h-4 w-4" />, "Move to")}
           {pop === "project" && panel(projects.filter((p) => !p.archived).map((p) => item(p.id, <><span className="h-2 w-2 rounded-full" style={{ background: tone(p.color) }} />{p.name}</>, () => void run({ projectId: p.id }, (t) => ({ ...t, projectId: p.id })))), "Move to project")}
         </div>
         <button type="button" onClick={() => { setPop(null); setConfirm(true); }} className="inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-[13px] text-bad transition-colors hover:bg-bad-soft">
-          <Trash2 className="h-4 w-4" /><span className="max-md:hidden">Delete</span>
+          <IconTrash className="h-4 w-4" /><span className="max-md:hidden">Delete</span>
         </button>
         <span className="mx-1 h-5 w-px bg-line" />
         <button type="button" aria-label="Clear selection" onClick={onClear} disabled={busy} className="grid h-8 w-8 place-items-center rounded-lg text-subtle transition-colors hover:bg-hover hover:text-fg">
-          <X className="h-4 w-4" />
+          <IconClose className="h-4 w-4" />
         </button>
       </div>
       <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Delete ${tasks.length} ${tasks.length === 1 ? "task" : "tasks"}?`}

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { READ_ONLY_MESSAGE } from "@/web/lib/read-only";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Eye, EyeOff, KeyRound, MailCheck, ShieldCheck, Play } from "lucide-react";
+import { IconCheckCircle, IconEye, IconEyeOff, IconKey, IconMailCheck, IconPlay, IconShieldCheck } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/web/components/ui/button";
@@ -124,7 +124,7 @@ function PasswordInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <div className="relative">
       <Input {...props} type={show ? "text" : "password"} className="pr-10" />
       <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-subtle hover:text-fg" aria-label={show ? "Hide password" : "Show password"}>
-        {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        {show ? <IconEyeOff className="h-4 w-4" /> : <IconEye className="h-4 w-4" />}
       </button>
     </div>
   );
@@ -142,7 +142,7 @@ function DemoLink() {
   return (
     <>
       <div className="my-6 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
-      <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><Play className="h-4 w-4" /> Explore a demo workspace</Button>
+      <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><IconPlay className="h-4 w-4" /> Explore a demo workspace</Button>
     </>
   );
 }
@@ -162,7 +162,7 @@ function VerifyEmailNotice() {
   const serverFields = resend.error instanceof ApiError ? resend.error.fields : undefined;
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur" data-testid="verify-email">
-      <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><MailCheck className="h-5 w-5" /></div>
+      <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><IconMailCheck className="h-5 w-5" /></div>
       <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your email to verify your account</h1>
       <p className="mt-2 text-sm text-muted">Your account is created. We sent a confirmation link to the address you signed up with. Open it, then come back and sign in.</p>
       <form className="mt-6 space-y-3" onSubmit={onSubmit} noValidate>
@@ -230,7 +230,7 @@ function SecondFactor() {
   const [code, setCode] = useState("");
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
-      <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover">{recovery ? <KeyRound className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}</div>
+      <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover">{recovery ? <IconKey className="h-5 w-5" /> : <IconShieldCheck className="h-5 w-5" />}</div>
       <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">{recovery ? "Use a backup code" : "Two-factor authentication"}</h1>
       <p className="mt-1 text-sm text-muted">{recovery ? "Enter one of the backup codes you saved when you turned on two-factor." : "Enter the 6-digit code from your authenticator app."}</p>
       <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); submit({ code }); }} noValidate>
@@ -269,7 +269,7 @@ function MovedSignInReset() {
   if (send.isSuccess) {
     return (
       <div className={card} data-testid="reset-sent">
-        <MailCheck className="h-6 w-6 text-[#0071E3]" />
+        <IconMailCheck className="h-6 w-6 text-[#0071E3]" />
         <h1 className="mt-3 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your email</h1>
         <p className="mt-1 text-sm text-muted">If an account with a password exists for <b className="font-medium text-fg">{email}</b>, a link to set a new password is on its way. Then sign in with Continue with Multies.</p>
         <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
@@ -310,7 +310,7 @@ function LocalForgotPassword() {
   if (send.isSuccess) {
     return (
       <div className={card}>
-        <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover"><MailCheck className="h-5 w-5" /></div>
+        <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover"><IconMailCheck className="h-5 w-5" /></div>
         <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your inbox</h1>
         <p className="mt-1 text-sm text-muted">If an account exists for <b className="font-medium text-fg">{email}</b>, a reset link is on its way. It works for one hour.</p>
         {!deliveryConnected && (
@@ -386,7 +386,7 @@ export function EmailVerifiedPage() {
         </>
       ) : (
         <>
-          <CheckCircle2 className="h-8 w-8 text-ok" />
+          <IconCheckCircle className="h-8 w-8 text-ok" />
           <h1 className="mt-3 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Email confirmed</h1>
           <p className="mt-1 text-sm text-muted">Your address is verified.</p>
         </>

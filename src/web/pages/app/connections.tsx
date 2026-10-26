@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { ArrowRight, Inbox, Plug, RefreshCw, Trash2, KeyRound } from "lucide-react";
+import { IconArrowRight, IconInbox, IconKey, IconPlug, IconRefresh, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
@@ -48,7 +48,7 @@ export function ConnectionsSettings() {
         description={<>Your Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any other mailbox, inside Multies with your real address. New mail syncs every few minutes and replies go out through your own provider, so they land in its Sent folder too.</>}
       >
         {list.length === 0 && !adding ? (
-          <EmptyState icon={<Plug className="h-5 w-5" />} title="No connected mailboxes yet" body="Connect one with an app password from your provider. It takes about a minute." action={<Button onClick={() => setAdding(true)} data-testid="connect-start">Connect a mailbox</Button>} />
+          <EmptyState icon={<IconPlug className="h-5 w-5" />} title="No connected mailboxes yet" body="Connect one with an app password from your provider. It takes about a minute." action={<Button onClick={() => setAdding(true)} data-testid="connect-start">Connect a mailbox</Button>} />
         ) : (
           <div className="space-y-3" data-testid="connections-list">
             {list.map((c) => <ConnectionRow key={c.id} c={c} />)}
@@ -91,7 +91,7 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
   return (
     <Card className="p-4" data-testid="connection-row">
       <div className="flex items-start gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><Inbox className="h-4 w-4" aria-hidden /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconInbox className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate font-medium" data-testid="connection-email">{c.email}</span>
@@ -102,10 +102,10 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           </p>
           {c.lastError && c.status !== "active" && <p className="mt-1.5 text-[13px] text-bad" data-testid="connection-error">{c.lastError}</p>}
           <div className="mt-3 flex flex-wrap gap-2">
-          <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <ArrowRight className="h-4 w-4" /></ButtonLink>
-          <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync ${c.email} now`}><RefreshCw className="h-4 w-4" />Sync now</Button>
-          <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><KeyRound className="h-4 w-4" />Reconnect</Button>
-          <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} aria-label={`Remove ${c.email}`}><Trash2 className="h-4 w-4" />Remove</Button>
+          <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
+          <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync ${c.email} now`}><IconRefresh className="h-4 w-4" />Sync now</Button>
+          <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>
+          <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} aria-label={`Remove ${c.email}`}><IconTrash className="h-4 w-4" />Remove</Button>
           </div>
         </div>
       </div>

@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference, useRoomContext } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { RoomEvent } from "livekit-client";
-import { Maximize2, MonitorUp, NotebookPen, PhoneOff, X } from "lucide-react";
+import { IconClose, IconMaximize, IconNotes, IconPhoneOff, IconScreenShare } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { closeCallDock, useCallDock } from "./call-r23";
 import { PreJoin, type JoinPrefs } from "./prejoin-r31";
@@ -34,9 +34,9 @@ export function CallRoomExtras({ meetingId }: { meetingId?: string }) {
   if (!blocked) return null;
   return (
     <div role="status" className="absolute left-1/2 top-3 z-20 flex max-w-md -translate-x-1/2 items-start gap-2 rounded-xl border border-line bg-elevated p-3 text-[12.5px] text-fg shadow-pop" data-testid="share-blocked">
-      <MonitorUp className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+      <IconScreenShare className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
       <p>Your browser blocked the screen, camera or microphone. Allow it from the icon at the left of the address bar, then try again. On a Mac, also allow screen recording for your browser in System Settings, Privacy and Security.</p>
-      <button type="button" aria-label="Close hint" onClick={() => setBlocked(false)} className="text-subtle hover:text-fg"><X className="h-3.5 w-3.5" /></button>
+      <button type="button" aria-label="Close hint" onClick={() => setBlocked(false)} className="text-subtle hover:text-fg"><IconClose className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
@@ -79,9 +79,9 @@ export function CallDock() {
         <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold">{call.title}</h2>
         {prefs && <DockSoFar meetingId={call.meetingId} />}
-        {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><NotebookPen className="h-3.5 w-3.5" aria-hidden />Notes</button>}
-        <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><Maximize2 className="h-3.5 w-3.5" aria-hidden />Expand</button>
-        <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><PhoneOff className="h-3.5 w-3.5" aria-hidden />Leave</button>
+        {docId && <button type="button" onClick={() => navigate(`/app/docs/${docId}`)} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-notes"><IconNotes className="h-3.5 w-3.5" aria-hidden />Notes</button>}
+        <button type="button" onClick={expand} className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="call-dock-expand"><IconMaximize className="h-3.5 w-3.5" aria-hidden />Expand</button>
+        <button type="button" onClick={leave} className="inline-flex h-7 items-center gap-1 rounded-md bg-danger/10 px-2 text-[12.5px] font-medium text-danger hover:bg-danger/15" data-testid="call-dock-leave"><IconPhoneOff className="h-3.5 w-3.5" aria-hidden />Leave</button>
       </header>
       <div className="relative min-h-0 flex-1" data-lk-theme="default">
         {!prefs ? (

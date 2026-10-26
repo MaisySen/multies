@@ -21,6 +21,7 @@ import { collectTaskItems, sectionsOf, type PMNodeLike } from "@/shared/action-i
 import type { SuiteActor } from "./common";
 import { roomParticipants, visibleMeeting } from "./calls";
 import { ensureNotesDocOnce, zoneOf } from "./meeting-notes";
+import { notBlockedBy } from "./reports-r35"; // R35: meeting chat leaves out blocked people
 
 export const NOTES_MESSAGE_PREFIX = "Notes for this call: ";
 /** People joining this long after the start see the So far panel open on its own. */
@@ -130,7 +131,7 @@ export async function summarySoFar(deps: Deps, a: SuiteActor, meetingId: string)
   let decisions: SoFar["decisions"] = [];
   if (m.channelId) {
     const rows = await deps.db.select({ body: chatMessages.body, by: chatMessages.authorName, at: chatMessages.createdAt }).from(chatMessages)
-      .where(and(eq(chatMessages.orgId, a.orgId), eq(chatMessages.channelId, m.channelId), isNull(chatMessages.deletedAt), gte(chatMessages.createdAt, new Date(startedAt))))
+      .where(and(eq(chatMessages.orgId, a.orgId), eq(chatMessages.channelId, m.channelId), isNull(chatMessages.deletedAt), gte(chatMessages.createdAt, new Date(startedAt)), notBlockedBy(chatMessages.authorId, isKey(a) ? null : a.userId)))
       .orderBy(asc(chatMessages.createdAt)).limit(300);
     decisions = rows.flatMap((r) => { const t = decisionOf(r.body); return t ? [{ text: t, by: r.by || "Someone", at: r.at.toISOString() }] : []; }).slice(-MAX_DECISIONS);
   }

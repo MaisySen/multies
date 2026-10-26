@@ -7,7 +7,7 @@ import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import type { Editor } from "@tiptap/react";
-import { ArrowDown, ArrowUp, CheckSquare, ChevronRight, FileText, IndentDecrease, IndentIncrease, Link2, MoreHorizontal, Plus } from "lucide-react";
+import { IconArrowDown, IconArrowUp, IconChevronRight, IconDocs, IconIndent, IconLink, IconMore, IconOutdent, IconPlus, IconTasks } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -131,7 +131,7 @@ export function DocTreeSidebar({ currentId }: { currentId?: string }) {
     <nav aria-label="Pages" className="w-60 shrink-0 max-lg:hidden" data-testid="doc-tree">
       <div className="mb-2 flex items-center justify-between px-2">
         <span className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Pages</span>
-        <button type="button" aria-label="New page" title="New page" onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><Plus className="h-4 w-4" /></button>
+        <button type="button" aria-label="New page" title="New page" onClick={() => void addPage(null)} className="rounded-md p-1 text-muted hover:bg-hover hover:text-fg"><IconPlus className="h-4 w-4" /></button>
       </div>
       {q.isPending ? <div className="space-y-2 px-2">{[0, 1, 2].map((i) => <div key={i} className="h-5 animate-pulse rounded bg-elevated" />)}</div> : !tree.length ? (
         <p className="px-2 text-[13px] text-muted">No pages yet.</p>
@@ -179,18 +179,18 @@ function TreeItem({ node, siblings, index, parent, currentId, collapsed, toggle,
           drop.isOver && !drag.isDragging && "ring-2 ring-brand/50", drag.isDragging && "opacity-70 shadow-pop bg-elevated")}>
         <button type="button" onClick={() => toggle(node.id)} aria-label={open ? `Collapse ${node.title}` : `Expand ${node.title}`} tabIndex={hasKids ? 0 : -1}
           className={cn("rounded p-0.5 text-subtle hover:text-fg", !hasKids && "invisible")}>
-          <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
+          <IconChevronRight className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-90")} />
         </button>
         <Link to={`/app/docs/${node.id}`} draggable={false} className={cn("flex min-w-0 flex-1 items-center gap-1.5 py-0.5", active && "font-medium")}>
-          <FileText className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{node.title || "Untitled"}</span>
+          <IconDocs className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{node.title || "Untitled"}</span>
         </Link>
         <div className="opacity-0 focus-within:opacity-100 group-hover:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
-          <Menu align="end" trigger={<button type="button" aria-label={`Page actions for ${node.title}`} className="rounded p-0.5 text-subtle hover:text-fg"><MoreHorizontal className="h-4 w-4" /></button>}>
-            <MenuItem icon={<Plus />} onSelect={() => { if (node.depth >= MAX_DEPTH) toast.error(`Pages nest at most ${MAX_DEPTH} levels deep.`); else void addPage(node.id); }}>Add sub page</MenuItem>
-            <MenuItem icon={<ArrowUp />} onSelect={() => { if (prev) void move(node.id, { beforeId: prev.id }); }}>Move up</MenuItem>
-            <MenuItem icon={<ArrowDown />} onSelect={() => { if (next) void move(node.id, { afterId: next.id }); }}>Move down</MenuItem>
-            <MenuItem icon={<IndentIncrease />} onSelect={() => { if (prev) void move(node.id, { parentId: prev.id }); }}>Indent</MenuItem>
-            <MenuItem icon={<IndentDecrease />} onSelect={() => { if (parent) void move(node.id, { parentId: parent.parentId, afterId: parent.id }); }}>Outdent</MenuItem>
+          <Menu align="end" trigger={<button type="button" aria-label={`Page actions for ${node.title}`} className="rounded p-0.5 text-subtle hover:text-fg"><IconMore className="h-4 w-4" /></button>}>
+            <MenuItem icon={<IconPlus />} onSelect={() => { if (node.depth >= MAX_DEPTH) toast.error(`Pages nest at most ${MAX_DEPTH} levels deep.`); else void addPage(node.id); }}>Add sub page</MenuItem>
+            <MenuItem icon={<IconArrowUp />} onSelect={() => { if (prev) void move(node.id, { beforeId: prev.id }); }}>Move up</MenuItem>
+            <MenuItem icon={<IconArrowDown />} onSelect={() => { if (next) void move(node.id, { afterId: next.id }); }}>Move down</MenuItem>
+            <MenuItem icon={<IconIndent />} onSelect={() => { if (prev) void move(node.id, { parentId: prev.id }); }}>Indent</MenuItem>
+            <MenuItem icon={<IconOutdent />} onSelect={() => { if (parent) void move(node.id, { parentId: parent.parentId, afterId: parent.id }); }}>Outdent</MenuItem>
           </Menu>
         </div>
       </div>
@@ -213,7 +213,7 @@ export function DocBreadcrumbs({ docId, title }: { docId: string; title: string 
       {up.map((a) => (
         <span key={a.id} className="inline-flex min-w-0 items-center gap-1">
           <Link to={`/app/docs/${a.id}`} className="max-w-[12rem] truncate hover:text-fg">{a.title || "Untitled"}</Link>
-          <ChevronRight className="h-3 w-3 shrink-0" />
+          <IconChevronRight className="h-3 w-3 shrink-0" />
         </span>
       ))}
       <span className="max-w-[12rem] truncate text-muted" aria-current="page">{title || "Untitled"}</span>
@@ -227,7 +227,7 @@ function BacklinkList({ items }: { items: Backlink[] }) {
       {items.map((b) => (
         <li key={b.id}>
           <Link to={`/app/docs/${b.id}`} className="block rounded-lg border border-line bg-surface px-3 py-2 transition-colors hover:border-line-strong">
-            <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-fg"><FileText className="h-3.5 w-3.5 text-muted" />{b.title || "Untitled"}</span>
+            <span className="flex items-center gap-1.5 text-[13.5px] font-medium text-fg"><IconDocs className="h-3.5 w-3.5 text-muted" />{b.title || "Untitled"}</span>
             {b.snippet && <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-relaxed text-muted">{b.snippet}</span>}
           </Link>
         </li>
@@ -242,7 +242,7 @@ export function LinkedFrom({ docId }: { docId: string }) {
   const items = q.data?.backlinks ?? [];
   return (
     <section aria-label="Linked from" className="mt-10 border-t border-line pt-5" data-testid="linked-from">
-      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted"><Link2 className="h-3.5 w-3.5" />Linked from{items.length ? ` (${items.length})` : ""}</h2>
+      <h2 className="mb-2 flex items-center gap-1.5 text-[13px] font-semibold text-muted"><IconLink className="h-3.5 w-3.5" />Linked from{items.length ? ` (${items.length})` : ""}</h2>
       {q.isPending ? <div className="h-10 animate-pulse rounded-lg bg-elevated" /> : items.length ? <BacklinkList items={items} /> : (
         <p className="text-[13px] text-subtle">No other pages link here yet. Type [[ in a page to link to this one.</p>
       )}
@@ -306,7 +306,7 @@ export function PageLinkPicker({ editor, open, onClose, selfId }: { editor: Edit
           <li key={`${it.type}:${it.id}`} role="option" aria-selected={i === sel}>
             <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(it)} onMouseEnter={() => setSel(i)}
               className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[13.5px]", i === sel ? "bg-brand/10 text-fg" : "text-muted")}>
-              {it.type === "doc" ? <FileText className="h-3.5 w-3.5 shrink-0" /> : <CheckSquare className="h-3.5 w-3.5 shrink-0" />}
+              {it.type === "doc" ? <IconDocs className="h-3.5 w-3.5 shrink-0" /> : <IconTasks className="h-3.5 w-3.5 shrink-0" />}
               <span className="min-w-0 flex-1 truncate">{it.title}</span>
               <span className="shrink-0 text-[11.5px] text-subtle">{it.hint}</span>
             </button>

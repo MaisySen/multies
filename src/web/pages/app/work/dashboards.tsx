@@ -11,7 +11,7 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowDown, ArrowUp, ChevronLeft, GripVertical, LayoutDashboard, MoreHorizontal, Pencil, Plus, Sparkles, Trash2, Users, X } from "lucide-react";
+import { IconArrowDown, IconArrowUp, IconBack, IconClose, IconDashboard, IconEdit, IconGrip, IconMore, IconPlus, IconSparkle, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { moveWidget } from "./dashboard-move";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -70,14 +70,14 @@ function DashboardList() {
     onSuccess: async (r) => { await qc.invalidateQueries({ queryKey: dk.list }); nav(`/app/dashboards/${r.dashboard.id}`); },
     onError: (e) => showError(e as Error),
   });
-  const starter = <Button variant="secondary" onClick={() => create.mutate({ starter: "team" })} disabled={create.isPending}><Sparkles className="h-4 w-4" />Team overview</Button>;
+  const starter = <Button variant="secondary" onClick={() => create.mutate({ starter: "team" })} disabled={create.isPending}><IconSparkle className="h-4 w-4" />Team overview</Button>;
   return (
     <div data-testid="dashboards">
       <PageHeader title="Dashboards" description="Your numbers in one place: tasks by status and person, what is due, work done per week, sprints, goals and mail. Worked out fresh each time you open one."
-        actions={<div className="flex gap-2">{starter}<Button onClick={() => setNaming(true)}><Plus className="h-4 w-4" />New dashboard</Button></div>} />
+        actions={<div className="flex gap-2">{starter}<Button onClick={() => setNaming(true)}><IconPlus className="h-4 w-4" />New dashboard</Button></div>} />
       {list.isPending ? <div className="grid gap-4 sm:grid-cols-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />)}</div>
         : !list.data?.length ? (
-          <EmptyState icon={<LayoutDashboard className="h-6 w-6" />} title="No dashboards yet"
+          <EmptyState icon={<IconDashboard className="h-6 w-6" />} title="No dashboards yet"
             body="Start with Team overview (tasks by status and by person, what is due this week and work done per week), or make your own from the widgets you pick."
             action={<div className="flex justify-center gap-2">{starter}<Button variant="secondary" onClick={() => setNaming(true)}>New dashboard</Button></div>} />
         ) : (
@@ -85,8 +85,8 @@ function DashboardList() {
             {list.data.map((d) => (
               <Link key={d.id} to={`/app/dashboards/${d.id}`} data-testid="dashboard-link" className="group">
                 <Card className="p-4 transition-shadow group-hover:shadow-pop">
-                  <div className="flex items-center gap-2"><LayoutDashboard className="h-4 w-4 text-brand" /><span className="truncate font-medium">{d.name}</span>
-                    {d.shared && <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-muted"><Users className="h-3.5 w-3.5" />Shared</span>}</div>
+                  <div className="flex items-center gap-2"><IconDashboard className="h-4 w-4 text-brand" /><span className="truncate font-medium">{d.name}</span>
+                    {d.shared && <span className="ml-auto inline-flex items-center gap-1 text-[12px] text-muted"><IconTeam className="h-3.5 w-3.5" />Shared</span>}</div>
                   <p className="mt-1.5 text-[12.5px] text-muted">{d.widgetCount === 1 ? "1 widget" : `${d.widgetCount} widgets`}</p>
                 </Card>
               </Link>
@@ -145,24 +145,24 @@ function DashboardView({ id }: { id: string }) {
     save.mutate({ widgets: next });
   };
   const d = doc.data;
-  if (doc.isError) return <EmptyState icon={<LayoutDashboard className="h-6 w-6" />} title="Dashboard not found" body="It was removed, or it is private to someone else." action={<Link to="/app/dashboards" className="text-brand-hover hover:underline">All dashboards</Link>} />;
+  if (doc.isError) return <EmptyState icon={<IconDashboard className="h-6 w-6" />} title="Dashboard not found" body="It was removed, or it is private to someone else." action={<Link to="/app/dashboards" className="text-brand-hover hover:underline">All dashboards</Link>} />;
   return (
     <div data-testid="dashboard-view">
       {dialogs}
-      <Link to="/app/dashboards" className="mb-2 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg"><ChevronLeft className="h-3.5 w-3.5" />Dashboards</Link>
+      <Link to="/app/dashboards" className="mb-2 inline-flex items-center gap-1 text-[12.5px] text-muted hover:text-fg"><IconBack className="h-3.5 w-3.5" />Dashboards</Link>
       <PageHeader title={d?.name ?? ""}
         actions={d && <div className="flex items-center gap-3">
           <Switch checked={d.shared} label="Shared with the workspace" disabled={!d.mine} onChange={(v) => save.mutate({ shared: v })} />
           <span className="text-[12.5px] text-muted">{d.shared ? "Shared" : "Only you"}</span>
-          <Button onClick={() => setAdding(true)} disabled={widgets.length >= 24}><Plus className="h-4 w-4" />Add widget</Button>
-          <Menu trigger={<Button variant="secondary" size="sm" aria-label="More"><MoreHorizontal className="h-4 w-4" /></Button>}>
-            <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(true)}>Rename</MenuItem>
-            <MenuItem danger icon={<Trash2 className="h-4 w-4" />} onSelect={async () => { if (await confirm({ title: `Remove the dashboard ${d.name}?`, description: "The widgets go with it; your tasks and mail stay as they are.", confirmLabel: "Remove dashboard" })) remove.mutate(); }}>Remove dashboard</MenuItem>
+          <Button onClick={() => setAdding(true)} disabled={widgets.length >= 24}><IconPlus className="h-4 w-4" />Add widget</Button>
+          <Menu trigger={<Button variant="secondary" size="sm" aria-label="More"><IconMore className="h-4 w-4" /></Button>}>
+            <MenuItem icon={<IconEdit className="h-4 w-4" />} onSelect={() => setRenaming(true)}>Rename</MenuItem>
+            <MenuItem danger icon={<IconTrash className="h-4 w-4" />} onSelect={async () => { if (await confirm({ title: `Remove the dashboard ${d.name}?`, description: "The widgets go with it; your tasks and mail stay as they are.", confirmLabel: "Remove dashboard" })) remove.mutate(); }}>Remove dashboard</MenuItem>
           </Menu>
         </div>} />
       {!d ? <div className="grid gap-4 md:grid-cols-2">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-60" />)}</div>
         : !widgets.length ? (
-          <EmptyState icon={<LayoutDashboard className="h-6 w-6" />} title="No widgets yet" body="Add a widget to see a count, a chart or a list. Each one can use a saved view or a project." action={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Add widget</Button>} />
+          <EmptyState icon={<IconDashboard className="h-6 w-6" />} title="No widgets yet" body="Add a widget to see a count, a chart or a list. Each one can use a saved view or a project." action={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add widget</Button>} />
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
@@ -189,15 +189,15 @@ function WidgetCard({ w, result, loading, onRemove, onMove, canUp, canDown }: { 
     <div ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }} className={cn(w.size === 2 && "md:col-span-2", isDragging && "z-10 opacity-80")}>
       <Card className="flex h-full flex-col p-4" data-testid="widget" data-title={w.title}>
         <div className="mb-3 flex items-center gap-1.5">
-          <button type="button" {...attributes} {...listeners} aria-label={`Move ${w.title}`} className="-ml-1 cursor-grab rounded p-0.5 text-subtle hover:bg-hover hover:text-fg active:cursor-grabbing"><GripVertical className="h-4 w-4" /></button>
+          <button type="button" {...attributes} {...listeners} aria-label={`Move ${w.title}`} className="-ml-1 cursor-grab rounded p-0.5 text-subtle hover:bg-hover hover:text-fg active:cursor-grabbing"><IconGrip className="h-4 w-4" /></button>
           <h2 className="truncate text-[13px] font-semibold">{w.title}</h2>
           <div className="ml-auto flex items-center">
-            <Menu trigger={<button type="button" aria-label={`Options for ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><MoreHorizontal className="h-4 w-4" /></button>}>
-              {canUp && <MenuItem icon={<ArrowUp className="h-4 w-4" />} onSelect={() => onMove(-1)}>Move up</MenuItem>}
-              {canDown && <MenuItem icon={<ArrowDown className="h-4 w-4" />} onSelect={() => onMove(1)}>Move down</MenuItem>}
-              <MenuItem danger icon={<Trash2 className="h-4 w-4" />} onSelect={onRemove}>Remove widget</MenuItem>
+            <Menu trigger={<button type="button" aria-label={`Options for ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><IconMore className="h-4 w-4" /></button>}>
+              {canUp && <MenuItem icon={<IconArrowUp className="h-4 w-4" />} onSelect={() => onMove(-1)}>Move up</MenuItem>}
+              {canDown && <MenuItem icon={<IconArrowDown className="h-4 w-4" />} onSelect={() => onMove(1)}>Move down</MenuItem>}
+              <MenuItem danger icon={<IconTrash className="h-4 w-4" />} onSelect={onRemove}>Remove widget</MenuItem>
             </Menu>
-            <button type="button" onClick={onRemove} aria-label={`Remove ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={onRemove} aria-label={`Remove ${w.title}`} className="rounded p-0.5 text-subtle hover:bg-hover hover:text-fg"><IconClose className="h-4 w-4" /></button>
           </div>
         </div>
         <div className="min-h-0 flex-1">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { PenLine } from "lucide-react";
+import { IconPenLine } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 
 /**
@@ -78,7 +78,7 @@ export function AlsoReplying({ people }: { people: PresencePerson[] }) {
   const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
   return (
     <div role="status" data-testid="also-replying" className="flex shrink-0 items-center gap-2 border-t border-warn/20 bg-warn-soft px-4 py-2 text-[13px] text-warn">
-      <PenLine className="h-4 w-4 shrink-0" aria-hidden />
+      <IconPenLine className="h-4 w-4 shrink-0" aria-hidden />
       <span className="min-w-0 flex-1">{who} {replying.length === 1 ? "is" : "are"} also replying. Send anyway?</span>
     </div>
   );

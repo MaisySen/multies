@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowLeft, Check, ChevronDown, Info, Loader2, RefreshCw, X } from "lucide-react";
+import { IconArrowLeft, IconCheck, IconChevronDown, IconClose, IconInfo, IconRefresh, IconSpinner, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { useDomain, useMailboxes, qk } from "@/web/lib/queries";
@@ -48,7 +48,7 @@ export function DomainDetailPage() {
 
   return (
     <>
-      <Link to="/app/domains" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"><ArrowLeft className="h-4 w-4" />Domains</Link>
+      <Link to="/app/domains" className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg"><IconArrowLeft className="h-4 w-4" />Domains</Link>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3"><h1 className="truncate text-2xl font-semibold tracking-tight">{d.name}</h1><DomainStatusBadge status={d.status} /></div>
@@ -57,13 +57,13 @@ export function DomainDetailPage() {
           </p>
         </div>
         <Button variant="secondary" onClick={() => verify.mutate()} loading={verify.isPending} className="shrink-0">
-          {!verify.isPending && <RefreshCw className="h-4 w-4" />}Check DNS now
+          {!verify.isPending && <IconRefresh className="h-4 w-4" />}Check DNS now
         </Button>
       </div>
 
       {d.status !== "verified" && (
         <Card className="mb-6 flex gap-3 border-brand/25 bg-brand-soft/40 p-4 text-sm">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />
+          <IconInfo className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />
           <div className="text-fg/85">
             Add these records at your DNS provider, then come back. We pick them up within minutes.
             {d.records.some((r) => r.id === "mx" && /cloudflare/i.test(r.value))
@@ -107,7 +107,7 @@ function SwitchPlanCard({ name }: { name: string }) {
       <p className="mt-3 text-sm text-muted">Mail keeps arriving at {c.provider.name} until you change the MX records. Follow these steps in order and nobody misses a message.</p>
       <details className="group mt-3">
         <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-brand-hover">
-          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />Show the switch plan
+          <IconChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden />Show the switch plan
         </summary>
         <SwitchPlan check={c} className="mt-4" />
       </details>
@@ -116,10 +116,10 @@ function SwitchPlanCard({ name }: { name: string }) {
 }
 
 const statusUi: Record<string, { icon: React.ReactNode; label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
-  pass: { icon: <Check className="h-3.5 w-3.5" />, label: "Passing", tone: "ok" },
-  warn: { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Warning", tone: "warn" },
-  fail: { icon: <X className="h-3.5 w-3.5" />, label: "Not found", tone: "bad" },
-  error: { icon: <AlertTriangle className="h-3.5 w-3.5" />, label: "Lookup failed", tone: "warn" },
+  pass: { icon: <IconCheck className="h-3.5 w-3.5" />, label: "Passing", tone: "ok" },
+  warn: { icon: <IconWarning className="h-3.5 w-3.5" />, label: "Warning", tone: "warn" },
+  fail: { icon: <IconClose className="h-3.5 w-3.5" />, label: "Not found", tone: "bad" },
+  error: { icon: <IconWarning className="h-3.5 w-3.5" />, label: "Lookup failed", tone: "warn" },
 };
 
 function RecordCard({ record: r, check, checking }: { record: Domain["records"][number]; check?: RecordCheck; checking: boolean }) {
@@ -132,7 +132,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
         <div className="flex items-center gap-3">
           <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg border",
             check?.status === "pass" ? "border-ok/25 bg-ok-soft text-ok" : check?.status === "warn" || check?.status === "error" ? "border-warn/25 bg-warn-soft text-warn" : "border-line-strong bg-elevated text-subtle")}>
-            {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : ui?.icon ?? <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+            {checking ? <IconSpinner className="h-4 w-4 animate-spin" /> : ui?.icon ?? <span className="h-1.5 w-1.5 rounded-full bg-current" />}
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -176,7 +176,7 @@ function RecordCard({ record: r, check, checking }: { record: Domain["records"][
           {check.found.length > 0 && (
             <div className="mt-2">
               <button className="inline-flex items-center gap-1 text-xs text-muted hover:text-fg" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-                <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />What we found in DNS ({check.found.length})
+                <IconChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />What we found in DNS ({check.found.length})
               </button>
               {open && <ul className="mt-2 space-y-1">{check.found.map((f) => <li key={f} className="break-all rounded bg-fill/60 px-2 py-1 font-mono text-[12px] text-muted">{f}</li>)}</ul>}
             </div>

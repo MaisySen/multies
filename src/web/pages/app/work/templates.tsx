@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, LayoutTemplate, Plus, Trash2 } from "lucide-react";
+import { IconDocs, IconPlus, IconTemplate, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -36,7 +36,7 @@ export function TemplatesPage() {
       <div className="flex items-start justify-between gap-2">
         <div><h3 className="font-semibold">{t.name}</h3><p className="text-[12px] text-subtle">{t.category} · {t.kind === "project" ? `project, ${t.taskCount} tasks` : t.kind === "doc" ? "doc" : "task"}</p></div>
       {dialogs}
-        {!t.builtin && <Button variant="ghost" size="icon" aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}><Trash2 className="h-4 w-4" /></Button>}
+        {!t.builtin && <Button variant="ghost" size="icon" aria-label={`Delete ${t.name}`} onClick={() => void remove(t)}><IconTrash className="h-4 w-4" /></Button>}
       </div>
       {t.description && <p className="text-[13.5px] text-muted">{t.description}</p>}
       <div className="mt-auto pt-1"><Button size="sm" onClick={() => setUsing(t)}>Use template</Button></div>
@@ -45,14 +45,14 @@ export function TemplatesPage() {
   return (
     <div>
       <PageHeader title="Templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
-        actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><Plus className="h-4 w-4" />New template</Button></div>} />
+        actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />New template</Button></div>} />
       {q.isPending ? <Skeleton className="h-64" /> : (
         <>
           <h2 className="mb-3 text-[15px] font-semibold">Starter gallery</h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{starters.map(card)}</div>
           <h2 className="mb-3 mt-8 text-[15px] font-semibold">Your templates</h2>
           {mine.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{mine.map(card)}</div>
-            : <EmptyState icon={<LayoutTemplate />} title="No saved templates yet" body="Write one from scratch with New template, save any project as a template, or save a task from its menu." />}
+            : <EmptyState icon={<IconTemplate />} title="No saved templates yet" body="Write one from scratch with New template, save any project as a template, or save a task from its menu." />}
         </>
       )}
       <UseDialog t={using} projects={projects.data ?? []} onClose={() => setUsing(null)} onDone={(r) => {
@@ -132,7 +132,7 @@ function NewDialog({ open, onClose, onDone }: { open: boolean; onClose: () => vo
         </Field>
         {kind !== "doc" && <Field label={kind === "task" ? "Subtasks, one per line" : "Tasks, one per line"}>{(p) => <Textarea {...p} rows={4} value={items} onChange={(e) => setItems(e.target.value)} />}</Field>}
         <Field label="Description of the template (optional)">{(p) => <Input {...p} value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
-        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" loading={busy}><FileText className="h-4 w-4" />Save template</Button></div>
+        <div className="flex justify-end gap-2"><Button variant="ghost" onClick={onClose}>Cancel</Button><Button type="submit" loading={busy}><IconDocs className="h-4 w-4" />Save template</Button></div>
       </form>
     </Dialog>
   );

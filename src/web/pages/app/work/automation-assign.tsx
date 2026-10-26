@@ -3,7 +3,7 @@
  * give each new thread to one person or rotate through 2 to 20 people (round robin). automations.tsx
  * only mounts these.
  */
-import { Repeat, UserRound } from "lucide-react";
+import { IconRepeat, IconUserRound } from "@/web/components/ui/icon";
 import { Field, Select } from "@/web/components/ui/input";
 import { useMailboxes } from "@/web/lib/queries";
 import { useAssignees } from "./data";
@@ -47,7 +47,7 @@ export function AssignThreadFields({ config, onChange }: { config: Cfg; onChange
   return (
     <div className="space-y-3">
       <div role="radiogroup" aria-label="How to assign" className="inline-flex rounded-lg border border-line bg-surface p-0.5 text-[13px]">
-        {([["person", "One person", UserRound], ["round_robin", "Round robin", Repeat]] as const).map(([k, label, Icon]) => (
+        {([["person", "One person", IconUserRound], ["round_robin", "Round robin", IconRepeat]] as const).map(([k, label, Icon]) => (
           <button key={k} type="button" role="radio" aria-checked={mode === k}
             onClick={() => onChange(k === "person" ? { mode: "person" } : { mode: "round_robin", userIds: [] })}
             className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 ${mode === k ? "bg-[#0071E3] text-white" : "text-muted hover:text-ink"}`}>

@@ -7,10 +7,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { NodeSelection } from "@tiptap/pm/state";
-import {
-  BetweenHorizontalEnd, BetweenHorizontalStart, BetweenVerticalEnd, BetweenVerticalStart, Captions, Maximize2, Minimize2,
-  MoveHorizontal, PanelTop, TableColumnsSplit, TableRowsSplit, Trash2, Upload, X,
-} from "lucide-react";
+import { IconCaptions, IconClose, IconColumns, IconInsertColumnLeft, IconInsertColumnRight, IconInsertRowAbove, IconInsertRowBelow, IconMaximize, IconMinimize, IconMoveHorizontal, IconPanelTop, IconRowsSplit, IconTrash, IconUpload, type IconComponent } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { IMAGE_SIZE_LABELS, imageSize, isSafeImageSrc, type ImageSize } from "@/web/lib/docs-blocks-schema";
 import { measureImage, type ImageUploader } from "@/web/lib/docs-blocks";
@@ -65,20 +62,20 @@ export function TableMenu({ editor }: { editor: Editor | null }) {
   const c = () => editor.chain().focus();
   return (
     <div role="toolbar" aria-label="Table" data-testid="table-menu" className={BAR} style={place(el.getBoundingClientRect(), 300)}>
-      <MenuButton label="Add row above" on={() => c().addRowBefore().run()}><BetweenHorizontalStart /></MenuButton>
-      <MenuButton label="Add row below" on={() => c().addRowAfter().run()}><BetweenHorizontalEnd /></MenuButton>
-      <MenuButton label="Add column left" on={() => c().addColumnBefore().run()}><BetweenVerticalStart /></MenuButton>
-      <MenuButton label="Add column right" on={() => c().addColumnAfter().run()}><BetweenVerticalEnd /></MenuButton>
+      <MenuButton label="Add row above" on={() => c().addRowBefore().run()}><IconInsertRowAbove /></MenuButton>
+      <MenuButton label="Add row below" on={() => c().addRowAfter().run()}><IconInsertRowBelow /></MenuButton>
+      <MenuButton label="Add column left" on={() => c().addColumnBefore().run()}><IconInsertColumnLeft /></MenuButton>
+      <MenuButton label="Add column right" on={() => c().addColumnAfter().run()}><IconInsertColumnRight /></MenuButton>
       <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
-      <MenuButton label="Delete row" on={() => c().deleteRow().run()}><TableRowsSplit /></MenuButton>
-      <MenuButton label="Delete column" on={() => c().deleteColumn().run()}><TableColumnsSplit /></MenuButton>
-      <MenuButton label="Header row" on={() => c().toggleHeaderRow().run()}><PanelTop /></MenuButton>
-      <MenuButton label="Delete table" danger on={() => c().deleteTable().run()}><Trash2 /></MenuButton>
+      <MenuButton label="Delete row" on={() => c().deleteRow().run()}><IconRowsSplit /></MenuButton>
+      <MenuButton label="Delete column" on={() => c().deleteColumn().run()}><IconColumns /></MenuButton>
+      <MenuButton label="Header row" on={() => c().toggleHeaderRow().run()}><IconPanelTop /></MenuButton>
+      <MenuButton label="Delete table" danger on={() => c().deleteTable().run()}><IconTrash /></MenuButton>
     </div>
   );
 }
 
-const SIZE_ICONS: Record<ImageSize, typeof Minimize2> = { fit: Minimize2, wide: MoveHorizontal, full: Maximize2 };
+const SIZE_ICONS: Record<ImageSize, IconComponent> = { fit: IconMinimize, wide: IconMoveHorizontal, full: IconMaximize };
 
 export function ImageToolbar({ editor }: { editor: Editor | null }) {
   useEditorTick(editor);
@@ -104,10 +101,10 @@ export function ImageToolbar({ editor }: { editor: Editor | null }) {
         <AltInput initial={typeof node.attrs.alt === "string" ? node.attrs.alt : ""} onDone={(alt) => { set({ alt: alt.trim() || null }); setAltOpen(false); }} />
       ) : (
         <MenuButton label={node.attrs.alt ? `Alt text: ${node.attrs.alt}` : "Add alt text"} on={() => setAltOpen(true)}>
-          <Captions /><span className="ml-1 text-[12px]">{node.attrs.alt ? "Alt" : "Add alt"}</span>
+          <IconCaptions /><span className="ml-1 text-[12px]">{node.attrs.alt ? "Alt" : "Add alt"}</span>
         </MenuButton>
       )}
-      <MenuButton label="Delete image" danger on={() => editor.chain().focus().deleteSelection().run()}><Trash2 /></MenuButton>
+      <MenuButton label="Delete image" danger on={() => editor.chain().focus().deleteSelection().run()}><IconTrash /></MenuButton>
     </div>
   );
 }
@@ -156,7 +153,7 @@ export function ImageInsertDialog({ editor, open, onClose, upload }: { editor: E
         onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}>
         <div className="mb-3 flex items-center">
           <h2 id="img-dlg-title" className="text-[15px] font-semibold">Add an image</h2>
-          <button type="button" aria-label="Close" onClick={onClose} className="ml-auto rounded p-1 text-muted hover:bg-hover hover:text-fg"><X className="h-4 w-4" /></button>
+          <button type="button" aria-label="Close" onClick={onClose} className="ml-auto rounded p-1 text-muted hover:bg-hover hover:text-fg"><IconClose className="h-4 w-4" /></button>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); fromUrl(); }} className="space-y-2.5">
           <label className="block text-[12.5px] text-muted">Image link
@@ -174,7 +171,7 @@ export function ImageInsertDialog({ editor, open, onClose, upload }: { editor: E
                 <input ref={file} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden aria-label="Upload an image" onChange={(e) => void fromFile(e.target.files?.[0])} />
                 <button type="button" disabled={busy} onClick={() => file.current?.click()}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] text-fg hover:bg-hover disabled:opacity-60">
-                  <Upload className="h-3.5 w-3.5" aria-hidden />{busy ? "Uploading" : "Upload"}
+                  <IconUpload className="h-3.5 w-3.5" aria-hidden />{busy ? "Uploading" : "Upload"}
                 </button>
               </>
             )}

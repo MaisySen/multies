@@ -4,7 +4,7 @@
  * accept or decline. The toast's Undo puts the item back and removes the comment in one request.
  */
 import { useEffect, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { IconCheck, IconClose } from "@/web/components/ui/icon";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 
@@ -23,7 +23,7 @@ export function TriageCommentBar({ mode, busy, onSubmit, onCancel, onMore }: {
       className="flex flex-wrap items-center gap-2 border-t border-line bg-hover/40 px-5 py-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
       onSubmit={(e) => { e.preventDefault(); if (!busy) onSubmit(text.trim()); }}>
       <span className={cn("inline-flex items-center gap-1 text-[13px] font-medium", accept ? "text-[#0071E3]" : "text-bad")}>
-        {accept ? <Check className="h-4 w-4" aria-hidden /> : <X className="h-4 w-4" aria-hidden />}{accept ? "Accept" : "Decline"}
+        {accept ? <IconCheck className="h-4 w-4" aria-hidden /> : <IconClose className="h-4 w-4" aria-hidden />}{accept ? "Accept" : "Decline"}
       </span>
       <input ref={ref} value={text} maxLength={TRIAGE_COMMENT_MAX} onChange={(e) => setText(e.target.value)} disabled={busy}
         aria-label={accept ? "Comment for accepting (optional)" : "Comment for declining (optional)"} data-testid="triage-comment-input"

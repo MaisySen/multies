@@ -77,6 +77,7 @@ import { registerTriageR32Routes } from "./v1-r32-triage"; // R32: task triage a
 const ErrorSchema = z.object({
   error: z.object({ code: z.string().openapi({ example: "not_found" }), message: z.string().openapi({ example: "Mailbox not found." }), details: z.unknown().optional() }),
 }).openapi("Error");
+import { registerReportsR35Routes } from "./reports-r35"; // R35
 
 const DnsRecord = z.object({
   id: z.string(), type: z.string(), host: z.string(), value: z.string(), priority: z.number().optional(), purpose: z.string().optional(),
@@ -264,6 +265,8 @@ export function v1Routes() {
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
   api.use("/mail/*", apiKeyAuth); // R31: Inbox splits, mail settings, read status
   api.use("/counts/*", apiKeyAuth); // R34: unread counts ("/x/*" also matches "/x")
+  api.use("/reports/*", apiKeyAuth); // R35: reports
+  api.use("/blocks/*", apiKeyAuth); // R35: blocks
   api.use("/calendar/*", apiKeyAuth); // Round 23: calendar events and feed
   api.use("/workload/*", apiKeyAuth); // R24.2: workload (and /workload/capacity; "/x/*" also matches "/x")
   api.use("/automations/*", apiKeyAuth); // R24.4: automation recipes
@@ -490,6 +493,7 @@ export function v1Routes() {
   registerAgentRunRoutes(api); // R27 (DF-3 slice 2): agent runs on tasks
   registerTriageR31Routes(api); // R31: notification triage and catch-up
   registerCountsR34Routes(api); // R34: unread counts for badges
+  registerReportsR35Routes(api); // R35: reports and blocks
   registerTriageR32Routes(api); // R32: task triage actions
   registerAgentTriggerRoutes(api); // R28 (DF-3 slice 3): triggers and GET /agents/me/runs
   registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate

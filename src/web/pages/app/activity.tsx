@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowDownLeft, ArrowRight, ArrowUpRight, Download, FileClock, Mail } from "lucide-react";
+import { IconArrowDownLeft, IconArrowRight, IconArrowUpRight, IconDownload, IconFileClock, IconMail } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import type { AuditEntry, Delivery } from "@/web/lib/types";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -41,7 +41,7 @@ export function ActivityPage() {
         {tab === "audit" && canExport && (
           <div className="ml-auto flex gap-2 text-[12.5px]">
             <a href="/api/org/audit/export?format=csv" download className="inline-flex items-center gap-1.5 rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">
-              <Download className="h-3.5 w-3.5" aria-hidden />Export CSV
+              <IconDownload className="h-3.5 w-3.5" aria-hidden />Export CSV
             </a>
             <a href="/api/org/audit/export?format=json" download className="inline-flex items-center rounded-md border border-line px-2.5 py-1 font-medium text-muted hover:bg-hover hover:text-fg">JSON</a>
           </div>
@@ -69,7 +69,7 @@ function Deliveries({ direction }: { direction: string }) {
   const q = useCursorList<Delivery>(["deliveries", direction], `/deliveries${direction ? `?direction=${direction}` : ""}`, (r) => (r as { deliveries: Delivery[] }).deliveries);
   const rows = q.data?.pages.flat() ?? [];
   if (q.isPending) return <TableSkeleton />;
-  if (!rows.length) return <Card><EmptyState icon={<Mail />} title="No deliveries yet" body="Inbound, outbound and forwarded mail will be logged here with its status and the reason behind it." /></Card>;
+  if (!rows.length) return <Card><EmptyState icon={<IconMail />} title="No deliveries yet" body="Inbound, outbound and forwarded mail will be logged here with its status and the reason behind it." /></Card>;
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto" tabIndex={0} role="region" aria-label="Log entries">
@@ -84,8 +84,8 @@ function Deliveries({ direction }: { direction: string }) {
                 <td className="whitespace-nowrap px-4 py-3 text-muted" title={fullDate(d.createdAt)}>{timeAgo(d.createdAt)}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
-                    {d.direction === "inbound" ? <ArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-brand-hover" aria-label="Inbound" /> : <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-ok" aria-label="Outbound" />}
-                    <span className="max-w-44 truncate text-muted">{d.fromAddress}</span><ArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle" aria-label="to" /><span className="max-w-44 truncate">{d.toAddress}</span>
+                    {d.direction === "inbound" ? <IconArrowDownLeft className="h-3.5 w-3.5 shrink-0 text-brand-hover" aria-label="Inbound" /> : <IconArrowUpRight className="h-3.5 w-3.5 shrink-0 text-ok" aria-label="Outbound" />}
+                    <span className="max-w-44 truncate text-muted">{d.fromAddress}</span><IconArrowRight className="h-3.5 w-3.5 shrink-0 text-subtle" aria-label="to" /><span className="max-w-44 truncate">{d.toAddress}</span>
                   </div>
                 </td>
                 <td className="max-w-56 truncate px-4 py-3">{d.subject || <span className="text-subtle">(no subject)</span>}</td>
@@ -105,7 +105,7 @@ function Audit() {
   const q = useCursorList<AuditEntry>(["audit"], "/org/audit", (r) => (r as { entries: AuditEntry[] }).entries);
   const rows = q.data?.pages.flat() ?? [];
   if (q.isPending) return <TableSkeleton />;
-  if (!rows.length) return <Card><EmptyState icon={<FileClock />} title="No activity yet" body="Changes to domains, mailboxes, aliases, keys and plans are recorded here." /></Card>;
+  if (!rows.length) return <Card><EmptyState icon={<IconFileClock />} title="No activity yet" body="Changes to domains, mailboxes, aliases, keys and plans are recorded here." /></Card>;
   return (
     <Card className="divide-y divide-line">
       {rows.map((e) => {

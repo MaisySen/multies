@@ -15,7 +15,9 @@ const VENDOR_GROUPS = [
   { name: "vendor-editor", test: lib("@tiptap|prosemirror-[a-z-]+|linkifyjs|orderedmap|rope-sequence|w3c-keyname|yjs|lib0|y-protocols|y-websocket|fast-equals"), priority: 20 },
   { name: "vendor-charts", test: lib("recharts|d3-[a-z-]+|victory-vendor|decimal\\.js-light|@reduxjs|react-redux|redux|immer|reselect|es-toolkit"), priority: 20 },
   { name: "vendor-calls", test: lib("livekit-client|@livekit"), priority: 20 },
-  { name: "vendor-calendar", test: lib("@fullcalendar|preact"), priority: 20 },
+  // R35: FullCalendar 7 brings its headless core and the Temporal polyfill; all three in one chunk, or their
+  // imports run across chunks out of order ("is not a constructor" on load).
+  { name: "vendor-calendar", test: lib("@fullcalendar|@full-ui|temporal-polyfill|temporal-spec|temporal-utils|preact"), priority: 20 },
   { name: "vendor-gantt", test: lib("@svar-ui"), priority: 20 },
   { name: "vendor-dnd", test: lib("@dnd-kit"), priority: 20 },
   { name: "vendor-sentry", test: lib("@sentry|@sentry-internal"), priority: 20 },
@@ -31,7 +33,12 @@ export default defineConfig({
     sourcemap: "hidden",
     // R30: read by scripts/prerender-landing.ts (route preloads for sign in), then deleted from dist.
     manifest: true,
-    rolldownOptions: { output: { codeSplitting: { includeDependenciesRecursively: false, groups: VENDOR_GROUPS } } },
+    rolldownOptions: {
+      output: { codeSplitting: { includeDependenciesRecursively: false, groups: VENDOR_GROUPS } },
+      // R35: the icon modules are pure, so the icon barrel does not pull every glyph into the first chunk; each
+      // page chunk carries only the glyphs it uses (docs/design/premium-pass-2.md).
+      treeshake: { moduleSideEffects: (id: string) => !/[\\/]components[\\/]ui[\\/](icons[\\/]|icon\.tsx|icon-base\.tsx)/.test(id) },
+    },
   },
   server: {
     port: 5173,

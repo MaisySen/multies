@@ -1,6 +1,6 @@
 import { useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Bot, Inbox, Paperclip, User } from "lucide-react";
+import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconUser } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { useMailboxes } from "@/web/lib/queries";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -45,7 +45,7 @@ export function TeamInboxPage() {
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", selected && "hidden lg:block")}>
           {threads.isPending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
             : threads.error ? <p className="p-6 text-sm text-bad">{threads.error.message}</p>
-            : !threads.data.data.length ? <EmptyState icon={<Inbox />} title="No threads yet" body="Mail to your mailboxes and agent inboxes shows up here." />
+            : !threads.data.data.length ? <EmptyState icon={<IconInbox />} title="No threads yet" body="Mail to your mailboxes and agent inboxes shows up here." />
             : (
               <ul className="divide-y divide-line">
                 {threads.data.data.map((t) => (
@@ -58,7 +58,7 @@ export function TeamInboxPage() {
                       <div className="truncate text-sm">{t.subject || "(no subject)"}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
                         <span className="truncate font-mono text-subtle">{boxName(t.mailboxId)}</span>
-                        {t.agentsInvolved.map((a) => <Badge key={a.agentId} tone="brand"><Bot className="h-3 w-3" aria-hidden />{a.name ?? "Agent"}{t.lastSentBy.type === "agent" && t.lastSentBy.agentId === a.agentId ? " replied" : ""}</Badge>)}
+                        {t.agentsInvolved.map((a) => <Badge key={a.agentId} tone="brand"><IconAgent className="h-3 w-3" aria-hidden />{a.name ?? "Agent"}{t.lastSentBy.type === "agent" && t.lastSentBy.agentId === a.agentId ? " replied" : ""}</Badge>)}
                         {t.pendingApprovals > 0 && <Badge tone="warn">Reply waiting for approval</Badge>}
                         <AssigneeChip assignee={t.assignee} status={t.status} lastInboundAt={t.lastInboundAt} />
                         <NoteCount n={noteCounts[t.id]} />
@@ -70,7 +70,7 @@ export function TeamInboxPage() {
             )}
         </Card>
         <div className={cn("lg:sticky lg:top-6 lg:self-start", !selected && "hidden lg:block")}>
-          {selected ? <ThreadView id={selected} onBack={() => open(null)} /> : <Card><EmptyState icon={<Inbox />} title="Pick a thread" body="See every message, who wrote it, and what an agent wants to send next." /></Card>}
+          {selected ? <ThreadView id={selected} onBack={() => open(null)} /> : <Card><EmptyState icon={<IconInbox />} title="Pick a thread" body="See every message, who wrote it, and what an agent wants to send next." /></Card>}
         </div>
       </div>
     </>
@@ -85,7 +85,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
-        <button onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden" aria-label="Back to threads"><ArrowLeft className="h-4 w-4" /></button>
+        <button onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden" aria-label="Back to threads"><IconArrowLeft className="h-4 w-4" /></button>
         <h2 className="text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
         <ThreadAssignControls threadId={t.id} />
       </div>
@@ -94,8 +94,8 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
       {t.messages.map((m) => (
         <Card key={m.id} className={cn("p-4", m.sentBy.type === "agent" && "border-brand/40")}>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {m.sentBy.type === "agent" ? <Badge tone="brand"><Bot className="h-3 w-3" aria-hidden />{m.sentBy.name ?? "Agent"}</Badge>
-              : m.sentBy.type === "person" ? <Badge><User className="h-3 w-3" aria-hidden />Team</Badge> : null}
+            {m.sentBy.type === "agent" ? <Badge tone="brand"><IconAgent className="h-3 w-3" aria-hidden />{m.sentBy.name ?? "Agent"}</Badge>
+              : m.sentBy.type === "person" ? <Badge><IconUser className="h-3 w-3" aria-hidden />Team</Badge> : null}
             <span className="font-medium">{m.from.name ?? m.from.address}</span>
             <span className="text-xs text-subtle">to {m.to.map((x) => x.address).join(", ")}</span>
             <time className="ml-auto text-xs text-subtle" dateTime={m.date} title={fullDate(m.date)}>{mailDate(m.date)}</time>
@@ -104,7 +104,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
           {(m.codes.length > 0 || m.attachments.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-subtle">
               {m.codes.map((c) => <span key={c} className="rounded border border-line px-1.5 py-0.5 font-mono">code {c}</span>)}
-              {m.attachments.map((a) => <span key={a.id} className="inline-flex items-center gap-1"><Paperclip className="h-3 w-3" aria-hidden />{a.filename}</span>)}
+              {m.attachments.map((a) => <span key={a.id} className="inline-flex items-center gap-1"><IconAttachment className="h-3 w-3" aria-hidden />{a.filename}</span>)}
             </div>
           )}
         </Card>

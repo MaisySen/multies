@@ -1,7 +1,7 @@
 import { useMe } from "@/web/lib/queries";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, KeyRound, MonitorSmartphone, Plus, Trash2 } from "lucide-react";
+import { IconCheck, IconDevices, IconKey, IconPlus, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -51,7 +51,7 @@ function Connected({ access }: { access: MailAccess }) {
   if (mailboxes.isPending) return <Skeleton className="h-48" />;
   if (!mailboxes.data?.length) {
     return (
-      <EmptyState icon={<MonitorSmartphone className="h-5 w-5" />} title="No mailboxes yet"
+      <EmptyState icon={<IconDevices className="h-5 w-5" />} title="No mailboxes yet"
         body="Create a mailbox first. Then you can make an app password for it and add it to any mail app."
         action={<ButtonLink to="/app/mailboxes" size="sm">Go to mailboxes</ButtonLink>} />
     );
@@ -115,17 +115,17 @@ function AppPasswords({ mailboxId, address }: { mailboxId: string; address: stri
         {list.isPending ? <Skeleton className="h-12" /> : list.data?.length ? list.data.map((p) => (
           <div key={p.id} className="flex items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
             <div className="flex min-w-0 items-center gap-2.5">
-              <KeyRound className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+              <IconKey className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{p.name}</span>
               <code className="font-mono text-[12px] text-subtle">ends in {p.hint}</code>
             </div>
             <div className="flex shrink-0 items-center gap-3 text-xs text-subtle">
               <span>created {timeAgo(p.createdAt)}</span>
-              <button onClick={() => revoke.mutate(p.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke ${p.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
+              <button onClick={() => revoke.mutate(p.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke ${p.name}`}><IconTrash className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         )) : <p className="text-sm text-muted">No app passwords yet.</p>}
-        <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Create app password</Button>
+        <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Create app password</Button>
       </div>
 
       <Dialog open={open} onClose={() => setOpen(false)} title="New app password" description="Name it after the device or app, so you know which one to revoke later."
@@ -138,7 +138,7 @@ function AppPasswords({ mailboxId, address }: { mailboxId: string; address: stri
       </Dialog>
 
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Copy your app password" description="It is shown once. Paste it into your mail app as the password."
-        footer={<Button onClick={() => setCreated(null)}><Check className="h-4 w-4" />Done</Button>}>
+        footer={<Button onClick={() => setCreated(null)}><IconCheck className="h-4 w-4" />Done</Button>}>
         {created && (
           <div className="space-y-3 text-sm">
             <Row label="User name" value={created.username} />

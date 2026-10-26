@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRoomContext } from "@livekit/components-react";
 import { RoomEvent, Track, type RemoteTrack } from "livekit-client";
-import { Circle, Download, FileText, KeyRound, ListChecks, Mic, Square, Trash2 } from "lucide-react";
+import { IconChecklist, IconCircle, IconDocs, IconDownload, IconKey, IconMic, IconSquare, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -45,7 +45,7 @@ export function RecordSetupPrompt({ setup, compact }: { setup: Pick<RecordingSet
   const wrong = setup?.provider && setup.provider !== "openai" && setup.provider !== "groq";
   return (
     <div className={compact ? "" : "flex items-start gap-3"} data-testid="record-setup">
-      {!compact && <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
+      {!compact && <IconKey className="mt-0.5 h-4 w-4 shrink-0 text-muted" />}
       <div className="min-w-0 flex-1 text-[13px]">
         {wrong && <p className="mb-1 text-muted">{setup?.providerName} keys can't transcribe audio.</p>}
         <p className="text-fg">{SETUP_TEXT}</p>
@@ -174,7 +174,7 @@ export function RecordingLayer({ join }: { join: unknown }) {
       <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-2 px-3">
         {signal && (
           <div role="status" className="pointer-events-auto flex items-center gap-2 rounded-full bg-[#d70015] px-3 py-1.5 text-[12.5px] font-medium text-white shadow-lg" data-testid="recording-banner">
-            <Circle className="h-2.5 w-2.5 animate-pulse fill-current" />
+            <IconCircle filled className="h-2.5 w-2.5 animate-pulse" />
             Recording
             <span className="font-normal text-white/85">started by {mine ? "you" : signal.by}{mine ? ` · ${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}` : ""}</span>
           </div>
@@ -182,9 +182,9 @@ export function RecordingLayer({ join }: { join: unknown }) {
         {meetingId && (
           <div className="pointer-events-auto flex items-center gap-2">
             {mine
-              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} data-testid="record-stop"><Square className="h-3.5 w-3.5 fill-current" />Stop recording</Button>
-              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => void start()} data-testid="record-start"><Mic className="h-3.5 w-3.5" />Record</Button>}
-            {download && !mine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><Download className="h-4 w-4" />Download audio</a>}
+              ? <Button size="sm" variant="danger" loading={busy} onClick={() => void stop()} data-testid="record-stop"><IconSquare filled className="h-3.5 w-3.5" />Stop recording</Button>
+              : !signal && <Button size="sm" variant="secondary" loading={busy} onClick={() => void start()} data-testid="record-start"><IconMic className="h-3.5 w-3.5" />Record</Button>}
+            {download && !mine && <a href={download} download="call-audio.webm" className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/90 px-3 text-[13px] font-medium text-fg shadow"><IconDownload className="h-4 w-4" />Download audio</a>}
           </div>
         )}
         {mine && <p className="rounded-md bg-black/60 px-2 py-1 text-[12px] text-white" data-testid="record-consent">{CONSENT_TEXT}</p>}
@@ -222,7 +222,7 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
     <Card className="mt-4 p-5" data-testid="recording-section">
       {dialogs}
       <div className="flex items-center gap-2">
-        <FileText className="h-4 w-4 text-muted" />
+        <IconDocs className="h-4 w-4 text-muted" />
         <h2 className="text-[13px] font-semibold">Recording and transcript</h2>
       </div>
       {!data ? <SkeletonRows rows={2} rowHeight={40} label="Loading recording" className="mt-2" /> : (
@@ -239,13 +239,13 @@ export function RecordingSection({ meetingId }: { meetingId: string }) {
                   <span className="text-muted">· {duration(r.durationSec)} · recorded by {r.startedBy.name}</span>
                   <span className="ml-auto flex gap-1">
                     {r.status === "recording" && r.stale && <Button size="sm" variant="secondary" onClick={() => void finish(r)}>Finish and summarise</Button>}
-                    <Button size="sm" variant="ghost" aria-label="Delete recording" onClick={() => void remove(r)} data-testid="recording-delete"><Trash2 className="h-4 w-4" /></Button>
+                    <Button size="sm" variant="ghost" aria-label="Delete recording" onClick={() => void remove(r)} data-testid="recording-delete"><IconTrash className="h-4 w-4" /></Button>
                   </span>
                 </div>
                 {r.summary && <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed" data-testid="recording-summary">{r.summary}</p>}
                 {r.actionItems.length > 0 && (
                   <div className="mt-3">
-                    <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><ListChecks className="h-3.5 w-3.5" />Action items</h3>
+                    <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconChecklist className="h-3.5 w-3.5" />Action items</h3>
                     <ul className="mt-1.5 space-y-1 text-[13px]">
                       {r.actionItems.map((a, i) => <li key={i} className="flex gap-2"><span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand" /><span>{a.text}{(a.assignee || a.due) && <span className="text-muted"> · {[a.assignee, a.due && `due ${a.due}`].filter(Boolean).join(", ")}</span>}</span></li>)}
                     </ul>

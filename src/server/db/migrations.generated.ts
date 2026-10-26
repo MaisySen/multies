@@ -780,5 +780,15 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     "statements": [
       "-- R34 (MB-171): operator override for call participant-minutes a month per workspace. Null means the plan's rule\n-- (free: 1,000; paid: no cap). Usage itself lives in usage_counters (metric meeting_participant_minutes), one upsert per call end.\nALTER TABLE `organizations` ADD `meeting_minutes_cap` integer;"
     ]
+  },
+  {
+    "name": "0078_r35_reports_blocks",
+    "statements": [
+      "-- R35 (Apple 1.2, user generated content): reports of chat messages and people, and per person blocks.\n-- content_reports: one row per report (essential write). The message text and author are copied at report time,\n-- so an edit or delete afterwards does not change what the operator reviews.\nCREATE TABLE `content_reports` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`reporter_user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`org_id` text,\n\t`target_type` text NOT NULL,\n\t`message_id` text,\n\t`target_user_id` text,\n\t`context` text,\n\t`reason` text NOT NULL,\n\t`note` text,\n\t`snapshot_text` text,\n\t`snapshot_author_id` text,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`action` text DEFAULT 'none' NOT NULL,\n\t`resolution_note` text,\n\t`resolved_by` text,\n\t`resolved_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `content_reports_status_idx` ON `content_reports` (`status`,`created_at`);",
+      "CREATE INDEX `content_reports_reporter_idx` ON `content_reports` (`reporter_user_id`,`created_at`);",
+      "-- user_blocks: A (blocker) blocked B (blocked), across every workspace they share.\nCREATE TABLE `user_blocks` (\n\t`blocker_user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`blocked_user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`blocker_user_id`, `blocked_user_id`)\n);",
+      "CREATE INDEX `user_blocks_blocked_idx` ON `user_blocks` (`blocked_user_id`);"
+    ]
   }
 ];

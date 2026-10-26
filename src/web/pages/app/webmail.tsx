@@ -1,10 +1,10 @@
+import { InboxZeroArt } from "@/web/components/illustrations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { applyMailAction, type MailAction, type MailListData } from "@/web/lib/optimistic-mail"; // R30
-import {
-  Archive, ArrowLeft, Ban, Bot, Sparkles, File, FileEdit, FolderInput, Forward, Inbox, Paperclip, PenSquare, Reply, Search, Send, ShieldCheck, ShieldAlert, Star, Trash2, X,
-} from "lucide-react";
+import { SwipeRow } from "@/web/components/ui/swipe-row";
+import { IconAgent, IconArchive, IconArrowLeft, IconAttachment, IconBlock, IconClose, IconCompose, IconFile, IconFileEdit, IconForward, IconInbox, IconMove, IconReply, IconSearch, IconSend, IconShieldAlert, IconShieldCheck, IconSparkle, IconStar, IconTrash, type IconComponent, IconSnooze } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
@@ -37,14 +37,14 @@ import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
-const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
-  { id: "inbox", label: "Inbox", icon: Inbox },
-  { id: "starred", label: "Starred", icon: Star },
-  { id: "sent", label: "Sent", icon: Send },
-  { id: "drafts", label: "Drafts", icon: FileEdit },
-  { id: "archive", label: "Archive", icon: Archive },
-  { id: "spam", label: "Spam", icon: Ban },
-  { id: "trash", label: "Trash", icon: Trash2 },
+const FOLDER_UI: { id: View; label: string; icon: IconComponent }[] = [
+  { id: "inbox", label: "Inbox", icon: IconInbox },
+  { id: "starred", label: "Starred", icon: IconStar },
+  { id: "sent", label: "Sent", icon: IconSend },
+  { id: "drafts", label: "Drafts", icon: IconFileEdit },
+  { id: "archive", label: "Archive", icon: IconArchive },
+  { id: "spam", label: "Spam", icon: IconBlock },
+  { id: "trash", label: "Trash", icon: IconTrash },
 ];
 
 export function WebmailPage() {
@@ -217,6 +217,14 @@ export function WebmailPage() {
     if (selected && ids.includes(selected) && ["archive", "inbox", "spam", "trash", "delete", "move", "snooze"].includes(call.action) && call.action !== folder) open(null);
     ops.run({ kind: "ids", call, plan, apply: (c) => act.mutateAsync({ ...c, quiet: true }), folderLabel }, { action: call.action, count: ids.length, folderLabel: call.action === "snooze" && call.preset ? SNOOZE_WORDS[call.preset] : folderLabel });
   };
+  // R35: one row swiped on a phone. The same undoable path as a bulk action on one id, so the toast offers Undo.
+  const swipeAct = (id: string, action: "archive" | "snooze") => {
+    const partial = (action === "snooze" ? { action: "snooze", preset: "tomorrow" } : { action: folder === "archive" ? "inbox" : "archive" }) as Omit<BulkCall, "ids">;
+    const call = { ...partial, ids: [id] } as BulkCall;
+    const plan = undoPlan(call, items);
+    if (selected === id) open(null);
+    ops.run({ kind: "ids", call, plan, apply: (c) => act.mutateAsync({ ...c, quiet: true }) }, { action: call.action, count: 1, folderLabel: action === "snooze" ? SNOOZE_WORDS.tomorrow : undefined });
+  };
   const toggleRow = (id: string, shift: boolean) => {
     // R33: with everything chosen, a click unticks (or ticks back) one row; the job leaves unticked rows alone.
     if (everything) { setEverything(everything.includes(id) ? everything.filter((x) => x !== id) : [...everything, id]); return; }
@@ -370,7 +378,7 @@ export function WebmailPage() {
   if (!mailboxes.length) {
     return (
       <div className="grid h-full place-items-center p-6">
-        <EmptyState icon={<Inbox />} title="No mailboxes yet" body="Create a mailbox on one of your domains and its mail will show up here." action={<ButtonLink to="/app/mailboxes">Create a mailbox</ButtonLink>} />
+        <EmptyState icon={<IconInbox />} title="No mailboxes yet" body="Create a mailbox on one of your domains and its mail will show up here." action={<ButtonLink to="/app/mailboxes">Create a mailbox</ButtonLink>} />
       </div>
     );
   }
@@ -382,7 +390,7 @@ export function WebmailPage() {
       <h1 className="sr-only">Mail</h1>
       <aside aria-label="Mailboxes and folders" className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface/50 md:flex xl:w-60">
         <div className="p-3">
-          <Button className="w-full" onClick={() => startCompose()}><PenSquare className="h-4 w-4" />Compose</Button>
+          <Button className="w-full" onClick={() => startCompose()}><IconCompose className="h-4 w-4" />Compose</Button>
           <button onClick={() => setInvoiceOpen(true)} className="mt-2 w-full rounded-lg px-2 py-1.5 text-left text-[13px] text-muted hover:bg-hover hover:text-fg">Chase an unpaid invoice</button>
         </div>
         <div className="px-3">
@@ -427,12 +435,12 @@ export function WebmailPage() {
             {SCHEDULE_VIEWS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
           </Select>
           <form className="relative flex-1" role="search" onSubmit={(e) => { e.preventDefault(); setParam({ q: search.trim() || null, m: null }); }}>
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
+            <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
             <input ref={searchRef} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search mail" aria-label="Search mail"
               className="h-9 w-full rounded-lg border border-line bg-surface pl-8 pr-8 text-[13px] outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-subtle focus:border-brand/60 focus:ring-4 focus:ring-brand/10 max-sm:h-11 max-sm:text-base" />
-            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear search"><X className="h-3.5 w-3.5" /></button>}
+            {q && <button type="button" onClick={() => setParam({ q: null })} className="absolute right-1 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-9 max-sm:w-9" aria-label="Clear search"><IconClose className="h-3.5 w-3.5" /></button>}
           </form>
-          <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand/90 md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><PenSquare className="h-4 w-4" /></button>
+          <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand/90 md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><IconCompose className="h-4 w-4" /></button>
         </div>
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} />}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
@@ -447,14 +455,15 @@ export function WebmailPage() {
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
-              <EmptyState icon={q ? <Search /> : <Inbox />} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : "Nothing here"}
+              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={!q && folder === "inbox" ? <InboxZeroArt /> : undefined} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : "Nothing here"}
                 body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : "Messages you move here will show up in this folder."} />
             ) : (
               <ul>
                 {items.map((m) => <ListRow key={m.id} m={m} active={m.id === selected} folder={folder}
                   checked={everything ? !everything.includes(m.id) : sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
-                  onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })} />)}
+                  onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })}
+                  onSwipe={hasSel ? undefined : (action) => swipeAct(m.id, action)} />)}
               </ul>
             )}
           {list.hasNextPage && <div className="p-3"><Button variant="ghost" className="w-full" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Load more</Button></div>}
@@ -470,7 +479,7 @@ export function WebmailPage() {
             onCompose={startCompose} onStar={(m) => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })} />
         ) : (
           <div className="grid flex-1 place-items-center p-6 text-center">
-            <div><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border border-line bg-elevated text-subtle"><Inbox className="h-5 w-5" /></div>
+            <div><div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border border-line bg-elevated text-subtle"><IconInbox className="h-5 w-5" /></div>
               <p className="text-sm text-muted">Select a message to read</p>
               <p className="mt-2 text-xs text-subtle">Press <Kbd>j</Kbd> to open the first one</p></div>
           </div>
@@ -498,10 +507,13 @@ export function WebmailPage() {
   }
 }
 
-function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onCheck }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void }) {
+function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
     <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row">
+      <SwipeRow disabled={!onSwipe || selecting} testId="mail-swipe"
+        left={onSwipe && folder !== "archive" ? { label: "Archive", icon: IconArchive, tone: "blue", onCommit: () => onSwipe("archive") } : undefined}
+        right={onSwipe && folder !== "snoozed" && folder !== "sent" && folder !== "drafts" ? { label: "Snooze", icon: IconSnooze, tone: "orange", onCommit: () => onSwipe("snooze") } : undefined}>
       <RowCheck checked={checked} visible={selecting} label={`Select ${m.subject || "(no subject)"}`} onToggle={onCheck} />
       <button onClick={(e) => { if (e.shiftKey || e.metaKey || e.ctrlKey) { e.preventDefault(); onCheck(e.shiftKey); return; } onOpen(); }} className="block w-full py-3 pl-9 pr-10 text-left" aria-current={active || undefined}>
         <div className="flex items-baseline gap-2">
@@ -510,15 +522,16 @@ function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onChec
           <time className="shrink-0 text-[11.5px] text-subtle" dateTime={m.date}>{mailDate(m.date)}</time>
         </div>
         <div className={cn("mt-0.5 flex items-center gap-1.5 truncate text-[13px]", m.isRead ? "text-muted" : "text-fg/90")}>
-          {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><Bot className="h-3 w-3" aria-hidden />Agent</span>}
-          {m.hasAttachments && <Paperclip className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
+          {m.sentByAgentId && <span className="inline-flex shrink-0 items-center gap-0.5 rounded border border-brand/40 px-1 text-[11px] text-brand-hover"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}
+          {m.hasAttachments && <IconAttachment className="h-3 w-3 shrink-0 text-subtle" />}<span className="truncate">{m.subject || "(no subject)"}</span>
         </div>
         <div className="mt-0.5 truncate text-[12.5px] text-subtle">{m.snippet || "\u00a0"}</div>
         {folder === "sent" && <ReadStatusLine status={(m as { readStatus?: ReadStatus | null }).readStatus} className="mt-1" />}
       </button>
       <button onClick={onStar} data-testid="mail-star" className={cn("absolute right-0 top-1 inline-flex h-10 w-10 items-center justify-center rounded-lg transition-opacity", m.isStarred ? "text-warn opacity-100" : "text-subtle opacity-0 hover:text-fg focus:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100")} aria-label={m.isStarred ? "Unstar" : "Star"} aria-pressed={m.isStarred}>
-        <Star className={cn("h-4 w-4", m.isStarred && "fill-current")} />
+        <IconStar filled={m.isStarred} className="h-4 w-4" />
       </button>
+      </SwipeRow>
     </li>
   );
 }
@@ -573,18 +586,18 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   return (
     <div className="flex min-w-0 flex-1 flex-col">
       <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:gap-0.5 max-sm:px-2">
-        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:h-10 max-sm:w-10" aria-label="Back to list"><ArrowLeft className="h-[18px] w-[18px]" /></button>
+        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:h-10 max-sm:w-10" aria-label="Back to list"><IconArrowLeft className="h-[18px] w-[18px]" /></button>
         {m.folder !== "sent" && m.folder !== "drafts" && <>
           <SnoozeMenu messageId={m.id} onDone={onBack} />
-          <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><Archive /></IconBtn>
-          <IconBtn label={m.folder === "spam" ? "Not spam" : "Report spam"} onClick={() => onMove(m.folder === "spam" ? "inbox" : "spam")}><Ban /></IconBtn>
+          <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><IconArchive /></IconBtn>
+          <IconBtn label={m.folder === "spam" ? "Not spam" : "Report spam"} onClick={() => onMove(m.folder === "spam" ? "inbox" : "spam")}><IconBlock /></IconBtn>
         </>}
-        <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><Trash2 /></IconBtn>
+        <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><IconTrash /></IconBtn>
         {m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
-        <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><Star className={cn(m.isStarred && "fill-current")} /></IconBtn>
+        <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><IconStar filled={m.isStarred} /></IconBtn>
         <div className="ml-auto flex gap-1">
-          <IconBtn label="Reply" onClick={() => reply(false)}><Reply /></IconBtn>
-          <IconBtn label="Forward" onClick={forward}><Forward /></IconBtn>
+          <IconBtn label="Reply" onClick={() => reply(false)}><IconReply /></IconBtn>
+          <IconBtn label="Forward" onClick={forward}><IconForward /></IconBtn>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -597,9 +610,9 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}
           </div>
           <div className="mt-6 flex gap-2">
-            <Button variant="secondary" onClick={() => reply(false)}><Reply className="h-4 w-4" />Reply</Button>
+            <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />Reply</Button>
             {(last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>Reply all</Button>}
-            <Button variant="ghost" onClick={forward}><Forward className="h-4 w-4" />Forward</Button>
+            <Button variant="ghost" onClick={forward}><IconForward className="h-4 w-4" />Forward</Button>
           </div>
         </div>
       </div>
@@ -619,7 +632,7 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   if (!status.data.connected) {
     return (
       <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
-        <Sparkles className="h-4 w-4 text-brand-hover" aria-hidden />
+        <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />
         <span>{BYO_AI_LINE}</span>
         <span className="ml-auto flex gap-2">
           <ButtonLink size="sm" variant="secondary" to="/agents#mcp">MCP setup</ButtonLink>
@@ -631,7 +644,7 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   return (
     <section aria-label="Assistant" className="mt-4 rounded-xl border border-line bg-elevated/60 p-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Sparkles className="h-4 w-4 text-brand-hover" aria-hidden />
+        <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />
         <Button size="sm" variant="secondary" loading={summary.isPending} onClick={() => summary.mutate()}>Summarise</Button>
         <Button size="sm" variant="secondary" loading={draft.isPending} onClick={() => draft.mutate()}>Draft a reply</Button>
         <Button size="sm" variant="ghost" loading={triage.isPending} onClick={() => triage.mutate()}>Sort it</Button>
@@ -669,8 +682,8 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {authOk && <span title="SPF, DKIM and DMARC passed"><ShieldCheck className="h-4 w-4 text-ok" aria-label="Sender verified" /></span>}
-          {authBad && <span title="Sender authentication failed"><ShieldAlert className="h-4 w-4 text-bad" aria-label="Sender not verified" /></span>}
+          {authOk && <span title="SPF, DKIM and DMARC passed"><IconShieldCheck className="h-4 w-4 text-ok" aria-label="Sender verified" /></span>}
+          {authBad && <span title="Sender authentication failed"><IconShieldAlert className="h-4 w-4 text-bad" aria-label="Sender not verified" /></span>}
           <time className="text-xs text-subtle" dateTime={m.date}>{fullDate(m.date)}</time>
         </div>
       </button>
@@ -684,7 +697,7 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
                 <a key={a.id} href={a.available ? `/api/mail/attachments/${a.id}` : undefined} download={a.filename} aria-disabled={!a.available}
                   className={cn("flex items-center gap-2.5 rounded-lg border border-line bg-elevated px-3 py-2 text-xs", a.available ? "hover:border-line-strong" : "cursor-not-allowed opacity-60")}
                   title={a.available ? `Download ${a.filename}` : "Too large to store inline"}>
-                  <File className="h-4 w-4 text-subtle" /><span className="max-w-48 truncate font-medium">{a.filename}</span><span className="text-subtle">{formatBytes(a.sizeBytes)}</span>
+                  <IconFile className="h-4 w-4 text-subtle" /><span className="max-w-48 truncate font-medium">{a.filename}</span><span className="text-subtle">{formatBytes(a.sizeBytes)}</span>
                 </a>
               ))}
             </div>
@@ -703,7 +716,7 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
   if (!connectionId || !targets.length) return null;
   return (
     <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Move to folder">
-      <FolderInput className="h-4 w-4" aria-hidden />
+      <IconMove className="h-4 w-4" aria-hidden />
       <select aria-label="Move to folder" value="" data-testid="move-to"
         onChange={(e) => { const to = e.target.value; if (!to) return; if (to.startsWith("f:")) onMoveTo(m, to); else onMove(to); }}
         className="absolute inset-0 cursor-pointer opacity-0">

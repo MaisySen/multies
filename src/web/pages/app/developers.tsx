@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, BookOpen, Check, KeyRound, Plus, Send, Trash2, Webhook as WebhookIcon } from "lucide-react";
+import { IconAgent, IconBook, IconCheck, IconKey, IconPlus, IconSend, IconTrash, IconWebhook } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -30,7 +30,7 @@ export function DeveloperSettings() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-elevated px-4 py-3 text-sm">
         <span className="text-muted">REST API for domains, mailboxes, aliases and mail, with an OpenAPI spec.</span>
-        <a href="/api/v1/reference" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><BookOpen className="h-4 w-4" />API reference</a>
+        <a href="/api/v1/reference" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-brand hover:underline"><IconBook className="h-4 w-4" />API reference</a>
       </div>
       <ConnectedApps />
       <ApiKeys />
@@ -60,18 +60,18 @@ function ApiKeys() {
         {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.length ? keys.data.map((k) => (
           <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
             <div className="flex min-w-0 items-center gap-2.5">
-              <KeyRound className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+              <IconKey className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{k.name}</span>
               <code className="font-mono text-[12px] text-subtle">{k.prefix}...</code>
               {k.scope === "read" && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">read only</span>}
             </div>
             <div className="flex items-center gap-3 text-xs text-subtle">
               <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
-              <button onClick={() => del.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Delete key ${k.name}`}><Trash2 className="h-3.5 w-3.5" /></button>
+              <button onClick={() => del.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Delete key ${k.name}`}><IconTrash className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         )) : <p className="text-sm text-muted">No API keys yet.</p>}
-        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Create API key</Button>
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Create API key</Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New API key"
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!name.trim()} onClick={() => create.mutate()}>Create</Button></>}>
@@ -85,7 +85,7 @@ function ApiKeys() {
         </form>
       </Dialog>
       <Dialog open={!!secret} onClose={() => setSecret(null)} title="Copy your API key" description="It is shown once. Store it in your app's secret settings."
-        footer={<Button onClick={() => setSecret(null)}><Check className="h-4 w-4" />Done</Button>}>
+        footer={<Button onClick={() => setSecret(null)}><IconCheck className="h-4 w-4" />Done</Button>}>
         {secret && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 rounded-lg border border-line bg-bg/60 px-3 py-2"><code className="min-w-0 flex-1 break-all font-mono text-[12.5px]">{secret}</code><CopyButton value={secret} /></div>
@@ -114,7 +114,7 @@ function Webhooks() {
     <Section title="Webhooks" description="We POST events to your URL, signed with the Standard Webhooks spec. Failed deliveries retry for about nine hours, then wait in the log for you to replay them.">
       <div>
         {endpoints.isPending ? <Skeleton className="h-12" /> : endpoints.data?.length ? endpoints.data.map((e) => <EndpointRow key={e.id} e={e} />) : <p className="text-sm text-muted">No endpoints yet.</p>}
-        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Add endpoint</Button>
+        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add endpoint</Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New webhook endpoint"
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!url.trim() || !picked.length} onClick={() => create.mutate()}>Add endpoint</Button></>}>
@@ -136,7 +136,7 @@ function Webhooks() {
         </div>
       </Dialog>
       <Dialog open={!!secret} onClose={() => setSecret(null)} title="Signing secret" description="Verify each request with this secret and any Standard Webhooks library. You can see it again from the endpoint."
-        footer={<Button onClick={() => setSecret(null)}><Check className="h-4 w-4" />Done</Button>}>
+        footer={<Button onClick={() => setSecret(null)}><IconCheck className="h-4 w-4" />Done</Button>}>
         {secret && <div className="flex items-center gap-2 rounded-lg border border-line bg-bg/60 px-3 py-2"><code className="min-w-0 flex-1 break-all font-mono text-[12.5px]">{secret}</code><CopyButton value={secret} /></div>}
       </Dialog>
     </Section>
@@ -163,14 +163,14 @@ function EndpointRow({ e }: { e: Endpoint }) {
     <div className="border-b border-line last:border-b-0">
       <div className="flex flex-wrap items-center justify-between gap-3 py-2">
         <button className="flex min-w-0 items-center gap-2.5 text-left" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
-          <WebhookIcon className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+          <IconWebhook className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
           <span className="truncate font-mono text-[12.5px]">{e.url}</span>
           {!e.enabled && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">paused</span>}
         </button>
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" loading={test.isPending} onClick={() => test.mutate()}><Send className="h-3.5 w-3.5" />Send test</Button>
+          <Button size="sm" variant="ghost" loading={test.isPending} onClick={() => test.mutate()}><IconSend className="h-3.5 w-3.5" />Send test</Button>
           <Button size="sm" variant="ghost" onClick={() => toggle.mutate()}>{e.enabled ? "Pause" : "Resume"}</Button>
-          <button onClick={() => del.mutate()} className="rounded p-1.5 text-subtle hover:bg-hover hover:text-bad" aria-label={`Delete endpoint ${e.url}`}><Trash2 className="h-3.5 w-3.5" /></button>
+          <button onClick={() => del.mutate()} className="rounded p-1.5 text-subtle hover:bg-hover hover:text-bad" aria-label={`Delete endpoint ${e.url}`}><IconTrash className="h-3.5 w-3.5" /></button>
         </div>
       </div>
       {expanded && (
@@ -231,7 +231,7 @@ function ConnectedApps() {
         {grants.isPending ? <Skeleton className="h-12" /> : grants.data?.length ? grants.data.map((g) => (
           <div key={g.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
             <div className="flex min-w-0 items-center gap-2.5">
-              <Bot className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+              <IconAgent className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{g.client}</span>
               {!g.mine && <span className="truncate text-xs text-muted">{g.user.name || g.user.email}</span>}
               {g.scope === "read" && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">read only</span>}

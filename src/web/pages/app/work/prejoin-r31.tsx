@@ -7,7 +7,7 @@
  * takes the devices.
  */
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Mic, MicOff, Users, Video, VideoOff, Volume2 } from "lucide-react";
+import { IconMic, IconMicOff, IconTeam, IconVideo, IconVideoOff, IconVolume, type IconComponent } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
@@ -161,7 +161,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const toggle = (on: boolean, label: string, onIcon: typeof Mic, offIcon: typeof Mic, flip: () => void, testId: string) => {
+  const toggle = (on: boolean, label: string, onIcon: IconComponent, offIcon: IconComponent, flip: () => void, testId: string) => {
     const Icon = on ? onIcon : offIcon;
     return (
       <button type="button" onClick={flip} aria-pressed={on} aria-label={`${label} ${on ? "on" : "off"}`} data-testid={testId}
@@ -183,13 +183,13 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
             className={cn("h-full w-full -scale-x-100 object-cover", (!prefs.cam || blocked) && "invisible")} />
           {(!prefs.cam || blocked) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/80">
-              <VideoOff className="h-6 w-6" aria-hidden />
+              <IconVideoOff className="h-6 w-6" aria-hidden />
               <span className="text-[12.5px]">{blocked ? "Camera unavailable" : "Camera is off"}</span>
             </div>
           )}
           <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-3">
-            {toggle(prefs.mic, "Microphone", Mic, MicOff, () => set({ mic: !prefs.mic }), "prejoin-mic")}
-            {toggle(prefs.cam, "Camera", Video, VideoOff, () => set({ cam: !prefs.cam }), "prejoin-cam")}
+            {toggle(prefs.mic, "Microphone", IconMic, IconMicOff, () => set({ mic: !prefs.mic }), "prejoin-mic")}
+            {toggle(prefs.cam, "Camera", IconVideo, IconVideoOff, () => set({ cam: !prefs.cam }), "prejoin-cam")}
           </div>
           {prefs.mic && !blocked && (
             <div className="absolute left-3 top-3 flex h-6 items-end gap-0.5 rounded-md bg-black/40 px-1.5 py-1" role="meter" aria-label="Microphone level" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(level * 100)} data-testid="prejoin-meter">
@@ -224,7 +224,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
                 <Select id={`${ids}-spk`} className="min-w-0 flex-1" value={pickDevice(speakers, prefs.speakerDeviceId) ?? ""} onChange={(e) => set({ speakerDeviceId: e.target.value })} disabled={!speakers.length} data-testid="prejoin-speaker-select">
                   {speakers.length ? speakers.map((d, i) => <option key={d.deviceId || i} value={d.deviceId}>{deviceLabel(d, i)}</option>) : <option value="">System default</option>}
                 </Select>
-                <Button variant="secondary" onClick={() => void playTone(prefs.speakerDeviceId)} aria-label="Test speaker" data-testid="prejoin-test-speaker"><Volume2 className="h-4 w-4" aria-hidden />Test</Button>
+                <Button variant="secondary" onClick={() => void playTone(prefs.speakerDeviceId)} aria-label="Test speaker" data-testid="prejoin-test-speaker"><IconVolume className="h-4 w-4" aria-hidden />Test</Button>
               </div>
             </>
           )}
@@ -248,14 +248,14 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
           )}
           {inCall && (
             <p className="flex items-start gap-1.5 text-[12.5px] text-muted" data-testid="prejoin-in-call">
-              <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <IconTeam className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
               <span>{hereText(inCall, inCallCount ?? inCall.length)}</span>
             </p>
           )}
           <div className={cn("mt-auto flex gap-2", compact && "justify-end")}>
             {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
             <Button type="submit" size={compact ? "md" : "lg"} className={compact ? "" : "flex-1"} loading={busy} disabled={!nameOk} autoFocus={who.mode === "member"} data-testid="prejoin-join">
-              <Video className="h-4 w-4" aria-hidden />{joinLabel}
+              <IconVideo className="h-4 w-4" aria-hidden />{joinLabel}
             </Button>
           </div>
           {!compact && <p className="text-[11.5px] text-subtle">{footnote}</p>}

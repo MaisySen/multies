@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, FileText, PenLine, UserRoundCheck } from "lucide-react";
+import { IconDocs, IconEye, IconPenLine, IconUserRoundCheck } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { useMailboxes } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
@@ -55,19 +55,19 @@ export function PresenceBar({ view }: { view: PresenceView }) {
             {people.slice(0, 4).map((p) => (
               <span key={p.userId} title={`${p.name}: ${p.state}`} className="relative">
                 <Avatar label={initials(p.name)} className="h-6 w-6 text-[10px] ring-2 ring-surface" />
-                {p.state === "replying" && <span className="absolute -bottom-0.5 -right-0.5 grid h-3 w-3 place-items-center rounded-full bg-warn text-white ring-1 ring-surface"><PenLine className="h-2 w-2" aria-hidden /></span>}
+                {p.state === "replying" && <span className="absolute -bottom-0.5 -right-0.5 grid h-3 w-3 place-items-center rounded-full bg-warn text-white ring-1 ring-surface"><IconPenLine className="h-2 w-2" aria-hidden /></span>}
               </span>
             ))}
           </div>
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-            {replying && <span className="inline-flex items-center gap-1 font-medium"><PenLine className="h-3.5 w-3.5" aria-hidden />{replying}</span>}
-            {viewing && <span className={cn("inline-flex items-center gap-1", replying && "text-muted")}><Eye className="h-3.5 w-3.5" aria-hidden />{viewing}</span>}
+            {replying && <span className="inline-flex items-center gap-1 font-medium"><IconPenLine className="h-3.5 w-3.5" aria-hidden />{replying}</span>}
+            {viewing && <span className={cn("inline-flex items-center gap-1", replying && "text-muted")}><IconEye className="h-3.5 w-3.5" aria-hidden />{viewing}</span>}
           </span>
         </div>
       )}
       {notes.map((n) => (
         <div key={n.draftId} role="status" data-testid="presence-note" className="flex items-center gap-2 rounded-xl border border-brand/25 bg-brand-soft px-3 py-2 text-[13px] text-brand-hover">
-          <UserRoundCheck className="h-4 w-4 shrink-0" aria-hidden />
+          <IconUserRoundCheck className="h-4 w-4 shrink-0" aria-hidden />
           <span>{firstName(n.byName)} took over your draft on {n.subject}</span>
         </div>
       ))}
@@ -105,7 +105,7 @@ function ThreadDrafts({ threadId }: { threadId: string }) {
         <Card className="divide-y divide-line" data-testid="thread-drafts">
           {list.map((d) => (
             <div key={d.id} data-testid="thread-draft" className="flex items-start gap-3 px-4 py-3">
-              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-fill text-muted"><FileText className="h-3.5 w-3.5" aria-hidden /></span>
+              <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconDocs className="h-3.5 w-3.5" aria-hidden /></span>
               <div className="min-w-0 flex-1">
                 <p className="text-[13px] font-medium">
                   {d.mine ? "Your draft" : `Draft by ${d.author ? firstName(d.author.name) : "a teammate"}`}

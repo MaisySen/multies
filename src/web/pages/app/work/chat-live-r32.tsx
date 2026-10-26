@@ -2,7 +2,7 @@
  * Round 32: the line above the chat composer. "Maya is typing" while someone types, and a quiet
  * "Reconnecting" only when the live connection dropped (chat keeps working by polling meanwhile).
  */
-import { RefreshCw } from "lucide-react";
+import { IconRefresh } from "@/web/components/ui/icon";
 import { typingText, useTyping, type TypingStore } from "@/web/lib/live-chat";
 
 export function ChatLiveLine({ store, channelId, degraded }: { store: TypingStore; channelId: string; degraded: boolean }) {
@@ -15,7 +15,7 @@ export function ChatLiveLine({ store, channelId, degraded }: { store: TypingStor
       </span>
       {degraded && (
         <span role="status" data-testid="chat-reconnecting" className="ml-auto inline-flex items-center gap-1 rounded-full bg-hover px-2 py-0.5 text-[11.5px] text-muted">
-          <RefreshCw className="h-3 w-3 motion-safe:animate-spin" aria-hidden />Reconnecting
+          <IconRefresh className="h-3 w-3 motion-safe:animate-spin" aria-hidden />Reconnecting
         </span>
       )}
     </div>

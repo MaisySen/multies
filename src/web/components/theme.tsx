@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Toaster } from "sonner";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { IconMonitor, IconMoon, IconToday, type IconComponent } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 
 export type Appearance = "system" | "light" | "dark";
@@ -63,10 +63,10 @@ export function ThemedToaster() {
   );
 }
 
-const OPTIONS: { id: Appearance; label: string; Icon: typeof Sun }[] = [
-  { id: "system", label: "System", Icon: Monitor },
-  { id: "light", label: "Light", Icon: Sun },
-  { id: "dark", label: "Dark", Icon: Moon },
+const OPTIONS: { id: Appearance; label: string; Icon: IconComponent }[] = [
+  { id: "system", label: "System", Icon: IconMonitor },
+  { id: "light", label: "Light", Icon: IconToday },
+  { id: "dark", label: "Dark", Icon: IconMoon },
 ];
 
 /** A segmented control for System, Light and Dark. */

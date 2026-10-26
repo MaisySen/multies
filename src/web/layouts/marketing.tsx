@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
-import { Cookie, Menu as MenuIcon, X } from "lucide-react";
+import { IconClose, IconCookie, IconMenu } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { LegalLine } from "@/web/components/legal-line";
 import { MarketingBottom } from "@/web/components/marketing-bottom";
@@ -54,7 +54,7 @@ export function MarketingLayout() {
             )}
           </div>
           <button className="rounded-md p-2 text-muted hover:text-fg md:hidden" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={open ? "Close menu" : "Open menu"}>
-            {open ? <X className="h-5 w-5" /> : <MenuIcon className="h-5 w-5" />}
+            {open ? <IconClose className="h-5 w-5" /> : <IconMenu className="h-5 w-5" />}
           </button>
         </nav>
         {open && (
@@ -119,7 +119,7 @@ export function MarketingLayout() {
             <span>© {new Date().getFullYear()} Multies. Built for small businesses and startups that own their domain.</span>
             <LegalLine />
           </span>
-          <span data-testid="cookie-notice"><Cookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
+          <span data-testid="cookie-notice"><IconCookie className="mr-1 inline h-3.5 w-3.5 align-[-2px]" aria-hidden />We use only essential cookies, to keep you signed in. No tracking or advertising cookies. <Link to="/privacy" className="underline underline-offset-2 hover:text-fg">Privacy</Link></span>
         </div>
       </footer>
       <MarketingBottom />

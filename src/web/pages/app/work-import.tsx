@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, FileUp, ListChecks } from "lucide-react";
+import { IconArrowRight, IconChecklist, IconFileUp } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { Badge } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
@@ -96,7 +96,7 @@ export function WorkToolsImport() {
       <div className="space-y-5">
         <div className="flex flex-wrap items-center gap-3">
           <input ref={input} type="file" accept=".csv,.json,.xlsx,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Export file" className="sr-only" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
-          <Button size="sm" variant="outline" onClick={() => input.current?.click()} loading={preview.isPending && !p}><FileUp className="h-4 w-4" aria-hidden />{file ? "Choose another file" : "Choose file"}</Button>
+          <Button size="sm" variant="outline" onClick={() => input.current?.click()} loading={preview.isPending && !p}><IconFileUp className="h-4 w-4" aria-hidden />{file ? "Choose another file" : "Choose file"}</Button>
           {file && <span className="min-w-0 truncate text-sm text-muted">{file.name}</span>}
           {p && <Badge tone="brand">{p.source === "csv" ? "CSV file" : `From ${p.sourceLabel}`}</Badge>}
         </div>
@@ -165,7 +165,7 @@ export function WorkToolsImport() {
               )}</Field>
               {!target && <Field label="Project name">{(props) => <Input {...props} value={projectName} maxLength={120} onChange={(e) => setProjectName(e.target.value)} />}</Field>}
               <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
-                <Button type="submit" size="sm" loading={run.isPending} disabled={!mapping.title || !p.total || p.alreadyImported >= p.total}><ListChecks className="h-4 w-4" aria-hidden />{p.alreadyImported >= p.total ? "All tasks are in" : `Import ${p.total - p.alreadyImported} tasks`}</Button>
+                <Button type="submit" size="sm" loading={run.isPending} disabled={!mapping.title || !p.total || p.alreadyImported >= p.total}><IconChecklist className="h-4 w-4" aria-hidden />{p.alreadyImported >= p.total ? "All tasks are in" : `Import ${p.total - p.alreadyImported} tasks`}</Button>
                 {p.leftToday < p.total - p.alreadyImported && <span className="text-xs text-subtle">{p.leftToday} can come in today; the rest tomorrow.</span>}
               </div>
               {run.error instanceof ApiError && <p className="text-sm text-bad sm:col-span-2">{run.error.message}</p>}
@@ -178,7 +178,7 @@ export function WorkToolsImport() {
             <p className="font-medium">{result.created ? `Imported ${result.created} tasks${result.projectName ? ` into ${result.projectName}` : ""}.` : result.left ? "Nothing imported yet." : "Everything in this file is already in Multies."}</p>
             {(result.comments > 0 || result.unknownAssignees > 0) && <p className="mt-1 text-muted">{result.comments ? `${result.comments} comments. ` : ""}{result.unknownAssignees ? `${result.unknownAssignees} tasks keep their old assignee as a note.` : ""}</p>}
             {stoppedText(result) && <p className="mt-1 text-muted">{stoppedText(result)}</p>}
-            {result.projectId && <Link to={`/app/tasks?project=${result.projectId}&view=list`} className="mt-2 inline-flex items-center gap-1 font-medium text-brand hover:underline">Open project<ArrowRight className="h-4 w-4" aria-hidden /></Link>}
+            {result.projectId && <Link to={`/app/tasks?project=${result.projectId}&view=list`} className="mt-2 inline-flex items-center gap-1 font-medium text-brand hover:underline">Open project<IconArrowRight className="h-4 w-4" aria-hidden /></Link>}
           </div>
         )}
       </div>

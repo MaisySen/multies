@@ -3,7 +3,7 @@
  * Watchers hear about new comments and status changes. The count opens the list of who watches.
  */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Eye, EyeOff, Users } from "lucide-react";
+import { IconEye, IconEyeOff, IconTeam } from "@/web/components/ui/icon";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -36,13 +36,13 @@ export function WatchButton({ taskId }: { taskId: string }) {
     <div className="flex items-center">
       <button type="button" onClick={() => void toggle()} aria-pressed={watching} data-testid="watch-task"
         className={cn(btn, watching && "text-brand-hover hover:text-brand-hover")} title={watching ? "Stop watching" : "Watch this task"}>
-        {watching ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+        {watching ? <IconEye className="h-4 w-4" /> : <IconEyeOff className="h-4 w-4" />}
         <span className="hidden sm:inline">{watching ? "Watching" : "Watch"}</span>
       </button>
-      <Menu trigger={<button type="button" className={btn} aria-label={`${q.data.count} watching`} data-testid="watcher-count"><Users className="h-3.5 w-3.5" />{q.data.count}</button>}>
+      <Menu trigger={<button type="button" className={btn} aria-label={`${q.data.count} watching`} data-testid="watcher-count"><IconTeam className="h-3.5 w-3.5" />{q.data.count}</button>}>
         {q.data.watchers.length === 0 && <MenuItem onSelect={() => undefined}>Nobody is watching yet</MenuItem>}
         {q.data.watchers.map((w) => (
-          <MenuItem key={w.userId} icon={<EyeOff />} onSelect={() => void remove(w.userId)}>
+          <MenuItem key={w.userId} icon={<IconEyeOff />} onSelect={() => void remove(w.userId)}>
             <span className="whitespace-nowrap">{w.name}</span><span className="ml-auto pl-3 text-[12px] text-subtle">Remove</span>
           </MenuItem>
         ))}

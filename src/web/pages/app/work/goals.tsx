@@ -1,7 +1,7 @@
 /** Goals and OKRs: goals with key results from numbers or tasks, progress that moves as work is done, and a roll-up. */
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Target, Plus } from "lucide-react";
+import { IconPlus, IconTarget } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { shortDate } from "@/web/lib/format";
@@ -79,7 +79,7 @@ export function GoalsPage() {
             </ul>
           )}
           <div className="mt-3 flex gap-2">
-            <Button variant="secondary" size="sm" onClick={() => setAddingKr(g)}><Plus className="h-3.5 w-3.5" />Key result</Button>
+            <Button variant="secondary" size="sm" onClick={() => setAddingKr(g)}><IconPlus className="h-3.5 w-3.5" />Key result</Button>
             <Button variant="ghost" size="sm" onClick={() => setCreating({ parentId: g.id })}>Add a goal under this</Button>
           </div>
         </Card>
@@ -92,9 +92,9 @@ export function GoalsPage() {
     <div>
       {dialogs}
       <PageHeader title="Goals" description="Set goals with key results. Progress moves on its own as linked tasks are done, and rolls up into bigger goals."
-        actions={<Button size="sm" onClick={() => setCreating({})}><Plus className="h-4 w-4" />New goal</Button>} />
+        actions={<Button size="sm" onClick={() => setCreating({})}><IconPlus className="h-4 w-4" />New goal</Button>} />
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.goals.length ? (
-        <EmptyState icon={<Target />} title="No goals yet" body="Try one goal for this quarter with two or three key results, for example monthly revenue in AUD and a project's tasks." action={<Button size="sm" onClick={() => setCreating({})}>New goal</Button>} />
+        <EmptyState icon={<IconTarget />} title="No goals yet" body="Try one goal for this quarter with two or three key results, for example monthly revenue in AUD and a project's tasks." action={<Button size="sm" onClick={() => setCreating({})}>New goal</Button>} />
       ) : (
         <>
           {s && (

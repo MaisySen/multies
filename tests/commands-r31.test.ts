@@ -43,7 +43,7 @@ describe("R31 one command registry", () => {
     const app = router.slice(router.indexOf('path: "/app"'), router.indexOf('path: "/f/:slug"'));
     const settingsAt = app.indexOf('path: "settings"');
     const paths = [...app.matchAll(/path: "([^"]+)"/g)].map((m) => ({ p: m[1], at: m.index! }))
-      .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin")
+      .filter(({ p }) => p !== "/app" && !p.includes(":") && p !== "admin" && !p.startsWith("admin/")) // operator pages stay out of the menu
       .map(({ p, at }) => (p === "settings" ? "/app/settings" : at > settingsAt ? `/app/settings/${p}` : `/app/${p}`));
     const nav = new Set(COMMANDS.filter((c) => c.group === "Go to" && c.palette).map((c) => c.to));
     expect(paths.filter((p) => !nav.has(p))).toEqual([]);

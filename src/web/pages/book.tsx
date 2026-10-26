@@ -2,7 +2,7 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarCheck, CalendarX, Clock, Video } from "lucide-react";
+import { IconCalendarX, IconClock, IconDue, IconVideo } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { Logo } from "@/web/components/logo";
@@ -46,7 +46,7 @@ export function BookingPage() {
 
   if (q.isLoading) return <Shell><Skeleton className="h-80" /></Shell>;
   if (q.isError || !q.data) {
-    return <Shell><Card><EmptyState icon={<CalendarX />} title="This booking page isn't available" body="The link may be wrong, or the page is paused. Check with the person who sent it." /></Card></Shell>;
+    return <Shell><Card><EmptyState icon={<IconCalendarX />} title="This booking page isn't available" body="The link may be wrong, or the page is paused. Check with the person who sent it." /></Card></Shell>;
   }
   const p = q.data.page;
 
@@ -66,14 +66,14 @@ export function BookingPage() {
     return (
       <Shell>
         <Card className="p-6 text-center">
-          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-ok-soft text-ok" aria-hidden><CalendarCheck className="h-5 w-5" /></div>
+          <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-ok-soft text-ok" aria-hidden><IconDue className="h-5 w-5" /></div>
           <h1 className="text-xl font-semibold">You're booked</h1>
           <p className="mt-2 text-sm text-muted">{p.title} with {p.host}</p>
           <p className="mt-1 text-[15px] font-medium" data-testid="booked-time">{full(done.booking.startsAt)}</p>
           <p className="mt-3 text-[13px] text-muted">A confirmation is on its way to {form.email}.</p>
           <div className="mt-5 flex flex-wrap justify-center gap-2">
             <a href={done.icsUrl} className="inline-flex h-11 items-center rounded-lg bg-brand px-4 text-sm font-medium text-white">Add to calendar</a>
-            {done.booking.guestUrl && <a href={done.booking.guestUrl} className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line px-4 text-sm"><Video className="h-4 w-4" aria-hidden />Video link</a>}
+            {done.booking.guestUrl && <a href={done.booking.guestUrl} className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-line px-4 text-sm"><IconVideo className="h-4 w-4" aria-hidden />Video link</a>}
           </div>
           <p className="mt-5 text-[12.5px] text-muted">Can't make it? <a href={done.cancelUrl} className="text-brand underline">Cancel this booking</a></p>
         </Card>
@@ -88,14 +88,14 @@ export function BookingPage() {
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">{p.title}</h1>
         {p.description && <p className="mt-2 text-sm leading-relaxed text-muted">{p.description}</p>}
         <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-muted">
-          <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" aria-hidden />{p.slotMin} minutes</span>
-          {p.video && <span className="inline-flex items-center gap-1.5"><Video className="h-4 w-4" aria-hidden />Video call, no app needed</span>}
+          <span className="inline-flex items-center gap-1.5"><IconClock className="h-4 w-4" aria-hidden />{p.slotMin} minutes</span>
+          {p.video && <span className="inline-flex items-center gap-1.5"><IconVideo className="h-4 w-4" aria-hidden />Video call, no app needed</span>}
           <span>Times in {zone().replace(/_/g, " ")}</span>
         </p>
       </header>
 
       {!days.length ? (
-        <Card><EmptyState icon={<CalendarX />} title="No free times right now" body="Check back later, or reply to the person who sent you this link." /></Card>
+        <Card><EmptyState icon={<IconCalendarX />} title="No free times right now" body="Check back later, or reply to the person who sent you this link." /></Card>
       ) : (
         <Card className="p-4">
           <h2 className="mb-3 text-[15px] font-semibold">Pick a day</h2>
@@ -149,7 +149,7 @@ export function BookingCancelPage() {
     try { await api.post(`/book/bookings/${encodeURIComponent(id)}/cancel`, { token }); setCancelled(true); } catch { setBusy(false); }
   };
   if (q.isLoading) return <Shell><Skeleton className="h-48" /></Shell>;
-  if (q.isError || !q.data) return <Shell><Card><EmptyState icon={<CalendarX />} title="Booking not found" body="The cancel link may be incomplete. Open it again from your confirmation email." /></Card></Shell>;
+  if (q.isError || !q.data) return <Shell><Card><EmptyState icon={<IconCalendarX />} title="Booking not found" body="The cancel link may be incomplete. Open it again from your confirmation email." /></Card></Shell>;
   const done = cancelled || q.data.booking.status === "cancelled";
   return (
     <Shell>

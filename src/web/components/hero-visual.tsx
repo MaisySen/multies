@@ -1,4 +1,4 @@
-import { Bot, Check, Inbox, Globe, Users, Send, Star, Search, Shield } from "lucide-react";
+import { IconAgent, IconCheck, IconGlobe, IconInbox, IconSearch, IconSend, IconShield, IconStar, IconTeam } from "@/web/components/ui/icon";
 
 const rows = [
   { from: "Priya Raman", subject: "Following up from demo day", snippet: "Loved the demo yesterday. Could we find 30 minutes…", time: "9:41", unread: true },
@@ -26,7 +26,7 @@ export function HeroVisual() {
         </div>
         <div className="grid grid-cols-[180px_1fr] text-left max-md:grid-cols-1">
           <aside className="space-y-0.5 border-r border-line p-3 text-[12.5px] max-md:hidden">
-            {[{ i: Inbox, l: "Inbox", n: "2", a: true }, { i: Star, l: "Starred" }, { i: Send, l: "Sent" }, { i: Globe, l: "Domains" }, { i: Users, l: "Mailboxes" }, { i: Shield, l: "Activity" }].map(({ i: I, l, n, a }) => (
+            {[{ i: IconInbox, l: "Inbox", n: "2", a: true }, { i: IconStar, l: "Starred" }, { i: IconSend, l: "Sent" }, { i: IconGlobe, l: "Domains" }, { i: IconTeam, l: "Mailboxes" }, { i: IconShield, l: "Activity" }].map(({ i: I, l, n, a }) => (
               <div key={l} className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${a ? "bg-fill text-fg" : "text-muted"}`}>
                 <I className="h-3.5 w-3.5" />{l}{n && <span className="ml-auto rounded bg-brand px-1.5 text-[10px] font-semibold text-brand-fg">{n}</span>}
               </div>
@@ -34,7 +34,7 @@ export function HeroVisual() {
           </aside>
           <div>
             <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-              <Search className="h-3.5 w-3.5 text-subtle" /><span className="text-[12px] text-subtle">Search mail</span>
+              <IconSearch className="h-3.5 w-3.5 text-subtle" /><span className="text-[12px] text-subtle">Search mail</span>
               <span className="ml-auto text-[11px] text-subtle">founders@northwind.com</span>
             </div>
             {rows.map((r) => (
@@ -47,7 +47,7 @@ export function HeroVisual() {
                   </div>
                   <div className={`truncate text-[12.5px] ${r.unread ? "text-fg/90" : "text-muted"}`}>{r.subject}</div>
                   <div className="truncate text-[12px] text-subtle">{r.snippet}</div>
-                  {"agent" in r && r.agent && <span className="mt-1 inline-flex items-center gap-1 rounded border border-brand/40 px-1.5 py-px text-[10.5px] text-brand-hover"><Bot className="h-3 w-3" aria-hidden />{r.agent}</span>}
+                  {"agent" in r && r.agent && <span className="mt-1 inline-flex items-center gap-1 rounded border border-brand/40 px-1.5 py-px text-[10.5px] text-brand-hover"><IconAgent className="h-3 w-3" aria-hidden />{r.agent}</span>}
                 </div>
               </div>
             ))}
@@ -62,7 +62,7 @@ export function HeroVisual() {
         <ul className="space-y-2">
           {checks.map((c) => (
             <li key={c.k} className="flex items-center gap-2 text-[12.5px]">
-              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok/15"><Check className="h-3 w-3 text-ok" aria-hidden /></span>
+              <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-ok/15"><IconCheck className="h-3 w-3 text-ok" aria-hidden /></span>
               <span className="w-12 shrink-0 font-medium text-fg">{c.k}</span>
               <span className="truncate font-mono text-[11px] text-muted">{c.v}</span>
             </li>

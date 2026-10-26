@@ -12,7 +12,7 @@ import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Bot, ChevronRight, Flag, FolderKanban, Gauge, Mountain, UserRound } from "lucide-react";
+import { IconAgent, IconBoardFolder, IconChevronRight, IconFlag, IconGauge, IconMountain, IconUserRound } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -95,7 +95,7 @@ export function LimitMenu({ title, limit, onSet }: { title: string; limit?: Colu
     <>
       <Menu align="end" label={`Limits for ${title}`} trigger={
         <button type="button" aria-label={`Set a limit for ${title}`} data-testid="column-limit-menu"
-          className="grid h-7 w-7 place-items-center rounded text-subtle transition-colors hover:bg-elevated hover:text-fg sm:h-6 sm:w-6"><Gauge className="h-3.5 w-3.5" /></button>
+          className="grid h-7 w-7 place-items-center rounded text-subtle transition-colors hover:bg-elevated hover:text-fg sm:h-6 sm:w-6"><IconGauge className="h-3.5 w-3.5" /></button>
       }>
         <MenuLabel>Most cards in {title}</MenuLabel>
         <div className="flex flex-wrap gap-1 px-2 pb-1.5">
@@ -175,13 +175,13 @@ function readCollapsed(k: string): Set<string> {
 }
 
 function LaneIcon({ mode, lane }: { mode: Swimlanes; lane: LaneRow }) {
-  if (lane.id === NO_LANE) return <span className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><UserRound className="h-3.5 w-3.5" aria-hidden /></span>;
+  if (lane.id === NO_LANE) return <span className="grid h-6 w-6 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><IconUserRound className="h-3.5 w-3.5" aria-hidden /></span>;
   if (mode === "assignee") return lane.kind === "agent"
-    ? <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-soft text-brand-hover"><Bot className="h-3.5 w-3.5" aria-hidden /></span>
+    ? <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-soft text-brand-hover"><IconAgent className="h-3.5 w-3.5" aria-hidden /></span>
     : <Avatar label={initials(lane.name)} className="h-6 w-6 text-[10px]" />;
-  if (mode === "epic") return <Mountain className="h-4 w-4" style={{ color: lane.color }} aria-hidden />;
-  if (mode === "priority") return <Flag className="h-4 w-4 text-subtle" aria-hidden />;
-  return <FolderKanban className="h-4 w-4" style={{ color: lane.color }} aria-hidden />;
+  if (mode === "epic") return <IconMountain className="h-4 w-4" style={{ color: lane.color }} aria-hidden />;
+  if (mode === "priority") return <IconFlag className="h-4 w-4 text-subtle" aria-hidden />;
+  return <IconBoardFolder className="h-4 w-4" style={{ color: lane.color }} aria-hidden />;
 }
 
 const Cell = memo(function Cell({ lane, col, cards, onOpen, over }: { lane: string; col: string; cards: Task[]; onOpen: (id: string) => void; over: boolean }) {
@@ -301,7 +301,7 @@ export function LaneBoard({ project, tasks: allTasks, mode, projects, people = [
               <section key={l.id} aria-label={`${l.name} lane`} data-testid="lane" data-lane={l.id} data-lane-name={l.name} className="border-t border-line/60 pt-1.5 first-of-type:border-t-0">
                 <button type="button" onClick={() => toggle(l.id)} aria-expanded={!isCollapsed} data-testid="lane-toggle"
                   className="sticky left-0 mb-1.5 flex min-h-9 items-center gap-2 rounded-lg px-1.5 text-left outline-none transition-colors hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand/50">
-                  <ChevronRight className={cn("h-4 w-4 text-subtle transition-transform duration-200 motion-reduce:transition-none", !isCollapsed && "rotate-90")} aria-hidden />
+                  <IconChevronRight className={cn("h-4 w-4 text-subtle transition-transform duration-200 motion-reduce:transition-none", !isCollapsed && "rotate-90")} aria-hidden />
                   <LaneIcon mode={mode} lane={l} />
                   <span className="text-[13.5px] font-semibold text-fg">{l.name}</span>
                   <span className="rounded-full bg-fill px-1.5 text-[11.5px] tabular-nums text-muted" aria-label={`${count} tasks`}>{count}</span>

@@ -86,7 +86,7 @@ export function useBulkOps(undoMs: number) {
           send(l, { type: "progress", done: r.done, total: r.total });
           r = await api.post<JobView>("/mail/bulk-jobs", l.op.body);
         }
-        if (r.status === "done" || l.state.cancelAsked) send(l, { type: "confirmed", count: r.total });
+        if (r.status === "done" || l.state.cancelAsked) send(l, { type: "confirmed", count: r.total, ...(r.status === "done" && !l.state.cancelAsked ? { undoable: r.undoable } : {}) });
         if (r.status === "done") l.op.onSettled();
       }
     } catch {
@@ -112,8 +112,8 @@ export function useBulkOps(undoMs: number) {
   const run = useCallback((op: BulkOp, label: { action: BulkCall["action"]; count: number; folderLabel?: string }) => {
     const prev = live.current;
     if (prev?.timer) clearTimeout(prev.timer);
-    // R34: a job moving mail to a synced folder has no Undo (the provider has it at once).
-    const undoable = op.kind === "job" ? op.body.action !== "move" : !!op.plan?.length;
+    // R35: every job can be undone, a move to a synced folder too (it moves back); the job's answer says if nothing changed.
+    const undoable = op.kind === "job" ? true : !!op.plan?.length;
     const l: Live = { key: `bulk-${Date.now().toString(36)}`, state: startToast(label.action, label.count, undoable, label.folderLabel), op };
     live.current = l;
     paint(l);

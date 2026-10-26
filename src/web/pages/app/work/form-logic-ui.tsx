@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { ArrowDownUp, ChevronDown, ChevronRight, Download, GitBranch, Plus, Search, X } from "lucide-react";
+import { IconBranch, IconChevronDown, IconChevronRight, IconClose, IconDownload, IconPlus, IconSearch, IconSort } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -52,8 +52,8 @@ export function LogicEditor({ field, index, earlier, onChange }: { field: Builde
     <div className="mt-2">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} data-testid={`logic-toggle-${index}`}
         className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] text-muted hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        <GitBranch className="h-3.5 w-3.5" />Logic and rules{n ? ` (${n})` : ""}
+        {open ? <IconChevronDown className="h-3.5 w-3.5" /> : <IconChevronRight className="h-3.5 w-3.5" />}
+        <IconBranch className="h-3.5 w-3.5" />Logic and rules{n ? ` (${n})` : ""}
       </button>
       {open && (
         <div className="mt-2 space-y-3 rounded-lg bg-elevated/60 p-2.5">
@@ -86,14 +86,14 @@ export function LogicEditor({ field, index, earlier, onChange }: { field: Builde
                           <option value="">Choose</option>{src?.options?.map((o) => <option key={o} value={o}>{o}</option>)}
                         </Select>
                       ) : <Input aria-label="Value" value={c.value ?? ""} type={src?.type === "number" ? "number" : src?.type === "date" ? "date" : "text"} onChange={(e) => set({ value: e.target.value })} className={small} />}
-                      <button type="button" onClick={() => setConds(conds.filter((_, j) => j !== ci))} className="p-1 text-subtle hover:text-bad" aria-label="Remove condition"><X className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => setConds(conds.filter((_, j) => j !== ci))} className="p-1 text-subtle hover:text-bad" aria-label="Remove condition"><IconClose className="h-3.5 w-3.5" /></button>
                     </li>
                   );
                 })}
               </ul>
             )}
             {usable.length > 0 && conds.length < 10 && (
-              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setConds([...conds, { field: usable[usable.length - 1].id!, op: "is", value: "" }])}><Plus className="h-3.5 w-3.5" />Add condition</Button>
+              <Button size="sm" variant="ghost" className="mt-1" onClick={() => setConds([...conds, { field: usable[usable.length - 1].id!, op: "is", value: "" }])}><IconPlus className="h-3.5 w-3.5" />Add condition</Button>
             )}
             {conds.length > 0 && <p className="mt-1 text-[12px] text-subtle">A hidden question is skipped, so it is never required.</p>}
           </div>
@@ -153,7 +153,7 @@ export function RoutingEditor({ fields, routes, onChange, projects, people }: {
                 {VALUELESS_OPS.includes(r.when.op) ? <span /> : choice ? (
                   <Select aria-label="Routing value" value={r.when.value ?? ""} onChange={(e) => set(i, { when: { ...r.when, value: e.target.value } })} className={small}><option value="">Choose</option>{src?.options?.map((o) => <option key={o} value={o}>{o}</option>)}</Select>
                 ) : <Input aria-label="Routing value" value={r.when.value ?? ""} onChange={(e) => set(i, { when: { ...r.when, value: e.target.value } })} className={small} />}
-                <button type="button" onClick={() => onChange(routes.filter((_, j) => j !== i))} className="p-1 text-subtle hover:text-bad" aria-label="Remove rule"><X className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => onChange(routes.filter((_, j) => j !== i))} className="p-1 text-subtle hover:text-bad" aria-label="Remove rule"><IconClose className="h-3.5 w-3.5" /></button>
               </div>
               <div className="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-1.5 text-[12.5px]">
                 <span className="text-muted">Project</span>
@@ -166,7 +166,7 @@ export function RoutingEditor({ fields, routes, onChange, projects, people }: {
         })}
       </ul>
       {usable.length > 0 && routes.length < MAX_ROUTES && (
-        <Button size="sm" variant="ghost" className="mt-1" onClick={() => onChange([...routes, { when: { field: usable[usable.length - 1].id!, op: "is", value: "" }, projectId: null, assigneeId: null }])}><Plus className="h-3.5 w-3.5" />Add rule</Button>
+        <Button size="sm" variant="ghost" className="mt-1" onClick={() => onChange([...routes, { when: { field: usable[usable.length - 1].id!, op: "is", value: "" }, projectId: null, assigneeId: null }])}><IconPlus className="h-3.5 w-3.5" />Add rule</Button>
       )}
     </div>
   );
@@ -217,12 +217,12 @@ export function FormResults({ id, name, onClose }: { id: string; name: string; o
             <button role="tab" aria-selected={tab === "summary"} className={tabCls("summary")} onClick={() => setTab("summary")}>Summary</button>
           </div>
           <div className="relative ml-auto">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
+            <IconSearch className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-subtle" />
             <Input aria-label="Search answers" placeholder="Search answers" value={search} onChange={(e) => { setSearch(e.target.value); setOffset(0); }} className={cn(small, "w-48 pl-8")} />
           </div>
           <Input aria-label="From" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setOffset(0); }} className={cn(small, "w-36")} />
           <Input aria-label="To" type="date" value={to} onChange={(e) => { setTo(e.target.value); setOffset(0); }} className={cn(small, "w-36")} />
-          <a href={csvHref} download className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><Download className="h-3.5 w-3.5" />CSV</a>
+          <a href={csvHref} download className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconDownload className="h-3.5 w-3.5" />CSV</a>
         </div>
         {tab === "responses" ? (
           !data ? <Skeleton className="h-48" /> : !data.total ? <p className="py-8 text-center text-[13px] text-muted">{filter.q || filter.from || filter.to ? "No responses match." : "No responses yet. Share the form's link to start collecting them."}</p> : (
@@ -233,7 +233,7 @@ export function FormResults({ id, name, onClose }: { id: string; name: string; o
                     <tr className="border-b border-line">
                       {[{ id: "createdAt", label: "Submitted" }, ...data.fields].map((f) => (
                         <th key={f.id} scope="col" aria-sort={sort.by === f.id ? (sort.dir === "asc" ? "ascending" : "descending") : "none"} className="whitespace-nowrap px-3 py-2 font-medium text-muted">
-                          <button type="button" className="inline-flex items-center gap-1 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded" onClick={() => toggleSort(f.id)}>{f.label}<ArrowDownUp className={cn("h-3 w-3", sort.by === f.id ? "text-brand" : "text-subtle")} /></button>
+                          <button type="button" className="inline-flex items-center gap-1 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand rounded" onClick={() => toggleSort(f.id)}>{f.label}<IconSort className={cn("h-3 w-3", sort.by === f.id ? "text-brand" : "text-subtle")} /></button>
                         </th>
                       ))}
                       <th scope="col" className="px-3 py-2"><span className="sr-only">Open</span></th>

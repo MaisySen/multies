@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Link2, Mail, RefreshCw, Trash2 } from "lucide-react";
+import { IconCalendarDays, IconLink, IconMail, IconRefresh, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -55,7 +55,7 @@ function FeedSection() {
       {!f ? null : !f.enabled ? (
         <div className="flex flex-col items-start gap-3">
           <p className="text-sm text-muted">Turn on a private calendar address just for you.</p>
-          <Button onClick={() => make.mutate()} loading={make.isPending}><CalendarDays className="size-4" />Turn on calendar feed</Button>
+          <Button onClick={() => make.mutate()} loading={make.isPending}><IconCalendarDays className="size-4" />Turn on calendar feed</Button>
         </div>
       ) : (
         <div className="space-y-4" data-testid="calendar-feed">
@@ -70,7 +70,7 @@ function FeedSection() {
                 )}
               </Field>
               <div className="flex flex-wrap gap-2">
-                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0071E3] px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><CalendarDays className="size-4" />Open in Apple Calendar</a>
+                <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-[#0071E3] px-3 text-[13px] font-medium text-white hover:opacity-90" href={fresh?.webcalUrl}><IconCalendarDays className="size-4" />Open in Apple Calendar</a>
                 <a className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-fill px-3 text-[13px] text-fg hover:bg-hover" href={`https://calendar.google.com/calendar/r?cid=${encodeURIComponent(fresh?.webcalUrl ?? url)}`} target="_blank" rel="noreferrer">Add to Google Calendar</a>
               </div>
               <p className="text-[12.5px] text-muted">Copy it now: for your safety Multies shows it only once. Lost it? Reset below for a new one.</p>
@@ -85,7 +85,7 @@ function FeedSection() {
           </ul>
           <Switch checked={f.includeTasks} onChange={(v) => tasks.mutate(v)} label="Include the due dates of my tasks" />
           <div className="flex flex-wrap gap-2 border-t border-line pt-4">
-            <Button variant="secondary" size="sm" onClick={() => make.mutate()} loading={make.isPending}><RefreshCw className="size-4" />Reset link</Button>
+            <Button variant="secondary" size="sm" onClick={() => make.mutate()} loading={make.isPending}><IconRefresh className="size-4" />Reset link</Button>
             <Button variant="ghost" size="sm" onClick={() => off.mutate()} loading={off.isPending}>Turn off</Button>
           </div>
         </div>
@@ -122,7 +122,7 @@ export function OtherCalendarsSection() {
                   <div className="truncate text-[12px] text-muted">{s.kind === "caldav" ? `${s.address} (${s.calendars.map((c) => c.name).join(", ")})` : `Calendar link from ${s.host}`}</div>
                 </div>
                 <Switch checked={s.enabled} onChange={(v) => patch.mutate({ id: s.id, enabled: v })} label={`Show ${s.name}`} />
-                <button type="button" aria-label={`Remove ${s.name}`} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={() => remove.mutate(s.id)}><Trash2 className="size-4" /></button>
+                <button type="button" aria-label={`Remove ${s.name}`} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg" onClick={() => remove.mutate(s.id)}><IconTrash className="size-4" /></button>
               </li>
             ))}
           </ul>
@@ -132,7 +132,7 @@ export function OtherCalendarsSection() {
           {(options.data ?? []).length === 0 && <p className="text-[13px] text-muted">Connect a mailbox from Fastmail, iCloud, Zoho, Yahoo or GMX in Connected accounts and its calendar can show here too.</p>}
           {(options.data ?? []).map((o) => (
             <div key={o.connectionId} className="flex flex-wrap items-center gap-2 text-sm">
-              <Mail className="size-4 text-muted" />
+              <IconMail className="size-4 text-muted" />
               <span className="min-w-0 flex-1 truncate">{o.address}</span>
               {o.caldav ? (
                 <Button size="sm" variant="secondary" disabled={added.has(o.address)} loading={add.isPending && add.variables?.connectionId === o.connectionId} onClick={() => add.mutate({ kind: "caldav", connectionId: o.connectionId, ...(davUrl[o.connectionId]?.trim() ? { url: davUrl[o.connectionId].trim() } : {}) })}>{added.has(o.address) ? "Shown" : "Show its calendar"}</Button>
@@ -152,7 +152,7 @@ export function OtherCalendarsSection() {
             {(p) => (
               <div className="flex gap-2">
                 <Input {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://calendar.google.com/calendar/ical/.../basic.ics" data-testid="ics-url" />
-                <Button type="submit" loading={add.isPending && add.variables?.kind === "ics"}><Link2 className="size-4" />Add</Button>
+                <Button type="submit" loading={add.isPending && add.variables?.kind === "ics"}><IconLink className="size-4" />Add</Button>
               </div>
             )}
           </Field>

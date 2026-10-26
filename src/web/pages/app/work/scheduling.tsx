@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CalendarClock, ExternalLink } from "lucide-react";
+import { IconCalendarClock, IconExternalLink } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { useConfig } from "@/web/lib/queries";
@@ -42,7 +42,7 @@ export function SchedulingPage() {
   }, [page.isSuccess, page.data, draft]);
 
   if (config.isSuccess && !enabled) {
-    return <Card><EmptyState icon={<CalendarClock />} title="Booking pages are off" body="Booking pages aren't switched on for this server yet. Ask whoever runs it to switch them on." /></Card>;
+    return <Card><EmptyState icon={<IconCalendarClock />} title="Booking pages are off" body="Booking pages aren't switched on for this server yet. Ask whoever runs it to switch them on." /></Card>;
   }
   if (!draft) return <Skeleton className="h-64" />;
 
@@ -81,7 +81,7 @@ export function SchedulingPage() {
           </div>
           {!page.data?.enabled && <Badge tone="warn">Paused</Badge>}
           <CopyButton value={url} label="Copy link" />
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm text-muted hover:bg-hover hover:text-fg">Open<ExternalLink className="h-3.5 w-3.5" aria-hidden /></a>
+          <a href={url} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm text-muted hover:bg-hover hover:text-fg">Open<IconExternalLink className="h-3.5 w-3.5" aria-hidden /></a>
         </Card>
       )}
 
@@ -128,7 +128,7 @@ export function SchedulingPage() {
       <section aria-labelledby="bk-upcoming" className="space-y-3">
         <h2 id="bk-upcoming" className="text-[15px] font-semibold">Upcoming bookings</h2>
         {bookings.isLoading ? <Skeleton className="h-16" /> : !bookings.data?.length ? (
-          <Card><EmptyState icon={<CalendarClock />} title="No bookings yet" body="When someone picks a time on your page it shows here and in Meetings." /></Card>
+          <Card><EmptyState icon={<IconCalendarClock />} title="No bookings yet" body="When someone picks a time on your page it shows here and in Meetings." /></Card>
         ) : (
           <Card className="divide-y divide-line">
             {bookings.data.map((b) => (

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { Activity, Database, DatabaseBackup, KeyRound, Lock, Mail, ShieldCheck, Users } from "lucide-react";
+import { IconActivity, IconDatabase, IconDatabaseBackup, IconKey, IconLock, IconMail, IconShieldCheck, IconTeam, type IconComponent } from "@/web/components/ui/icon";
 import {
   BACKUPS, DATA_REGION, ENCRYPTION, INCIDENTS, SECURITY_EMAIL, SIGN_IN, SUBPROCESSORS, TRUST_UPDATED, type TrustFact,
 } from "@/shared/trust";
@@ -8,7 +8,7 @@ import { LegalLine } from "@/web/components/legal-line";
 
 const card = "rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6";
 
-function Section({ id, icon: Icon, title, intro, children }: { id: string; icon: typeof Lock; title: string; intro?: string; children: React.ReactNode }) {
+function Section({ id, icon: Icon, title, intro, children }: { id: string; icon: IconComponent; title: string; intro?: string; children: React.ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className={`${card} scroll-mt-24`}>
       <div className="flex items-start gap-3">
@@ -59,9 +59,9 @@ export function TrustPage() {
       </nav>
 
       <div className="mt-8 space-y-5">
-        <Section id="region" icon={Database} title="Data region"><Facts items={DATA_REGION} /></Section>
+        <Section id="region" icon={IconDatabase} title="Data region"><Facts items={DATA_REGION} /></Section>
 
-        <Section id="subprocessors" icon={Users} title="Sub processors" intro="Only the services Multies actually calls. Optional ones run only when you use that feature.">
+        <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls. Optional ones run only when you use that feature.">
           <ul className="divide-y divide-line">
             {SUBPROCESSORS.map((s) => (
               <li key={s.name} className="py-3 first:pt-0 last:pb-0">
@@ -78,11 +78,11 @@ export function TrustPage() {
           <p className="mt-4 text-[13px] text-subtle">The <Link to="/dpa" className="text-brand-hover hover:underline">data processing agreement</Link> sets out how we add or change sub processors.</p>
         </Section>
 
-        <Section id="backups" icon={DatabaseBackup} title="Backups"><Facts items={BACKUPS} /></Section>
-        <Section id="sign-in" icon={KeyRound} title="Sign in"><Facts items={SIGN_IN} /></Section>
-        <Section id="encryption" icon={Lock} title="Encryption"><Facts items={ENCRYPTION} /></Section>
+        <Section id="backups" icon={IconDatabaseBackup} title="Backups"><Facts items={BACKUPS} /></Section>
+        <Section id="sign-in" icon={IconKey} title="Sign in"><Facts items={SIGN_IN} /></Section>
+        <Section id="encryption" icon={IconLock} title="Encryption"><Facts items={ENCRYPTION} /></Section>
 
-        <Section id="incidents" icon={Activity} title="Incident history" intro="Anything that stopped people from using Multies, newest first.">
+        <Section id="incidents" icon={IconActivity} title="Incident history" intro="Anything that stopped people from using Multies, newest first.">
           {INCIDENTS.length === 0 ? <p className="text-sm text-muted">No incidents so far.</p> : (
             <ol className="space-y-4">
               {INCIDENTS.map((i) => (
@@ -98,9 +98,9 @@ export function TrustPage() {
           <p className="mt-4 text-[13px] text-subtle">Live status is on the <Link to="/status" className="text-brand-hover hover:underline">system status</Link> page.</p>
         </Section>
 
-        <Section id="contact" icon={ShieldCheck} title="Report a problem" intro="Found a vulnerability or a privacy issue? Tell us and we will reply.">
+        <Section id="contact" icon={IconShieldCheck} title="Report a problem" intro="Found a vulnerability or a privacy issue? Tell us and we will reply.">
           <a href={`mailto:${SECURITY_EMAIL}`} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-fg transition-colors hover:bg-brand/90">
-            <Mail className="h-4 w-4" aria-hidden />{SECURITY_EMAIL}
+            <IconMail className="h-4 w-4" aria-hidden />{SECURITY_EMAIL}
           </a>
           <p className="mt-4 text-[13px] text-subtle">
             Machine readable: <a href="/.well-known/security.txt" className="text-brand-hover hover:underline">security.txt</a>. How we handle personal information: <Link to="/privacy" className="text-brand-hover hover:underline">privacy policy</Link>.

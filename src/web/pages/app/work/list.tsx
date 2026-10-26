@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { flexRender, useTable, tableFeatures, rowSortingFeature, columnVisibilityFeature, columnSizingFeature, createSortedRowModel, sortFns, type ColumnDef, type SortingState } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, Bot, CheckCircle2, Circle, Mail } from "lucide-react";
+import { IconAgent, IconArrowDown, IconArrowUp, IconCheckCircle, IconCircle, IconMail } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { timeAgo } from "@/web/lib/format";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, type AssigneeOption, type CustomField, type Priority, type Project, type Task, isAgentLike } from "./data";
@@ -32,7 +32,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
       id: "done", header: "", enableSorting: false, size: 36,
       cell: ({ row }) => (
         <button onClick={(e) => { e.stopPropagation(); onToggle(row.original); }} aria-label={row.original.status === "done" ? `Mark ${row.original.title} as not done` : `Mark ${row.original.title} as done`}>
-          {row.original.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
+          {row.original.status === "done" ? <IconCheckCircle className="h-4 w-4 text-ok" /> : <IconCircle className="h-4 w-4 text-muted" />}
         </button>
       ),
     },
@@ -43,7 +43,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
           <TypeIcon type={row.original.type} />
           <span className="shrink-0 font-mono text-[11.5px] text-subtle">{row.original.ref}</span>
           <span className={cn("truncate font-medium", row.original.status === "done" && "text-subtle line-through")}>{row.original.title}</span>
-          {row.original.source && <Mail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
+          {row.original.source && <IconMail className="h-3 w-3 shrink-0 text-subtle" aria-label="From email" />}
         </div>
       ),
     },
@@ -53,7 +53,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
     },
     {
       id: "assignee", header: "Assignee", accessorFn: (t) => t.assignee?.name ?? "~",
-      cell: ({ row }) => row.original.assignee ? <span className="inline-flex items-center gap-1 whitespace-nowrap">{isAgentLike(row.original.assignee) && <Bot className="h-3.5 w-3.5 text-brand-hover" />}{row.original.assignee.name}</span> : <span className="text-subtle">Nobody</span>,
+      cell: ({ row }) => row.original.assignee ? <span className="inline-flex items-center gap-1 whitespace-nowrap">{isAgentLike(row.original.assignee) && <IconAgent className="h-3.5 w-3.5 text-brand-hover" />}{row.original.assignee.name}</span> : <span className="text-subtle">Nobody</span>,
     },
     { id: "priority", header: "Priority", accessorFn: (t) => PRIORITY_RANK[t.priority], cell: ({ row }) => <span className={PRIORITY_COLOR[row.original.priority]}>{row.original.priority === "none" ? "" : PRIORITY_LABEL[row.original.priority]}</span> },
     { id: "due", header: "Due", accessorFn: (t) => t.due ?? "9999", cell: ({ row }) => <span className={cn("whitespace-nowrap", isOverdue(row.original) && "text-bad")}>{dueLabel(row.original.due) ?? ""}</span> },
@@ -81,7 +81,7 @@ export function TaskList({ tasks, projects, onOpen, onToggle, fields = [], peopl
                   {h.column.getCanSort() ? (
                     <button className="inline-flex items-center gap-1 hover:text-fg" onClick={h.column.getToggleSortingHandler()}>
                       {flexRender(h.column.columnDef.header, h.getContext())}
-                      {h.column.getIsSorted() === "asc" ? <ArrowUp className="h-3 w-3" /> : h.column.getIsSorted() === "desc" ? <ArrowDown className="h-3 w-3" /> : null}
+                      {h.column.getIsSorted() === "asc" ? <IconArrowUp className="h-3 w-3" /> : h.column.getIsSorted() === "desc" ? <IconArrowDown className="h-3 w-3" /> : null}
                     </button>
                   ) : flexRender(h.column.columnDef.header, h.getContext())}
                 </th>

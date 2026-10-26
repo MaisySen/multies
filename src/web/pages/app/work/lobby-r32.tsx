@@ -7,7 +7,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Clock, DoorOpen, UserCheck, UserX, X } from "lucide-react";
+import { IconClock, IconClose, IconDoorOpen, IconUserCheck, IconUserX } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -132,7 +132,7 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
   return (
     <section aria-label="Waiting to join" className={cn("w-72 rounded-2xl border border-line bg-elevated p-2 text-fg shadow-pop", className)} data-testid="lobby-requests">
       <header className="flex items-center gap-2 px-2 pb-1 pt-1">
-        <DoorOpen className="h-4 w-4 text-brand" aria-hidden />
+        <IconDoorOpen className="h-4 w-4 text-brand" aria-hidden />
         <h2 className="flex-1 text-[13px] font-semibold">Waiting to join ({waiting.length})</h2>
         {waiting.length > 1 && <Button size="sm" variant="secondary" onClick={() => decide.mutate({ all: true, decision: "admit" })} data-testid="lobby-admit-all">Admit all</Button>}
       </header>
@@ -142,9 +142,9 @@ export function LobbyRequests({ meetingId, className }: { meetingId?: string; cl
             className="flex items-center gap-2 rounded-xl px-2 py-1.5 outline-none transition-colors duration-150 hover:bg-hover focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none" data-testid="lobby-row">
             <span className="min-w-0 flex-1 truncate text-[13px]"><span className="font-medium">{w.name}</span> <span className="text-muted">wants to join</span></span>
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "deny" })} aria-label={`Deny ${w.name}`} title="Deny (D)"
-              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="lobby-deny"><UserX className="h-4 w-4" aria-hidden /></button>
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="lobby-deny"><IconUserX className="h-4 w-4" aria-hidden /></button>
             <button type="button" onClick={() => decide.mutate({ lobbyId: w.id, decision: "admit" })} aria-label={`Admit ${w.name}`} title="Admit (A)"
-              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><UserCheck className="h-3.5 w-3.5" aria-hidden />Admit</button>
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-brand px-2.5 text-[12.5px] font-medium text-white hover:bg-brand/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" data-testid="lobby-admit"><IconUserCheck className="h-3.5 w-3.5" aria-hidden />Admit</button>
           </li>
         ))}
       </ul>
@@ -195,14 +195,14 @@ export function DockSoFar({ meetingId }: { meetingId: string }) {
     <>
       <button ref={btn} type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="dock-so-far" aria-haspopup="dialog"
         className={cn("inline-flex h-7 items-center gap-1 rounded-md px-2 text-[12.5px] text-muted hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand", open && "bg-hover text-fg")} data-testid="call-dock-so-far">
-        <Clock className="h-3.5 w-3.5" aria-hidden />So far
+        <IconClock className="h-3.5 w-3.5" aria-hidden />So far
       </button>
       {open && (
         <div id="dock-so-far" ref={panel} tabIndex={-1} role="dialog" aria-label="So far in this call"
           className="absolute inset-x-2 top-11 z-30 max-h-[calc(100%-3.5rem)] overflow-y-auto rounded-2xl border border-line bg-elevated pb-3 shadow-pop outline-none motion-safe:animate-[fade-in_160ms_ease-out]" data-testid="dock-so-far">
           <div className="flex items-center justify-between px-4 pt-3">
             <h3 className="text-[13px] font-semibold">So far</h3>
-            <button type="button" onClick={() => { setOpen(false); btn.current?.focus(); }} aria-label="Close So far" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><X className="h-3.5 w-3.5" aria-hidden /></button>
+            <button type="button" onClick={() => { setOpen(false); btn.current?.focus(); }} aria-label="Close So far" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-3.5 w-3.5" aria-hidden /></button>
           </div>
           {q.data ? <SoFarView data={q.data} /> : <p className="px-4 py-3 text-[13px] text-muted" aria-live="polite">{q.error ? (q.error as Error).message : "Loading"}</p>}
         </div>

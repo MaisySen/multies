@@ -38,7 +38,7 @@ import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
-import { BRAND_CACHE, htmlCacheControl, LOGIN_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
+import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant, type LoginVariantOf } from "../server/auth/config";
 
 interface D1Database { prepare(query: string): unknown }
@@ -348,7 +348,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
   }
   // Every app route renders the app shell, which routes client-side.
   const shell = typeof __MYMAIL_SHELL_HTML__ === "string"
-    ? new Response(withOriginHints((LOGIN_CARD_PATH.test(url.pathname) && typeof __MYMAIL_LOGIN_PRERENDER__ === "object" ? loginHtmlFor(url.pathname, url.search, __MYMAIL_LOGIN_PRERENDER__, loginCardFor(env)) : null) ?? shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
+    ? new Response(withOriginHints((AUTH_CARD_PATH.test(url.pathname) && typeof __MYMAIL_LOGIN_PRERENDER__ === "object" ? loginHtmlFor(url.pathname, url.search, __MYMAIL_LOGIN_PRERENDER__, loginCardFor(env)) : null) ?? shellFor(url.pathname, __MYMAIL_SHELL_HTML__, typeof __MYMAIL_LANDING_HTML__ === "string" ? __MYMAIL_LANDING_HTML__ : null, typeof __MYMAIL_AUTH_HTML__ === "string" ? __MYMAIL_AUTH_HTML__ : null), originHintsFor(envVar(env, "SENTRY_DSN_WEB"))), { headers: { "content-type": "text/html; charset=utf-8" } })
     : await env.ASSETS.fetch(new Request(new URL("/", url), { headers: request.headers }));
   // Unknown pages still get the app (it shows page-not-found) but with a real 404 status.
   const res = withSecurityHeaders(new Response(request.method === "HEAD" ? null : shell.body, { status: isKnownPage(url.pathname) ? 200 : 404, headers: shell.headers }), headers);

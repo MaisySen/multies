@@ -6,7 +6,7 @@
  */
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, CircleCheck, CircleX } from "lucide-react";
+import { IconArrowUpRight, IconCheckCircle, IconXCircle } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { timeAgo, zonedDateTime } from "@/web/lib/format";
 import { Badge } from "@/web/components/ui/misc";
@@ -53,14 +53,14 @@ export function TriggerHistory({ triggerId }: { triggerId: string }) {
           {entries.map((e) => (
             <li key={e.id} className="flex items-start gap-2 text-[13px]" data-testid="trigger-history-entry" data-outcome={e.outcome}>
               {e.outcome === "fired"
-                ? <CircleCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-label="Fired" />
-                : <CircleX className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-label="Refused" />}
+                ? <IconCheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-label="Fired" />
+                : <IconXCircle className="mt-0.5 h-4 w-4 shrink-0 text-warn" aria-label="Refused" />}
               <div className="min-w-0 flex-1">
                 <p className="text-fg">
                   {historyLine(e)}
                   {e.run?.taskId && (
                     <Link to={`/app/tasks?view=list&task=${e.run.taskId}`} className="ml-1.5 inline-flex items-center gap-0.5 text-brand hover:underline">
-                      Open run<ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+                      Open run<IconArrowUpRight className="h-3.5 w-3.5" aria-hidden />
                     </Link>
                   )}
                 </p>

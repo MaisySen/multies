@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bell, CheckCheck, Check, Clock, Inbox, Mail, MailOpen, CircleCheck } from "lucide-react";
+import { IconBell, IconCheck, IconCheckCircle, IconCheckDouble, IconClock, IconInbox, IconMail, IconRead } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
@@ -139,8 +139,8 @@ export function NotificationsPage() {
     <div>
       <PageHeader title="Notifications" description="Mentions, work assigned to you, comments, approvals and anything due soon. Mark each one done or snooze it until later."
         actions={<div className="flex gap-2"><Link to="/app/settings/notifications" className="inline-flex h-8 items-center rounded-lg px-3 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg max-sm:min-h-11">Settings</Link>
-          <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><CheckCheck className="h-4 w-4" />Mark all read</Button>
-          {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><Check className="h-4 w-4" />Mark all done</Button>}</div>} />
+          <Button size="sm" variant="secondary" onClick={markAll} disabled={!q.data?.unread}><IconCheckDouble className="h-4 w-4" />Mark all read</Button>
+          {view === "inbox" && <Button size="sm" variant="secondary" onClick={() => void doneAll()} disabled={!items.length}><IconCheck className="h-4 w-4" />Mark all done</Button>}</div>} />
       <div className="mb-3 inline-flex rounded-lg bg-fill p-0.5" role="tablist" aria-label="Notification views">
         {TRIAGE_VIEWS.map((v) => (
           <button key={v} role="tab" aria-selected={view === v} data-testid={`triage-tab-${v}`} onClick={() => { setView(v); setFocus(null); }}
@@ -161,12 +161,12 @@ export function NotificationsPage() {
       </div>
       {q.isPending ? <Card className="p-0"><SkeletonRows rows={6} label="Loading notifications" /></Card> : !items.length ? (
         view === "inbox" ? (
-          <EmptyState icon={<CircleCheck />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
+          <EmptyState icon={<IconCheckCircle />} title="You're all caught up" body="When someone mentions you, assigns you work or needs an approval, it shows here."
             action={<Button size="sm" variant="secondary" onClick={() => setView("done")}>View done</Button>} />
         ) : view === "later" ? (
-          <EmptyState icon={<Clock />} title="Nothing snoozed" body="Press H on a notification to snooze it. It comes back to your inbox at the time you pick." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconClock />} title="Nothing snoozed" body="Press H on a notification to snooze it. It comes back to your inbox at the time you pick." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
         ) : (
-          <EmptyState icon={<Bell />} title="Nothing done yet" body="Press E on a notification to mark it done. Done items stay here." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
+          <EmptyState icon={<IconBell />} title="Nothing done yet" body="Press E on a notification to mark it done. Done items stay here." action={<Button size="sm" variant="secondary" onClick={() => setView("inbox")}>Back to inbox</Button>} />
         )
       ) : (
         <Card className="p-0">
@@ -188,10 +188,10 @@ export function NotificationsPage() {
                         </span>
                       </button>
                       <div className={cn("flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100", focus === n.id && "opacity-100")}>
-                        {view !== "done" && <IconButton label="Mark done (E)" onClick={() => void done(n)}><Check /></IconButton>}
-                        {view !== "done" && <IconButton label="Snooze (H)" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)}><Clock /></IconButton>}
-                        {view !== "inbox" && <IconButton label="Move to inbox" onClick={() => void restore(n)}><Inbox /></IconButton>}
-                        <IconButton label={n.read ? "Mark unread (U)" : "Mark read (U)"} onClick={() => void toggleRead(n)}>{n.read ? <Mail /> : <MailOpen />}</IconButton>
+                        {view !== "done" && <IconButton label="Mark done (E)" onClick={() => void done(n)}><IconCheck /></IconButton>}
+                        {view !== "done" && <IconButton label="Snooze (H)" onClick={() => setSnoozeFor(snoozeFor === n.id ? null : n.id)}><IconClock /></IconButton>}
+                        {view !== "inbox" && <IconButton label="Move to inbox" onClick={() => void restore(n)}><IconInbox /></IconButton>}
+                        <IconButton label={n.read ? "Mark unread (U)" : "Mark read (U)"} onClick={() => void toggleRead(n)}>{n.read ? <IconMail /> : <IconRead />}</IconButton>
                       </div>
                       {snoozeFor === n.id && <SnoozeMenu onPick={(b) => void snooze(n, b)} onClose={() => setSnoozeFor(null)} />}
                     </li>
@@ -235,7 +235,7 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: { preset: SnoozePreset } 
       {(Object.keys(SNOOZE_LABELS) as SnoozePreset[]).map((p) => (
         <button key={p} role="menuitem" onClick={() => onPick({ preset: p })}
           className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] hover:bg-fill focus-visible:bg-fill focus-visible:outline-none">
-          <Clock className="h-3.5 w-3.5 text-subtle" />{SNOOZE_LABELS[p]}
+          <IconClock className="h-3.5 w-3.5 text-subtle" />{SNOOZE_LABELS[p]}
         </button>
       ))}
       <form className="mt-1 flex items-center gap-1 border-t border-line px-1.5 pt-1.5" onSubmit={(e) => { e.preventDefault(); const iso = pickedDateIso(date); if (iso) onPick({ until: iso }); }}>

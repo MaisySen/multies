@@ -21,12 +21,22 @@ function LoginPage() {
   const [Loaded] = useState(() => authModule?.LoginPage ?? null);
   return Loaded ? <Loaded /> : <LoginLazy />;
 }
-const SignupPage = lazy(() => authPages().then((m) => ({ default: m.SignupPage })));
-const ForgotPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ForgotPasswordPage })));
+// R35: sign up and forgot password are prerendered too, so they take the loaded module the same way.
+const SignupLazy = lazy(() => authPages().then((m) => ({ default: m.SignupPage })));
+function SignupPage() {
+  const [Loaded] = useState(() => authModule?.SignupPage ?? null);
+  return Loaded ? <Loaded /> : <SignupLazy />;
+}
+const ForgotLazy = lazy(() => authPages().then((m) => ({ default: m.ForgotPasswordPage })));
+function ForgotPasswordPage() {
+  const [Loaded] = useState(() => authModule?.ForgotPasswordPage ?? null);
+  return Loaded ? <Loaded /> : <ForgotLazy />;
+}
 const ResetPasswordPage = lazy(() => authPages().then((m) => ({ default: m.ResetPasswordPage })));
 const EmailVerifiedPage = lazy(() => authPages().then((m) => ({ default: m.EmailVerifiedPage })));
 const OAuthAuthorizePage = lazy(() => import("./pages/oauth-authorize").then((m) => ({ default: m.OAuthAuthorizePage })));
 const AppLayout = lazy(() => import("./layouts/app").then((m) => ({ default: m.AppLayout })));
+const ModerationPage = lazy(() => import("./pages/app/admin-moderation-r35").then((m) => ({ default: m.ModerationPage }))); // R35
 const AdminPage = lazy(() => import("./pages/app/admin").then((m) => ({ default: m.AdminPage })));
 const DashboardPage = lazy(() => import("./pages/app/dashboard").then((m) => ({ default: m.DashboardPage })));
 const DomainsPage = lazy(() => import("./pages/app/domains").then((m) => ({ default: m.DomainsPage })));
@@ -176,6 +186,7 @@ export const router = createBrowserRouter([
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
+      { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue
       {
         path: "settings",
         element: page(<SettingsLayout />),

@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bot, Check, ClipboardList, Clock, Code2, Copy, ExternalLink, Inbox, ListTodo, Mail, MessageCircle, Search, X } from "lucide-react";
+import { IconAgent, IconCheck, IconClipboardList, IconClock, IconClose, IconCode, IconCopy, IconExternalLink, IconInbox, IconMail, IconMessageCircle, IconSearch, IconTodo } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Input, Select, Textarea } from "@/web/components/ui/input";
@@ -25,11 +25,11 @@ type TriageItem = Task & { triage: { state: "pending"; source: TriageSource | nu
 type View = "pending" | "snoozed";
 
 const SOURCE = {
-  mail: { label: "Mail", icon: Mail },
-  form: { label: "Form", icon: ClipboardList },
-  api: { label: "API", icon: Code2 },
-  chat: { label: "Chat", icon: MessageCircle },
-  agent: { label: "Agent", icon: Bot },
+  mail: { label: "Mail", icon: IconMail },
+  form: { label: "Form", icon: IconClipboardList },
+  api: { label: "API", icon: IconCode },
+  chat: { label: "Chat", icon: IconMessageCircle },
+  agent: { label: "Agent", icon: IconAgent },
 } as const;
 
 const fromName = (from: string | null | undefined) => (from ? from.replace(/\s*<[^>]+>\s*$/, "").trim() || from : "");
@@ -168,11 +168,11 @@ export function TriagePage() {
         </Select>
       </div>
       {q.isPending ? <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"><Skeleton className="h-72" /><Skeleton className="h-72" /></div> : q.isError ? (
-        <EmptyState icon={<Inbox />} title="Triage didn't load" body="Check your connection and try again in a moment." />
+        <EmptyState icon={<IconInbox />} title="Triage didn't load" body="Check your connection and try again in a moment." />
       ) : !items.length ? (
         view === "snoozed"
-          ? <EmptyState icon={<Clock />} title="Nothing snoozed" body="Items you snooze wait here and come back to the queue on the day you pick." />
-          : <EmptyState icon={<ListTodo />} title="Triage is clear" body={<>New tasks from mail, forms, the API and agents land here when a project uses Triage. Turn it on in a project's settings, or with Send to triage on a <Link to="/app/forms" className="text-brand-hover hover:underline">form</Link>.</>} />
+          ? <EmptyState icon={<IconClock />} title="Nothing snoozed" body="Items you snooze wait here and come back to the queue on the day you pick." />
+          : <EmptyState icon={<IconTodo />} title="Triage is clear" body={<>New tasks from mail, forms, the API and agents land here when a project uses Triage. Turn it on in a project's settings, or with Send to triage on a <Link to="/app/forms" className="text-brand-hover hover:underline">form</Link>.</>} />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <Card className="p-0">
@@ -241,13 +241,13 @@ export function TriagePage() {
                 </label>
               </div>
               <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-4">
-                <Button onClick={() => accept(current)} disabled={busy}><Check className="h-4 w-4" />{assignee && assignee !== (current.assigneeId ?? "") ? "Accept and assign" : "Accept"}</Button>
+                <Button onClick={() => accept(current)} disabled={busy}><IconCheck className="h-4 w-4" />{assignee && assignee !== (current.assigneeId ?? "") ? "Accept and assign" : "Accept"}</Button>
                 {view === "snoozed"
-                  ? <Button variant="secondary" onClick={() => act(current, { action: "unsnooze" }, `${current.ref} is back in Triage`, "unsnooze")} disabled={busy}><Inbox className="h-4 w-4" />Back to queue</Button>
-                  : <Button variant="secondary" onClick={() => setSnoozing(true)} disabled={busy}><Clock className="h-4 w-4" />Snooze</Button>}
-                <Button variant="secondary" onClick={() => setMerging(true)} disabled={busy}><Copy className="h-4 w-4" />Duplicate</Button>
-                <Button variant="ghost" onClick={() => open(current)} disabled={busy}><ExternalLink className="h-4 w-4" />Open</Button>
-                <Button variant="ghost" className="ml-auto text-bad" onClick={() => setDeclining(true)} disabled={busy}><X className="h-4 w-4" />Decline</Button>
+                  ? <Button variant="secondary" onClick={() => act(current, { action: "unsnooze" }, `${current.ref} is back in Triage`, "unsnooze")} disabled={busy}><IconInbox className="h-4 w-4" />Back to queue</Button>
+                  : <Button variant="secondary" onClick={() => setSnoozing(true)} disabled={busy}><IconClock className="h-4 w-4" />Snooze</Button>}
+                <Button variant="secondary" onClick={() => setMerging(true)} disabled={busy}><IconCopy className="h-4 w-4" />Duplicate</Button>
+                <Button variant="ghost" onClick={() => open(current)} disabled={busy}><IconExternalLink className="h-4 w-4" />Open</Button>
+                <Button variant="ghost" className="ml-auto text-bad" onClick={() => setDeclining(true)} disabled={busy}><IconClose className="h-4 w-4" />Decline</Button>
               </div>
               {commenting && <TriageCommentBar key={`${current.id}-${commenting}`} mode={commenting} busy={busy} onSubmit={submitComment} onCancel={() => setCommenting(null)} onMore={() => { setCommenting(null); setDeclining(true); }} />}
             </Card>
@@ -334,7 +334,7 @@ function MergeDialog({ open, item, onClose, onDone, onUndo }: { open: boolean; i
   return (
     <Dialog open={open} onClose={onClose} title="Duplicate of" description="Pick the task this repeats. The details become a comment there, and any mail thread moves with them.">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
         <Input autoFocus className="pl-9" placeholder="Search tasks by title" value={term} onChange={(e) => setTerm(e.target.value)} aria-label="Search tasks" />
       </div>
       <ul className="mt-3 max-h-72 divide-y divide-line overflow-y-auto rounded-xl border border-line" data-testid="merge-results">

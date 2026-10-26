@@ -59,6 +59,24 @@
   @keyframes sheet-up { from { opacity: 0.6; transform: translateY(24px) } to { opacity: 1; transform: none } }
   @keyframes drawer-in { from { transform: translateX(-100%) } to { transform: none } }
   @keyframes shimmer { from { background-position: -400px 0 } to { background-position: 400px 0 } }
+
+  /* R35 Premium pass 2: depth. Elevation 0 to 3, soft layered shadows (a tight contact shadow plus a wide ambient one). */
+  --shadow-e0: 0 0 0 0 transparent;
+  --shadow-e1: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 6px -2px rgb(0 0 0 / 0.05);
+  --shadow-e2: 0 0 0 0.5px rgb(0 0 0 / 0.05), 0 2px 4px -1px rgb(0 0 0 / 0.06), 0 8px 20px -6px rgb(0 0 0 / 0.10);
+  --shadow-e3: 0 0 0 0.5px rgb(0 0 0 / 0.06), 0 6px 12px -4px rgb(0 0 0 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.20);
+  --radius-r10: 10px;
+  --radius-r14: 14px;
+  --radius-r20: 20px;
+  --color-glass: rgb(255 255 255 / 0.72);
+  --color-glass-sidebar: rgb(245 245 247 / 0.78);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 260ms;
+  --animate-route-in: route-in 220ms var(--ease-spring);
+  --animate-bump: bump 260ms var(--ease-spring);
+  @keyframes route-in { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  @keyframes bump { 0% { transform: scale(1) } 40% { transform: scale(1.06) } 100% { transform: scale(1) } }
 }
 
 /* Dark: the same names. Applied by the system setting unless the person picked light, or by an explicit choice. */
@@ -90,6 +108,11 @@
     --color-bad-soft: rgb(255 105 97 / 0.14);
     --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
     --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+    --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-e2: 0 0 0 0.5px rgb(255 255 255 / 0.07), 0 8px 20px -6px rgb(0 0 0 / 0.6);
+    --shadow-e3: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.75);
+    --color-glass: rgb(22 22 24 / 0.72);
+    --color-glass-sidebar: rgb(18 18 20 / 0.78);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -118,6 +141,16 @@
       --color-bad-soft: rgb(255 105 97 / 0.14);
       --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.02);
       --shadow-pop: 0 0 0 1px rgb(255 255 255 / 0.06), 0 16px 48px -12px rgb(0 0 0 / 0.7);
+      --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+      --shadow-e2: 0 0 0 0.5px rgb(255 255 255 / 0.07), 0 8px 20px -6px rgb(0 0 0 / 0.6);
+      --shadow-e3: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.75);
+      --color-glass: rgb(22 22 24 / 0.72);
+      --color-glass-sidebar: rgb(18 18 20 / 0.78);
+    --shadow-e1: 0 0 0 0.5px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-e2: 0 0 0 0.5px rgb(255 255 255 / 0.07), 0 8px 20px -6px rgb(0 0 0 / 0.6);
+    --shadow-e3: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 24px 48px -12px rgb(0 0 0 / 0.75);
+    --color-glass: rgb(22 22 24 / 0.72);
+    --color-glass-sidebar: rgb(18 18 20 / 0.78);
     }
   }
 }
@@ -145,26 +178,69 @@
   }
   /* iOS style large title: big on phones, normal size from the small breakpoint up. */
   .large-title { @apply text-[28px] leading-[34px] font-bold tracking-[-0.02em] sm:text-xl sm:leading-7 sm:font-semibold sm:tracking-tight; }
+  /* R35 Premium pass 2 (docs/design/premium-pass-2.md). */
+  .elev-0 { box-shadow: var(--shadow-e0); }
+  .elev-1 { box-shadow: var(--shadow-e1); }
+  .elev-2 { box-shadow: var(--shadow-e2); }
+  .elev-3 { box-shadow: var(--shadow-e3); }
+  .hairline-b { border-bottom: 0.5px solid var(--color-line-strong); }
+  .hairline-t { border-top: 0.5px solid var(--color-line-strong); }
+  .hairline-r { border-right: 0.5px solid var(--color-line); }
+  /* Translucent chrome: blur and saturate like the system bars, opaque where backdrop-filter is missing. */
+  .glass { background: var(--color-surface); }
+  .glass-sidebar { background: var(--color-bg); }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass { background: var(--color-glass); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); }
+    .glass-sidebar { background: var(--color-glass-sidebar); -webkit-backdrop-filter: saturate(180%) blur(24px); backdrop-filter: saturate(180%) blur(24px); }
+  }
+  /* Press state on touch screens; keyboard focus rings are untouched. */
+  .pressable { transition: transform var(--duration-fast) var(--ease-out), background-color var(--duration-fast) var(--ease-out); }
+  @media (hover: none) { .pressable:active { transform: scale(0.98); } }
+  .route-in { animation: var(--animate-route-in); }
+  /* Sidebar section tiles, like the system settings: a tinted rounded square behind a white glyph. */
+  .nav-tile { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #fff; flex-shrink: 0; box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.08); }
+  .nav-tile > svg { width: 14px; height: 14px; }
+  /* Swipe rows (mobile web): the action layer under a row that follows the finger. */
+  .swipe-row { position: relative; overflow: hidden; touch-action: pan-y; }
+  .swipe-row__content { position: relative; z-index: 1; background: var(--color-surface); will-change: transform; }
+  .swipe-row__content[data-settling="true"] { transition: transform var(--duration-slow) var(--ease-spring); }
+  .swipe-row__action { position: absolute; inset: 0; display: flex; align-items: center; padding: 0 20px; color: #fff; font-size: 13px; font-weight: 600; gap: 6px; }
+  .swipe-row__action[data-commit="true"] > svg { animation: var(--animate-bump); }
+  /* Large title that folds into the top bar on scroll (mobile web). */
+  .lt-bar-title { opacity: 0; transform: translateY(4px); transition: opacity var(--duration-base) var(--ease-out), transform var(--duration-base) var(--ease-out); }
+  [data-lt-collapsed="true"] .lt-bar-title { opacity: 1; transform: none; }
+  [data-lt-collapsed="true"] .lt-large { opacity: 0; }
+  .lt-large { transition: opacity var(--duration-fast) var(--ease-out); }
 }
 
 /* Suite views: FullCalendar and the SVAR Gantt in the app's theme, and the doc editor. */
 .mm-calendar {
-  --fc-border-color: var(--color-line);
-  --fc-page-bg-color: var(--color-surface);
-  --fc-neutral-bg-color: var(--color-elevated);
-  --fc-today-bg-color: var(--color-brand-soft);
-  --fc-button-bg-color: var(--color-elevated);
-  --fc-button-border-color: var(--color-line-strong);
-  --fc-button-hover-bg-color: var(--color-hover);
-  --fc-button-hover-border-color: var(--color-line-strong);
-  --fc-button-active-bg-color: var(--color-hover);
-  --fc-button-text-color: var(--color-fg);
-  --fc-event-border-color: transparent;
+  /* R35: FullCalendar 7 classic theme tokens, mapped to the app's own (light and dark follow the app, not the OS). */
+  --fc-classic-border: var(--color-line);
+  --fc-classic-strong-border: var(--color-line-strong);
+  --fc-classic-background: var(--color-surface);
+  --fc-classic-faint: var(--color-fill);
+  --fc-classic-muted: var(--color-elevated);
+  --fc-classic-strong: var(--color-hover);
+  --fc-classic-foreground: var(--color-fg);
+  --fc-classic-faint-foreground: var(--color-subtle);
+  --fc-classic-muted-foreground: var(--color-muted);
+  --fc-classic-today: var(--color-brand-soft);
+  --fc-classic-highlight: var(--color-brand-soft);
+  --fc-classic-primary: var(--color-brand);
+  --fc-classic-primary-foreground: #fff;
+  --fc-classic-button: var(--color-elevated);
+  --fc-classic-button-border: var(--color-line-strong);
+  --fc-classic-button-strong: var(--color-hover);
+  --fc-classic-button-strong-border: var(--color-line-strong);
+  --fc-classic-button-foreground: var(--color-fg);
+  --fc-classic-button-outline: color-mix(in srgb, var(--color-brand) 35%, transparent);
   font-size: 12.5px;
 }
-.mm-calendar .fc-toolbar-title { font-size: 16px; font-weight: 600; }
-.mm-calendar .fc-col-header-cell-cushion, .mm-calendar .fc-daygrid-day-number { color: var(--color-muted); text-decoration: none; }
-.mm-calendar .fc-event { cursor: pointer; border-radius: 5px; padding: 1px 4px; font-weight: 500; }
+.mm-calendar .mm-fc-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.mm-calendar .mm-fc-muted { color: var(--color-muted); text-decoration: none; }
+.mm-calendar .mm-fc-event { cursor: pointer; border-radius: 5px; padding: 1px 4px; font-weight: 500; }
+.mm-calendar .mm-external-event { box-shadow: inset 3px 0 0 var(--mm-src, #8E8E93); }
 .mm-gantt .wx-gantt { font-family: var(--font-sans); }
 .mm-gantt .wx-willow-dark-theme, .mm-gantt .wx-willow-theme { --wx-background: var(--color-surface); --wx-background-alt: var(--color-elevated); --wx-color-primary: var(--color-brand); --wx-gantt-task-color: var(--color-brand); --wx-gantt-task-fill-color: var(--color-brand-hover); --wx-color-font: var(--color-fg); --wx-gantt-border: 1px solid var(--color-line); height: 100%; }
 .mm-prose { font-size: 15px; line-height: 1.7; color: var(--color-fg); }

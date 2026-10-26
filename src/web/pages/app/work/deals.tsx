@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, PointerSensor, KeyboardSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { ArrowLeft, GripVertical, Handshake, Plus } from "lucide-react";
+import { IconArrowLeft, IconGrip, IconHandshake, IconPlus } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -24,7 +24,7 @@ function DealCard({ d }: { d: Deal }) {
       <div className="flex items-start gap-2">
         <div className="flex-1 text-[13.5px] font-medium">{d.title}</div>
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable deal" aria-label={`Move ${d.title}`}
-          className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><GripVertical className="h-3.5 w-3.5" aria-hidden /></button>
+          className="-mr-1 -mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       </div>
       <div className="mt-1 flex items-center justify-between text-[12px] text-muted">
         <span className="truncate">{d.company?.name ?? d.contact?.name ?? d.contact?.email ?? ""}</span>
@@ -65,10 +65,10 @@ export function DealsPage() {
   const open = q.data?.deals.filter((d) => d.stage !== "won" && d.stage !== "lost").reduce((n, d) => n + d.value, 0) ?? 0;
   return (
     <div>
-      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
-      <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />New deal</Button>} />
+      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
+      <PageHeader title="Deals" description={q.data ? `${aud(open)} open in the pipeline, ex GST.` : "Your sales pipeline."} actions={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />New deal</Button>} />
       {q.isPending ? <Skeleton className="h-64" /> : !q.data?.deals.length ? (
-        <EmptyState icon={<Handshake />} title="No deals yet" body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>New deal</Button>} />
+        <EmptyState icon={<IconHandshake />} title="No deals yet" body="Add a deal from a contact, or here. Drag deals across stages as they move." action={<Button onClick={() => setAdding(true)}>New deal</Button>} />
       ) : (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-3 overflow-x-auto pb-4" data-testid="deals-board">

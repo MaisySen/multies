@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, Zap } from "lucide-react";
+import { IconPlus, IconTrash, IconZap } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -41,7 +41,7 @@ export function AutomationsPage() {
   const remove = async (r: Rule) => { try { await api.del(`/automations/${r.id}`); await refresh(); } catch (e) { showError(e as Error); } };
   return (
     <div>
-      <PageHeader title="Automations" description="Simple rules that run inside Multies. They make tasks, notify your team and post in channels; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><Plus className="h-4 w-4" />New rule</Button>} />
+      <PageHeader title="Automations" description="Simple rules that run inside Multies. They make tasks, notify your team and post in channels; they never email anyone outside the business." actions={<Button onClick={() => setEditing({ trigger: "email_received", action: "create_task", conditions: {}, actionConfig: {} })}><IconPlus className="h-4 w-4" />New rule</Button>} />
       <div role="tablist" aria-label="Automations" className="mb-5 inline-flex rounded-lg border border-line bg-surface p-0.5 text-[13px]">
         {(["rules", "recipes"] as const).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`rounded-md px-3 py-1.5 font-medium ${tab === k ? "bg-brand text-white" : "text-muted hover:text-fg"}`}>{k === "rules" ? "Your rules" : "Recipes"}</button>
@@ -50,7 +50,7 @@ export function AutomationsPage() {
       {tab === "recipes" ? <RecipesTab rules={q.data?.automations ?? []} onEditRule={(r) => setEditing(r as Rule)} /> : q.isPending ? <Skeleton className="h-40" /> : (
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div>
-            {!q.data!.automations.length ? <Card><EmptyState icon={<Zap />} title="No rules yet" body="Start from a recipe on the right, or write your own." /></Card> : (
+            {!q.data!.automations.length ? <Card><EmptyState icon={<IconZap />} title="No rules yet" body="Start from a recipe on the right, or write your own." /></Card> : (
               <Card className="divide-y divide-line">
                 {q.data!.automations.map((r) => (
                   <div key={r.id} className="flex items-start gap-3 p-4">
@@ -60,7 +60,7 @@ export function AutomationsPage() {
                       <p className="mt-0.5 text-[13px] text-muted">{describe(r, names)}</p>
                       <p className="mt-1 text-[12px] text-subtle">Ran {r.runCount} {r.runCount === 1 ? "time" : "times"}{r.lastRunAt && `, last ${timeAgo(r.lastRunAt)}`}{r.lastError && <span className="text-bad"> · {r.lastError}</span>}</p>
                     </button>
-                    <button onClick={() => void remove(r)} className="rounded p-1 text-subtle hover:text-bad" aria-label={`Delete ${r.name}`}><Trash2 className="h-4 w-4" /></button>
+                    <button onClick={() => void remove(r)} className="rounded p-1 text-subtle hover:text-bad" aria-label={`Delete ${r.name}`}><IconTrash className="h-4 w-4" /></button>
                   </div>
                 ))}
               </Card>
@@ -76,7 +76,7 @@ export function AutomationsPage() {
               <ul className="space-y-2">
                 {q.data!.recipes.map((r) => (
                   <li key={r.key}><button onClick={() => setEditing({ ...r })} className="w-full rounded-lg border border-line bg-surface p-3 text-left text-[13px] hover:border-line-strong">
-                    <span className="flex items-center gap-1.5 font-medium"><Zap className="h-3.5 w-3.5 text-brand-hover" />{r.name}</span>
+                    <span className="flex items-center gap-1.5 font-medium"><IconZap className="h-3.5 w-3.5 text-brand-hover" />{r.name}</span>
                   </button></li>
                 ))}
               </ul>

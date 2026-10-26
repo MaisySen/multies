@@ -5,7 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { KeyRound, Mail, RefreshCw, Send } from "lucide-react";
+import { IconKey, IconMail, IconRefresh, IconSend } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -177,12 +177,12 @@ function AuthEmailSettingsForm() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!senders.length}>Save</Button>
-              <Button variant="outline" onClick={() => test.mutate()} loading={test.isPending} disabled={!s || s.testSendsLeft === 0}><Send className="h-4 w-4" />Send test email</Button>
+              <Button variant="outline" onClick={() => test.mutate()} loading={test.isPending} disabled={!s || s.testSendsLeft === 0}><IconSend className="h-4 w-4" />Send test email</Button>
               {s && <span className="text-xs text-subtle">{s.testSendsLeft} of {q.data?.testSendsPerHour} test emails left this hour, sent to you.</span>}
             </div>
           </div>
           <div className="space-y-2" aria-live="polite">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-subtle"><Mail className="h-3.5 w-3.5" />Preview: {TYPE_LABEL[type] ?? type}</p>
+            <p className="flex items-center gap-1.5 text-xs font-medium text-subtle"><IconMail className="h-3.5 w-3.5" />Preview: {TYPE_LABEL[type] ?? type}</p>
             <div className="overflow-hidden rounded-lg border border-line bg-white">
               <p data-testid="auth-preview-subject" className="border-b border-line px-4 py-2.5 text-[13px] font-medium text-[#1d1d1f]">{preview?.subject ?? " "}</p>
               <iframe title="Email preview" sandbox="" srcDoc={preview?.html ?? ""} className="h-[420px] w-full bg-white" />
@@ -197,7 +197,7 @@ function AuthEmailSettingsForm() {
             <Field label="Endpoint URL">{(p) => <div className="flex gap-2"><Input {...p} readOnly value={s.endpointUrl} className="font-mono text-[12.5px]" /><CopyButton value={s.endpointUrl} /></div>}</Field>
             {shownSecret ? (
               <div className="rounded-lg border border-brand/40 bg-brand/5 p-4">
-                <p className="mb-2 flex items-center gap-1.5 text-sm font-medium"><KeyRound className="h-4 w-4" />Signing secret</p>
+                <p className="mb-2 flex items-center gap-1.5 text-sm font-medium"><IconKey className="h-4 w-4" />Signing secret</p>
                 <div className="flex gap-2"><Input readOnly aria-label="Signing secret" value={shownSecret} className="font-mono text-[12.5px]" /><CopyButton value={shownSecret} /></div>
                 <p className="mt-2 text-xs text-subtle">Copy it now. It isn't shown again.</p>
               </div>
@@ -211,7 +211,7 @@ function AuthEmailSettingsForm() {
                 <Button variant="ghost" size="sm" onClick={() => setConfirmRegen(false)}>Cancel</Button>
               </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={() => setConfirmRegen(true)}><RefreshCw className="h-4 w-4" />Regenerate secret</Button>
+              <Button variant="outline" size="sm" onClick={() => setConfirmRegen(true)}><IconRefresh className="h-4 w-4" />Regenerate secret</Button>
             )}
           </div>
         </Section>

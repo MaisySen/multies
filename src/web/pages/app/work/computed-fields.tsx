@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, FunctionSquare, Sigma } from "lucide-react";
+import { IconAlertCircle, IconFunction, IconSigma } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { Input, Select } from "@/web/components/ui/input";
 import { cn } from "@/web/lib/cn";
@@ -46,7 +46,7 @@ export function describeComputed(f: CustomField, fields: CustomField[] = []): st
 export function ComputedCell({ field, value, error, fields }: { field: CustomField; value: FieldValue | undefined; error?: string; fields?: CustomField[] }) {
   const tip = error ? `${describeComputed(field, fields)}\n${error}` : describeComputed(field, fields);
   if (value === "#ERROR") {
-    return <span title={tip} className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium text-bad" data-computed="error"><AlertCircle className="h-3.5 w-3.5" aria-hidden />#ERROR</span>;
+    return <span title={tip} className="inline-flex items-center gap-1 whitespace-nowrap text-[12.5px] font-medium text-bad" data-computed="error"><IconAlertCircle className="h-3.5 w-3.5" aria-hidden />#ERROR</span>;
   }
   const shown = formatComputed(field, value);
   if (!shown) return <span title={tip} className="text-subtle" aria-label="Empty">-</span>;
@@ -66,7 +66,7 @@ function Preview({ projectId, expression }: { projectId: string; expression: str
   if (q.isPending) return <p className="text-[12px] text-subtle">Checking...</p>;
   if (q.isError) return <p role="alert" className="text-[12px] text-bad">{(q.error as Error).message}</p>;
   const d = q.data!;
-  if (d.error) return <p role="alert" className="flex items-center gap-1 text-[12px] text-bad" data-testid="formula-error"><AlertCircle className="h-3.5 w-3.5" aria-hidden />{d.error}</p>;
+  if (d.error) return <p role="alert" className="flex items-center gap-1 text-[12px] text-bad" data-testid="formula-error"><IconAlertCircle className="h-3.5 w-3.5" aria-hidden />{d.error}</p>;
   return (
     <p className="text-[12px] text-muted" data-testid="formula-preview">
       {d.task ? <>On &ldquo;{d.task.title}&rdquo;: <span className="font-medium text-fg">{d.value === null || d.value === "" ? "empty" : String(d.value)}</span></> : "Looks right. Add a task to see a value."}
@@ -82,7 +82,7 @@ export function ComputedEditor({ type, projectId, fields, value, onChange, idPre
     return (
       <div className="space-y-1.5 sm:col-span-2">
         <div className="relative">
-          <FunctionSquare className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
+          <IconFunction className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
           <Input aria-label={`${idPrefix} formula`} placeholder="{Budget} * 1.1" value={value.expression ?? ""} maxLength={500}
             onChange={(e) => onChange({ expression: e.target.value })} className="h-9 pl-8 font-mono text-[12.5px]" spellCheck={false} />
         </div>
@@ -127,7 +127,7 @@ export function ProjectRollups({ projectId, fields }: { projectId: string; field
       {q.data.rollups.map((r) => (
         <div key={r.id} title={r.error ?? `${FN_LABEL[r.fn]}${r.fieldName ? ` of ${r.fieldName}` : ""} over the project's tasks`}
           className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-1.5 shadow-card">
-          <Sigma className="h-3.5 w-3.5 text-brand" aria-hidden />
+          <IconSigma className="h-3.5 w-3.5 text-brand" aria-hidden />
           <span className="text-[12px] text-muted">{r.name}</span>
           <span className={cn("text-[13px] font-semibold tabular-nums", r.error ? "text-bad" : "text-fg")} data-testid={`rollup-${r.name}`}>
             {r.value === null ? "-" : typeof r.value === "number" ? (currency(r) ? aud.format(r.value) : `${num.format(r.value)}${r.fn === "percent_done" ? "%" : ""}`) : r.value}

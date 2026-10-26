@@ -14,6 +14,7 @@ import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { plainText } from "./chat";
 import { deferrableWrite } from "../write-priority";
+import { notBlockedBy } from "./reports-r35"; // R35: blocked people's messages stay out of the digest
 
 export const CATCHUP_TYPES = ["channel", "task", "doc"] as const;
 export type CatchupType = (typeof CATCHUP_TYPES)[number];
@@ -114,7 +115,7 @@ export async function getCatchup(deps: Deps, a: SuiteActor, type: CatchupType, r
 async function channelDigest(deps: Deps, orgId: string, userId: string, channelId: string, since: Date, out: CatchupDigest) {
   const found = await deps.db.select({ id: chatMessages.id, parentId: chatMessages.parentId, authorName: chatMessages.authorName, body: chatMessages.body, mentions: chatMessages.mentions, links: chatMessages.links, mentionKeys: chatMessages.mentionKeys, createdAt: chatMessages.createdAt })
     .from(chatMessages)
-    .where(and(eq(chatMessages.orgId, orgId), eq(chatMessages.channelId, channelId), gt(chatMessages.createdAt, since), isNull(chatMessages.deletedAt), or(isNull(chatMessages.authorId), ne(chatMessages.authorId, userId))))
+    .where(and(eq(chatMessages.orgId, orgId), eq(chatMessages.channelId, channelId), gt(chatMessages.createdAt, since), isNull(chatMessages.deletedAt), or(isNull(chatMessages.authorId), ne(chatMessages.authorId, userId)), notBlockedBy(chatMessages.authorId, userId)))
     .orderBy(desc(chatMessages.createdAt)).limit(SCAN_LIMIT);
   // Mention and link tokens read as names and references (the same text the chat list previews show).
   const rows = found.map((r) => {

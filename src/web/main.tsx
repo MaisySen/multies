@@ -61,15 +61,19 @@ if (isAuthLayoutPath(window.location.pathname)) {
 const rootEl = document.getElementById("root")!;
 const prerenderedAuth = rootEl.dataset.prerendered === "auth";
 if (prerenderedAuth) document.querySelectorAll<HTMLLinkElement>("link[data-defer-css]").forEach((l) => { l.media = "all"; });
+// R35: the page's own code is always waited for (rendering without it would put the loading fallback over the card,
+// the one layout shift seen on a slow Lighthouse run); only the two reads give up after 4 s.
 const beforeRender = prerenderedAuth
-  ? Promise.race([
-    Promise.all([
-      preloadAuthPages(),
-      queryClient.fetchQuery(authProvidersQuery),
-      queryClient.fetchQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity }),
-    ]),
-    new Promise((resolve) => setTimeout(resolve, 4000)),
-  ]).catch(() => undefined)
+  ? Promise.all([
+    preloadAuthPages().catch(() => undefined),
+    Promise.race([
+      Promise.all([
+        queryClient.fetchQuery(authProvidersQuery),
+        queryClient.fetchQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity }),
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ]).catch(() => undefined),
+  ])
   : null;
 
 // The marker comes off as React takes over, so tests (and anyone reading the page) can tell the two apart.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlarmClock, CalendarClock, Clock, Pencil, Inbox, Sun, Sunrise, X, CalendarDays, BellRing } from "lucide-react";
+import { IconBellRing, IconCalendarClock, IconCalendarDays, IconClock, IconClose, IconEdit, IconInbox, IconSnooze, IconSunrise, IconToday, type IconComponent } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -15,9 +15,9 @@ import type { MessageListItem } from "@/web/lib/types";
 /** Round 20 (R20.3): Snoozed and Scheduled views, the snooze menu, send later and the returned strip. */
 
 export type ScheduleView = "snoozed" | "scheduled";
-export const SCHEDULE_VIEWS: { id: ScheduleView; label: string; icon: typeof Clock }[] = [
-  { id: "snoozed", label: "Snoozed", icon: AlarmClock },
-  { id: "scheduled", label: "Scheduled", icon: CalendarClock },
+export const SCHEDULE_VIEWS: { id: ScheduleView; label: string; icon: IconComponent }[] = [
+  { id: "snoozed", label: "Snoozed", icon: IconSnooze },
+  { id: "scheduled", label: "Scheduled", icon: IconCalendarClock },
 ];
 export const isScheduleView = (v: string): v is ScheduleView => v === "snoozed" || v === "scheduled";
 
@@ -36,10 +36,10 @@ export interface ScheduleItem {
   send: { to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; inReplyToId: string | null; remindDays: number | null } | null;
 }
 
-const PRESETS: { id: "later_today" | "tomorrow" | "next_week"; label: string; icon: typeof Clock }[] = [
-  { id: "later_today", label: "Later today", icon: Sun },
-  { id: "tomorrow", label: "Tomorrow", icon: Sunrise },
-  { id: "next_week", label: "Next week", icon: CalendarDays },
+const PRESETS: { id: "later_today" | "tomorrow" | "next_week"; label: string; icon: IconComponent }[] = [
+  { id: "later_today", label: "Later today", icon: IconToday },
+  { id: "tomorrow", label: "Tomorrow", icon: IconSunrise },
+  { id: "next_week", label: "Next week", icon: IconCalendarDays },
 ];
 
 /** "Tomorrow, 8:00 am" style labels, in the person's zone, so a choice says what it means. */
@@ -87,14 +87,14 @@ export function SnoozeMenu({ messageId, onDone }: { messageId: string; onDone?: 
   });
   return (
     <>
-      <Menu label="Snooze" trigger={<button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Snooze" data-testid="snooze-menu"><AlarmClock className="h-4 w-4" /></button>}>
+      <Menu label="Snooze" trigger={<button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Snooze" data-testid="snooze-menu"><IconSnooze className="h-4 w-4" /></button>}>
         <MenuLabel>Snooze until</MenuLabel>
         {PRESETS.map((p) => (
           <MenuItem key={p.id} icon={<p.icon />} onSelect={() => snooze.mutate({ preset: p.id })}>
             <span className="flex-1">{p.label}</span><span className="text-[12px] text-subtle">{presetHint(p.id)}</span>
           </MenuItem>
         ))}
-        <MenuItem icon={<CalendarClock />} onSelect={() => setPicking(true)}>Pick date and time</MenuItem>
+        <MenuItem icon={<IconCalendarClock />} onSelect={() => setPicking(true)}>Pick date and time</MenuItem>
       </Menu>
       <PickTime open={picking} title="Snooze until" onClose={() => setPicking(false)} onPick={(local) => snooze.mutate({ local })} />
     </>
@@ -119,7 +119,7 @@ export function SendLaterMenu({ disabled, onPick }: { disabled?: boolean; onPick
   return (
     <div ref={ref} className="relative">
       <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Schedule for later" onClick={() => setOpen((o) => !o)}
-        className="rounded-lg border border-line px-2.5 py-2 text-muted hover:bg-hover hover:text-fg disabled:opacity-50" title="Send later" data-testid="send-later"><Clock className="h-4 w-4" /></button>
+        className="rounded-lg border border-line px-2.5 py-2 text-muted hover:bg-hover hover:text-fg disabled:opacity-50" title="Send later" data-testid="send-later"><IconClock className="h-4 w-4" /></button>
       {open && (
         <div role="menu" className="absolute bottom-full left-0 z-50 mb-1.5 min-w-56 origin-bottom-left animate-pop-in rounded-xl border border-line bg-elevated p-1 shadow-pop">
           <MenuLabel>Send later</MenuLabel>
@@ -128,7 +128,7 @@ export function SendLaterMenu({ disabled, onPick }: { disabled?: boolean; onPick
               <span className="flex-1">{p.label}</span><span className="text-[12px] text-subtle">{presetHint(p.id)}</span>
             </MenuItem>
           ))}
-          <MenuItem icon={<CalendarClock />} onSelect={() => { setOpen(false); setPicking(true); }}>Pick date and time</MenuItem>
+          <MenuItem icon={<IconCalendarClock />} onSelect={() => { setOpen(false); setPicking(true); }}>Pick date and time</MenuItem>
         </div>
       )}
       <PickTime open={picking} title="Send later" onClose={() => setPicking(false)} onPick={(local) => onPick({ local })} />
@@ -142,7 +142,7 @@ export const REMIND_CHOICES = [0, 1, 2, 3, 5, 7, 14] as const;
 export function RemindSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
     <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover", value ? "text-[#0071E3]" : "text-muted")} title="Bring this thread back if nobody replies">
-      <BellRing className="h-3.5 w-3.5" aria-hidden />
+      <IconBellRing className="h-3.5 w-3.5" aria-hidden />
       <select value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply">
         {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? "No reminder" : `Remind in ${n} day${n > 1 ? "s" : ""}`}</option>)}
       </select>
@@ -162,7 +162,7 @@ export function ReturnedStrip({ items, onOpen }: { items: ScheduleItem[]; onOpen
       {items.map((it) => it.message && (
         <li key={it.id}>
           <button type="button" onClick={() => onOpen(it)} data-testid="returned-row" className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover">
-            {it.kind === "snooze" ? <AlarmClock className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden /> : <BellRing className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
+            {it.kind === "snooze" ? <IconSnooze className="h-4 w-4 shrink-0 text-[#0071E3]" aria-hidden /> : <IconBellRing className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />}
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13.5px] font-medium">{it.message.subject || "(no subject)"}</span>
               <span className="block truncate text-[12.5px] text-muted">{it.message.from.name || it.message.from.address} · {it.message.snippet}</span>
@@ -198,7 +198,7 @@ export function ScheduleListView({ view, mailboxId, onOpen, onEdit }: {
   if (!items.length) {
     return (
       <div className="grid flex-1 place-items-center p-6">
-        <EmptyState icon={view === "snoozed" ? <AlarmClock /> : <CalendarClock />} title={view === "snoozed" ? "Nothing snoozed" : "Nothing scheduled"}
+        <EmptyState icon={view === "snoozed" ? <IconSnooze /> : <IconCalendarClock />} title={view === "snoozed" ? "Nothing snoozed" : "Nothing scheduled"}
           body={view === "snoozed" ? "Snooze a thread from its toolbar and it comes back to the top of Inbox when you choose." : "Use the clock next to Send to send a message later, or set a reminder for when nobody replies."} />
       </div>
     );
@@ -227,11 +227,11 @@ export function ScheduleListView({ view, mailboxId, onOpen, onEdit }: {
               </button>
               <div className="flex shrink-0 items-center gap-1">
                 {it.kind === "send" && (
-                  <button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Edit" aria-label="Edit" onClick={() => onEdit(it)}><Pencil className="h-4 w-4" /></button>
+                  <button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Edit" aria-label="Edit" onClick={() => onEdit(it)}><IconEdit className="h-4 w-4" /></button>
                 )}
-                <button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Change time" aria-label="Change time" onClick={() => setMoving(it)}><Clock className="h-4 w-4" /></button>
+                <button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Change time" aria-label="Change time" onClick={() => setMoving(it)}><IconClock className="h-4 w-4" /></button>
                 <button type="button" className="rounded-md px-2 py-1.5 text-[12.5px] font-medium text-muted hover:bg-hover hover:text-fg" onClick={() => cancel.mutate(it)}>
-                  {it.kind === "snooze" ? <span className="flex items-center gap-1"><Inbox className="h-3.5 w-3.5" aria-hidden />Unsnooze</span> : <span className="flex items-center gap-1"><X className="h-3.5 w-3.5" aria-hidden />Cancel</span>}
+                  {it.kind === "snooze" ? <span className="flex items-center gap-1"><IconInbox className="h-3.5 w-3.5" aria-hidden />Unsnooze</span> : <span className="flex items-center gap-1"><IconClose className="h-3.5 w-3.5" aria-hidden />Cancel</span>}
                 </button>
               </div>
             </li>

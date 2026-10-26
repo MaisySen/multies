@@ -6,7 +6,7 @@
  */
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { History, X } from "lucide-react";
+import { IconClose, IconHistory } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { timeAgo } from "@/web/lib/format";
@@ -35,7 +35,7 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
     <section aria-label="Since your last visit" data-testid="catchup-card"
       className={cn("mx-2 my-2 rounded-xl border border-line bg-elevated px-3.5 py-3 text-[13px] motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200", className)}>
       <div className="flex items-start gap-2">
-        <History className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+        <IconHistory className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="font-medium">
             Since your last visit{d.since ? <span className="font-normal text-subtle"> {timeAgo(d.since)}</span> : null}
@@ -60,7 +60,7 @@ export function CatchupCard({ type, id, className }: { type: CatchupType; id: st
             )}
           </div>
         </div>
-        <button onClick={() => setHidden(true)} aria-label="Hide" className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-fill hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><X className="h-3.5 w-3.5" /></button>
+        <button onClick={() => setHidden(true)} aria-label="Hide" className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-fill hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-3.5 w-3.5" /></button>
       </div>
     </section>
   );

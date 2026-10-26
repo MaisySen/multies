@@ -43,7 +43,7 @@ import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
 import { fakeAiAllowed, fakeAiFetch } from "../server/services/ai/fake-fetch";
-import { AUTH_SHELL_PATHS, BRAND_CACHE, LOGIN_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
+import { AUTH_SHELL_PATHS, BRAND_CACHE, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant } from "../server/auth/config";
 
 loadDotEnv();
@@ -107,7 +107,7 @@ if (existsSync(webRoot)) {
     const file = path.join(webRoot, "auth-login.json");
     try { return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as LoginPrerender) : null; } catch { return null; }
   };
-  const pageHtml = (p: string, search: string) => loginHtmlFor(p, search, LOGIN_CARD_PATH.test(p) ? loginPrerender() : null, variant) ?? readFileSync(path.join(webRoot, shellPath(p)), "utf8");
+  const pageHtml = (p: string, search: string) => loginHtmlFor(p, search, AUTH_CARD_PATH.test(p) ? loginPrerender() : null, variant) ?? readFileSync(path.join(webRoot, shellPath(p)), "utf8");
   app.get("*", (c) => (c.req.path.startsWith("/api/") ? c.notFound() : c.html(withOriginHints(pageHtml(c.req.path, new URL(c.req.url).search), hints), isKnownPage(c.req.path) ? 200 : 404)));
 }
 

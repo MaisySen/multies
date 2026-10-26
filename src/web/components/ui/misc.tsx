@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Check, Copy } from "lucide-react";
+import { IconCheck, IconCopy } from "./icon";
 import { cn } from "@/web/lib/cn";
 
 export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
@@ -27,10 +27,11 @@ export function Skeleton({ className, style }: { className?: string; style?: Rea
   return <div className={cn("skeleton h-4", className)} style={style} aria-hidden />;
 }
 
-export function EmptyState({ icon, title, body, action, className }: { icon: ReactNode; title: string; body: ReactNode; action?: ReactNode; className?: string }) {
+export function EmptyState({ icon, art, title, body, action, className }: { icon?: ReactNode; art?: ReactNode; title: string; body: ReactNode; action?: ReactNode; className?: string }) {
   return (
     <div className={cn("flex flex-col items-center justify-center px-6 py-14 text-center", className)}>
-      <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</div>
+      {/* R35: an illustration (components/illustrations.tsx) when the list has one, else the round icon. */}
+      {art ? <div className="mb-4" aria-hidden>{art}</div> : <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden>{icon}</div>}
       <h2 className="text-[15px] font-semibold">{title}</h2>
       <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted">{body}</p>
       {action && <div className="mt-5">{action}</div>}
@@ -51,7 +52,7 @@ export function CopyButton({ value, label = "Copy", className }: { value: string
       className={cn("inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md bg-fill px-2 text-xs text-muted transition-colors hover:bg-hover hover:text-fg max-sm:min-h-11 max-sm:px-3", className)}
       aria-label={done ? "Copied" : `${label} to clipboard`}
     >
-      {done ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
+      {done ? <IconCheck className="h-3.5 w-3.5 text-ok" /> : <IconCopy className="h-3.5 w-3.5" />}
       <span>{done ? "Copied" : label}</span>
     </button>
   );

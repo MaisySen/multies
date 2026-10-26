@@ -37,6 +37,21 @@ export default tseslint.config(
       ],
     },
   },
+  // R35 Premium pass 2: one icon component. Every glyph comes through src/web/components/ui/icon.tsx (Phosphor,
+  // the same family as the phone app), so web and phone stay one product. Add a semantic name there instead.
+  {
+    files: ["src/web/**/*.{ts,tsx}"],
+    ignores: ["src/web/components/ui/icon.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "lucide-react", message: "Import the glyph by name (IconInbox, IconTasks, ...) from src/web/components/ui/icon.tsx; add new ones to scripts/r35-icon-map.json." },
+          { name: "@phosphor-icons/react", message: "Import the glyph by name (IconInbox, IconTasks, ...) from src/web/components/ui/icon.tsx; add new ones to scripts/r35-icon-map.json." },
+        ],
+        patterns: [{ group: ["lucide-react/*", "@phosphor-icons/react/*"], message: "Import the glyph by name (IconInbox, IconTasks, ...) from src/web/components/ui/icon.tsx; add new ones to scripts/r35-icon-map.json." }],
+      }],
+    },
+  },
   // k6 scripts run in k6's own runtime, which provides these globals.
   { files: ["load/**/*.js"], languageOptions: { globals: { __ENV: "readonly", __VU: "readonly", __ITER: "readonly" } } },
 );

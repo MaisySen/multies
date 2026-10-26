@@ -5,7 +5,7 @@
  */
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Share2, Trash2 } from "lucide-react";
+import { IconLink, IconShare, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -23,7 +23,7 @@ export function ShareButton({ kind, targetId, size = "sm" }: { kind: Kind; targe
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-10 max-sm:min-w-10" onClick={() => setOpen(true)} aria-label="Share" data-testid="share-button"><Share2 className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>
+      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-10 max-sm:min-w-10" onClick={() => setOpen(true)} aria-label="Share" data-testid="share-button"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>
       {open && <ShareSheet kind={kind} targetId={targetId} onClose={() => setOpen(false)} />}
     </>
   );
@@ -69,7 +69,7 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
             </Select>
             <span className="ml-auto inline-flex items-center gap-2 text-[13px] text-muted">Show workspace name<Switch checked={showWs} onChange={setShowWs} label="Show workspace name" /></span>
           </div>
-          <Button onClick={create} loading={busy} data-testid="share-create"><Link2 className="h-4 w-4" />Create link</Button>
+          <Button onClick={create} loading={busy} data-testid="share-create"><IconLink className="h-4 w-4" />Create link</Button>
           {fresh?.url && (
             <div className="rounded-lg border border-line bg-fill p-3" data-testid="share-fresh">
               <p className="text-[12px] text-subtle">Copy it now: the full link is shown only once.</p>
@@ -85,9 +85,9 @@ function ShareSheet({ kind, targetId, onClose }: { kind: Kind; targetId: string;
               <ul className="mt-2 divide-y divide-line rounded-lg border border-line">
                 {links.map((l) => (
                   <li key={l.id} className="flex items-center gap-2 px-3 py-2 text-[13px]" data-testid="share-link-row">
-                    <Link2 className="h-3.5 w-3.5 text-muted" aria-hidden />
+                    <IconLink className="h-3.5 w-3.5 text-muted" aria-hidden />
                     <span className="min-w-0 flex-1 truncate">Made {day(l.createdAt)} · {l.expiresAt ? `ends ${day(l.expiresAt)}` : "no end date"}{l.showWorkspaceName ? "" : " · name hidden"}</span>
-                    <Button variant="ghost" size="sm" onClick={() => void revoke(l.id)} aria-label="Revoke link"><Trash2 className="h-3.5 w-3.5" />Revoke</Button>
+                    <Button variant="ghost" size="sm" onClick={() => void revoke(l.id)} aria-label="Revoke link"><IconTrash className="h-3.5 w-3.5" />Revoke</Button>
                   </li>
                 ))}
               </ul>

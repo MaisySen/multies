@@ -30,7 +30,7 @@ export function Menu({ trigger, children, align = "end", label }: { trigger: Rea
           : trigger}
       </div>
       {open && (
-        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-xl border border-line bg-elevated p-1 shadow-pop", align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left")}>
+        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop", align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left")}>
           {children}
         </div>
       )}

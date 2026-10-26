@@ -3,7 +3,7 @@
  * the outbox holds or sends them; "Not sent, tap to retry" once it gave up (same client id, so a
  * retry can never post twice). They sit under the list until the server's message replaces them.
  */
-import { AlertCircle, Clock } from "lucide-react";
+import { IconAlertCircle, IconClock } from "@/web/components/ui/icon";
 import { pendingFor, type ChatOutbox } from "@/web/lib/chat-outbox";
 import { useOutbox } from "@/web/lib/live-chat";
 
@@ -23,13 +23,13 @@ export function PendingBubbles({ outbox, channelId, parentId, authorName }: { ou
               <div className="mt-0.5 flex items-center gap-2 text-[12px]">
                 <button type="button" onClick={() => outbox.retry(i.clientMsgId)} data-testid="chat-pending-retry"
                   className="inline-flex items-center gap-1 rounded text-red-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3] dark:text-red-400">
-                  <AlertCircle className="h-3.5 w-3.5" aria-hidden />Not sent, tap to retry
+                  <IconAlertCircle className="h-3.5 w-3.5" aria-hidden />Not sent, tap to retry
                 </button>
                 <button type="button" onClick={() => outbox.discard(i.clientMsgId)} className="rounded text-subtle hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0071E3]">Delete</button>
               </div>
             ) : (
               <div className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-subtle" role="status">
-                <Clock className="h-3 w-3" aria-hidden />Sending
+                <IconClock className="h-3 w-3" aria-hidden />Sending
               </div>
             )}
           </div>

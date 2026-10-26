@@ -4,7 +4,7 @@
  */
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Check, ExternalLink, GripVertical, Plus, Trash2, X } from "lucide-react";
+import { IconArrowUp, IconCheck, IconClose, IconExternalLink, IconGrip, IconPlus, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -49,8 +49,8 @@ export function FieldCell({ field, value, people, error, fields }: { field: Cust
       </span>
     );
   }
-  if (field.type === "checkbox") return <span className="inline-flex text-ok" role="img" aria-label="Yes"><Check className="h-4 w-4" aria-hidden /></span>;
-  if (field.type === "url") return <a href={String(value)} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-brand-hover hover:underline">{formatValue(field, value)}<ExternalLink className="h-3 w-3" /></a>;
+  if (field.type === "checkbox") return <span className="inline-flex text-ok" role="img" aria-label="Yes"><IconCheck className="h-4 w-4" aria-hidden /></span>;
+  if (field.type === "url") return <a href={String(value)} target="_blank" rel="noreferrer noopener" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-brand-hover hover:underline">{formatValue(field, value)}<IconExternalLink className="h-3 w-3" /></a>;
   return <span className={cn("whitespace-nowrap", (field.type === "currency" || field.type === "number") && "tabular-nums")}>{formatValue(field, value, people)}</span>;
 }
 
@@ -151,11 +151,11 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
         {fields.map((f, i) => (
           <li key={f.id} className="rounded-lg border border-line p-2.5">
             <div className="flex items-center gap-2">
-              <GripVertical className="h-4 w-4 text-subtle" aria-hidden />
+              <IconGrip className="h-4 w-4 text-subtle" aria-hidden />
               <Input aria-label={`Name of ${f.name}`} defaultValue={f.name} onBlur={(e) => e.target.value.trim() && e.target.value !== f.name && patch(f.id, { name: e.target.value })} className="h-8 flex-1 text-[13px]" />
               <span className="whitespace-nowrap text-[12px] text-subtle" title={isComputed(f) ? describeComputed(f, fields) : undefined}>{FIELD_TYPE_LABEL[f.type]}</span>
-              <Button variant="ghost" size="icon" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => patch(f.id, { position: fields[i - 1].position - 1 })}><ArrowUp className="h-4 w-4" aria-hidden /></Button>
-              <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => remove(f)}><Trash2 className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label={`Move ${f.name} up`} disabled={i === 0} onClick={() => patch(f.id, { position: fields[i - 1].position - 1 })}><IconArrowUp className="h-4 w-4" aria-hidden /></Button>
+              <Button variant="ghost" size="icon" aria-label={`Delete ${f.name}`} onClick={() => remove(f)}><IconTrash className="h-4 w-4" /></Button>
             </div>
             {(f.type === "select" || f.type === "multiselect") && (
               <Input aria-label={`Options for ${f.name}`} defaultValue={f.options.map((o) => o.label).join(", ")} placeholder="Options, separated by commas"
@@ -181,7 +181,7 @@ export function FieldsDialog({ projectId, fields, open, onClose }: { projectId: 
         {(type === "select" || type === "multiselect") && (
           <Input aria-label="New field options" placeholder="Options, separated by commas" value={options} onChange={(e) => setOptions(e.target.value)} className="h-9 text-[13px] sm:col-span-2" />
         )}
-        <Button onClick={add} disabled={busy || !name.trim()} className="sm:col-span-2"><Plus className="h-4 w-4" />Add field</Button>
+        <Button onClick={add} disabled={busy || !name.trim()} className="sm:col-span-2"><IconPlus className="h-4 w-4" />Add field</Button>
       </div>
     </Dialog>
   );
@@ -225,7 +225,7 @@ export function FieldFilterPicker({ fields, people, onAdd }: { fields: CustomFie
   const [value, setValue] = useState("");
   const field = fields.find((f) => f.id === fieldId);
   if (!fields.length) return null;
-  if (!open) return <Button variant="ghost" size="sm" onClick={() => { setOpen(true); setFieldId(fields[0].id); setOp(opsFor(fields[0].type)[0].id); }}><Plus className="h-3.5 w-3.5" />Field filter</Button>;
+  if (!open) return <Button variant="ghost" size="sm" onClick={() => { setOpen(true); setFieldId(fields[0].id); setOp(opsFor(fields[0].type)[0].id); }}><IconPlus className="h-3.5 w-3.5" />Field filter</Button>;
   const apply = () => {
     if (!field) return;
     if (op === "empty" || op === "notempty") onAdd(field.id, op);
@@ -264,7 +264,7 @@ export function FieldFilterPicker({ fields, people, onAdd }: { fields: CustomFie
         )
       )}
       <Button size="sm" onClick={apply}>Apply</Button>
-      <Button variant="ghost" size="icon" aria-label="Cancel" onClick={() => setOpen(false)}><X className="h-3.5 w-3.5" /></Button>
+      <Button variant="ghost" size="icon" aria-label="Cancel" onClick={() => setOpen(false)}><IconClose className="h-3.5 w-3.5" /></Button>
     </div>
   );
 }

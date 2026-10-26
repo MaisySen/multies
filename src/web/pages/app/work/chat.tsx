@@ -1,11 +1,12 @@
 /** Team chat: channels and direct messages, threads, @mentions, files, and links into tasks and mail. */
+import { NoChatArt } from "@/web/components/illustrations";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { chatPollMs, useLiveChat, useOutbox } from "@/web/lib/live-chat"; // R32
 import { ChatLiveLine } from "./chat-live-r32"; // R32
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X, ChevronLeft } from "lucide-react";
+import { IconAgent, IconAttachment, IconBack, IconBlock, IconChat, IconClose, IconDocs, IconFlag, IconHash, IconInbox, IconLock, IconMail, IconMore, IconPin, IconPinOff, IconPlus, IconSend, IconTasks, IconTeam } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -25,11 +26,12 @@ import { useProjects } from "./data";
 import { CallHeaderStatus } from "./call-r23";
 import { PendingBubbles } from "./chat-pending-r33";
 import { newClientMsgId, pendingFor } from "@/web/lib/chat-outbox";
+import { BlockedHiddenRow, useModeration } from "./report-sheet-r35"; // R35: report and block
 import { CallButton, CallCard, ChatSearch, JumpToUnread, ReactionPicker, Reactions, callPath, flashMessage, useFirstUnread, type ChatSearchResult, type Reaction } from "./chat-r20";
 
 export interface ChatChannel {
   id: string; kind: "channel" | "dm"; name: string; topic: string; private: boolean; projectId: string | null; guestAccess: boolean; archived: boolean; joined: boolean;
-  members: { id: string; name: string; email: string }[]; unread: number; mentions: number; lastMessageAt: string | null; lastMessage: { id: string; preview: string; authorName: string } | null;
+  members: { id: string; name: string; email: string; blockedByMe?: boolean }[]; unread: number; mentions: number; lastMessageAt: string | null; lastMessage: { id: string; preview: string; authorName: string } | null;
 }
 export interface ChatMessage {
   id: string; channelId: string; parentId: string | null; author: { type: string; id: string | null; name: string; title?: string | null; agent?: boolean }; body: string;
@@ -60,7 +62,7 @@ function Body({ m }: { m: ChatMessage }) {
 
 function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   const to = l.type === "task" ? `/app/tasks?task=${l.id}` : l.type === "doc" ? `/app/docs/${l.id}` : `/app/mail?m=${l.messageId ?? ""}`;
-  const Icon = l.type === "task" ? CheckSquare : l.type === "doc" ? FileText : Mail;
+  const Icon = l.type === "task" ? IconTasks : l.type === "doc" ? IconDocs : IconMail;
   return (
     <Link to={to} className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-md border border-line bg-surface px-1.5 py-0.5 align-middle text-[12.5px] hover:border-line-strong" data-testid="chat-link">
       <Icon className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden /><span className="truncate">{l.ref ? `${l.ref} ` : ""}{l.title}</span>
@@ -68,17 +70,18 @@ function LinkChip({ l }: { l: ChatMessage["links"][number] }) {
   );
 }
 
-function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, myId, mine, inThread, role }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; myId?: string; role?: string | null }) {
+function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onReact, onReport, onBlock, myId, mine, inThread, role }: { m: ChatMessage; mine: boolean; inThread?: boolean; onThread?: () => void; onTask: () => void; onTriage?: () => void; onEdit: () => void; onDelete: () => void; onPin?: () => void; onReact: (emoji: string) => void; onReport?: () => void; onBlock?: () => void; myId?: string; role?: string | null }) {
   const taskLinks = m.links.filter((l) => l.type === "task");
   const call = m.deleted ? null : callPath(m.body);
   // R25 wave 2: on phones and touch screens one More button (or a long press) opens the actions as a sheet.
   const compact = useCompactActions();
   const [sheet, setSheet] = useState(false);
   const press = useLongPress(() => setSheet(true), compact && !m.deleted);
-  const actions = compact ? messageActions({ deleted: m.deleted, inThread: !!inThread, mine, role, canPin: !!onPin, isReply: !!m.parentId, pinned: !!m.pinnedAt, canTriage: !!onTriage, hasText: !!m.body.trim() }) : [];
+  const actions = compact ? messageActions({ deleted: m.deleted, inThread: !!inThread, mine, role, canPin: !!onPin, isReply: !!m.parentId, pinned: !!m.pinnedAt, canTriage: !!onTriage, hasText: !!m.body.trim(), canReport: !!onReport, authorName: m.author.name }) : [];
   const runAction = (id: string) => {
     if (id === "thread") onThread?.(); else if (id === "copy") void copyText(preview(m)); else if (id === "triage") onTriage?.(); else if (id === "task") onTask();
     else if (id === "pin" || id === "unpin") onPin?.(); else if (id === "edit") onEdit(); else if (id === "delete") onDelete();
+    else if (id === "report") onReport?.(); else if (id === "block") onBlock?.();
   };
   return (
     <li className={cn("group flex gap-3 rounded-lg px-2 py-2 hover:bg-hover", compact && "[-webkit-touch-callout:none]")} data-testid="chat-message" id={`m-${m.id}`} {...press}>
@@ -90,10 +93,10 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
           {(m.author.type === "agent" || m.author.agent) && <span className="rounded bg-fill px-1 text-[11px] text-muted">agent</span>}
           <time className="text-[11.5px] text-subtle" dateTime={m.createdAt}>{mailDate(m.createdAt)}</time>
           {m.editedAt && !m.deleted && <span className="text-[11px] text-subtle">(edited)</span>}
-          {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><Pin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
+          {m.pinnedAt && !m.deleted && <span className="inline-flex items-center gap-1 text-[11px] text-subtle" data-testid="pinned-label"><IconPin className="h-3 w-3" aria-hidden />Pinned{m.pinnedBy ? ` by ${m.pinnedBy}` : ""}</span>}
           {compact && !m.deleted && (
             <button type="button" onClick={() => setSheet(true)} aria-label="Message actions" aria-haspopup="dialog" data-testid="message-more" className="-my-2.5 -mr-2 ml-auto inline-flex h-10 w-10 shrink-0 items-center justify-center self-center rounded-lg text-subtle active:bg-elevated">
-              <MoreHorizontal className="h-4 w-4" aria-hidden />
+              <IconMore className="h-4 w-4" aria-hidden />
             </button>
           )}
         </div>
@@ -101,7 +104,7 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
         {m.attachments.length > 0 && (
           <ul className="mt-1.5 flex flex-wrap gap-2">
             {m.attachments.map((f) => (
-              <li key={f.id}><a href={`/api/chat/files/${f.id}`} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12.5px] hover:border-line-strong"><Paperclip className="h-3.5 w-3.5" aria-hidden />{f.filename} <span className="text-subtle">{formatBytes(f.size)}</span></a></li>
+              <li key={f.id}><a href={`/api/chat/files/${f.id}`} className="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-[12.5px] hover:border-line-strong"><IconAttachment className="h-3.5 w-3.5" aria-hidden />{f.filename} <span className="text-subtle">{formatBytes(f.size)}</span></a></li>
             ))}
           </ul>
         )}
@@ -113,13 +116,15 @@ function Message({ m, onThread, onTask, onTriage, onEdit, onDelete, onPin, onRea
       {!m.deleted && !compact && (
         <div className="flex items-start gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100">
           <ReactionPicker onPick={onReact} />
-          {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><MessageSquare className="h-4 w-4" /></Button>}
-          <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><MoreHorizontal className="h-4 w-4" aria-hidden /></button>}>
-            <MenuItem onSelect={onTask} icon={<CheckSquare className="h-4 w-4" />}>Make task</MenuItem>
-            {onTriage && <MenuItem onSelect={onTriage} icon={<Inbox className="h-4 w-4" />}>Send to triage</MenuItem>}
-            {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}
+          {!inThread && <Button variant="ghost" size="sm" onClick={onThread} aria-label="Reply in thread"><IconChat className="h-4 w-4" /></Button>}
+          <Menu trigger={<button type="button" aria-label="More message actions" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+            <MenuItem onSelect={onTask} icon={<IconTasks className="h-4 w-4" />}>Make task</MenuItem>
+            {onTriage && <MenuItem onSelect={onTriage} icon={<IconInbox className="h-4 w-4" />}>Send to triage</MenuItem>}
+            {onPin && !m.parentId && <MenuItem onSelect={onPin} icon={m.pinnedAt ? <IconPinOff className="h-4 w-4" /> : <IconPin className="h-4 w-4" />}>{m.pinnedAt ? "Unpin" : "Pin to channel"}</MenuItem>}
             {mine && <MenuItem onSelect={onEdit}>Edit</MenuItem>}
             <MenuItem onSelect={onDelete} danger>Delete</MenuItem>
+            {onReport && !mine && <MenuItem onSelect={onReport} icon={<IconFlag className="h-4 w-4" />}>Report message</MenuItem>}
+            {onBlock && !mine && <MenuItem onSelect={onBlock} icon={<IconBlock className="h-4 w-4" />} danger>Block {m.author.name}</MenuItem>}
           </Menu>
         </div>
       )}
@@ -147,7 +152,7 @@ function PinnedBar({ pins, onOpen, onUnpin }: { pins: ChatMessage[]; onOpen: (m:
   return (
     <div className="border-b border-line bg-surface px-4 py-2" data-testid="pinned-bar">
       <div className="flex items-center gap-2 text-[13px]">
-        <Pin className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
+        <IconPin className="h-3.5 w-3.5 shrink-0 text-muted" aria-hidden />
         <button type="button" className="min-w-0 flex-1 truncate text-left hover:underline" onClick={() => onOpen(first)}>
           <span className="font-medium">{first.author.name}:</span> {preview(first) || "Attachment"}
         </button>
@@ -163,7 +168,7 @@ function PinnedBar({ pins, onOpen, onUnpin }: { pins: ChatMessage[]; onOpen: (m:
                 <span className="font-medium">{m.author.name}</span> <span className="text-[11.5px] text-subtle">{mailDate(m.createdAt)}</span>
                 <span className="block truncate text-muted">{preview(m) || "Attachment"}</span>
               </button>
-              <Button variant="ghost" size="icon" aria-label={`Unpin the message from ${m.author.name}`} onClick={() => onUnpin(m)}><PinOff className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" aria-label={`Unpin the message from ${m.author.name}`} onClick={() => onUnpin(m)}><IconPinOff className="h-4 w-4" /></Button>
             </li>
           ))}
         </ul>
@@ -206,18 +211,18 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
     <form onSubmit={submit} className="relative border-t border-line p-3">
       {matches.length > 0 && (
         <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-3 mb-1 w-64 overflow-hidden rounded-lg border border-line-strong bg-elevated shadow-pop">
-          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{(p.type === "agent" || p.isAgent) && <span className="inline-flex items-center gap-0.5 text-subtle" data-testid="mention-agent-badge"><Bot className="h-3 w-3" aria-hidden />Agent</span>}</button></li>)}
+          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{(p.type === "agent" || p.isAgent) && <span className="inline-flex items-center gap-0.5 text-subtle" data-testid="mention-agent-badge"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}</button></li>)}
         </ul>
       )}
-      {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></span>)}</div>}
+      {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><IconClose className="h-3 w-3" /></button></span>)}</div>}
       <div className="flex items-end gap-2">
         <label className="sr-only" htmlFor={`${testId ?? "composer"}-input`}>Message</label>
         <textarea id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); }} rows={1} placeholder={placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
           className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
         <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => setFiles((l) => [...l, ...Array.from(e.target.files ?? [])].slice(0, 5))} />
-        <Button variant="ghost" size="icon" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
-        <Button type="submit" size="icon" aria-label="Send" loading={busy}><Send className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}><IconAttachment className="h-4 w-4" /></Button>
+        <Button type="submit" size="icon" aria-label="Send" loading={busy}><IconSend className="h-4 w-4" /></Button>
       </div>
       <p className="mt-1 text-[11.5px] text-subtle" data-testid="composer-hint">{hint}</p>
     </form>
@@ -226,6 +231,7 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
 
 export function ChatPage() {
   const { confirm, prompt, dialogs } = useDialogs();
+  const moderation = useModeration(); // R35: report and block
   const { id: channelId } = useParams();
   const [params, setParams] = useSearchParams();
   const threadId = params.get("thread");
@@ -319,8 +325,15 @@ export function ChatPage() {
     if (el) { el.scrollIntoView({ block: "center" }); el.classList.add("bg-hover"); window.setTimeout(() => el.classList.remove("bg-hover"), 1500); }
     else openThread(m);
   };
-  const row = (m: ChatMessage, inThread = false) => (
+  // R35: the server leaves blocked people's messages out; live events are dropped here too.
+  const fromBlocked = (m: ChatMessage) => m.author.type === "member" && !!m.author.id && moderation.blocked.has(m.author.id);
+  const hiddenHere = !!current?.members?.some((x) => x.blockedByMe) || (messages.data ?? []).some(fromBlocked);
+  const reportable = (m: ChatMessage) => m.author.type === "member" && !!m.author.id && m.author.id !== myId;
+  const reportCtx = (): "chat" | "dm" => (current?.kind === "dm" ? "dm" : "chat");
+  const row = (m: ChatMessage, inThread = false) => fromBlocked(m) ? null : (
     <Message key={m.id} m={m} inThread={inThread} mine={m.author.type === "member" && m.author.id === myId}
+      onReport={reportable(m) ? () => moderation.report({ targetType: "message", messageId: m.id, userId: m.author.id!, name: m.author.name, context: reportCtx() }) : undefined}
+      onBlock={reportable(m) ? () => void moderation.block(m.author.id!, m.author.name) : undefined}
       onThread={() => openThread(m)} onTask={() => void makeTask(m)} onTriage={() => void sendToTriage(m)} onEdit={() => void edit(m)} onDelete={() => void remove(m)}
       onPin={current?.kind === "channel" ? () => void togglePin(m) : undefined} onReact={(e) => void react(m, e)} myId={myId} role={me.data?.organization?.role} />
   );
@@ -340,25 +353,39 @@ export function ChatPage() {
   return (
     <div className="-m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:h-dvh">
       {dialogs}
+      {moderation.sheet}
       <h1 className="sr-only">Chat</h1>
       <nav aria-label="Channels" className={cn("w-full shrink-0 overflow-y-auto border-r border-line p-3 sm:w-60", current && channelId ? "hidden sm:block" : "block")}>
         <div className="mb-1 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Channels</h2>
-          <Button variant="ghost" size="icon" aria-label="New channel" onClick={() => setCreating("channel")}><Plus className="h-4 w-4" /></Button></div>
-        {channels.isPending ? <Skeleton className="h-24" /> : <ul className="space-y-0.5">{chans.map((c) => navItem(c, c.private ? <Lock className="h-3.5 w-3.5" aria-hidden /> : <Hash className="h-3.5 w-3.5" aria-hidden />))}</ul>}
+          <Button variant="ghost" size="icon" aria-label="New channel" onClick={() => setCreating("channel")}><IconPlus className="h-4 w-4" /></Button></div>
+        {channels.isPending ? <Skeleton className="h-24" /> : <ul className="space-y-0.5">{chans.map((c) => navItem(c, c.private ? <IconLock className="h-3.5 w-3.5" aria-hidden /> : <IconHash className="h-3.5 w-3.5" aria-hidden />))}</ul>}
         <div className="mb-1 mt-4 flex items-center justify-between px-2"><h2 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Direct messages</h2>
-          <Button variant="ghost" size="icon" aria-label="New direct message" onClick={() => setCreating("dm")}><Plus className="h-4 w-4" /></Button></div>
-        <ul className="space-y-0.5">{dms.map((c) => navItem(c, <Users className="h-3.5 w-3.5" aria-hidden />))}</ul>
+          <Button variant="ghost" size="icon" aria-label="New direct message" onClick={() => setCreating("dm")}><IconPlus className="h-4 w-4" /></Button></div>
+        <ul className="space-y-0.5">{dms.map((c) => navItem(c, <IconTeam className="h-3.5 w-3.5" aria-hidden />))}</ul>
         {!dms.length && <p className="px-2 text-[12.5px] text-subtle">No direct messages yet.</p>}
       </nav>
       <section aria-label={current ? `Messages in ${current.name}` : "Messages"} className={cn("flex min-w-0 flex-1 flex-col", !channelId && "hidden sm:flex", threadId && "hidden lg:flex")}>
         {current ? (
           <>
             <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5">
-              <Link to="/app/chat" className="-my-2 -ml-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><ChevronLeft className="h-5 w-5" aria-hidden />Back</Link>
+              <Link to="/app/chat" className="-my-2 -ml-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><IconBack className="h-5 w-5" aria-hidden />Back</Link>
               <h2 className="min-w-0 truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
               {current.guestAccess && <span className="shrink-0 rounded bg-ok/15 px-1.5 text-[11.5px] text-ok max-sm:hidden">shared with guests</span>}
               <span className="min-w-0 truncate text-[12.5px] text-subtle max-sm:hidden">{current.topic}</span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
+                {current.kind === "dm" && (() => {
+                  // R35: a one to one DM header offers Report and Block (or Unblock) for the other person.
+                  const others = current.members.filter((x) => x.id.replace(/^member:/, "") !== myId);
+                  if (others.length !== 1) return null;
+                  const o = others[0]; const oid = o.id.replace(/^member:/, ""); const isBlocked = moderation.blocked.has(oid);
+                  return (
+                    <Menu trigger={<button type="button" aria-label={`More options for ${o.name}`} data-testid="dm-more" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+                      <MenuItem onSelect={() => moderation.report({ targetType: "user", userId: oid, name: o.name, context: "dm" })} icon={<IconFlag className="h-4 w-4" />}>Report {o.name}</MenuItem>
+                      {isBlocked ? <MenuItem onSelect={() => void moderation.unblock(oid, o.name)} icon={<IconBlock className="h-4 w-4" />}>Unblock {o.name}</MenuItem>
+                        : <MenuItem onSelect={() => void moderation.block(oid, o.name)} icon={<IconBlock className="h-4 w-4" />} danger>Block {o.name}</MenuItem>}
+                    </Menu>
+                  );
+                })()}
                 <CallHeaderStatus channelId={current.id} />
                 <ChatSearch channelId={current.id} onOpen={openResult} />
                 {!current.archived && <CallButton channelId={current.id} onStarted={refresh} />}
@@ -369,21 +396,21 @@ export function ChatPage() {
               <CatchupCard key={`catchup-${current.id}`} type="channel" id={current.id} />
               <JumpToUnread key={current.id} first={firstUnread.data} onJump={(id) => { if (!flashMessage(id)) openThread({ id } as ChatMessage); }} />
               {messages.isPending ? <Skeleton className="h-40" /> : !messages.data?.length ? pendingFor(outboxItems, current.id, null).length ? null : (
-                <EmptyState icon={<MessageSquare />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
-              ) : <ul>{messages.data.map((m) => row(m))}</ul>}
+                <EmptyState icon={<IconChat />} art={<NoChatArt />} title="Nothing here yet" body="Say hello. Mention people with @, link a task with its ref, or turn any message into a task." />
+              ) : <ul>{hiddenHere && <BlockedHiddenRow />}{messages.data.map((m) => row(m))}</ul>}
               <PendingBubbles outbox={live.outbox} channelId={current.id} parentId={null} authorName={me.data?.user.name ?? undefined} />
               <div ref={bottom} />
             </div>
             <ChatLiveLine store={live.typing} channelId={current.id} degraded={live.degraded} />
             <Composer testId="chat-composer" people={people.data ?? []} placeholder={current.kind === "channel" ? `Message #${current.name}` : `Message ${current.name}`} onSend={send()} onType={() => live.onType(current.id)} />
           </>
-        ) : !channels.isPending && <EmptyState icon={<MessageSquare />} title="Pick a channel" body="Choose a channel or start a direct message." className="m-auto" />}
+        ) : !channels.isPending && <EmptyState icon={<IconChat />} art={<NoChatArt />} title="Pick a channel" body="Choose a channel or start a direct message." className="m-auto" />}
       </section>
       {threadId && (
         <aside aria-label="Thread" className="flex w-full shrink-0 flex-col border-l border-line lg:w-96">
           <header className="flex items-center justify-between border-b border-line px-4 py-3">
             <h2 className="text-[15px] font-semibold">Thread</h2>
-            <Button variant="ghost" size="icon" aria-label="Close thread" onClick={() => setParams((p) => { p.delete("thread"); return p; })}><X className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" aria-label="Close thread" onClick={() => setParams((p) => { p.delete("thread"); return p; })}><IconClose className="h-4 w-4" /></Button>
           </header>
           <div className="flex-1 overflow-y-auto px-2 py-2">
             {thread.data ? <ul>{row(thread.data.message, true)}<li className="my-2 border-t border-line" aria-hidden />{thread.data.replies.map((m) => row(m, true))}</ul> : <Skeleton className="h-24" />}

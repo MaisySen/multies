@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, Eye, Plus, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { IconArrowDown, IconArrowUp, IconClose, IconEye, IconPlus, IconSliders, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -46,7 +46,7 @@ export function SplitTabs({ tabs, active, onChange, onEdit }: { tabs: SplitTab[]
         ))}
       </div>
       <button type="button" onClick={onEdit} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg max-sm:h-10 max-sm:w-10" aria-label="Edit splits" title="Edit splits">
-        <SlidersHorizontal className="h-4 w-4" />
+        <IconSliders className="h-4 w-4" />
       </button>
     </div>
   );
@@ -94,12 +94,12 @@ function SplitForm({ draft, setDraft, mailboxId }: { draft: Draft; setDraft: (d:
               ? <input aria-label={`Rule ${i + 1} value`} value={r.value} onChange={(e) => setRule(i, { value: e.target.value })} placeholder={PLACEHOLDER[r.field]}
                   className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-sm outline-none focus:border-brand/60 focus:ring-4 focus:ring-brand/10" />
               : <span className="flex-1" />}
-            <button type="button" disabled={draft.rules.length === 1} onClick={() => setDraft({ ...draft, rules: draft.rules.filter((_, j) => j !== i) })} className="grid h-9 w-9 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Remove rule ${i + 1}`}><X className="h-4 w-4" /></button>
+            <button type="button" disabled={draft.rules.length === 1} onClick={() => setDraft({ ...draft, rules: draft.rules.filter((_, j) => j !== i) })} className="grid h-9 w-9 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Remove rule ${i + 1}`}><IconClose className="h-4 w-4" /></button>
           </li>
         ))}
       </ul>
       {draft.rules.length < SPLIT_RULES_MAX && (
-        <button type="button" onClick={() => setDraft({ ...draft, rules: [...draft.rules, { field: "fromContains", value: "" }] })} className="inline-flex items-center gap-1 text-[13px] text-brand-hover hover:underline"><Plus className="h-3.5 w-3.5" />Add a rule</button>
+        <button type="button" onClick={() => setDraft({ ...draft, rules: [...draft.rules, { field: "fromContains", value: "" }] })} className="inline-flex items-center gap-1 text-[13px] text-brand-hover hover:underline"><IconPlus className="h-3.5 w-3.5" />Add a rule</button>
       )}
       <label className="flex items-start gap-3 rounded-lg bg-fill/60 p-3 text-[13px]">
         <Switch checked={draft.leavesImportant} onChange={(v) => setDraft({ ...draft, leavesImportant: v })} label="Take this mail out of Important and Other" />
@@ -138,7 +138,7 @@ export function EditSplitsDialog({ open, onClose, mailboxId, splits }: { open: b
       description={draft ? "Rules decide which mail lands in this tab." : "Important shows mail from people, including someone writing for the first time when their mail is verified. Other holds newsletters, notifications and receipts. Add your own tabs below."}
       footer={draft
         ? <><Button variant="ghost" onClick={() => setDraft(null)}>Back</Button><Button disabled={!valid} loading={save.isPending} onClick={() => draft && save.mutate(draft)} data-testid="split-save">Save split</Button></>
-        : <><Button variant="ghost" onClick={onClose}>Done</Button><Button onClick={() => setDraft(blank())} data-testid="split-new"><Plus className="h-4 w-4" />New split</Button></>}>
+        : <><Button variant="ghost" onClick={onClose}>Done</Button><Button onClick={() => setDraft(blank())} data-testid="split-new"><IconPlus className="h-4 w-4" />New split</Button></>}>
       {draft ? <SplitForm draft={draft} setDraft={setDraft} mailboxId={mailboxId} /> : (
         splits.length === 0
           ? <p className="text-sm text-muted">No splits yet. A split is a tab for mail that matches rules, like everything from one domain.</p>
@@ -148,9 +148,9 @@ export function EditSplitsDialog({ open, onClose, mailboxId, splits }: { open: b
                 <button type="button" className="min-w-0 flex-1 truncate text-left text-sm hover:underline" onClick={() => setDraft({ id: s.id, name: s.name, rules: s.rules.map((r) => ({ field: r.field, value: r.value ?? "" })), match: s.match, leavesImportant: s.leavesImportant })}>
                   {s.name}<span className="ml-2 text-xs text-subtle">{s.rules.length === 1 ? "1 rule" : `${s.rules.length} rules`}</span>
                 </button>
-                <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Move ${s.name} up`}><ArrowUp className="h-4 w-4" /></button>
-                <button type="button" disabled={i === splits.length - 1} onClick={() => move(i, 1)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Move ${s.name} down`}><ArrowDown className="h-4 w-4" /></button>
-                <button type="button" onClick={() => del.mutate(s.id)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-bad-soft hover:text-bad" aria-label={`Delete ${s.name}`}><Trash2 className="h-4 w-4" /></button>
+                <button type="button" disabled={i === 0} onClick={() => move(i, -1)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Move ${s.name} up`}><IconArrowUp className="h-4 w-4" /></button>
+                <button type="button" disabled={i === splits.length - 1} onClick={() => move(i, 1)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-hover hover:text-fg disabled:opacity-30" aria-label={`Move ${s.name} down`}><IconArrowDown className="h-4 w-4" /></button>
+                <button type="button" onClick={() => del.mutate(s.id)} className="grid h-8 w-8 place-items-center rounded-md text-subtle hover:bg-bad-soft hover:text-bad" aria-label={`Delete ${s.name}`}><IconTrash className="h-4 w-4" /></button>
               </li>
             ))}
           </ul>
@@ -165,7 +165,7 @@ export function ReadStatusLine({ status, className }: { status?: ReadStatus | nu
   if (!line) return null;
   return (
     <span className={cn("inline-flex items-center gap-1 text-[12px]", status?.opens ? "text-brand-hover" : "text-subtle", className)} data-testid="read-status">
-      <Eye className="h-3 w-3" aria-hidden />{line}
+      <IconEye className="h-3 w-3" aria-hidden />{line}
     </span>
   );
 }

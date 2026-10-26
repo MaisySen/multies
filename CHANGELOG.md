@@ -7,6 +7,17 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 35: report and block, a new icon set and Today home, FullCalendar 7, undo for bulk move, swimlanes in saved views (26 Oct 2026)
+
+- Report a message or a person and block them in chat and DMs; blocked people's messages are hidden everywhere and they can't DM you (403 `blocked`). Settings, Account lists blocked people. Migration 0078. MCP: 186 tools (`create_report`, `list_blocks`, `add_block`, `remove_block`).
+- Operator moderation queue with a 24 hour target and a mail alert.
+- Terms and Acceptable use: objectionable content and abusive users.
+- Web: a new icon set matching the phone app, softer depth and motion, a Today home with cards for mail, tasks, your next meeting, mentions and approvals, big titles that fold into the top bar on phones, and swipe on phone rows: archive or snooze mail, mark tasks done, with Undo.
+- Mail: a bulk move can be undone like the other bulk actions; a move the provider has not run yet is simply dropped.
+- Tasks: a saved view keeps its board swimlanes and grouping (`?lanes=` and `?group=` in the link).
+- Calendar: FullCalendar 7, themed with the app's own colours in light and dark.
+- Sign up and Forgot password paint from the HTML before the app loads, like Sign in; a tap on the card before the app takes over is kept.
+
 ### Round 33: fewer D1 writes, unique project keys, bulk mail jobs, live chat acks, offline lists, premium admin screens (26 Oct 2026)
 
 - D1: each change writes one row that serves both the activity feed (now a view) and the change log, and project numbers come from their own counter table instead of the projects row. Rows written per action: task create 14 to 9, title edit 10 to 7, move 13 to 8, comment 16 to 13, doc save 9 to 6. Migration 0073.

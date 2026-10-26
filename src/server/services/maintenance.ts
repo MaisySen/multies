@@ -60,6 +60,8 @@ export async function runMaintenance(deps: Deps) {
   const mailSchedules = await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
   // R28 (DF-3 slice 3): schedule triggers that are due queue agent runs. One read on a partial index; idle writes nothing.
   const agentTriggers = await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
+  // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
+  await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([

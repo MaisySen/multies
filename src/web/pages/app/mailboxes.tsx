@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, AtSign, Inbox, MoreHorizontal, Pause, Pencil, Play, Plus, Trash2, Users, X } from "lucide-react";
+import { IconArrowRight, IconClose, IconEdit, IconInbox, IconMention, IconMore, IconPause, IconPlay, IconPlus, IconTeam, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { useAliases, useDomains, useMailboxes, useOrg, qk } from "@/web/lib/queries";
@@ -31,7 +31,7 @@ export function MailboxesPage() {
   return (
     <>
       <PageHeader title="Mailboxes" description="Inboxes for people, and aliases that forward role addresses wherever they need to go."
-        actions={!noDomains && <Button size="sm" onClick={() => setCreating(true)}><Plus className="h-4 w-4" />{tab === "aliases" ? "New alias" : "New mailbox"}</Button>} />
+        actions={!noDomains && <Button size="sm" onClick={() => setCreating(true)}><IconPlus className="h-4 w-4" />{tab === "aliases" ? "New alias" : "New mailbox"}</Button>} />
       <div role="tablist" aria-label="Address type" className="mb-5 inline-flex rounded-lg bg-fill p-0.5">
         {(["mailboxes", "aliases"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "aliases" ? { tab: t } : {})}
@@ -47,7 +47,7 @@ export function MailboxesPage() {
           <p className="text-sm text-muted">Have your own domain? <Link to="/app/domains" className="font-medium text-brand hover:underline">Add it</Link> for mailboxes and aliases on it.</p>
         </div>
       ) : noDomains ? (
-        <Card><EmptyState icon={<AtSign />} title="Add a domain first" body="Mailboxes and aliases live on your own domain. Add one and we'll walk you through DNS." action={<ButtonLink to="/app/domains">Go to domains <ArrowRight className="h-4 w-4" /></ButtonLink>} /></Card>
+        <Card><EmptyState icon={<IconMention />} title="Add a domain first" body="Mailboxes and aliases live on your own domain. Add one and we'll walk you through DNS." action={<ButtonLink to="/app/domains">Go to domains <IconArrowRight className="h-4 w-4" /></ButtonLink>} /></Card>
       ) : tab === "mailboxes" ? (
         <MailboxList domains={domains.data ?? []} freeDomain={free.data?.enabled ? free.data.domain : undefined} onCreate={() => setCreating(true)} />
       ) : (
@@ -82,7 +82,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
     onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
-  if (!data?.length) return <Card><EmptyState icon={<Users />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New mailbox</Button>} /></Card>;
+  if (!data?.length) return <Card><EmptyState icon={<IconTeam />} title="No mailboxes yet" body="Create an inbox for yourself or a teammate. It can receive, send and store mail." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New mailbox</Button>} /></Card>;
   const domainStatus = new Map(domains.map((d) => [d.id, d.status]));
   return (
     <>
@@ -103,13 +103,13 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
               <div className="mb-1.5 flex justify-between text-[11px] text-subtle"><span>{formatBytes(m.usedBytes)}</span><span>{formatBytes(m.quotaMb * 1024 * 1024)}</span></div>
               <Meter value={m.usedBytes} max={m.quotaMb * 1024 * 1024} />
             </div>
-            <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-md p-2 text-muted hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><Inbox className="h-4 w-4" /></Link>
-            <Menu label={`Actions for ${m.address}`} trigger={<button className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" aria-label={`Actions for ${m.address}`}><MoreHorizontal className="h-4 w-4" /></button>}>
-              <MenuItem icon={<Pencil />} onSelect={() => setEditing(m)}>Edit</MenuItem>
+            <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-md p-2 text-muted hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>
+            <Menu label={`Actions for ${m.address}`} trigger={<button className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
+              <MenuItem icon={<IconEdit />} onSelect={() => setEditing(m)}>Edit</MenuItem>
               {m.status === "active"
-                ? <MenuItem icon={<Pause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
-                : <MenuItem icon={<Play />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
-              <MenuItem icon={<Trash2 />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>
+                ? <MenuItem icon={<IconPause />} onSelect={() => update.mutate({ id: m.id, status: "suspended" })}>Suspend</MenuItem>
+                : <MenuItem icon={<IconPlay />} onSelect={() => update.mutate({ id: m.id, status: "active" })}>Reactivate</MenuItem>}
+              <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(m)}>Delete</MenuItem>
             </Menu>
           </div>
         ))}
@@ -214,25 +214,25 @@ function AliasList({ domains, onCreate }: { domains: Domain[]; onCreate: () => v
     onError: (e) => showError(e),
   });
   if (isPending) return <ListSkeleton />;
-  if (!data?.length) return <Card><EmptyState icon={<AtSign />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people, inside or outside your domain." action={<Button onClick={onCreate}><Plus className="h-4 w-4" />New alias</Button>} /></Card>;
+  if (!data?.length) return <Card><EmptyState icon={<IconMention />} title="No aliases yet" body="Aliases forward a role address like sales@ to one or more people, inside or outside your domain." action={<Button onClick={onCreate}><IconPlus className="h-4 w-4" />New alias</Button>} /></Card>;
   void domains;
   return (
     <>
       <Card className="divide-y divide-line">
         {data.map((a) => (
           <div key={a.id} className={cn("flex items-center gap-3 p-4 sm:gap-4", !a.enabled && "opacity-60")}>
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-elevated text-muted"><AtSign className="h-4 w-4" /></div>
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line bg-elevated text-muted"><IconMention className="h-4 w-4" /></div>
             <div className="min-w-0 flex-1">
               <div className="truncate font-medium">{a.address}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <ArrowRight className="h-3 w-3 text-subtle" />
+                <IconArrowRight className="h-3 w-3 text-subtle" />
                 {a.destinations.map((d) => <span key={d} className="rounded-md border border-line bg-fill/60 px-1.5 py-0.5 text-[11.5px] text-muted">{d}</span>)}
               </div>
             </div>
             <Switch checked={a.enabled} onChange={() => toggle.mutate(a)} label={`${a.enabled ? "Disable" : "Enable"} ${a.address}`} />
-            <Menu label={`Actions for ${a.address}`} trigger={<button className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.address}`}><MoreHorizontal className="h-4 w-4" /></button>}>
-              <MenuItem icon={<Pencil />} onSelect={() => setEditing(a)}>Edit destinations</MenuItem>
-              <MenuItem icon={<Trash2 />} danger onSelect={() => setDeleting(a)}>Delete</MenuItem>
+            <Menu label={`Actions for ${a.address}`} trigger={<button className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" aria-label={`Actions for ${a.address}`}><IconMore className="h-4 w-4" /></button>}>
+              <MenuItem icon={<IconEdit />} onSelect={() => setEditing(a)}>Edit destinations</MenuItem>
+              <MenuItem icon={<IconTrash />} danger onSelect={() => setDeleting(a)}>Delete</MenuItem>
             </Menu>
           </div>
         ))}
@@ -260,7 +260,7 @@ function DestinationsInput({ value, onChange, error }: { value: string[]; onChan
         <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface px-2 py-1.5 focus-within:border-brand/70 focus-within:ring-4 focus-within:ring-brand/15">
           {value.map((v) => (
             <span key={v} className="inline-flex items-center gap-1 rounded-md bg-elevated py-0.5 pl-2 pr-1 text-[12.5px]">
-              {v}<button type="button" onClick={() => onChange(value.filter((x) => x !== v))} className="rounded p-0.5 text-subtle hover:text-fg" aria-label={`Remove ${v}`}><X className="h-3 w-3" /></button>
+              {v}<button type="button" onClick={() => onChange(value.filter((x) => x !== v))} className="rounded p-0.5 text-subtle hover:text-fg" aria-label={`Remove ${v}`}><IconClose className="h-3 w-3" /></button>
             </span>
           ))}
           <input {...p} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} onBlur={commit} placeholder={value.length ? "" : "founder@gmail.com"} className="h-7 min-w-32 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-subtle" />

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, CheckCircle2, CircleDot, Clock, Handshake } from "lucide-react";
+import { IconCheckCircle, IconCircleDot, IconClock, IconHandshake, IconWarning } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { Card, PageHeader, Skeleton } from "@/web/components/ui/misc";
 import { Select } from "@/web/components/ui/input";
@@ -59,10 +59,10 @@ export function ReportsPage() {
       {!d ? <div className="grid gap-4 sm:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div> : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <Kpi icon={<CircleDot className="h-4 w-4" />} label="Open tasks" value={String(d.tasks.open)} sub={`${d.tasks.createdInRange} new in ${d.range.days} days`} />
-            <Kpi icon={<AlertTriangle className="h-4 w-4" />} label="Overdue" value={String(d.tasks.overdue)} tone={d.tasks.overdue ? "text-warn" : ""} sub={d.tasks.overdue ? "Past their due date" : "Nothing late"} />
-            <Kpi icon={<CheckCircle2 className="h-4 w-4" />} label="Done" value={String(d.tasks.completedInRange)} sub={`in the last ${d.range.days} days`} />
-            <Kpi icon={<Clock className="h-4 w-4" />} label="Time logged" value={hoursText(d.time.totalSeconds)} sub={`in the last ${d.range.days} days`} />
+            <Kpi icon={<IconCircleDot className="h-4 w-4" />} label="Open tasks" value={String(d.tasks.open)} sub={`${d.tasks.createdInRange} new in ${d.range.days} days`} />
+            <Kpi icon={<IconWarning className="h-4 w-4" />} label="Overdue" value={String(d.tasks.overdue)} tone={d.tasks.overdue ? "text-warn" : ""} sub={d.tasks.overdue ? "Past their due date" : "Nothing late"} />
+            <Kpi icon={<IconCheckCircle className="h-4 w-4" />} label="Done" value={String(d.tasks.completedInRange)} sub={`in the last ${d.range.days} days`} />
+            <Kpi icon={<IconClock className="h-4 w-4" />} label="Time logged" value={hoursText(d.time.totalSeconds)} sub={`in the last ${d.range.days} days`} />
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Tasks by status">
@@ -102,7 +102,7 @@ export function ReportsPage() {
                 <CartesianGrid vertical={false} stroke="var(--color-line)" /><XAxis dataKey="name" {...axis} /><YAxis {...axis} tickFormatter={(v: number) => (v >= 1000 ? `$${Math.round(v / 1000)}k` : `$${v}`)} /><Tooltip {...tip} formatter={(v) => aud(Number(v))} />
                 <Bar dataKey="value" name="Value" radius={[4, 4, 0, 0]}>{d.deals.pipeline.map((s) => <Cell key={s.stage} fill={STAGE_COLOR[s.stage] ?? "#8e8e93"} />)}</Bar>
               </BarChart></ResponsiveContainer></div>
-              <Link to="/app/deals" className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] text-brand-hover hover:underline"><Handshake className="h-3.5 w-3.5" />Open the deals board</Link>
+              <Link to="/app/deals" className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] text-brand-hover hover:underline"><IconHandshake className="h-3.5 w-3.5" />Open the deals board</Link>
             </Panel>
             <Panel title="Overdue">
               {!d.tasks.overdueList.length ? <p className="py-10 text-center text-[13px] text-muted">Nothing is overdue.</p> : (

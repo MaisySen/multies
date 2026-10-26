@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, FileUp, Plus, ShieldCheck, Trash2 } from "lucide-react";
+import { IconBlock, IconFileUp, IconPlus, IconShieldCheck, IconTrash } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -45,7 +45,7 @@ function HealthSection() {
   const q = useQuery({ queryKey: ["deliverability", "health"], queryFn: async () => (await api.get<{ domains: Health[] }>("/deliverability/health")).domains });
   if (q.isPending) return <Skeleton className="h-56" />;
   if (!q.data?.length) {
-    return <Card><EmptyState icon={<ShieldCheck className="h-5 w-5" />} title="No domains yet" body="Add a domain and its health score shows up here." action={<ButtonLink to="/app/domains" size="sm">Add a domain</ButtonLink>} /></Card>;
+    return <Card><EmptyState icon={<IconShieldCheck className="h-5 w-5" />} title="No domains yet" body="Add a domain and its health score shows up here." action={<ButtonLink to="/app/domains" size="sm">Add a domain</ButtonLink>} /></Card>;
   }
   return (
     <section aria-labelledby="health-h">
@@ -113,7 +113,7 @@ function DmarcSection() {
         {isAdmin && (
           <>
             <input ref={file} type="file" aria-label="DMARC report file" accept=".xml,.gz,.zip,application/xml,application/gzip,application/zip" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) upload.mutate(f); e.target.value = ""; }} />
-            <Button size="sm" variant="secondary" loading={upload.isPending} onClick={() => file.current?.click()}><FileUp className="h-4 w-4" />Upload a report</Button>
+            <Button size="sm" variant="secondary" loading={upload.isPending} onClick={() => file.current?.click()}><IconFileUp className="h-4 w-4" />Upload a report</Button>
           </>
         )}
       </div>
@@ -184,11 +184,11 @@ function SuppressionSection() {
           <h2 id="sup-h" className="text-[15px] font-semibold">Suppression list</h2>
           <p className="text-[13px] text-muted">We stop sending to addresses that bounce for good or report spam. Sending to them again hurts your reputation.</p>
         </div>
-        {isAdmin && <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Block an address</Button>}
+        {isAdmin && <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Block an address</Button>}
       </div>
       <Card className="overflow-hidden">
         {q.isPending ? <Skeleton className="m-4 h-10" /> : !q.data?.length ? (
-          <EmptyState icon={<Ban className="h-5 w-5" />} title="Nothing suppressed" body="Hard bounces and spam complaints land here on their own." className="py-10" />
+          <EmptyState icon={<IconBlock className="h-5 w-5" />} title="Nothing suppressed" body="Hard bounces and spam complaints land here on their own." className="py-10" />
         ) : (
           <ul className="divide-y divide-line">
             {q.data.map((s) => (
@@ -199,7 +199,7 @@ function SuppressionSection() {
                 </div>
                 <div className="flex items-center gap-3 text-xs text-subtle">
                   <span>{timeAgo(s.createdAt)}</span>
-                  {isAdmin && <button onClick={() => remove.mutate(s.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Unblock ${s.address}`}><Trash2 className="h-3.5 w-3.5" /></button>}
+                  {isAdmin && <button onClick={() => remove.mutate(s.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Unblock ${s.address}`}><IconTrash className="h-3.5 w-3.5" /></button>}
                 </div>
               </li>
             ))}

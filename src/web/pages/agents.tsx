@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, Check, ClipboardCheck, FileJson, KeyRound, Radio, ShieldCheck } from "lucide-react";
+import { IconAgent, IconArrowRight, IconCheck, IconClipboardCheck, IconFileCode, IconKey, IconRadio, IconShieldCheck } from "@/web/components/ui/icon";
 import { useState } from "react";
 import { ButtonLink } from "@/web/components/ui/button";
 import { CopyButton } from "@/web/components/ui/misc";
@@ -86,10 +86,10 @@ const TOOLS = [
 ];
 
 const GUARDRAILS = [
-  { icon: ClipboardCheck, title: "Approval queue", body: "Every send waits for a person by default. Approve, edit then approve, or reject with a note the agent receives." },
-  { icon: ShieldCheck, title: "Caps and allow lists", body: "A daily send cap per agent, plus addresses or whole domains it may write to." },
-  { icon: KeyRound, title: "Scoped keys", body: "An agent key only reaches that agent's inbox and the shared mailboxes you give it. It can't touch domains, billing or other agents." },
-  { icon: FileJson, title: "Audit log", body: "Every read, send, approval and rejection, with the agent's name, and whether it came through the API or MCP." },
+  { icon: IconClipboardCheck, title: "Approval queue", body: "Every send waits for a person by default. Approve, edit then approve, or reject with a note the agent receives." },
+  { icon: IconShieldCheck, title: "Caps and allow lists", body: "A daily send cap per agent, plus addresses or whole domains it may write to." },
+  { icon: IconKey, title: "Scoped keys", body: "An agent key only reaches that agent's inbox and the shared mailboxes you give it. It can't touch domains, billing or other agents." },
+  { icon: IconFileCode, title: "Audit log", body: "Every read, send, approval and rejection, with the agent's name, and whether it came through the API or MCP." },
 ];
 
 export function AgentsDevPage() {
@@ -98,13 +98,13 @@ export function AgentsDevPage() {
     <>
       <section className="pt-32 sm:pt-40">
         <div className="mx-auto max-w-4xl px-5 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs text-muted"><Bot className="h-3.5 w-3.5" aria-hidden />Agent inboxes</span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs text-muted"><IconAgent className="h-3.5 w-3.5" aria-hidden />Agent inboxes</span>
           <h1 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-[-0.03em] sm:text-6xl">Give your AI agent a real inbox.</h1>
           <p className="mx-auto mt-6 max-w-2xl text-[17px] leading-relaxed text-muted">
             An address on your own domain, mail as JSON by webhook, stream or MCP, and replies that wait for a person until you trust them. Three agent inboxes are free.
           </p>
           <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-            <ButtonLink to="/signup" size="lg">Start free <ArrowRight className="h-4 w-4" /></ButtonLink>
+            <ButtonLink to="/signup" size="lg">Start free <IconArrowRight className="h-4 w-4" /></ButtonLink>
             <a href="/api/v1/reference" className="inline-flex h-11 items-center justify-center rounded-lg border border-line px-5 text-[15px] font-medium hover:bg-hover">API reference</a>
           </div>
         </div>
@@ -129,10 +129,10 @@ export function AgentsDevPage() {
       <section className="border-y border-line bg-surface/40" aria-labelledby="realtime">
         <div className="mx-auto grid max-w-5xl gap-8 px-5 py-20 md:grid-cols-2">
           <div>
-            <h2 id="realtime" className="flex items-center gap-2 text-2xl font-semibold tracking-tight"><Radio className="h-5 w-5 text-brand-hover" aria-hidden />New mail, as it lands</h2>
+            <h2 id="realtime" className="flex items-center gap-2 text-2xl font-semibold tracking-tight"><IconRadio className="h-5 w-5 text-brand-hover" aria-hidden />New mail, as it lands</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted">Pick what suits your agent. Webhooks are signed with the Standard Webhooks spec. The stream is Server-Sent Events: reconnect with Last-Event-ID and nothing is missed. Or poll the event feed with the last id you saw.</p>
             <ul className="mt-5 space-y-2 text-sm">
-              {["message.received, with the parsed message", "approval.requested and approval.decided", "message.sent"].map((x) => <li key={x} className="flex gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden />{x}</li>)}
+              {["message.received, with the parsed message", "approval.requested and approval.decided", "message.sent"].map((x) => <li key={x} className="flex gap-2"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-ok" aria-hidden />{x}</li>)}
             </ul>
           </div>
           <Code label="Stream" code={`curl -N ${BASE}/api/v1/agents/$AGENT_ID/events/stream \\

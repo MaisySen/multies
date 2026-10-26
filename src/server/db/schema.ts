@@ -1929,3 +1929,33 @@ export const boardSettings = sqliteTable("board_settings", {
   updatedBy: text("updated_by"),
   updatedAt: ts("updated_at").notNull(),
 });
+
+// ---------------------------------------------------------------- R35: reports and blocks (Apple 1.2, user generated content)
+
+/** A report of a chat message or a person. The message text and author are copied at report time. Essential write. */
+export const contentReports = sqliteTable("content_reports", {
+  id: text("id").primaryKey(),
+  reporterUserId: text("reporter_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  orgId: text("org_id"),
+  targetType: text("target_type", { enum: ["message", "user"] }).notNull(),
+  messageId: text("message_id"),
+  targetUserId: text("target_user_id"),
+  context: text("context", { enum: ["chat", "meeting", "dm"] }),
+  reason: text("reason", { enum: ["spam", "harassment", "hate", "sexual", "violence", "self_harm", "other"] }).notNull(),
+  note: text("note"),
+  snapshotText: text("snapshot_text"),
+  snapshotAuthorId: text("snapshot_author_id"),
+  status: text("status", { enum: ["open", "resolved", "dismissed"] }).notNull().default("open"),
+  action: text("action", { enum: ["none", "message_removed", "user_suspended", "warned"] }).notNull().default("none"),
+  resolutionNote: text("resolution_note"),
+  resolvedBy: text("resolved_by"),
+  resolvedAt: ts("resolved_at"),
+  createdAt: createdAt(),
+}, (t) => [index("content_reports_status_idx").on(t.status, t.createdAt), index("content_reports_reporter_idx").on(t.reporterUserId, t.createdAt)]);
+
+/** A blocks B: B's chat messages are left out of everything A reads, and B cannot DM A. Across all shared workspaces. */
+export const userBlocks = sqliteTable("user_blocks", {
+  blockerUserId: text("blocker_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  blockedUserId: text("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+}, (t) => [primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }), index("user_blocks_blocked_idx").on(t.blockedUserId)]);

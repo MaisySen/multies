@@ -35,6 +35,7 @@ describe("MCP server", () => {
     const mcp = await connect(wsKey);
     const tools = (await mcp.listTools()).tools.map((t) => t.name).sort();
     expect(tools).toEqual([
+      "add_block",
       "add_checklist_items",
       "add_dashboard_widget",
       "add_run_step",
@@ -64,6 +65,7 @@ describe("MCP server", () => {
       "create_formula_field",
       "create_goal",
       "create_incoming_hook",
+      "create_report",
       "create_rollup_field",
       "create_saved_view",
       "create_share_link",
@@ -112,6 +114,7 @@ describe("MCP server", () => {
       "list_agent_members",
       "list_agent_triggers",
       "list_automation_recipes",
+      "list_blocks",
       "list_calendar_events",
       "list_channels",
       "list_checklist",
@@ -170,6 +173,7 @@ describe("MCP server", () => {
       "read_doc",
       "read_thread",
       "regenerate_auth_email_secret",
+      "remove_block",
       "remove_from_sprint",
       "render_snippet",
       "reorder_checklist",

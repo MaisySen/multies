@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Building2, CheckSquare, Handshake, Mail, Plus, Users, Video } from "lucide-react";
+import { IconArrowLeft, IconBuilding, IconHandshake, IconMail, IconPlus, IconTasks, IconTeam, IconVideo } from "@/web/components/ui/icon";
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -32,7 +32,7 @@ export function ContactsPage() {
   return (
     <div>
       <PageHeader title="Contacts" description="Everyone you email with, added automatically, with their companies. Open someone to see every thread, task and deal with them."
-        actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><Handshake className="h-4 w-4" />Deals</Link><Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Add contact</Button></>} />
+        actions={<><Link to="/app/deals" className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconHandshake className="h-4 w-4" />Deals</Link><Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Add contact</Button></>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div role="tablist" className="flex rounded-lg bg-fill p-0.5">
           {(["people", "companies"] as const).map((t) => (
@@ -44,7 +44,7 @@ export function ContactsPage() {
       </div>
       {tab === "people" ? (
         people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
-          <EmptyState icon={<Users />} title={q ? "Nobody matches" : "No contacts yet"} body="When mail arrives or you send to someone outside your team, they show up here with their company." />
+          <EmptyState icon={<IconTeam />} title={q ? "Nobody matches" : "No contacts yet"} body="When mail arrives or you send to someone outside your team, they show up here with their company." />
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="contact-list">
             {people.data.contacts.map((c) => (
@@ -63,12 +63,12 @@ export function ContactsPage() {
           </Card>
         )
       ) : companies.isPending ? <Skeleton className="h-48" /> : !companies.data?.length ? (
-        <EmptyState icon={<Building2 />} title="No companies yet" body="Companies come from your contacts' work email domains. Free mail like Gmail never makes a company." />
+        <EmptyState icon={<IconBuilding />} title="No companies yet" body="Companies come from your contacts' work email domains. Free mail like Gmail never makes a company." />
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {companies.data.map((c) => (
             <Link key={c.id} to={`/app/contacts?company=${c.id}`} onClick={(e) => { e.preventDefault(); setQ(c.domain ?? c.name); setParams({}); }} className="flex items-center gap-3 px-4 py-3 hover:bg-hover">
-              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-elevated"><Building2 className="h-4 w-4 text-muted" /></span>
+              <span className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-elevated"><IconBuilding className="h-4 w-4 text-muted" /></span>
               <div className="min-w-0 flex-1"><div className="text-[14px] font-medium">{c.name}</div><div className="text-[12.5px] text-muted">{c.domain}</div></div>
               <div className="text-right text-[12px] text-subtle">{c.contactCount} {c.contactCount === 1 ? "person" : "people"}</div>
             </Link>
@@ -115,7 +115,7 @@ export function ContactPage() {
   const q = useQuery({ queryKey: ["contact", id], queryFn: () => api.get<ContactDetail>(`/contacts/${id}`) });
   const [notes, setNotes] = useState<string | null>(null);
   if (q.isPending) return <div className="space-y-3"><Skeleton className="h-10 w-1/2" /><Skeleton className="h-64" /></div>;
-  if (q.error) return <EmptyState icon={<Users />} title="Contact not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts")}>All contacts</Button>} />;
+  if (q.error) return <EmptyState icon={<IconTeam />} title="Contact not found" body="It may have been removed." action={<Button onClick={() => navigate("/app/contacts")}>All contacts</Button>} />;
   const { contact: c, timeline, tasks, deals } = q.data;
   const saveNotes = async () => {
     if (notes === null || notes === c.notes) return;
@@ -129,7 +129,7 @@ export function ContactPage() {
   return (
     <div>
       {dialogs}
-      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
+      <Link to="/app/contacts" className="mb-4 inline-flex items-center gap-1 text-[12.5px] text-subtle hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Contacts</Link>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Avatar label={initials(c.name || c.email)} className="h-12 w-12 text-sm" />
         <div className="min-w-0">
@@ -137,9 +137,9 @@ export function ContactPage() {
           <p className="text-[13.5px] text-muted">{c.email}{c.title && <> · {c.title}</>}{c.company && <> · {c.company.name}</>}</p>
         </div>
         <div className="ml-auto flex gap-2">
-          <Link to={`/app/mail?compose=${encodeURIComponent(c.email)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><Mail className="h-4 w-4" />Email</Link>
-          <Button variant="secondary" onClick={() => void startMeeting({ type: "contact", id: c.id }, navigate)}><Video className="h-4 w-4" />Meeting</Button>
-          <Button variant="secondary" onClick={makeDeal}><Handshake className="h-4 w-4" />New deal</Button>
+          <Link to={`/app/mail?compose=${encodeURIComponent(c.email)}`} className="inline-flex h-9 items-center gap-2 rounded-lg border border-line px-3.5 text-sm hover:bg-elevated"><IconMail className="h-4 w-4" />Email</Link>
+          <Button variant="secondary" onClick={() => void startMeeting({ type: "contact", id: c.id }, navigate)}><IconVideo className="h-4 w-4" />Meeting</Button>
+          <Button variant="secondary" onClick={makeDeal}><IconHandshake className="h-4 w-4" />New deal</Button>
         </div>
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
@@ -152,18 +152,18 @@ export function ContactPage() {
                   <span className="absolute -left-[27px] top-3 grid h-3.5 w-3.5 place-items-center rounded-full border border-line-strong bg-surface" aria-hidden />
                   {i.kind === "thread" ? (
                     <Link to={`/app/mail?m=${i.thread.messageId}`} className="block rounded-lg border border-line bg-surface p-3 hover:border-line-strong">
-                      <div className="flex items-center gap-2 text-[12px] text-subtle"><Mail className="h-3.5 w-3.5" />{i.thread.count} {i.thread.count === 1 ? "email" : "emails"} · {i.thread.lastDirection === "inbound" ? "they wrote last" : "you wrote last"}<span className="ml-auto">{mailDate(i.thread.lastAt)}</span></div>
+                      <div className="flex items-center gap-2 text-[12px] text-subtle"><IconMail className="h-3.5 w-3.5" />{i.thread.count} {i.thread.count === 1 ? "email" : "emails"} · {i.thread.lastDirection === "inbound" ? "they wrote last" : "you wrote last"}<span className="ml-auto">{mailDate(i.thread.lastAt)}</span></div>
                       <div className="mt-1 text-[14px] font-medium">{i.thread.subject || "(no subject)"}</div>
                       <p className="mt-0.5 line-clamp-2 text-[13px] text-muted">{i.thread.snippet}</p>
                     </Link>
                   ) : i.kind === "task" ? (
                     <Link to={`/app/tasks?view=list&task=${i.task.id}`} className="block rounded-lg border border-line bg-surface p-3 hover:border-line-strong">
-                      <div className="flex items-center gap-2 text-[12px] text-subtle"><CheckSquare className="h-3.5 w-3.5" />Task {i.task.ref}<span className="ml-auto">{shortDate(i.task.createdAt)}</span></div>
+                      <div className="flex items-center gap-2 text-[12px] text-subtle"><IconTasks className="h-3.5 w-3.5" />Task {i.task.ref}<span className="ml-auto">{shortDate(i.task.createdAt)}</span></div>
                       <div className="mt-1 flex items-center gap-2 text-[14px] font-medium">{i.task.title}<Badge>{i.task.statusName}</Badge></div>
                     </Link>
                   ) : (
                     <Link to="/app/deals" className="block rounded-lg border border-line bg-surface p-3 hover:border-line-strong">
-                      <div className="flex items-center gap-2 text-[12px] text-subtle"><Handshake className="h-3.5 w-3.5" />Deal<span className="ml-auto">{aud(i.deal.value)}</span></div>
+                      <div className="flex items-center gap-2 text-[12px] text-subtle"><IconHandshake className="h-3.5 w-3.5" />Deal<span className="ml-auto">{aud(i.deal.value)}</span></div>
                       <div className="mt-1 text-[14px] font-medium">{i.deal.title} <span className="text-[12.5px] font-normal capitalize text-muted">{i.deal.stage}</span></div>
                     </Link>
                   )}

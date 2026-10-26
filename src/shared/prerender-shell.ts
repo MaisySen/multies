@@ -123,10 +123,20 @@ export const LOGIN_VARIANTS: LoginVariant[] = [true, false].flatMap((demo) => [
   ...[false, true].flatMap((google) => [false, true].map((github) => ({ idp: false, password: true, google, github, demo }))),
 ]);
 
-/** The build output for it: the sign in shell (critical CSS inline, main stylesheet non-blocking) and one card per variant. */
-export interface LoginPrerender { shell: string; cards: Record<string, string> }
+/** The build output for it: the sign in shell (critical CSS inline, main stylesheet non-blocking) and one card per variant.
+ * R35: `pages` carries the same for sign up and forgot password (one card per variant each, a variant can be missing:
+ * that setup keeps the plain sign in shell). */
+export interface LoginPrerender { shell: string; cards: Record<string, string>; pages?: Partial<Record<Exclude<AuthCardPage, "login">, Record<string, string>>> }
 
 export const LOGIN_CARD_PATH = /^\/login\/?$/;
+/** R35: the auth pages served with a prerendered card: sign in, sign up and forgot password. */
+export type AuthCardPage = "login" | "signup" | "forgot";
+export const AUTH_CARD_PATH = /^\/(?:login|signup|forgot-password)\/?$/;
+export const AUTH_CARD_ROUTES: Record<AuthCardPage, string> = { login: "/login", signup: "/signup", forgot: "/forgot-password" };
+export function authCardPage(pathname: string): AuthCardPage | null {
+  const m = pathname.match(/^\/(login|signup|forgot-password)\/?$/);
+  return m ? (m[1] === "forgot-password" ? "forgot" : (m[1] as AuthCardPage)) : null;
+}
 
 export function injectAuthCard(shell: string, markup: string): string {
   if (!shell.includes(EMPTY_ROOT)) throw new Error("sign in shell has no empty #root");
@@ -137,10 +147,13 @@ export function injectAuthCard(shell: string, markup: string): string {
 /**
  * The prerendered sign in page for this request, or null for the usual shell. Only /login with no query: an error,
  * sso, email or next parameter changes the card, so those keep the shell and the app draws the card as before.
+ * R35: /signup and /forgot-password the same way (no query only: email, invited and next change those cards too).
  */
 export function loginHtmlFor(pathname: string, search: string, prerender: LoginPrerender | null | undefined, variant: LoginVariant | null): string | null {
-  if (!prerender || !variant || !LOGIN_CARD_PATH.test(pathname) || (search && search !== "?")) return null;
-  const card = prerender.cards[loginVariantKey(variant)];
+  const page = authCardPage(pathname);
+  if (!prerender || !variant || !page || (search && search !== "?")) return null;
+  const cards = page === "login" ? prerender.cards : prerender.pages?.[page];
+  const card = cards?.[loginVariantKey(variant)];
   return card ? injectAuthCard(prerender.shell, card) : null;
 }
 

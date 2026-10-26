@@ -7,7 +7,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Bot, Check, ChevronDown, ChevronLeft, ChevronRight, Gauge, MoreHorizontal, UserRound, Users, X } from "lucide-react";
+import { IconAgent, IconBack, IconCheck, IconChevronDown, IconChevronRight, IconClose, IconGauge, IconMore, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { showError } from "@/web/lib/show-error";
@@ -123,9 +123,9 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
   const header = (
     <div className="flex flex-wrap items-center gap-2 pb-3">
       <div className="inline-flex items-center gap-1">
-        <Button variant="secondary" size="sm" aria-label="Earlier weeks" onClick={() => setFrom(addWeeks(from, -4))}><ChevronLeft className="h-3.5 w-3.5" /></Button>
+        <Button variant="secondary" size="sm" aria-label="Earlier weeks" onClick={() => setFrom(addWeeks(from, -4))}><IconBack className="h-3.5 w-3.5" /></Button>
         <Button variant="secondary" size="sm" onClick={() => setFrom(mondayOf(new Date()))}>This week</Button>
-        <Button variant="secondary" size="sm" aria-label="Later weeks" onClick={() => setFrom(addWeeks(from, 4))}><ChevronRight className="h-3.5 w-3.5" /></Button>
+        <Button variant="secondary" size="sm" aria-label="Later weeks" onClick={() => setFrom(addWeeks(from, 4))}><IconChevronRight className="h-3.5 w-3.5" /></Button>
       </div>
       <div role="tablist" aria-label="Estimate unit" className="inline-flex rounded-lg bg-fill p-0.5">
         {(["points", "hours"] as Unit[]).map((u) => (
@@ -143,7 +143,7 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
   if (!people.length) {
     return (
       <div>{header}
-        <EmptyState icon={<Users />} title="Nothing planned for these weeks" body="Open tasks with a due date or a start date in these weeks show here, one row per person. Give a task a due date and an assignee to see it." />
+        <EmptyState icon={<IconTeam />} title="Nothing planned for these weeks" body="Open tasks with a due date or a start date in these weeks show here, one row per person. Give a task a due date and an assignee to see it." />
       </div>
     );
   }
@@ -173,11 +173,11 @@ export function WorkloadView({ projectId, onOpen }: { projectId?: string; onOpen
                     <td className="px-3 py-2.5">
                       <button className="flex w-full items-center gap-2 text-left" aria-expanded={open} onClick={() => setCollapsed((s) => ({ ...s, [pk]: open }))}>
                         {p.id === null
-                          ? <span className="grid h-7 w-7 place-items-center rounded-full bg-fill text-muted"><UserRound className="h-3.5 w-3.5" /></span>
-                          : p.isAgent ? <span className="grid h-7 w-7 place-items-center rounded-full bg-[#0071E3]/10 text-[#0071E3]"><Bot className="h-3.5 w-3.5" /></span>
+                          ? <span className="grid h-7 w-7 place-items-center rounded-full bg-fill text-muted"><IconUserRound className="h-3.5 w-3.5" /></span>
+                          : p.isAgent ? <span className="grid h-7 w-7 place-items-center rounded-full bg-[#0071E3]/10 text-[#0071E3]"><IconAgent className="h-3.5 w-3.5" /></span>
                           : <Avatar label={initials(p.name)} className="h-7 w-7 text-[10.5px]" />}
                         <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
-                        <ChevronDown className={cn("h-3.5 w-3.5 text-subtle transition-transform", !open && "-rotate-90")} />
+                        <IconChevronDown className={cn("h-3.5 w-3.5 text-subtle transition-transform", !open && "-rotate-90")} />
                       </button>
                       {p.id && <CapacityEditor person={p} unit={unit} fallback={data!.capacity} editable={canEdit(p)} />}
                     </td>
@@ -244,7 +244,7 @@ function Chip({ chip, person, col, people, cols, onOpen, onMove }: {
         <span className="text-subtle">{chip.ref}</span> {chip.title}
       </button>
       {chip.points != null && <span className="shrink-0 rounded bg-fill px-1 text-[11px] text-muted">{fmtLoad(chip.points)}{chip.unit === "hours" ? "h" : ""}</span>}
-      <Menu align="end" label={`Move ${chip.ref}`} trigger={<button className="shrink-0 rounded p-0.5 text-subtle opacity-60 hover:bg-hover hover:text-fg group-hover:opacity-100"><MoreHorizontal className="h-3.5 w-3.5" /></button>}>
+      <Menu align="end" label={`Move ${chip.ref}`} trigger={<button className="shrink-0 rounded p-0.5 text-subtle opacity-60 hover:bg-hover hover:text-fg group-hover:opacity-100"><IconMore className="h-3.5 w-3.5" /></button>}>
         <MenuLabel>Move to person</MenuLabel>
         {people.filter((p) => (p.id ?? "none") !== person).map((p) => <MenuItem key={p.id ?? "none"} onSelect={() => onMove(chip, p.id ?? "none", col)}>{p.name}</MenuItem>)}
         <div className="my-1 border-t border-line" />
@@ -271,8 +271,8 @@ function CapacityEditor({ person, unit, fallback, editable }: { person: Workload
   if (!editing) {
     return editable
       ? <button data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 rounded text-[11.5px] text-muted hover:text-[#0071E3]" aria-label={`Weekly capacity for ${person.name}: ${label}. Change`}
-          onClick={() => { setDraft(String(value)); setEditing(true); }}><Gauge className="h-3 w-3" />{label}</button>
-      : <span data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 text-[11.5px] text-subtle"><Gauge className="h-3 w-3" />{label}</span>;
+          onClick={() => { setDraft(String(value)); setEditing(true); }}><IconGauge className="h-3 w-3" />{label}</button>
+      : <span data-testid="capacity" className="mt-1 ml-9 inline-flex items-center gap-1 text-[11.5px] text-subtle"><IconGauge className="h-3 w-3" />{label}</span>;
   }
   const n = Number(draft);
   const valid = draft.trim() !== "" && Number.isFinite(n) && n > 0 && n <= 10_000;
@@ -282,8 +282,8 @@ function CapacityEditor({ person, unit, fallback, editable }: { person: Workload
         onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
         className="h-6 w-14 rounded-md border border-line bg-surface px-1.5 text-[12px] outline-none focus:border-[#0071E3]" />
       <span className="text-[11.5px] text-muted">{short}</span>
-      <button type="submit" disabled={!valid || save.isPending} aria-label="Save capacity" className="grid h-6 w-6 place-items-center rounded-md text-[#0071E3] hover:bg-fill disabled:opacity-40"><Check className="h-3.5 w-3.5" /></button>
-      <button type="button" aria-label="Cancel" onClick={() => setEditing(false)} className="grid h-6 w-6 place-items-center rounded-md text-muted hover:bg-fill"><X className="h-3.5 w-3.5" /></button>
+      <button type="submit" disabled={!valid || save.isPending} aria-label="Save capacity" className="grid h-6 w-6 place-items-center rounded-md text-[#0071E3] hover:bg-fill disabled:opacity-40"><IconCheck className="h-3.5 w-3.5" /></button>
+      <button type="button" aria-label="Cancel" onClick={() => setEditing(false)} className="grid h-6 w-6 place-items-center rounded-md text-muted hover:bg-fill"><IconClose className="h-3.5 w-3.5" /></button>
       {person.capacitySource === "stored" && <button type="button" className="text-[11px] text-muted hover:text-fg" onClick={() => save.mutate(null)}>Use default</button>}
     </form>
   );

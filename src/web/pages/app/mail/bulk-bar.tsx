@@ -4,7 +4,7 @@
  * row once anything is selected. The page (webmail.tsx) owns the selection and runs the actions with Undo.
  */
 import { useEffect, useRef } from "react";
-import { AlarmClock, Archive, Ban, Check, FolderInput, Inbox, Mail, MailOpen, Trash2, X } from "lucide-react";
+import { IconArchive, IconBlock, IconCheck, IconClose, IconInbox, IconMail, IconMove, IconRead, IconSnooze, IconTrash } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import type { BulkCall } from "@/web/lib/mail-selection";
 import { moveTargets, useProviderFolders } from "./provider-folders";
@@ -20,7 +20,7 @@ export function RowCheck({ checked, visible, label, onToggle }: { checked: boole
         visible || checked ? "opacity-100" : "opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
       )}>
       <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors duration-150 motion-reduce:transition-none", checked ? "border-brand bg-brand text-brand-fg" : "border-line-strong bg-surface")}>
-        {checked && <Check className="h-3 w-3" strokeWidth={3} aria-hidden />}
+        {checked && <IconCheck className="h-3 w-3" strokeWidth={3} aria-hidden />}
       </span>
     </button>
   );
@@ -76,19 +76,19 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
   return (
     <div role="toolbar" aria-label={`${count} selected`} data-testid="bulk-bar"
       className="sticky top-0 z-10 flex items-center gap-1 border-b border-line bg-surface/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
-      <BarBtn label="Clear selection" hint="Esc" onClick={onClear}><X /></BarBtn>
+      <BarBtn label="Clear selection" hint="Esc" onClick={onClear}><IconClose /></BarBtn>
       <span className="min-w-0 truncate px-1 text-[13px] font-medium text-fg" aria-live="polite" data-testid="bulk-count">{more?.all ? more.chosen : `${count} selected`}</span>
       {!more?.all && count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Select all {total}</button>}
       {more && !more.all && count >= total && <button type="button" onClick={more.onAll} data-testid="bulk-select-everything" className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">{more.offer}</button>}
       <div className="ml-auto flex items-center gap-0.5">
-        {folder === "archive" ? <BarBtn label="Move to Inbox" hint="E" onClick={() => onAct({ action: "inbox" })}><Inbox /></BarBtn>
-          : <BarBtn label="Archive" hint="E" onClick={() => onAct({ action: "archive" })}><Archive /></BarBtn>}
+        {folder === "archive" ? <BarBtn label="Move to Inbox" hint="E" onClick={() => onAct({ action: "inbox" })}><IconInbox /></BarBtn>
+          : <BarBtn label="Archive" hint="E" onClick={() => onAct({ action: "archive" })}><IconArchive /></BarBtn>}
         <div className="relative">
-          <BarBtn label="Snooze" hint="H" onClick={() => setSnoozeOpen(!snoozeOpen)}><AlarmClock /></BarBtn>
+          <BarBtn label="Snooze" hint="H" onClick={() => setSnoozeOpen(!snoozeOpen)}><IconSnooze /></BarBtn>
           {snoozeOpen && <SnoozePresets onClose={() => setSnoozeOpen(false)} onPick={(preset) => { setSnoozeOpen(false); onAct({ action: "snooze", preset }); }} />}
         </div>
         <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg focus-within:ring-2 focus-within:ring-brand/60" title="Move to">
-          <FolderInput className="h-4 w-4" aria-hidden />
+          <IconMove className="h-4 w-4" aria-hidden />
           <select aria-label="Move to" value="" data-testid="bulk-move"
             onChange={(e) => {
               const to = e.target.value;
@@ -103,10 +103,10 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
             {remote.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
           </select>
         </label>
-        {folder !== "spam" && <BarBtn label="Report spam" onClick={() => onAct({ action: "spam" })}><Ban /></BarBtn>}
-        <BarBtn label="Mark read" hint="U" onClick={() => onAct({ action: "read" })}><MailOpen /></BarBtn>
-        <BarBtn label="Mark unread" onClick={() => onAct({ action: "unread" })}><Mail /></BarBtn>
-        <BarBtn label={inTrash ? "Delete forever" : "Delete"} hint="#" danger onClick={() => onAct({ action: inTrash ? "delete" : "trash" })}><Trash2 /></BarBtn>
+        {folder !== "spam" && <BarBtn label="Report spam" onClick={() => onAct({ action: "spam" })}><IconBlock /></BarBtn>}
+        <BarBtn label="Mark read" hint="U" onClick={() => onAct({ action: "read" })}><IconRead /></BarBtn>
+        <BarBtn label="Mark unread" onClick={() => onAct({ action: "unread" })}><IconMail /></BarBtn>
+        <BarBtn label={inTrash ? "Delete forever" : "Delete"} hint="#" danger onClick={() => onAct({ action: inTrash ? "delete" : "trash" })}><IconTrash /></BarBtn>
       </div>
     </div>
   );

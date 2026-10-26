@@ -1,8 +1,8 @@
-import { CircleAlert, CircleCheck, CircleX, Inbox } from "lucide-react";
+import { IconAlertCircle, IconCheckCircle, IconInbox, IconXCircle, type IconComponent } from "@/web/components/ui/icon";
 import type { CheckStatus, DomainCheckItem, DomainMailCheck } from "@/shared/mail-check";
 import { cn } from "@/web/lib/cn";
 
-const icon: Record<CheckStatus, typeof CircleCheck> = { pass: CircleCheck, warn: CircleAlert, fail: CircleX };
+const icon: Record<CheckStatus, IconComponent> = { pass: IconCheckCircle, warn: IconAlertCircle, fail: IconXCircle };
 const tone: Record<CheckStatus, string> = { pass: "text-ok", warn: "text-warn", fail: "text-bad" };
 const word: Record<CheckStatus, string> = { pass: "Set", warn: "Needs attention", fail: "Missing or broken" };
 
@@ -25,7 +25,7 @@ function CheckRow({ title, item }: { title: string; item: DomainCheckItem }) {
 export function ProviderSummary({ check }: { check: DomainMailCheck }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-hover"><Inbox className="h-5 w-5" aria-hidden /></span>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-hover"><IconInbox className="h-5 w-5" aria-hidden /></span>
       <div className="min-w-0">
         <p className="text-xs uppercase tracking-wide text-subtle">Mail for {check.domain} goes to</p>
         <p className="text-lg font-semibold">{check.provider.name}</p>

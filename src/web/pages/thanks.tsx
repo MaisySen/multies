@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { CheckCircle2 } from "lucide-react";
+import { IconCheckCircle } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { ButtonLink } from "@/web/components/ui/button";
 
@@ -26,7 +26,7 @@ export function ThanksPage() {
     <main className="grid min-h-dvh place-items-center bg-bg px-6 py-16">
       <div className="w-full max-w-sm text-center animate-pop-in">
         <Link to="/" aria-label="Multies home" className="inline-flex"><Logo /></Link>
-        <div className="mx-auto mt-10 grid h-14 w-14 place-items-center rounded-full bg-ok-soft text-ok" aria-hidden><CheckCircle2 className="h-7 w-7" /></div>
+        <div className="mx-auto mt-10 grid h-14 w-14 place-items-center rounded-full bg-ok-soft text-ok" aria-hidden><IconCheckCircle className="h-7 w-7" /></div>
         <h1 className="mt-5 text-[28px] font-bold leading-tight tracking-[-0.02em]">{copy.title}</h1>
         <p className="mt-3 text-[15px] leading-relaxed text-muted" role="status">{copy.body}</p>
         <ButtonLink to={next} size="lg" className="mt-8 w-full">{from === "signup" ? "Open your dashboard" : "Back to Multies"}</ButtonLink>

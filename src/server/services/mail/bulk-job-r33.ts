@@ -13,10 +13,11 @@
 import { and, desc, eq, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Deps } from "../../context";
-import { mailBulkJobs, messages } from "../../db/schema";
+import { runBatch } from "../../db";
+import { mailBulkJobs, mailSyncOutbox, messages } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { badRequest, HttpError, notFound } from "../../lib/errors";
-import { SQL_IN_CHUNK, notInIds } from "../../lib/sql-chunks";
+import { SQL_IN_CHUNK, inIds, notInIds } from "../../lib/sql-chunks";
 import { mailboxScope } from "../team";
 import { runBulkMail, type BulkMailAction, type QueueFn } from "./bulk-r32";
 import { resolveWhen, snoozeHiddenCond, type ScheduleActor, type WhenInput } from "./schedules";
@@ -65,7 +66,8 @@ export interface JobView { id: string; clientJobId: string; action: string; stat
 type Job = typeof mailBulkJobs.$inferSelect;
 type Row = typeof messages.$inferSelect;
 interface Params { scope: BulkJobScope; excludeIds: string[]; to?: string; dueAt?: string }
-interface UndoCall { action: BulkMailAction; ids: string[] }
+/** R35: a move's inverse carries where each message was (folder key, local folder) and its old provider UIDs. */
+interface UndoCall { action: BulkMailAction; ids: string[]; to?: string; folder?: string; uids?: number[] }
 
 const undoTotal = (plan: UndoCall[]) => plan.reduce((n, c) => n + c.ids.length, 0);
 function view(j: Job): JobView {
@@ -107,7 +109,7 @@ async function scopeConds(deps: Deps, actor: ScheduleActor, job: { params: Param
 }
 
 /** What puts these rows back, from the rows as they were (only what the action changes). */
-export function undoFor(action: BulkJobAction, rows: Pick<Row, "id" | "folder" | "isRead" | "isStarred">[]): UndoCall[] {
+export function undoFor(action: BulkJobAction, rows: (Pick<Row, "id" | "folder" | "isRead" | "isStarred"> & Partial<Pick<Row, "remoteBox" | "remoteUid">>)[], params: { to?: string } = {}): UndoCall[] {
   const only = (pred: (r: (typeof rows)[number]) => boolean, a: BulkMailAction): UndoCall[] => {
     const ids = rows.filter(pred).map((r) => r.id);
     return ids.length ? [{ action: a, ids }] : [];
@@ -119,9 +121,18 @@ export function undoFor(action: BulkJobAction, rows: Pick<Row, "id" | "folder" |
     case "unstar": return only((r) => r.isStarred, "star");
     // R34: Undo of a snooze clears the snooze on those threads (they show in the Inbox again).
     case "snooze": return only((r) => r.folder !== "drafts", "unsnooze");
-    // R34: a move to a provider folder is handed to the provider at once and the message gets a new id there, so
-    // (like a single move) it has no Undo; the toast and the confirm say so.
-    case "move": return [];
+    // R35: a move keeps the Multies message (only its provider folder and UID change), so Undo moves it back to the
+    // folder it came from. Grouped by where each came from; the rows runChunk moves, nothing else.
+    case "move": {
+      const groups = new Map<string, UndoCall>();
+      for (const r of movableRows(rows, params.to)) {
+        const key = `${r.remoteBox}\u0000${r.folder}`;
+        const g = groups.get(key) ?? { action: "move" as BulkMailAction, ids: [], to: r.remoteBox!, folder: r.folder, uids: [] };
+        g.ids.push(r.id); g.uids!.push(r.remoteUid!);
+        groups.set(key, g);
+      }
+      return [...groups.values()];
+    }
     default: {
       const groups = new Map<string, string[]>();
       for (const r of rows) if (r.folder !== action) groups.set(r.folder, [...(groups.get(r.folder) ?? []), r.id]);
@@ -132,9 +143,48 @@ export function undoFor(action: BulkJobAction, rows: Pick<Row, "id" | "folder" |
 
 /** Joins plans so the stored plan has one entry per inverse action. */
 function mergePlan(a: UndoCall[], b: UndoCall[]): UndoCall[] {
-  const m = new Map<string, string[]>();
-  for (const c of [...a, ...b]) m.set(c.action, [...(m.get(c.action) ?? []), ...c.ids]);
-  return [...m].map(([action, ids]) => ({ action: action as BulkMailAction, ids }));
+  const m = new Map<string, UndoCall>();
+  for (const c of [...a, ...b]) {
+    const key = c.action === "move" ? `move\u0000${c.to}\u0000${c.folder}` : c.action;
+    const g = m.get(key);
+    if (!g) m.set(key, { ...c, ids: [...c.ids], ...(c.uids ? { uids: [...c.uids] } : {}) });
+    else { g.ids.push(...c.ids); if (c.uids) g.uids = [...(g.uids ?? []), ...c.uids]; }
+  }
+  return [...m.values()];
+}
+
+/** The rows a move chunk hands to the provider (the same test runChunk and runBulkMail apply). */
+function movableRows<T extends Pick<Row, "folder"> & Partial<Pick<Row, "remoteBox" | "remoteUid">>>(rows: T[], to?: string): T[] {
+  return rows.filter((r) => r.remoteBox && r.remoteUid && r.remoteBox !== to && r.folder !== "sent" && r.folder !== "drafts");
+}
+
+/**
+ * R35: puts moved messages back. A move the provider has not run yet is simply taken back (its queued change is
+ * dropped and the message points at its old folder and UID again); one it has run is moved back there through the
+ * provider, like any move. A message whose new UID the provider never told us is left where it is (rare: servers
+ * without UIDPLUS; the next sync files it).
+ */
+async function undoMoveChunk(deps: Deps, actor: ScheduleActor, call: Pick<UndoCall, "to" | "folder">, items: { id: string; uid?: number }[], queue?: QueueFn) {
+  const ids = items.map((i) => i.id);
+  const rows = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid }).from(messages)
+    .where(and(eq(messages.orgId, actor.orgId), inIds(messages.id, ids))).all();
+  if (!rows.length) return;
+  const pending = new Set((await deps.db.select({ messageId: mailSyncOutbox.messageId }).from(mailSyncOutbox)
+    .where(and(inIds(mailSyncOutbox.messageId, rows.map((r) => r.id)), eq(mailSyncOutbox.action, "move"))).all()).map((r) => r.messageId));
+  const uidOf = new Map(items.map((i) => [i.id, i.uid]));
+  // Essential writes: the user's own Undo. One delete for the queued moves, one update per message taken back.
+  const takeBack = rows.filter((r) => pending.has(r.id) && uidOf.get(r.id));
+  if (takeBack.length) {
+    await runBatch(deps.db, [
+      deps.db.delete(mailSyncOutbox).where(and(inIds(mailSyncOutbox.messageId, takeBack.map((r) => r.id)), eq(mailSyncOutbox.action, "move"))),
+      ...takeBack.map((r) => deps.db.update(messages).set({ remoteBox: call.to!, remoteUid: uidOf.get(r.id)!, folder: call.folder as Row["folder"] }).where(eq(messages.id, r.id))),
+    ]);
+  }
+  const moveBack = rows.filter((r) => !pending.has(r.id) && r.remoteUid);
+  if (moveBack.length) {
+    await runBulkMail(deps, actor, { ids: moveBack.map((r) => r.id), action: "move", to: call.to }, queue).catch(() => undefined);
+    if (call.folder) await deps.db.update(messages).set({ folder: call.folder as Row["folder"] }).where(inIds(messages.id, moveBack.map((r) => r.id)));
+  }
 }
 
 async function load(deps: Deps, orgId: string, id: string) {
@@ -160,7 +210,7 @@ async function stepForward(deps: Deps, actor: ScheduleActor, j: Job, queue?: Que
     // Essential write: the user's own action on these messages (one UPDATE per chunk; snooze writes one schedule
     // row per thread in chunks of 10).
     await runChunk(deps, actor, j.action as BulkJobAction, params, rows, queue);
-    plan = mergePlan(plan, undoFor(j.action as BulkJobAction, rows));
+    plan = mergePlan(plan, undoFor(j.action as BulkJobAction, rows, params));
     done += rows.length;
     if (rows.length < SQL_IN_CHUNK) { finished = true; break; }
   }
@@ -174,7 +224,7 @@ async function stepForward(deps: Deps, actor: ScheduleActor, j: Job, queue?: Que
 async function runChunk(deps: Deps, actor: ScheduleActor, action: BulkJobAction, params: Params, rows: Row[], queue?: QueueFn) {
   if (action === "snooze") return runBulkMail(deps, actor, { ids: rows.map((r) => r.id), action, at: params.dueAt }, queue);
   if (action === "move") {
-    const movable = rows.filter((r) => r.remoteBox && r.remoteUid && r.remoteBox !== params.to);
+    const movable = movableRows(rows, params.to);
     if (!movable.length) return { updated: 0 };
     return runBulkMail(deps, actor, { ids: movable.map((r) => r.id), action, to: params.to }, queue);
   }
@@ -191,14 +241,18 @@ function cursorCond(cursor: string): SQL {
 /** One step back: up to STEP_CHUNKS chunks of the stored undo plan, in order. */
 async function stepUndo(deps: Deps, actor: ScheduleActor, j: Job, queue?: QueueFn): Promise<Job> {
   const plan = JSON.parse(j.undoPlan) as UndoCall[];
-  const flat = plan.flatMap((c) => c.ids.map((id) => ({ action: c.action, id })));
+  const flat = plan.flatMap((c, n) => c.ids.map((id, k) => ({ call: n, id, uid: c.uids?.[k] })));
   let pos = j.undoDone;
   for (let i = 0; i < STEP_CHUNKS && pos < flat.length; i++) {
     const part = flat.slice(pos, pos + SQL_IN_CHUNK);
-    // A chunk may cross from one inverse to the next; run each action's ids on their own.
-    const byAction = new Map<BulkMailAction, string[]>();
-    for (const p of part) byAction.set(p.action, [...(byAction.get(p.action) ?? []), p.id]);
-    for (const [action, ids] of byAction) await runBulkMail(deps, actor, { ids, action }, queue);
+    // A chunk may cross from one inverse to the next; run each inverse's ids on their own.
+    const byCall = new Map<number, typeof part>();
+    for (const p of part) byCall.set(p.call, [...(byCall.get(p.call) ?? []), p]);
+    for (const [n, items] of byCall) {
+      const call = plan[n];
+      if (call.action === "move") await undoMoveChunk(deps, actor, call, items, queue);
+      else await runBulkMail(deps, actor, { ids: items.map((p) => p.id), action: call.action }, queue);
+    }
     pos += part.length;
   }
   const set = { undoDone: pos, status: pos >= flat.length ? "reverted" : "reverting", updatedAt: deps.now() };

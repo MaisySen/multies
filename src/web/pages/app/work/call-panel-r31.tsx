@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Circle, Clock, Gavel, Hash, NotebookPen, Sparkles, Users, X } from "lucide-react";
+import { IconCheckCircle, IconCircle, IconClock, IconClose, IconGavel, IconHash, IconNotes, IconSparkle, IconTeam } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -70,7 +70,7 @@ function Todos({ todos }: { todos: { text: string; done: boolean }[] }) {
     <ul className="space-y-1 text-[13px]">
       {todos.map((t, i) => (
         <li key={i} className="flex items-start gap-2">
-          {t.done ? <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-label="Done" /> : <Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" aria-label="Open" />}
+          {t.done ? <IconCheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ok" aria-label="Done" /> : <IconCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" aria-label="Open" />}
           <span className={cn(t.done && "text-muted line-through")}>{t.text}</span>
         </li>
       ))}
@@ -84,10 +84,10 @@ export function SoFarView({ data, onWrite, writing, written }: { data: SoFar; on
     <div data-testid="so-far" aria-live="polite">
       <div className="flex items-center justify-between gap-2 px-4 pt-3">
         <span className="inline-flex items-center gap-1 rounded-full bg-fill px-2 py-0.5 text-[11.5px] font-medium text-muted" title="Built from the call's notes and chat. No model is used.">Digest</span>
-        <span className="flex items-center gap-1 text-[12px] text-muted"><Clock className="h-3.5 w-3.5" aria-hidden />{data.elapsedMin} min since the start</span>
+        <span className="flex items-center gap-1 text-[12px] text-muted"><IconClock className="h-3.5 w-3.5" aria-hidden />{data.elapsedMin} min since the start</span>
       </div>
       {written && <p className="mx-4 mt-3 whitespace-pre-line rounded-xl bg-brand-soft p-3 text-[13px] text-fg" data-testid="so-far-written">{written}</p>}
-      <Section icon={<Users className="h-3.5 w-3.5" aria-hidden />} title={`Here now (${data.participants.length})`}>
+      <Section icon={<IconTeam className="h-3.5 w-3.5" aria-hidden />} title={`Here now (${data.participants.length})`}>
         {data.participants.length ? (
           <ul className="space-y-1 text-[13px]" data-testid="so-far-people">
             {data.participants.map((p, i) => <li key={i} className="flex items-center justify-between gap-2"><span className="truncate">{p.name}</span><span className="shrink-0 text-[12px] text-subtle">{minutesLabel(p.minutesIn)}</span></li>)}
@@ -95,20 +95,20 @@ export function SoFarView({ data, onWrite, writing, written }: { data: SoFar; on
         ) : <p className="text-[13px] text-muted">Nobody is in the call yet.</p>}
       </Section>
       {data.notes && (data.notes.headings.length > 0 || data.notes.notes.length > 0 || data.notes.agenda.length > 0) && (
-        <Section icon={<Hash className="h-3.5 w-3.5" aria-hidden />} title="In the notes">
+        <Section icon={<IconHash className="h-3.5 w-3.5" aria-hidden />} title="In the notes">
           {data.notes.headings.length > 0 && <p className="text-[13px] text-muted">{data.notes.headings.join(" · ")}</p>}
           {[...data.notes.agenda, ...data.notes.notes].slice(0, 8).map((l, i) => <p key={i} className="mt-1 text-[13px]">{l}</p>)}
         </Section>
       )}
-      {open.length > 0 && <Section icon={<CheckCircle2 className="h-3.5 w-3.5" aria-hidden />} title="To-dos"><Todos todos={open} /></Section>}
-      <Section icon={<Gavel className="h-3.5 w-3.5" aria-hidden />} title="Decisions">
+      {open.length > 0 && <Section icon={<IconCheckCircle className="h-3.5 w-3.5" aria-hidden />} title="To-dos"><Todos todos={open} /></Section>}
+      <Section icon={<IconGavel className="h-3.5 w-3.5" aria-hidden />} title="Decisions">
         {data.decisions.length ? (
           <ul className="space-y-1.5 text-[13px]">{data.decisions.map((d, i) => <li key={i}>{d.text} <span className="text-[12px] text-subtle">{d.by}</span></li>)}</ul>
         ) : <p className="text-[13px] text-muted">None yet. Start a chat line with "Decision:" to add one.</p>}
       </Section>
       {onWrite && data.canWriteSummary && (
         <div className="border-t border-line px-4 py-3">
-          <Button size="sm" variant="secondary" onClick={onWrite} loading={writing} data-testid="so-far-write"><Sparkles className="h-4 w-4" aria-hidden />Write a summary</Button>
+          <Button size="sm" variant="secondary" onClick={onWrite} loading={writing} data-testid="so-far-write"><IconSparkle className="h-4 w-4" aria-hidden />Write a summary</Button>
           <p className="mt-1 text-[11.5px] text-subtle">Uses your workspace's own AI key.</p>
         </div>
       )}
@@ -160,8 +160,8 @@ export function CallToolbar({ tab, setTab, member }: { tab: CallTab | null; setT
   );
   return (
     <div className="flex items-center gap-1" role="toolbar" aria-label="Call panels">
-      {btn("notes", "Notes", <NotebookPen className="h-4 w-4" aria-hidden />)}
-      {member && btn("so-far", "So far", <Clock className="h-4 w-4" aria-hidden />)}
+      {btn("notes", "Notes", <IconNotes className="h-4 w-4" aria-hidden />)}
+      {member && btn("so-far", "So far", <IconClock className="h-4 w-4" aria-hidden />)}
     </div>
   );
 }
@@ -179,7 +179,7 @@ export function CallSidePanel({ meetingId, guestToken, member, tab, onClose, so 
     <aside className="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-line bg-elevated md:w-[360px] motion-safe:animate-[fade-in_160ms_ease-out]" aria-label={tab === "notes" ? "Call notes" : "So far"} data-testid="call-panel">
       <header className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <h2 className="text-[13px] font-semibold">{tab === "notes" ? "Notes" : "So far"}</h2>
-        <button type="button" onClick={onClose} aria-label="Close panel" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={onClose} aria-label="Close panel" className="rounded-md p-1 text-subtle hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"><IconClose className="h-4 w-4" /></button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "notes"

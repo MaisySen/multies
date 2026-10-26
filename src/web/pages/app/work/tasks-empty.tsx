@@ -1,14 +1,15 @@
 /** R30: the designed empty state and the board skeleton for the Tasks page. */
-import { CalendarDays, FilterX, ListPlus } from "lucide-react";
+import { NoTasksArt } from "@/web/components/illustrations";
+import { IconCalendarDays, IconFilterX, IconListPlus } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import type { EmptyCopy } from "@/web/lib/empty-states";
 
 export function TasksEmpty({ copy, onClear, onNew, icon }: { copy: EmptyCopy; onClear: () => void; onNew: () => void; icon?: "calendar" }) {
-  const Icon = icon === "calendar" ? CalendarDays : copy.action === "clear" ? FilterX : ListPlus;
+  const Icon = icon === "calendar" ? IconCalendarDays : copy.action === "clear" ? IconFilterX : IconListPlus;
   return (
     <div className="rounded-xl border border-line bg-surface" data-testid="tasks-empty">
-      <EmptyState icon={<Icon />} title={copy.title} body={copy.body}
+      <EmptyState icon={<Icon />} art={<NoTasksArt />} title={copy.title} body={copy.body}
         action={copy.action && <Button variant={copy.action === "clear" ? "secondary" : "primary"} onClick={copy.action === "clear" ? onClear : onNew}>{copy.actionLabel}</Button>} />
     </div>
   );

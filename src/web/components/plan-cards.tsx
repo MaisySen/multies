@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { IconCheck } from "@/web/components/ui/icon";
 import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, formatPlanPrice } from "@/shared/plans";
 import { ButtonLink } from "@/web/components/ui/button";
 
@@ -17,7 +17,7 @@ export function PlanCards({ ctaTo = "/signup", headingLevel = 3 }: { ctaTo?: str
         </p>
         <ul className="mt-6 flex-1 space-y-2.5 text-sm">
           {free.features.map((f) => (
-            <li key={f} className="flex items-start gap-2.5 text-fg/85"><Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />{f}</li>
+            <li key={f} className="flex items-start gap-2.5 text-fg/85"><IconCheck className="mt-0.5 h-4 w-4 shrink-0 text-brand-hover" />{f}</li>
           ))}
         </ul>
         <ButtonLink to={ctaTo} className="mt-8 w-full">Start free</ButtonLink>

@@ -101,3 +101,18 @@ export function parseCellId(id: string): { lane: string; col: string } | null {
 
 /** Priority lanes in a fixed order, then "No priority". */
 export const PRIORITY_LANES = ["urgent", "high", "medium", "low"] as const;
+
+/**
+ * R35: a saved board view can carry its own swimlanes (and its own grouping). In the page they ride the URL as
+ * ?lanes= and ?group=, over the board's saved setting, so opening the view shows its lanes without changing the
+ * board for everyone else. Unknown values are ignored.
+ */
+export function lanesFrom(param: string | null | undefined, boardDefault: Swimlanes): Swimlanes {
+  return param && (SWIMLANES as readonly string[]).includes(param) ? (param as Swimlanes) : boardDefault;
+}
+
+/** The board keys a saved view stores beside its filters: lanes always (so "No swimlanes" is kept too), group when set. */
+export function boardViewKeys(view: string, lanes: Swimlanes, group: string | null): Record<string, string> {
+  if (view !== "board") return {};
+  return { lanes, ...(group ? { group } : {}) };
+}

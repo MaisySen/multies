@@ -11,7 +11,7 @@ import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Transaction } from "@tiptap/pm/state";
 import { isChangeOrigin } from "@tiptap/extension-collaboration";
-import { Bot, CheckCircle2, Circle, ExternalLink, ListChecks, NotebookPen, UserRound } from "lucide-react";
+import { IconAgent, IconCheckCircle, IconChecklist, IconCircle, IconExternalLink, IconNotes, IconUserRound } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -81,12 +81,12 @@ export function MeetingNotes({ meetingId }: { meetingId: string }) {
   if (!n.doc) {
     return (
       <Card className="mt-4 flex items-start gap-3 p-5" data-testid="meeting-notes">
-        <NotebookPen className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+        <IconNotes className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
         <div className="min-w-0 flex-1">
           <h2 className="text-[13px] font-semibold">Agenda and notes</h2>
           <p className="mt-1 text-[13px] text-muted">One doc for this meeting that everyone in the workspace can edit. Checklist items become tasks in one click.</p>
         </div>
-        <Button size="sm" onClick={() => void open()} loading={opening} data-testid="open-notes"><NotebookPen className="h-4 w-4" />Notes</Button>
+        <Button size="sm" onClick={() => void open()} loading={opening} data-testid="open-notes"><IconNotes className="h-4 w-4" />Notes</Button>
       </Card>
     );
   }
@@ -185,7 +185,7 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
         <h2 className="text-[13px] font-semibold">Agenda and notes</h2>
         {session && <span className="ml-1 inline-flex items-center gap-1 text-[12px] text-subtle" data-testid="notes-live"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>}
         <span className="ml-auto text-[12px] text-subtle" role="status" data-testid="notes-state">{state === "saving" ? "Saving" : state === "unsaved" ? "Unsaved changes" : "Saved"}</span>
-        <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><ExternalLink className="h-3.5 w-3.5" />Open doc</Link>
+        <Link to={`/app/docs/${doc.id}`} className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-[12.5px] text-muted hover:bg-hover hover:text-fg" data-testid="open-doc" aria-label={`Open the doc for meeting ${meetingId}`}><IconExternalLink className="h-3.5 w-3.5" />Open doc</Link>
       </div>
       {session && peers.length > 0 && <NotesPresence peers={peers} />}
       <p className="mb-2 text-[12px] text-subtle">Type [ ] and a space for a checklist item. Type @ to pick who it is for, and "due Fri" for a date.</p>
@@ -198,7 +198,7 @@ function NotesBody({ meetingId, doc, people, onSaved, session }: { meetingId: st
               <li key={`${w.type}:${w.id}`} role="option" aria-selected={i === picker.index}
                 onMouseDown={(e) => { e.preventDefault(); choose.current(w); }}
                 className={`flex cursor-pointer items-center gap-2 px-2.5 py-1.5 ${i === picker.index ? "bg-[#0071E3] text-white" : "hover:bg-hover"}`}>
-                {w.type === "agent" ? <Bot className="h-3.5 w-3.5 shrink-0" /> : <UserRound className="h-3.5 w-3.5 shrink-0" />}
+                {w.type === "agent" ? <IconAgent className="h-3.5 w-3.5 shrink-0" /> : <IconUserRound className="h-3.5 w-3.5 shrink-0" />}
                 <span className="truncate">{w.name}</span>
               </li>
             ))}
@@ -233,7 +233,7 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
   return (
     <Card className="p-5" data-testid="action-items">
       <div className="mb-3 flex items-center gap-2">
-        <ListChecks className="h-4 w-4 text-muted" />
+        <IconChecklist className="h-4 w-4 text-muted" />
         <h2 className="text-[13px] font-semibold">Action items</h2>
         <span className="ml-auto text-[12px] text-subtle">{view.actionItems.length ? `${made.length} of ${view.actionItems.length} are tasks` : ""}</span>
       </div>
@@ -243,7 +243,7 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
           const e = edits[i.key] ?? {};
           return (
             <li key={i.key} className="rounded-lg border border-line p-2.5" data-testid="action-item">
-              <div className="flex items-start gap-2"><Circle className="mt-0.5 h-4 w-4 shrink-0 text-subtle" /><span className="min-w-0 flex-1 text-[13px] font-medium">{i.title}</span></div>
+              <div className="flex items-start gap-2"><IconCircle className="mt-0.5 h-4 w-4 shrink-0 text-subtle" /><span className="min-w-0 flex-1 text-[13px] font-medium">{i.title}</span></div>
               <div className="mt-2 grid grid-cols-2 gap-2 pl-6">
                 <Select aria-label={`Assignee for ${i.title}`} className="h-8 text-[12.5px]" value={e.assignee ?? whoKey(i.assignee)} onChange={(ev) => set(i.key, { assignee: ev.target.value })}>
                   <option value="">No one</option>
@@ -256,7 +256,7 @@ function ActionItems({ meetingId, view, onDone }: { meetingId: string; view: Mee
         })}
         {made.map((i) => (
           <li key={i.key} className="flex items-start gap-2 rounded-lg px-2.5 py-1.5" data-testid="action-item-task">
-            <CheckCircle2 className={i.task?.done ? "mt-0.5 h-4 w-4 shrink-0 text-good" : "mt-0.5 h-4 w-4 shrink-0 text-brand"} />
+            <IconCheckCircle className={i.task?.done ? "mt-0.5 h-4 w-4 shrink-0 text-good" : "mt-0.5 h-4 w-4 shrink-0 text-brand"} />
             <div className="min-w-0 flex-1 text-[13px]">
               <span>{i.title}</span>
               {i.task ? (
@@ -288,7 +288,7 @@ export function MeetingNotesBacklink({ docId }: { docId: string }) {
   const date = new Date(m.startsAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
   return (
     <Link to={`/app/meetings/${m.id}`} data-testid="doc-meeting-link" className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-0.5 text-[12px] text-muted hover:text-fg">
-      <NotebookPen className="h-3 w-3" />Notes for {m.title}, {date}
+      <IconNotes className="h-3 w-3" />Notes for {m.title}, {date}
     </Link>
   );
 }
@@ -309,7 +309,7 @@ function SummaryItems({ meetingId, view, onDone }: { meetingId: string; view: Me
   return (
     <Card className="p-5" data-testid="summary-items">
       <h2 className="mb-2 text-[13px] font-semibold">From the call summary</h2>
-      <ul className="mb-3 space-y-1 text-[13px]">{items.map((i) => <li key={i.title} className="flex gap-2"><Circle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />{i.title}</li>)}</ul>
+      <ul className="mb-3 space-y-1 text-[13px]">{items.map((i) => <li key={i.title} className="flex gap-2"><IconCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" />{i.title}</li>)}</ul>
       <Button size="sm" onClick={() => void add()} loading={busy} data-testid="summary-items-add">Add to notes and make {items.length} {items.length === 1 ? "task" : "tasks"}</Button>
     </Card>
   );

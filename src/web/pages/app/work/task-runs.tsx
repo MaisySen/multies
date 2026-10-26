@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bot, ChevronDown, ChevronRight, CircleStop, MessageSquare, RefreshCw, StickyNote, Wrench } from "lucide-react";
+import { IconAgent, IconChat, IconChevronDown, IconChevronRight, IconCircleStop, IconRefresh, IconStickyNote, IconWrench } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Badge } from "@/web/components/ui/misc";
@@ -30,7 +30,7 @@ const STATUS: Record<RunStatus, { label: string; tone: "neutral" | "ok" | "warn"
   failed: { label: "Failed", tone: "bad" },
   cancelled: { label: "Cancelled", tone: "warn" },
 };
-const STEP_ICON = { note: StickyNote, tool: Wrench, comment: MessageSquare, status_change: RefreshCw } as const;
+const STEP_ICON = { note: IconStickyNote, tool: IconWrench, comment: IconChat, status_change: IconRefresh } as const;
 
 /** "4 s", "3 min", "1 h 5 min". */
 export function runDuration(ms: number | null): string {
@@ -101,10 +101,10 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
             <li key={r.id} className="rounded-lg border border-line" data-testid="task-run">
               <button type="button" aria-expanded={expanded} aria-label={`${r.agent.name} run, ${st.label}`} onClick={() => setOpen(expanded ? null : r.id)}
                 className="flex w-full items-center gap-2 px-2.5 py-2 text-left hover:bg-hover">
-                {expanded ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-subtle" />}
+                {expanded ? <IconChevronDown className="h-3.5 w-3.5 shrink-0 text-subtle" /> : <IconChevronRight className="h-3.5 w-3.5 shrink-0 text-subtle" />}
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white" style={{ background: r.agent.avatarColor }} aria-hidden>{initials(r.agent.name)}</span>
                 <span className="min-w-0 truncate text-[13px] font-medium">{r.agent.name}</span>
-                <Badge tone="brand"><Bot className="h-3 w-3" />Agent</Badge>
+                <Badge tone="brand"><IconAgent className="h-3 w-3" />Agent</Badge>
                 <Badge tone={st.tone} dot={r.status === "running"}>{st.label}</Badge>
                 <span className="ml-auto shrink-0 text-[11.5px] text-subtle">
                   {r.startedAt ? <time dateTime={r.startedAt} title={fullDate(r.startedAt)}>{timeAgo(r.startedAt)}</time> : "Not started"}
@@ -116,7 +116,7 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
                   {r.steps.length ? (
                     <ol className="space-y-1.5" aria-label="Steps">
                       {r.steps.map((s, i) => {
-                        const Icon = STEP_ICON[s.kind] ?? StickyNote;
+                        const Icon = STEP_ICON[s.kind] ?? IconStickyNote;
                         return (
                           <li key={i} className="flex gap-2 text-[12.5px]">
                             <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-subtle" aria-label={s.kind.replace("_", " ")} />
@@ -144,7 +144,7 @@ export function TaskRuns({ taskId, refreshedAt }: { taskId: string; refreshedAt?
                     </div>
                   ) : (
                     <Button size="sm" variant="ghost" className="mt-2 hover:text-bad" onClick={() => setConfirming(r.id)} disabled={cancel.isPending && cancel.variables === r.id}>
-                      <CircleStop className="h-3.5 w-3.5" aria-hidden />Cancel run
+                      <IconCircleStop className="h-3.5 w-3.5" aria-hidden />Cancel run
                     </Button>
                   ))}
                 </div>

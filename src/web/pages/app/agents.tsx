@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, Check, ChevronRight, KeyRound, Pause, Play, Plus, ShieldCheck, Trash2, TrendingUp } from "lucide-react";
+import { IconAgent, IconCheck, IconChevronRight, IconKey, IconPause, IconPlay, IconPlus, IconShieldCheck, IconTrash, IconTrendingUp } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useDomains, useMailboxes, useMe, useOrg } from "@/web/lib/queries";
@@ -41,18 +41,18 @@ export function AgentsPage() {
   return (
     <>
       <PageHeader title="Agents" description="Inboxes for your AI agents. They read and send through the API or MCP, inside the limits you set, and a person approves what they send unless you say otherwise."
-        actions={canManage ? <Button size="sm" onClick={() => setOpen(true)}><Plus className="h-4 w-4" />New agent inbox</Button> : undefined} />
+        actions={canManage ? <Button size="sm" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />New agent inbox</Button> : undefined} />
       {agents.isPending ? <Card className="p-5"><Skeleton className="h-10" /><Skeleton className="mt-3 h-10" /></Card>
         : agents.error ? <Card className="p-6 text-sm text-bad">{agents.error.message}</Card>
         : !agents.data.length ? (
-          <Card><EmptyState icon={<Bot />} title="Give an agent its own inbox"
+          <Card><EmptyState icon={<IconAgent />} title="Give an agent its own inbox"
             body={<>Create one here, or with one API call. Your agent gets an address, a key that only works for that inbox, and mail as clean JSON. <Link className="text-brand-hover hover:underline" to="/agents">See the quickstart</Link>.</>}
-            action={canManage ? <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />New agent inbox</Button> : undefined} /></Card>
+            action={canManage ? <Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />New agent inbox</Button> : undefined} /></Card>
         ) : (
           <Card className="divide-y divide-line overflow-hidden">
             {agents.data.map((a) => (
               <Link key={a.id} to={`/app/agents/${a.id}`} className="group flex items-center gap-4 p-4 transition-colors hover:bg-hover sm:p-5">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><Bot className="h-4 w-4" /></div>
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted"><IconAgent className="h-4 w-4" /></div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium">{a.name}</span>
@@ -65,7 +65,7 @@ export function AgentsPage() {
                   <div>{APPROVAL_LABEL[a.approvalMode]}</div>
                   <div className="tabular-nums">{a.sentToday} of {a.sendCapDaily} sends today</div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" />
+                <IconChevronRight className="h-4 w-4 text-subtle transition-transform group-hover:translate-x-0.5" />
               </Link>
             ))}
           </Card>
@@ -123,7 +123,7 @@ function NewAgentDialog({ open, onClose }: { open: boolean; onClose: () => void 
         </form>
       </Dialog>
       <Dialog open={!!made} onClose={close} title={made ? `${made.agent.address} is ready` : ""} description="Copy the agent key now. It is shown once and works only for this inbox."
-        footer={<><Button variant="secondary" onClick={() => { const id = made?.agent.id; close(); if (id) navigate(`/app/agents/${id}`); }}>Open agent</Button><Button onClick={close}><Check className="h-4 w-4" />Done</Button></>}>
+        footer={<><Button variant="secondary" onClick={() => { const id = made?.agent.id; close(); if (id) navigate(`/app/agents/${id}`); }}>Open agent</Button><Button onClick={close}><IconCheck className="h-4 w-4" />Done</Button></>}>
         {made && <ConnectSnippets secret={made.secret} agentId={made.agent.id} />}
       </Dialog>
     </>
@@ -173,7 +173,7 @@ function TrackRecord({ agentId, mode, canManage, onApply, applying }: { agentId:
   return (
     <Card className="p-5" data-testid="track-record">
       <div className="flex items-center gap-2">
-        <TrendingUp className="h-4 w-4 text-brand-hover" aria-hidden />
+        <IconTrendingUp className="h-4 w-4 text-brand-hover" aria-hidden />
         <h2 className="text-sm font-semibold">Track record</h2>
       </div>
       <p className="mt-1 text-xs text-subtle">How people decided this agent's last {r?.window ?? 50} requests. Use it to decide how much it may do on its own.</p>
@@ -238,9 +238,9 @@ export function AgentDetailPage() {
       <PageHeader title={a.name} description={<span className="font-mono">{a.address}</span>}
         actions={canManage ? <div className="flex gap-2">
           <Button size="sm" variant="secondary" loading={update.isPending && update.variables?.status !== undefined} onClick={() => update.mutate({ status: a.status === "active" ? "paused" : "active" })}>
-            {a.status === "active" ? <><Pause className="h-4 w-4" />Pause</> : <><Play className="h-4 w-4" />Resume</>}
+            {a.status === "active" ? <><IconPause className="h-4 w-4" />Pause</> : <><IconPlay className="h-4 w-4" />Resume</>}
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" />Delete</Button>
+          <Button size="sm" variant="secondary" onClick={() => setConfirmDelete(true)}><IconTrash className="h-4 w-4" />Delete</Button>
         </div> : undefined} />
       <div className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         <div className="min-w-0 space-y-6">
@@ -293,7 +293,7 @@ function Guardrails({ a, disabled, onSave, saving }: { a: AgentInfo; disabled: b
   const allowList = useMemo(() => allow.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean), [allow]);
   return (
     <Card className="p-5">
-      <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-brand-hover" aria-hidden /><h2 className="text-sm font-semibold">Guardrails</h2></div>
+      <div className="flex items-center gap-2"><IconShieldCheck className="h-4 w-4 text-brand-hover" aria-hidden /><h2 className="text-sm font-semibold">Guardrails</h2></div>
       <form className="mt-4 space-y-4" onSubmit={(e) => { e.preventDefault(); onSave({ approvalMode: mode, sendCapDaily: Number(cap) || 0, allowedRecipients: allowList.length ? allowList : null, mailboxIds: shared }); }}>
         <Field label="Before it sends">
           {(p) => <Select {...p} disabled={disabled} value={mode} onChange={(e) => setMode(e.target.value as AgentInfo["approvalMode"])}>
@@ -334,19 +334,19 @@ function Keys({ agentId }: { agentId: string }) {
   const revoke = useMutation({ mutationFn: (id: string) => api.del(`/agents/${agentId}/keys/${id}`), onSuccess: () => { qc.invalidateQueries({ queryKey: ["agents", agentId, "keys"] }); toast.success("Key revoked. Requests using it now fail."); } });
   return (
     <Card className="p-5">
-      <div className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-subtle" aria-hidden /><h2 className="text-sm font-semibold">Agent keys</h2></div>
+      <div className="flex items-center gap-2"><IconKey className="h-4 w-4 text-subtle" aria-hidden /><h2 className="text-sm font-semibold">Agent keys</h2></div>
       <p className="mt-1 text-xs text-subtle">They work only for this agent: its inbox, its shared mailboxes and its own send requests.</p>
       <div className="mt-3">
         {keys.isPending ? <Skeleton className="h-10" /> : keys.data?.length ? keys.data.map((k) => (
           <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2 last:border-b-0">
             <span className="min-w-0 truncate text-sm">{k.name} <code className="font-mono text-[12px] text-subtle">{k.prefix}...</code></span>
             <span className="flex items-center gap-3 text-xs text-subtle">{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}
-              <button onClick={() => revoke.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke key ${k.name}`}><Trash2 className="h-3.5 w-3.5" /></button></span>
+              <button onClick={() => revoke.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Revoke key ${k.name}`}><IconTrash className="h-3.5 w-3.5" /></button></span>
           </div>
         )) : <p className="text-sm text-muted">No keys. Create one to connect the agent.</p>}
-        <Button size="sm" variant="secondary" className="mt-3" loading={create.isPending} onClick={() => create.mutate()}><Plus className="h-4 w-4" />Create key</Button>
+        <Button size="sm" variant="secondary" className="mt-3" loading={create.isPending} onClick={() => create.mutate()}><IconPlus className="h-4 w-4" />Create key</Button>
       </div>
-      <Dialog open={!!secret} onClose={() => setSecret(null)} title="Copy the agent key" description="It is shown once." footer={<Button onClick={() => setSecret(null)}><Check className="h-4 w-4" />Done</Button>}>
+      <Dialog open={!!secret} onClose={() => setSecret(null)} title="Copy the agent key" description="It is shown once." footer={<Button onClick={() => setSecret(null)}><IconCheck className="h-4 w-4" />Done</Button>}>
         {secret && <ConnectSnippets secret={secret} agentId={agentId} />}
       </Dialog>
     </Card>

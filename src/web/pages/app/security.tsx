@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Download, KeyRound, Laptop, LogOut, MailWarning, ShieldCheck, Smartphone } from "lucide-react";
+import { IconCheckCircle, IconDownload, IconKey, IconLaptop, IconLogOut, IconMailWarning, IconShieldCheck, IconSmartphone } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { ApiError } from "@/web/lib/api";
@@ -14,6 +14,7 @@ import { Field, Input } from "@/web/components/ui/input";
 import { QrCode } from "@/web/components/qr";
 import { timeAgo } from "@/web/lib/format";
 import { AccountSection, Section } from "./settings";
+import { BlockedPeople } from "./work/report-sheet-r35"; // R35
 
 /** Privacy rights (APP 12, GDPR Articles 15 and 20): a copy of everything held about you. */
 function YourDataSection() {
@@ -21,7 +22,7 @@ function YourDataSection() {
     <Section title="Your data" description="Download a copy of what Multies holds about you: profile, sign-in methods, devices, workspaces and your activity, as JSON. To delete your account, use Delete account above.">
       <div className="flex flex-wrap items-center gap-3">
         <a href="/api/account/export" download className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium hover:bg-hover">
-          <Download className="h-4 w-4" aria-hidden />Download my data
+          <IconDownload className="h-4 w-4" aria-hidden />Download my data
         </a>
         <a href="/privacy" className="text-sm text-muted hover:text-fg hover:underline">Privacy policy</a>
       </div>
@@ -43,6 +44,10 @@ export function AccountSettings() {
       <TwoFactorSection />
       <DevicesSection />
       <YourDataSection />
+      {/* R35 (Apple 1.2): Privacy, the people you blocked in chat, with Unblock. */}
+      <Section title="Blocked people" description="People you block can't message you, and you won't see their messages in any workspace. They aren't told.">
+        <BlockedPeople />
+      </Section>
     </div>
   );
 }
@@ -76,8 +81,8 @@ function ProfileSection() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm">{me.data?.user.email}</span>
             {sec.isPending ? <Skeleton className="h-5 w-16" /> : sec.data?.emailVerified
-              ? <Badge tone="ok"><CheckCircle2 className="h-3 w-3" />Verified</Badge>
-              : <Badge tone="warn"><MailWarning className="h-3 w-3" />Not verified</Badge>}
+              ? <Badge tone="ok"><IconCheckCircle className="h-3 w-3" />Verified</Badge>
+              : <Badge tone="warn"><IconMailWarning className="h-3 w-3" />Not verified</Badge>}
           </div>
           {sec.data && !sec.data.emailVerified && (
             <p className="text-xs text-subtle">
@@ -107,7 +112,7 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
       </ul>
       <div className="mt-3 flex gap-2">
         <CopyButton value={text} label="Copy all" />
-        <button type="button" onClick={download} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line bg-elevated px-2 text-xs text-muted hover:border-line-strong hover:text-fg"><Download className="h-3.5 w-3.5" />Download</button>
+        <button type="button" onClick={download} className="inline-flex h-7 items-center gap-1.5 rounded-md border border-line bg-elevated px-2 text-xs text-muted hover:border-line-strong hover:text-fg"><IconDownload className="h-3.5 w-3.5" />Download</button>
       </div>
       <p className="mt-3 text-xs text-subtle">Keep these somewhere safe, like a password manager. Each one signs you in once if you lose your phone. They won't be shown again.</p>
     </div>
@@ -149,19 +154,19 @@ function TwoFactorSection() {
       {sec.isPending ? <Skeleton className="h-16 max-w-md" /> : tf?.enabled ? (
         <div className="max-w-md space-y-4">
           <div className="flex items-start gap-3 rounded-lg border border-ok/20 bg-ok-soft p-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 text-ok" />
+            <IconShieldCheck className="mt-0.5 h-5 w-5 text-ok" />
             <div className="text-sm"><div className="font-medium text-fg">Two-factor is on</div>
               <div className="text-muted">Sign-ins ask for a code from your authenticator app.</div></div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setPwFor("regenerate")}><KeyRound className="h-4 w-4" />New backup codes</Button>
+            <Button variant="secondary" onClick={() => setPwFor("regenerate")}><IconKey className="h-4 w-4" />New backup codes</Button>
             <Button variant="ghost" onClick={() => setPwFor("disable")}>Turn off</Button>
           </div>
         </div>
       ) : (
         <div className="max-w-md">
           <p className="text-sm text-muted">Your account is protected by your password only.</p>
-          <Button className="mt-4" onClick={() => setPwFor("enable")}><ShieldCheck className="h-4 w-4" />Set up two-factor</Button>
+          <Button className="mt-4" onClick={() => setPwFor("enable")}><IconShieldCheck className="h-4 w-4" />Set up two-factor</Button>
         </div>
       )}
 
@@ -228,12 +233,12 @@ function DevicesSection() {
           <ul className="divide-y divide-line border-y border-line" aria-label="Signed-in devices">
             {rows.map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3.5 py-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted">{s.device.mobile ? <Smartphone className="h-4 w-4" /> : <Laptop className="h-4 w-4" />}</div>
+                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line bg-elevated text-muted">{s.device.mobile ? <IconSmartphone className="h-4 w-4" /> : <IconLaptop className="h-4 w-4" />}</div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 text-sm font-medium">{s.device.browser} on {s.device.os}{s.current && <Badge tone="ok">This device</Badge>}</div>
                   <div className="truncate text-xs text-muted">{s.ipAddress || "Unknown IP"} · signed in {timeAgo(String(s.createdAt))} · active {timeAgo(String(s.updatedAt))}</div>
                 </div>
-                {!s.current && <Button size="sm" variant="ghost" loading={revoke.isPending && revoke.variables === s.token} onClick={() => revoke.mutate(s.token)} aria-label={`Sign out ${s.device.browser} on ${s.device.os}`}><LogOut className="h-3.5 w-3.5" />Sign out</Button>}
+                {!s.current && <Button size="sm" variant="ghost" loading={revoke.isPending && revoke.variables === s.token} onClick={() => revoke.mutate(s.token)} aria-label={`Sign out ${s.device.browser} on ${s.device.os}`}><IconLogOut className="h-3.5 w-3.5" />Sign out</Button>}
               </li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
-import { Cookie, X } from "lucide-react";
+import { IconClose, IconCookie } from "@/web/components/ui/icon";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 
@@ -50,11 +50,11 @@ export function MarketingBottom() {
         <div role="region" aria-label="Cookie notice" data-testid="cookie-banner"
           className="pointer-events-auto mx-3 mb-1 animate-fade-in rounded-2xl border border-line bg-surface/95 p-4 shadow-lg backdrop-blur-xl sm:mx-0 sm:mb-0 sm:max-w-sm">
           <div className="flex items-start gap-3">
-            <Cookie className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
+            <IconCookie className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
             <p className="flex-1 text-[13px] leading-snug text-muted">
               We use only essential cookies to keep you signed in, and cookieless analytics. No tracking or advertising. <Link to="/privacy#cookies" className="font-medium text-fg underline underline-offset-2">Privacy</Link>
             </p>
-            <button type="button" onClick={dismiss} aria-label="Close cookie notice" className="-m-1 inline-flex items-center justify-center rounded-md p-1 text-subtle hover:text-fg max-sm:-m-2.5 max-sm:h-10 max-sm:w-10"><X className="h-4 w-4" aria-hidden /></button>
+            <button type="button" onClick={dismiss} aria-label="Close cookie notice" className="-m-1 inline-flex items-center justify-center rounded-md p-1 text-subtle hover:text-fg max-sm:-m-2.5 max-sm:h-10 max-sm:w-10"><IconClose className="h-4 w-4" aria-hidden /></button>
           </div>
           <Button size="sm" variant="secondary" className="mt-3 w-full" onClick={dismiss} data-testid="cookie-ok">OK</Button>
         </div>

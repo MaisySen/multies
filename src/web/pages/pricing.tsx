@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { Minus, Plus } from "lucide-react";
+import { IconMinus, IconPlus } from "@/web/components/ui/icon";
 import { PlanCards } from "@/web/components/plan-cards";
 import { ADDON_ORDER, ADDONS, PLANS, chargeFor, effectiveLimits, formatPlanPrice, type AddonId, type AddonQuantities } from "@/shared/plans";
 import { Button } from "@/web/components/ui/button";
@@ -85,9 +85,9 @@ function Calculator() {
                 <li key={id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
                   <span>{a.name} <span className="text-subtle">{formatPlanPrice(a.priceMonthly)}{a.maxQuantity === 1 ? "" : ` per ${a.unit}`}</span></span>
                   <span className="flex items-center gap-1" role="group" aria-label={`${a.name} quantity`}>
-                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => set(id, qty - 1)}><Minus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" aria-label={`One less ${a.name.toLowerCase()}`} disabled={!qty} onClick={() => set(id, qty - 1)}><IconMinus className="h-3.5 w-3.5" /></Button>
                     <output className="w-8 text-center tabular-nums">{qty}</output>
-                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => set(id, qty + 1)}><Plus className="h-3.5 w-3.5" /></Button>
+                    <Button size="sm" variant="secondary" aria-label={`One more ${a.name.toLowerCase()}`} disabled={qty >= a.maxQuantity} onClick={() => set(id, qty + 1)}><IconPlus className="h-3.5 w-3.5" /></Button>
                   </span>
                 </li>
               );

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Clock, Pause, Play, Plus, Timer, Trash2 } from "lucide-react";
+import { IconBack, IconChevronRight, IconClock, IconPause, IconPlay, IconPlus, IconTimer, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -54,7 +54,7 @@ export function TimerChip() {
       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand" aria-hidden />
       <span className="max-w-[140px] truncate text-muted">{running.data.task?.ref}</span>
       <span className="font-mono tabular-nums">{clockText(secs)}</span>
-      <button className="rounded-full p-1 text-muted hover:bg-elevated hover:text-fg" aria-label="Stop timer" onClick={() => stop.mutate()}><Pause className="h-3.5 w-3.5" /></button>
+      <button className="rounded-full p-1 text-muted hover:bg-elevated hover:text-fg" aria-label="Stop timer" onClick={() => stop.mutate()}><IconPause className="h-3.5 w-3.5" /></button>
     </div>
   );
 }
@@ -77,14 +77,14 @@ export function TaskTime({ taskId, total, entries, onChange }: { taskId: string;
   return (
     <section className="mt-6" aria-label="Time">
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><Clock className="h-3.5 w-3.5" />Time <span className="font-normal normal-case">{hoursText(shownTotal)} logged</span></h3>
+        <h3 className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-subtle"><IconClock className="h-3.5 w-3.5" />Time <span className="font-normal normal-case">{hoursText(shownTotal)} logged</span></h3>
         <button className="text-[12.5px] text-brand-hover hover:underline" onClick={() => setAdding((v) => !v)}>Log time</button>
       </div>
       <div className="mt-2 flex items-center gap-2">
         {mine ? (
-          <Button size="sm" variant="secondary" onClick={() => stop.mutate(undefined, { onSuccess: onChange })} loading={stop.isPending} data-testid="timer-stop"><Pause className="h-3.5 w-3.5" />Stop <span className="font-mono tabular-nums">{clockText(secs)}</span></Button>
+          <Button size="sm" variant="secondary" onClick={() => stop.mutate(undefined, { onSuccess: onChange })} loading={stop.isPending} data-testid="timer-stop"><IconPause className="h-3.5 w-3.5" />Stop <span className="font-mono tabular-nums">{clockText(secs)}</span></Button>
         ) : (
-          <Button size="sm" variant="secondary" onClick={() => start.mutate(taskId, { onSuccess: onChange })} loading={start.isPending} data-testid="timer-start"><Play className="h-3.5 w-3.5" />Start timer</Button>
+          <Button size="sm" variant="secondary" onClick={() => start.mutate(taskId, { onSuccess: onChange })} loading={start.isPending} data-testid="timer-start"><IconPlay className="h-3.5 w-3.5" />Start timer</Button>
         )}
         {running.data && !mine && <span className="text-[12px] text-subtle">Starting here stops the timer on {running.data.task?.ref}.</span>}
       </div>
@@ -103,7 +103,7 @@ export function TaskTime({ taskId, total, entries, onChange }: { taskId: string;
               <span className="w-16 shrink-0 font-mono tabular-nums text-fg">{e.running ? "running" : hoursText(e.seconds)}</span>
               <span className="truncate">{e.person.name}{e.note && ` · ${e.note}`}</span>
               <span className="ml-auto shrink-0 text-subtle">{new Date(e.startedAt).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}</span>
-              {!e.running && <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Delete time entry" onClick={() => void del(e.id)}><Trash2 className="h-3.5 w-3.5" /></button>}
+              {!e.running && <button className="opacity-0 group-hover:opacity-100 focus:opacity-100" aria-label="Delete time entry" onClick={() => void del(e.id)}><IconTrash className="h-3.5 w-3.5" /></button>}
             </li>
           ))}
         </ul>
@@ -137,12 +137,12 @@ export function TimesheetPage() {
   const thisWeek = ymd(startOfWeek(new Date())) === from;
   return (
     <div>
-      <PageHeader title="Timesheet" description="Time logged on tasks, per person and project. Start a timer from any task, or log time by hand." actions={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" />Log time</Button>} />
+      <PageHeader title="Timesheet" description="Time logged on tasks, per person and project. Start a timer from any task, or log time by hand." actions={<Button onClick={() => setAdding(true)}><IconPlus className="h-4 w-4" />Log time</Button>} />
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="flex items-center rounded-lg border border-line">
-          <button className="p-2 text-muted hover:text-fg" aria-label="Previous week" onClick={() => setWeek(new Date(week.getTime() - 7 * 86_400_000))}><ChevronLeft className="h-4 w-4" /></button>
+          <button className="p-2 text-muted hover:text-fg" aria-label="Previous week" onClick={() => setWeek(new Date(week.getTime() - 7 * 86_400_000))}><IconBack className="h-4 w-4" /></button>
           <span className="min-w-[150px] text-center text-[13px] font-medium" data-testid="timesheet-week">{dayHead(from).dm} to {dayHead(to).dm}</span>
-          <button className="p-2 text-muted hover:text-fg" aria-label="Next week" onClick={() => setWeek(new Date(week.getTime() + 7 * 86_400_000))}><ChevronRight className="h-4 w-4" /></button>
+          <button className="p-2 text-muted hover:text-fg" aria-label="Next week" onClick={() => setWeek(new Date(week.getTime() + 7 * 86_400_000))}><IconChevronRight className="h-4 w-4" /></button>
         </div>
         {!thisWeek && <Button size="sm" variant="ghost" onClick={() => setWeek(startOfWeek(new Date()))}>This week</Button>}
         <Select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className="h-9 w-auto text-[13px]">
@@ -156,7 +156,7 @@ export function TimesheetPage() {
         {running.data && <span className="ml-auto text-[12.5px] text-muted">Timer running on {running.data.task?.ref} {running.data.task?.title}</span>}
       </div>
       {q.isPending ? <Skeleton className="h-48" /> : !q.data!.rows.length ? (
-        <Card><EmptyState icon={<Timer />} title="No time this week" body="Open a task and press Start timer, or log time by hand. Agents can log time through the API and MCP too." /></Card>
+        <Card><EmptyState icon={<IconTimer />} title="No time this week" body="Open a task and press Start timer, or log time by hand. Agents can log time through the API and MCP too." /></Card>
       ) : (
         <>
           <Card className="overflow-x-auto" tabIndex={0} role="region" aria-label="Timesheet">
@@ -195,7 +195,7 @@ export function TimesheetPage() {
                 <span className="min-w-0 flex-1 truncate">{e.task ? <><span className="font-mono text-[12px] text-subtle">{e.task.ref}</span> {e.task.title}</> : <span className="text-muted">{e.project?.name ?? "No project"}</span>}{e.note && <span className="text-muted"> · {e.note}</span>}</span>
                 <span className="hidden text-muted sm:inline">{e.person.name}</span>
                 <span className="w-20 text-right text-subtle">{new Date(e.startedAt).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short" })}</span>
-                {!e.running && <button className="text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label="Delete entry" onClick={() => void del(e.id)}><Trash2 className="h-4 w-4" /></button>}
+                {!e.running && <button className="text-subtle opacity-0 hover:text-bad group-hover:opacity-100 focus:opacity-100" aria-label="Delete entry" onClick={() => void del(e.id)}><IconTrash className="h-4 w-4" /></button>}
               </div>
             ))}
           </Card>

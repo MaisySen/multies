@@ -81,6 +81,7 @@ import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes
 import { docImageRoutes } from "./routes/doc-images-r32"; // R32: images in docs
 import { installHttpCache } from "./lib/http-cache";
 import { hostSessionCookie } from "./lib/host-cookie";
+import { adminReportsRoutes, blocksRoutes, reportsRoutes } from "./routes/reports-r35"; // R35
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 /** Presence heartbeats and leaves (round 22): memory only, never a D1 write. */
@@ -279,6 +280,7 @@ export function createApp(deps: Deps) {
   app.route("/api/account", accountRoutes());
   app.route("/api/contact", contactFormRoutes());
   app.route("/api/admin/app-config", adminAppConfigRoutes()); // R29b: mobile remote config
+  app.route("/api/admin/reports", adminReportsRoutes()); // R35: moderation queue (Apple 1.2)
   app.route("/api/admin", adminRoutes());
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
@@ -292,6 +294,8 @@ export function createApp(deps: Deps) {
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
   app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
+  app.route("/api/reports", reportsRoutes()); // R35: report a message or person
+  app.route("/api/blocks", blocksRoutes()); // R35: blocks
   app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)
   app.route("/api/mail/read-status", mailReadStatusRoutes()); // R31: read status of a sent message
   app.route("/api/mail", mailRoutes());

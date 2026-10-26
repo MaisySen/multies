@@ -1,3 +1,4 @@
+import { NoDocsArt } from "@/web/components/illustrations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
@@ -5,7 +6,7 @@ import { CatchupCard } from "@/web/components/catchup-card"; // R31
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Transaction } from "@tiptap/pm/state";
-import { ArrowLeft, Bold, CheckSquare, FileText, Heading2, Italic, LayoutTemplate, Link2, List, ListOrdered, Plus, Quote, Trash2, User } from "lucide-react";
+import { IconArrowLeft, IconBold, IconDocs, IconHeading2, IconItalic, IconLink, IconList, IconListOrdered, IconPlus, IconQuote, IconTasks, IconTemplate, IconTrash, IconUser } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -48,15 +49,15 @@ export function DocsPage() {
     <div className="flex gap-6">
       <DocTreeSidebar />
       <div className="min-w-0 flex-1">
-      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><Plus className="h-4 w-4" />New doc</Button>} />
+      <PageHeader title="Docs" description="Briefs, meeting notes and plans, linked to tasks, projects, threads and contacts. Agents can read and add to them too." actions={<Button onClick={create}><IconPlus className="h-4 w-4" />New doc</Button>} />
       <Input aria-label="Search docs" placeholder="Search docs" value={q} onChange={(e) => setQ(e.target.value)} className="mb-4 max-w-sm" />
       {docs.isPending ? <Skeleton className="h-40" /> : !docs.data?.length ? (
-        <EmptyState icon={<FileText />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
+        <EmptyState icon={<IconDocs />} art={q ? undefined : <NoDocsArt />} title={q ? "No docs match" : "No docs yet"} body="Write a brief or notes and link it to the work it belongs to." action={!q && <Button onClick={create}>New doc</Button>} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="doc-list">
           {docs.data.map((d) => (
             <li key={d.id}><Link to={`/app/docs/${d.id}`} className="block h-full rounded-xl border border-line bg-surface p-4 transition-colors hover:border-line-strong">
-              <div className="flex items-center gap-2 text-[14px] font-medium"><FileText className="h-4 w-4 text-muted" />{d.title}</div>
+              <div className="flex items-center gap-2 text-[14px] font-medium"><IconDocs className="h-4 w-4 text-muted" />{d.title}</div>
               <p className="mt-2 line-clamp-3 whitespace-pre-line text-[13px] leading-relaxed text-muted">{d.excerpt || "Empty"}</p>
               <p className="mt-3 text-[12px] text-subtle">Edited {timeAgo(d.updatedAt)}</p>
             </Link></li>
@@ -81,7 +82,7 @@ export function DocPage() {
   const collab = useCollabSession(id);
 
   const body = q.isPending || !collab ? <div className="mx-auto max-w-3xl space-y-3"><Skeleton className="h-9 w-1/2" /><Skeleton className="h-64" /></div>
-    : q.error ? <EmptyState icon={<FileText />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
+    : q.error ? <EmptyState icon={<IconDocs />} title="Doc not found" body="It may have been deleted." action={<Button onClick={() => navigate("/app/docs")}>All docs</Button>} />
     : <DocEditor key={`${id}:${collab.session ? "live" : "solo"}`} doc={q.data} session={collab.session} />;
   // R24.5: the page tree beside the doc.
   return <div className="flex gap-6"><DocTreeSidebar currentId={id} /><div className="min-w-0 flex-1">{body}</div></div>;
@@ -156,7 +157,7 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
     <div className="mx-auto max-w-3xl">
       {dialogs}
       <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle">
-        <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg"><ArrowLeft className="h-3.5 w-3.5" />Docs</Link>
+        <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Docs</Link>
         {session && (
           <div className="ml-auto flex items-center gap-1.5" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
             <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>
@@ -175,9 +176,9 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
             if (state === "unsaved") { clearTimeout(timer.current); await save(); }
             try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
           }}>
-          <LayoutTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
+          <IconTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><Trash2 className="h-4 w-4" /></button>
+        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4" /></button>
       </div>
       <DocBreadcrumbs docId={id} title={title} />
       <h1 className="sr-only">{title || "Untitled doc"}</h1>
@@ -192,20 +193,20 @@ function DocEditor({ doc, session }: { doc: Doc; session: CollabSession | null }
           {doc.links.map((l) => (
             <Link key={`${l.type}:${l.id}`} to={l.type === "task" ? `/app/tasks?view=list&task=${l.id}` : l.type === "contact" ? `/app/contacts/${l.id}` : l.type === "project" ? `/app/tasks?project=${l.id}` : "#"}
               className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5 text-[12px] text-muted hover:text-fg">
-              {l.type === "task" ? <CheckSquare className="h-3 w-3" /> : l.type === "contact" ? <User className="h-3 w-3" /> : <FileText className="h-3 w-3" />}Linked {l.type}
+              {l.type === "task" ? <IconTasks className="h-3 w-3" /> : l.type === "contact" ? <IconUser className="h-3 w-3" /> : <IconDocs className="h-3 w-3" />}Linked {l.type}
             </Link>
           ))}
         </div>
       )}
       {e && (
         <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:[scrollbar-width:none]" role="toolbar" aria-label="Formatting">
-          <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><Bold /></ToolButton>
-          <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><Italic /></ToolButton>
-          <ToolButton label="Heading" active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><Heading2 /></ToolButton>
-          <ToolButton label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><List /></ToolButton>
-          <ToolButton label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><ListOrdered /></ToolButton>
-          <ToolButton label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><Quote /></ToolButton>
-          <ToolButton label="Link a page or task" active={picker} on={() => setPicker((p) => !p)}><Link2 /></ToolButton>
+          <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
+          <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
+          <ToolButton label="Heading" active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading2 /></ToolButton>
+          <ToolButton label="Bulleted list" active={e.isActive("bulletList")} on={() => e.chain().focus().toggleBulletList().run()}><IconList /></ToolButton>
+          <ToolButton label="Numbered list" active={e.isActive("orderedList")} on={() => e.chain().focus().toggleOrderedList().run()}><IconListOrdered /></ToolButton>
+          <ToolButton label="Quote" active={e.isActive("blockquote")} on={() => e.chain().focus().toggleBlockquote().run()}><IconQuote /></ToolButton>
+          <ToolButton label="Link a page or task" active={picker} on={() => setPicker((p) => !p)}><IconLink /></ToolButton>
           <PageLinkPicker editor={e} open={picker} onClose={() => setPicker(false)} selfId={id} />
         </div>
       )}

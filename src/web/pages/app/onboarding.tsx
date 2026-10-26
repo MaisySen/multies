@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { ArrowRight, AtSign, CircleCheck, Globe, Mail, MessagesSquare } from "lucide-react";
+import { IconArrowRight, IconChats, IconCheckCircle, IconGlobe, IconMail, IconMention } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import type { Me } from "@/web/lib/types";
@@ -144,19 +144,19 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
         </div>
       )}
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-connect">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><Mail className="h-4 w-4" aria-hidden /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconMail className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <h2 className="flex items-center gap-2 font-semibold">Connect your existing email{!canConnect && connections.isFetched && <span className="rounded-full bg-fill px-2 py-0.5 text-[11px] font-medium text-muted">Not on this server</span>}</h2>
           {connected ? (
             <div className="mt-1.5 flex flex-wrap items-center gap-3" data-testid="connect-done">
-              <span className="inline-flex items-center gap-1.5 text-sm text-ok"><CircleCheck className="h-4 w-4" aria-hidden />{connected.email} is connected. Recent mail is coming in now.</span>
-              <Link to={`/app/mail?mailbox=${connected.mailboxId}`} onClick={onDone} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Open inbox <ArrowRight className="h-3.5 w-3.5" /></Link>
+              <span className="inline-flex items-center gap-1.5 text-sm text-ok"><IconCheckCircle className="h-4 w-4" aria-hidden />{connected.email} is connected. Recent mail is coming in now.</span>
+              <Link to={`/app/mail?mailbox=${connected.mailboxId}`} onClick={onDone} className="inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Open inbox <IconArrowRight className="h-3.5 w-3.5" /></Link>
             </div>
           ) : (
             <>
               <p className="mt-0.5 text-sm text-muted">Gmail, Outlook, Yahoo, iCloud, Zoho, Fastmail, GMX or any IMAP mailbox, with your real address. Mail syncs both ways and replies go out through your own provider.</p>
               {canConnect && !connecting && (
-                <button type="button" onClick={() => setConnecting(true)} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline" data-testid="path-connect-open">Connect my email <ArrowRight className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => setConnecting(true)} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline" data-testid="path-connect-open">Connect my email <IconArrowRight className="h-3.5 w-3.5" /></button>
               )}
               {canConnect && connecting && <ConnectMailboxForm className="mt-4" oauth={connections.data?.oauth} onConnected={setConnected} />}
             </>
@@ -164,16 +164,16 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
         </div>
       </Card>
       <Card className="flex items-start gap-3 p-4 sm:p-5" data-testid="path-domain">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><Globe className="h-4 w-4" aria-hidden /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-fill text-muted"><IconGlobe className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold">Use your own domain</h2>
           <p className="mt-0.5 text-sm text-muted">Addresses like you@yourcompany.com. We show the exact DNS records and check them for you.</p>
-          <Link to="/app/domains" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Add my domain <ArrowRight className="h-3.5 w-3.5" /></Link>
+          <Link to="/app/domains" onClick={onDone} className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-brand hover:underline">Add my domain <IconArrowRight className="h-3.5 w-3.5" /></Link>
         </div>
       </Card>
       <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-        <span className="inline-flex items-center gap-1.5 text-sm text-subtle">{domain ? <AtSign className="h-4 w-4" aria-hidden /> : <MessagesSquare className="h-4 w-4" aria-hidden />}You can change this any time.</span>
-        <Button onClick={onDone} variant="secondary">Go to Multies <ArrowRight className="h-4 w-4" /></Button>
+        <span className="inline-flex items-center gap-1.5 text-sm text-subtle">{domain ? <IconMention className="h-4 w-4" aria-hidden /> : <IconChats className="h-4 w-4" aria-hidden />}You can change this any time.</span>
+        <Button onClick={onDone} variant="secondary">Go to Multies <IconArrowRight className="h-4 w-4" /></Button>
       </div>
     </div>
   );

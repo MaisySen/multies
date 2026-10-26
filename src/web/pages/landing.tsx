@@ -1,4 +1,4 @@
-import { ArrowRight, Play } from "lucide-react";
+import { IconArrowRight, IconPlay } from "@/web/components/ui/icon";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { HeroVisual } from "@/web/components/hero-visual";
 import { PlanCards } from "@/web/components/plan-cards";
@@ -56,10 +56,10 @@ export function Landing() {
             Free for startups and small businesses, on your own domain. Turn any email into a task, run projects on boards, and see every thread with a client in one place. A person approves what agents send.
           </p>
           <div data-hero-cta className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto" data-testid="hero-cta">Start free <ArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
+            <ButtonLink to="/signup" size="lg" className="w-full sm:w-auto" data-testid="hero-cta">Start free <IconArrowRight className="h-4 w-4" aria-hidden /></ButtonLink>
             {demoEnabled && (
               <Button size="lg" variant="secondary" onClick={demo.start} loading={demo.loading} className="w-full sm:w-auto">
-                <Play className="h-4 w-4" aria-hidden /> Try the live demo
+                <IconPlay className="h-4 w-4" aria-hidden /> Try the live demo
               </Button>
             )}
           </div>
@@ -104,7 +104,7 @@ export function Landing() {
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">An inbox your agent can use, on your domain.</h2>
             <p className="mt-4 leading-relaxed text-muted">One call creates the address and a key that only works for it. Mail arrives as JSON by webhook or stream. Replies wait in your approval queue until someone says yes.</p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <ButtonLink to="/agents" variant="secondary">Read the quickstart <ArrowRight className="h-4 w-4" /></ButtonLink>
+              <ButtonLink to="/agents" variant="secondary">Read the quickstart <IconArrowRight className="h-4 w-4" /></ButtonLink>
             </div>
           </div>
           <pre tabIndex={0} className="overflow-x-auto rounded-xl border border-line bg-surface p-4 font-mono text-[12px] leading-relaxed text-fg/85" aria-label="Example: create an agent inbox">{`curl https://multies.si/api/v1/agents \\

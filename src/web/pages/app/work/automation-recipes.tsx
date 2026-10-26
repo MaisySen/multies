@@ -6,10 +6,7 @@
  */
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlarmClock, BellRing, Bug, CalendarCheck, CheckCheck, CircleCheck, Eye, Flag, Hourglass, ListChecks, Mails, MailPlus, MailWarning, Megaphone,
-  MessageCircleWarning, MessageSquarePlus, MessageSquareText, Receipt, Repeat, Rocket, Search, Siren, Tag, TimerOff, UserCheck, UserCog, UserPlus, Video, Zap, type LucideIcon,
-} from "lucide-react";
+import { IconAssign, IconBellRing, IconBug, IconChatPlus, IconChatText, IconCheckCircle, IconCheckDouble, IconChecklist, IconDue, IconEye, IconFlag, IconHourglass, IconMailPlus, IconMailWarning, IconMails, IconMegaphone, IconMessageWarning, IconReceipt, IconRepeat, IconRocket, IconSearch, IconSiren, IconSnooze, IconTag, IconTimerOff, IconUserCheck, IconUserCog, IconVideo, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -19,9 +16,9 @@ import { Badge, Card, EmptyState, Skeleton, Switch } from "@/web/components/ui/m
 import type { AutomationRecipe, RecipeBlank } from "@/shared/automation-recipes";
 import { useAssignees, useProjects } from "./data";
 
-const ICONS: Record<string, LucideIcon> = {
-  AlarmClock, BellRing, Bug, CalendarCheck, CheckCheck, CircleCheck, Eye, Flag, Hourglass, ListChecks, Mails, MailPlus, MailWarning, Megaphone,
-  MessageCircleWarning, MessageSquarePlus, MessageSquareText, Receipt, Repeat, Rocket, Siren, Tag, TimerOff, UserCheck, UserCog, UserPlus, Video,
+const ICONS: Record<string, IconComponent> = {
+  AlarmClock: IconSnooze, BellRing: IconBellRing, Bug: IconBug, CalendarCheck: IconDue, CheckCheck: IconCheckDouble, CircleCheck: IconCheckCircle, Eye: IconEye, Flag: IconFlag, Hourglass: IconHourglass, ListChecks: IconChecklist, Mails: IconMails, MailPlus: IconMailPlus, MailWarning: IconMailWarning, Megaphone: IconMegaphone,
+  MessageCircleWarning: IconMessageWarning, MessageSquarePlus: IconChatPlus, MessageSquareText: IconChatText, Receipt: IconReceipt, Repeat: IconRepeat, Rocket: IconRocket, Siren: IconSiren, Tag: IconTag, TimerOff: IconTimerOff, UserCheck: IconUserCheck, UserCog: IconUserCog, UserPlus: IconAssign, Video: IconVideo,
 };
 
 type Listed = AutomationRecipe & { added: boolean; on: boolean; automationIds: string[] };
@@ -65,10 +62,10 @@ export function RecipesTab({ rules, onEditRule }: { rules: RuleLike[]; onEditRul
   return (
     <div>
       <div className="relative mb-5 max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
+        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
         <Input aria-label="Search recipes" placeholder="Search recipes" value={term} onChange={(e) => setTerm(e.target.value)} className="pl-9" />
       </div>
-      {!shown.length && <Card><EmptyState icon={<Zap />} title="No recipes match" body="Try another word, or write your own rule." /></Card>}
+      {!shown.length && <Card><EmptyState icon={<IconZap />} title="No recipes match" body="Try another word, or write your own rule." /></Card>}
       {q.data.categories.map((cat) => {
         const list = shown.filter((r) => r.category === cat);
         if (!list.length) return null;
@@ -77,7 +74,7 @@ export function RecipesTab({ rules, onEditRule }: { rules: RuleLike[]; onEditRul
             <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-subtle">{cat}</h2>
             <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {list.map((r) => {
-                const Icon = ICONS[r.icon] ?? Zap;
+                const Icon = ICONS[r.icon] ?? IconZap;
                 const rule = rules.find((x) => r.automationIds.includes(x.id));
                 return (
                   <li key={r.key} data-recipe={r.key} className="flex flex-col rounded-xl border border-line bg-surface p-4 shadow-sm">

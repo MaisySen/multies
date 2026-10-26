@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { chunkFiles, injectLanding, LOGIN_VARIANTS, loginVariantKey, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, startCodeAfterPaint, withCriticalCss, withPreloads, withProvidersPreload, type LoginPrerender } from "../src/shared/prerender-shell";
+import { AUTH_CARD_ROUTES, chunkFiles, injectLanding, LOGIN_VARIANTS, loginVariantKey, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, startCodeAfterPaint, withCriticalCss, withPreloads, withProvidersPreload, type LoginPrerender } from "../src/shared/prerender-shell";
 import { criticalCss } from "./critical-css";
 
 const out = path.resolve("dist/web");
@@ -33,15 +33,25 @@ try {
   // R34 (perf2): the sign in card for each deployment setup, with the CSS it needs inline (see prerender-shell.ts).
   try {
     const authShell = withProvidersPreload(withPreloads(shell, files));
-    const { renderLoginCard } = await import("../src/web/prerender");
+    const { renderLoginCard, renderAuthCard, prerendersAuthCard } = await import("../src/web/prerender");
     const cards = Object.fromEntries(LOGIN_VARIANTS.map((v) => [loginVariantKey(v), renderLoginCard(v)]));
+    // R35: sign up and forgot password the same way, per variant where the page needs nothing the build cannot know.
+    const pages: NonNullable<LoginPrerender["pages"]> = {};
+    for (const page of ["signup", "forgot"] as const) {
+      try {
+        pages[page] = Object.fromEntries(LOGIN_VARIANTS.filter((v) => prerendersAuthCard(page, v)).map((v) => [loginVariantKey(v), renderAuthCard(page, v)]));
+      } catch (err) {
+        console.warn(`[prerender] ${AUTH_CARD_ROUTES[page]} card skipped, the sign in shell serves it:`, (err as Error).message);
+      }
+    }
     const cssHref = shell.match(/<link rel="stylesheet" crossorigin href="\/([^"]+)">/)?.[1];
     if (!cssHref) throw new Error("no stylesheet in the shell");
-    const css = criticalCss(readFileSync(path.join(out, cssHref), "utf8"), [authShell, ...Object.values(cards)]);
+    const allCards = [...Object.values(cards), ...Object.values(pages).flatMap((c) => Object.values(c ?? {}))];
+    const css = criticalCss(readFileSync(path.join(out, cssHref), "utf8"), [authShell, ...allCards]);
     // The card is the HTML, so its code starts once the card has painted: the card's CSS and the font go first.
-    const login: LoginPrerender = { shell: withCriticalCss(startCodeAfterPaint(authShell), css), cards };
+    const login: LoginPrerender = { shell: withCriticalCss(startCodeAfterPaint(authShell), css), cards, pages };
     writeFileSync(path.join(out, "auth-login.json"), JSON.stringify(login));
-    console.log(`sign in card → dist/web/auth-login.json (${Object.keys(cards).length} variants, critical CSS ${Math.round(css.length / 1024)} KB)`);
+    console.log(`sign in cards → dist/web/auth-login.json (${Object.keys(cards).length} sign in, ${Object.keys(pages.signup ?? {}).length} sign up, ${Object.keys(pages.forgot ?? {}).length} forgot password variants, critical CSS ${Math.round(css.length / 1024)} KB)`);
   } catch (err) {
     rmSync(path.join(out, "auth-login.json"), { force: true });
     console.warn("[prerender] sign in card skipped, the sign in shell serves /login:", (err as Error).message);

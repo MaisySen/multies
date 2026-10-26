@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { CalendarClock, Download, Mail, Pencil, Plus, Repeat, Video, VideoOff } from "lucide-react";
+import { IconCalendarClock, IconDownload, IconEdit, IconMail, IconPlus, IconRepeat, IconVideo, IconVideoOff } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
@@ -147,11 +147,11 @@ export function MeetingsPage() {
   const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
-      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Schedule</Button>} />
+      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Schedule</Button>} />
       <CallMinutesUsage className="-mt-3 mb-4" />
-      {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><VideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
+      {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
-        <Card><EmptyState icon={<Video />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
+        <Card><EmptyState icon={<IconVideo />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
       ) : (
         <div className="space-y-6">
           {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (
@@ -160,7 +160,7 @@ export function MeetingsPage() {
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
                   <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out first:rounded-t-xl last:rounded-b-xl hover:bg-hover focus-visible:bg-hover focus-visible:outline-none max-sm:min-h-14" data-testid="meeting-row">
-                    {m.recurrence ? <Repeat className="h-4 w-4 shrink-0 text-muted" aria-label="Repeats" /> : <CalendarClock className="h-4 w-4 shrink-0 text-muted" />}
+                    {m.recurrence ? <IconRepeat className="h-4 w-4 shrink-0 text-muted" aria-label="Repeats" /> : <IconCalendarClock className="h-4 w-4 shrink-0 text-muted" />}
                     <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
                     {m.status !== "scheduled" && <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}
                     {m.invitesSentAt && <Badge tone="ok">Invited</Badge>}
@@ -239,8 +239,8 @@ export function MeetingPage() {
   return (
     <div data-testid="meeting-page">
       <PageHeader title={m.title} description={<>{when(m.startsAt)} · {m.durationMin} minutes{source && <> · started from <Link className="text-brand-hover hover:underline" to={source.to}>{source.label}</Link></>}</>}
-        actions={m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><Video className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
-      {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><VideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
+        actions={m.status === "scheduled" ? <Button onClick={() => setPrejoin(true)} loading={busy} disabled={!m.videoEnabled} data-testid="join-meeting"><IconVideo className="h-4 w-4" />Join now</Button> : <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>} />
+      {!m.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h2 className="text-[13px] font-semibold">Guest link</h2>
@@ -250,13 +250,13 @@ export function MeetingPage() {
         </Card>
         <Card className="p-5">
           <h2 className="text-[13px] font-semibold">Guests</h2>
-          {m.invitees.length ? <ul className="mt-2 space-y-1 text-[13px]">{m.invitees.map((g) => <li key={g} className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-muted" />{g}</li>)}</ul> : <p className="mt-1 text-[13px] text-muted">No guests yet. Share the link, or schedule with guest emails.</p>}
+          {m.invitees.length ? <ul className="mt-2 space-y-1 text-[13px]">{m.invitees.map((g) => <li key={g} className="flex items-center gap-2"><IconMail className="h-3.5 w-3.5 text-muted" />{g}</li>)}</ul> : <p className="mt-1 text-[13px] text-muted">No guests yet. Share the link, or schedule with guest emails.</p>}
           {m.invitees.length > 0 && m.status === "scheduled" && <div className="mt-3 flex items-center gap-3"><Button size="sm" variant="secondary" onClick={() => void invite()}>{m.invitesSentAt ? "Send invites again" : "Send calendar invites"}</Button>{m.invitesSentAt && <span className="text-[12px] text-subtle">Sent {when(m.invitesSentAt)}</span>}</div>}
         </Card>
       </div>
       {m.recurrence && (
         <Card className="mt-4 flex items-start gap-3 p-5" data-testid="meeting-series">
-          <Repeat className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+          <IconRepeat className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
           <div className="min-w-0 flex-1">
             <h2 className="text-[13px] font-semibold">{m.recurrence.summary}</h2>
             <p className="mt-1 text-[13px] text-muted">First meeting {when(m.startsAt)}. Changes apply to every meeting in the series, and the same guest link works each time.</p>
@@ -265,8 +265,8 @@ export function MeetingPage() {
       )}
       <RecordingSection meetingId={m.id} />
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
-        <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><Download className="h-4 w-4" />Calendar file</a>
+        <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><IconEdit className="h-4 w-4" />{m.recurrence ? "Edit series" : "Edit"}</Button>
+        <a href={`/api/meetings/${m.id}/ics`} download className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium text-muted hover:bg-hover hover:text-fg"><IconDownload className="h-4 w-4" />Calendar file</a>
         {m.status === "scheduled" && <><Button size="sm" variant="ghost" onClick={() => void setStatus("ended")}>Mark as ended</Button><Button size="sm" variant="ghost" onClick={() => void setStatus("cancelled")}>{m.recurrence ? "Cancel series" : "Cancel meeting"}</Button></>}
       </div>
       <MeetingNotes meetingId={m.id} />

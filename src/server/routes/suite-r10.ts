@@ -22,6 +22,7 @@ import { parseAssignee } from "../services/suite/tasks";
 import { chatR20Routes, guestChatR20Routes } from "./chat-r20";
 import { chatR23CallRoutes, guestChatR23CallRoutes } from "./chat-r23-calls";
 import { chatLiveR32Routes } from "./chat-live-r32";
+import { withBlockedByMe } from "../services/suite/reports-r35"; // R35
 
 export const ChatAttachment = z.object({ filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(), contentBase64: z.string().min(1).max(14_000_000) });
 export const ChatPost = z.object({ body: z.string().max(20_000).default(""), parentId: z.string().max(64).nullable().optional(), attachments: z.array(ChatAttachment).max(5).optional(), /** R33: the sender's id for this send; a repeat with the same id returns the first message (see chat-ack-r33.ts). */ clientMsgId: z.string().regex(/^[0-9a-z]{17,49}$/).optional() });
@@ -83,7 +84,8 @@ export function chatRoutes() {
     })
     .post("/channels/:id/read", async (c) => c.json(await markRead(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ messageId: z.string().max(64).optional() }).default({}))).messageId)))
     .get("/unread", async (c) => c.json(await unreadSummary(c.var.deps, c.var.auth)))
-    .get("/people", async (c) => c.json({ people: await chatPeople(c.var.deps, c.var.auth.orgId) }))
+    // R35: each person carries blockedByMe so clients can show Unblock.
+    .get("/people", async (c) => c.json({ people: await withBlockedByMe(c.var.deps, c.var.auth.userId, await chatPeople(c.var.deps, c.var.auth.orgId)) }))
     .get("/messages/:id", async (c) => c.json(await getMessage(c.var.deps, c.var.auth, c.req.param("id"))))
     .get("/messages/:id/thread", async (c) => c.json(await getThread(c.var.deps, c.var.auth, c.req.param("id"))))
     .patch("/messages/:id", async (c) => c.json({ message: await editMessage(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ body: z.string().min(1).max(20_000) }))).body) }))

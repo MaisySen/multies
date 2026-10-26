@@ -1,4 +1,4 @@
-import { ArrowLeft } from "lucide-react";
+import { IconArrowLeft } from "@/web/components/ui/icon";
 import { Link } from "react-router";
 import { ButtonLink } from "@/web/components/ui/button";
 import { Logo } from "@/web/components/logo";
@@ -12,7 +12,7 @@ export function NotFound() {
         <h1 className="mt-2 text-[34px] font-bold leading-tight tracking-[-0.025em]">This page bounced.</h1>
         <p className="mx-auto mt-3 max-w-sm text-[17px] leading-relaxed text-muted">The address doesn't exist, like mail to a mailbox nobody created. Check the link, or head back.</p>
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
-          <ButtonLink to="/" size="lg"><ArrowLeft className="h-4 w-4" aria-hidden />Go home</ButtonLink>
+          <ButtonLink to="/" size="lg"><IconArrowLeft className="h-4 w-4" aria-hidden />Go home</ButtonLink>
           <ButtonLink to="/app" size="lg" variant="secondary">Open the dashboard</ButtonLink>
         </div>
         <p className="mt-8 text-[13px] text-subtle">Still stuck? <Link to="/support" className="font-medium text-brand-hover hover:underline">Contact support</Link></p>

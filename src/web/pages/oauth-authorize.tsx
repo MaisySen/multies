@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Bot, Check, Eye, PencilLine, ShieldCheck } from "lucide-react";
+import { IconAgent, IconCheck, IconEye, IconPencilLine, IconShieldCheck } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
 import { api, ApiError } from "@/web/lib/api";
@@ -53,7 +53,7 @@ export function OAuthAuthorizePage() {
   return (
     <Card>
       <div className="flex items-center gap-3">
-        <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><Bot className="h-5 w-5" /></div>
+        <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><IconAgent className="h-5 w-5" /></div>
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight" data-testid="oauth-title">Connect {d.client.name} to Multies</h1>
           <p className="truncate text-sm text-muted">Signed in as {d.user.email}</p>
@@ -70,8 +70,8 @@ export function OAuthAuthorizePage() {
           <fieldset>
             <legend className="text-sm font-medium">Access</legend>
             <div className="mt-1.5 grid gap-2">
-              <ScopeOption active={scope === "full"} disabled={d.requestedScope === "read"} onClick={() => setScope("full")} icon={<PencilLine className="h-4 w-4" />} title="Read and write" detail="Read mail, tasks, docs and chat; create and update work; send mail as an agent inbox." testId="oauth-scope-full" />
-              <ScopeOption active={scope === "read"} onClick={() => setScope("read")} icon={<Eye className="h-4 w-4" />} title="Read only" detail="Read and search. Nothing is created, changed or sent." testId="oauth-scope-read" />
+              <ScopeOption active={scope === "full"} disabled={d.requestedScope === "read"} onClick={() => setScope("full")} icon={<IconPencilLine className="h-4 w-4" />} title="Read and write" detail="Read mail, tasks, docs and chat; create and update work; send mail as an agent inbox." testId="oauth-scope-full" />
+              <ScopeOption active={scope === "read"} onClick={() => setScope("read")} icon={<IconEye className="h-4 w-4" />} title="Read only" detail="Read and search. Nothing is created, changed or sent." testId="oauth-scope-read" />
             </div>
           </fieldset>
         </div>
@@ -81,7 +81,7 @@ export function OAuthAuthorizePage() {
         <Button variant="secondary" className="flex-1" disabled={decide.isPending} onClick={() => decide.mutate("deny")} data-testid="oauth-deny">Cancel</Button>
         <Button className="flex-1" disabled={noWorkspace || !orgId} loading={decide.isPending && decide.variables === "allow"} onClick={() => decide.mutate("allow")} data-testid="oauth-allow">Allow</Button>
       </div>
-      <p className="mt-5 flex items-start gap-2 text-xs text-subtle"><ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />After you allow, you go back to {d.redirectHost}. You can disconnect {d.client.name} any time in Settings, Developers.</p>
+      <p className="mt-5 flex items-start gap-2 text-xs text-subtle"><IconShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />After you allow, you go back to {d.redirectHost}. You can disconnect {d.client.name} any time in Settings, Developers.</p>
     </Card>
   );
 }
@@ -96,7 +96,7 @@ function ScopeOption(p: { active: boolean; disabled?: boolean; onClick: () => vo
       className={cn("flex items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50", p.active ? "border-brand bg-brand/5" : "border-line hover:bg-elevated")}>
       <span className={cn("mt-0.5", p.active ? "text-brand" : "text-subtle")} aria-hidden>{p.icon}</span>
       <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{p.title}</span><span className="block text-xs text-muted">{p.detail}</span></span>
-      {p.active && <Check className="mt-0.5 h-4 w-4 text-brand" aria-hidden />}
+      {p.active && <IconCheck className="mt-0.5 h-4 w-4 text-brand" aria-hidden />}
     </button>
   );
 }

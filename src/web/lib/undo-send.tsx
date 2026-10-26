@@ -1,6 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
-import { Send, Undo2 } from "lucide-react";
+import { IconSend, IconUndo } from "@/web/components/ui/icon";
 import {
   createSendHold, parseUndoSeconds, UNDO_SEND_STORAGE_KEY,
   type HeldSend, type UndoSendSeconds,
@@ -103,7 +103,7 @@ function HeldToast({ h, label }: { h: HeldSend; label: string }) {
   return (
     <div className="w-[min(calc(100vw-32px),356px)] overflow-hidden rounded-xl border border-line bg-elevated font-sans text-[13px] text-fg shadow-pop" data-testid="undo-send-toast">
       <div className="flex items-center gap-3 px-3.5 py-3">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand" aria-hidden><Send className="h-4 w-4" /></span>
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand/10 text-brand" aria-hidden><IconSend className="h-4 w-4" /></span>
         <div className="min-w-0 flex-1" role="status" aria-live="polite">
           {/* The visible countdown ticks; screen readers hear the hold once, not every second. */}
           <div className="whitespace-nowrap font-medium" aria-hidden>{sending ? "Sending" : `Sending in ${left} s`}</div>
@@ -113,10 +113,10 @@ function HeldToast({ h, label }: { h: HeldSend; label: string }) {
         {!sending && (
           <div className="flex shrink-0 items-center gap-1">
             <button type="button" className={buttonClass("ghost", "icon", "text-muted")} onClick={() => void h.sendNow()} aria-label="Send now" title="Send now">
-              <Send className="h-3.5 w-3.5" />
+              <IconSend className="h-3.5 w-3.5" />
             </button>
             <button type="button" className={buttonClass("secondary", "sm", "gap-1.5 px-2.5 font-semibold text-brand")} onClick={() => h.undo()} aria-keyshortcuts="Z">
-              <Undo2 className="h-3.5 w-3.5" />Undo<span className="hidden sm:inline-flex" aria-hidden><Kbd>Z</Kbd></span>
+              <IconUndo className="h-3.5 w-3.5" />Undo<span className="hidden sm:inline-flex" aria-hidden><Kbd>Z</Kbd></span>
             </button>
           </div>
         )}

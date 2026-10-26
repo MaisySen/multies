@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Database } from "lucide-react";
+import { IconDatabase } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { Card } from "@/web/components/ui/misc";
 import { LOCALE } from "@/shared/locale";
@@ -46,7 +46,7 @@ export function WriteBudgetMeter() {
     <Card className="p-5" data-testid="write-budget">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><Database className="h-4 w-4" aria-hidden="true" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><IconDatabase className="h-4 w-4" aria-hidden="true" /></span>
           <div>
             <h2 className="text-sm font-semibold">D1 writes today</h2>
             <p className="text-xs text-muted">Production and staging share one daily budget. Resets at 00:00 UTC, in {untilReset(w.resetAt)}.</p>

@@ -6,12 +6,12 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
-import { CheckSquare, Calendar, CircleCheck, Code2, Heading1, Heading2, Heading3, Image as ImageIcon, Info, Link2, List, ListOrdered, Minus, OctagonAlert, Quote, Table, TriangleAlert, Type } from "lucide-react";
+import { IconCalendar, IconCheckCircle, IconCode, IconHeading1, IconHeading2, IconHeading3, IconImage, IconInfo, IconLink, IconList, IconListOrdered, IconMinus, IconOctagonAlert, IconQuote, IconTable, IconTasks, IconText, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import { filterSlash, groupSlash, moveSel, slashQuery, todayText, type SlashItem } from "@/web/lib/slash-commands";
 
-const ICONS: Record<string, typeof Type> = { text: Type, h1: Heading1, h2: Heading2, h3: Heading3, quote: Quote, code: Code2, divider: Minus, bullets: List, numbers: ListOrdered, todo: CheckSquare, link: Link2, date: Calendar,
-  table: Table, image: ImageIcon, callout: Info, "callout-success": CircleCheck, "callout-warning": TriangleAlert, "callout-danger": OctagonAlert };
+const ICONS: Record<string, IconComponent> = { text: IconText, h1: IconHeading1, h2: IconHeading2, h3: IconHeading3, quote: IconQuote, code: IconCode, divider: IconMinus, bullets: IconList, numbers: IconListOrdered, todo: IconTasks, link: IconLink, date: IconCalendar,
+  table: IconTable, image: IconImage, callout: IconInfo, "callout-success": IconCheckCircle, "callout-warning": IconWarning, "callout-danger": IconOctagonAlert };
 
 interface MenuState { from: number; to: number; query: string; left: number; top: number }
 
@@ -115,7 +115,7 @@ export function SlashMenu({ editor, onLinkPicker, onImage }: { editor: Editor | 
           <div key={g.group} role="group" aria-label={g.group}>
             <div className="px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-subtle">{g.group}</div>
             {g.items.map(({ item, index }) => {
-              const Icon = ICONS[item.id] ?? Type;
+              const Icon = ICONS[item.id] ?? IconText;
               return (
                 <button key={item.id} id={`slash-item-${index}`} type="button" role="option" aria-selected={index === sel} data-testid={`slash-${item.id}`}
                   onClick={() => pick(item)} onMouseEnter={() => setSel(index)}

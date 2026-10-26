@@ -42,7 +42,7 @@ test("admin adds an agent member, assigns it a task and sees the Agent badge", a
   expect((await made.json()).task.assignee).toMatchObject({ name: "Builder", isAgent: true });
   await page.goto(`/app/tasks?project=${projects[0].id}&view=list`);
   const row = page.getByRole("row").filter({ hasText: "Ship the agents release" });
-  await expect(row.locator("svg.lucide-bot").first()).toBeVisible();
+  await expect(row.locator('svg[data-icon="agent"]').first()).toBeVisible();
 
   // The agent works the task with its own key, under its own name.
   const id = (await made.json()).task.id as string;

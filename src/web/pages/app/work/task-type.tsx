@@ -6,7 +6,7 @@
 import { Fragment, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
-import { BookOpen, Bug, CheckCircle2, CheckSquare, Circle, Mountain, Plus, X, type LucideIcon } from "lucide-react";
+import { IconBook, IconBug, IconCheckCircle, IconCircle, IconClose, IconMountain, IconPlus, IconTasks, type IconComponent } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
 import { showError } from "@/web/lib/show-error";
@@ -18,11 +18,11 @@ import { dueLabel, useTasks, type Project, type Task } from "./data";
 
 export type TaskType = "task" | "story" | "bug" | "epic";
 export const TASK_TYPES: TaskType[] = ["task", "story", "bug", "epic"];
-export const TYPE_META: Record<TaskType, { label: string; Icon: LucideIcon; color: string }> = {
-  task: { label: "Task", Icon: CheckSquare, color: "#4a90d9" },
-  story: { label: "Story", Icon: BookOpen, color: "#2f9e62" },
-  bug: { label: "Bug", Icon: Bug, color: "#d9534f" },
-  epic: { label: "Epic", Icon: Mountain, color: "#8a5cc7" },
+export const TYPE_META: Record<TaskType, { label: string; Icon: IconComponent; color: string }> = {
+  task: { label: "Task", Icon: IconTasks, color: "#4a90d9" },
+  story: { label: "Story", Icon: IconBook, color: "#2f9e62" },
+  bug: { label: "Bug", Icon: IconBug, color: "#d9534f" },
+  epic: { label: "Epic", Icon: IconMountain, color: "#8a5cc7" },
 };
 export const typeOf = (t: { type?: string } | undefined): TaskType => (t?.type && t.type in TYPE_META ? t.type as TaskType : "task");
 
@@ -128,12 +128,12 @@ export function EpicSection({ epic, onChanged }: { epic: Task; onChanged: () => 
         {items.map((s) => (
           <li key={s.id} className="group flex items-center gap-2 rounded-md px-1 py-1 hover:bg-hover">
             <button aria-label={s.status === "done" ? `Mark ${s.title} as not done` : `Mark ${s.title} as done`} onClick={() => void toggle(s)}>
-              {s.status === "done" ? <CheckCircle2 className="h-4 w-4 text-ok" /> : <Circle className="h-4 w-4 text-muted" />}
+              {s.status === "done" ? <IconCheckCircle className="h-4 w-4 text-ok" /> : <IconCircle className="h-4 w-4 text-muted" />}
             </button>
             <TypeIcon type={s.type} />
             <span className="font-mono text-[11.5px] text-subtle">{s.ref}</span>
             <button className={cn("min-w-0 truncate text-left text-[13px] hover:underline", s.status === "done" && "text-subtle line-through")} onClick={() => onOpen(s.id)}>{s.title}</button>
-            <button aria-label={`Take ${s.title} out of this epic`} disabled={busy} onClick={() => void move([s.id], true)} className="ml-auto rounded p-0.5 text-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus:opacity-100"><X className="h-3.5 w-3.5" /></button>
+            <button aria-label={`Take ${s.title} out of this epic`} disabled={busy} onClick={() => void move([s.id], true)} className="ml-auto rounded p-0.5 text-subtle opacity-0 hover:text-fg group-hover:opacity-100 focus:opacity-100"><IconClose className="h-3.5 w-3.5" /></button>
           </li>
         ))}
         {detail.data && !items.length && <li className="px-1 py-1 text-[13px] text-muted">Nothing in this epic yet.</li>}
@@ -183,7 +183,7 @@ export function EpicsDialog({ project, onClose, onOpen }: { project: Project; on
         )}
         <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); void add(); }}>
           <Input aria-label="New epic" placeholder="New epic, for example Checkout redesign" value={title} onChange={(e) => setTitle(e.target.value)} className="h-9 text-[13px]" />
-          <Button type="submit" size="sm" loading={busy} disabled={!title.trim()}><Plus className="h-4 w-4" />Add epic</Button>
+          <Button type="submit" size="sm" loading={busy} disabled={!title.trim()}><IconPlus className="h-4 w-4" />Add epic</Button>
         </form>
       </div>
     </Dialog>

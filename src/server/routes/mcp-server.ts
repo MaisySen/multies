@@ -78,6 +78,7 @@ import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 import { registerAuthEmailSettingsTools } from "./mcp-r28-auth-email-settings"; // R28: Sign-up emails settings
 
 export type Scoped = Actor & { scope?: "full" | "read" };
+import { registerReportsR35Tools } from "./reports-r35"; // R35
 
 const ok = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] });
 const fail = (message: string) => ({ content: [{ type: "text" as const, text: message }], isError: true });
@@ -291,6 +292,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerFormulaTools(server, deps, actor, writable, tool); // R24.1: formula and rollup fields
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerBoardTools(server, deps, actor, writable, tool); // R34 (MB-186): swimlanes and WIP limits
+  registerReportsR35Tools(server, deps, actor, writable, tool); // R35: create_report, list_blocks, add_block, remove_block
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
   registerR26CommentTools(server, deps, actor, writable, tool); // R26 (MB-77): comments and chat messages

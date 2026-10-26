@@ -8,7 +8,7 @@ import { useNavigate } from "react-router";
 import { Command } from "cmdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Check, ChevronLeft, Globe, Inbox, LogOut, Search, Sun } from "lucide-react";
+import { IconBack, IconCheck, IconGlobe, IconInbox, IconLogOut, IconSearch, IconToday } from "@/web/components/ui/icon";
 import { paletteScore } from "@/web/lib/palette-registry";
 import { openShortcutsSheet } from "@/web/lib/shortcuts";
 import { COMMANDS, TASK_PICKERS, inPalette, runCommand, useFocus, type Command as Cmd, type CommandContext, type TaskPickerPage } from "@/web/lib/commands";
@@ -65,7 +65,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const { update } = useTaskMutations();
 
   const toItem = (c: Cmd): Item => ({
-    id: c.id, label: c.title, icon: c.id === "action-theme" && appearance.resolved === "dark" ? Sun : c.icon ?? Search, keywords: c.keywords,
+    id: c.id, label: c.title, icon: c.id === "action-theme" && appearance.resolved === "dark" ? IconToday : c.icon ?? IconSearch, keywords: c.keywords,
     keys: c.scope !== "global" ? c.keys : undefined,
     run: () => {
       // Page commands (mail keys) run after the menu closes, so they act on the page, not the menu.
@@ -79,8 +79,8 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const pages = palette.filter((c) => !c.when && c.group === "Go to").map(toItem);
   const go = (to: string) => () => ctx.navigate(to);
   const records: Item[] = [
-    ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: Globe, run: go(`/app/domains/${d.id}`) })),
-    ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: Inbox, run: go(`/app/mail?mailbox=${m.id}`) })),
+    ...(domains.data ?? []).map((d) => ({ id: `d-${d.id}`, label: d.name, hint: "Domain", icon: IconGlobe, run: go(`/app/domains/${d.id}`) })),
+    ...(mailboxes.data ?? []).map((m) => ({ id: `m-${m.id}`, label: m.address, hint: "Mailbox", icon: IconInbox, run: go(`/app/mail?mailbox=${m.id}`) })),
   ];
 
   // Nested picker pages for the focused task.
@@ -104,7 +104,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   };
   const pickerItems: Item[] = picker && task
     ? taskPickerItems(picker.page, task, { projects: projects.data ?? [], people: people.data ?? [], labels, search }).map((it) => ({
-      id: it.id, label: it.label, hint: it.hint, icon: picker.icon ?? Check, current: it.current, run: () => pick(it), keywords: [it.label],
+      id: it.id, label: it.label, hint: it.hint, icon: picker.icon ?? IconCheck, current: it.current, run: () => pick(it), keywords: [it.label],
     }))
     : [];
 
@@ -116,7 +116,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
           <Icon className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{label}</span>
           {hint && <span className="text-xs text-subtle">{hint}</span>}
-          {current && <Check className="h-4 w-4 shrink-0 text-brand" aria-label="Current" />}
+          {current && <IconCheck className="h-4 w-4 shrink-0 text-brand" aria-label="Current" />}
           {keys && <span className="flex gap-1">{keys.map((k) => <Kbd key={k}>{k}</Kbd>)}</span>}
         </Command.Item>
       ))}
@@ -131,12 +131,12 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       contentClassName="fixed left-1/2 top-[12vh] z-[100] w-[min(640px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-xl border border-line-strong bg-surface shadow-pop animate-pop-in motion-reduce:animate-none max-sm:top-[max(12px,env(safe-area-inset-top))] max-sm:rounded-2xl">
       {picker && (
         <div className="flex items-center gap-1.5 border-b border-line px-3.5 pt-2.5 pb-2 text-[12px] text-subtle">
-          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071E3]"><ChevronLeft className="h-3.5 w-3.5" /></button>
+          <button type="button" onClick={() => onPage(null)} aria-label="Back" className="grid h-6 w-6 place-items-center rounded hover:bg-hover max-sm:h-9 max-sm:w-9 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071E3]"><IconBack className="h-3.5 w-3.5" /></button>
           <span className="min-w-0 truncate" data-testid="palette-crumb">{taskTitle}</span>
         </div>
       )}
       <div className="flex items-center gap-2.5 border-b border-line px-3.5">
-        <Search className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
+        <IconSearch className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
         <Command.Input value={search} onValueChange={setSearch}
           placeholder={picker ? picker.title.replace("...", "") : "Search mail, tasks, docs and chat, or jump to a page"}
           className="h-12 w-full bg-transparent text-[14px] text-fg outline-none placeholder:text-subtle" />
@@ -157,7 +157,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
             {group("Actions", actions)}
             {group("Go to", pages)}
             {group("Domains and mailboxes", records)}
-            {group("Account", [{ id: "signout", label: "Sign out", icon: LogOut, run: () => { close(); onSignOut(); } }])}
+            {group("Account", [{ id: "signout", label: "Sign out", icon: IconLogOut, run: () => { close(); onSignOut(); } }])}
           </>
         )}
       </Command.List>

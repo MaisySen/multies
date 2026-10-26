@@ -1,7 +1,7 @@
 /** Files on a task: upload (members and guests) and download. Files always download, never open inline. */
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Paperclip, Upload } from "lucide-react";
+import { IconAttachment, IconUpload } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -37,14 +37,14 @@ export function FileList({ files, uploadPath, downloadPath, onUploaded }: { file
     <section className="mt-6" aria-label="Files">
       <div className="flex items-center justify-between">
         <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Files</h3>
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => input.current?.click()}><Upload className="h-3.5 w-3.5" />{busy ? "Uploading" : "Upload"}</Button>
+        <Button variant="ghost" size="sm" disabled={busy} onClick={() => input.current?.click()}><IconUpload className="h-3.5 w-3.5" />{busy ? "Uploading" : "Upload"}</Button>
         <input ref={input} type="file" multiple hidden aria-label="Upload a file" onChange={(e) => void upload(e.target.files)} />
       </div>
       {files.length > 0 ? (
         <ul className="mt-2 space-y-1">
           {files.map((f) => (
             <li key={f.id} className="flex items-center gap-2 text-[13px]">
-              <Paperclip className="h-3.5 w-3.5 text-muted" aria-hidden />
+              <IconAttachment className="h-3.5 w-3.5 text-muted" aria-hidden />
               <a href={`/api${downloadPath(f.id)}`} className="truncate text-fg hover:underline" download>{f.filename}</a>
               <span className="ml-auto whitespace-nowrap text-[11.5px] text-subtle">{size(f.sizeBytes)} · {f.uploadedBy.name} · {timeAgo(f.createdAt)}</span>
             </li>

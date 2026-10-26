@@ -7,14 +7,14 @@ import { Extension } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
-import { CircleCheck, Info, OctagonAlert, TriangleAlert } from "lucide-react";
+import { IconCheckCircle, IconInfo, IconOctagonAlert, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { api, ApiError } from "@/web/lib/api";
 import { Callout, CALLOUT_LABELS, calloutVariant, nextCalloutVariant, type CalloutVariant } from "./docs-callout";
 import { docBlockSchemaExtensions, imageDim, isSafeImageSrc, looksLikeImageUrl } from "./docs-blocks-schema";
 import type { Node as PmNode } from "@tiptap/pm/model";
 import type { Transaction } from "@tiptap/pm/state";
 
-export const CALLOUT_ICONS: Record<CalloutVariant, typeof Info> = { info: Info, success: CircleCheck, warning: TriangleAlert, danger: OctagonAlert };
+export const CALLOUT_ICONS: Record<CalloutVariant, IconComponent> = { info: IconInfo, success: IconCheckCircle, warning: IconWarning, danger: IconOctagonAlert };
 
 function CalloutView({ node, updateAttributes, editor }: NodeViewProps) {
   const variant = calloutVariant(node.attrs.variant);

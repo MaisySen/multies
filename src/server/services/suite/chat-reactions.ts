@@ -22,6 +22,7 @@ import { getChannel, guestChannel, plainText, postMessage, presentedMessage, vis
 import { reactionsFor, type ReactionSummary } from "./chat-reaction-summary";
 import { publishChat, type ChannelAudienceRow } from "../../realtime/publish";
 import { notifyCallStarted } from "./calls";
+import { notBlockedBy } from "./reports-r35"; // R35: blocked people's messages stay out
 
 /** Distinct emoji one message can carry. */
 export const MAX_EMOJI_PER_MESSAGE = 20;
@@ -123,7 +124,7 @@ export async function searchChat(deps: Deps, a: SuiteActor, input: { q: string; 
     id: chatMessages.id, channelId: chatMessages.channelId, parentId: chatMessages.parentId, authorName: chatMessages.authorName, body: chatMessages.body,
     mentions: chatMessages.mentions, links: chatMessages.links, createdAt: chatMessages.createdAt, channelName: chatChannels.name, channelKind: chatChannels.kind,
   }).from(chatMessages).innerJoin(chatChannels, eq(chatChannels.id, chatMessages.channelId))
-    .where(and(eq(chatMessages.orgId, a.orgId), isNull(chatMessages.deletedAt), where, sql`${chatMessages.body} like ${likeContains(q)} escape '\\'`))
+    .where(and(eq(chatMessages.orgId, a.orgId), isNull(chatMessages.deletedAt), where, sql`${chatMessages.body} like ${likeContains(q)} escape '\\'`, notBlockedBy(chatMessages.authorId, isKey(a) ? null : a.userId)))
     .orderBy(desc(chatMessages.createdAt)).limit(limit);
   return {
     results: rows.map((r) => ({
@@ -145,7 +146,7 @@ export async function firstUnread(deps: Deps, a: SuiteActor, channelId: string) 
   const mem = await deps.db.select({ lastReadAt: chatMembers.lastReadAt }).from(chatMembers).where(and(eq(chatMembers.channelId, c.id), eq(chatMembers.userId, a.userId))).get();
   if (!mem) return none;
   const cond = and(eq(chatMessages.channelId, c.id), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt),
-    mem.lastReadAt ? gt(chatMessages.createdAt, mem.lastReadAt) : undefined, sql`coalesce(${chatMessages.authorId}, '') <> ${a.userId}`);
+    mem.lastReadAt ? gt(chatMessages.createdAt, mem.lastReadAt) : undefined, sql`coalesce(${chatMessages.authorId}, '') <> ${a.userId}`, notBlockedBy(chatMessages.authorId, a.userId));
   const first = await deps.db.select({ id: chatMessages.id, createdAt: chatMessages.createdAt }).from(chatMessages).where(cond).orderBy(asc(chatMessages.createdAt)).limit(1).get();
   if (!first) return none;
   const n = await deps.db.select({ n: count() }).from(chatMessages).where(cond).get();

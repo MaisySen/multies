@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp, ClipboardList, ExternalLink, Plus, Trash2 } from "lucide-react";
+import { IconArrowDown, IconArrowUp, IconClipboardList, IconExternalLink, IconPlus, IconTrash } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -40,9 +40,9 @@ export function FormsPage() {
   return (
     <div>
       <PageHeader title="Forms" description="A public link anyone can fill in. Each answer becomes a task on your board or a contact, with spam checks built in."
-        actions={<Button onClick={() => setEditing({ name: "", target: "task" })}><Plus className="h-4 w-4" />New form</Button>} />
+        actions={<Button onClick={() => setEditing({ name: "", target: "task" })}><IconPlus className="h-4 w-4" />New form</Button>} />
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.forms.length ? (
-        <Card><EmptyState icon={<ClipboardList />} title="No forms yet" body="Make an enquiry form for your website, a support request form or a sign-up list." action={<Button onClick={() => setEditing({ name: "Website enquiry", target: "task" })}>Make an enquiry form</Button>} /></Card>
+        <Card><EmptyState icon={<IconClipboardList />} title="No forms yet" body="Make an enquiry form for your website, a support request form or a sign-up list." action={<Button onClick={() => setEditing({ name: "Website enquiry", target: "task" })}>Make an enquiry form</Button>} /></Card>
       ) : (
         <Card className="divide-y divide-line">
           {q.data!.forms.map((f) => (
@@ -53,7 +53,7 @@ export function FormsPage() {
                 <div className="mt-0.5 text-[12.5px] text-muted">Makes a {f.target} · {f.fields.length} fields · {f.submitCount} {f.submitCount === 1 ? "answer" : "answers"}{f.lastSubmitAt && `, last ${timeAgo(f.lastSubmitAt)}`}</div>
               </button>
               <div className="flex items-center gap-2">
-                <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated"><ExternalLink className="h-3.5 w-3.5" />Open</a>
+                <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] hover:bg-elevated"><IconExternalLink className="h-3.5 w-3.5" />Open</a>
                 <CopyButton value={f.url} label="Copy link" />
                 <Button size="sm" variant="ghost" onClick={() => setViewing(f.id)}>Responses</Button>
               </div>
@@ -106,9 +106,9 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
                   <Select aria-label={`Field ${i + 1} type`} value={x.type} onChange={(e) => setField(i, { type: e.target.value as FieldType })} className="h-8 text-[13px]">{(Object.keys(TYPES) as FieldType[]).map((t) => <option key={t} value={t}>{TYPES[t]}</option>)}</Select>
                   <div className="flex items-center gap-1">
                     <label className="flex items-center gap-1 text-[12px] text-muted"><input type="checkbox" checked={!!x.required} onChange={(e) => setField(i, { required: e.target.checked })} />Required</label>
-                    <button disabled={i === 0} onClick={() => move(i, -1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><ArrowUp className="h-3.5 w-3.5" /></button>
-                    <button disabled={i === fields.length - 1} onClick={() => move(i, 1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><ArrowDown className="h-3.5 w-3.5" /></button>
-                    <button onClick={() => removeField(i)} className="p-1 text-subtle hover:text-bad" aria-label="Remove field"><Trash2 className="h-3.5 w-3.5" /></button>
+                    <button disabled={i === 0} onClick={() => move(i, -1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move up"><IconArrowUp className="h-3.5 w-3.5" /></button>
+                    <button disabled={i === fields.length - 1} onClick={() => move(i, 1)} className="p-1 text-subtle hover:text-fg disabled:opacity-30" aria-label="Move down"><IconArrowDown className="h-3.5 w-3.5" /></button>
+                    <button onClick={() => removeField(i)} className="p-1 text-subtle hover:text-bad" aria-label="Remove field"><IconTrash className="h-3.5 w-3.5" /></button>
                   </div>
                 </div>
                 {withOptions(x.type) && <Input aria-label="Choices" placeholder="Choices, separated by commas" value={(x.options ?? []).join(", ")} onChange={(e) => setField(i, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) })} className="mt-2 h-8 text-[13px]" />}
@@ -116,7 +116,7 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
               </li>
             ))}
           </ul>
-          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { id: idFor("question", new Set(fields.map((x) => x.id ?? "")), fields.length), label: "New question", type: "text" }] })}><Plus className="h-3.5 w-3.5" />Add field</Button>
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setF({ ...f, fields: [...fields, { id: idFor("question", new Set(fields.map((x) => x.id ?? "")), fields.length), label: "New question", type: "text" }] })}><IconPlus className="h-3.5 w-3.5" />Add field</Button>
           {problem && <p role="alert" className="mt-2 text-[12.5px] text-bad" data-testid="logic-problem">{problem.message}</p>}
         </div>
         {f.target === "task" && <RoutingEditor fields={fields} routes={f.routing ?? []} onChange={(routing) => setF({ ...f, routing })} projects={projects.data ?? []} people={(people.data ?? []).map((p) => ({ id: p.id, name: isAgentLike(p) ? `${p.name} (agent)` : p.name }))} />}

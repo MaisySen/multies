@@ -1,13 +1,14 @@
+import type { ReactElement } from "react";
 import { renderToStaticMarkup, renderToString } from "react-dom/server";
 import { MemoryRouter, Route, Routes } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MarketingLayout } from "./layouts/marketing";
 import { Landing } from "./pages/landing";
 import { AuthLayout } from "./layouts/auth";
-import { LoginPage } from "./pages/auth";
+import { ForgotPasswordPage, LoginPage, SignupPage } from "./pages/auth";
 import { authProvidersQuery } from "./lib/auth-providers";
 import { qk } from "./lib/queries";
-import type { LoginVariant } from "../shared/prerender-shell";
+import { AUTH_CARD_ROUTES, type AuthCardPage, type LoginVariant } from "../shared/prerender-shell";
 
 /**
  * R30: the landing page rendered to HTML at build time (scripts/prerender-landing.ts), so a phone sees
@@ -37,15 +38,48 @@ export function renderLanding(): string {
  * card over the HTML in one step: nothing moves, and the card is on screen before any JS has run.
  */
 export function renderLoginCard(v: LoginVariant): string {
+  return renderAuthCard("login", v);
+}
+
+/** R35: the password form pages read setup the build cannot know (forgot password reads whether mail delivery is
+ * connected), so they are prerendered only where the identity provider owns passwords. */
+export function prerendersAuthCard(page: AuthCardPage, v: LoginVariant): boolean {
+  return page !== "forgot" || (v.idp && !v.password);
+}
+
+const AUTH_CARD_ELEMENTS: Record<AuthCardPage, () => ReactElement> = {
+  login: () => <LoginPage />,
+  signup: () => <SignupPage />,
+  forgot: () => <ForgotPasswordPage />,
+};
+
+/**
+ * R35: the card in the HTML is a picture of the form until the app takes over (about a second on a slow phone):
+ * React draws its own form over it, so anything typed into the HTML form would be lost, and a native submit would
+ * put the fields in the URL. So its fields are read only and its submit button submits nothing; links stay live.
+ */
+export function inertFormFields(markup: string): string {
+  return markup
+    .replace(/<input(?![^>]*\breadonly)(?![^>]*type="(?:hidden|checkbox|radio)")/g, '<input readonly=""')
+    .replace(/<button type="submit"/g, '<button type="button" data-prerender-submit=""');
+}
+
+/** R35: the same card for sign up and forgot password, so those pages paint from the HTML too. */
+export function renderAuthCard(page: AuthCardPage, v: LoginVariant): string {
+  return inertFormFields(renderAuthMarkup(page, v));
+}
+
+function renderAuthMarkup(page: AuthCardPage, v: LoginVariant): string {
+  const path = AUTH_CARD_ROUTES[page];
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, enabled: false, staleTime: Infinity } } });
   queryClient.setQueryData(authProvidersQuery.queryKey, { idp: v.idp, password: v.password, google: v.google, github: v.github });
   queryClient.setQueryData(qk.config, { demoEnabled: v.demo });
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/login"]}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<AuthLayout />}>
-            <Route path="/login" element={<LoginPage />} />
+            <Route path={path} element={AUTH_CARD_ELEMENTS[page]()} />
           </Route>
         </Routes>
       </MemoryRouter>
