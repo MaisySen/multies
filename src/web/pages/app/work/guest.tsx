@@ -155,10 +155,10 @@ export function GuestProjectPage() {
       </header>
       <div className="mx-auto max-w-5xl px-4 py-6">
         <p className="mb-1 text-[13px] font-semibold text-brand-hover sm:hidden">Guest of {h.workspace.name}</p>
-        <div className="mb-2 flex items-center gap-2.5">
-          <span className="h-3.5 w-3.5 rounded" style={{ background: tone(h.project.color) }} aria-hidden />
-          <h1 className="large-title min-w-0 truncate" data-testid="guest-project">{h.project.name}</h1>
-          <span className="rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted">{h.project.key}</span>
+        <div className="mb-2 flex items-start gap-2.5">
+          <span className="mt-[0.55em] h-3.5 w-3.5 shrink-0 rounded" style={{ background: tone(h.project.color) }} aria-hidden />
+          <h1 className="large-title min-w-0 [overflow-wrap:anywhere]" data-testid="guest-project">{h.project.name}</h1>
+          <span className="mt-[0.6em] shrink-0 rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted">{h.project.key}</span>
         </div>
         <p className="mb-4 text-[13.5px] text-muted">You can see this project's tasks, comments and docs, comment, and upload files.</p>
         {top.length > 0 && (

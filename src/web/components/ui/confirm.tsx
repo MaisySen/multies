@@ -23,7 +23,7 @@ export function PromptDialog({ open, onClose, onSubmit, title, description, labe
   };
   return (
     <Dialog open={open} onClose={onClose} title={title} description={description}>
-      <form onSubmit={submit} className="space-y-5">
+      <form onSubmit={submit} className="space-y-5 text-left">
         <Field label={label} hint={hint} error={error ?? undefined}>
           {(p) => multiline
             ? <Textarea {...p} autoFocus rows={3} value={value} placeholder={placeholder} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(e); }} />
