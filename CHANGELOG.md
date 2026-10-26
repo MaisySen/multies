@@ -17,6 +17,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Offline: your last copy of My Work, task lists, projects and the first page of each mail folder opens offline, with "Showing your last copy from 10:42". Copies are per user and wiped on sign-out. A browser notification for the page you already have open is skipped and that page refreshes; notifications older than 6 hours are dropped.
 - Docs: images keep their shape while loading (no layout shift). Developer docs are also served as Markdown at `/docs/api.md` and `/docs/mcp.md`, linked from `/llms.txt`.
 - Look and feel: the operator console, invite, guest, team, integrations and sign-in screens got a premium pass: stat tiles, themed dialogs instead of browser prompts and confirms, two-tap confirm for revoke, remove and disconnect, 44 px tap targets on phones, larger headings.
+- Member screens on phones: My Work, tasks, chat, docs and notifications fit a 390 px screen without spilling or wrapping into extra rows, tap targets are at least 44 px, notification Done, Snooze and Read are reachable without hover, inputs no longer zoom on iPhone, the mail folder picker is styled, and rows move with short transitions that respect Reduce Motion.
 - Testing: `npm run test:e2e:staging-readonly` (404, favicon set, robots, sitemap) for a remote pass that writes nothing.
 
 ### Round 32: bulk mail, live chat, waiting room, triage queue, offline and web push, D1 write meter (26 Oct 2026)
