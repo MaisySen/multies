@@ -17,9 +17,10 @@ export default function FreeAddress() {
   const [local, setLocal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [taken, setTaken] = useState<string | null>(null);
-  const typed = cleanLocalPart(local ?? info.data?.suggestion ?? "");
+  const offer = info.data && info.data.enabled ? info.data : null;
+  const typed = cleanLocalPart(local ?? offer?.suggestion ?? "");
   // R26: the server says whether the name is free while the person types (reads only).
-  const check = useFreeAddressCheck(typed, !!info.data?.available && !info.data?.addresses?.length && !taken && !localPartProblem(typed));
+  const check = useFreeAddressCheck(typed, !!offer?.available && !offer.addresses.length && !taken && !localPartProblem(typed));
 
   if (info.isPending) return <Loading rows={3} />;
   if (info.error) return <EmptyState icon="alert-circle" title="Couldn't load free addresses" body={info.error.message} action={<Button label="Try again" variant="secondary" onPress={() => info.refetch()} />} />;
