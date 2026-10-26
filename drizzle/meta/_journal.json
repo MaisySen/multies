@@ -477,13 +477,6 @@
       "when": 1793000072000,
       "tag": "0072_r32_partial_indexes",
       "breakpoints": true
-    },
-    {
-      "idx": 74,
-      "version": "6",
-      "when": 1793000074000,
-      "tag": "0074_r33_mail_bulk_jobs",
-      "breakpoints": true
     }
   ]
 }
