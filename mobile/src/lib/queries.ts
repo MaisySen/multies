@@ -7,6 +7,24 @@ import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
 import type { ConnectInput } from "./mail-connect";
 import { pendingTask } from "./pending";
+import { ApiError } from "@/api/errors";
+import { commandQueue, type NewCommand } from "./command-queue";
+import { setOffline } from "./offline";
+
+/** R33: what a mutation answers when its call went into the offline command queue. */
+export const QUEUED = "queued" as const;
+
+/** Runs a call; when there is no connection and the queue exists, saves it as a command instead. */
+export async function offlineOr<T>(call: () => Promise<T>, command: NewCommand): Promise<T | typeof QUEUED> {
+  try { return await call(); }
+  catch (err) {
+    const q = commandQueue();
+    if (!(err instanceof ApiError && err.isNetwork) || !q) throw err;
+    setOffline(true);
+    await q.enqueue(command);
+    return QUEUED;
+  }
+}
 import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
@@ -116,12 +134,15 @@ export function useMessageAction() {
   const { api } = useSession();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: string; action: "archive" | "inbox" | "star" | "unstar" | "read" | "unread" | "trash" }) => {
-      if (v.action === "trash") return api.trash(v.id);
-      const patch = v.action === "archive" || v.action === "inbox" ? { folder: v.action } : v.action === "star" || v.action === "unstar" ? { isStarred: v.action === "star" } : { isRead: v.action === "read" };
-      return api.updateMessage(v.id, patch);
+    mutationFn: async (v: { id: string; action: "archive" | "inbox" | "star" | "unstar" | "read" | "unread" | "trash" }): Promise<unknown> => {
+      // R33: with no connection the action waits in the command queue and runs when it is back.
+      return offlineOr(() => {
+        if (v.action === "trash") return api.trash(v.id);
+        const patch = v.action === "archive" || v.action === "inbox" ? { folder: v.action } : v.action === "star" || v.action === "unstar" ? { isStarred: v.action === "star" } : { isRead: v.action === "read" };
+        return api.updateMessage(v.id, patch);
+      }, { kind: "mail.action", messageId: v.id, action: v.action });
     },
-    onSettled: () => { qc.invalidateQueries({ queryKey: ["messages"] }); qc.invalidateQueries({ queryKey: ["thread"] }); },
+    onSettled: (r) => { if (r === QUEUED) return; qc.invalidateQueries({ queryKey: ["messages"] }); qc.invalidateQueries({ queryKey: ["thread"] }); },
   });
 }
 
@@ -180,16 +201,21 @@ export function useTaskMutations() {
   return {
     // R33: the new task shows at once with a pending tint, and goes away again if the save fails.
     create: useMutation({
-      mutationFn: (v: TaskCreate) => api.createTask(v).then((r) => r.task),
+      mutationFn: async (v: TaskCreate & { tempId?: string }): Promise<Task | typeof QUEUED> => {
+        const { tempId: temp, ...input } = v;
+        return offlineOr(() => api.createTask(input).then((r) => r.task), { kind: "task.create", tempId: temp ?? "", input });
+      },
       onMutate: async (v) => {
         await qc.cancelQueries({ queryKey: keys.tasks });
         const lists = qc.getQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks });
         const temp = pendingTask(v);
+        v.tempId = temp.id; // the queued command carries the same temp id as the row on screen
         qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: [temp, ...d.tasks] });
         return { lists, tempId: temp.id };
       },
       onError: (_e, _v, ctx) => { ctx?.lists.forEach(([k, d]) => qc.setQueryData(k, d)); },
       onSuccess: (t, _v, ctx) => {
+        if (t === QUEUED) return; // waits offline with its Saving tint
         qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: d.tasks.map((x) => (x.id === ctx?.tempId ? t : x)) });
         qc.setQueryData(keys.task(t.id), undefined);
         refresh();
@@ -197,7 +223,8 @@ export function useTaskMutations() {
     }),
     fromEmail: useMutation({ mutationFn: (v: { messageId?: string; threadId?: string }) => api.taskFromEmail(v).then((r) => r.task), onSuccess: () => refresh() }),
     update: useMutation({
-      mutationFn: (v: { id: string; patch: TaskPatch }) => api.updateTask(v.id, v.patch).then((r) => r.task),
+      mutationFn: (v: { id: string; patch: TaskPatch }): Promise<Task | typeof QUEUED> =>
+        offlineOr(() => api.updateTask(v.id, v.patch).then((r) => r.task), { kind: "task.update", taskId: v.id, patch: v.patch }),
       // Show the change at once; the server's copy replaces it, or the old one comes back on error.
       onMutate: async (v) => {
         await qc.cancelQueries({ queryKey: keys.tasks });
@@ -211,10 +238,17 @@ export function useTaskMutations() {
         ctx?.lists.forEach(([k, d]) => qc.setQueryData(k, d));
         if (ctx?.detail) qc.setQueryData(keys.task(v.id), ctx.detail);
       },
-      onSuccess: (t) => put(t),
-      onSettled: (_t, _e, v) => refresh(v.id),
+      onSuccess: (t) => { if (t !== QUEUED) put(t); },
+      onSettled: (t, _e, v) => { if (t !== QUEUED) refresh(v.id); },
     }),
-    remove: useMutation({ mutationFn: (id: string) => api.deleteTask(id), onSuccess: (_r, id) => { qc.removeQueries({ queryKey: keys.task(id) }); refresh(); } }),
+    remove: useMutation({
+      mutationFn: (id: string) => offlineOr<unknown>(() => api.deleteTask(id), { kind: "task.delete", taskId: id }),
+      onSuccess: (r, id) => {
+        qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: d.tasks.filter((x) => x.id !== id) });
+        qc.removeQueries({ queryKey: keys.task(id) });
+        if (r !== QUEUED) refresh();
+      },
+    }),
     comment: useMutation({ mutationFn: (v: { id: string; body: string }) => api.addComment(v.id, v.body), onSuccess: (_r, v) => refresh(v.id) }),
   };
 }

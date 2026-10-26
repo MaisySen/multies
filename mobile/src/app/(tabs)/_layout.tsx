@@ -4,6 +4,7 @@ import { Tabs } from "expo-router";
 import { Icon } from "@/components/ui";
 import { useApprovals, useChatUnread, useNotificationCount, useOverview } from "@/lib/queries";
 import { CommandSheet } from "@/components/command-sheet";
+import { SyncPill, useCommandQueueRunner } from "@/components/sync-pill";
 import { openCommandSheet } from "@/lib/command-sheet-store";
 import { tick } from "@/lib/haptics";
 import { notifyApprovals } from "@/lib/push";
@@ -20,6 +21,8 @@ export default function TabsLayout() {
   const chatMentions = chat.data?.mentions ?? 0;
   // R31: unread items in the Activity (triage) inbox.
   const activity = useNotificationCount().data ?? 0;
+  // R33: offline edits wait in a command queue and sync when the connection is back.
+  useCommandQueueRunner();
 
   // A local alert when a new approval arrives while the app is in the background but still alive.
   const seen = useRef<Set<string> | null>(null);
@@ -55,6 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color }) => <Icon name="check-square" color={color as string} /> }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: ({ color }) => <Icon name="settings" color={color as string} /> }} />
     </Tabs>
+    <SyncPill />
     <CommandSheet />
     </>
   );

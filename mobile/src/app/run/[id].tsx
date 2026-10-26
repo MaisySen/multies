@@ -7,6 +7,7 @@ import { useCancelRun } from "@/lib/triage-queries";
 import { command, createHandlers } from "@/lib/commands";
 import { success } from "@/lib/haptics";
 import { useOffline } from "@/lib/offline";
+import { blockOffline } from "@/lib/command-queue";
 import { useNow } from "@/lib/time";
 import { durationLabel, isActive, stepKind } from "@/lib/runs";
 import { longDate, shortDate } from "@/lib/format";
@@ -25,7 +26,7 @@ export default function RunDetail() {
   const cancelTitle = command("run-cancel").title;
   const handlers = createHandlers({
     navigate: (href) => router.push(href as never), openWeb: () => {},
-    cancelRun: (runId) => Alert.alert("Cancel this run?", "The agent stops at its next step. What it already did stays.", [
+    cancelRun: (runId) => blockOffline(offline) ? undefined : Alert.alert("Cancel this run?", "The agent stops at its next step. What it already did stays.", [
       { text: "Keep running", style: "cancel" },
       { text: cancelTitle, style: "destructive", onPress: () => cancel.mutate(runId, {
         onSuccess: () => success(),

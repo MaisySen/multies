@@ -1,4 +1,6 @@
 import { Alert, Platform, Text, View } from "react-native";
+import { useOffline } from "@/lib/offline";
+import { blockOffline } from "@/lib/command-queue";
 import { Badge, Button, Card } from "@/components/ui";
 import { useCreateMeeting } from "@/lib/queries";
 import { copyGuestLink, isLive, meetingWhen, openMeeting } from "@/lib/meetings";
@@ -13,7 +15,9 @@ function say(title: string, body?: string) {
 /** Starts a meeting now, linked to this task, thread or contact, and opens it. */
 export function StartMeetingButton({ source, title, testID = "start-meeting" }: { source?: MeetingSource; title?: string; testID?: string }) {
   const create = useCreateMeeting();
+  const offline = useOffline();
   const start = async () => {
+    if (blockOffline(offline)) return; // R33: a meeting needs the server
     try {
       const m = await create.mutateAsync({ source, title });
       await openMeeting(m.joinUrl);

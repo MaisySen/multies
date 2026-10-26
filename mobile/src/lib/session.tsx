@@ -56,7 +56,7 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
     await secureStorage.remove(JAR_KEY).catch(() => {});
     await secureStorage.remove(MODE_KEY).catch(() => {});
     // Nothing from one account stays on the phone for the next one.
-    for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:", LEGACY_KEY]) await kv().clear(prefix).catch(() => {});
+    for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:", "queue:", LEGACY_KEY]) await kv().clear(prefix).catch(() => {});
     setMe(null);
   }, []);
 
