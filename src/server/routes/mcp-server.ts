@@ -509,12 +509,12 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
 
   server.registerTool("set_task_blocked_by", {
     title: "Set a task as blocked by another", annotations: rw,
-    description: "Record that taskId can't start or finish until blockedBy is done (both ids or references). lagDays (optional, whole days -365 to 365) sets a wait after the blocker ends, or a lead when negative (the task may start that many days early); call again with a new lagDays to change it on an existing link. Pass remove: true to take the dependency off. Returns what blocks the task and what it blocks, each with lagDays.",
-    inputSchema: { taskId: z.string(), blockedBy: z.string(), remove: z.boolean().optional(), lagDays: z.number().int().min(-365).max(365).optional() },
-  }, tool(async (x: { taskId: string; blockedBy: string; remove?: boolean; lagDays?: number }) => {
+    description: "Record that taskId can't start or finish until blockedBy is done (both ids or references). Pass remove: true to take the dependency off. Returns what blocks the task and what it blocks.",
+    inputSchema: { taskId: z.string(), blockedBy: z.string(), remove: z.boolean().optional() },
+  }, tool(async (x: { taskId: string; blockedBy: string; remove?: boolean }) => {
     writable();
-    const d = x.remove ? await removeDependency(deps, a, x.taskId, x.blockedBy) : await addDependency(deps, a, x.taskId, x.blockedBy, x.lagDays);
-    return { blocked: d.blocked, blockedBy: d.blockedBy.map((t) => ({ ref: t.ref, title: t.title, status: t.status, lagDays: t.lagDays })), blocking: d.blocking.map((t) => ({ ref: t.ref, title: t.title, status: t.status, lagDays: t.lagDays })) };
+    const d = x.remove ? await removeDependency(deps, a, x.taskId, x.blockedBy) : await addDependency(deps, a, x.taskId, x.blockedBy);
+    return { blocked: d.blocked, blockedBy: d.blockedBy.map((t) => ({ ref: t.ref, title: t.title, status: t.status })), blocking: d.blocking.map((t) => ({ ref: t.ref, title: t.title, status: t.status })) };
   }));
 
   server.registerTool("list_forms", {

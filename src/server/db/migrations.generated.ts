@@ -790,12 +790,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- user_blocks: A (blocker) blocked B (blocked), across every workspace they share.\nCREATE TABLE `user_blocks` (\n\t`blocker_user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`blocked_user_id` text NOT NULL REFERENCES `users`(`id`) ON DELETE cascade,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`blocker_user_id`, `blocked_user_id`)\n);",
       "CREATE INDEX `user_blocks_blocked_idx` ON `user_blocks` (`blocked_user_id`);"
     ]
-  },
-  {
-    "name": "0079_r38_dependency_lag",
-    "statements": [
-      "-- R38 (dependencies round 2): lead and lag per \"blocks\" link, and per project schedule rules.\n-- entity_links.lag_days: whole days on a task dependency link. Positive is a wait after the blocker ends (lag),\n-- negative lets the blocked task start that many days before (lead). 0 for every existing row.\nALTER TABLE `entity_links` ADD `lag_days` integer DEFAULT 0 NOT NULL;",
-      "-- board_settings.schedule: JSON { workingDaysOnly, daysOff: [0..6], strict } for the project's timeline.\n-- '{}' means the defaults (calendar days, flexible moves). One upsert per change (essential: a person saved it).\nALTER TABLE `board_settings` ADD `schedule` text DEFAULT '{}' NOT NULL;"
-    ]
   }
 ];

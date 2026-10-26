@@ -808,9 +808,9 @@ async function tasksByIds(deps: Deps, orgId: string, ids: string[]) {
   return rows.map((r) => presentTask(r, l));
 }
 
-/** Every "blocks" link in the workspace (or one project): { from: blocker, to: blocked, lag } (R38: lag in days, negative = lead). */
+/** Every "blocks" link in the workspace (or one project): { from: blocker, to: blocked }. */
 export async function dependencyLinks(deps: Deps, orgId: string, projectId?: string) {
-  const rows = await deps.db.select({ from: entityLinks.fromId, to: entityLinks.toId, lag: entityLinks.lagDays }).from(entityLinks)
+  const rows = await deps.db.select({ from: entityLinks.fromId, to: entityLinks.toId }).from(entityLinks)
     .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "task"), eq(entityLinks.toType, "task"), eq(entityLinks.relation, "blocks"))).limit(5000);
   if (!projectId || !rows.length) return rows;
   const ids = [...new Set(rows.flatMap((r) => [r.from, r.to]))];
@@ -821,15 +821,10 @@ export async function dependencyLinks(deps: Deps, orgId: string, projectId?: str
 export async function dependenciesOf(deps: Deps, orgId: string, taskId: string) {
   await taskRow(deps, orgId, taskId); // 404 for another workspace's task
   const all = await dependencyLinks(deps, orgId);
-  const [bb, bl] = await Promise.all([
+  const [blockedBy, blocking] = await Promise.all([
     tasksByIds(deps, orgId, all.filter((l) => l.to === taskId).map((l) => l.from)),
     tasksByIds(deps, orgId, all.filter((l) => l.from === taskId).map((l) => l.to)),
   ]);
-  // R38: each row carries the link's lead or lag in days.
-  const lagIn = new Map(all.filter((l) => l.to === taskId).map((l) => [l.from, l.lag ?? 0]));
-  const lagOut = new Map(all.filter((l) => l.from === taskId).map((l) => [l.to, l.lag ?? 0]));
-  const blockedBy = bb.map((t) => ({ ...t, lagDays: lagIn.get(t.id) ?? 0 }));
-  const blocking = bl.map((t) => ({ ...t, lagDays: lagOut.get(t.id) ?? 0 }));
   return { blockedBy, blocking, blocked: blockedBy.some((t) => t.status !== "done") };
 }
 
@@ -850,41 +845,13 @@ export function wouldLoop(links: { from: string; to: string }[], blocker: string
   return false;
 }
 
-/** R38: lead (negative) or lag (positive) on one link, whole days, at most a year either way. */
-export function checkLagDays(n: unknown): number {
-  if (typeof n !== "number" || !Number.isInteger(n) || n < -365 || n > 365) throw new HttpError(422, "validation_failed", "lagDays is a whole number of days from -365 to 365.");
-  return n;
-}
-
-/** R38: set the lead or lag on an existing "blocks" link. One update (essential write: a person changed the plan). */
-export async function setDependencyLag(deps: Deps, actor: SuiteActor, taskIdOrRef: string, blockedByIdOrRef: string, lagDays: number) {
+/** `taskId` is blocked by `blockedById` (which is then "blocking" it). */
+export async function addDependency(deps: Deps, actor: SuiteActor, taskIdOrRef: string, blockedByIdOrRef: string) {
   assertWritable(actor);
-  const lag = checkLagDays(lagDays);
-  const blocked = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, taskIdOrRef));
-  const blocker = await resolveTaskId(deps, actor.orgId, blockedByIdOrRef);
-  const where = and(eq(entityLinks.orgId, actor.orgId), eq(entityLinks.fromType, "task"), eq(entityLinks.fromId, blocker), eq(entityLinks.toType, "task"), eq(entityLinks.toId, blocked.id), eq(entityLinks.relation, "blocks"));
-  const found = await deps.db.select({ lag: entityLinks.lagDays }).from(entityLinks).where(where).get();
-  if (!found) throw new HttpError(404, "not_found", "That task is not blocked by that task.");
-  if (found.lag !== lag) {
-    await deps.db.update(entityLinks).set({ lagDays: lag }).where(where);
-    await recordWrite(deps, actor, { entityType: "task", entityId: blocked.id, op: "update", version: blocked.version, verb: "task.dependency_lag", data: { taskId: blocker, lagDays: lag },
-      event: "task.updated", eventData: { id: blocked.id, change: "dependency_lag", blockedBy: blocker, lagDays: lag } });
-  }
-  return dependenciesOf(deps, actor.orgId, blocked.id);
-}
-
-/** `taskId` is blocked by `blockedById` (which is then "blocking" it). R38: optional lagDays on the link. */
-export async function addDependency(deps: Deps, actor: SuiteActor, taskIdOrRef: string, blockedByIdOrRef: string, lagDays?: number | null) {
-  assertWritable(actor);
-  if (lagDays !== undefined && lagDays !== null) checkLagDays(lagDays);
   const blocked = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, taskIdOrRef));
   const blocker = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, blockedByIdOrRef));
   if (wouldLoop(await dependencyLinks(deps, actor.orgId), blocker.id, blocked.id)) throw new HttpError(422, "dependency_loop", "That would make the tasks wait on each other in a loop.");
   await link(deps, actor.orgId, { type: "task", id: blocker.id }, { type: "task", id: blocked.id }, "blocks");
-  if (lagDays !== undefined && lagDays !== null) {
-    // Essential write: the lead or lag the person set with the link (same row, one update).
-    await deps.db.update(entityLinks).set({ lagDays: checkLagDays(lagDays) }).where(and(eq(entityLinks.orgId, actor.orgId), eq(entityLinks.fromType, "task"), eq(entityLinks.fromId, blocker.id), eq(entityLinks.toType, "task"), eq(entityLinks.toId, blocked.id)));
-  }
   await recordWrite(deps, actor, { entityType: "task", entityId: blocked.id, op: "update", version: blocked.version, verb: "task.blocked_by", data: { taskId: blocker.id, title: blocker.title },
     event: "task.updated", eventData: { id: blocked.id, change: "dependency_added", blockedBy: blocker.id } });
   return dependenciesOf(deps, actor.orgId, blocked.id);
