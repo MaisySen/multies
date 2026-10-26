@@ -13,7 +13,8 @@ your shell, never write them into the repo.
 - [ ] `main` has every commit you mean to ship, and the checks in [../sdlc.md](../sdlc.md) pass on it.
 - [ ] A schema change has a backward compatible migration (`npm run db:generate`).
 - [ ] New environment variables are in `.env.example` and `wrangler.toml`, or set with `wrangler secret put` for staging and production.
-- [ ] A production migration: take a manual D1 export first ([db-backup-restore.md](db-backup-restore.md)).
+- [ ] A production migration: take a manual D1 export first, except in Sydney business hours (21:00 to 07:00 UTC), when no export runs on production; then record the Time Travel bookmark (`npx wrangler d1 time-travel info mymail-au`) in the deploy log instead ([db-backup-restore.md](db-backup-restore.md)).
+- [ ] Email worker: deploy `email-worker/` only from a checkout whose `MYMAIL_ROUTES` carries the current inbound key ids. An old key id makes support@ and security@ bounce. After any email worker deploy or key rotation, send a test mail to security@multies.si and check that it arrives.
 
 ## 1. Build from a clean checkout
 
