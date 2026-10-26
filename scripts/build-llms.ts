@@ -21,6 +21,8 @@ export const MD_RULE = "Each developer docs page is also available as Markdown a
 export const LINKS = [
   { title: "OpenAPI spec (JSON)", path: "/api/v1/openapi.json", note: "Machine readable description of the REST API." },
   { title: "Full developer docs", path: "/llms-full.txt", note: "The REST API and MCP docs in one Markdown file." },
+  { title: "MCP tools", path: "/developers/mcp", note: "Every MCP tool with the API key scope it needs, its parameters and an example call. Generated from the server." },
+  { title: "MCP tools (Markdown)", path: "/developers/mcp.md", note: "The same tool list as Markdown, generated from the server at request time." },
   { title: "Security contact", path: "/.well-known/security.txt", note: "How to report a security issue." },
   { title: "Multies", path: "/", note: "Mail on your own domain, tasks, chat, docs, forms, meetings and agents in one app." },
 ];

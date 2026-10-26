@@ -59,8 +59,7 @@ export function CopyButton({ value, label = "Copy", className }: { value: string
 }
 
 export function Kbd({ children }: { children: ReactNode }) {
-  // R36: native looking key cap (.keycap in index.css).
-  return <kbd className="keycap">{children}</kbd>;
+  return <kbd className="inline-flex h-5 min-w-5 items-center justify-center rounded border border-line-strong bg-elevated px-1 font-sans text-[10.5px] text-muted">{children}</kbd>;
 }
 
 export function Avatar({ label, className }: { label: string; className?: string }) {

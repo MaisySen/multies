@@ -10,7 +10,9 @@ import type { AppEnv } from "../context";
 import { DOCS_MD, LLMS_FULL_TXT, LLMS_TXT } from "../generated/llms.generated";
 
 // R33: plus a Markdown copy of each docs page (/docs/api.md, /docs/mcp.md), generated with llms.txt.
-export const WEB_META_PATHS = new Set(["/version.json", "/llms.txt", "/llms-full.txt", ...Object.keys(DOCS_MD)]);
+/** R36: the MCP tool catalog as Markdown, generated at run time from the server (services/developer/mcp-catalog.ts). */
+export const MCP_TOOLS_MD_PATH = "/developers/mcp.md";
+export const WEB_META_PATHS = new Set(["/version.json", "/llms.txt", "/llms-full.txt", MCP_TOOLS_MD_PATH, ...Object.keys(DOCS_MD)]);
 
 export function versionPayload(release: string, criticalRelease: string | undefined) {
   return { release, critical: !!criticalRelease && criticalRelease === release };

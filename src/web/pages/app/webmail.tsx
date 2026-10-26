@@ -1,5 +1,4 @@
-import { InboxZeroArt, MailFolderArt, NoSearchResultsArt } from "@/web/components/illustrations";
-import { folderEmpty } from "@/web/lib/empty-copy-r36"; // R36
+import { InboxZeroArt } from "@/web/components/illustrations";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -456,9 +455,8 @@ export function WebmailPage() {
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
-              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : folderEmpty(folder).title}
-                body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
-                action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">Back to Inbox</ButtonLink> : undefined} />
+              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={!q && folder === "inbox" ? <InboxZeroArt /> : undefined} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : "Nothing here"}
+                body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : "Messages you move here will show up in this folder."} />
             ) : (
               <ul>
                 {items.map((m) => <ListRow key={m.id} m={m} active={m.id === selected} folder={folder}

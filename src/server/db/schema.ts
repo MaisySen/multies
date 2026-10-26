@@ -430,8 +430,8 @@ export const apiKeys = sqliteTable("api_keys", {
   /** Shown in lists so people can tell keys apart, e.g. `mm_live_3kf9`. */
   prefix: text("prefix").notNull(),
   keyHash: text("key_hash").notNull(),
-  /** `full` or `read`. */
-  scope: text("scope", { enum: ["full", "read"] }).notNull().default("full"),
+  /** `full`, `read`, or (R36) a space separated list of per area scopes (src/server/lib/api-scopes.ts). */
+  scope: text("scope").notNull().default("full"),
   /** An agent key acts only as this agent: its own inbox and the mailboxes it was given. */
   agentId: text("agent_id"),
   lastUsedAt: ts("last_used_at"),

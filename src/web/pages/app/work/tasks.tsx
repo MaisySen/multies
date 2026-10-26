@@ -6,7 +6,6 @@ import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown,
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
-import { CalendarSkeleton, PanelListSkeleton, TimelineSkeleton } from "@/web/components/skeletons-r36"; // R36
 import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -288,13 +287,13 @@ export function TasksPage() {
               ? update.mutate({ id, patch: { position, fields: { [groupField.id]: col === NO_VALUE ? null : col } } })
               : update.mutate({ id, patch: { statusId: col, position, status: project.statuses.find((s) => s.id === col)?.category, statusName: project.statuses.find((s) => s.id === col)?.name } })} />
         ) : view === "workload" ? (
-          <Suspense fallback={<PanelListSkeleton label="Loading workload" />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
+          <Suspense fallback={<Skeleton className="h-64" />}><WorkloadView projectId={projectId || undefined} onOpen={open} /></Suspense>
         ) : view === "sprints" && project ? (
-          <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
+          <Suspense fallback={<Skeleton className="h-64" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
           <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
         ) : (
-          <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
+          <Suspense fallback={<Skeleton className="h-96" />}>
             {view === "calendar"
               ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
               : <TaskTimeline tasks={tasks.data ?? []} links={deps.data ?? []} onLink={(a, b) => void addLink(a, b)} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}

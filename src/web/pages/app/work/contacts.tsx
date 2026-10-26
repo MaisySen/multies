@@ -13,7 +13,6 @@ import { Avatar, Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/com
 import { initials, mailDate, shortDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import type { Contact, Task } from "./data";
-import { NoContactsArt, NoSearchResultsArt } from "@/web/components/illustrations"; // R36
 
 interface Company { id: string; name: string; domain: string | null; contactCount: number; lastContactAt: string | null }
 interface ThreadRow { threadId: string; subject: string; lastAt: string; firstAt: string; count: number; lastDirection: "inbound" | "outbound"; snippet: string; messageId: string }
@@ -45,7 +44,7 @@ export function ContactsPage() {
       </div>
       {tab === "people" ? (
         people.isPending ? <Skeleton className="h-48" /> : !people.data?.contacts.length ? (
-          <EmptyState icon={<IconTeam />} art={q ? <NoSearchResultsArt /> : <NoContactsArt />} title={q ? "Nobody matches" : "No contacts yet"} body="When mail arrives or you send to someone outside your team, they show up here with their company." />
+          <EmptyState icon={<IconTeam />} title={q ? "Nobody matches" : "No contacts yet"} body="When mail arrives or you send to someone outside your team, they show up here with their company." />
         ) : (
           <Card className="divide-y divide-line overflow-hidden" data-testid="contact-list">
             {people.data.contacts.map((c) => (
@@ -64,7 +63,7 @@ export function ContactsPage() {
           </Card>
         )
       ) : companies.isPending ? <Skeleton className="h-48" /> : !companies.data?.length ? (
-        <EmptyState icon={<IconBuilding />} art={<NoContactsArt />} title="No companies yet" body="Companies come from your contacts' work email domains. Free mail like Gmail never makes a company." />
+        <EmptyState icon={<IconBuilding />} title="No companies yet" body="Companies come from your contacts' work email domains. Free mail like Gmail never makes a company." />
       ) : (
         <Card className="divide-y divide-line overflow-hidden">
           {companies.data.map((c) => (

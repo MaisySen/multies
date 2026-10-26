@@ -20,19 +20,18 @@ export function ShortcutsSheet({ open, onClose }: { open: boolean; onClose: () =
   // R31: read from the one command registry; the current page's keys come first.
   const groups = useMemo(() => groupShortcuts(filterShortcuts(sheetShortcuts(), q), groupForPath(pathname)), [q, pathname]);
   return (
-    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description={`Press ? anywhere to see this again. Keys shown for ${isMac ? "Mac" : "Windows and Linux"}.`} className="max-w-3xl">
+    <Dialog open={open} onClose={onClose} title="Keyboard shortcuts" description="Press ? anywhere to see this again." className="max-w-xl">
       <label className="flex items-center gap-2 rounded-lg border border-line bg-fill px-3">
         <IconSearch className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search shortcuts" aria-label="Search shortcuts"
           className="h-9 w-full bg-transparent text-[13.5px] text-fg outline-none placeholder:text-subtle" />
       </label>
-      {/* R36: two columns of grouped cards on wide screens (the leading tracker's sheet layout), one column on a phone. */}
-      <div className="mt-4 max-h-[min(64vh,560px)] gap-4 overflow-y-auto pr-1 md:columns-2 [&>section]:mb-4 [&>section]:break-inside-avoid" data-testid="shortcuts-sheet">
+      <div className="mt-4 max-h-[min(60vh,520px)] space-y-5 overflow-y-auto pr-1" data-testid="shortcuts-sheet">
         {groups.length === 0 && <p className="py-6 text-center text-sm text-muted">No shortcut matches “{q}”.</p>}
         {groups.map(({ group, items }) => (
           <section key={group} aria-label={group}>
-            <h3 className="mb-1.5 flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-wide text-subtle"><span>{group}</span><span className="font-normal normal-case tracking-normal">{items.length}</span></h3>
-            <ul className="divide-y divide-line rounded-xl border border-line bg-fill/40 px-3 elev-1">
+            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-subtle">{group}</h3>
+            <ul className="divide-y divide-line">
               {items.map((s) => (
                 <li key={s.id} className="flex items-center justify-between gap-3 py-2 text-[13.5px]" data-testid="shortcut-row">
                   <span className="text-fg">{s.label}</span>
