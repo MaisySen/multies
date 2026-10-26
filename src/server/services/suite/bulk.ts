@@ -308,6 +308,15 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
       for (const m of movedNow) { const task = outById.get(m.row.id); if (task) await runStatusAutomations(deps, actor.orgId, task, m.from); }
     }
   }
+  // R28: watchers hear about a bulk move the way they hear about a single one (not the person who made it).
+  if (movedNow.length && level !== "warn") {
+    const { notifyWatchersBulk } = await import("./task-watchers-bulk-r28");
+    const { memberOf } = await import("./task-watchers-r27");
+    const list = movedNow.map((m) => outById.get(m.row.id)).filter((t): t is NonNullable<typeof t> => !!t);
+    const names = new Set(list.map((t) => t.statusName));
+    await notifyWatchersBulk(deps, actor.orgId, list.map((t) => ({ taskId: t.id, title: `${t.ref} moved to ${t.statusName}: ${t.title}` })),
+      { actorName: actor.name || actor.email, statusName: names.size === 1 ? [...names][0] : null }, [memberOf(actor)]);
+  }
   // R24 polish: assignee_changed recipes for the tasks whose assignee changed, capped per request.
   let automationRuns: { runs: number; skipped: number } | undefined;
   if (assignee) {

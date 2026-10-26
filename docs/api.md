@@ -916,6 +916,13 @@ or as the assignee is told once. Commenting again after stopping starts watching
 answers 422 `invalid_member`. `q=is:watching` lists the tasks you watch. MCP: `list_task_watchers`, `watch_task`,
 `unwatch_task`.
 
+Since R28 a bulk status change (`POST /api/v1/tasks/bulk`, the web bulk bar, the bulk MCP tool) tells watchers the
+same way: one `task.watch_status` per watcher per task that moved, never the person who made the change (a workspace
+key counts as its creator), only current members, under their settings. Rows are written 9 to a statement in one
+batch; a phone push is one per watcher per bulk call. A call that would write more than 2,000 rows gives each watcher
+one summary row instead ("12 tasks you watch moved to Done"), and none are written while the daily write budget is at
+its warning level.
+
 ## Duplicate a task (R27)
 
 `POST /api/v1/tasks/{id}/duplicate` copies a task with a new number into the project's first to-do status. The copy
