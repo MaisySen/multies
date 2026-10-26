@@ -30,8 +30,7 @@ import { registerMailActions } from "@/web/lib/mail-actions"; // R31
 import type { ReadStatus } from "@/shared/mail-splits";
 import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
 import { Dialog } from "@/web/components/ui/dialog";
-import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
-import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
+import { bulkLabel, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
 type View = Folder | "starred" | "snoozed" | "scheduled" | `f:${string}`;
 const FOLDER_UI: { id: View; label: string; icon: typeof Inbox }[] = [
@@ -82,7 +81,7 @@ export function WebmailPage() {
     queryKey: ["mail", "list", mailboxId, folder, q, split],
     enabled: !!mailboxId && (!!q || !isScheduleView(folder)),
     initialPageParam: "",
-    queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null; asOf?: string }>(
+    queryFn: ({ pageParam }) => api.get<{ messages: MessageListItem[]; nextCursor: string | null }>(
       `/mail/messages?${new URLSearchParams({ mailboxId, ...(q ? { q } : folder.startsWith("f:") ? { remote: folder } : { folder }), ...(split ? { split } : {}), ...(pageParam ? { cursor: pageParam } : {}) })}`,
     ),
     getNextPageParam: (last) => last.nextCursor ?? undefined,
@@ -113,8 +112,7 @@ export function WebmailPage() {
       const labels: Record<string, string> = { archive: "Archived", trash: "Moved to trash", spam: "Marked as spam", inbox: "Moved to inbox", delete: "Deleted forever", move: v.to ? `Moved to ${v.to.slice(2)}` : "Moved" };
       if (labels[v.action]) toast.success(labels[v.action]);
     },
-    // R33: a bulk action (quiet) says it failed in its own toast, with Retry.
-    onError: (e, v, ctx) => { if (ctx?.before) qc.setQueryData(listKey, ctx.before); if (!v.quiet) showError(e); },
+    onError: (e, _v, ctx) => { if (ctx?.before) qc.setQueryData(listKey, ctx.before); showError(e); },
     onSettled: () => { void refresh(); },
   });
 
@@ -131,59 +129,28 @@ export function WebmailPage() {
   useEffect(() => { setSel((s) => prune(s, rowKey ? rowKey.split(",") : [])); }, [rowKey]);
   useEffect(() => { setSelectionCount(sel.ids.length); }, [sel.ids.length]);
   useEffect(() => () => setSelectionCount(0), []);
-  // R33: one toast per bulk action with Cancel, Undo, Undoing and Undone (mail/bulk-ops-r33.ts).
-  const ops = useBulkOps(UNDO_MS);
-  const runUndo = ops.undoLatest;
-  // R33: "select all" past what is loaded: every conversation in this folder or search, minus the unticked ones,
-  // runs as ONE server job. null when off; the array is the ids unticked after choosing it.
-  const [everything, setEverything] = useState<string[] | null>(null);
-  useEffect(() => { setEverything(null); }, [mailboxId, folder, q, split]);
-  useEffect(() => { if (!sel.ids.length) setEverything(null); }, [sel.ids.length]);
-  const jobScope = (): JobBody["scope"] | null => {
-    if (q) return { mailboxId, q };
-    if (folder.startsWith("f:")) return { mailboxId, remote: folder };
-    if (["inbox", "archive", "spam", "trash", "starred"].includes(folder)) return { mailboxId, folder, ...(split ? { split } : {}) };
-    return null;
-  };
-  const folderTotal = (): number | null => {
-    if (q || split || folder.startsWith("f:") || folder === "starred") return null;
-    const box = mailboxes.find((m) => m.id === mailboxId);
-    return box?.folders[folder as Folder]?.total ?? null;
-  };
-  const runJob = (action: JobBody["action"]) => {
-    const scope = jobScope();
-    const exclude = everything ?? [];
-    if (!scope) return;
-    // The ceiling is when the list on screen was read (server clock); mail that reached Multies after that is left
-    // alone. Older servers: the newest arrival among the loaded rows.
-    const seen = list.data?.pages[0]?.asOf ?? items.reduce((m, i) => (i.receivedAt && i.receivedAt > m ? i.receivedAt : m), "");
-    const body: JobBody = { client_job_id: newJobId(), action, scope, exclude_ids: exclude, max_received_at: seen || new Date().toISOString() };
-    const loaded = rowIds.filter((id) => !exclude.includes(id));
-    // Optimistic: the loaded rows change at once; the job does the rest on the server.
-    qc.setQueryData<MailListData>(listKey, (d) => applyMailAction(d, loaded, action as MailAction, folder, !!q));
-    const total = folderTotal();
-    setSel(emptySelection());
-    setEverything(null);
-    if (selected && loaded.includes(selected) && action !== folder && !["read", "unread", "star", "unstar"].includes(action)) open(null);
-    ops.run({ kind: "job", body, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, onSettled: () => { void refresh(); } }, { action, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length });
-  };
-  const JOB_ACTIONS = new Set(["read", "unread", "star", "unstar", "archive", "inbox", "spam", "trash"]);
+  const lastUndo = useRef<{ plan: BulkCall[]; until: number } | null>(null);
+  const runUndo = useCallback(() => {
+    const u = lastUndo.current;
+    lastUndo.current = null;
+    if (!u || Date.now() > u.until) return false;
+    for (const c of u.plan) act.mutate({ ...c, quiet: true });
+    toast.success("Undone");
+    return true;
+  }, [act]);
   const runBulk = (partial: Omit<BulkCall, "ids">, folderLabel?: string, confirmed = false) => {
-    if (everything && JOB_ACTIONS.has(partial.action)) { runJob(partial.action as JobBody["action"]); return; }
-    const ids = everything ? rowIds.filter((id) => !everything.includes(id)) : sel.ids;
+    const ids = sel.ids;
     if (!ids.length) return;
     const call: BulkCall = { ...partial, ids };
     if (call.action === "delete" && !confirmed) { setConfirmDelete(call); return; }
     const plan = undoPlan(call, items);
+    act.mutate({ ...call, quiet: true });
     setSel(emptySelection());
     if (selected && ids.includes(selected) && ["archive", "inbox", "spam", "trash", "delete", "move", "snooze"].includes(call.action) && call.action !== folder) open(null);
-    ops.run({ kind: "ids", call, plan, apply: (c) => act.mutateAsync({ ...c, quiet: true }), folderLabel }, { action: call.action, count: ids.length, folderLabel: call.action === "snooze" && call.preset ? SNOOZE_WORDS[call.preset] : folderLabel });
+    lastUndo.current = plan?.length ? { plan, until: Date.now() + UNDO_MS } : null;
+    toast.success(bulkLabel(call, folderLabel), plan?.length ? { duration: UNDO_MS, action: { label: "Undo", onClick: () => { runUndo(); } } } : undefined);
   };
-  const toggleRow = (id: string, shift: boolean) => {
-    // R33: with everything chosen, a click unticks (or ticks back) one row; the job leaves unticked rows alone.
-    if (everything) { setEverything(everything.includes(id) ? everything.filter((x) => x !== id) : [...everything, id]); return; }
-    setSel((s) => (shift ? selectRange(s, id, rowIds) : toggleOne(s, id, rowIds)));
-  };
+  const toggleRow = (id: string, shift: boolean) => setSel((s) => (shift ? selectRange(s, id, rowIds) : toggleOne(s, id, rowIds)));
   const latestSel = useRef({ sel, rowIds, current: null as MessageListItem | null, compose: !!compose, runUndo });
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -402,9 +369,8 @@ export function WebmailPage() {
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
-          {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={everything ? rowIds.length - everything.length : sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
-            snoozeOpen={snoozeOpen} setSnoozeOpen={setSnoozeOpen} onAct={(c, label) => runBulk(c, label)} onSelectAll={() => setSel(selectAll(rowIds))} onClear={() => setSel(emptySelection())}
-            more={list.hasNextPage && jobScope() ? everythingWords(everything, folderTotal(), q ? "" : FOLDER_UI.find((f) => f.id === folder)?.label ?? "", () => { setSel(selectAll(rowIds)); setEverything([]); }) : undefined} />}
+          {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
+            snoozeOpen={snoozeOpen} setSnoozeOpen={setSnoozeOpen} onAct={(c, label) => runBulk(c, label)} onSelectAll={() => setSel(selectAll(rowIds))} onClear={() => setSel(emptySelection())} />}
           {isScheduleView(folder) && !q ? <ScheduleListView view={folder} mailboxId={mailboxId} onOpen={open} onEdit={(it) => void editScheduled(it)} /> : <>
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
@@ -414,7 +380,7 @@ export function WebmailPage() {
             ) : (
               <ul>
                 {items.map((m) => <ListRow key={m.id} m={m} active={m.id === selected} folder={folder}
-                  checked={everything ? !everything.includes(m.id) : sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
+                  checked={sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
                   onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })} />)}
               </ul>
@@ -678,16 +644,4 @@ function IconBtn({ label, onClick, children, active }: { label: string; onClick:
       {children}
     </button>
   );
-}
-
-/** R33: the words of the "select everything" link in the selection bar, before and after choosing it (short: the bar is narrow). */
-function everythingWords(chosen: string[] | null, total: number | null, where: string, onAll: () => void) {
-  const left = total !== null ? Math.max(0, total - (chosen?.length ?? 0)) : null;
-  const n = (x: number) => x.toLocaleString("en-US");
-  return {
-    all: !!chosen,
-    offer: total !== null ? `Select all ${n(total)}` : where ? `Select all in ${where}` : "Select all matches",
-    chosen: left !== null ? `All ${n(left)} selected` : "All selected",
-    onAll,
-  };
 }
