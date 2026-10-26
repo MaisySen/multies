@@ -8,13 +8,21 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addWidget, CHARTS, createDashboard, dashboardData, GROUP_BYS, listDashboards, MAX_WIDGETS, WIDGET_TYPES, type WidgetInput } from "../services/suite/dashboards";
 import type { Scoped } from "./mcp-server";
+import { LIST_SORTS, METRICS, NOTE_MAX, OPS, PIVOT_AXES, RANGES } from "../services/suite/dashboards-r38-schema";
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
 const widget = {
-  type: z.enum(WIDGET_TYPES).describe("count (a number), breakdown (tasks grouped by groupBy), due (due this week and overdue), completed (per week, last 8 weeks), burndown (the project's active sprint), goals, reply_times, mail_volume (per day, 14 days), workload (per person, 4 weeks)."),
+  type: z.enum(WIDGET_TYPES).describe("count (a number), breakdown (tasks grouped by groupBy), due (due this week and overdue), completed (per week, last 8 weeks), burndown (the project's active sprint), goals, reply_times, mail_volume (per day, 14 days), workload (per person, 4 weeks). R38: calculation (a number: tasks done or created, points done or hours tracked in range, sum or per day average, with a goal and the change against the previous range), battery (to do, in progress and done as one bar with the done percent), pivot (counts by groupBy rows and columnBy columns), created_completed (created vs completed per day or week in range), task_list (up to 10 tasks sorted by sort), time_tracked (hours per day or week in range and the top 5 people), note (text you write)."),
   title: z.string().max(80).optional(),
-  groupBy: z.enum([...GROUP_BYS, "mailbox", "person"]).optional().describe("breakdown: status, assignee, priority, project, sprint, type or label. reply_times: mailbox or person."),
+  groupBy: z.enum([...GROUP_BYS, "mailbox", "person"]).optional().describe("breakdown: status, assignee, priority, project, sprint, type or label. reply_times: mailbox or person. pivot rows: status, assignee, priority, project or type."),
+  columnBy: z.enum(PIVOT_AXES).optional().describe("pivot columns (default status; never the same as the rows)."),
+  range: z.enum(RANGES).optional().describe("calculation, created_completed, time_tracked: the days ending today (default 30d)."),
+  metric: z.enum(METRICS).optional().describe("calculation: done, created, points or hours (default done)."),
+  op: z.enum(OPS).optional().describe("calculation: sum for the range or avg per day (default sum)."),
+  goal: z.number().min(0).max(1_000_000).optional().describe("calculation: a target; the data carries progress in percent."),
+  sort: z.enum(LIST_SORTS).optional().describe("task_list: due, priority or updated (default due)."),
+  text: z.string().max(NOTE_MAX).optional().describe("note: the text to show."),
   chart: z.enum(CHARTS).optional(),
   size: z.union([z.literal(1), z.literal(2)]).optional(),
   savedViewId: z.string().max(64).optional().describe("Apply a saved view's filters and project."),
@@ -30,9 +38,11 @@ const widget = {
     due: z.enum(["overdue", "week", "none"]).optional(),
   }).optional(),
 };
-type W = { type: WidgetInput["type"]; title?: string; groupBy?: WidgetInput["groupBy"]; chart?: WidgetInput["chart"]; size?: 1 | 2; savedViewId?: string; projectId?: string; mailboxId?: string; filters?: Record<string, string> };
+type W = { type: WidgetInput["type"]; title?: string; groupBy?: WidgetInput["groupBy"]; chart?: WidgetInput["chart"]; size?: 1 | 2; savedViewId?: string; projectId?: string; mailboxId?: string; filters?: Record<string, string> }
+  & Pick<WidgetInput, "range" | "metric" | "op" | "goal" | "columnBy" | "sort" | "text">;
 const toInput = (w: W): WidgetInput => ({
   type: w.type, title: w.title, groupBy: w.groupBy, chart: w.chart, size: w.size,
+  range: w.range, metric: w.metric, op: w.op, goal: w.goal, columnBy: w.columnBy, sort: w.sort, text: w.text,
   source: { savedViewId: w.savedViewId, projectId: w.projectId, mailboxId: w.mailboxId, filters: w.filters as never },
 });
 
@@ -45,7 +55,7 @@ export function registerDashboardTools(server: McpServer, deps: Deps, actor: Sco
   }, tool(async () => ({ dashboards: await listDashboards(deps, a) })) as never);
   server.registerTool("get_dashboard_data", {
     title: "Dashboard data", annotations: { readOnlyHint: true, openWorldHint: false },
-    description: "Every widget's numbers for one dashboard in one call, computed now (counts, groups, due and overdue tasks, completed per week, sprint burndown, goal progress, reply times, mail per day, workload). Writes nothing.",
+    description: "Every widget's numbers for one dashboard in one call, computed now (counts, groups, due and overdue tasks, completed per week, sprint burndown, goal progress, reply times, mail per day, workload, calculations with trend and goal, battery, pivot tables, created vs completed, task lists, time tracked, notes). Writes nothing.",
     inputSchema: { dashboardId: z.string().min(1).max(64), tz: z.string().max(64).optional() },
   }, tool(async (x: { dashboardId: string; tz?: string }) => dashboardData(deps, a, x.dashboardId, { tz: x.tz })) as never);
   server.registerTool("create_dashboard", {
