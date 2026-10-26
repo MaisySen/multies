@@ -155,7 +155,7 @@ export function SettingsLayout() {
             </nav>
           </div>
         ) : (
-          <NavLink to="/app/settings" end className="mb-2 inline-flex min-h-11 items-center gap-1 text-[16px] text-[#0071E3] md:hidden" data-testid="settings-back">
+          <NavLink to="/app/settings" end className="mb-2 inline-flex min-h-11 items-center gap-1 text-[16px] text-brand-hover md:hidden" data-testid="settings-back">
             <IconBack className="h-5 w-5" />Settings
           </NavLink>
         )}
@@ -163,7 +163,7 @@ export function SettingsLayout() {
           <div className="mb-6 flex items-center gap-3">
             <span className="max-md:hidden"><Tile pane={pane} /></span>
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold text-[#0071E3] max-md:hidden">Settings</p>
+              <p className="text-[13px] font-semibold text-brand-hover max-md:hidden">Settings</p>
               <h1 className="large-title" data-testid="settings-title">{pane.label}</h1>
             </div>
           </div>
