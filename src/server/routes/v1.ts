@@ -54,6 +54,7 @@ import { registerTaskBulkRoutes } from "./v1-tasks-bulk";
 import { registerPeopleRoutes } from "./v1-people";
 import { registerAuthHookRoutes } from "./v1-auth-hooks";
 import { registerInviteRoutes } from "./v1-r25-invites"; // R25 (DF-7)
+import { registerShareLinkRoutes } from "./v1-r26-share"; // R26 (MB-87)
 
 // ---------------------------------------------------------------- schemas
 
@@ -237,6 +238,7 @@ export function v1Routes() {
   api.use("/sprints/*", apiKeyAuth);
   api.use("/triage/*", apiKeyAuth);
   api.use("/invites/*", apiKeyAuth, workspaceKeyOnly); // R25 (DF-7): agent and agent member keys can't invite
+  api.use("/share-links/*", apiKeyAuth, workspaceKeyOnly); // R26 (MB-87): agent and agent member keys can't share
   api.use("/stats/*", apiKeyAuth); // Round 22: reply times
   api.use("/drafts/*", apiKeyAuth); // Round 22: POST /drafts/{id}/take-over
   api.use("/snippets/*", apiKeyAuth); // Round 22: saved replies
@@ -444,6 +446,7 @@ export function v1Routes() {
   registerTaskBulkRoutes(api);
   registerPeopleRoutes(api);
   registerInviteRoutes(api); // R25 (DF-7): invite members with a workspace key
+  registerShareLinkRoutes(api); // R26 (MB-87): read only share links
   registerSprintRoutes(api);
   registerPresenceRoutes(api);
   registerRecordingRoutes(api);

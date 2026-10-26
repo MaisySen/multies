@@ -68,15 +68,8 @@ async function receiveFromProvider(deps: Deps, emailId: string) {
 
 export async function handleResendEvent(deps: Deps, event: ResendEvent) {
   if (event.type === "email.received" && event.data.email_id) return receiveFromProvider(deps, event.data.email_id);
-  const emailId = event.data.email_id;
-  // The provider's sent event comes seconds after the send, before most replies can: read the Message-ID
-  // it used then, so a fast reply already threads. Delivery status is not touched ("sent" is already set).
-  if (event.type === "email.sent" && emailId) {
-    const rows = await deps.db.select({ messageId: deliveries.messageId }).from(deliveries).where(and(eq(deliveries.providerMessageId, emailId), eq(deliveries.direction, "outbound")));
-    await recordProviderMessageId(deps, emailId, rows.map((r) => r.messageId));
-    return { handled: true as const, updated: 0 };
-  }
   const status = STATUS[event.type];
+  const emailId = event.data.email_id;
   if (!status || !emailId) return { handled: false as const };
   const recipients = (Array.isArray(event.data.to) ? event.data.to : event.data.to ? [event.data.to] : []).map((a) => a.toLowerCase());
   const rows = await deps.db.select().from(deliveries).where(and(eq(deliveries.providerMessageId, emailId), eq(deliveries.direction, "outbound")));
@@ -103,8 +96,8 @@ export async function handleResendEvent(deps: Deps, event: ResendEvent) {
 
 /**
  * Resend sends our mail under its own Message-ID, so an outside reply's In-Reply-To names that one.
- * On the first sent or delivery event of a sent message, read it once and keep it on the Sent copy, so
- * the reply joins the thread. One provider read and one row write per sent message; later events find it set.
+ * On the first delivery of a sent message, read it once and keep it on the Sent copy, so the reply
+ * joins the thread. One read and one write per sent message; later deliveries find it set.
  */
 async function recordProviderMessageId(deps: Deps, emailId: string, messageIds: (string | null)[]) {
   const ids = [...new Set(messageIds.filter((x): x is string => !!x))];

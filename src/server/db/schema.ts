@@ -1641,3 +1641,22 @@ export const dashboards = sqliteTable("dashboards", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
   version: integer("version").notNull().default(1),
 }, (t) => [index("dashboards_org_idx").on(t.orgId)]);
+
+/**
+ * R26 (MB-87): read only share links for a doc or a project board. Only the SHA-256 of the token is stored;
+ * the public page /s/<token> looks it up by share_links_token_uq, the one index. Views are not counted, so
+ * opening a link writes nothing. WITHOUT ROWID.
+ */
+export const shareLinks = sqliteTable("share_links", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["doc", "project_board"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  /** Show the workspace name on the public page (on by default). */
+  showWorkspace: integer("show_workspace", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").notNull(),
+  createdAt: createdAt(),
+  expiresAt: ts("expires_at"),
+  revokedAt: ts("revoked_at"),
+}, (t) => [uniqueIndex("share_links_token_uq").on(t.tokenHash)]);

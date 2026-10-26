@@ -54,6 +54,7 @@ import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
+import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -250,6 +251,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
+  registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
   return server;
 }
 
