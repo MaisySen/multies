@@ -39,7 +39,7 @@ directory = "dist/worker"
 binding = "ASSETS"
 not_found_handling = "none"
 # robots.txt goes through the Worker so a NOINDEX host (the preview) can answer Disallow: /.
-run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/health", "/healthz"]
+run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/health", "/healthz"]
 
 # No Workers AI binding: Multies never pays for AI model calls. The assistant runs on each
 # workspace's own API key (bring your own AI), and agents connect through MCP.

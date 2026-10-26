@@ -16,6 +16,14 @@ import { appendToDoc, createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "
 import { contactDetail, createDeal, listCompanies, listContacts, listDeals, updateContact, updateDeal, upsertContact } from "../services/suite/contacts";
 import { assigneeOf } from "./suite";
 import { parseFieldFilters } from "../services/suite/fields";
+import { unknownTaskParams } from "./suite-schemas";
+
+/** R26 (MB-72): an unknown query parameter is a 400 that names it, so a client never acts on the wrong list. */
+function strictTaskParams(query: Record<string, string>, allowed?: string[]) {
+  const bad = unknownTaskParams(query, allowed);
+  if (bad.length) throw new HttpError(400, "unknown_parameter", `Unknown query parameter${bad.length > 1 ? "s" : ""}: ${bad.join(", ")}.`, { unknown: bad });
+}
+const sprintFilter = (v: string | undefined) => (v === undefined ? undefined : v === "none" ? null : v);
 import {
   CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
 } from "./suite-schemas";
@@ -59,15 +67,15 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   // ---------------------------------------------------------------- tasks
   api.openapi(createRoute({ method: "get", path: "/tasks", tags: tag("Tasks"), summary: "List tasks", security: secured,
-    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true. Filter on custom fields with field.<fieldId>=<value> or field.<fieldId>=<op>:<value>, where op is eq, ne, gt, gte, lt, lte, contains, empty or notempty (for example field.fld_budget=gt:1000). Sort with sort=field:<fieldId> and dir=desc.",
+    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true. Filter on custom fields with field.<fieldId>=<value> or field.<fieldId>=<op>:<value>, where op is eq, ne, gt, gte, lt, lte, contains, empty or notempty (for example field.fld_budget=gt:1000). Sort with sort=field:<fieldId> and dir=desc. sprintId=<id> lists one sprint, sprintId=none the backlog. An unknown query parameter answers 400.",
     request: { query: TaskQuery }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
-  async (c) => { const q = c.req.valid("query"); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
+  async (c) => { strictTaskParams(c.req.query()); const q = c.req.valid("query"); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
 
   // MB-52: the nested path most REST clients try first; same filters as GET /tasks.
   api.openapi(createRoute({ method: "get", path: "/projects/{id}/tasks", tags: tag("Tasks"), summary: "List a project's tasks", security: secured,
     description: "The same as GET /tasks?projectId={id}, with the same filters.",
     request: { params: z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) }), query: TaskQuery.omit({ projectId: true }) }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
-  async (c) => { const q = c.req.valid("query"); await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
+  async (c) => { strictTaskParams(c.req.query(), Object.keys(TaskQuery.omit({ projectId: true }).shape)); const q = c.req.valid("query"); await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
     description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task.",

@@ -17,3 +17,16 @@ it("adds .at() where an old browser lacks it, and leaves a native one alone", ()
   installPolyfills();
   expect(Array.prototype.at).toBe(native);
 });
+
+/** R26: the classic /legacy.js runs before every module and shared chunk (index.html loads it first). */
+it("public/legacy.js adds .at() on a window that lacks it, and index.html loads it before the app module", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { runInNewContext } = await import("node:vm");
+  const src = readFileSync("public/legacy.js", "utf8");
+  const sandbox: Record<string, unknown> = {};
+  runInNewContext("delete Array.prototype.at; delete String.prototype.at; delete Uint8Array.prototype.at; window = globalThis;" + src + "; result = [[1, 2, 3].at(-1), 'abc'.at(0), new Uint8Array([7, 8]).at(-1), [1].at(4)];", sandbox);
+  expect(sandbox.result).toEqual([3, "a", 8, undefined]);
+  const html = readFileSync("index.html", "utf8");
+  expect(html.indexOf('src="/legacy.js"')).toBeGreaterThan(-1);
+  expect(html.indexOf('src="/legacy.js"')).toBeLessThan(html.indexOf('type="module"'));
+});

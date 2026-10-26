@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { ImportSection, XeroSection } from "./import-section";
 import { AiSection } from "./ai-section";
 import { SavedRepliesSection } from "./mail/saved-replies";
-import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Check, Download, KeyRound, Plus, Send, Trash2 } from "lucide-react";
@@ -59,7 +58,6 @@ export function GeneralSettings() {
     <div className="space-y-6">
       <PreferencesSection />
       <WorkspaceSection />
-      <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
       <AiSection />
       <XeroSection />
       <WorkspaceExport />

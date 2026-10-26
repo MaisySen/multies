@@ -1096,35 +1096,3 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   await previewAuthHook(ctx.deps, actor.orgId, id, "recovery");
   expect(take()).toBe(0);
 });
-
-it("R26 (MB-87): a share link is 2 rows (the row and its token index), a revoke 2, and opening the public page writes nothing", async () => {
-  const ctx = await makeTestApp();
-  const u = new Client(ctx.app);
-  await u.signup("olive@share.test", "Olive Owner");
-  const docId = (await u.post("/api/docs", { title: "Brief", text: "hello" })).body.doc.id as string;
-  const projectId = (await u.post("/api/projects", { name: "Site", key: "SITE" })).body.project.id as string;
-  await u.post("/api/tasks", { projectId, title: "Home page" });
-  const me = (await u.get("/api/account/me")).body;
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const };
-  const { createShareLink, revokeShareLink, setShareLinksAllowed } = await import("@/server/services/suite/share-links");
-  const take = meter(ctx.db);
-  take();
-  const made = await createShareLink(ctx.deps, actor, { kind: "doc", targetId: docId });
-  // share_links is WITHOUT ROWID with one index (share_links_token_uq): 1 row + 1 index.
-  expect(take()).toBe(2);
-  const board = await createShareLink(ctx.deps, actor, { kind: "project_board", targetId: projectId, expiresInDays: 7 });
-  expect(take()).toBe(2);
-  // Opening the page and listing write nothing (views are not counted; the page's rate limit is in memory).
-  for (const t of [made.token, board.token, "x".repeat(43)]) await ctx.app.request(`/s/${t}`, { headers: { host: "localhost" } });
-  await u.get(`/api/share-links?kind=doc&targetId=${docId}`);
-  expect(take()).toBe(0);
-  await revokeShareLink(ctx.deps, actor, made.link.id);
-  expect(take()).toBe(2);
-  await revokeShareLink(ctx.deps, actor, made.link.id);
-  expect(take()).toBe(0);
-  // "Allow share links" lives in the workspace's metadata: one organizations row when it changes, nothing when it doesn't.
-  await setShareLinksAllowed(ctx.deps, actor, true);
-  expect(take()).toBe(0);
-  await setShareLinksAllowed(ctx.deps, actor, false);
-  expect(take()).toBeLessThanOrEqual(3);
-});

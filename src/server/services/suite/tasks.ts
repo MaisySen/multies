@@ -675,7 +675,7 @@ export async function mentionedMembers(deps: Deps, orgId: string, text: string) 
 
 export async function listComments(deps: Deps, orgId: string, taskId: string) {
   const rows = await deps.db.select().from(taskComments).where(and(eq(taskComments.orgId, orgId), eq(taskComments.taskId, taskId), isNull(taskComments.deletedAt))).orderBy(asc(taskComments.createdAt));
-  return rows.map((c) => ({ id: c.id, taskId: c.taskId, body: c.body, author: { type: c.createdByType, id: c.createdById, name: c.authorName }, createdAt: c.createdAt.toISOString() }));
+  return rows.map((c) => ({ id: c.id, taskId: c.taskId, body: c.body, author: { type: c.createdByType, id: c.createdById, name: c.authorName }, editedAt: c.version > 1 ? c.updatedAt.toISOString() : null, createdAt: c.createdAt.toISOString() }));
 }
 
 /** The thread behind a task: every message the viewer can open, newest last, quoted history removed. */
