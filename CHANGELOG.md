@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 36: scoped API keys, MCP tool docs, a sharper command menu, drawn empty states, inline edits on board cards (26 Oct 2026)
+
+- API keys can be limited to areas: mail, tasks, chat, docs, calendar, contacts and admin, each read or write (mail read or send). Full access and Read only stay as presets, so existing keys work as before. A call outside a key's scopes is 403 `insufficient_scope` with the scope it needs. Edit a key's scopes from Developers. No migration.
+- MCP tool docs at `/developers/mcp` (and `/developers/mcp.md`): every tool by area with its scope, parameters, an example call and result, and five end to end recipes. Generated from the server's own tool list, so they can't drift.
+- The agents page uses plain client labels (Desktop app, Command line agent, Code editor, Any MCP client).
+- Command menu: opens on recently opened items and recent commands, shows key hints on every command, and is a full height sheet on phones.
+- Empty lists have drawings made in code, one clear next step each; calendar, timeline, sprints and workload get shaped loading placeholders.
+- Board cards: rename in place, and change status, priority, due date and assignee from small menus, with Undo on a failed save.
+- Shortcuts sheet: native looking key caps in two grouped columns.
+
 ### Round 35: report and block, a new icon set and Today home, FullCalendar 7, undo for bulk move, swimlanes in saved views (26 Oct 2026)
 
 - Report a message or a person and block them in chat and DMs; blocked people's messages are hidden everywhere and they can't DM you (403 `blocked`). Settings, Account lists blocked people. Migration 0078. MCP: 186 tools (`create_report`, `list_blocks`, `add_block`, `remove_block`).
