@@ -100,7 +100,7 @@ export function useBiometricLock(active: boolean) {
     if (ok) setLocked(false);
   };
   useEffect(() => {
-    if (!active || Platform.OS === "web") { setLocked(false); return; }
+    if (!active || Platform.OS === "web") return; // signed out: the lock screen never shows
     let cancelled = false;
     const check = async () => {
       if (!(await getBiometricLock()) || !(await biometricAvailable()) || cancelled) return;
@@ -114,7 +114,7 @@ export function useBiometricLock(active: boolean) {
       last = s;
     });
     return () => { cancelled = true; sub.remove(); };
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active]);
   return { locked, unlock };
 }
 

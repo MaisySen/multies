@@ -1,11 +1,11 @@
-jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
-
 import { QUICK_ACTIONS, quickActionHref, shouldAskForReview, REVIEW_AFTER, biometricAvailable, recordTaskCompleted } from "@/lib/native-features";
 import { sfSymbolFor, SF_SYMBOLS } from "@/components/sf-symbols";
 import { ICON_NAMES } from "@/components/Icon";
 import { nativeSymbols, nativeBlur, nativeContextMenu, nativeLocalAuth, nativeQuickActions, nativeStoreReview } from "@/lib/native-modules";
 import { hasNativeMenu } from "@/components/native-menu";
 import { hasBarBlur } from "@/components/chrome";
+
+jest.mock("expo-router", () => ({ router: { push: jest.fn() } }));
 
 const app = require("../app.json").expo;
 const pkg = require("../package.json");
