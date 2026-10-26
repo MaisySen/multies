@@ -26,7 +26,7 @@ export function useCommandQueueRunner() {
   useEffect(() => { setCommandQueue(queue); return () => setCommandQueue(null); }, [queue]);
 
   const flushRef = useRef<() => void>(() => {});
-  flushRef.current = () => {
+  useEffect(() => { flushRef.current = () => {
     if (!queue) return;
     void queue.load().then(() => {
       if (!queue.size) return;
@@ -39,7 +39,7 @@ export function useCommandQueueRunner() {
         }
       });
     }).catch(() => {});
-  };
+  }; });
 
   useEffect(() => { if (!offline) flushRef.current(); }, [offline, queue]);
   useEffect(() => {

@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
-import { cached } from "./offline";
+import { cached, setOffline } from "./offline";
 import { kv } from "./kv";
 import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
 import type { ConnectInput } from "./mail-connect";
+import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 import { pendingTask } from "./pending";
 import { ApiError } from "@/api/errors";
 import { commandQueue, type NewCommand } from "./command-queue";
-import { setOffline } from "./offline";
 
 /** R33: what a mutation answers when its call went into the offline command queue. */
 export const QUEUED = "queued" as const;
@@ -25,7 +25,6 @@ export async function offlineOr<T>(call: () => Promise<T>, command: NewCommand):
     return QUEUED;
   }
 }
-import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
   overview: ["overview"] as const,
