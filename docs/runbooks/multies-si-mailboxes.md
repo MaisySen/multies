@@ -1,5 +1,8 @@
 # security@ and support@ on multies.si
 
+Round 26: superseded for support@ and security@ by docs/runbooks/support-inbox.md (operator workspace,
+no provider registration, shared inbox). The steps below are kept for history.
+
 Today (25 Oct 2026) these addresses forward to the team inbox through Cloudflare Email Routing rules
 on multies.si: support@, security@, accounts@, review@, privacy@, legal@ and hello@. A named rule wins
 over the catch all, so the rest of multies.si still goes to the inbound worker. The steps below replace

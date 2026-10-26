@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 126 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 130 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -62,6 +62,7 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 | `reply` | Reply in a thread |
 | `wait_for_email` | Wait for new email |
 | `create_agent_inbox` | Create an agent inbox |
+| `create_agent_member` | Add an AI agent member (no seat, mailbox optional); returns its first key, shown once. Full workspace key (R26) |
 | `set_mailbox_reply_to` | Set a mailbox's default Reply-To, used when a send names none (R25, MB-61) |
 | `snooze_thread` | Snooze a thread until a time (round 20, registered in src/server/routes/mcp-mail-schedule.ts) |
 | `schedule_send` | Send an email later, as an agent; its approval rules apply when it goes |
@@ -128,6 +129,8 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `create_goal` | Create a goal |
 | `update_key_result` | Record progress on a key result |
 | `list_people` | List people and agents |
+| `list_agent_members` | AI agent members with avatar, paused state, linked inbox and key count (R26) |
+| `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
 
 ### Chat
@@ -405,19 +408,23 @@ Registered in src/server/routes/mcp-r25-authmail.ts. Needs a full workspace key 
 | --- | --- |
 | `update_auth_email_hook` | Set how a Supabase auth email hook's emails look: `branding` with `logoUrl` (https), `brandColor` (#RRGGBB), `replyTo`, `footer`, per type `templates` (signup, invite, magiclink, recovery, email_change, email, reauthentication: `subject`, `intro`, `buttonLabel`) and `secondaryLanguage` (`lang`, the same per type `templates`, `note`), shown under the main text. Plain text only, placeholders `{appName}`, `{code}`, `{email}`. Keys left out stay, null clears one, `branding: null` goes back to the default email. Also `appName` and `from`. One row written |
 
-### Checklists inside tasks (R26, MB-85)
+### Comments and chat messages: read back, edit, delete (R26, MB-77)
+
+Registered in src/server/routes/mcp-r26-comments.ts. Read only keys can list; edits and deletes need a full key. Only the author edits (an agent key edits what its agent wrote); the author, an owner or an admin deletes. The same calls are on REST as `GET /api/v1/tasks/{id}/comments`, `GET|PATCH|DELETE /api/v1/comments/{id}` and `GET|PATCH|DELETE /api/v1/chat/messages/{id}`.
 
 | Tool | What it does |
-|---|---|
-| `list_checklist` | A task's checklist items in order, with total and done counts (read only keys can call it) |
-| `add_checklist_items` | Add one or more items to the end of a task's checklist (title, done, assignee, due); up to 200 per task. One row per item |
-| `update_checklist_item` | Tick, untick, rename, or change an item's assignee or due date. One row; a patch that changes nothing writes nothing |
-| `reorder_checklist` | Put a task's checklist in a new order (every item id once); only items that move are written |
-| `delete_checklist_item` | Remove an item from its task's checklist |
-| `checklist_item_to_subtask` | Turn an item into a subtask of its task (same title, assignee and due date) and remove the item |
+| --- | --- |
+| `list_task_comments` | Every comment on a task (id or reference), oldest first, with author and `editedAt` |
+| `edit_task_comment` | Replace the text of a comment you wrote; it then shows as edited. One row written |
+| `delete_task_comment` | Delete a task comment (author, owner or admin). One row written |
+| `edit_chat_message` | Replace the text of a chat message you posted, same markup as `post_message`; it then shows as edited. One row written |
+| `delete_chat_message` | Delete a chat message (author, owner or admin); replies keep their place |
+### Share links (R26, MB-87)
 
-### Task queries (R26, MB-86)
+Registered in src/server/routes/mcp-r26-share.ts. Making or revoking a link needs a full workspace key or token (read only keys and tokens get `read_only_key`); agent keys are refused; another workspace's doc, project or link is not found. The same is on REST as `/api/v1/share-links`.
 
 | Tool | What it does |
-|---|---|
-| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |
+| --- | --- |
+| `create_share_link` | Make a read only link anyone can open without signing in: `kind` `doc` (the doc, read only) or `project_board` (columns, card titles, assignee initials, due dates and labels; never notes, comments, files or custom fields). `expiresInDays` 7 or 30 (left out: never), `showWorkspaceName` (default true). Returns the url once. One row written |
+| `list_share_links` | Active links (not revoked, not expired), newest first; pass `kind` and `targetId` for one doc or project |
+| `revoke_share_link` | Stop a link at once by id; its page then says it is no longer active |

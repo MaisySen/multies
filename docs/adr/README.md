@@ -9,3 +9,4 @@ Short records of decisions that shape the product: context, decision and consequ
 - [0005: Run on the Cloudflare free tier](0005-cloudflare-free-tier.md)
 - [0006: Rename the product to Multies](0006-rename-to-multies.md)
 - [0007: Auth0 as identity provider](0007-auth0-identity-provider.md)
+- [0008: AI agents as workspace members](0008-agents-as-members.md)

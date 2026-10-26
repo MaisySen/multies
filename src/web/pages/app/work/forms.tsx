@@ -10,7 +10,7 @@ import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Logo } from "@/web/components/logo";
 import { timeAgo } from "@/web/lib/format";
-import { useAssignees, useProjects } from "./data";
+import { useAssignees, useProjects, isAgentLike } from "./data";
 
 type FieldType = "text" | "email" | "textarea" | "phone" | "select" | "number" | "date";
 interface FormField { id?: string; label: string; type: FieldType; required?: boolean; options?: string[]; placeholder?: string }
@@ -80,7 +80,7 @@ function FormEditor({ initial, onClose, onSaved }: { initial: Partial<Form>; onC
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Each answer makes">{(fp) => (<Select {...fp} value={f.target} onChange={(e) => setF({ ...f, target: e.target.value as "task" | "contact" })}><option value="task">A task</option><option value="contact">A contact</option></Select>)}</Field>
           {f.target === "task" && <Field label="In project">{(fp) => (<Select {...fp} value={f.projectId ?? ""} onChange={(e) => setF({ ...f, projectId: e.target.value || null })}><option value="">Default project</option>{projects.data?.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</Select>)}</Field>}
-          {f.target === "task" && <Field label="Assign to">{(fp) => (<Select {...fp} value={f.assigneeId ?? ""} onChange={(e) => setF({ ...f, assigneeId: e.target.value || null })}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{p.type === "agent" ? " (agent)" : ""}</option>)}</Select>)}</Field>}
+          {f.target === "task" && <Field label="Assign to">{(fp) => (<Select {...fp} value={f.assigneeId ?? ""} onChange={(e) => setF({ ...f, assigneeId: e.target.value || null })}><option value="">Nobody</option>{people.data?.map((p) => <option key={p.id} value={p.id}>{p.name}{isAgentLike(p) ? " (agent)" : ""}</option>)}</Select>)}</Field>}
         </div>
         <div>
           <div className="mb-1.5 text-[13px] font-medium">Fields</div>

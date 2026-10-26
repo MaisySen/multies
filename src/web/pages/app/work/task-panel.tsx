@@ -8,7 +8,6 @@ import { Bot, Calendar, CheckCircle2, Circle, FileText, Link2, Mail, MoreHorizon
 import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
-import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
 import { startMeeting } from "./meeting-start";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -19,7 +18,7 @@ import { Avatar, Badge, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, mailDate, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
-import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task } from "./data";
+import { PRIORITY_LABEL, useAssignees, useProjects, useTaskDetail, useTaskMutations, useTasks, type ActivityEntry, type Priority, type Task, isAgentLike } from "./data";
 
 const VERBS: Record<string, string> = {
   created: "created the task", created_from_email: "made this task from an email", updated: "updated it", moved: "moved it", assigned: "changed the assignee",
@@ -113,8 +112,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             <dt className="text-subtle">Assignee</dt>
             <dd><Select aria-label="Assignee" value={t.assigneeId ?? ""} onChange={(e) => save({ assignee: e.target.value || null })} className="h-8 text-[13px]">
               <option value="">Nobody</option>
-              <optgroup label="People">{people.data?.filter((p) => p.type === "member").map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
-              <optgroup label="Agents">{people.data?.filter((p) => p.type === "agent").map((p) => <option key={p.id} value={p.id}>{p.name} (agent)</option>)}</optgroup>
+              <optgroup label="People">{people.data?.filter((p) => !isAgentLike(p)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
+              <optgroup label="Agents">{people.data?.filter(isAgentLike).map((p) => <option key={p.id} value={p.id}>{p.name} (agent)</option>)}</optgroup>
             </Select></dd>
             <dt className="text-subtle">Priority</dt>
             <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px]">
@@ -174,8 +173,6 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           <TaskTime taskId={t.id} total={q.data!.time?.totalSeconds ?? 0} entries={q.data!.time?.entries ?? []} onChange={() => void q.refetch()} />
 
           <Dependencies task={t} blockedBy={q.data!.blockedBy ?? []} blocking={q.data!.blocking ?? []} onChange={() => void q.refetch()} />
-
-          <TaskChecklist taskId={t.id} onSubtask={() => void q.refetch()} />
 
           <section className="mt-6" aria-label="Subtasks" hidden={t.type === "epic"}>
             <h3 className="text-[12px] font-semibold uppercase tracking-wide text-subtle">Subtasks {t.subtasks.total > 0 && <span className="font-normal normal-case">{t.subtasks.done} of {t.subtasks.total}</span>}</h3>

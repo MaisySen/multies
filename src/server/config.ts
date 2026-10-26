@@ -106,6 +106,8 @@ export interface AppConfig {
    * `dailySends` caps recipients a day from a free address, per workspace, to protect the shared domain.
    */
   freeMail: { domain?: string; dailySends: number; newAccountDailySends: number; dailyClaims: number };
+  /** R26 (DF-18): the company domain, the workspace that receives its listed addresses, and the list. */
+  operatorInbox: { orgId: string | null; domain: string | null; addresses: string[] };
   /** Push to phones through Expo (PUSH_ENABLED=1, optional EXPO_ACCESS_TOKEN). Off by default. */
   push: { enabled: boolean; expoAccessToken?: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
@@ -260,6 +262,9 @@ const EnvSchema = z.object({
   FREE_MAIL_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_NEW_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_DAILY_CLAIMS: z.string().regex(/^\d+$/).optional(),
+  // R26 (DF-18): the workspace that receives the company's own addresses (support@, security@).
+  OPERATOR_INBOX_ORG_ID: z.string().optional(),
+  OPERATOR_INBOX_ADDRESSES: z.string().optional(),
   LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
   CALLS_TEST_HOOK: z.string().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
@@ -282,6 +287,19 @@ function hostOf(url: string): string {
 }
 
 /** Builds config from a plain env object (process.env on Node, bindings on Workers). */
+/**
+ * R26 (DF-18): the company domain (the domain of SUPPORT_EMAIL, multies.si) belongs to the deployment.
+ * Only the operator workspace (OPERATOR_INBOX_ORG_ID) may hold it, and only the listed addresses
+ * (OPERATOR_INBOX_ADDRESSES, default support@ and security@) are delivered there. Without an operator
+ * workspace, inbound routing is unchanged and no workspace can add the domain.
+ */
+export function operatorInbox(supportEmail: string, orgId: string | undefined, addresses: string | undefined) {
+  const domain = (supportEmail.split("@")[1] ?? "").trim().toLowerCase() || null;
+  const list = (addresses?.trim() ? addresses.split(/[\s,]+/) : domain ? [`support@${domain}`, `security@${domain}`] : [])
+    .map((a) => a.trim().toLowerCase()).filter((a) => !!domain && a.endsWith(`@${domain}`) && a.indexOf("@") > 0);
+  return { orgId: orgId?.trim() || null, domain, addresses: [...new Set(list)] };
+}
+
 /**
  * The shared domain for free addresses. It must be a subdomain that is not the app's own host:
  * the app's domain (multies.si) carries the company's staff addresses and is never handed out.
@@ -384,6 +402,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     // Agent inboxes for workspaces with no domain live on the same shared domain as free addresses
     // unless the deployment names a separate one.
     agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
+    operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),
       dailySends: Number(env.FREE_MAIL_DAILY_SENDS ?? 50),

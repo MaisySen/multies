@@ -25,8 +25,6 @@ import {
 } from "./suite-schemas";
 import { runDueJobs } from "../services/jobs";
 import { parseFieldFilters } from "../services/suite/fields";
-import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
-import { QUERY_MAX_LENGTH } from "../../shared/task-query";
 
 type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
 /** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
@@ -52,11 +50,9 @@ export function taskRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional() }));
+      const q = parseQuery(c, TaskQuery);
       const fieldFilters = parseFieldFilters(c.req.query());
-      // R26 (MB-86): q is the task query language (plain words still search titles and notes).
-      const queryConds = q.q ? applyTaskQuery(q.q, { deps: c.var.deps, actor: c.var.auth }) : undefined;
-      const list = () => listTasks(c.var.deps, c.var.auth, { ...q, q: undefined, queryConds, includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters });
+      const list = () => listTasks(c.var.deps, c.var.auth, { ...q, includeSubtasks: q.includeSubtasks === "true", fieldFilters });
       let tasks = await list();
       // A demo opened from the mobile app or the API has its sample seed still waiting: run it
       // here, in this request's own budget, the first time someone lists tasks.

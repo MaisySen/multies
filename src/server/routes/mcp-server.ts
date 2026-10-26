@@ -41,8 +41,7 @@ import { registerTriageTools } from "./mcp-r21-triage";
 import { registerThreadCommentTools } from "./mcp-r22-comments";
 import { registerSnippetTools } from "./mcp-r22-snippets";
 import { registerAssignTools } from "./mcp-r22-assign";
-import { registerChecklistTools } from "./mcp-r26-checklists"; // R26 (MB-85)
-import { registerTaskQueryTools } from "./mcp-r26-task-query"; // R26 (MB-86)
+import { registerAgentMemberTools } from "./mcp-r26-agents"; // R26 (DF-3)
 import { registerCalendarTools } from "./mcp-r23-calendar";
 import { registerPresenceTools } from "./mcp-r22-presence";
 import { registerMeetingNotesTools } from "./mcp-r23-notes";
@@ -56,6 +55,8 @@ import { registerFormulaTools } from "./mcp-r24-formulas";
 import { registerSavedViewTools } from "./mcp-views";
 import { registerTaskBulkTools } from "./mcp-r21-table";
 import { registerAuthMailTools } from "./mcp-r25-authmail"; // R25 (MB-60)
+import { registerR26CommentTools } from "./mcp-r26-comments"; // R26 (MB-77)
+import { registerShareLinkTools } from "./mcp-r26-share"; // R26 (MB-87)
 
 export type Scoped = Actor & { scope?: "full" | "read" };
 
@@ -237,8 +238,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSprintTools(server, deps, actor, writable, tool);
   registerTriageTools(server, deps, actor, writable, tool);
   registerAssignTools(server, deps, actor, writable, tool);
-  registerChecklistTools(server, deps, actor, writable, tool); // R26 (MB-85)
-  registerTaskQueryTools(server, deps, actor, writable, tool); // R26 (MB-86)
   registerTaskBulkTools(server, deps, actor, writable, tool);
   registerThreadCommentTools(server, deps, actor, writable, tool);
   registerPresenceTools(server, deps, actor, writable, tool);
@@ -254,6 +253,9 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerSavedViewTools(server, deps, actor, writable, tool); // DF-20: saved views
   registerCalendarTools(server, deps, actor, writable, tool); // Round 23: calendar
   registerAuthMailTools(server, deps, actor, writable, tool); // R25 (MB-60): branded auth emails
+  registerR26CommentTools(server, deps, actor, writable, tool); // R26 (MB-77): comments and chat messages
+  registerAgentMemberTools(server, deps, actor, writable, tool); // R26 (DF-3): agent members
+  registerShareLinkTools(server, deps, actor, writable, tool); // R26 (MB-87): share links
   return server;
 }
 
