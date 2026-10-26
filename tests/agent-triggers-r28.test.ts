@@ -3,6 +3,7 @@ import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { makeTestApp, Client, d1Violations } from "./helpers";
 import { describeAudit } from "../src/web/components/app-bits";
+import { describeTrigger } from "../src/web/pages/app/agent-triggers";
 import {
   listTriggers, nextRunAfter, renderTitle, runDueTriggers, signWebhook, verifyWebhookSignature, QUEUED_RUNS_PER_AGENT, TRIGGERS_PER_WORKSPACE, WEBHOOK_BODY_MAX,
 } from "../src/server/services/suite/agent-triggers";
@@ -375,6 +376,15 @@ describe("MCP, audit wording and D1", () => {
     expect(e("agent_trigger.created", { triggerName: "Nightly" })).toMatchObject({ object: "Nightly" });
     expect(e("agent_trigger.fired", { triggerName: "Nightly", taskRef: "MB-3", agentName: "Builder" }).verb).toMatch(/fired/);
     expect(e("agent_trigger.refused", { triggerName: "Nightly", reason: "agent_queue_full" }).object).toContain("queue");
+  });
+
+  it("describes a trigger's schedule for the Triggers list", () => {
+    expect(describeTrigger({ kind: "webhook", schedule: null })).toBe("Webhook");
+    expect(describeTrigger({ kind: "schedule", schedule: { everyHours: 1, timezone: "UTC" } })).toBe("Every hour");
+    expect(describeTrigger({ kind: "schedule", schedule: { everyHours: 6, timezone: "UTC" } })).toBe("Every 6 hours");
+    expect(describeTrigger({ kind: "schedule", schedule: { dailyAt: "09:00", days: ["mon", "tue", "wed", "thu", "fri"], timezone: "UTC" } })).toBe("Daily at 09:00, weekdays");
+    expect(describeTrigger({ kind: "schedule", schedule: { dailyAt: "18:30", days: null, timezone: "UTC" } })).toBe("Daily at 18:30, every day");
+    expect(describeTrigger({ kind: "schedule", schedule: { dailyAt: "07:00", days: ["sun", "sat"], timezone: "UTC" } })).toBe("Daily at 07:00, Sat, Sun");
   });
 
   it("stays inside D1's variable limit", () => {
