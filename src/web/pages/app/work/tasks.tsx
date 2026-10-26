@@ -143,11 +143,11 @@ export function TasksPage() {
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
         {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><Settings2 className="h-4 w-4" /></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" />Fields</Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" />Guests</Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><Mountain className="h-4 w-4" />Epics</Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><SlidersHorizontal className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><UserPlus className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
+        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><Mountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
         {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
-        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" />Project</Button>
+        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><Plus className="h-4 w-4" /><span className="max-sm:sr-only">Project</span></Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
             {VIEWS.map((v) => (

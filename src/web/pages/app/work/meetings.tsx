@@ -153,10 +153,10 @@ export function MeetingsPage() {
         <div className="space-y-6">
           {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (
             <section key={label as string}>
-              <h2 className="mb-2 text-[13px] font-semibold">{label as string}</h2>
+              <h2 className="mb-2 px-1 text-[12px] font-semibold uppercase tracking-wide text-subtle">{label as string}</h2>
               <Card className="divide-y divide-line">
                 {(list as Meeting[]).map((m) => (
-                  <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-hover" data-testid="meeting-row">
+                  <Link key={`${m.id}:${m.startsAt}`} to={`/app/meetings/${m.id}`} className="flex items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out first:rounded-t-xl last:rounded-b-xl hover:bg-hover focus-visible:bg-hover focus-visible:outline-none max-sm:min-h-14" data-testid="meeting-row">
                     {m.recurrence ? <Repeat className="h-4 w-4 shrink-0 text-muted" aria-label="Repeats" /> : <CalendarClock className="h-4 w-4 shrink-0 text-muted" />}
                     <div className="min-w-0 flex-1"><div className="truncate text-[14px] font-medium">{m.title}</div><div className="text-[12.5px] text-muted">{when(m.startsAt)} · {m.durationMin} min{m.invitees.length ? ` · ${m.invitees.length} ${m.invitees.length === 1 ? "guest" : "guests"}` : ""}{m.recurrence ? ` · ${m.recurrence.summary}` : ""}</div></div>
                     {m.status !== "scheduled" && <Badge>{m.status === "ended" ? "Ended" : "Cancelled"}</Badge>}

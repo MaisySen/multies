@@ -140,7 +140,7 @@ export function AppLayout() {
       </div>
       <div className="mt-3 shrink-0 px-3">
         <button onClick={() => { setDrawer(false); openPalette(); }} className="flex w-full items-center gap-2.5 rounded-lg bg-fill px-2.5 py-[6px] text-[13px] text-subtle transition-colors hover:bg-hover hover:text-muted max-sm:min-h-11">
-          <Search className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd>
+          <Search className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><span className="[@media(hover:none)]:hidden"><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd></span>
         </button>
       </div>
       <nav className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3" aria-label="App">
