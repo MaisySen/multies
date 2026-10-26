@@ -3,8 +3,17 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
-## Unreleased (R34, next OTA after 1.9.8 is promoted)
+## 1.9.9 (OTA, runs on Android versionCode 15 and iOS build 17), not published yet: ships after 1.9.8 reaches all phones
 
+- Report and block: press and hold a chat message to report it or block the person. Pick a reason,
+  add a note if you like, and our team reviews reports within 24 hours. In a direct message, the
+  menu at the top blocks, unblocks or reports the other person.
+- Blocked people: you don't see their messages anywhere in chat and they can't message you. They
+  aren't told. See and unblock them in Settings, Privacy and safety.
+- Chat that reads like a messenger: messages from the same person a few minutes apart sit together
+  under one name, and a line marks each day.
+- Smoother motion: rows ease in and out, sheets and swipes share one spring, and all of it follows
+  Reduce Motion.
 - Native style icons: one icon set per platform, the iOS style set on iPhone and web and Material
   Symbols Rounded on Android. The selected tab shows the filled icon.
 - Today: a new home tab with unread mail, tasks due today or overdue, the next meeting, mentions and

@@ -19,3 +19,21 @@ Before building: bump runtimeVersion, run the fingerprint guard (scripts/ota-gua
 11. SF Symbols proper (expo-symbols, iOS only): the Icon component (src/components/Icon.tsx) draws Phosphor paths today, the closest open set; with expo-symbols it can render the real SF Symbol per name on iOS with weight and hierarchical colour, keeping Material Symbols on Android. The name map is already semantic, so the swap is inside Icon only.
 12. Native large titles (react-native-screens headerLargeTitle with a native stack on each tab): the large title folds on scroll in JS today (useCollapse + LargeTitle collapsed); native large titles track the scroll on the UI thread with the system spring.
 13. Badge count on Android launchers: expo-notifications sets the iOS badge; Android needs a notification channel badge or a launcher plugin for a count on the icon.
+
+
+## Added in R35 (phone helper, 26 Oct 2026)
+
+- Native report and block menu: iOS UIMenu (context menu with a preview) and Android popup menu on a
+  chat message, so Report message and Block sit in the system press and hold menu instead of the JS
+  sheet. Needs the native context menu module already listed above; the JS sheet stays as fallback.
+- Native destructive confirm on Android: Alert.alert works today; a Material 3 dialog with a red
+  Block button needs a small native module or the new Expo dialog API when it lands in the binary.
+- Spring physics on the UI thread: shared motion values (src/lib/motion.ts SPRING) run on the JS
+  thread through Animated and LayoutAnimation. Reanimated is not in the binary; adding it would let
+  list inserts, sheet drags and swipe release run at 120 Hz without JS frames.
+- Interactive sheet dismissal: swipe down to close the report sheet and action sheets with the
+  native sheet presentation (iOS UISheetPresentationController detents, Android bottom sheet).
+  Today they close by tapping outside or Cancel.
+- Blocked user filter in the notification service extension: push for a DM or mention is already
+  dropped server side for blocked people; a Notification Service Extension could re check the
+  cached block list on iOS so a stale server never shows one. Needs a native target.
