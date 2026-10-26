@@ -797,12 +797,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R38 (dependencies round 2): lead and lag per \"blocks\" link, and per project schedule rules.\n-- entity_links.lag_days: whole days on a task dependency link. Positive is a wait after the blocker ends (lag),\n-- negative lets the blocked task start that many days before (lead). 0 for every existing row.\nALTER TABLE `entity_links` ADD `lag_days` integer DEFAULT 0 NOT NULL;",
       "-- board_settings.schedule: JSON { workingDaysOnly, daysOff: [0..6], strict } for the project's timeline.\n-- '{}' means the defaults (calendar days, flexible moves). One upsert per change (essential: a person saved it).\nALTER TABLE `board_settings` ADD `schedule` text DEFAULT '{}' NOT NULL;"
     ]
-  },
-  {
-    "name": "0080_r39_doc_versions",
-    "statements": [
-      "-- R39 page history: saved states of a doc (title and content) so a person or an agent can see and restore an earlier page.\n-- One row per doc per editing session at most (deferrable); the newest 50 unnamed rows per doc are kept, named rows always.\nCREATE TABLE `doc_versions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`doc_id` text NOT NULL,\n\t`doc_version` integer NOT NULL,\n\t`title` text NOT NULL,\n\t`content` text NOT NULL,\n\t`plain_text` text DEFAULT '' NOT NULL,\n\t`author_type` text DEFAULT 'member' NOT NULL,\n\t`author_id` text,\n\t`author_name` text DEFAULT '' NOT NULL,\n\t`reason` text DEFAULT 'edit' NOT NULL,\n\t`name` text,\n\t`saved_at` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`doc_id`) REFERENCES `docs`(`id`) ON UPDATE no action ON DELETE cascade\n);",
-      "CREATE INDEX `doc_versions_doc_idx` ON `doc_versions` (`doc_id`,`created_at`);"
-    ]
   }
 ];

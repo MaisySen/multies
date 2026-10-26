@@ -40,7 +40,6 @@ import { shareLinkRoutes, sharePageRoutes } from "./routes/share-links"; // R26 
 import { workloadRoutes } from "./routes/workload";
 import { automationRecipeRoutes } from "./routes/automation-recipes";
 import { docTreeRoutes, guestDocTreeRoutes, taskBacklinkRoutes } from "./routes/doc-tree";
-import { docVersionRoutes } from "./routes/doc-versions-r39"; // R39: page history
 import { savedDashboardRoutes } from "./routes/dashboards";
 import { computedRoutes } from "./routes/computed";
 import { triageRoutes } from "./routes/triage";
@@ -365,7 +364,6 @@ export function createApp(deps: Deps) {
   app.route("/api/tasks", taskRoutes());
   app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
   app.route("/api/docs", docTreeRoutes()); // R24.5: tree, move, backlinks (before /:id)
-  app.route("/api/docs", docVersionRoutes()); // R39: page history
   app.route("/api/docs", docRoutes());
   app.route("/api/contacts", contactRoutes());
   app.route("/api/companies", companyRoutes());
