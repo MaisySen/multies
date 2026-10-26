@@ -6,6 +6,7 @@ import { kv } from "./kv";
 import { CHAT_POLL, latestChange, mergeMessages } from "./chat";
 import { useForeground, usePollWhileVisible } from "./visible";
 import type { ConnectInput } from "./mail-connect";
+import { pendingTask } from "./pending";
 import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder, MessagePage, SendInput, Task, TaskCreate, TaskPatch, TaskQuery, TaskView, MeetingCreate, TimeLog } from "@/api/types";
 
 export const keys = {
@@ -177,7 +178,23 @@ export function useTaskMutations() {
     qc.setQueryData<TaskView>(keys.task(task.id), (d) => d && { ...d, task });
   };
   return {
-    create: useMutation({ mutationFn: (v: TaskCreate) => api.createTask(v).then((r) => r.task), onSuccess: (t) => { qc.setQueryData(keys.task(t.id), undefined); refresh(); } }),
+    // R33: the new task shows at once with a pending tint, and goes away again if the save fails.
+    create: useMutation({
+      mutationFn: (v: TaskCreate) => api.createTask(v).then((r) => r.task),
+      onMutate: async (v) => {
+        await qc.cancelQueries({ queryKey: keys.tasks });
+        const lists = qc.getQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks });
+        const temp = pendingTask(v);
+        qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: [temp, ...d.tasks] });
+        return { lists, tempId: temp.id };
+      },
+      onError: (_e, _v, ctx) => { ctx?.lists.forEach(([k, d]) => qc.setQueryData(k, d)); },
+      onSuccess: (t, _v, ctx) => {
+        qc.setQueriesData<{ tasks: Task[] }>({ queryKey: keys.tasks }, (d) => d && { tasks: d.tasks.map((x) => (x.id === ctx?.tempId ? t : x)) });
+        qc.setQueryData(keys.task(t.id), undefined);
+        refresh();
+      },
+    }),
     fromEmail: useMutation({ mutationFn: (v: { messageId?: string; threadId?: string }) => api.taskFromEmail(v).then((r) => r.task), onSuccess: () => refresh() }),
     update: useMutation({
       mutationFn: (v: { id: string; patch: TaskPatch }) => api.updateTask(v.id, v.patch).then((r) => r.task),

@@ -23,7 +23,7 @@ export default function Chat() {
       <IconButton icon="edit" label="New message" onPress={() => router.push("/chat/new")} testID="new-dm" />
     </>
   )} />;
-  if (q.isPending) return <>{header}<Loading /></>;
+  if (q.isPending) return <>{header}<Loading label="Loading chat" /></>;
   if (q.error) return <>{header}<EmptyState icon="alert-circle" title="Couldn't load chat" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} /></>;
   const { channels, dms } = groupChannels(q.data);
   return (

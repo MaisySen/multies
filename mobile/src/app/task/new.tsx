@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ScrollView, Text } from "react-native";
+import { Alert, ScrollView, Text } from "react-native";
+import { success, warning } from "@/lib/haptics";
 import { router } from "expo-router";
 import { Button, Field } from "@/components/ui";
 import { useTaskMutations } from "@/lib/queries";
@@ -10,9 +11,15 @@ export default function NewTask() {
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const save = async () => {
-    try { await create.mutateAsync({ title, notes }); router.back(); }
-    catch (e) { setError((e as Error).message); }
+  // R33: the task shows in the list at once (with a Saving tint) and this sheet closes; if the save
+  // fails the row goes away again and an alert says why.
+  const save = () => {
+    if (!title.trim()) { setError("Add a title first."); warning(); return; }
+    create.mutate({ title: title.trim(), notes }, {
+      onSuccess: () => success(),
+      onError: (e) => { warning(); Alert.alert("Couldn't add the task", (e as Error).message); },
+    });
+    if (router.canGoBack()) router.back();
   };
   return (
     <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg }} keyboardShouldPersistTaps="handled">

@@ -55,7 +55,7 @@ export default function Thread() {
         ) : null,
       }} />
       {offline ? <Banner text="Offline. This is the copy saved on your phone." /> : null}
-      {q.isPending ? <Loading /> : q.error ? (
+      {q.isPending ? <Loading variant="chat" label="Loading conversation" rows={4} /> : q.error ? (
         <EmptyState icon="alert-circle" title="Couldn't open this message" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />
       ) : (
         <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: 120 }}>

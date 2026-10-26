@@ -14,6 +14,7 @@ import { SwipeHint, SwipeRow, type SwipeAction } from "@/components/swipe-row";
 import { UndoToast } from "@/components/undo-toast";
 import { useUndoQueue } from "@/lib/undo-queue";
 import { usePrefs, type TaskSwipe } from "@/lib/prefs";
+import { isTempId } from "@/lib/pending";
 import { useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
 import { progressBadge } from "@/lib/checklist";
@@ -80,7 +81,7 @@ export default function Tasks() {
         <TaskQueryBox value={query} onSubmit={applyQuery} error={queryError} />
         {offline ? <Banner text="You're offline. Showing the tasks saved on this phone." /> : null}
       </View>
-      {tasks.isPending ? <Loading /> : queryError ? (
+      {tasks.isPending ? <Loading variant="task" label="Loading tasks" /> : queryError ? (
         <EmptyState icon="search" title="Check the search" body="Fix the part named above, or clear the search." />
       ) : tasks.isError && !list.length ? (
         <EmptyState icon="alert-circle" title="Couldn't load tasks" body={tasks.error.message} action={<Button label="Try again" icon="refresh-cw" onPress={() => tasks.refetch()} />} />
@@ -169,8 +170,11 @@ export function Meta({ t }: { t: Task }) {
 
 function TaskRow({ t, onToggle, onLongPress }: { t: Task; onToggle: () => void; onLongPress?: () => void }) {
   const done = t.status === "done";
+  // R33: a task still being saved shows a soft blue tint and "Saving" until the server has it.
+  const saving = isTempId(t.id);
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.line }}>
+    <View style={{ flexDirection: "row", alignItems: "center", backgroundColor: saving ? colors.brandSoft : colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: saving ? colors.brandLine : colors.line }}
+      accessibilityState={{ busy: saving }} testID={saving ? "task-row-saving" : undefined}>
       <Pressable onPress={onToggle} role="checkbox" aria-checked={done} accessibilityState={{ checked: done }} accessibilityLabel={`Mark ${t.title} ${done ? "not done" : "done"}`}
         testID={`toggle-${t.id}`} style={{ width: 52, minHeight: 56, alignItems: "center", justifyContent: "center" }}>
         <Icon name={done ? "check-circle" : "circle"} size={22} color={done ? colors.ok : colors.subtle} />
@@ -178,7 +182,7 @@ function TaskRow({ t, onToggle, onLongPress }: { t: Task; onToggle: () => void; 
       <Pressable onPress={() => open(t)} onLongPress={onLongPress} delayLongPress={350} accessibilityRole="button" accessibilityLabel={`Open task ${t.title}`}
         accessibilityHint="Long press for more actions" testID={`task-row-${t.id}`} style={{ flex: 1, paddingVertical: space.md, paddingRight: space.lg, gap: 6 }}>
         <Text style={{ color: done ? colors.subtle : colors.fg, fontSize: 16, textDecorationLine: done ? "line-through" : "none" }}>{t.title}</Text>
-        <Meta t={t} />
+        {saving ? <Text style={{ color: colors.brand, fontSize: 12, fontWeight: "600" }}>Saving</Text> : <Meta t={t} />}
       </Pressable>
     </View>
   );

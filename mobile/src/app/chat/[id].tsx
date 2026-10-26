@@ -46,7 +46,7 @@ export default function ChannelScreen() {
   });
 
   const title = channel.data ? channelTitle(channel.data) : "";
-  if (feed.isPending) return <><Stack.Screen options={{ title }} /><Loading /></>;
+  if (feed.isPending) return <><Stack.Screen options={{ title }} /><Loading variant="chat" label="Loading messages" /></>;
   if (feed.error) return <EmptyState icon="alert-circle" title="Couldn't load messages" body={feed.error.message} action={<Button label="Try again" variant="secondary" onPress={() => feed.refetch()} />} />;
 
   return (

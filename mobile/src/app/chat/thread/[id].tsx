@@ -23,7 +23,7 @@ export default function ChatThread() {
     onSuccess: ({ task }) => { setMenu(null); router.push({ pathname: "/task/[id]", params: { id: task.id } }); },
   });
 
-  if (q.isPending) return <Loading />;
+  if (q.isPending) return <Loading variant="chat" label="Loading thread" rows={5} />;
   if (q.error) return <EmptyState icon="alert-circle" title="Couldn't load the thread" body={q.error.message} action={<Button label="Try again" variant="secondary" onPress={() => q.refetch()} />} />;
   const { message, replies } = q.data;
   return (

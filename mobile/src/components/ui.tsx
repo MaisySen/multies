@@ -195,10 +195,28 @@ export function Skeleton({ width, height = 14, radius: r = 6, style }: { width?:
 }
 
 /** Loading state: skeleton rows shaped like a list, instead of a spinner. */
-export function Loading({ label = "Loading", rows = 6 }: { label?: string; rows?: number }) {
+/**
+ * Skeleton rows while a list loads. R33: `variant` matches the real row so nothing jumps when the
+ * data lands: "mail" (avatar and two lines), "task" (a check circle in a card) and "chat" (bubbles
+ * left and right). The shimmer stops with Reduce Motion (see Skeleton).
+ */
+export function Loading({ label = "Loading", rows = 6, variant = "mail" }: { label?: string; rows?: number; variant?: "mail" | "task" | "chat" }) {
   return (
     <View style={{ paddingVertical: space.md }} accessible accessibilityRole="progressbar" accessibilityLabel={label} testID="loading">
-      {Array.from({ length: rows }, (_, i) => (
+      {Array.from({ length: rows }, (_, i) => variant === "task" ? (
+        <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: space.md, marginHorizontal: space.lg, marginBottom: space.sm, minHeight: 56, paddingHorizontal: space.md, borderRadius: 12, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface }}>
+          <Skeleton width={22} height={22} radius={11} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <Skeleton width={i % 2 ? "60%" : "78%"} height={14} />
+            {i % 3 ? <Skeleton width={90} height={10} /> : null}
+          </View>
+        </View>
+      ) : variant === "chat" ? (
+        <View key={i} style={{ flexDirection: "row", justifyContent: i % 3 === 2 ? "flex-end" : "flex-start", paddingHorizontal: space.lg, paddingVertical: 6, gap: space.sm }}>
+          {i % 3 === 2 ? null : <Skeleton width={28} height={28} radius={14} />}
+          <Skeleton width={i % 2 ? "52%" : "68%"} height={i % 2 ? 38 : 56} radius={16} />
+        </View>
+      ) : (
         <View key={i} style={{ flexDirection: "row", alignItems: "center", gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md }}>
           <Skeleton width={36} height={36} radius={18} />
           <View style={{ flex: 1, gap: space.sm }}>
