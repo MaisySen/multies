@@ -479,10 +479,10 @@
       "breakpoints": true
     },
     {
-      "idx": 73,
+      "idx": 74,
       "version": "6",
-      "when": 1793000073000,
-      "tag": "0073_r33_one_row_per_change",
+      "when": 1793000074000,
+      "tag": "0074_r33_mail_bulk_jobs",
       "breakpoints": true
     }
   ]

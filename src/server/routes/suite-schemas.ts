@@ -18,7 +18,6 @@ export const ProjectPatch = z.object({
   health: z.enum(["on_track", "at_risk", "off_track"]).nullable().optional().openapi({ description: "Set by hand on the portfolio: on_track, at_risk, off_track, or null for not set." }),
   healthNote: z.string().max(500).optional(), ownerId: z.string().nullable().optional().openapi({ description: "The user id of the project's owner, or null." }),
   triage: z.boolean().optional().openapi({ description: "R21: new mail and form tasks wait in Triage until someone accepts them." }),
-  key: z.string().trim().min(1).max(6).regex(/^[A-Za-z0-9]+$/).optional().openapi({ description: "R33: the short key before task numbers (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, in any case, answers 409 key_taken.", example: "OPS" }),
 }).openapi("ProjectPatch");
 
 export const FieldValues = z.record(z.string(), z.union([z.string().max(2000), z.number(), z.boolean(), z.array(z.string().max(200)).max(50), z.null()]))

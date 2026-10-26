@@ -139,26 +139,6 @@ Migration 0072 makes seven indexes partial (`WHERE col IS NOT NULL`): `tasks_par
 
 `tests/write-budget-r32.test.ts` locks the After column: it fails if any action grows.
 
-Not cut in R32, and why: task create at 8 rows (the goal) was not reached; it needed the activity row and the change log row to become one, and the project number claim to move off the projects row. Both landed in R33 (below).
-
-### R33: one row per change, number claim off the projects row (migration 0073)
-
-- One row per change. A tracked write (task, doc, project, contact and the rest through `recordWrite`) used to add an `activity` row (row, primary key, two indexes: 4) and a `changes` row (row and one index: 2). The `changes` row now carries the activity fields (`actor_type`, `actor_id`, `actor_name`, `verb`, `data`) and is the only row: 3 (row, `changes_org_seq_idx`, and one entry in the partial `changes_entity_idx`, which holds only rows with a verb). The sync feed (`changesSince`) reads the same rows as before. Every timeline reader (task and contact history, catch-up digests, sprint burndown) reads the SQL view `activity_feed`: the old `activity` rows plus change rows with a verb, so rows from before 0073 still show. Bulk summaries and sprint scope rows still go to `activity` (one row per bulk action, not per task). Nothing is dropped.
-- Task number claim. `UPDATE projects SET next_number = next_number + n` rewrote the wide projects row (3). The counter is now `project_counters` (WITHOUT ROWID, no other index: 1), claimed with one UPSERT ... RETURNING in `src/server/services/suite/project-counter.ts`, seeded on first claim from `projects.next_number` (and by 0073 for projects past 1). `projects.next_number` is kept and no longer written.
-- Rollback: the code before 0073 still reads `projects.next_number`, so copy the live counters back first: `UPDATE projects SET next_number = (SELECT next_number FROM project_counters WHERE project_id = projects.id) WHERE id IN (SELECT project_id FROM project_counters);`. Change rows written since 0073 have no `activity` twin; the old timeline would not show them (they stay in `changes`).
-
-| Action | Before R33 | After R33 | Where the rows go now |
-| --- | --- | --- | --- |
-| Task create (no due date) | 14 | 9 | task 4, change 3, number claim 1, creator watch 1 |
-| Task update (title) | 10 | 7 | task 4, change 3 |
-| Task update (status) | 4 | 4 | task 4 (no timeline row, as before) |
-| Task move to another project | 13 | 8 | task 4, change 3, number claim 1 |
-| Comment (http, with limiter) | 16 | 13 | comment 3, task 4, change 3, limiter 3 |
-| Bulk move of 2 tasks (http) | 22 | 20 | tasks 8, change rows 4 (feed only), one summary activity 4, number claim 1, limiter 3 |
-| Doc save | 9 | 6 | doc 3, change 3 |
-| Doc create | 9 | 6 | doc 3, change 3 |
-| Chat message | 11 | 11 | unchanged |
-
-Measured with `tests/d1-meter.ts` (`tests/r33-measure.test.ts` prints the table by table split); `tests/write-budget-r32.test.ts` locks the new numbers and `tests/d1-rows-r33.test.ts` checks the query plan (`changes_entity_idx`) and the behaviour.
+Not cut, and why: task create at 8 rows (the goal) is not reached; would need the activity row and the change log row to become one table (they serve the feed and client sync), or the project number claim to move off the projects row. Both are schema changes for R33, worth about 6 rows per task, doc or title change.
 
 The cron writes one uptime row per pass: 96 a day on production (every 15 minutes) and 24 on staging (hourly), about 360 D1 rows a day with the row's index. No cut needed.

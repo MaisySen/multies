@@ -19,7 +19,7 @@
  */
 import { and, asc, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { activity, activityFeed, organizations, projects, sprints, tasks, users } from "../../db/schema";
+import { activity, organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, sortableId, actorOf, type SuiteActor } from "./common";
 import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from "./sprint-dates";
@@ -335,11 +335,11 @@ export async function burndownFor(deps: Deps, actor: SuiteActor, s: SprintRow, o
   const push = (id: string, e: Ev) => { const l = evs.get(id) ?? []; l.push(e); evs.set(id, l); };
   const ids = new Set<string>([...members.map((m) => m.id), ...Object.keys(start)]);
   if (s.status === "active") {
-    const scopeRows = await deps.db.select({ data: activityFeed.data, createdAt: activityFeed.createdAt }).from(activityFeed)
-      .where(and(eq(activityFeed.entityType, "sprint"), eq(activityFeed.entityId, s.id), gte(activityFeed.createdAt, new Date(startMs))));
+    const scopeRows = await deps.db.select({ data: activity.data, createdAt: activity.createdAt }).from(activity)
+      .where(and(eq(activity.entityType, "sprint"), eq(activity.entityId, s.id), gte(activity.createdAt, new Date(startMs))));
     // Single moves made through a task edit name the sprint in the task's own activity row.
-    const moveRows = await deps.db.select({ entityId: activityFeed.entityId, data: activityFeed.data, createdAt: activityFeed.createdAt }).from(activityFeed)
-      .where(and(eq(activityFeed.orgId, actor.orgId), gte(activityFeed.createdAt, new Date(startMs)), eq(activityFeed.entityType, "task"), like(activityFeed.data, `%${s.id}%`))).limit(5000);
+    const moveRows = await deps.db.select({ entityId: activity.entityId, data: activity.data, createdAt: activity.createdAt }).from(activity)
+      .where(and(eq(activity.orgId, actor.orgId), gte(activity.createdAt, new Date(startMs)), eq(activity.entityType, "task"), like(activity.data, `%${s.id}%`))).limit(5000);
     for (const r of scopeRows) {
       const d = JSON.parse(r.data) as { added?: string[]; removed?: string[] };
       for (const id of d.added ?? []) { ids.add(id); push(id, { at: r.createdAt.getTime(), kind: "in" }); }
@@ -360,8 +360,8 @@ export async function burndownFor(deps: Deps, actor: SuiteActor, s: SprintRow, o
     deps.db.select({ id: tasks.id, status: tasks.status, points: tasks.points, completedAt: tasks.completedAt, createdAt: tasks.createdAt, sprintId: tasks.sprintId })
       .from(tasks).where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part), isNull(tasks.deletedAt))),
     s.status === "active"
-      ? deps.db.select({ entityId: activityFeed.entityId, data: activityFeed.data, createdAt: activityFeed.createdAt }).from(activityFeed)
-        .where(and(eq(activityFeed.entityType, "task"), inIds(activityFeed.entityId, part), gte(activityFeed.createdAt, new Date(startMs)), like(activityFeed.data, "%\"points\"%")))
+      ? deps.db.select({ entityId: activity.entityId, data: activity.data, createdAt: activity.createdAt }).from(activity)
+        .where(and(eq(activity.entityType, "task"), inIds(activity.entityId, part), gte(activity.createdAt, new Date(startMs)), like(activity.data, "%\"points\"%")))
       : Promise.resolve([]),
   ])));
   for (const [taskRows, ptsRows] of parts) {

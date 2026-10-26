@@ -25,7 +25,6 @@ import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
 import { parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
 import { inIds } from "../../lib/sql-chunks";
-import { claimNumbers } from "./project-counter";
 
 export const BULK_MAX = 500;
 /** Ids per IN list, under D1's 100 bound values per statement. */
@@ -258,7 +257,8 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   // A move to another project claims a block of numbers there in one write.
   const movingProject = [...sets.entries()].filter(([, s]) => s.projectId);
   if (target && movingProject.length) {
-    const first = await claimNumbers(deps, target.id, movingProject.length); // R33: 1 row on project_counters
+    const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + ${movingProject.length}` }).where(eq(projects.id, target.id)).returning({ n: projects.nextNumber });
+    const first = Number(claimed[0]?.n ?? target.nextNumber + movingProject.length) - movingProject.length;
     movingProject.forEach(([, s], i) => { s.number = first + i; });
   }
 

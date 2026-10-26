@@ -78,7 +78,7 @@ export function undoPlan(call: BulkCall, before: Pick<MessageListItem, "id" | "f
   }
 }
 
-const SNOOZE_WORDS = { later_today: "until later today", tomorrow: "until tomorrow", next_week: "until next week" } as const;
+export const SNOOZE_WORDS = { later_today: "until later today", tomorrow: "until tomorrow", next_week: "until next week" } as const;
 
 /** The toast after a bulk action: "Archived 3 conversations". */
 export function bulkLabel(call: BulkCall, folderLabel?: string): string {

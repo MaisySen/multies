@@ -9,7 +9,7 @@
  */
 import { and, desc, eq, gt, isNull, ne, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { activityFeed, chatMembers, chatMessages, itemVisits, notifications, taskComments } from "../../db/schema";
+import { activity, chatMembers, chatMessages, itemVisits, notifications, taskComments } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { plainText } from "./chat";
@@ -142,9 +142,9 @@ function describeChange(verb: string, data: Record<string, unknown>): { kind: "s
 
 async function taskDigest(deps: Deps, orgId: string, userId: string, taskId: string, since: Date, out: CatchupDigest) {
   const [acts, comments, mentions] = await Promise.all([
-    deps.db.select({ id: activityFeed.id, verb: activityFeed.verb, actorName: activityFeed.actorName, data: activityFeed.data, createdAt: activityFeed.createdAt }).from(activityFeed)
-      .where(and(eq(activityFeed.entityType, "task"), eq(activityFeed.entityId, taskId), eq(activityFeed.orgId, orgId), gt(activityFeed.createdAt, since), or(isNull(activityFeed.actorId), ne(activityFeed.actorId, userId))))
-      .orderBy(desc(activityFeed.createdAt)).limit(SCAN_LIMIT),
+    deps.db.select({ id: activity.id, verb: activity.verb, actorName: activity.actorName, data: activity.data, createdAt: activity.createdAt }).from(activity)
+      .where(and(eq(activity.entityType, "task"), eq(activity.entityId, taskId), eq(activity.orgId, orgId), gt(activity.createdAt, since), or(isNull(activity.actorId), ne(activity.actorId, userId))))
+      .orderBy(desc(activity.createdAt)).limit(SCAN_LIMIT),
     deps.db.select({ id: taskComments.id, authorName: taskComments.authorName, body: taskComments.body, createdAt: taskComments.createdAt, createdBy: taskComments.createdById }).from(taskComments)
       .where(and(eq(taskComments.taskId, taskId), eq(taskComments.orgId, orgId), gt(taskComments.createdAt, since), isNull(taskComments.deletedAt)))
       .orderBy(desc(taskComments.createdAt)).limit(SCAN_LIMIT),
@@ -172,9 +172,9 @@ async function taskDigest(deps: Deps, orgId: string, userId: string, taskId: str
 }
 
 async function docDigest(deps: Deps, orgId: string, userId: string, docId: string, since: Date, out: CatchupDigest) {
-  const acts = await deps.db.select({ id: activityFeed.id, verb: activityFeed.verb, actorName: activityFeed.actorName, createdAt: activityFeed.createdAt }).from(activityFeed)
-    .where(and(eq(activityFeed.entityType, "doc"), eq(activityFeed.entityId, docId), eq(activityFeed.orgId, orgId), gt(activityFeed.createdAt, since), or(isNull(activityFeed.actorId), ne(activityFeed.actorId, userId))))
-    .orderBy(desc(activityFeed.createdAt)).limit(SCAN_LIMIT);
+  const acts = await deps.db.select({ id: activity.id, verb: activity.verb, actorName: activity.actorName, createdAt: activity.createdAt }).from(activity)
+    .where(and(eq(activity.entityType, "doc"), eq(activity.entityId, docId), eq(activity.orgId, orgId), gt(activity.createdAt, since), or(isNull(activity.actorId), ne(activity.actorId, userId))))
+    .orderBy(desc(activity.createdAt)).limit(SCAN_LIMIT);
   const edits = acts.filter((r) => r.verb === "edited" || r.verb === "updated");
   out.counts.edits = edits.length;
   out.actors = topActors(edits.map((r) => r.actorName));

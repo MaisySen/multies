@@ -14,18 +14,17 @@
 import { invalidateStatuses } from "../suite/read-cache";
 import { and, eq, max, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { changes, members, projects, projectStatuses, taskComments, tasks, usageCounters, users } from "../../db/schema";
+import { activity, changes, members, projects, projectStatuses, taskComments, tasks, usageCounters, users } from "../../db/schema";
 import { runBatch } from "../../db";
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
-import { assertWritable, changeRow, createdBy, actorOf, sortableId, type SuiteActor } from "../suite/common";
+import { assertWritable, createdBy, actorOf, sortableId, type SuiteActor } from "../suite/common";
 import { createProject, DEFAULT_STATUSES, getProject } from "../suite/tasks";
 import {
   FIELD_LABELS, ImportFileError, MAP_FIELDS, SOURCE_LABELS, categoryOf, defaultMapping, mapRows, readTable, trelloListOrder, uniqueHeaders,
   type Category, type ImportRow, type Mapping, type Table,
 } from "./parse";
 import { inIds } from "../../lib/sql-chunks";
-import { claimNumbers } from "../suite/project-counter";
 
 export const DAILY_TASK_CAP = 2_000;
 export const BATCH_SIZE = 50;
@@ -249,7 +248,8 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     if (level === "warn" || level === "shed") { stopped = "write_budget"; break; }
     if (i > 0 && Date.now() - started > maxMs) { stopped = "time"; break; }
     const part = pending.slice(i, i + Math.min(batchSize, room));
-    const first = await claimNumbers(deps, projectId, part.length); // R33: 1 row on project_counters
+    const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + ${part.length}` }).where(eq(projects.id, projectId)).returning({ n: projects.nextNumber });
+    const first = Number(claimed[0].n) - part.length;
     const at = new Date(now.getTime() + i);
     const stmts: PromiseLike<unknown>[] = [];
     part.forEach(({ r, key }, j) => {
@@ -286,8 +286,8 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     const who = actorOf(actor);
     const data = { source: table.source, file: input.fileName ?? null, created, comments, alreadyThere: existing.size, left: pending.length - created, stopped };
     await runBatch(deps.db, [
-      // R33: one change row carries the timeline entry (was an activity row plus a change row).
-      deps.db.insert(changes).values(changeRow(actor.orgId, who, now, { entityType: "project", entityId: projectId, op: "update", version: project.version, verb: "tasks.imported", data })),
+      deps.db.insert(activity).values({ id: sortableId("act", now.getTime()), orgId: actor.orgId, actorType: who.type, actorId: who.id, actorName: who.name, verb: "tasks.imported", entityType: "project", entityId: projectId, data: JSON.stringify(data), createdAt: now }),
+      deps.db.insert(changes).values({ orgId: actor.orgId, entityType: "project", entityId: projectId, op: "update", version: project.version, createdAt: now }),
     ]);
   }
   return {

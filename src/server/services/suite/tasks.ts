@@ -5,7 +5,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, docs, entityLinks, members, messages, projectKeyAliases, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
+import { agents, docs, entityLinks, members, messages, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -13,7 +13,6 @@ import { clearForeignValues, fieldFilterConditions, fieldOrderBy, listFields, se
 import { normaliseRule, nextOccurrence, describeRule, type RepeatRule } from "./recurrence";
 import { actorOf, assertWritable, createdBy, scopeOf, iso, parseDate, recordWrite, sortableId, timeline, type SuiteActor } from "./common";
 import { checkTypeRules, topLevelCondition, type TaskType } from "./task-types";
-import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
@@ -126,13 +125,10 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
   health?: "on_track" | "at_risk" | "off_track" | null; healthNote?: string; ownerId?: string | null;
   /** R21: send new mail and form tasks to Triage first. */
   triage?: boolean;
-  /** R33: a new key; unique in the workspace (any case), else 409 key_taken. */
-  key?: string;
 }) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
   const now = deps.now();
-  const key = patch.key !== undefined ? await assertKeyFree(deps, actor.orgId, patch.key, id) : undefined;
   if (patch.ownerId) {
     const m = await deps.db.select({ id: members.id }).from(members).where(and(eq(members.organizationId, actor.orgId), eq(members.userId, patch.ownerId))).get();
     if (!m) throw new HttpError(422, "validation_failed", "The owner must be a member of this workspace.");
@@ -146,15 +142,9 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
     ...(patch.healthNote !== undefined ? { healthNote: patch.healthNote.slice(0, 500) } : {}),
     ...(patch.ownerId !== undefined ? { ownerUserId: patch.ownerId } : {}),
     ...(patch.triage !== undefined ? { triage: patch.triage } : {}),
-    ...(key !== undefined && key !== p.key ? { key } : {}),
     updatedAt: now, version: p.version + 1,
   }).where(eq(projects.id, id));
   if (patch.statuses) await replaceStatuses(deps, actor, p, patch.statuses);
-  // R33: keep the old key so its refs (OPS-12) still open the task. Essential write, once per key edit.
-  if (key !== undefined && key !== p.key) {
-    await deps.db.insert(projectKeyAliases).values({ orgId: actor.orgId, key: p.key.toUpperCase(), projectId: id, createdAt: now })
-      .onConflictDoUpdate({ target: [projectKeyAliases.orgId, projectKeyAliases.key], set: { projectId: id, createdAt: now } });
-  }
   const project = await getProject(deps, actor.orgId, id);
   await recordWrite(deps, actor, {
     entityType: "project", entityId: id, op: "update", version: p.version + 1,
@@ -163,23 +153,6 @@ export async function updateProject(deps: Deps, actor: SuiteActor, id: string, p
     event: "project.updated", eventData: { project, changed: Object.keys(patch) },
   });
   return project;
-}
-
-/**
- * R33: a project key edit must stay unique in the workspace, compared without case (ops and OPS are the same key),
- * so a task ref like OPS-12 names one task. One read on projects_org_idx; no write. Answers the normalised key.
- */
-export async function assertKeyFree(deps: Deps, orgId: string, raw: string, selfId?: string): Promise<string> {
-  const key = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-  if (!key) throw new HttpError(422, "validation_failed", "A project key needs at least one letter or digit.");
-  const clash = await deps.db.select({ id: projects.id, name: projects.name }).from(projects)
-    .where(and(eq(projects.orgId, orgId), isNull(projects.deletedAt), sql`upper(${projects.key}) = ${key}`, ...(selfId ? [ne(projects.id, selfId)] : []))).get();
-  if (clash) throw new HttpError(409, "key_taken", `The key ${key} is already used by ${clash.name}. Pick another key.`);
-  // A key another project used before its own key edit still opens that project's old refs, so it is taken too.
-  const old = await deps.db.select({ name: projects.name }).from(projectKeyAliases).innerJoin(projects, eq(projects.id, projectKeyAliases.projectId))
-    .where(and(eq(projectKeyAliases.orgId, orgId), eq(projectKeyAliases.key, key), isNull(projects.deletedAt), ...(selfId ? [ne(projectKeyAliases.projectId, selfId)] : []))).get();
-  if (old) throw new HttpError(409, "key_taken", `The key ${key} was used by ${old.name}, and its old task links still open there. Pick another key.`);
-  return key;
 }
 
 /** Saves the ordered status list. Tasks in a removed status move to the first status of the same group. */
@@ -384,11 +357,7 @@ export async function resolveTaskId(deps: Deps, orgId: string, idOrRef: string) 
   if (!m) return idOrRef;
   const row = await deps.db.select({ id: tasks.id }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
     .where(and(eq(tasks.orgId, orgId), eq(projects.key, m[1].toUpperCase()), eq(tasks.number, Number(m[2])), isNull(tasks.deletedAt))).get();
-  if (row) return row.id;
-  // R33: a key the project used before a key edit still resolves (OPS-12 after OPS became OPR). One read, only on a miss.
-  const alias = await deps.db.select({ id: tasks.id }).from(projectKeyAliases).innerJoin(tasks, eq(tasks.projectId, projectKeyAliases.projectId))
-    .where(and(eq(projectKeyAliases.orgId, orgId), eq(projectKeyAliases.key, m[1].toUpperCase()), eq(tasks.orgId, orgId), eq(tasks.number, Number(m[2])), isNull(tasks.deletedAt))).get();
-  return alias?.id ?? idOrRef;
+  return row?.id ?? idOrRef;
 }
 
 export async function getTask(deps: Deps, actor: SuiteActor, idOrRef: string) {
@@ -480,8 +449,8 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   const triage = input.triage && !input.parentId && (input.triage.when === "always" || project.triage) ? input.triage : null;
   const now = deps.now();
   // Claim the next number in the project. The unique index on (project, number) guards races.
-  // R33: one narrow UPSERT on project_counters (1 row written) instead of rewriting the projects row (3).
-  const number = await claimNumbers(deps, project.id);
+  const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + 1` }).where(eq(projects.id, project.id)).returning({ n: projects.nextNumber });
+  const number = Number(claimed[0]?.n ?? project.nextNumber + 1) - 1;
   const id = sortableId("tsk", now.getTime());
   const row = {
     id, orgId: actor.orgId, projectId: project.id, number, statusId: status.id, status: status.category,
@@ -587,7 +556,8 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
   let projectId = t.projectId;
   if (patch.projectId && patch.projectId !== t.projectId) {
     const p = await projectRow(deps, actor.orgId, patch.projectId);
-    set.projectId = p.id; set.number = await claimNumbers(deps, p.id); projectId = p.id;
+    const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + 1` }).where(eq(projects.id, p.id)).returning({ n: projects.nextNumber });
+    set.projectId = p.id; set.number = Number(claimed[0]?.n ?? p.nextNumber + 1) - 1; projectId = p.id;
     changed.projectId = p.id;
   }
   let fromCategory: Category | null = null;
