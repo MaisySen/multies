@@ -44,7 +44,7 @@ export class SampleTransport implements Transport {
 
     if (method === "GET" && path === "/portfolio") return json(samplePortfolio(d.work, this.extras, Date.now()));
     if (method === "GET" && path === "/team/people") return json(samplePeople(Date.now()));
-    const mail = emailRoute(this.email, d.mailboxes, method, parts, body);
+    const mail = emailRoute(this.email, d.mailboxes, method, parts, body, Date.now(), params);
     if (mail !== undefined) return json(mail);
     const talk = chatRoute(this.chat, d.work, d.messages, method, parts, params, body);
     if (talk !== undefined) return json(talk);

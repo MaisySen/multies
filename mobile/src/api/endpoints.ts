@@ -115,6 +115,8 @@ export function endpoints(t: Transport) {
     freeAddress: () => t.request<FreeAddressInfo>("GET", "/free-address"),
     /** Takes a free address. The server checks the name is allowed and free, and its limits. */
     claimFreeAddress: (localPart: string) => t.request<{ mailbox: { id: string; address: string } }>("POST", "/free-address", { localPart }),
+    /** R26: is this name free? Reads only (same rules as a claim), so the field can say so while typing. */
+    checkFreeAddress: (localPart: string) => t.request<{ address: string | null; available: boolean; problem: string | null }>("GET", `/free-address/check?localPart=${encodeURIComponent(localPart)}`),
   };
 }
 

@@ -26,7 +26,7 @@ export function sampleEmail(now: number): SampleEmail {
  * way a provider does, so the error path can be seen without a server. Returns undefined for any
  * other path.
  */
-export function emailRoute(s: SampleEmail, mailboxes: MailboxOverview[], method: string, parts: string[], body: unknown, now = Date.now()): unknown {
+export function emailRoute(s: SampleEmail, mailboxes: MailboxOverview[], method: string, parts: string[], body: unknown, now = Date.now(), params: Record<string, string> = {}): unknown {
   if (parts[0] === "connections") {
     if (method === "GET" && parts.length === 1) return { enabled: true, oauth: { google: false, microsoft: false }, connections: s.connections };
     const b = (body ?? {}) as ConnectInput;
@@ -62,6 +62,14 @@ export function emailRoute(s: SampleEmail, mailboxes: MailboxOverview[], method:
       if (i >= 0) mailboxes.splice(i, 1);
       return { ok: true };
     }
+  }
+  if (parts[0] === "free-address" && parts[1] === "check" && method === "GET") {
+    // R26: the read only name check (same rules as a claim; ava is taken in the sample).
+    const local = String(params.localPart ?? "").trim().toLowerCase();
+    const problem = localPartProblem(local);
+    if (problem) return { address: null, available: false, problem };
+    if (local === "ava") return { address: `ava@${SAMPLE_FREE_DOMAIN}`, available: false, problem: `ava@${SAMPLE_FREE_DOMAIN} is taken. Try another, for example with your team's name.` };
+    return { address: `${local}@${SAMPLE_FREE_DOMAIN}`, available: true, problem: null };
   }
   if (parts[0] === "free-address" && parts.length === 1) {
     if (method === "GET") return { enabled: true, domain: SAMPLE_FREE_DOMAIN, dailySends: 50, available: true, suggestion: "ava.harbour", addresses: s.free };

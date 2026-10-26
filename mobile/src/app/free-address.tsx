@@ -2,7 +2,7 @@ import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { router, Stack } from "expo-router";
 import { Button, EmptyState, Icon, Loading } from "@/components/ui";
-import { useClaimFreeAddress, useFreeAddress } from "@/lib/queries";
+import { useClaimFreeAddress, useFreeAddress, useFreeAddressCheck } from "@/lib/queries";
 import { cleanLocalPart, localPartProblem } from "@/lib/mail-connect";
 import { colors, font, radius, space } from "@/theme";
 
@@ -17,6 +17,9 @@ export default function FreeAddress() {
   const [local, setLocal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [taken, setTaken] = useState<string | null>(null);
+  const typed = cleanLocalPart(local ?? info.data?.suggestion ?? "");
+  // R26: the server says whether the name is free while the person types (reads only).
+  const check = useFreeAddressCheck(typed, !!info.data?.available && !info.data?.addresses?.length && !taken && !localPartProblem(typed));
 
   if (info.isPending) return <Loading rows={3} />;
   if (info.error) return <EmptyState icon="alert-circle" title="Couldn't load free addresses" body={info.error.message} action={<Button label="Try again" variant="secondary" onPress={() => info.refetch()} />} />;
@@ -70,7 +73,9 @@ export default function FreeAddress() {
               style={{ flex: 1, minWidth: 0, paddingHorizontal: space.md, paddingVertical: 12, fontSize: 16, color: colors.fg }} />
             <Text style={{ color: colors.subtle, fontSize: 16, paddingRight: space.md }} numberOfLines={1}>@{d.domain}</Text>
           </View>
-          {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityLiveRegion="polite" testID="free-error">{error}</Text> : null}
+          {error ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityLiveRegion="polite" testID="free-error">{error}</Text>
+            : check.data && check.data.available ? <Text style={{ color: colors.ok, fontSize: 14 }} accessibilityLiveRegion="polite" testID="free-available">{check.data.address ?? `${typed}@${d.domain}`} is available</Text>
+            : check.data && !check.data.available ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityLiveRegion="polite" testID="free-unavailable">{check.data.problem ?? "That name is taken. Try another."}</Text> : null}
         </View>
         <Button label="Get my address" icon="at-sign" testID="free-claim" loading={claim.isPending} disabled={claim.isPending} onPress={submit} />
         <Text style={font.tiny}>

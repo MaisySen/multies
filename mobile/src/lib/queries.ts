@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
 import { cached } from "./offline";
@@ -471,6 +472,17 @@ export function useConnectionActions() {
   const remove = useMutation({ mutationFn: (id: string) => api.removeConnection(id), onSuccess: () => refreshAddresses(qc) });
   const reconnect = useMutation({ mutationFn: (v: { id: string; password: string }) => api.reconnect(v.id, v.password), onSuccess: () => refreshAddresses(qc) });
   return { sync, remove, reconnect };
+}
+
+/** R26: the name check while typing, 400 ms after the last key, only for names that pass the local rules. */
+export function useFreeAddressCheck(localPart: string, enabled: boolean) {
+  const { api } = useSession();
+  const [debounced, setDebounced] = useState(localPart);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(localPart), 400);
+    return () => clearTimeout(t);
+  }, [localPart]);
+  return useQuery({ queryKey: ["free-address-check", debounced], queryFn: () => api.checkFreeAddress(debounced), enabled: enabled && !!debounced && debounced === localPart, staleTime: 30_000, retry: false });
 }
 
 export function useClaimFreeAddress() {

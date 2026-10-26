@@ -142,9 +142,10 @@ describe("API calls", () => {
     await api.removeConnection("con_1");
     await api.freeAddress();
     await api.claimFreeAddress("ava.harbour");
+    await api.checkFreeAddress("ava harbour");
     expect(calls.map((c) => `${c.method} ${c.path}`)).toEqual([
       "GET /connections", "POST /connections/test", "POST /connections", "POST /connections/con%201/sync", "PUT /connections/con_1",
-      "DELETE /connections/con_1", "GET /free-address", "POST /free-address",
+      "DELETE /connections/con_1", "GET /free-address", "POST /free-address", "GET /free-address/check?localPart=ava%20harbour",
     ]);
     expect(calls[4].body).toEqual({ password: "new" });
     expect(calls[7].body).toEqual({ localPart: "ava.harbour" });
@@ -283,11 +284,15 @@ describe("Free address screen", () => {
     await wrap(<Free />);
     const field = await screen.findByTestId("free-local");
     expect(field.props.value).toBe("ava.harbour");
+    // R26: the server's name check says so while typing.
+    expect(await screen.findByTestId("free-available", {}, { timeout: 3000 })).toBeTruthy();
+    expect(request).toHaveBeenCalledWith("GET", "/free-address/check?localPart=ava.harbour");
     expect(screen.getByText("@mail.multies.si")).toBeTruthy();
     await fireEvent.changeText(field, "a.");
     await fireEvent.press(screen.getByTestId("free-claim"));
     expect(await screen.findByText("Use at least 3 letters or numbers.")).toBeTruthy();
     await fireEvent.changeText(field, "Ava");
+    expect(await screen.findByTestId("free-unavailable", {}, { timeout: 3000 })).toBeTruthy();
     await fireEvent.press(screen.getByTestId("free-claim"));
     expect(await screen.findByText(/ava@mail.multies.si is taken/)).toBeTruthy();
     await fireEvent.changeText(screen.getByTestId("free-local"), "ava.harbour");
