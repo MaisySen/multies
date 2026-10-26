@@ -9,7 +9,6 @@ import { qk, useMailboxes, useMe, useTeam } from "@/web/lib/queries";
 import type { InviteCreated, Mailbox, PendingInvite, Role, TeamMember } from "@/web/lib/types";
 import { Avatar, Badge, Card, CopyButton, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
-import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
@@ -145,7 +144,7 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
     onError: (e) => showError(e),
   });
   return (
-    <li className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-hover/40 max-sm:px-4">
+    <li className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar label={initials(m.name)} />
         <div className="min-w-0">
@@ -154,13 +153,13 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
           {m.bio && <div className="mt-0.5 line-clamp-2 text-xs text-subtle">{m.bio}</div>}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1 sm:gap-4">
+      <div className="flex items-center gap-4 pl-11 sm:pl-0">
         <div className="hidden w-48 truncate text-xs text-muted md:block" title={accessSummary(m, mailboxes)}>{accessSummary(m, mailboxes)}</div>
         <div className="hidden w-24 text-xs text-subtle lg:block">{m.lastActiveAt ? `Active ${timeAgo(m.lastActiveAt)}` : "Not signed in"}</div>
-        <div className="sm:w-24"><RoleBadge role={m.role} /></div>
-        <div className="w-8 max-sm:w-11">
+        <div className="w-24"><RoleBadge role={m.role} /></div>
+        <div className="w-8">
           {(canEdit || canProfile) && (
-            <Menu label={`Actions for ${m.name}`} trigger={<button className="grid place-items-center rounded-md p-1.5 text-subtle transition-colors hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11" aria-label={`Actions for ${m.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
+            <Menu label={`Actions for ${m.name}`} trigger={<button className="rounded-md p-1.5 text-subtle hover:bg-hover hover:text-fg" aria-label={`Actions for ${m.name}`}><MoreHorizontal className="h-4 w-4" /></button>}>
               {canProfile && <MenuItem icon={<Pencil />} onSelect={() => setProfiling(true)}>Edit title and bio</MenuItem>}
               {canEdit && m.role === "member" && <MenuItem icon={<Mail />} onSelect={() => setEditing(true)}>Mailbox access</MenuItem>}
               {canEdit && myRole === "owner" && m.role === "member" && <MenuItem icon={<Shield />} onSelect={() => setRole.mutate("admin")}>Make admin</MenuItem>}
@@ -298,7 +297,7 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
     onError: (e) => showError(e),
   });
   return (
-    <li className="flex flex-col gap-3 px-5 py-3.5 transition-colors hover:bg-hover/40 sm:flex-row sm:items-center max-sm:px-4">
+    <li className="flex flex-col gap-3 px-5 py-3.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-line-strong text-subtle"><Mail className="h-3.5 w-3.5" /></div>
         <div className="min-w-0">
@@ -309,7 +308,7 @@ function InviteRow({ inv, onReissued }: { inv: PendingInvite; onReissued: (r: In
       <div className="flex items-center gap-2 pl-11 sm:pl-0">
         <RoleBadge role={inv.role} />
         <Button size="sm" variant="secondary" loading={resend.isPending} onClick={() => resend.mutate()}><RefreshCw className="h-3.5 w-3.5" />{inv.expired ? "Renew" : "New link"}</Button>
-        <ConfirmButton armedLabel="Revoke?" loading={revoke.isPending} onConfirm={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><Trash2 className="h-3.5 w-3.5" /></ConfirmButton>
+        <Button size="sm" variant="ghost" loading={revoke.isPending} onClick={() => revoke.mutate()} aria-label={`Revoke invitation for ${inv.email}`}><Trash2 className="h-3.5 w-3.5" /></Button>
       </div>
     </li>
   );

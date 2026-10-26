@@ -163,7 +163,7 @@ function VerifyEmailNotice() {
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur" data-testid="verify-email">
       <div className="grid h-11 w-11 place-items-center rounded-full bg-brand/10 text-accent" aria-hidden><MailCheck className="h-5 w-5" /></div>
-      <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your email to verify your account</h1>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">Check your email to verify your account</h1>
       <p className="mt-2 text-sm text-muted">Your account is created. We sent a confirmation link to the address you signed up with. Open it, then come back and sign in.</p>
       <form className="mt-6 space-y-3" onSubmit={onSubmit} noValidate>
         {resend.isSuccess && <p role="status" className="rounded-lg border border-ok/25 bg-ok-soft px-3 py-2.5 text-sm text-ok">If that address is waiting for confirmation, a new link is on its way. Check your spam folder too.</p>}
@@ -195,7 +195,7 @@ export function LoginPage() {
   if (needsVerify) return <VerifyEmailNotice />;
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Welcome back</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
       {oauthFailed && <div className="mt-4"><FormError message={params.get("error_description") || "That sign in didn't complete. Please try again."} /></div>}
@@ -231,7 +231,7 @@ function SecondFactor() {
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
       <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover">{recovery ? <KeyRound className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}</div>
-      <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">{recovery ? "Use a backup code" : "Two-factor authentication"}</h1>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">{recovery ? "Use a backup code" : "Two-factor authentication"}</h1>
       <p className="mt-1 text-sm text-muted">{recovery ? "Enter one of the backup codes you saved when you turned on two-factor." : "Enter the 6-digit code from your authenticator app."}</p>
       <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); submit({ code }); }} noValidate>
         <FormError message={error && !fields.code ? error : null} />
@@ -270,7 +270,7 @@ function MovedSignInReset() {
     return (
       <div className={card} data-testid="reset-sent">
         <MailCheck className="h-6 w-6 text-[#0071E3]" />
-        <h1 className="mt-3 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your email</h1>
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">Check your email</h1>
         <p className="mt-1 text-sm text-muted">If an account with a password exists for <b className="font-medium text-fg">{email}</b>, a link to set a new password is on its way. Then sign in with Continue with Multies.</p>
         <Link to="/login" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Back to sign in</Link>
       </div>
@@ -278,7 +278,7 @@ function MovedSignInReset() {
   }
   return (
     <div className={card}>
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Reset your password</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Reset your password</h1>
       <p className="mt-1 text-sm text-muted">Enter the email you sign in with and we will send a link to set a new password. Your workspace and data stay as they are.</p>
       <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); send.mutate(); }} noValidate>
         <FormError message={send.error?.message ?? null} />
@@ -294,7 +294,7 @@ function MovedSignInReset() {
 function ManagedAtSignIn({ title, body }: { title: string; body: string }) {
   return (
     <div className={card}>
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">{title}</h1>
+      <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
       <p className="mt-1 text-sm text-muted">{body}</p>
       <IdentityButtons mode="signin" showDivider={false} />
       <Link to="/login" className="mt-6 block text-center text-sm text-muted hover:text-fg">Back to sign in</Link>
@@ -311,7 +311,7 @@ function LocalForgotPassword() {
     return (
       <div className={card}>
         <div className="grid h-11 w-11 place-items-center rounded-xl border border-line-strong bg-elevated text-brand-hover"><MailCheck className="h-5 w-5" /></div>
-        <h1 className="mt-4 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Check your inbox</h1>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Check your inbox</h1>
         <p className="mt-1 text-sm text-muted">If an account exists for <b className="font-medium text-fg">{email}</b>, a reset link is on its way. It works for one hour.</p>
         {!deliveryConnected && (
           <p className="mt-4 rounded-lg border border-warn/25 bg-warn-soft px-3 py-2 text-sm text-warn">Email delivery isn't connected on this deployment yet, so only addresses hosted on Multies receive it. Your workspace owner or the platform operator can issue you a reset link.</p>
@@ -322,7 +322,7 @@ function LocalForgotPassword() {
   }
   return (
     <div className={card}>
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Reset your password</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Reset your password</h1>
       <p className="mt-1 text-sm text-muted">We'll email you a link to choose a new one.</p>
       <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); send.mutate(); }} noValidate>
         <FormError message={send.error?.message ?? null} />
@@ -353,7 +353,7 @@ function LocalResetPassword() {
   if (!token || params.get("error")) {
     return (
       <div className={card}>
-        <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">This link has expired</h1>
+        <h1 className="text-xl font-semibold tracking-tight">This link has expired</h1>
         <p className="mt-1 text-sm text-muted">Reset links work once, for one hour.</p>
         <Link to="/forgot-password" className="mt-6 block text-center text-sm font-medium text-fg hover:underline">Request a new link</Link>
       </div>
@@ -361,7 +361,7 @@ function LocalResetPassword() {
   }
   return (
     <div className={card}>
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Choose a new password</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Choose a new password</h1>
       <p className="mt-1 text-sm text-muted">You'll be signed out on every device.</p>
       <form className="mt-6 space-y-4" onSubmit={(e) => { e.preventDefault(); reset.mutate(); }} noValidate>
         <FormError message={reset.error?.message ?? null} />
@@ -381,13 +381,13 @@ export function EmailVerifiedPage() {
     <div className={card}>
       {failed ? (
         <>
-          <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">We couldn't confirm that link</h1>
+          <h1 className="text-xl font-semibold tracking-tight">We couldn't confirm that link</h1>
           <p className="mt-1 text-sm text-muted">It may have expired. Send a new one from Account & security.</p>
         </>
       ) : (
         <>
           <CheckCircle2 className="h-8 w-8 text-ok" />
-          <h1 className="mt-3 text-[24px] font-semibold leading-tight tracking-[-0.02em]">Email confirmed</h1>
+          <h1 className="mt-3 text-xl font-semibold tracking-tight">Email confirmed</h1>
           <p className="mt-1 text-sm text-muted">Your address is verified.</p>
         </>
       )}
@@ -402,7 +402,7 @@ export function SignupPage() {
   if (providers.data?.idp && !providers.data.password) {
     return (
       <div className={card}>
-        <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Create your account</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
         <p className="mt-1 text-sm text-muted">Free for startups and small teams. No credit card.</p>
         <IdentityButtons mode="signup" showDivider={false} />
         <p className="mt-4 text-center text-xs text-subtle">
@@ -437,7 +437,7 @@ function LocalSignup({ idp }: { idp: boolean }) {
   };
   return (
     <div className="rounded-2xl border border-line bg-surface/80 p-7 shadow-pop backdrop-blur">
-      <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Create your account</h1>
+      <h1 className="text-xl font-semibold tracking-tight">Create your account</h1>
       <p className="mt-1 text-sm text-muted">Free for your first domain. No credit card.</p>
       {idp && <IdentityButtons mode="signup" showDivider />}
       <form className="mt-6 space-y-4" onSubmit={onSubmit} noValidate>

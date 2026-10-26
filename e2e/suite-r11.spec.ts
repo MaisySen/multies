@@ -28,11 +28,8 @@ test("connects Slack from the catalogue, pauses it and removes it", async () => 
   await expect(page.getByText("hooks.slack.com")).toBeVisible();
   await page.getByRole("switch", { name: "Send events to Slack" }).click();
   await expect(page.getByText("Paused")).toBeVisible();
-  // R33: a two-tap confirm instead of the browser's confirm box.
-  const disconnect = page.getByRole("button", { name: "Disconnect Slack" });
-  await disconnect.click();
-  await expect(disconnect).toHaveText("Disconnect?");
-  await disconnect.click();
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Disconnect Slack" }).click();
   await expect(page.getByText("Nothing connected yet")).toBeVisible();
 });
 

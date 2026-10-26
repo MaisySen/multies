@@ -13,7 +13,7 @@ import { AnalyticsBeacon } from "./components/analytics-beacon";
 import "./index.css";
 import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
 import { authProvidersQuery, isAuthLayoutPath } from "./lib/auth-providers";
-import { registerServiceWorker } from "./lib/sw-client";
+import { PUSH_ON_PAGE_EVENT, registerServiceWorker } from "./lib/sw-client";
 
 // R25: start the opened page's code now, beside the app frame, instead of after the frame has loaded,
 // and warm a page's code when a link to it is hovered, touched or focused.
@@ -40,6 +40,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// R33: the worker skipped a notification because this page is open; refresh what is on screen instead.
+window.addEventListener(PUSH_ON_PAGE_EVENT, () => void queryClient.invalidateQueries({ type: "active" }));
 
 // R30: sign in and sign up paint once the providers are known, so ask for them now, beside the page's code.
 if (isAuthLayoutPath(window.location.pathname)) void queryClient.prefetchQuery(authProvidersQuery);

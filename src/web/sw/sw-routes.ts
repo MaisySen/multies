@@ -95,11 +95,46 @@ export function clickTarget(url: unknown): string {
 }
 
 /** The notification a push shows, from the payload the server sends (web-push-r32.ts). */
-export function notificationFor(data: unknown): { title: string; options: { body: string; icon: string; badge: string; tag: string; data: { url: string } } } {
+export function notificationFor(data: unknown): { title: string; options: { body: string; icon: string; badge: string; tag: string; renotify: boolean; data: { url: string } } } {
   const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   const s = (v: unknown, max: number, fallback: string) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : fallback);
+  // R33: the tag is the item (thread, task, channel), so a second alert for it replaces the first instead of stacking.
   return {
     title: s(d.title, 120, "Multies"),
-    options: { body: s(d.body, 200, "Open in Multies"), icon: "/icon-192.png", badge: "/favicon-32.png", tag: s(d.tag, 64, "multies"), data: { url: clickTarget(d.url) } },
+    options: { body: s(d.body, 200, "Open in Multies"), icon: "/icon-192.png", badge: "/favicon-32.png", tag: s(d.tag, 64, "multies"), renotify: false, data: { url: clickTarget(d.url) } },
   };
+}
+
+/** R33: a push older than this when it reaches the browser is dropped (the server also sets the Web Push TTL). */
+export const PUSH_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+
+export interface PushClientLike { url: string; focused?: boolean; visibilityState?: string }
+
+/** The path and query of an /app URL, without the hash and trailing slash, so /app/chat/c1/ and /app/chat/c1#x match. */
+export function samePage(a: string, b: string, origin: string): boolean {
+  try {
+    const x = new URL(a, origin);
+    const y = new URL(b, origin);
+    const norm = (u: URL) => `${u.pathname.replace(/\/+$/, "")}${u.search}`;
+    return x.origin === y.origin && norm(x) === norm(y);
+  } catch { return false; }
+}
+
+/**
+ * R33: what the worker does with a push (pattern from files/teardowns/rea/clickup/push-skip-focused.md):
+ *  - "drop":  the push is older than its TTL (a browser that was asleep gets a burst of stale alerts otherwise).
+ *  - "skip":  a focused, visible Multies window is already on that page: no banner; the page is told to refresh.
+ *  - "show":  everything else.
+ * Browsers that require a visible notification per push (userVisibleOnly) tolerate an occasional skip; Chrome
+ * shows its own generic notice only after repeated silent pushes, and a skip only happens while the page is in front.
+ */
+export function pushDecision(data: unknown, clients: PushClientLike[], origin: string, now = Date.now()): { action: "show" | "skip" | "drop"; client?: number } {
+  const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const sentAt = typeof d.sentAt === "number" ? d.sentAt : typeof d.sentAt === "string" ? Date.parse(d.sentAt) : NaN;
+  const ttl = typeof d.ttl === "number" && d.ttl > 0 ? Math.min(d.ttl * 1000, PUSH_MAX_AGE_MS) : PUSH_MAX_AGE_MS;
+  if (Number.isFinite(sentAt) && now - sentAt > ttl) return { action: "drop" };
+  const url = clickTarget(d.url);
+  if (url === "/app/notifications" && d.url !== "/app/notifications") return { action: "show" };
+  const i = clients.findIndex((c) => c.focused === true && (c.visibilityState ?? "visible") === "visible" && samePage(c.url, url, origin));
+  return i >= 0 ? { action: "skip", client: i } : { action: "show" };
 }

@@ -24,6 +24,7 @@ import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
 import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
 import { clearOfflineData } from "@/web/lib/sw-client"; // R32
+import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { api, ApiError } from "@/web/lib/api";
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
@@ -72,6 +73,8 @@ const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ?
 
 export function AppLayout() {
   const me = useMe();
+  // R33: stored list copies are keyed by this person and workspace; set during render so lists started now see it.
+  if (me.data) setOfflineScope(scopeOf(me.data));
   const config = useConfig();
   useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
   const loc = useLocation();

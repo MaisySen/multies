@@ -9,7 +9,7 @@
  * - GET with Upgrade: websocket, after chatLiveAccess passed. x-chat-user names the person.
  * - POST /publish { audience, event } from publishChat after a chat write.
  */
-import { CLOSE_FULL, deliver, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
+import { CLOSE_FULL, deliver, helloFrame, MAX_SOCKETS, type ChatAudience, type ChatLiveEvent, type HubConn } from "./hub";
 
 interface HibernatingSocket {
   send(data: string): void;
@@ -32,6 +32,8 @@ export const PING = "ping";
 export const PONG = "pong";
 
 export class ChatHub {
+  /** R33: events published since this object woke (in memory only; see ChatHello). */
+  private seq = 0;
   constructor(private readonly ctx: ChatHubState, _env: unknown, private readonly now: () => number = () => Date.now()) {
     try {
       if (typeof WebSocketRequestResponsePair !== "undefined" && ctx.setWebSocketAutoResponse) ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
@@ -43,6 +45,7 @@ export class ChatHub {
     if (request.method === "POST" && url.pathname === "/publish") {
       const body = (await request.json().catch(() => null)) as { audience?: ChatAudience; event?: ChatLiveEvent } | null;
       if (!body?.audience || !body.event) return Response.json({ error: "bad_publish" }, { status: 400 });
+      this.seq++;
       const sent = deliver(this.conns(), body.audience, body.event, this.now());
       return Response.json({ sent });
     }
@@ -56,6 +59,8 @@ export class ChatHub {
       server.close(CLOSE_FULL, "full");
     } else {
       server.serializeAttachment({ userId, openedAt: this.now() } satisfies Attachment);
+      // R33: the first frame on the socket (the browser holds its sends until it arrives).
+      try { server.send(JSON.stringify(helloFrame(this.seq, this.now()))); } catch { /* closed */ }
     }
     return new Response(null, { status: 101, webSocket: client } as ResponseInit);
   }

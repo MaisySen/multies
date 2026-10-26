@@ -7,7 +7,6 @@ import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
-import { ConfirmButton } from "@/web/components/ui/confirm";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
@@ -48,10 +47,12 @@ export function IntegrationsPage() {
   };
   const toggle = async (c: Connection, enabled: boolean) => { try { await api.patch(`/connectors/${c.id}`, { enabled }); refresh(); } catch (e) { showError(e as Error); } };
   const remove = async (c: Connection) => {
+    if (!window.confirm(`Disconnect ${c.description ?? "this integration"}?`)) return;
     try { await api.del(`/connectors/${c.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
   const toggleHook = async (h: Hook, enabled: boolean) => { try { await api.patch(`/incoming-hooks/${h.id}`, { enabled }); refresh(); } catch (e) { showError(e as Error); } };
   const removeHook = async (h: Hook) => {
+    if (!window.confirm(`Delete "${h.name}"? Anything still posting to its URL will get an error.`)) return;
     try { await api.del(`/incoming-hooks/${h.id}`); refresh(); } catch (e) { showError(e as Error); }
   };
 
@@ -77,7 +78,7 @@ export function IntegrationsPage() {
                   </div>
                   <Button size="sm" variant="secondary" onClick={() => test(c)}>Send test</Button>
                   <Switch checked={c.enabled} onChange={(v) => toggle(c, v)} label={`Send events to ${c.description ?? meta?.name}`} />
-                  <ConfirmButton armedLabel="Disconnect?" aria-label={`Disconnect ${c.description ?? meta?.name}`} onConfirm={() => void remove(c)}><Trash2 className="h-4 w-4" /></ConfirmButton>
+                  <Button size="icon" variant="ghost" aria-label={`Disconnect ${c.description ?? meta?.name}`} onClick={() => remove(c)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               );
             })}
@@ -140,7 +141,7 @@ function HookRow({ hook: h, onToggle, onDelete }: { hook: Hook; onToggle: (v: bo
         {last && <Badge tone={last.ok ? "ok" : "warn"}>{last.ok ? "Working" : `Last call failed (${last.status})`}</Badge>}
         <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Hide calls" : "Recent calls"}</Button>
         <Switch checked={h.enabled} onChange={onToggle} label={`Accept posts for ${h.name}`} />
-        <ConfirmButton armedLabel="Delete?" aria-label={`Delete ${h.name}`} title="Anything still posting to its URL will get an error" onConfirm={onDelete}><Trash2 className="h-4 w-4" /></ConfirmButton>
+        <Button size="icon" variant="ghost" aria-label={`Delete ${h.name}`} onClick={onDelete}><Trash2 className="h-4 w-4" /></Button>
       </div>
       {open && (
         <ul className="mt-3 space-y-1 rounded-lg bg-fill p-3 text-[12.5px]" aria-label={`Recent calls to ${h.name}`}>
