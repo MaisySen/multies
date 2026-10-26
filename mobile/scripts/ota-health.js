@@ -18,6 +18,12 @@ const DEFAULT_THRESHOLDS = {
   minInstalls: 20,
   /** Absolute crash count that rolls back even on a small sample. */
   maxCrashedInstalls: 5,
+  /**
+   * Time rule (R34): with too few installs to judge by rate, an update that has been out this many
+   * hours with 0 crash and 0 failed (rolled back) reports is healthy. Whichever comes first wins:
+   * this, or minInstalls installs with good rates.
+   */
+  minAgeHours: 24,
 };
 
 /**
@@ -25,7 +31,7 @@ const DEFAULT_THRESHOLDS = {
  * crashRate, failRate, reasons }. verdict: "healthy" (may promote), "wait" (too little data),
  * "halt" (stop, do not promote) or "rollback".
  */
-function evaluateHealth(rows, t = {}) {
+function evaluateHealth(rows, t = {}, ctx = {}) {
   const th = { ...DEFAULT_THRESHOLDS, ...t };
   const by = (names) => rows.filter((r) => names.includes(r.event)).reduce((n, r) => n + (Number(r.users) || 0), 0);
   const installs = by(["applied"]);
@@ -47,9 +53,12 @@ function evaluateHealth(rows, t = {}) {
   } else if (crashed > 0 && installs < th.minInstalls) {
     verdict = "halt";
     reasons.push(`${crashed} crash${crashed === 1 ? "" : "es"} on only ${installs} installs: hold until there is more data`);
+  } else if (installs < th.minInstalls && crashed === 0 && failed === 0 && Number(ctx.ageHours) >= th.minAgeHours) {
+    reasons.push(`out for ${Math.floor(Number(ctx.ageHours))} h with 0 crash or rollback reports (${installs} installs; time rule ${th.minAgeHours} h)`);
   } else if (installs < th.minInstalls) {
     verdict = "wait";
-    reasons.push(`only ${installs} of the ${th.minInstalls} installs needed to judge`);
+    const age = Number.isFinite(Number(ctx.ageHours)) && ctx.ageHours != null ? `, out for ${Math.floor(Number(ctx.ageHours))} of ${th.minAgeHours} h` : "";
+    reasons.push(`only ${installs} of the ${th.minInstalls} installs needed to judge${age}`);
   } else {
     reasons.push(`${installs} installs, crash rate ${crashRate.toFixed(1)}%, failures ${failRate.toFixed(1)}%`);
   }
@@ -96,4 +105,11 @@ async function fetchHealthRows(updateIds, env = process.env, fetchImpl = globalT
   return rowsFromDiscover(await res.json());
 }
 
-module.exports = { DEFAULT_THRESHOLDS, evaluateHealth, rowsFromDiscover, projectIdFromEnv, discoverQuery, fetchHealthRows };
+/** Hours since the earliest createdAt among update rows (EAS update:view), or null. */
+function ageHoursFrom(updates, now = Date.now()) {
+  const times = (updates || []).map((u) => Date.parse(u && u.createdAt)).filter((n) => Number.isFinite(n));
+  if (!times.length) return null;
+  return (now - Math.min(...times)) / 3600000;
+}
+
+module.exports = { DEFAULT_THRESHOLDS, evaluateHealth, ageHoursFrom, rowsFromDiscover, projectIdFromEnv, discoverQuery, fetchHealthRows };

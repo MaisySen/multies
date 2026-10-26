@@ -147,6 +147,9 @@ installs per event for the newest production update ids through the Sentry event
 - ROLLBACK: crash rate above 2 percent with at least 20 installs, or 5 or more crashed installs;
 - HALT: update failures above 5 percent, or any crash on fewer than 20 installs;
 - WAIT: fewer than 20 installs; HEALTHY otherwise. Thresholds: `--max-crash-rate`, `--min-installs`.
+- Time rule (R34): an update that has been out 24 hours (from the earliest update in its group)
+  with 0 crash and 0 failed (rolled back) reports is HEALTHY even below 20 installs. Whichever
+  comes first wins: 24 hours clean, or 20 installs with good rates. `--min-age-hours` changes it.
 
 The events land in the `mymail-web` Sentry project (environment `mobile-production`, tag
 `app:mobile`) because the builder token cannot create projects; `SENTRY_DSN_MOBILE` on the server

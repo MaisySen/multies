@@ -19,7 +19,7 @@ const { execFileSync } = require("child_process");
 const { readFileSync } = require("fs");
 const { join } = require("path");
 const { bundleEnv, commitsFromViews, evaluateGuard, groupIdsFromList, nativeChanges, latestGroupsByPlatform, parseFlags, rolloutOf } = require("./ota-guard");
-const { evaluateHealth, fetchHealthRows } = require("./ota-health");
+const { evaluateHealth, fetchHealthRows, ageHoursFrom } = require("./ota-health");
 const whatsNew = require("./whats-new");
 
 const root = join(__dirname, "..");
@@ -55,7 +55,7 @@ function currentGroups(branch) {
   return latest.map((g) => {
     const view = easJson(["update:view", g.group]);
     const rows = Array.isArray(view) ? view : [];
-    return { ...g, updateIds: rows.map((u) => u.id).filter(Boolean), rollout: g.rollout ?? rolloutOf(rows), commit: (rows[0] || {}).gitCommitHash || null };
+    return { ...g, updateIds: rows.map((u) => u.id).filter(Boolean), rollout: g.rollout ?? rolloutOf(rows), commit: (rows[0] || {}).gitCommitHash || null, ageHours: ageHoursFrom(rows) };
   });
 }
 
@@ -78,13 +78,15 @@ async function patchAppConfig(patch, why) {
 }
 
 async function health(flags) {
-  const groups = flags.group ? [{ group: flags.group, platform: "?", updateIds: easJson(["update:view", flags.group]).map((u) => u.id) }] : currentGroups("production");
+  const groups = flags.group ? (() => { const v = easJson(["update:view", flags.group]); return [{ group: flags.group, platform: "?", updateIds: v.map((u) => u.id), ageHours: ageHoursFrom(v) }]; })() : currentGroups("production");
   const ids = groups.flatMap((g) => g.updateIds);
   const rows = await fetchHealthRows(ids, process.env, globalThis.fetch, flags.period || "14d");
   const th = {};
   if (flags["max-crash-rate"]) th.maxCrashRate = Number(flags["max-crash-rate"]);
   if (flags["min-installs"]) th.minInstalls = Number(flags["min-installs"]);
-  const h = evaluateHealth(rows, th);
+  if (flags["min-age-hours"]) th.minAgeHours = Number(flags["min-age-hours"]);
+  const ages = groups.map((g) => g.ageHours).filter((a) => a != null);
+  const h = evaluateHealth(rows, th, { ageHours: ages.length ? Math.min(...ages) : null });
   for (const g of groups) console.log(`${g.platform}: group ${g.group}${g.rollout != null ? `, rollout ${g.rollout}%` : ""}`);
   console.log(`Health: ${h.verdict.toUpperCase()} (${h.reasons.join("; ")})`);
   return { h, groups };
