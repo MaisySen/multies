@@ -2,16 +2,17 @@
  * Sample work for the demo workspace: a client project with custom statuses, tasks made from
  * the sample mail, a doc, a few deals and two automation rules. Runs once, after the mail.
  */
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
-import { activity, agents, changes, domains, organizations, entityLinks, forms, meetings, messages, projects, tasks, timeEntries } from "../../db/schema";
+import { agents, changes, domains, organizations, entityLinks, forms, meetings, messages, tasks, timeEntries } from "../../db/schema";
 import { backfillContacts, contactIdFor, createDeal, listDeals } from "./contacts";
 import { createDoc, listDocs } from "./docs";
 import { createAutomation, listAutomations, RECIPES } from "./automations";
 import { enqueue, registerJob } from "../jobs";
 import { addComment, createProject, listProjects, listTasks, createTaskFromThread, defaultProject, link } from "./tasks";
-import { createdBy, flushWriteBuffer, parseDate, sortableId, type SuiteActor } from "./common";
+import { changeRow, createdBy, flushWriteBuffer, parseDate, sortableId, type SuiteActor } from "./common";
+import { claimNumbers } from "./project-counter";
 
 const day = (now: number, d: number) => new Date(now + d * 86_400_000).toISOString().slice(0, 10);
 
@@ -180,8 +181,7 @@ interface SeedTask { title: string; statusId: string; notes: string; start: stri
 /** Inserts tasks in one batch: numbers claimed together, then the rows, activity and change entries. */
 async function insertTasks(deps: Deps, actor: SuiteActor, project: { id: string; statuses: { id: string; category: "todo" | "doing" | "done" }[] }, list: SeedTask[], now: number) {
   if (!list.length) return [];
-  const claimed = await deps.db.update(projects).set({ nextNumber: sql`${projects.nextNumber} + ${list.length}` }).where(eq(projects.id, project.id)).returning({ n: projects.nextNumber });
-  const first = Number(claimed[0].n) - list.length;
+  const first = await claimNumbers(deps, project.id, list.length); // R33: 1 row on project_counters
   const at = new Date(now);
   const ids = list.map((_, i) => sortableId("tsk", now + i));
   const stmts: PromiseLike<unknown>[] = [];
@@ -193,8 +193,8 @@ async function insertTasks(deps: Deps, actor: SuiteActor, project: { id: string;
       labels: JSON.stringify(t.labels), parentId: t.parentId ?? null, position: (i + 1) * 1024, completedAt: category === "done" ? at : null,
       ...createdBy(actor), createdAt: at, updatedAt: at,
     }));
-    stmts.push(deps.db.insert(activity).values({ id: sortableId("act", now + i), orgId: actor.orgId, actorType: "member", actorId: actor.userId, actorName: actor.name, verb: "task.created", entityType: "task", entityId: ids[i], data: JSON.stringify({ title: t.title }), createdAt: at }));
-    stmts.push(deps.db.insert(changes).values({ orgId: actor.orgId, entityType: "task", entityId: ids[i], op: "create", version: 1, createdAt: at }));
+    // R33: one change row carries the timeline entry (was an activity row plus a change row).
+    stmts.push(deps.db.insert(changes).values(changeRow(actor.orgId, { type: "member", id: actor.userId, name: actor.name }, at, { entityType: "task", entityId: ids[i], op: "create", verb: "task.created", data: { title: t.title } })));
   });
   await runBatch(deps.db, stmts);
   return ids;

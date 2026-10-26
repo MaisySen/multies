@@ -6,7 +6,7 @@ import { IterationCw, Users } from "lucide-react";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
-import { api } from "@/web/lib/api";
+import { api, ApiError } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
@@ -283,6 +283,9 @@ const SWATCHES = ["#8e8e93", "#5b7fa6", "#4f8a8b", "#5e8c61", "#a3824a", "#a65e5
 function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (p: Project) => void }) {
   const qc = useQueryClient();
   const [name, setName] = useState(project?.name ?? "");
+  // R33: the key is editable; a key another project uses (any case) is refused inline under the field.
+  const [key, setKey] = useState(project?.key ?? "");
+  const [keyError, setKeyError] = useState<string | null>(null);
   const [statuses, setStatuses] = useState(project?.statuses.map((s) => ({ ...s })) ?? [
     { id: "", name: "To do", category: "todo" as Category, color: "#8a8f98", position: 0 },
     { id: "", name: "In progress", category: "doing" as Category, color: "#3b82f6", position: 1 },
@@ -296,20 +299,25 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
   const save = async () => {
-    setBusy(true); setError(null);
-    const body = { name, statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
+    setBusy(true); setError(null); setKeyError(null);
+    const k = key.trim().toUpperCase();
+    const body = { name, ...(k && k !== project?.key ? { key: k } : {}), statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
       let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.post<{ project: Project }>("/projects", body);
       if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
-    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "key_taken") setKeyError(e.message);
+      else setError((e as Error).message);
+    } finally { setBusy(false); }
   };
   return (
     <Dialog open onClose={onClose} title={project ? "Project settings" : "New project"} description="Statuses are the board's columns. Each belongs to a group: to do, doing or done."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
       <div className="space-y-4">
         <Field label="Name" error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
+        <Field label="Key" hint={keyError ? undefined : "Shown before task numbers, like OPS-12. Letters and digits, up to 6."} error={keyError ?? undefined}>{(f) => <Input {...f} value={key} maxLength={6} onChange={(e) => { setKey(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setKeyError(null); }} placeholder={project ? "" : "Made from the name"} className="w-32 font-mono uppercase" data-testid="project-key" />}</Field>
         <div>
           <p className="mb-2 text-[13px] font-medium">Statuses</p>
           <ul className="space-y-2">
