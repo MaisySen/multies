@@ -40,6 +40,18 @@ async function load(deps: Deps, p: DeliverJobPayload) {
   return { m, mb, atts };
 }
 
+/**
+ * The Message-ID for a sent copy that has none stored: the message id on the sending mailbox's domain
+ * (<msg_x@acme.com>), or on the app's own mail domain when the mailbox address has no usable domain.
+ */
+export function fallbackMessageId(id: string, mailboxAddress: string, systemFrom: string): string {
+  const domainOf = (a: string) => {
+    const d = a.slice(a.lastIndexOf("@") + 1).trim().toLowerCase();
+    return a.includes("@") && /^[a-z0-9.-]+\.[a-z0-9-]{2,}$/.test(d) ? d : null;
+  };
+  return `<${id}@${domainOf(mailboxAddress) ?? domainOf(systemFrom) ?? "localhost"}>`;
+}
+
 const all = (p: DeliverJobPayload) => [...p.to, ...p.cc, ...p.bcc];
 
 export async function runDeliver(deps: Deps, payload: unknown) {
@@ -52,7 +64,7 @@ export async function runDeliver(deps: Deps, payload: unknown) {
   try {
     const res = await outbound.send({
       from: { address: mb.address, name: mb.displayName }, to: p.to, cc: p.cc, bcc: p.bcc,
-      subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? `<${m.id}@${mb.address.split("@")[1] ?? "multies.si"}>`,
+      subject: m.subject, text: m.text, html: m.html ?? undefined, messageId: m.messageIdHeader ?? fallbackMessageId(m.id, mb.address, deps.config.systemFrom.address),
       inReplyTo: m.inReplyTo ?? undefined, references: m.references ?? undefined, replyTo: m.replyTo ?? undefined,
       attachments: await outboundAttachments(atts, deps),
     });

@@ -1641,21 +1641,3 @@ export const dashboards = sqliteTable("dashboards", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
   version: integer("version").notNull().default(1),
 }, (t) => [index("dashboards_org_idx").on(t.orgId)]);
-
-/**
- * R26 (MB-85): checklist items inside a task. Permissions follow the task. One index (task_id): a tick, a
- * rename or a move writes one row plus that index. `assignee` is "member:<id>" or "agent:<id>".
- */
-export const taskChecklistItems = sqliteTable("task_checklist_items", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-  title: text("title").notNull(),
-  done: integer("done", { mode: "boolean" }).notNull().default(false),
-  position: real("position").notNull().default(0),
-  assignee: text("assignee"),
-  due: ts("due"),
-  createdBy: text("created_by"),
-  createdAt: createdAt(),
-  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);

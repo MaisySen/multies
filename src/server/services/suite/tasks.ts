@@ -5,7 +5,7 @@
  */
 import { and, asc, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, docs, entityLinks, members, messages, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
+import { agents, docs, entityLinks, members, messages, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -199,7 +199,7 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const memberIds = [...new Set(rows.filter((r) => r.assigneeType === "member" && r.assigneeId).map((r) => r.assigneeId!))];
   const agentIds = [...new Set(rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!))];
   const parentIds = rows.map((r) => r.id);
-  const [sts, us, ags, subs, cms, prs, fieldValues, chk] = await Promise.all([
+  const [sts, us, ags, subs, cms, prs, fieldValues] = await Promise.all([
     statusIds.length ? orgStatuses(deps, orgId).then((all) => { const want = new Set(statusIds); return all.filter((s) => want.has(s.id)); }) : [], // R25 read cache
     inChunks(memberIds, (ids) => deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, ids))),
     inChunks(agentIds, (ids) => deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, ids), eq(agents.orgId, orgId)))),
@@ -210,9 +210,6 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
       .where(and(inArray(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),
     valuesForTasks(deps, orgId, parentIds),
-    // R26 (MB-85): checklist counts for the "3/5" chip on cards.
-    inChunks(parentIds, (ids) => deps.db.select({ taskId: taskChecklistItems.taskId, total: sql<number>`count(*)`, done: sql<number>`coalesce(sum(${taskChecklistItems.done}), 0)` }).from(taskChecklistItems)
-      .where(inArray(taskChecklistItems.taskId, ids)).groupBy(taskChecklistItems.taskId)),
   ]);
   const subtasks = new Map<string, { total: number; done: number }>();
   for (const s of subs) {
@@ -239,7 +236,6 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     comments: new Map(cms.map((c) => [c.taskId, Number(c.n)])),
     projects: new Map(prs.map((p) => [p.id, p])),
     fields: fieldValues,
-    checklists: new Map(chk.map((c) => [c.taskId, { total: Number(c.total), done: Number(c.done) }])),
   };
 }
 type Lookups = Awaited<ReturnType<typeof lookups>>;
@@ -261,7 +257,6 @@ function presentTask(t: TaskRow, l: Lookups) {
     start: iso(t.startAt), due: iso(t.dueAt), parentId: t.parentId, position: t.position,
     source: t.threadId || t.messageId ? { threadId: t.threadId, messageId: t.messageId, from: t.sourceFrom ?? "", subject: t.sourceSubject ?? "" } : null,
     subtasks: l.subtasks.get(t.id) ?? { total: 0, done: 0 },
-    checklist: l.checklists.get(t.id) ?? { total: 0, done: 0 }, // R26 (MB-85)
     commentCount: l.comments.get(t.id) ?? 0,
     fields: l.fields.get(t.id) ?? {},
     ...(l.fieldErrors.get(t.id) ? { fieldErrors: l.fieldErrors.get(t.id) } : {}),
@@ -288,8 +283,6 @@ export interface TaskFilters {
   sprintId?: string | null;
   /** R21: "pending" lists only items waiting in Triage; without it they are left out. */
   triage?: "pending";
-  /** R26 (MB-86): conditions from a task query (services/suite/task-query.ts), ANDed with the rest. */
-  queryConds?: SQL[];
 }
 
 const PRIORITY_ORDER = sql`case ${tasks.priority} when 'urgent' then 0 when 'high' then 1 when 'medium' then 2 when 'low' then 3 else 4 end`;
@@ -330,7 +323,6 @@ export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = 
   else if (!f.includeSubtasks && !f.threadId) conds.push(topLevelCondition());
   if (f.fieldFilters?.length) conds.push(...await fieldFilterConditions(deps, actor.orgId, f.fieldFilters));
   if (f.sprintId !== undefined) conds.push(f.sprintId === null ? isNull(tasks.sprintId) : eq(tasks.sprintId, f.sprintId));
-  if (f.queryConds?.length) conds.push(...f.queryConds); // R26 (MB-86)
   const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? 500, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));

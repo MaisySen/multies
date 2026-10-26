@@ -372,13 +372,6 @@
       "when": 1793000055000,
       "tag": "0055_r25_invite_title_bio",
       "breakpoints": true
-    },
-    {
-      "idx": 58,
-      "version": "6",
-      "when": 1793000058000,
-      "tag": "0058_r26_task_checklists",
-      "breakpoints": true
     }
   ]
 }
