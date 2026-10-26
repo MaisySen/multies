@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAgent, IconAssign, IconCrown, IconEdit, IconKey, IconLink, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
+import { IconAgent, IconAssign, IconClock, IconTeam, IconUserCheck, IconCrown, IconEdit, IconKey, IconLink, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
 import { AgentTriggersDialog } from "./agent-triggers"; // R28 (DF-3 slice 3)
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -15,6 +15,9 @@ import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { initials, timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { HeadlineTile } from "@/web/components/premium5-r39";
+import { teamHeadline } from "@/web/lib/premium5-r39";
+import { NoContactsArt } from "@/web/components/illustrations";
 
 const ROLE_COPY: Record<Role, string> = {
   owner: "Owns the workspace and billing. Manages everyone.",
@@ -62,9 +65,16 @@ export function TeamSettings() {
   const members = team.data.members.filter((m) => m.kind !== "agent");
   const agentMembers = team.data.members.filter((m) => m.kind === "agent");
   const used = seats.members + seats.pendingInvites;
+  const head = teamHeadline({ members: seats.members, pendingInvites: seats.pendingInvites, limit: seats.limit });
 
   return (
     <div className="space-y-6">
+      {/* R39 premium pass 5: three headline numbers before the lists. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3" data-testid="team-headline">
+        <HeadlineTile icon={<IconTeam />} value={head.people} label={head.people === 1 ? "Person" : "People"} />
+        <HeadlineTile icon={<IconClock />} value={head.pending} label="Invites pending" tone={head.pending ? "warn" : "neutral"} />
+        <HeadlineTile icon={<IconUserCheck />} value={head.seatsLeft} label="Seats left" tone={head.seatsLeft ? "ok" : "warn"} />
+      </div>
       <Card>
         <div className="flex flex-col gap-4 border-b border-line p-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -94,7 +104,7 @@ export function TeamSettings() {
             <p className="mt-1 text-sm text-muted">Invitation links work for 7 days and can be used once, only by the invited address.</p>
           </div>
           {invites.length === 0 ? (
-            <EmptyState className="py-10" icon={<IconMail />} title="No pending invitations" body="Invite a teammate and they'll show up here until they join." />
+            <EmptyState className="py-10" icon={<IconMail />} art={<NoContactsArt />} title="No pending invitations" body="Invite a teammate and they'll show up here until they join." />
           ) : (
             <ul className="divide-y divide-line">
               {invites.map((i) => <InviteRow key={i.id} inv={i} onReissued={(r) => setCreated({ ...r, email: i.email })} />)}
@@ -152,6 +162,7 @@ function MemberRow({ m, myRole, myId, mailboxes }: { m: TeamMember; myRole: Role
           <div className="flex items-center gap-2 text-sm font-medium"><span className="truncate">{m.name}</span>{self && <span className="text-xs font-normal text-subtle">(you)</span>}</div>
           <div className="truncate text-xs text-muted">{m.title ? <><span className="text-fg/80">{m.title}</span> · </> : null}{m.email}</div>
           {m.bio && <div className="mt-0.5 line-clamp-2 text-xs text-subtle">{m.bio}</div>}
+          <div className="mt-0.5 text-[11px] text-subtle lg:hidden" data-testid="member-last-active">{m.lastActiveAt ? `Active ${timeAgo(m.lastActiveAt)}` : "Not signed in yet"}</div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-4">
@@ -216,14 +227,22 @@ function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: b
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); invite.mutate(); }}>
         {err && !err.fields?.email && <p className="rounded-lg border border-bad/25 bg-bad-soft px-3 py-2 text-sm text-bad">{err.message}</p>}
         <Field label="Email" error={err?.fields?.email}>{(p) => <Input {...p} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@company.com" autoFocus />}</Field>
-        <Field label="Role" hint={ROLE_COPY[role]}>
-          {(p) => (
-            <Select {...p} value={role} onChange={(e) => setRole(e.target.value as "admin" | "member")}>
-              <option value="member">Member</option>
-              {myRole === "owner" && <option value="admin">Admin</option>}
-            </Select>
-          )}
-        </Field>
+        {/* R39 premium pass 5: the role as two tappable cards, each with one line on what it can do. */}
+        <fieldset className="space-y-1.5" data-testid="invite-role">
+          <legend className="mb-1.5 text-[13px] font-medium text-fg/90">Role</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(["member", "admin"] as const).filter((r) => r === "member" || myRole === "owner").map((r) => (
+              <label key={r} className={cn("flex min-h-11 cursor-pointer items-start gap-2.5 rounded-[12px] border p-3 transition-colors duration-150 motion-reduce:transition-none focus-within:ring-2 focus-within:ring-brand",
+                role === r ? "border-brand bg-brand-soft" : "border-line hover:bg-hover")}>
+                <input type="radio" name="invite-role" value={r} checked={role === r} onChange={() => setRole(r)} className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">{r === "admin" ? <IconShield className="h-3.5 w-3.5" aria-hidden /> : <IconMail className="h-3.5 w-3.5" aria-hidden />}{r === "admin" ? "Admin" : "Member"}</span>
+                  <span className="mt-0.5 block text-xs leading-snug text-muted">{ROLE_COPY[r]}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <Field label="Title" hint="Optional. Shown in People once they join.">{(p) => <Input {...p} value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Head of Product" />}</Field>
         <Field label="Bio" hint="Optional. They can change both later.">{(p) => <Textarea {...p} rows={2} value={bio} maxLength={500} onChange={(e) => setBio(e.target.value)} />}</Field>
         {role === "member" && (
