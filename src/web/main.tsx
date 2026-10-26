@@ -4,8 +4,10 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
 import { router } from "./router";
-import { ApiError } from "./lib/api";
-import { startSentry } from "./lib/sentry";
+import { api, ApiError } from "./lib/api";
+import { qk } from "./lib/queries";
+import type { PublicConfig } from "./lib/types";
+import { scheduleSentry } from "./lib/sentry";
 import { ErrorBoundary } from "./components/error-boundary";
 import { ThemedToaster } from "./components/theme";
 import { applyMeta } from "./components/seo";
@@ -20,9 +22,8 @@ import { PUSH_ON_PAGE_EVENT, registerServiceWorker } from "./lib/sw-client";
 prefetchRoute(window.location.pathname);
 prefetchOnIntent();
 
-// After first paint, so error tracking never delays the page.
-if ("requestIdleCallback" in window) requestIdleCallback(() => void startSentry(), { timeout: 3000 });
-else setTimeout(() => void startSentry(), 1500);
+// R34: after the page has loaded and gone idle, so error tracking never delays it; earlier errors are queued.
+scheduleSentry();
 
 // R32: offline app shell and browser notifications (production builds only; see lib/sw-client.ts).
 registerServiceWorker({ navigate: (url) => void router.navigate(url) });
@@ -30,6 +31,9 @@ registerServiceWorker({ navigate: (url) => void router.navigate(url) });
 // Per-page title, description and social tags, on first load and every navigation.
 applyMeta(window.location.pathname);
 router.subscribe((s) => applyMeta(s.location.pathname));
+
+// R34: the analytics beacon follows navigation (it stays off on the sign in pages).
+const beaconRoutes = (fn: (path: string) => void) => router.subscribe((s) => fn(s.location.pathname));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,7 +49,11 @@ const queryClient = new QueryClient({
 window.addEventListener(PUSH_ON_PAGE_EVENT, () => void queryClient.invalidateQueries({ type: "active" }));
 
 // R30: sign in and sign up paint once the providers are known, so ask for them now, beside the page's code.
-if (isAuthLayoutPath(window.location.pathname)) void queryClient.prefetchQuery(authProvidersQuery);
+// R34: and the public config beside it (the demo button reads it), so the card and its last row paint together.
+if (isAuthLayoutPath(window.location.pathname)) {
+  void queryClient.prefetchQuery(authProvidersQuery);
+  void queryClient.prefetchQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -54,7 +62,7 @@ createRoot(document.getElementById("root")!).render(
         <RouterProvider router={router} />
       </ErrorBoundary>
       <ThemedToaster />
-      <AnalyticsBeacon />
+      <AnalyticsBeacon subscribe={beaconRoutes} />
     </QueryClientProvider>
   </StrictMode>,
 );

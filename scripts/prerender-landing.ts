@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { chunkFiles, injectLanding, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, withPreloads } from "../src/shared/prerender-shell";
+import { chunkFiles, injectLanding, lowPriorityScripts, routeChunkMap, ROUTE_MODULES, withPreloads, withProvidersPreload } from "../src/shared/prerender-shell";
 
 const out = path.resolve("dist/web");
 const shell = readFileSync(path.join(out, "index.html"), "utf8");
@@ -27,7 +27,7 @@ try {
   const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
   const files = chunkFiles(manifest, "src/web/pages/auth.tsx");
   if (!files.length) throw new Error("no auth chunk in the manifest");
-  writeFileSync(path.join(out, "auth.html"), withPreloads(shell, files));
+  writeFileSync(path.join(out, "auth.html"), withProvidersPreload(withPreloads(shell, files)));
   console.log(`sign in shell → dist/web/auth.html (${files.length} chunks preloaded)`);
   // R31: the files behind the likely next pages, for download only prefetch (lib/prefetch.ts reads it when idle).
   const routes = routeChunkMap(manifest, ROUTE_MODULES);

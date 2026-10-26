@@ -101,7 +101,7 @@ describe("sign in paints once (no layout shift)", () => {
     const layout = readFileSync("src/web/layouts/auth.tsx", "utf8");
     expect(layout).toMatch(/<Suspense fallback=\{hold\}>/);
     expect(layout).toMatch(/providers\.isPending \? hold/);
-    expect(readFileSync("src/web/main.tsx", "utf8")).toMatch(/isAuthLayoutPath\(window\.location\.pathname\)\) void queryClient\.prefetchQuery\(authProvidersQuery\)/);
+    expect(readFileSync("src/web/main.tsx", "utf8")).toMatch(/isAuthLayoutPath\(window\.location\.pathname\)\)\s*\{?\s*void queryClient\.prefetchQuery\(authProvidersQuery\)/);
     // The auth routes carry no Suspense of their own: an inner fallback would paint the logo early again.
     const router = readFileSync("src/web/router.tsx", "utf8");
     const auth = router.slice(router.indexOf("element: <AuthLayout />"), router.indexOf('path: "/app"'));

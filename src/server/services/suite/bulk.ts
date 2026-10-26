@@ -95,7 +95,15 @@ export async function loadTasks(deps: Deps, orgId: string, idsOrRefs: string[]):
     const keyOf = new Map(keys.map((k) => [k.id, k.key]));
     for (const r of found.values()) refOf.set(`${keyOf.get(r.projectId)}-${r.number}`, r.id);
   }
-  const missing = idsOrRefs.filter((x) => !found.has(x) && !refOf.has(refRe.test(x) ? x.toUpperCase() : x));
+  let missing = idsOrRefs.filter((x) => !found.has(x) && !refOf.has(refRe.test(x) ? x.toUpperCase() : x));
+  // R34: an old key (OPS-12 after OPS became OPR) or the ref a task had before it moved still finds it.
+  if (missing.some((x) => refRe.test(x))) {
+    const { resolveOldRefs } = await import("./task-refs-r34");
+    const old = await resolveOldRefs(deps, orgId, missing.filter((x) => refRe.test(x)));
+    const extra = [...new Set(old.values())].filter((id) => !found.has(id));
+    for (const ids of chunk(extra, ID_CHUNK)) for (const r of await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), inArray(tasks.id, ids)))) found.set(r.id, r);
+    missing = missing.filter((x) => { const id = old.get(x.toUpperCase()); return !(id && found.has(id)); });
+  }
   if (missing.length) {
     throw new HttpError(404, "not_found", missing.length === 1 ? `Task ${missing[0]} isn't in this workspace (or was deleted). Nothing was changed.` : `${missing.length} of these tasks aren't in this workspace (or were deleted). Nothing was changed.`, { missing: missing.slice(0, 50) });
   }
@@ -257,14 +265,19 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
 
   // A move to another project claims a block of numbers there in one write.
   const movingProject = [...sets.entries()].filter(([, s]) => s.projectId);
+  let movedRefs: PromiseLike<unknown>[] = [];
   if (target && movingProject.length) {
     const first = await claimNumbers(deps, target.id, movingProject.length); // R33: 1 row on project_counters
+    // R34: the refs they leave behind keep opening them (essential: one row per moved task, batched).
+    const before = new Map(rows.map((t) => [t.id, t]));
+    const { movedRefStatements } = await import("./task-refs-r34");
+    movedRefs = await movedRefStatements(deps, actor.orgId, movingProject.map(([id]) => ({ taskId: id, projectId: before.get(id)!.projectId, number: before.get(id)!.number })));
     movingProject.forEach(([, s], i) => { s.number = first + i; });
   }
 
   const byId = new Map(rows.map((r) => [r.id, r]));
   const changedIds = [...sets.keys()];
-  const stmts: PromiseLike<unknown>[] = updateStatements(deps, sets, now);
+  const stmts: PromiseLike<unknown>[] = [...updateStatements(deps, sets, now), ...movedRefs];
   if (target && movingProject.length) {
     for (const part of chunk(movingProject.map(([id]) => id), ID_CHUNK)) {
       stmts.push(deps.db.delete(taskFieldValues).where(and(inIds(taskFieldValues.taskId, part), sql`${taskFieldValues.fieldId} not in (select id from custom_fields where project_id = ${target.id})`)));

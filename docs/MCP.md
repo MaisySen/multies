@@ -9,7 +9,7 @@ Anthropic, OpenRouter or Groq key in Settings, General, AI; it is encrypted at r
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 180 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 181 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -138,6 +138,7 @@ an item with a parent can't become an epic, and an epic that still has items kee
 | `update_agent_member` | Edit an agent member or pause it (its keys are refused until resumed). Full workspace key (R26) |
 | `list_notifications` | Your notifications |
 | `notification_list` | Your notifications by view: inbox, later (snoozed) or done, with viewCounts (R31) |
+| `get_counts` | Every unread count in one read: mail { inbox, important, other }, chat { unread, mentions }, notifications { unread }, triage, tasks { dueToday, overdue }; tz for due today (R34) |
 | `notification_done` | Mark one notification (id) or up to 500 (ids) done (R31) |
 | `notification_undone` | Move a notification back to the Inbox (R31) |
 | `notification_snooze` | Snooze a notification until a time or later_today, tomorrow, next_week (R31) |
@@ -537,7 +538,7 @@ Admin and full workspace keys only; an agent member's key gets 403.
 
 | Tool | What it does |
 |---|---|
-| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong |
+| `search_tasks` | Find tasks with the task query language, for example `assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix "login page"`. Keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title. A bad query returns an error with the character where it went wrong. R34: OR, AND, NOT, brackets and history (`status WAS doing`, `status CHANGED FROM todo TO doing AFTER -7d BY me`) |
 
 ### Task watchers and duplicate (R27)
 

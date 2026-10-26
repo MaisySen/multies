@@ -50,6 +50,7 @@ import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
 import { agentTriggerHookRoutes, agentTriggerRoutes } from "./routes/agent-triggers-r28"; // R28 (DF-3 slice 3)
 import { taskTeardownRoutes } from "./routes/task-teardown-r27"; // R27 teardown: watchers, duplicate
 import { mailSnippetRoutes } from "./routes/mail-snippets";
+import { countsRoutes } from "./routes/counts-r34"; // R34
 import { mailPrefRoutes, mailReadStatusRoutes, mailSplitRoutes, openPixelRoutes } from "./routes/mail-splits-r31";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { meetingLiveRoutes, publicMeetingLiveRoutes } from "./routes/meeting-live-r31";
@@ -84,6 +85,15 @@ import { hostSessionCookie } from "./lib/host-cookie";
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
 /** Presence heartbeats and leaves (round 22): memory only, never a D1 write. */
 export const PRESENCE_PATH = /^\/api\/threads\/[^/]+\/presence(\/leave)?$/;
+
+/**
+ * R34: on local E2E servers only (E2E_LOCAL_RATE_KEYS, refused in production) a request with no client address
+ * gets an address key of its own, so the per address limits (auth, demo, contact, checks) do not all share one
+ * "unknown" counter and trip late in a long run. Everywhere else the address is used as read.
+ */
+export function requestIp(ip: string, localAddresslessUnlimited?: boolean): string {
+  return localAddresslessUnlimited && ip === "unknown" ? `unknown:${crypto.randomUUID()}` : ip;
+}
 
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
@@ -125,7 +135,7 @@ export function createApp(deps: Deps) {
     const requestId = requestIdFrom(c.req.raw.headers);
     const log = "child" in rootLog ? (rootLog as ReturnType<typeof jsonLogger>).child({ requestId }) : rootLog;
     c.set("deps", deps);
-    c.set("ip", clientIp(c));
+    c.set("ip", requestIp(clientIp(c), deps.config.auth.localAddresslessUnlimited));
     c.set("requestId", requestId);
     c.set("log", log);
     await next();
@@ -281,6 +291,7 @@ export function createApp(deps: Deps) {
   app.route("/api/org", orgRoutes());
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
+  app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
   app.route("/api/mail/prefs", mailPrefRoutes()); // R31: mail settings (read status)
   app.route("/api/mail/read-status", mailReadStatusRoutes()); // R31: read status of a sent message
   app.route("/api/mail", mailRoutes());

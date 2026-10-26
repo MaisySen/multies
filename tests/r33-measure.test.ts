@@ -45,6 +45,6 @@ describe("R33 measure", () => {
     out.chat = [take.byTable(), take()];
     console.log("R33MEASURE " + JSON.stringify(out));
     const total = (k: string) => { const v = out[k] as unknown[]; return v[v.length - 1]; };
-    expect([total("create"), total("title"), total("move"), total("docSave")]).toEqual([9, 7, 8, 6]);
+    expect([total("create"), total("title"), total("move"), total("docSave")]).toEqual([9, 7, 11, 6]); // R34: a move keeps the old ref (1 entity_links row and its 2 index entries)
   });
 });
