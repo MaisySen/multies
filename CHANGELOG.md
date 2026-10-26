@@ -7,10 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
-### Round 39: page history for docs, a premium billing, notifications and domains pass, timeline polish (27 Oct 2026)
+### Round 39: page history for docs, a premium pass over billing, notifications, domains, mailboxes and team, timeline polish (27 Oct 2026)
 
 - Docs: page history. A version is kept when a new editing session starts (10 minutes after the last save, or a different person), when you save one, and before every restore. Name versions to keep them for good (the newest 50 unnamed ones stay), compare any version with the page now as added and removed lines, and restore with Undo, because the current page is saved first. History button in the doc header, or Ctrl or Cmd, Alt, Shift, H; a full sheet on phones. The same in the API (`/api/v1/docs/{id}/versions`) and over MCP (`list_doc_versions`, `read_doc_version`, `save_doc_version`, `restore_doc_version`). Migration 0080.
 - Billing opens on a plan card with usage rings, a Compare limits sheet, add-ons as a list with icons and a cleaner invoice list. Notifications show an icon for each kind with the sender's initials and remember your filter on each device; on phones the actions sit on their own line. Domain setup shows its four steps and the next thing to do, each DNS record says Verified, Pending, Wrong value or Check this, and copying a record confirms it. The domain list gets headline numbers and a records ring per row, and Developers opens on two tiles, REST API and MCP tools.
+- Mailboxes become cards with a Personal, Shared or Agent pill and a storage ring. Team opens on three headline numbers, shows last active on phones, and the invite sheet picks the role from two cards. Deliverability and Connections show Good, Check this or Not set up with one named next step. Page header labels use the darker brand blue so they pass colour contrast.
 - Timeline: a name that would run past the right edge flips to the left of its bar, waiting days and early starts are drawn on the dependency arrows (a dashed band with "+3d", or a bracket with "1d early"), and a days off picker in the project schedule shades the days nobody works.
 - Dashboards: `list_dashboard_widget_types` over MCP and `GET /api/v1/dashboards/widget-types` list every widget type with its options and defaults. MCP: 198 tools.
 
