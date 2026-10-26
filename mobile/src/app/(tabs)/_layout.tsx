@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { Tabs } from "expo-router";
 import { Icon } from "@/components/ui";
-import { useApprovals, useChatUnread, useNotificationCount, useOverview } from "@/lib/queries";
+import { useApprovals, useChatUnread, useNotificationCount, useOverview, useTasks } from "@/lib/queries";
+import { appBadgeTotal, setAppBadge, taskBadgeCount } from "@/lib/badges";
 import { CommandSheet } from "@/components/command-sheet";
 import { SyncPill, useCommandQueueRunner } from "@/components/sync-pill";
 import { openCommandSheet } from "@/lib/command-sheet-store";
@@ -21,6 +22,11 @@ export default function TabsLayout() {
   const chatMentions = chat.data?.mentions ?? 0;
   // R31: unread items in the Activity (triage) inbox.
   const activity = useNotificationCount().data ?? 0;
+  // R33: Tasks badge (mine, due today or overdue) and the app icon badge, from lists already loaded.
+  const mine = useTasks({ assignee: "me" });
+  const due = FEATURES.tasks ? taskBadgeCount(mine.data) : 0;
+  const iconTotal = appBadgeTotal({ inbox: unread, activity, chat: chatUnread, approvals: waiting });
+  useEffect(() => { setAppBadge(iconTotal); }, [iconTotal]);
   // R33: offline edits wait in a command queue and sync when the connection is back.
   useCommandQueueRunner();
 
@@ -55,7 +61,8 @@ export default function TabsLayout() {
         tabBarAccessibilityLabel: chatUnread ? `Chat, ${chatUnread} unread${chatMentions ? `, ${chatMentions} ${chatMentions === 1 ? "mention" : "mentions"}` : ""}` : "Chat" }} />
       <Tabs.Screen name="activity" options={{ title: "Activity", tabBarIcon: ({ color }) => <Icon name="bell" color={color as string} />, tabBarBadge: activity || undefined,
         tabBarAccessibilityLabel: activity ? `Activity, ${activity} unread` : "Activity" }} />
-      <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color }) => <Icon name="check-square" color={color as string} /> }} />
+      <Tabs.Screen name="tasks" options={{ title: "Tasks", href: FEATURES.tasks ? undefined : null, tabBarIcon: ({ color }) => <Icon name="check-square" color={color as string} />,
+        tabBarBadge: due || undefined, tabBarAccessibilityLabel: due ? `Tasks, ${due} due today or overdue` : "Tasks" }} />
       <Tabs.Screen name="settings" options={{ title: "Settings", tabBarIcon: ({ color }) => <Icon name="settings" color={color as string} /> }} />
     </Tabs>
     <SyncPill />
