@@ -9,11 +9,10 @@
  * minutes plus a drain after each request), on Node (a timer) and on the hosted
  * preview, which cannot bind a queue. docs/architecture/queues.md covers the swap.
  */
-import { and, asc, desc, eq, lt, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, lte, notInArray, or, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import { jobs } from "../db/schema";
 import { newId } from "../lib/crypto";
-import { inIds } from "../lib/sql-chunks";
 
 export type JobType = "mail.deliver" | "system-mail.send" | "push.send" | "demo.seed_suite" | `test.${string}`;
 
@@ -66,7 +65,7 @@ export async function runDueJobs(deps: Deps, limit = 25, only: { types?: JobType
       and(eq(jobs.status, "pending"), lte(jobs.runAt, now)),
       and(eq(jobs.status, "running"), lt(jobs.lockedUntil, now)),
     ),
-    only.types ? inIds(jobs.type, only.types) : undefined,
+    only.types ? inArray(jobs.type, only.types) : undefined,
     only.excludeTypes ? notInArray(jobs.type, only.excludeTypes) : undefined,
     only.orgId ? eq(jobs.orgId, only.orgId) : undefined,
   )).orderBy(asc(jobs.runAt)).limit(limit);
@@ -111,7 +110,7 @@ export async function runDueJobs(deps: Deps, limit = 25, only: { types?: JobType
 export async function replayJobs(deps: Deps, ids: string[]) {
   if (!ids.length) return 0;
   const rows = await deps.db.update(jobs).set({ status: "pending", attempts: 0, runAt: deps.now(), lastError: null, updatedAt: deps.now() })
-    .where(and(inIds(jobs.id, ids), eq(jobs.status, "dead"))).returning({ id: jobs.id });
+    .where(and(inArray(jobs.id, ids), eq(jobs.status, "dead"))).returning({ id: jobs.id });
   return rows.length;
 }
 

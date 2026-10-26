@@ -8,7 +8,7 @@
  * when an epic_children rollup needs them, and one for the children's stored values when a
  * rollup aggregates a custom field. At most CHILD_CAP children are read per request.
  */
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, ne } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { projects, tasks } from "../../db/schema";
 import { notFound } from "../../lib/errors";
@@ -17,7 +17,6 @@ import { isComputedType, listFields, presentField, valuesForTasks, type Field, t
 import { evaluate, FormulaError, parse, tidy, type FValue, type Node } from "./formula";
 import { isProjectRollup, type FormulaConfig, type RollupConfig } from "./formula-config";
 import { orgFieldDefs } from "./read-cache";
-import { inIds } from "../../lib/sql-chunks";
 
 type TaskRow = typeof tasks.$inferSelect;
 export const CHILD_CAP = 5000;
@@ -149,7 +148,7 @@ async function liveChildren(deps: Deps, orgId: string, parentIds: string[], cap:
   const out: TaskRow[] = [];
   for (const ids of chunk(parentIds)) {
     if (out.length >= cap) break;
-    out.push(...await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.parentId, ids), isNull(tasks.deletedAt), isNull(tasks.triageState))).limit(cap - out.length));
+    out.push(...await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.parentId, ids), isNull(tasks.deletedAt), isNull(tasks.triageState))).limit(cap - out.length));
   }
   return out;
 }

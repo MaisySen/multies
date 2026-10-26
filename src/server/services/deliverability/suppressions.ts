@@ -1,9 +1,8 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { DB } from "../../db";
 import { suppressions } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { notFound } from "../../lib/errors";
-import { inIds } from "../../lib/sql-chunks";
 
 export type SuppressionReason = (typeof suppressions.$inferSelect)["reason"];
 
@@ -35,6 +34,6 @@ export async function unsuppress(db: DB, orgId: string, id: string) {
 export async function suppressedAmong(db: DB, orgId: string, addresses: string[]) {
   if (!addresses.length) return new Map<string, SuppressionReason>();
   const rows = await db.select({ address: suppressions.address, reason: suppressions.reason }).from(suppressions)
-    .where(and(eq(suppressions.orgId, orgId), inIds(suppressions.address, addresses.map((a) => a.toLowerCase()))));
+    .where(and(eq(suppressions.orgId, orgId), inArray(suppressions.address, addresses.map((a) => a.toLowerCase()))));
   return new Map(rows.map((r) => [r.address, r.reason]));
 }

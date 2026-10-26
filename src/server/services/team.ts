@@ -4,7 +4,7 @@
  * Multies' stricter role policy, plan seats and per-mailbox access for members.
  */
 import { cancelForDeletion } from "./billing";
-import { and, count, desc, eq, max, ne } from "drizzle-orm";
+import { and, count, desc, eq, inArray, max, ne } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
 import { accounts, invitations, mailboxAccess, mailboxes, members, organizations, sessions, users } from "../db/schema";
@@ -16,7 +16,6 @@ import { isHosted } from "./mail/delivery";
 import { removeAgentMember } from "./people";
 import { DEFAULT_TIMEZONE } from "@/shared/locale";
 import { sendInviteEmail } from "./invite-email";
-import { inIds } from "../lib/sql-chunks";
 
 export type Role = "owner" | "admin" | "member";
 
@@ -47,7 +46,7 @@ export async function assertMailboxAccess(db: DB, auth: Pick<AuthContext, "userI
 
 async function validMailboxIds(db: DB, orgId: string, ids: string[]): Promise<string[]> {
   if (!ids.length) return [];
-  const rows = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inIds(mailboxes.id, ids)));
+  const rows = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), inArray(mailboxes.id, ids)));
   if (rows.length !== new Set(ids).size) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
   return rows.map((r) => r.id);
 }
@@ -82,7 +81,7 @@ export async function listMembers(db: DB, orgId: string) {
   const ids = rows.map((r) => r.userId);
   const access = await db.select().from(mailboxAccess).where(eq(mailboxAccess.orgId, orgId));
   const seen = ids.length
-    ? await db.select({ userId: sessions.userId, at: max(sessions.updatedAt) }).from(sessions).where(inIds(sessions.userId, ids)).groupBy(sessions.userId)
+    ? await db.select({ userId: sessions.userId, at: max(sessions.updatedAt) }).from(sessions).where(inArray(sessions.userId, ids)).groupBy(sessions.userId)
     : [];
   const order: Record<Role, number> = { owner: 0, admin: 1, member: 2 };
   return rows

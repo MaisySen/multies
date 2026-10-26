@@ -12,7 +12,7 @@
  * budget's warn level, or near its time limit, and running it again carries on where it stopped.
  */
 import { invalidateStatuses } from "../suite/read-cache";
-import { and, eq, max, sql } from "drizzle-orm";
+import { and, eq, inArray, max, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, changes, members, projects, projectStatuses, taskComments, tasks, usageCounters, users } from "../../db/schema";
 import { runBatch } from "../../db";
@@ -24,7 +24,6 @@ import {
   FIELD_LABELS, ImportFileError, MAP_FIELDS, SOURCE_LABELS, categoryOf, defaultMapping, mapRows, readTable, trelloListOrder, uniqueHeaders,
   type Category, type ImportRow, type Mapping, type Table,
 } from "./parse";
-import { inIds } from "../../lib/sql-chunks";
 
 export const DAILY_TASK_CAP = 2_000;
 export const BATCH_SIZE = 50;
@@ -77,7 +76,7 @@ async function existingByKey(deps: Deps, orgId: string, keys: string[]) {
   for (let i = 0; i < keys.length; i += 90) {
     const part = keys.slice(i, i + 90);
     const rows = await deps.db.select({ id: tasks.id, key: tasks.importKey, projectId: tasks.projectId }).from(tasks)
-      .where(and(eq(tasks.orgId, orgId), inIds(tasks.importKey, part)));
+      .where(and(eq(tasks.orgId, orgId), inArray(tasks.importKey, part)));
     for (const r of rows) out.set(r.key!, { id: r.id, projectId: r.projectId });
   }
   return out;

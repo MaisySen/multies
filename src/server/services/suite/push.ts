@@ -3,12 +3,11 @@
  * Off unless PUSH_ENABLED=1. A payload carries only an event type and an id, never mail
  * content: the app fetches the item through the normal API, so permissions live in one place.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { pushDevices } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { enqueue, registerJob } from "../jobs";
-import { inIds } from "../../lib/sql-chunks";
 
 export const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const TOKEN_RE = /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]{10,}\]$/;
@@ -42,7 +41,7 @@ export async function listDevices(deps: Deps, auth: { userId: string; orgId: str
 /** Queues a push to these people's phones. Never slows the caller: it runs from the job queue. */
 export async function pushToUsers(deps: Deps, orgId: string, userIds: string[], event: PushEvent) {
   if (!deps.config.push.enabled || !userIds.length) return;
-  const devices = await deps.db.select({ token: pushDevices.token }).from(pushDevices).where(and(eq(pushDevices.orgId, orgId), inIds(pushDevices.userId, [...new Set(userIds)])));
+  const devices = await deps.db.select({ token: pushDevices.token }).from(pushDevices).where(and(eq(pushDevices.orgId, orgId), inArray(pushDevices.userId, [...new Set(userIds)])));
   if (!devices.length) return;
   const job: PushJob = { orgId, tokens: devices.map((d) => d.token), event: pushPayload(event) };
   // Try once now (a phone buzzes within seconds); on any failure the job queue retries it.
@@ -64,7 +63,7 @@ export async function sendPushNow(deps: Deps, job: PushJob, timeoutMs = 10_000) 
   const out = (await res.json().catch(() => ({}))) as { data?: { status: string; details?: { error?: string } }[] };
   // Forget phones Expo says are gone.
   const gone = (out.data ?? []).map((r, i) => (r.status === "error" && r.details?.error === "DeviceNotRegistered" ? job.tokens[i] : null)).filter(Boolean) as string[];
-  if (gone.length) await deps.db.delete(pushDevices).where(inIds(pushDevices.token, gone));
+  if (gone.length) await deps.db.delete(pushDevices).where(inArray(pushDevices.token, gone));
   return { sent: job.tokens.length - gone.length, removed: gone.length };
 }
 

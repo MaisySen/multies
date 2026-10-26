@@ -5,14 +5,13 @@
  * Workers, see collab/thread-presence.ts). A draft reply is a messages row in folder "drafts" with
  * the thread's id; sent_by_user_id says whose it is. Taking one over is one row update.
  */
-import { and, asc, eq, isNull, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { messages, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { scopeFor, type Actor } from "../agents";
 import { memoryPresence, presenceKey, type PresenceState, type PresenceStore, type PresenceView } from "../../collab/thread-presence";
 import { notify } from "./notify";
-import { inIds } from "../../lib/sql-chunks";
 
 type Who = Pick<Actor, "orgId" | "userId" | "role" | "agentId">;
 
@@ -20,7 +19,7 @@ let local: PresenceStore | null = null;
 /** The rooms: the Durable Object when the host has one, else this process's map. */
 export const presenceStore = (deps: Deps): PresenceStore => deps.presence ?? (local ??= memoryPresence());
 
-const scopeCond = (scope: string[] | null) => (scope ? inIds(messages.mailboxId, scope) : undefined);
+const scopeCond = (scope: string[] | null) => (scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined);
 
 /** 404 unless at least one message of the thread is in a mailbox the caller can open (same org). Reads only. */
 export async function assertThreadAccess(deps: Deps, actor: Who, threadId: string) {
@@ -56,7 +55,7 @@ export interface ThreadDraft {
 }
 
 async function names(deps: Deps, ids: string[]) {
-  const rows = ids.length ? await deps.db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, ids)) : [];
+  const rows = ids.length ? await deps.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids)) : [];
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 

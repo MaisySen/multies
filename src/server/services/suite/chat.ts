@@ -18,7 +18,7 @@ import { notify } from "./notify";
 import { assignees, createTask, link } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { reactionsFor } from "./chat-reaction-summary";
-import { inChunks, inIds } from "../../lib/sql-chunks";
+import { inChunks } from "../../lib/sql-chunks";
 
 type ChannelRow = typeof chatChannels.$inferSelect;
 type MessageRow = typeof chatMessages.$inferSelect;
@@ -78,7 +78,7 @@ async function peopleOf(deps: Deps, orgId: string) {
 async function membersOf(deps: Deps, channelIds: string[]) {
   if (!channelIds.length) return new Map<string, { id: string; name: string; email: string; lastReadAt: Date | null }[]>();
   const rows = await deps.db.select({ channelId: chatMembers.channelId, userId: chatMembers.userId, lastReadAt: chatMembers.lastReadAt, name: users.name, email: users.email })
-    .from(chatMembers).innerJoin(users, eq(users.id, chatMembers.userId)).where(inIds(chatMembers.channelId, channelIds));
+    .from(chatMembers).innerJoin(users, eq(users.id, chatMembers.userId)).where(inArray(chatMembers.channelId, channelIds));
   const out = new Map<string, { id: string; name: string; email: string; lastReadAt: Date | null }[]>();
   for (const r of rows) {
     const l = out.get(r.channelId) ?? [];
@@ -147,7 +147,7 @@ export async function listChannels(deps: Deps, a: SuiteActor, opts: { includeArc
   await ensureGeneral(deps, a);
   const viewer = isKey(a) ? null : a.userId;
   const mine = viewer ? (await deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, viewer), eq(chatMembers.orgId, a.orgId)))).map((r) => r.id) : [];
-  const visible = or(and(eq(chatChannels.kind, "channel"), eq(chatChannels.isPrivate, false)), mine.length ? inIds(chatChannels.id, mine) : sql`0`);
+  const visible = or(and(eq(chatChannels.kind, "channel"), eq(chatChannels.isPrivate, false)), mine.length ? inArray(chatChannels.id, mine) : sql`0`);
   const rows = await deps.db.select().from(chatChannels)
     .where(and(eq(chatChannels.orgId, a.orgId), isNull(chatChannels.deletedAt), visible, opts.includeArchived ? undefined : eq(chatChannels.archived, false)))
     .orderBy(asc(chatChannels.kind), asc(chatChannels.name));
@@ -155,8 +155,8 @@ export async function listChannels(deps: Deps, a: SuiteActor, opts: { includeArc
   const [mem, unread, last] = await Promise.all([
     membersOf(deps, ids),
     viewer ? unreadFor(deps, a.orgId, viewer) : Promise.resolve(new Map<string, { unread: number; mentions: number }>()),
-    ids.length ? deps.db.select().from(chatMessages).where(inArray(chatMessages.id, // D1: a subquery, not a bound list
-      deps.db.select({ id: sql<string>`max(${chatMessages.id})` }).from(chatMessages).where(and(inIds(chatMessages.channelId, ids), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt))).groupBy(chatMessages.channelId))) : Promise.resolve([] as MessageRow[]),
+    ids.length ? deps.db.select().from(chatMessages).where(inArray(chatMessages.id,
+      deps.db.select({ id: sql<string>`max(${chatMessages.id})` }).from(chatMessages).where(and(inArray(chatMessages.channelId, ids), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt))).groupBy(chatMessages.channelId))) : Promise.resolve([] as MessageRow[]),
   ]);
   const lastBy = new Map(last.map((m) => [m.channelId, { id: m.id, preview: plainText(m.body, JSON.parse(m.mentions), JSON.parse(m.links)).slice(0, 140), authorName: m.authorName }]));
   const out = rows.map((r) => presentChannel(r, viewer, mem.get(r.id) ?? [], { ...(unread.get(r.id) ?? {}), lastMessage: lastBy.get(r.id) ?? null }));
@@ -315,7 +315,7 @@ async function filesFor(deps: Deps, messageIds: string[]) {
   const out = new Map<string, { id: string; filename: string; contentType: string; size: number; url: string }[]>();
   if (!messageIds.length) return out;
   const rows = (await inChunks(messageIds, (ids) => deps.db.select({ id: chatFiles.id, orgId: chatFiles.orgId, messageId: chatFiles.messageId, filename: chatFiles.filename, contentType: chatFiles.contentType, size: chatFiles.sizeBytes })
-    .from(chatFiles).where(inIds(chatFiles.messageId, ids)))).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    .from(chatFiles).where(inArray(chatFiles.messageId, ids)))).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   for (const r of rows) { const l = out.get(r.messageId) ?? []; l.push({ id: r.id, filename: r.filename, contentType: r.contentType, size: r.size, url: await signedFileUrl(deps, r.orgId, r.id) }); out.set(r.messageId, l); }
   return out;
 }
@@ -341,7 +341,7 @@ async function authorInfo(deps: Deps, rows: MessageRow[]): Promise<Map<string, A
   const ids = [...new Set(rows.filter((r) => r.authorType === "member" && r.authorId).map((r) => r.authorId!))];
   if (!ids.length) return out;
   const found = await deps.db.select({ userId: orgMembers.userId, title: orgMembers.title, kind: orgMembers.kind }).from(orgMembers)
-    .where(and(eq(orgMembers.organizationId, rows[0].orgId), inIds(orgMembers.userId, ids)));
+    .where(and(eq(orgMembers.organizationId, rows[0].orgId), inArray(orgMembers.userId, ids)));
   for (const m of found) out.set(m.userId, { title: m.title ?? null, agent: m.kind === "agent" });
   return out;
 }

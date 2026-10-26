@@ -9,7 +9,7 @@
  * viewer may read (an agent key its own mailboxes). Guests have no session here, so they are refused.
  * A private dashboard is seen only by its owner; another workspace's ids answer not found.
  */
-import { and, asc, eq, gte, isNull, like, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, like, lt, ne, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Deps } from "../../context";
 import { dashboards, mailboxes, messages, projects, projectStatuses, savedViews, sprints, tasks } from "../../db/schema";
@@ -22,7 +22,6 @@ import { goalTree } from "./goals";
 import { getWorkload } from "./workload";
 import { replyStats } from "../mail/thread-state";
 import { dateFormat } from "../../lib/intl-cache";
-import { inIds } from "../../lib/sql-chunks";
 
 const DAY = 86_400_000;
 export const MAX_WIDGETS = 24;
@@ -138,9 +137,9 @@ async function normalise(deps: Deps, actor: SuiteActor, input: WidgetInput[], ke
   const projectIds = [...new Set(parsed.map((w) => w.source.projectId).filter(Boolean))] as string[];
   const boxIds = [...new Set(parsed.map((w) => w.source.mailboxId).filter(Boolean))] as string[];
   const [vs, ps] = await Promise.all([
-    viewIds.length ? deps.db.select({ id: savedViews.id }).from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), inIds(savedViews.id, viewIds), isNull(savedViews.deletedAt),
+    viewIds.length ? deps.db.select({ id: savedViews.id }).from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), inArray(savedViews.id, viewIds), isNull(savedViews.deletedAt),
       personOf(actor) ? or(isNull(savedViews.userId), eq(savedViews.userId, personOf(actor))) : isNull(savedViews.userId))) : [],
-    projectIds.length ? deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, actor.orgId), inIds(projects.id, projectIds), isNull(projects.deletedAt))) : [],
+    projectIds.length ? deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, actor.orgId), inArray(projects.id, projectIds), isNull(projects.deletedAt))) : [],
   ]);
   if (vs.length !== viewIds.length) throw notFound("Saved view");
   if (ps.length !== projectIds.length) throw notFound("Project");
@@ -326,7 +325,7 @@ async function breakdown(c: Ctx, w: Widget) {
   if (by === "status") {
     const rows = await db.select({ id: tasks.statusId, cat: tasks.status, n: sql<number>`count(*)` }).from(tasks).where(where).groupBy(tasks.statusId, tasks.status).limit(500);
     const ids = [...new Set(rows.map((r) => r.id))];
-    const sts = ids.length ? await db.select({ id: projectStatuses.id, name: projectStatuses.name, color: projectStatuses.color }).from(projectStatuses).where(inIds(projectStatuses.id, ids)) : [];
+    const sts = ids.length ? await db.select({ id: projectStatuses.id, name: projectStatuses.name, color: projectStatuses.color }).from(projectStatuses).where(inArray(projectStatuses.id, ids)) : [];
     const sm = new Map(sts.map((s) => [s.id, s]));
     const merged = new Map<string, Group>();
     for (const r of rows) {
@@ -356,7 +355,7 @@ async function breakdown(c: Ctx, w: Widget) {
   } else if (by === "sprint") {
     const rows = await db.select({ k: tasks.sprintId, n: sql<number>`count(*)` }).from(tasks).where(where).groupBy(tasks.sprintId).limit(500);
     const ids = rows.map((r) => r.k).filter(Boolean) as string[];
-    const ss = ids.length ? await db.select({ id: sprints.id, name: sprints.name }).from(sprints).where(and(eq(sprints.orgId, c.actor.orgId), inIds(sprints.id, ids))) : [];
+    const ss = ids.length ? await db.select({ id: sprints.id, name: sprints.name }).from(sprints).where(and(eq(sprints.orgId, c.actor.orgId), inArray(sprints.id, ids))) : [];
     const sm = new Map(ss.map((s) => [s.id, s.name]));
     groups = rows.map((r) => ({ key: r.k ?? "none", label: r.k ? sm.get(r.k) ?? "Removed sprint" : "Backlog", count: Number(r.n) }));
   } else if (by === "label") {
@@ -443,7 +442,7 @@ async function mailVolume(c: Ctx, w: Widget) {
     day: sql<string>`strftime('%Y-%m-%d', (${messages.date} + ${off}) / 1000, 'unixepoch')`,
     sent: sql<number>`sum(case when ${messages.folder} = 'sent' then 1 else 0 end)`,
     received: sql<number>`sum(case when ${messages.folder} in ('inbox', 'archive') then 1 else 0 end)`,
-  }).from(messages).where(and(eq(messages.orgId, c.actor.orgId), inIds(messages.mailboxId, boxes.slice(0, 200)), inIds(messages.folder, ["inbox", "archive", "sent"]), gte(messages.date, new Date(from)))).groupBy(sql`1`);
+  }).from(messages).where(and(eq(messages.orgId, c.actor.orgId), inArray(messages.mailboxId, boxes.slice(0, 200)), inArray(messages.folder, ["inbox", "archive", "sent"]), gte(messages.date, new Date(from)))).groupBy(sql`1`);
   const m = new Map(rows.map((r) => [r.day, r]));
   const out = keys.map((day) => ({ day, received: Number(m.get(day)?.received ?? 0), sent: Number(m.get(day)?.sent ?? 0) }));
   return { days: out, received: out.reduce((s, d) => s + d.received, 0), sent: out.reduce((s, d) => s + d.sent, 0) };
@@ -485,7 +484,7 @@ export async function dashboardData(deps: Deps, actor: SuiteActor, id: string, o
   const now = deps.now().getTime();
   const viewIds = [...new Set(d.widgets.map((w) => w.source.savedViewId).filter(Boolean))] as string[];
   const [vs, ps] = await Promise.all([
-    viewIds.length ? deps.db.select().from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), inIds(savedViews.id, viewIds), isNull(savedViews.deletedAt),
+    viewIds.length ? deps.db.select().from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), inArray(savedViews.id, viewIds), isNull(savedViews.deletedAt),
       personOf(actor) ? or(isNull(savedViews.userId), eq(savedViews.userId, personOf(actor))) : isNull(savedViews.userId))) : [],
     deps.db.select({ id: projects.id, name: projects.name, key: projects.key, color: projects.color }).from(projects).where(eq(projects.orgId, actor.orgId)),
   ]);

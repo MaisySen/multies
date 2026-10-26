@@ -19,7 +19,6 @@ import { notify } from "./notify";
 import { ran, takeRun, type AutomationRow } from "./automations";
 import type { SuiteActor } from "./common";
 import type { Category, Priority, Task } from "./tasks";
-import { inIds } from "../../lib/sql-chunks";
 
 export const R24_TRIGGERS = ["task_created", "assignee_changed", "due_passed", "meeting_ended", "chat_message_posted"] as const;
 export const R24_ACTIONS = ["post_to_channel", "assign_task", "set_status", "add_label", "set_priority", "create_subtask_checklist"] as const;
@@ -413,5 +412,5 @@ export async function runDuePassed(deps: Deps) {
 /** Names of users, for the recipes picker on other surfaces. */
 export async function userNames(deps: Deps, ids: string[]) {
   if (!ids.length) return new Map<string, string>();
-  return new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, ids))).map((u) => [u.id, u.name]));
+  return new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids))).map((u) => [u.id, u.name]));
 }

@@ -24,7 +24,6 @@ import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
 import { actorOf, assertWritable, parseDate, sortableId, type SuiteActor } from "./common";
 import { parseAssignee, presentTaskRows, updateTask, validateAssignee, type Assignee, type Category, type Priority, type Task } from "./tasks";
-import { inIds } from "../../lib/sql-chunks";
 
 export const BULK_MAX = 500;
 /** Ids per IN list, under D1's 100 bound values per statement. */
@@ -83,14 +82,14 @@ export async function loadTasks(deps: Deps, orgId: string, idsOrRefs: string[]):
   for (const [key, nums] of byKey) {
     for (const part of chunk(nums, ID_CHUNK)) {
       reads.push(deps.db.select({ t: tasks }).from(tasks).innerJoin(projects, eq(projects.id, tasks.projectId))
-        .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), eq(projects.key, key), inArray(tasks.number, part))).then((rows) => rows.map((r) => r.t))); // D1: part is one ID_CHUNK
+        .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), eq(projects.key, key), inArray(tasks.number, part))).then((rows) => rows.map((r) => r.t)));
     }
   }
   const found = new Map<string, TaskRow>();
   for (const rows of await Promise.all(reads)) for (const r of rows) found.set(r.id, r);
   const refOf = new Map<string, string>();
   if (byKey.size) {
-    const keys = await deps.db.select({ id: projects.id, key: projects.key }).from(projects).where(and(eq(projects.orgId, orgId), inIds(projects.key, [...byKey.keys()])));
+    const keys = await deps.db.select({ id: projects.id, key: projects.key }).from(projects).where(and(eq(projects.orgId, orgId), inArray(projects.key, [...byKey.keys()])));
     const keyOf = new Map(keys.map((k) => [k.id, k.key]));
     for (const r of found.values()) refOf.set(`${keyOf.get(r.projectId)}-${r.number}`, r.id);
   }
@@ -134,7 +133,7 @@ function updateStatements(deps: Deps, sets: Map<string, Cols>, now: Date) {
       const set: Record<string, unknown> = { updatedAt: now, version: sql`${tasks.version} + 1` };
       for (const c of uniform) set[c] = sets.get(part[0])![c] ?? null;
       for (const c of varying) set[c] = caseOn(part, new Map(part.map((id) => [id, sets.get(id)![c]])));
-      stmts.push(deps.db.update(tasks).set(set as never).where(inIds(tasks.id, part)));
+      stmts.push(deps.db.update(tasks).set(set as never).where(inArray(tasks.id, part)));
     }
   }
   return stmts;
@@ -158,7 +157,7 @@ async function hookTargets(deps: Deps, orgId: string, type: string) {
 async function present(deps: Deps, orgId: string, ids: string[]) {
   const out: Task[] = [];
   for (const part of chunk(ids, ID_CHUNK)) {
-    const rows = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, part)));
+    const rows = await deps.db.select().from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, part)));
     out.push(...await presentTaskRows(deps, orgId, rows));
   }
   const order = new Map(ids.map((id, i) => [id, i]));
@@ -186,7 +185,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const projectOf = (t: TaskRow) => (target ? target.id : t.projectId);
   const needStatuses = patch.status !== undefined || patch.statusId !== undefined || !!target;
   const statuses = needStatuses
-    ? (await deps.db.select().from(projectStatuses).where(and(inIds(projectStatuses.projectId, [...new Set(rows.map(projectOf))]), isNull(projectStatuses.deletedAt)))).sort((a, b) => a.position - b.position)
+    ? (await deps.db.select().from(projectStatuses).where(and(inArray(projectStatuses.projectId, [...new Set(rows.map(projectOf))]), isNull(projectStatuses.deletedAt)))).sort((a, b) => a.position - b.position)
     : [];
   if (patch.statusId) {
     const s = statuses.find((x) => x.id === patch.statusId);
@@ -245,7 +244,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const targetStatusIds = [...new Set(moved.map((m) => m.to.id))];
   if (targetStatusIds.length) {
     const maxes = await deps.db.select({ statusId: tasks.statusId, p: sql<number>`coalesce(max(${tasks.position}), 0)` }).from(tasks)
-      .where(and(inIds(tasks.statusId, targetStatusIds), isNull(tasks.deletedAt))).groupBy(tasks.statusId);
+      .where(and(inArray(tasks.statusId, targetStatusIds), isNull(tasks.deletedAt))).groupBy(tasks.statusId);
     const next = new Map(maxes.map((m) => [m.statusId, Number(m.p)]));
     for (const m of moved) {
       const p = (next.get(m.to.id) ?? 0) + 1024;
@@ -267,7 +266,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const stmts: PromiseLike<unknown>[] = updateStatements(deps, sets, now);
   if (target && movingProject.length) {
     for (const part of chunk(movingProject.map(([id]) => id), ID_CHUNK)) {
-      stmts.push(deps.db.delete(taskFieldValues).where(and(inIds(taskFieldValues.taskId, part), sql`${taskFieldValues.fieldId} not in (select id from custom_fields where project_id = ${target.id})`)));
+      stmts.push(deps.db.delete(taskFieldValues).where(and(inArray(taskFieldValues.taskId, part), sql`${taskFieldValues.fieldId} not in (select id from custom_fields where project_id = ${target.id})`)));
     }
   }
   stmts.push(...changeRows(deps, actor.orgId, changedIds.map((id) => ({ id, version: byId.get(id)!.version + 1 })), "update", now));
@@ -338,7 +337,7 @@ export async function bulkDeleteTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   const stmts: PromiseLike<unknown>[] = [];
   for (const part of chunk(rows.map((r) => r.id), 45)) {
     stmts.push(deps.db.update(tasks).set({ deletedAt: now, updatedAt: now, version: sql`${tasks.version} + 1` })
-      .where(and(eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt), sql`(${inIds(tasks.id, part)} or ${inIds(tasks.parentId, part)})`)));
+      .where(and(eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt), sql`(${inArray(tasks.id, part)} or ${inArray(tasks.parentId, part)})`)));
   }
   stmts.push(...changeRows(deps, actor.orgId, rows.map((r) => ({ id: r.id, version: r.version + 1 })), "delete", now));
   if (level !== "warn") {

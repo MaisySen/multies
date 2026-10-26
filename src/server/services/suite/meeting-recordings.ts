@@ -11,7 +11,7 @@
  * Writes: starting is 1 row, each chunk is 1 UPDATE, Stop is 2 UPDATEs plus the chat message (or the
  * notifications). The table has no secondary index (its primary key is org, meeting, id).
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { meetingRecordings, members, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -21,7 +21,6 @@ import { canTranscribe, MAX_CHUNK_BYTES, RECORDING_SETUP_MESSAGE, SETUP_CODES, s
 import { aiKeyStatus } from "../ai/keys";
 import { assertWritable, iso, sortableId, type SuiteActor } from "./common";
 import { getMeeting, type Meeting } from "./meetings";
-import { inIds } from "../../lib/sql-chunks";
 
 type Row = typeof meetingRecordings.$inferSelect;
 export interface ActionItem { text: string; assignee: string | null; due: string | null }
@@ -54,7 +53,7 @@ export type Recording = ReturnType<typeof present>;
 async function namesOf(deps: Deps, ids: string[]) {
   const uniq = [...new Set(ids)];
   if (!uniq.length) return new Map<string, string>();
-  const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, uniq));
+  const rows = await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, uniq));
   return new Map(rows.map((u) => [u.id, u.name || u.email]));
 }
 
@@ -217,7 +216,7 @@ async function attendeeMembers(deps: Deps, orgId: string, meeting: Meeting, reco
   if (meeting.createdBy.type === "member" && meeting.createdBy.id) ids.add(meeting.createdBy.id);
   if (meeting.invitees.length) {
     const rows = await deps.db.select({ id: users.id }).from(users).innerJoin(members, eq(members.userId, users.id))
-      .where(and(eq(members.organizationId, orgId), inIds(users.email, meeting.invitees.slice(0, 50))));
+      .where(and(eq(members.organizationId, orgId), inArray(users.email, meeting.invitees.slice(0, 50))));
     for (const u of rows) ids.add(u.id);
   }
   return [...ids];

@@ -20,7 +20,6 @@ import { zonedDate, zonedTime, validTimezone } from "../suite/scheduling";
 import { presentListItem } from "./mailbox-view";
 import { mailboxScope } from "../team";
 import { setSnoozedProvider, type MyWorkItem } from "../search";
-import { inIds } from "../../lib/sql-chunks";
 
 export type ScheduleKind = "snooze" | "send" | "remind";
 export type SnoozePreset = "later_today" | "tomorrow" | "next_week";
@@ -263,7 +262,7 @@ export async function listSchedules(deps: Deps, actor: ScheduleActor, q: { view:
     .filter((r) => inScope(scope, r.mailboxId))
     .filter((r) => !(r.kind === "send" && actor.role === "member" && !actor.agentId && r.userId !== actor.userId));
   const ids = rows.map((r) => r.messageId).filter((x): x is string => !!x);
-  const msgs = ids.length ? await deps.db.select().from(messages).where(inIds(messages.id, ids)) : [];
+  const msgs = ids.length ? await deps.db.select().from(messages).where(inArray(messages.id, ids)) : [];
   const byId = new Map(msgs.map((m) => [m.id, m]));
   // A snooze or reminder whose message is gone (deleted) has nothing to show.
   return rows.filter((r) => r.kind === "send" || byId.has(r.messageId ?? "")).map((r) => present(r, byId.get(r.messageId ?? "")));
@@ -364,7 +363,7 @@ export async function runMailSchedules(deps: Deps, opts: { now?: Date; orgId?: s
     if (done.length) { if (r.kind === "snooze") out.returned++; else out.reminded++; }
   }
   if (stale.length && !optionalPaused) {
-    const gone = await deps.db.delete(mailSchedules).where(and(inIds(mailSchedules.id, stale.map((s) => s.id)), eq(mailSchedules.status, "returned"))).returning({ id: mailSchedules.id });
+    const gone = await deps.db.delete(mailSchedules).where(and(inArray(mailSchedules.id, stale.map((s) => s.id)), eq(mailSchedules.status, "returned"))).returning({ id: mailSchedules.id });
     out.pruned = gone.length;
   }
   if (out.sent || out.failed || out.returned || out.reminded) deps.log?.info("mail_schedules.pass", { ...out });
@@ -412,7 +411,7 @@ export async function snoozedComingBack(deps: Deps, actor: ScheduleActor, window
     .where(and(eq(mailSchedules.status, "pending"), gt(mailSchedules.dueAt, window.from), lte(mailSchedules.dueAt, window.to), eq(mailSchedules.orgId, actor.orgId), eq(mailSchedules.kind, "snooze"), eq(mailSchedules.userId, actor.userId)))
     .orderBy(asc(mailSchedules.dueAt)).limit(20)).filter((r) => inScope(scope, r.mailboxId));
   const ids = rows.map((r) => r.messageId).filter((x): x is string => !!x);
-  const msgs = ids.length ? await deps.db.select({ id: messages.id, subject: messages.subject, fromName: messages.fromName, fromAddress: messages.fromAddress, mailboxId: messages.mailboxId }).from(messages).where(inIds(messages.id, ids)) : [];
+  const msgs = ids.length ? await deps.db.select({ id: messages.id, subject: messages.subject, fromName: messages.fromName, fromAddress: messages.fromAddress, mailboxId: messages.mailboxId }).from(messages).where(inArray(messages.id, ids)) : [];
   const byId = new Map(msgs.map((m) => [m.id, m]));
   return rows.flatMap((r) => {
     const m = byId.get(r.messageId ?? "");

@@ -1,8 +1,8 @@
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { DB } from "../../db";
 import { attachments, mailboxes, messages } from "../../db/schema";
 import { fromB64, newId, toB64 } from "../../lib/crypto";
-import { chunkIds, inIds } from "../../lib/sql-chunks";
+import { chunkIds } from "../../lib/sql-chunks";
 import { attachmentKey, type BodyStore } from "../storage/body-store";
 import type { Address, AuthResults, Folder } from "@/shared/mail";
 import { makeSnippet, type ParsedAttachment } from "./mime";
@@ -60,7 +60,7 @@ export async function resolveThreadId(db: DB, mailboxId: string, inReplyTo?: str
   const find = async (boxes: string[], id: string) => {
     for (const col of [messages.messageIdHeader, messages.providerMessageIdHeader]) {
       const hit = await db.select({ threadId: messages.threadId }).from(messages)
-        .where(and(boxes.length === 1 ? eq(messages.mailboxId, boxes[0]!) : inIds(messages.mailboxId, boxes), eq(col, id), orgId ? eq(messages.orgId, orgId) : undefined)).get();
+        .where(and(boxes.length === 1 ? eq(messages.mailboxId, boxes[0]!) : inArray(messages.mailboxId, boxes), eq(col, id), orgId ? eq(messages.orgId, orgId) : undefined)).get();
       if (hit) return hit.threadId;
     }
     return null;

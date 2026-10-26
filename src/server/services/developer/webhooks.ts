@@ -10,7 +10,6 @@ import { sendSystemEmail } from "../system-mail";
 import { decryptSecret, encryptSecret, newId, randomBytes, toB64 } from "../../lib/crypto";
 import { isPublicHost } from "../../lib/ssrf";
 import { badRequest, conflict, notFound } from "../../lib/errors";
-import { inIds } from "../../lib/sql-chunks";
 
 export const WEBHOOK_EVENTS = [
   "message.received",
@@ -230,7 +229,7 @@ async function onDeadLetter(deps: Deps, e: typeof webhookEndpoints.$inferSelect,
 export async function replayFailed(deps: Deps, orgId: string, endpointId: string, deliveryIds?: string[]) {
   const e = await endpointInOrg(deps, orgId, endpointId);
   const rows = await deps.db.update(webhookDeliveries).set({ status: "pending", attempts: 0, nextAttemptAt: deps.now(), lastError: null })
-    .where(and(eq(webhookDeliveries.endpointId, e.id), eq(webhookDeliveries.status, "failed"), deliveryIds?.length ? inIds(webhookDeliveries.id, deliveryIds) : undefined))
+    .where(and(eq(webhookDeliveries.endpointId, e.id), eq(webhookDeliveries.status, "failed"), deliveryIds?.length ? inArray(webhookDeliveries.id, deliveryIds) : undefined))
     .returning({ id: webhookDeliveries.id });
   if (!e.enabled) await deps.db.update(webhookEndpoints).set({ enabled: true, disabledReason: null, consecutiveDead: 0 }).where(eq(webhookEndpoints.id, e.id));
   await Promise.all(rows.slice(0, 20).map((r) => attempt(deps, r.id)));
@@ -284,7 +283,7 @@ export async function retryDueDeliveries(deps: Deps, limit = 50) {
 export async function pruneDeliveries(deps: Deps) {
   const cutoff = new Date(deps.now().getTime() - 30 * 86400_000);
   const old = await deps.db.select({ id: webhookDeliveries.id }).from(webhookDeliveries).where(lte(webhookDeliveries.createdAt, cutoff)).limit(500);
-  if (old.length) await deps.db.delete(webhookDeliveries).where(inIds(webhookDeliveries.id, old.map((o) => o.id)));
+  if (old.length) await deps.db.delete(webhookDeliveries).where(inArray(webhookDeliveries.id, old.map((o) => o.id)));
   return old.length;
 }
 

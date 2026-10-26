@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth, requirePlatformAdmin } from "../middleware";
 import { abuseEvents, deliveries, domains, mailboxes, organizations, users } from "../db/schema";
@@ -9,7 +9,6 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound } from "../lib/errors";
 import { listJobs, queueStats, replayJobs } from "../services/jobs";
 import { getOrg } from "../services/plans";
-import { inIds } from "../lib/sql-chunks";
 
 /** Operator console API. Platform admins only (Better Auth admin role). */
 export function adminRoutes() {
@@ -79,7 +78,7 @@ export function adminRoutes() {
     })
     .post("/abuse/resolve", async (c) => {
       const { ids } = await parseBody(c, z.object({ ids: z.array(z.string().max(64)).min(1).max(500) }));
-      await c.var.deps.db.update(abuseEvents).set({ resolvedAt: c.var.deps.now() }).where(and(inIds(abuseEvents.id, ids), isNull(abuseEvents.resolvedAt)));
+      await c.var.deps.db.update(abuseEvents).set({ resolvedAt: c.var.deps.now() }).where(and(inArray(abuseEvents.id, ids), isNull(abuseEvents.resolvedAt)));
       return c.json({ ok: true });
     })
     .post("/workspaces/:id/suspend", async (c) => {

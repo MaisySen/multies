@@ -6,7 +6,7 @@
  * sends before they leave), the plan's monthly agent message allowance, and an audit log
  * entry for everything an agent does.
  */
-import { and, asc, count, desc, eq, gt, gte, lt, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, inArray, lt, or, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import {
   agentEvents, agentMailboxAccess, agents, apiKeys, attachments, auditLogs, domains, mailboxes, messages, sendApprovals,
@@ -26,7 +26,7 @@ import { deprovisionMailbox } from "../mailserver";
 import { mailboxScope } from "../team";
 import { agentMessage, extractCodes, extractLinks, latestText } from "./parse";
 import { listThreadStates, threadViewCond, type ThreadView } from "../mail/thread-state";
-import { inChunks, inIds } from "../../lib/sql-chunks";
+import { chunkIds, inChunks, SQL_IN_CHUNK } from "../../lib/sql-chunks";
 
 type Agent = typeof agents.$inferSelect;
 type Mailbox = typeof mailboxes.$inferSelect;
@@ -168,7 +168,7 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
   if (taken) throw conflict(`${address} is already in use.`);
   const extra = [...new Set(input.mailboxIds ?? [])];
   if (extra.length) {
-    const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, extra)));
+    const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inArray(mailboxes.id, extra)));
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
   }
   const mailboxId = newId("mbx");
@@ -225,7 +225,7 @@ export async function updateAgent(deps: Deps, actor: Actor, id: string, patch: U
   if (patch.mailboxIds) {
     const ids = [...new Set(patch.mailboxIds.filter((m) => m !== a.mailboxId))];
     if (ids.length) {
-      const ok = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, ids)));
+      const ok = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inArray(mailboxes.id, ids)));
       if (ok.length !== ids.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
     }
     await deps.db.delete(agentMailboxAccess).where(eq(agentMailboxAccess.agentId, a.id));
@@ -293,7 +293,7 @@ async function agentNames(deps: Deps, orgId: string) {
   return { agents: new Map(rows.map((r) => [r.id, r.name])) };
 }
 
-const scopeCond = (scope: string[] | null) => (scope ? inIds(messages.mailboxId, scope) : undefined);
+const scopeCond = (scope: string[] | null) => (scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined);
 
 /** Threads, newest first: one row per thread with its latest message. */
 export async function listThreads(deps: Deps, orgId: string, scope: string[] | null, q: { mailboxId?: string; folder?: string; unread?: boolean; before?: string; limit?: number; view?: ThreadView; assignee?: string; viewerUserId?: string | null }) {
@@ -312,13 +312,14 @@ export async function listThreads(deps: Deps, orgId: string, scope: string[] | n
     .orderBy(desc(grouped.last)).limit(limit + 1);
   const rows = page.slice(0, limit);
   const latest = rows.length
-    // D1: at most 100 variables a statement; thread ids and the mailbox scope each bind one variable (inIds), R27.
-    ? (await deps.db.select().from(messages).where(and(eq(messages.orgId, orgId), inIds(messages.threadId, rows.map((r) => r.threadId)), scopeCond(scope))))
+    // D1: at most 100 variables a statement, so thread ids go in chunks (leaving room for the mailbox scope).
+    ? (await Promise.all(chunkIds(rows.map((r) => r.threadId), Math.max(10, SQL_IN_CHUNK - (scope?.length ?? 0)))
+        .map((ids) => deps.db.select().from(messages).where(and(eq(messages.orgId, orgId), inArray(messages.threadId, ids), scopeCond(scope))))))
         .flat().sort((a, b) => Number(b.date) - Number(a.date))
     : [];
   const pending = rows.length
     ? await inChunks(rows.map((r) => r.threadId), (ids) => deps.db.select({ threadId: sendApprovals.threadId, n: count() }).from(sendApprovals)
-        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inIds(sendApprovals.threadId, ids))).groupBy(sendApprovals.threadId))
+        .where(and(eq(sendApprovals.orgId, orgId), eq(sendApprovals.status, "pending"), inArray(sendApprovals.threadId, ids))).groupBy(sendApprovals.threadId))
     : [];
   const names = await agentNames(deps, orgId);
   const states = await listThreadStates(deps, orgId, rows.map((r) => r.threadId));
@@ -351,7 +352,7 @@ export async function readThread(deps: Deps, actor: Actor, threadId: string, ori
   const rows = await deps.db.select().from(messages)
     .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), scopeCond(scope), sql`${messages.folder} <> 'drafts'`)).orderBy(asc(messages.date));
   if (!rows.length) throw notFound("Thread");
-  const atts = await deps.db.select().from(attachments).where(inIds(attachments.messageId, rows.map((r) => r.id)));
+  const atts = await deps.db.select().from(attachments).where(inArray(attachments.messageId, rows.map((r) => r.id)));
   const names = await agentNames(deps, actor.orgId);
   const approvals = await deps.db.select().from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.threadId, threadId), eq(sendApprovals.status, "pending")));
   if (actor.agentId) {
@@ -498,7 +499,7 @@ export async function replyInThread(deps: Deps, actor: Actor, agentId: string, t
   const { a } = await row(deps, actor.orgId, agentId);
   const allowed = await agentMailboxIds(deps, a);
   const rows = await deps.db.select().from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), inIds(messages.mailboxId, allowed), sql`${messages.folder} <> 'drafts'`)).orderBy(desc(messages.date));
+    .where(and(eq(messages.orgId, actor.orgId), eq(messages.threadId, threadId), inArray(messages.mailboxId, allowed), sql`${messages.folder} <> 'drafts'`)).orderBy(desc(messages.date));
   const last = rows.find((m) => m.folder !== "sent") ?? rows[0];
   if (!last) throw notFound("Thread");
   const own = (await deps.db.select({ address: mailboxes.address }).from(mailboxes).where(eq(mailboxes.id, last.mailboxId)).get())!.address;
@@ -519,7 +520,7 @@ export async function listApprovals(deps: Deps, actor: Actor, q: { status?: stri
     q.status ? eq(sendApprovals.status, q.status as "pending") : undefined,
     q.agentId ? eq(sendApprovals.agentId, q.agentId) : undefined,
     actor.agentId ? eq(sendApprovals.agentId, actor.agentId) : undefined,
-    scope && !actor.agentId ? inIds(sendApprovals.mailboxId, scope) : undefined,
+    scope && !actor.agentId ? inArray(sendApprovals.mailboxId, scope.length ? scope : ["-"]) : undefined,
   )).orderBy(desc(sendApprovals.createdAt)).limit(Math.min(q.limit ?? 50, 200));
   return rows.map(presentApproval);
 }

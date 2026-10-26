@@ -1,4 +1,4 @@
-import { and, eq, lt, notInArray } from "drizzle-orm";
+import { and, eq, inArray, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
 import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
@@ -15,7 +15,6 @@ import { getPlan, setAddons } from "./plans";
 import "./suite/demo-seed";
 import { enqueue } from "./jobs";
 import { approveSend, createAgent, listThreads, replyInThread } from "./agents";
-import { inIds } from "../lib/sql-chunks";
 
 const chunk = <T>(xs: T[], n: number) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
@@ -243,8 +242,8 @@ export async function purgeDemoWorkspaces(deps: Deps) {
     .where(and(eq(organizations.isDemo, true), lt(organizations.createdAt, cutoff), keep.length ? notInArray(organizations.id, keep) : undefined));
   if (!old.length) return 0;
   const ids = old.map((o) => o.id);
-  const demoMembers = await deps.db.select({ userId: members.userId }).from(members).where(inIds(members.organizationId, ids));
-  await deps.db.delete(organizations).where(inIds(organizations.id, ids));
-  if (demoMembers.length) await deps.db.delete(users).where(inIds(users.id, demoMembers.map((m) => m.userId)));
+  const demoMembers = await deps.db.select({ userId: members.userId }).from(members).where(inArray(members.organizationId, ids));
+  await deps.db.delete(organizations).where(inArray(organizations.id, ids));
+  if (demoMembers.length) await deps.db.delete(users).where(inArray(users.id, demoMembers.map((m) => m.userId)));
   return ids.length;
 }

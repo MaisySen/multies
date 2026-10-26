@@ -3,14 +3,13 @@
  * mailbox providers as .xml, .xml.gz or .zip attachments. Parsed with
  * fast-xml-parser and decompressed with fflate, so it runs on Workers and Node.
  */
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq, gte, inArray } from "drizzle-orm";
 import { XMLParser } from "fast-xml-parser";
 import { gunzipSync, unzipSync } from "fflate";
 import type { Deps } from "../../context";
 import { dmarcRecords, dmarcReports, domains } from "../../db/schema";
 import { newId } from "../../lib/crypto";
 import { badRequest } from "../../lib/errors";
-import { inIds } from "../../lib/sql-chunks";
 
 export interface DmarcRow { sourceIp: string; count: number; disposition: string; headerFrom: string | null; dkim: string; spf: string }
 export interface ParsedDmarcReport {
@@ -132,7 +131,7 @@ export async function dmarcSummary(deps: Deps, orgId: string, days = 30) {
     .innerJoin(domains, eq(domains.id, dmarcReports.domainId))
     .where(and(eq(dmarcReports.orgId, orgId), gte(dmarcReports.endAt, since))).orderBy(desc(dmarcReports.endAt)).limit(200);
   const ids = reports.map((x) => x.r.id);
-  const records = ids.length ? await deps.db.select().from(dmarcRecords).where(inIds(dmarcRecords.reportId, ids)) : [];
+  const records = ids.length ? await deps.db.select().from(dmarcRecords).where(inArray(dmarcRecords.reportId, ids)) : [];
   const byReport = new Map(reports.map((x) => [x.r.id, x]));
   const sources = new Map<string, { sourceIp: string; domain: string; messages: number; passed: number; dkimPass: number; spfPass: number }>();
   for (const rec of records) {

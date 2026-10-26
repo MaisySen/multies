@@ -1,11 +1,10 @@
 import { Hono } from "hono";
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, or } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { z } from "zod";
 import { pageQuery, parseQuery, requireAuth } from "../middleware";
 import { deliveries, mailboxes } from "../db/schema";
 import { mailboxScope } from "../services/team";
-import { inIds } from "../lib/sql-chunks";
 
 export function deliveryRoutes() {
   return new Hono<AppEnv>().use("*", requireAuth).get("/", async (c) => {
@@ -15,8 +14,8 @@ export function deliveryRoutes() {
     const scope = await mailboxScope(db, c.var.auth);
     let addressFilter;
     if (scope) {
-      const addrs = scope.length ? (await db.select({ a: mailboxes.address }).from(mailboxes).where(inIds(mailboxes.id, scope))).map((r) => r.a) : [];
-      addressFilter = addrs.length ? or(inIds(deliveries.fromAddress, addrs), inIds(deliveries.toAddress, addrs)) : eq(deliveries.id, "-");
+      const addrs = scope.length ? (await db.select({ a: mailboxes.address }).from(mailboxes).where(inArray(mailboxes.id, scope))).map((r) => r.a) : [];
+      addressFilter = addrs.length ? or(inArray(deliveries.fromAddress, addrs), inArray(deliveries.toAddress, addrs)) : eq(deliveries.id, "-");
     }
     const rows = await db.select().from(deliveries).where(and(
       eq(deliveries.orgId, c.var.auth.orgId),

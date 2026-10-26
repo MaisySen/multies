@@ -2,14 +2,13 @@
  * Reports: counts and sums computed in the database (GROUP BY), so a dashboard is a handful
  * of queries sent together, whatever the size of the workspace. Money is AUD, ex GST.
  */
-import { and, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, deals, projectStatuses, projects, tasks, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
 import { DEAL_STAGES } from "./contacts";
 import { secondsByProject } from "./time";
-import { inIds } from "../../lib/sql-chunks";
 
 const DAY = 86_400_000;
 
@@ -40,9 +39,9 @@ export async function dashboard(deps: Deps, actor: SuiteActor, q: ReportQuery = 
   const memberIds = [...new Set([...byAssignee.filter((r) => r.type === "member").map((r) => r.id), ...overdueRows.filter((r) => r.assigneeType === "member").map((r) => r.assigneeId)].filter(Boolean) as string[])];
   const agentIds = [...new Set([...byAssignee.filter((r) => r.type === "agent").map((r) => r.id), ...overdueRows.filter((r) => r.assigneeType === "agent").map((r) => r.assigneeId)].filter(Boolean) as string[])];
   const [sts, us, ags] = await Promise.all([
-    statusIds.length ? deps.db.select().from(projectStatuses).where(inIds(projectStatuses.id, statusIds)) : [],
-    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, memberIds)) : [],
-    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inIds(agents.id, agentIds)) : [],
+    statusIds.length ? deps.db.select().from(projectStatuses).where(inArray(projectStatuses.id, statusIds)) : [],
+    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
+    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inArray(agents.id, agentIds)) : [],
   ]);
   const sm = new Map(sts.map((s) => [s.id, s])), um = new Map(us.map((u) => [u.id, u])), am = new Map(ags.map((a) => [a.id, a])), pm = new Map(prs.map((p) => [p.id, p]));
   const nameOf = (type: string | null, id: string | null) => !type || !id ? "Unassigned" : type === "member" ? (um.get(id)?.name || um.get(id)?.email || "Former member") : (am.get(id)?.name ?? "Removed agent");

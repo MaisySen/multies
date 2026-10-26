@@ -11,13 +11,12 @@
  * Epic progress (done of total, by count and by points when tasks carry points) and the epic's date
  * span are worked out when read, so they cost no writes.
  */
-import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, changes, tasks } from "../../db/schema";
 import { runBatch } from "../../db";
 import { HttpError, notFound } from "../../lib/errors";
 import { actorOf, assertWritable, sortableId, type SuiteActor } from "./common";
-import { inIds } from "../../lib/sql-chunks";
 
 export const TASK_TYPES = ["task", "story", "bug", "epic"] as const;
 export type TaskType = (typeof TASK_TYPES)[number];
@@ -115,7 +114,7 @@ async function childrenOf(deps: Deps, orgId: string, parentIds: string[]): Promi
   const out: TaskRow[] = [];
   for (const ids of chunks(parentIds)) {
     if (!ids.length) continue;
-    out.push(...await deps.db.select().from(tasks).where(and(inIds(tasks.parentId, ids), eq(tasks.orgId, orgId), isNull(tasks.deletedAt))));
+    out.push(...await deps.db.select().from(tasks).where(and(inArray(tasks.parentId, ids), eq(tasks.orgId, orgId), isNull(tasks.deletedAt))));
   }
   return out;
 }
@@ -173,7 +172,7 @@ async function moveItems(deps: Deps, actor: SuiteActor, epicIdOrRef: string, ids
   const { resolveTaskId } = await import("./tasks");
   const ids = [...new Set(await Promise.all(wanted.map((x) => resolveTaskId(deps, actor.orgId, x))))];
   const rows: TaskRow[] = [];
-  for (const part of chunks(ids)) rows.push(...await deps.db.select().from(tasks).where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part), isNull(tasks.deletedAt))));
+  for (const part of chunks(ids)) rows.push(...await deps.db.select().from(tasks).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part), isNull(tasks.deletedAt))));
   // Another workspace's ids (or deleted ones) are simply not found.
   if (rows.length !== ids.length) throw notFound("Task");
   if (mode === "add") {
@@ -186,7 +185,7 @@ async function moveItems(deps: Deps, actor: SuiteActor, epicIdOrRef: string, ids
     const statements: PromiseLike<unknown>[] = [];
     for (const part of chunks(moving.map((r) => r.id))) {
       statements.push(deps.db.update(tasks).set({ parentId: mode === "add" ? epic.id : null, updatedAt: now, version: sql`${tasks.version} + 1` })
-        .where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part))));
+        .where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part))));
     }
     for (const part of chunks(moving, 14)) {
       statements.push(deps.db.insert(changes).values(part.map((r) => ({ orgId: actor.orgId, entityType: "task", entityId: r.id, op: "update" as const, version: r.version + 1, createdAt: now }))));

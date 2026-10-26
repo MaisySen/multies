@@ -3,13 +3,12 @@
  * manual entries, and a timesheet per person and project. Agents can log time too, under
  * their own name. Durations are stored in seconds when an entry stops.
  */
-import { and, asc, desc, eq, gte, isNull, lt, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lt, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, projects, tasks, timeEntries, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, sortableId, type SuiteActor } from "./common";
 import { resolveTaskId } from "./tasks";
-import { inIds } from "../../lib/sql-chunks";
 
 type EntryRow = typeof timeEntries.$inferSelect;
 export interface Person { type: "member" | "agent"; id: string }
@@ -44,10 +43,10 @@ async function present(deps: Deps, orgId: string, rows: EntryRow[]) {
   const memberIds = [...new Set(rows.filter((r) => r.personType === "member").map((r) => r.personId))];
   const agentIds = [...new Set(rows.filter((r) => r.personType === "agent").map((r) => r.personId))];
   const [ts, prs, us, ags] = await Promise.all([
-    taskIds.length ? deps.db.select({ id: tasks.id, number: tasks.number, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(inIds(tasks.id, taskIds.slice(0, 900))) : [],
+    taskIds.length ? deps.db.select({ id: tasks.id, number: tasks.number, title: tasks.title, projectId: tasks.projectId }).from(tasks).where(inArray(tasks.id, taskIds.slice(0, 900))) : [],
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name, color: projects.color }).from(projects).where(eq(projects.orgId, orgId)),
-    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, memberIds)) : [],
-    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inIds(agents.id, agentIds)) : [],
+    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
+    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inArray(agents.id, agentIds)) : [],
   ]);
   const tm = new Map(ts.map((t) => [t.id, t])), pm = new Map(prs.map((p) => [p.id, p]));
   const um = new Map(us.map((u) => [u.id, u])), am = new Map(ags.map((a) => [a.id, a]));

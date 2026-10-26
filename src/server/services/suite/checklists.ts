@@ -5,11 +5,11 @@
  * one index (task_checklist_items_task_idx) and record no activity rows, so ticking through a list stays cheap.
  * The same service backs the app routes (checklists.ts), REST (v1-r26-checklists.ts) and MCP (mcp-r26-checklists.ts).
  */
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { tasks, taskChecklistItems } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { inChunks, inIds } from "../../lib/sql-chunks";
+import { inChunks } from "../../lib/sql-chunks";
 import { assertWritable, iso, parseDate, sortableId, actorOf, type SuiteActor } from "./common";
 import { createTask, parseAssignee, resolveTaskId, validateAssignee, type Task } from "./tasks";
 
@@ -159,7 +159,7 @@ export async function checklistItemToSubtask(deps: Deps, a: SuiteActor, itemId: 
 export async function checklistCounts(deps: Deps, taskIds: readonly string[]) {
   const out = new Map<string, { total: number; done: number }>();
   const got = await inChunks([...new Set(taskIds)], (chunk) => deps.db.select({ taskId: taskChecklistItems.taskId, total: sql<number>`count(*)`, done: sql<number>`sum(${taskChecklistItems.done})` })
-    .from(taskChecklistItems).where(inIds(taskChecklistItems.taskId, chunk)).groupBy(taskChecklistItems.taskId));
+    .from(taskChecklistItems).where(inArray(taskChecklistItems.taskId, chunk)).groupBy(taskChecklistItems.taskId));
   for (const g of got) out.set(g.taskId, { total: Number(g.total), done: Number(g.done ?? 0) });
   return out;
 }

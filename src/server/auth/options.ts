@@ -25,7 +25,7 @@ import { localPasswordEnabled } from "./config";
 import { multiesAuthPlugin } from "./mobile";
 import { clearFailures, lockedUntil, recordFailure } from "../services/lockout";
 import { audit } from "../services/audit";
-import { and, count, desc, eq, ne } from "drizzle-orm";
+import { and, count, desc, eq, inArray, ne } from "drizzle-orm";
 import type { Deps } from "../context";
 import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
@@ -36,7 +36,6 @@ import { sendInviteEmail } from "../services/invite-email";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
 import { getPlan } from "../services/plans";
-import { inIds } from "../lib/sql-chunks";
 
 /** Better Auth endpoints whose success is a security event worth an audit entry. */
 const SECURITY_EVENTS: Record<string, string> = {
@@ -312,7 +311,7 @@ export function authOptions(deps: Deps) {
             const ids = invitation.role === "member" ? (JSON.parse((invitation.mailboxIds as string | undefined) ?? "[]") as string[]) : [];
             if (ids.length) {
               const found = await db.select({ id: schema.mailboxes.id }).from(schema.mailboxes)
-                .where(and(eq(schema.mailboxes.orgId, org.id), inIds(schema.mailboxes.id, ids)));
+                .where(and(eq(schema.mailboxes.orgId, org.id), inArray(schema.mailboxes.id, ids)));
               if (found.length !== new Set(ids).size) throw new APIError("BAD_REQUEST", { message: "One of those mailboxes doesn't exist in this workspace." });
             }
             return { data: { ...invitation, mailboxIds: JSON.stringify(ids) } };
@@ -321,7 +320,7 @@ export function authOptions(deps: Deps) {
             const ids = JSON.parse((invitation.mailboxIds as string | undefined) ?? "[]") as string[];
             if (member.role !== "member" || !ids.length) return;
             const live = await db.select({ id: schema.mailboxes.id }).from(schema.mailboxes)
-              .where(and(eq(schema.mailboxes.orgId, invitation.organizationId), inIds(schema.mailboxes.id, ids)));
+              .where(and(eq(schema.mailboxes.orgId, invitation.organizationId), inArray(schema.mailboxes.id, ids)));
             for (const mb of live) {
               await db.insert(schema.mailboxAccess).values({ orgId: invitation.organizationId, userId: member.userId, mailboxId: mb.id }).onConflictDoNothing();
             }
