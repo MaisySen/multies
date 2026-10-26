@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert, FlatList, RefreshControl, Text, View } from "react-native";
+import { useCollapse } from "@/components/chrome";
 import { Banner, Button, EmptyState, LargeTitle, Loading, Segmented } from "@/components/ui";
 import { NotificationBell } from "@/components/notification-bell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,12 +24,14 @@ export default function Approvals() {
   const onDecide = (id: string, d: "approve" | "reject") =>
     decide.mutate({ id, decision: d }, { onError: (e) => Alert.alert(d === "approve" ? "Couldn't send it" : "Couldn't reject it", e.message) });
 
+  const collapse = useCollapse(); // R34: large title folds on scroll
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <LargeTitle title="Approvals" top={insets.top} right={<NotificationBell />} />
+      <LargeTitle title="Approvals" top={insets.top} collapsed={collapse.collapsed} right={<NotificationBell />} />
       {offline ? <Banner text="Offline. Approve and reject need a connection." /> : null}
       <FlatList
         data={rows ?? []}
+        {...collapse.scrollProps}
         keyExtractor={(a) => a.id}
         contentContainerStyle={{ padding: space.lg, gap: space.md, paddingBottom: space.xxl }}
         ListHeaderComponent={

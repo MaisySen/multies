@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useCollapse } from "@/components/chrome";
 import { FlatList, RefreshControl, ScrollView, View } from "react-native";
 import { NotificationBell } from "@/components/notification-bell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -31,6 +32,7 @@ export default function Inbox() {
   const { mode } = useSession();
   // R31: swipe right to archive, left to snooze, long-press for every action. Swiped rows hide at once with Undo.
   const undo = useUndoQueue();
+  const collapse = useCollapse(); // R34: large title folds on scroll
   const actions = useMailRowActions(undo.push);
   const prefs = usePrefs(); // R33: the swipe actions chosen in Settings
   const swipeable = folder === "inbox" || folder === "starred";
@@ -41,7 +43,7 @@ export default function Inbox() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerShown: false }} />
-      <Header onSearch={() => router.push("/search")} />
+      <Header onSearch={() => router.push("/search")} collapsed={collapse.collapsed} />
       {offline ? <Banner text="You're offline. Showing mail saved on this phone." /> : null}
       {mode === "sample" ? <Banner tone="brand" icon="compass" text="Sample workspace. Nothing here is real mail." /> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space.sm, paddingHorizontal: space.lg, paddingVertical: space.sm }} style={{ flexGrow: 0 }}>
@@ -56,6 +58,7 @@ export default function Inbox() {
       ) : (
         <FlatList
           data={rows}
+          {...collapse.scrollProps}
           keyExtractor={(m) => m.id}
           renderItem={({ item }) => {
             const row = <MessageRow m={item} agents={agents.data} showRecipient={folder === "sent"} onLongPress={() => actions.openMenu(item)}
@@ -85,11 +88,11 @@ export default function Inbox() {
   );
 }
 
-function Header({ onSearch }: { onSearch: () => void }) {
+function Header({ onSearch, collapsed }: { onSearch: () => void; collapsed?: boolean }) {
   const { me } = useSession();
   const insets = useSafeAreaInsets();
   return (
-    <LargeTitle title="Mail" subtitle={me?.organization?.name} top={insets.top} right={(
+    <LargeTitle title="Mail" subtitle={me?.organization?.name} top={insets.top} collapsed={collapsed} right={(
       <>
         <NotificationBell />
         <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "./session";
 import { cached, setOffline } from "./offline";
@@ -10,6 +10,7 @@ import type { ChatMessage, ChatSend, NotificationSettings, Approval, ListFolder,
 import { pendingTask } from "./pending";
 import { ApiError } from "@/api/errors";
 import { commandQueue, type NewCommand } from "./command-queue";
+import { countsClient, COUNTS_POLL_MS, type Counts } from "./counts";
 
 /** R33: what a mutation answers when its call went into the offline command queue. */
 export const QUEUED = "queued" as const;
@@ -27,6 +28,7 @@ export async function offlineOr<T>(call: () => Promise<T>, command: NewCommand):
 }
 
 export const keys = {
+  counts: ["counts"] as const,
   overview: ["overview"] as const,
   agents: ["agents"] as const,
   messages: (folder: ListFolder, mailboxId?: string) => ["messages", folder, mailboxId ?? "all"] as const,
@@ -546,4 +548,28 @@ export function useClaimFreeAddress() {
     mutationFn: (localPart: string) => api.claimFreeAddress(localPart),
     onSuccess: () => refreshAddresses(qc),
   });
+}
+
+/**
+ * R34: every badge count from GET /api/counts, with If-None-Match. Asks on start, when the app
+ * comes back to the foreground, when a push arrives (the tab layout invalidates keys.counts) and
+ * every 60 s while in the foreground. Answers null on a server without the endpoint (404), so the
+ * caller counts its lists instead.
+ */
+export function useCounts() {
+  const { api, mode } = useSession();
+  const foreground = useForeground();
+  const latest = useRef(api);
+  latest.current = api;
+  const [client] = useState(() => countsClient((opts) => latest.current.counts(opts)));
+  useEffect(() => { client.reset(); }, [client, mode]);
+  const q = useQuery<Counts | null>({
+    queryKey: [...keys.counts, mode],
+    queryFn: () => client.get(),
+    refetchInterval: foreground ? COUNTS_POLL_MS : false,
+    retry: 1,
+  });
+  const { refetch } = q;
+  useEffect(() => { if (foreground) refetch().catch(() => {}); }, [foreground, refetch]);
+  return q;
 }

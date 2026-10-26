@@ -13,6 +13,8 @@ export interface RequestOptions {
   onUploadProgress?: (fraction: number) => void;
   /** Extra request headers, for example x-device-id on a free address claim. */
   headers?: Record<string, string>;
+  /** R34: called with the status and headers of every answer, before errors are thrown (ETag reads). */
+  onResponse?: (status: number, headers: { get(name: string): string | null }) => void;
 }
 
 /** The parts of a fetch Response the transport reads. */
@@ -148,6 +150,7 @@ export class HttpTransport implements Transport {
       if (setCookie.includes("session_token=")) this.lastRefreshAt = Date.now(); // the server just renewed it
     }
 
+    opts.onResponse?.(res.status, res.headers);
     const text = await res.text();
     let json: unknown = null;
     try { json = text ? JSON.parse(text) : null; } catch { /* not JSON */ }

@@ -3,6 +3,7 @@ import { Pressable, RefreshControl, ScrollView, Text, View, useWindowDimensions 
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useCollapse } from "@/components/chrome";
 import { Badge, Banner, Button, Chip, EmptyState, Icon, IconButton, LargeTitle, Loading, Segmented } from "@/components/ui";
 import { useTaskMutations, useTasks } from "@/lib/queries";
 import { TimerChip } from "@/components/timer";
@@ -60,10 +61,11 @@ export default function Tasks() {
   const [actionsFor, setActionsFor] = useState<Task | null>(null);
   const knownLabels = [...new Set(list.flatMap((t) => t.labels ?? []))];
   const longPress = (t: Task) => { tick(); setActionsFor(t); };
+  const collapse = useCollapse(); // R34: large title folds on scroll
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <LargeTitle title="Tasks" top={insets.top} right={(
+      <LargeTitle title="Tasks" top={insets.top} collapsed={collapse.collapsed} right={(
         <>
           <NotificationBell />
           <IconButton icon="command" label="Commands" onPress={openCommandSheet} testID="open-commands" />
@@ -91,7 +93,7 @@ export default function Tasks() {
         <EmptyState icon="check-square" title={who === "me" ? "Nothing assigned to you" : "No tasks yet"} body="Open an email and tap Make a task, or add one here."
           action={<Button label="New task" icon="plus" onPress={() => router.push("/task/new")} />} />
       ) : view === "list" ? (
-        <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.lg }}
+        <ScrollView contentContainerStyle={{ paddingHorizontal: space.lg, paddingBottom: space.xxl, gap: space.lg }} {...collapse.scrollProps}
           refreshControl={<RefreshControl refreshing={tasks.isRefetching} onRefresh={() => { tasks.refetch(); }} tintColor={colors.brand} />}>
           <View style={{ marginHorizontal: -space.lg }}><SwipeHint testID="task-swipe-hint" /></View>
           {STATUSES.map((s) => {

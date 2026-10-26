@@ -1,4 +1,5 @@
-import type { Transport } from "./transport";
+import type { RequestOptions, Transport } from "./transport";
+import type { Counts } from "@/lib/counts";
 import type { SnoozePreset } from "@/lib/snooze";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
@@ -104,6 +105,8 @@ export function endpoints(t: Transport) {
     readChannel: (id: string, messageId?: string) => t.request<{ ok: true }>("POST", `/chat/channels/${encodeURIComponent(id)}/read`, messageId ? { messageId } : {}),
     joinChannel: (id: string) => t.request<{ channel: ChatChannel }>("POST", `/chat/channels/${encodeURIComponent(id)}/join`, {}),
     chatUnread: () => t.request<ChatUnread>("GET", "/chat/unread"),
+    /** R34: every badge count in one call, with an ETag (304 when nothing changed). */
+    counts: (opts?: RequestOptions) => t.request<Counts>("GET", "/counts", undefined, opts),
     chatPeople: () => t.request<{ people: ChatPerson[] }>("GET", "/chat/people"),
     startDm: (userIds: string[]) => t.request<{ channel: ChatChannel }>("POST", "/chat/dms", { userIds }),
     chatMessageToTask: (id: string, input: { title?: string; projectId?: string } = {}) => t.request<{ task: Task }>("POST", `/chat/messages/${encodeURIComponent(id)}/task`, input),

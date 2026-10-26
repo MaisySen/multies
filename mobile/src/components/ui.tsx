@@ -6,14 +6,14 @@ import {
 import { colors, font, motion, radius, shadow, space, TOUCH } from "@/theme";
 import { initials } from "@/lib/format";
 import { useReduceMotion } from "@/lib/motion";
-import { ICONS, type IconName } from "./icons";
+import { Icon as PlatformIcon } from "./Icon";
+import type { IconName } from "./icons";
 
 export type { IconName } from "./icons";
 
-/** A Lucide line icon (ISC licence), 2 pt stroke, hidden from screen readers: the control carries the label. */
-export function Icon({ name, size = 20, color = colors.muted }: { name: IconName; size?: number; color?: string }) {
-  const Glyph = ICONS[name];
-  return <Glyph size={size} color={color} strokeWidth={size <= 16 ? 2.25 : 2} accessibilityElementsHidden importantForAccessibility="no" testID={`icon-${name}`} />;
+/** R34: the one platform aware icon (Phosphor on iOS and web, Material Symbols Rounded on Android). */
+export function Icon({ name, size = 20, color = colors.muted, filled }: { name: IconName; size?: number; color?: string; filled?: boolean }) {
+  return <PlatformIcon name={name} size={size} color={color} filled={filled} />;
 }
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -230,7 +230,18 @@ export function Loading({ label = "Loading", rows = 6, variant = "mail" }: { lab
 }
 
 /** A large title header (34 pt), as iOS shows at the top of a tab, with optional actions on the right. */
-export function LargeTitle({ title, subtitle, right, top = 0 }: { title: string; subtitle?: string | null; right?: ReactNode; top?: number }) {
+export function LargeTitle({ title, subtitle, right, top = 0, collapsed = false }: { title: string; subtitle?: string | null; right?: ReactNode; top?: number; collapsed?: boolean }) {
+  // R34: once the list scrolls, the large title folds into a compact, translucent bar with a hairline edge.
+  if (collapsed) {
+    return (
+      <View testID="large-title-collapsed" style={{ paddingTop: top, paddingHorizontal: space.md, height: top + 48, flexDirection: "row", alignItems: "center", gap: space.sm,
+        backgroundColor: colors.surface, borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, opacity: 0.98 }}>
+        <View style={{ flex: 1 }} />
+        <Text style={[font.headline, { position: "absolute", left: 96, right: 96, top: top + 13, textAlign: "center" }]} accessibilityRole="header" numberOfLines={1}>{title}</Text>
+        {right ? <View style={{ flexDirection: "row", alignItems: "center" }}>{right}</View> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ paddingTop: top + space.md, paddingHorizontal: space.lg, paddingBottom: space.sm, flexDirection: "row", alignItems: "flex-end", gap: space.sm, backgroundColor: colors.bg }}>
       <View style={{ flex: 1 }}>
