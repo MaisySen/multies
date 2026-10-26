@@ -4,15 +4,17 @@ import { agents, apiKeys, members, organizations, users } from "../../db/schema"
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
 import { deferrableWrite } from "../write-priority";
+import { grantedScopes, scopeChips } from "../../lib/api-scopes";
 
 /** How often a key's last used time is written (D1 daily write budget). */
 export const LAST_USED_EVERY_MS = 15 * 60_000;
 
 export const MAX_API_KEYS = 25;
-export type ApiKeyScope = "full" | "read";
+/** "full", "read", or (R36) a space separated list of per area scopes (src/server/lib/api-scopes.ts). */
+export type ApiKeyScope = "full" | "read" | (string & {});
 
 export function presentApiKey(k: typeof apiKeys.$inferSelect) {
-  return { id: k.id, name: k.name, prefix: k.prefix, scope: k.scope, agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
+  return { id: k.id, name: k.name, prefix: k.prefix, scope: k.scope, scopes: [...grantedScopes(k.scope)], scopeChips: scopeChips(k.scope), agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
 }
 
 export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
@@ -32,6 +34,14 @@ export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" |
   });
   const row = await deps.db.select().from(apiKeys).where(eq(apiKeys.id, id)).get();
   return { apiKey: presentApiKey(row!), secret };
+}
+
+/** R36: change a key's scopes (the value is already normalised by the route). Essential write: one row, on a person's click. */
+export async function updateApiKeyScope(deps: Deps, orgId: string, id: string, scope: string) {
+  const k = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.orgId, orgId))).get();
+  if (!k) throw notFound("API key");
+  await deps.db.update(apiKeys).set({ scope }).where(eq(apiKeys.id, k.id));
+  return presentApiKey({ ...k, scope });
 }
 
 export async function deleteApiKey(deps: Deps, orgId: string, id: string) {

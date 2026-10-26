@@ -17,6 +17,7 @@ import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
 import { mailboxReplyToSchema } from "@/shared/schemas";
 import { resolveApiKey } from "../services/developer/api-keys";
+import { hasScope, insufficientScopeBody, isPresetScope, routeScopeForRequest } from "../lib/api-scopes";
 import { resolveOAuthToken } from "../services/developer/oauth";
 import { WEBHOOK_EVENTS, createEndpoint, deleteEndpoint, listEndpoints } from "../services/developer/webhooks";
 import { createDomain, getDomain, listDomains, presentDomain, verifyDomain } from "../services/domains";
@@ -180,6 +181,12 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   // MCP speaks JSON-RPC over POST; its write tools check the key's scope themselves.
   if (auth.scope === "read" && c.req.method !== "GET" && !c.req.path.endsWith("/mcp") && !isSnippetRender(c.req.method, c.req.path) && !isSplitPreview(c.req.method, c.req.path) && !isAuthHookPreview(c.req.method, c.req.path)) throw new HttpError(403, "read_only_key", "This API key can only read.");
+  // R36: a key with per area scopes needs the route's scope (preset "full" and "read" keys keep the check above).
+  if (!isPresetScope(auth.scope) && !c.req.path.endsWith("/mcp")) {
+    const sub = c.req.path.replace(/^.*?\/api\/v1(?=\/|$)/, "") || "/";
+    const required = routeScopeForRequest(c.req.method, sub);
+    if (required !== null && (required === "full" || !hasScope(auth.scope, required))) return c.json(insufficientScopeBody(required), 403);
+  }
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
   await next();
@@ -234,7 +241,7 @@ export function v1Routes() {
     info: {
       title: "Multies API",
       version: "1.0.0",
-      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. The MCP server is at /api/v1/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
+      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
     },
     servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
   }));

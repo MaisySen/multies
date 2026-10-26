@@ -7,12 +7,12 @@ import { useMe } from "@/web/lib/queries";
 import { CopyButton, Skeleton } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input, Select } from "@/web/components/ui/input";
+import { Field, Input } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 
-interface ApiKey { id: string; name: string; prefix: string; scope: "full" | "read"; lastUsedAt: string | null; createdAt: string }
+interface ApiKey { id: string; name: string; prefix: string; scope: string; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; createdAt: string }
 interface Endpoint { id: string; url: string; description: string | null; events: string[]; enabled: boolean; disabledReason?: string | null; createdAt: string }
 interface Delivery { id: string; eventType: string; status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null; createdAt: string }
 
@@ -39,50 +39,114 @@ export function DeveloperSettings() {
   );
 }
 
+interface ScopeArea { area: string; label: string; read: string; write: string; readLabel: string; writeLabel: string; note: string }
+type Preset = "full" | "read" | "custom";
+
+/** R36: the stored value for a picked preset or list ("full" and "read" stay presets, so old keys are unchanged). */
+const scopeValue = (preset: Preset, picked: string[]) => (preset === "custom" ? picked : preset);
+const presetOf = (scope: string): { preset: Preset; picked: string[] } => (scope === "full" || scope === "read" ? { preset: scope, picked: [] } : { preset: "custom", picked: scope.split(/\s+/).filter(Boolean) });
+
+function ScopeChips({ chips }: { chips: string[] }) {
+  return <>{chips.map((c) => <span key={c} data-testid="scope-chip" className={cn("rounded-full border px-2 py-0.5 text-[11px]", c === "Full access" ? "border-brand/40 bg-brand-soft text-brand-hover" : "border-line text-muted")}>{c}</span>)}</>;
+}
+
+/** R36: presets plus a checkbox per area and level. Picking write also picks read. */
+function ScopePicker({ preset, picked, onChange }: { preset: Preset; picked: string[]; onChange: (preset: Preset, picked: string[]) => void }) {
+  const areas = useQuery({ queryKey: ["api-scopes"], queryFn: async () => (await api.get<{ areas: ScopeArea[] }>("/developer/scopes")).areas, staleTime: Infinity });
+  const set = new Set(picked);
+  const toggle = (a: ScopeArea, level: "read" | "write", on: boolean) => {
+    const next = new Set(set);
+    if (level === "write") { if (on) { next.add(a.write); next.add(a.read); } else next.delete(a.write); }
+    else if (on) next.add(a.read); else { next.delete(a.read); next.delete(a.write); }
+    onChange("custom", [...next]);
+  };
+  return (
+    <fieldset className="min-w-0">
+      <legend className="mb-2 text-[13px] font-medium">Access</legend>
+      <div role="radiogroup" aria-label="Access preset" className="grid grid-cols-3 gap-1 rounded-lg bg-fill p-0.5 text-sm">
+        {([["full", "Full access"], ["read", "Read only"], ["custom", "Choose areas"]] as const).map(([id, label]) => (
+          <button key={id} type="button" role="radio" aria-checked={preset === id} onClick={() => onChange(id, id === "custom" && !picked.length ? ["tasks:read"] : picked)}
+            className={cn("min-h-9 rounded-md px-2 py-1.5 transition-colors", preset === id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>{label}</button>
+        ))}
+      </div>
+      <p className="mt-2 text-xs text-subtle">{preset === "full" ? "Everything a workspace admin can do through the API and MCP." : preset === "read" ? "Reads every area. Any change or send is refused." : "Only the areas you tick. Calls outside them get insufficient_scope."}</p>
+      {preset === "custom" ? (
+        <div className="mt-3 divide-y divide-line overflow-hidden rounded-xl border border-line">
+          {(areas.data ?? []).map((a) => (
+            <div key={a.area} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5">
+              <div className="min-w-0 basis-full sm:basis-0 sm:flex-1"><p className="text-sm font-medium">{a.label}</p><p className="truncate text-xs text-subtle">{a.note}</p></div>
+              <label className="flex min-h-9 items-center gap-1.5 text-[13px]"><input type="checkbox" className="h-4 w-4 accent-brand" checked={set.has(a.read)} onChange={(e) => toggle(a, "read", e.target.checked)} aria-label={`${a.label}: read`} />Read</label>
+              <label className="flex min-h-9 items-center gap-1.5 text-[13px]"><input type="checkbox" className="h-4 w-4 accent-brand" checked={set.has(a.write)} onChange={(e) => toggle(a, "write", e.target.checked)} aria-label={`${a.label}: ${a.writeLabel.toLowerCase()}`} />{a.writeLabel}</label>
+            </div>
+          ))}
+          {areas.isPending ? <Skeleton className="h-40" /> : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function ApiKeys() {
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ["api-keys"], queryFn: async () => (await api.get<{ apiKeys: ApiKey[] }>("/developer/keys")).apiKeys });
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
-  const [scope, setScope] = useState<"full" | "read">("full");
+  const [preset, setPreset] = useState<Preset>("full");
+  const [picked, setPicked] = useState<string[]>([]);
   const [secret, setSecret] = useState<string | null>(null);
+  const [editing, setEditing] = useState<ApiKey | null>(null);
+  const [editPreset, setEditPreset] = useState<Preset>("full");
+  const [editPicked, setEditPicked] = useState<string[]>([]);
   const create = useMutation({
-    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope }),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setSecret(r.secret); },
+    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope: scopeValue(preset, picked) }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setPreset("full"); setPicked([]); setSecret(r.secret); },
+  });
+  const edit = useMutation({
+    mutationFn: () => api.patch(`/developer/keys/${editing!.id}`, { scope: scopeValue(editPreset, editPicked) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setEditing(null); toast.success("Scopes saved. They apply to the next request."); },
   });
   const del = useMutation({
     mutationFn: (id: string) => api.del(`/developer/keys/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["api-keys"] }); toast.success("Key deleted. Requests using it now fail."); },
   });
+  const startEdit = (k: ApiKey) => { const p = presetOf(k.scope); setEditPreset(p.preset); setEditPicked(p.picked); setEditing(k); };
+  const customEmpty = (p: Preset, list: string[]) => p === "custom" && list.length === 0;
   return (
-    <Section title="API keys" description="Keys act for the whole workspace. Give each app or script its own, so you can delete one without breaking the rest.">
+    <Section title="API keys" description="Give each app or script its own key with only the access it needs, so you can change or delete one without breaking the rest.">
       <div>
         {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.length ? keys.data.map((k) => (
-          <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
-            <div className="flex min-w-0 items-center gap-2.5">
+          <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0" data-testid="api-key-row">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <IconKey className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{k.name}</span>
               <code className="font-mono text-[12px] text-subtle">{k.prefix}...</code>
-              {k.scope === "read" && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">read only</span>}
+              <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
             </div>
-            <div className="flex items-center gap-3 text-xs text-subtle">
+            <div className="flex items-center gap-2 text-xs text-subtle">
               <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
-              <button onClick={() => del.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad" aria-label={`Delete key ${k.name}`}><IconTrash className="h-3.5 w-3.5" /></button>
+              {!k.agentId ? <button onClick={() => startEdit(k)} className="rounded px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11" aria-label={`Edit scopes of ${k.name}`}>Edit scopes</button> : null}
+              <button onClick={() => del.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad max-sm:min-h-11 max-sm:px-3" aria-label={`Delete key ${k.name}`}><IconTrash className="h-3.5 w-3.5" /></button>
             </div>
           </div>
         )) : <p className="text-sm text-muted">No API keys yet.</p>}
-        <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Create API key</Button>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Create API key</Button>
+          <a href="/developers/mcp" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"><IconBook className="h-4 w-4" />MCP tools and the scope each needs</a>
+        </div>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New API key"
-        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!name.trim()} onClick={() => create.mutate()}>Create</Button></>}>
-        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (name.trim()) create.mutate(); }}>
+        footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button loading={create.isPending} disabled={!name.trim() || customEmpty(preset, picked)} onClick={() => create.mutate()}>Create</Button></>}>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (name.trim() && !customEmpty(preset, picked)) create.mutate(); }}>
           <Field label="Name" hint="What will use it, for example: Billing service" error={create.error instanceof ApiError ? create.error.message : undefined}>
             {(p) => <Input {...p} autoFocus value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />}
           </Field>
-          <Field label="Access">
-            {(p) => <Select {...p} value={scope} onChange={(e) => setScope(e.target.value as "full" | "read")}><option value="full">Full access</option><option value="read">Read only</option></Select>}
-          </Field>
+          <ScopePicker preset={preset} picked={picked} onChange={(pr, list) => { setPreset(pr); setPicked(list); }} />
         </form>
+      </Dialog>
+      <Dialog open={!!editing} onClose={() => setEditing(null)} title={editing ? `Scopes for ${editing.name}` : "Scopes"} description="Apps using this key keep working; calls outside the new scopes get insufficient_scope."
+        footer={<><Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button loading={edit.isPending} disabled={customEmpty(editPreset, editPicked)} onClick={() => edit.mutate()}>Save scopes</Button></>}>
+        <ScopePicker preset={editPreset} picked={editPicked} onChange={(pr, list) => { setEditPreset(pr); setEditPicked(list); }} />
+        {edit.error instanceof ApiError ? <p className="mt-2 text-sm text-bad">{edit.error.message}</p> : null}
       </Dialog>
       <Dialog open={!!secret} onClose={() => setSecret(null)} title="Copy your API key" description="It is shown once. Store it in your app's secret settings."
         footer={<Button onClick={() => setSecret(null)}><IconCheck className="h-4 w-4" />Done</Button>}>
@@ -211,7 +275,7 @@ function EndpointRow({ e }: { e: Endpoint }) {
 
 interface Grant { id: string; client: string; scope: "full" | "read"; user: { id: string; name: string; email: string }; createdAt: string; lastUsedAt: string | null; mine: boolean }
 
-/** AI apps (Claude, ChatGPT, Cursor and other MCP clients) signed in with OAuth, round 20. */
+/** AI apps and other MCP clients signed in with OAuth, round 20. */
 function ConnectedApps() {
   const qc = useQueryClient();
   const grants = useQuery({ queryKey: ["oauth-grants"], queryFn: async () => (await api.get<{ grants: Grant[] }>("/oauth/grants")).grants });
@@ -222,7 +286,7 @@ function ConnectedApps() {
   });
   const mcpUrl = `${window.location.origin}/api/v1/mcp`;
   return (
-    <Section title="Connected AI apps" description="Add Multies to Claude, ChatGPT, Cursor or any MCP client with this URL. The app asks you to sign in and pick a workspace; no key to copy.">
+    <Section title="Connected AI apps" description="Add Multies to your chat app, code editor or any MCP client with this URL. The app asks you to sign in and pick a workspace; no key to copy.">
       <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-elevated px-3 py-2">
         <code className="min-w-0 flex-1 truncate font-mono text-[13px]" data-testid="mcp-url">{mcpUrl}</code>
         <CopyButton value={mcpUrl} />
@@ -234,7 +298,7 @@ function ConnectedApps() {
               <IconAgent className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
               <span className="truncate text-sm font-medium">{g.client}</span>
               {!g.mine && <span className="truncate text-xs text-muted">{g.user.name || g.user.email}</span>}
-              {g.scope === "read" && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">read only</span>}
+              <ScopeChips chips={[g.scope === "read" ? "Read only" : "Full access"]} />
             </div>
             <div className="flex items-center gap-3 text-xs text-subtle">
               <span>{g.lastUsedAt ? `used ${timeAgo(g.lastUsedAt)}` : `connected ${timeAgo(g.createdAt)}`}</span>

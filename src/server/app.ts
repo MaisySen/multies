@@ -1,4 +1,4 @@
-import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, versionJson } from "./routes/web-meta-r32";
+import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
@@ -232,6 +232,18 @@ export function createApp(deps: Deps) {
   app.get("/llms.txt", llmsTxt);
   app.get("/llms-full.txt", llmsFullTxt);
   for (const p of DOCS_MD_PATHS) app.get(p, docsMarkdown); // R33: a .md copy of each docs page
+  // R36: the MCP tool catalog, generated from the server's own tool registrations (no D1).
+  app.get("/api/mcp-tools", async (c) => {
+    const { mcpCatalog } = await import("./services/developer/mcp-catalog");
+    c.header("cache-control", "public, max-age=3600");
+    return c.json({ release: c.var.deps.config.release, endpoint: "/api/v1/mcp", tools: mcpCatalog(c.var.deps.config.release) });
+  });
+  app.get(MCP_TOOLS_MD_PATH, async (c) => {
+    const { mcpCatalogMarkdown } = await import("./services/developer/mcp-catalog");
+    c.header("content-type", "text/markdown; charset=utf-8");
+    c.header("cache-control", "public, max-age=3600");
+    return c.body(mcpCatalogMarkdown(c.var.deps.config.release));
+  });
   app.get("/healthz", health);
 
   // RFC 9116: where to report a vulnerability.
