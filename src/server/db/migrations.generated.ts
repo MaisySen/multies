@@ -797,12 +797,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R38 (dependencies round 2): lead and lag per \"blocks\" link, and per project schedule rules.\n-- entity_links.lag_days: whole days on a task dependency link. Positive is a wait after the blocker ends (lag),\n-- negative lets the blocked task start that many days before (lead). 0 for every existing row.\nALTER TABLE `entity_links` ADD `lag_days` integer DEFAULT 0 NOT NULL;",
       "-- board_settings.schedule: JSON { workingDaysOnly, daysOff: [0..6], strict } for the project's timeline.\n-- '{}' means the defaults (calendar days, flexible moves). One upsert per change (essential: a person saved it).\nALTER TABLE `board_settings` ADD `schedule` text DEFAULT '{}' NOT NULL;"
     ]
-  },
-  {
-    "name": "0081_r38_data_moves",
-    "statements": [
-      "-- R38 (move your data): one row per import or export run, so a person can see the history, follow progress,\n-- download an export through a link that expires, and undo an import (the row lists exactly what it created).\n-- Writes: one insert when a run starts and one update per chunk of up to 50 items (essential: the person started it).\nCREATE TABLE `data_moves` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`kind` text NOT NULL,\n\t`source` text NOT NULL,\n\t`file_name` text,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`project_id` text,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`done` integer DEFAULT 0 NOT NULL,\n\t`created` text DEFAULT '{}' NOT NULL,\n\t`counts` text DEFAULT '{}' NOT NULL,\n\t`token_hash` text,\n\t`expires_at` integer,\n\t`error` text,\n\t`created_by_user_id` text,\n\t`created_by_email` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`finished_at` integer,\n\t`undone_at` integer\n);",
-      "CREATE INDEX `data_moves_org_idx` ON `data_moves` (`org_id`,`created_at`);"
-    ]
   }
 ];

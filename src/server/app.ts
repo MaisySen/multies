@@ -68,7 +68,6 @@ import { webPushRoutes } from "./routes/web-push-r32";
 import { automationRoutes, changeRoutes, companyRoutes, contactRoutes, dealRoutes, docRoutes, notificationRoutes, projectRoutes, pushRoutes, taskRoutes } from "./routes/suite";
 import { importRoutes, importRunnerRoutes, integrationRoutes } from "./routes/imports";
 import { workImportRoutes } from "./routes/work-imports";
-import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
@@ -403,9 +402,6 @@ export function createApp(deps: Deps) {
   app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
   app.route("/api/work-imports", workImportRoutes());
-  // R38 move your data: the download link (token, no session) first, then the signed in routes.
-  app.route("/api/data-moves", dataMoveDownloadRoutes());
-  app.route("/api/data-moves", dataMoveRoutes());
   app.route("/api/import-runner", importRunnerRoutes());
   app.route("/api/integrations", integrationRoutes());
   app.route("/api/epics", epicRoutes());

@@ -96,7 +96,7 @@ const AuthEmailSettings = lazy(() => import("./pages/app/auth-email-settings").t
 const CalendarSettings = lazy(() => import("./pages/app/calendar-settings").then((m) => ({ default: m.CalendarSettings })));
 const ConnectionsSettings = lazy(() => import("./pages/app/connections").then((m) => ({ default: m.ConnectionsSettings })));
 const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
-const ImportSettings = lazy(() => import("./pages/app/data-move").then((m) => ({ default: m.ImportExportSettings }))); // R38 move your data
+const ImportSettings = lazy(() => import("./pages/app/work-import").then((m) => ({ default: m.ImportSettings })));
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));

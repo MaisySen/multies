@@ -7,12 +7,12 @@
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
 
-export type WorkSource = "trello" | "asana" | "clickup" | "monday" | "jira" | "linear" | "notion" | "todoist" | "csv";
+export type WorkSource = "trello" | "asana" | "clickup" | "monday" | "jira" | "linear" | "notion" | "csv";
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
 
 export const SOURCE_LABELS: Record<WorkSource, string> = {
-  trello: "Trello", asana: "Asana", clickup: "ClickUp", monday: "monday.com", jira: "Jira", linear: "Linear", notion: "Notion", todoist: "Todoist", csv: "CSV file",
+  trello: "Trello", asana: "Asana", clickup: "ClickUp", monday: "monday.com", jira: "Jira", linear: "Linear", notion: "Notion", csv: "CSV file",
 };
 
 /** Task fields a column can feed. `id` keeps re-runs from making copies; `completed` marks done rows. */
@@ -59,7 +59,6 @@ export function readTable(text: string, fileName = ""): Table {
     throw new ImportFileError("This JSON file is not a Trello board export. For other tools, export a CSV file.");
   }
   let all: string[][];
-  if (body.startsWith(ZIP_PREFIX)) return zipTable(body.slice(ZIP_PREFIX.length));
   if (body.startsWith(XLSX_PREFIX)) all = xlsxRows(body.slice(XLSX_PREFIX.length));
   else if (body.startsWith("PK\u0003\u0004") || /\.xls$/i.test(fileName)) throw new ImportFileError("This Excel file could not be read. Save it as CSV (or .xlsx) and upload that.");
   else all = (Papa.parse<string[]>(body, { skipEmptyLines: "greedy" }).data as string[][]).filter((r) => Array.isArray(r));
@@ -70,102 +69,9 @@ export function readTable(text: string, fileName = ""): Table {
   const headers = all[h].map((c) => c.trim());
   const width = headers.length;
   const rows = all.slice(h + 1).filter((r) => r.length >= Math.min(2, width) && r.some((c) => c.trim()) && !isGroupRow(r, width));
-  if (isTodoist(headers)) return todoistTable(headers, rows, fileName);
   const source = detectSource(headers);
   const name = h > 0 ? all[0].find((c) => c.trim())?.trim() ?? null : null;
   return { source, headers, rows, scope: "", name };
-}
-
-/** R38: a .zip (the Markdown and CSV export of a notes and wiki tool) arrives as this prefix and the file in base64. */
-export const ZIP_PREFIX = "zip-base64:";
-
-export function base64Bytes(base64: string) {
-  const bin = atob(base64.trim());
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
-/** The files in an uploaded zip, by path (text only, folders skipped, at most 2,000 files). */
-export function zipTexts(base64: string, keep: (name: string) => boolean): Map<string, string> {
-  let files: Record<string, Uint8Array>;
-  let n = 0;
-  try { files = unzipSync(base64Bytes(base64), { filter: (f) => !f.name.endsWith("/") && keep(f.name) && ++n <= 2000 }); }
-  catch { throw new ImportFileError("This zip file could not be read."); }
-  return new Map(Object.entries(files).map(([k, v]) => [k, strFromU8(v)]));
-}
-
-/** "Plan launch 0f3c9a...e1.md" to "Plan launch": the page title without the 32 character id the export adds. */
-export const pageTitle = (path: string) => (path.split("/").pop() ?? path).replace(/\.(md|csv)$/i, "").replace(/\s+[0-9a-f]{32}$/i, "").replace(/_all$/i, "").trim();
-
-/** Markdown page body without its "# Title" line and the "Key: value" property lines under it. */
-export function pageBody(md: string) {
-  const lines = md.replace(/^\uFEFF/, "").split(/\r?\n/);
-  let i = 0;
-  if (/^#\s/.test(lines[0] ?? "")) i = 1;
-  while (i < lines.length && !lines[i].trim()) i++;
-  const start = i;
-  while (i < lines.length && /^[A-Z][\w ()/.-]{0,40}:\s/.test(lines[i])) i++;
-  if (i > start && (i === lines.length || !lines[i].trim())) return lines.slice(i).join("\n").trim();
-  return lines.slice(start).join("\n").trim();
-}
-
-/** A Markdown and CSV zip: the database CSV becomes rows, and each row's own page becomes its description. */
-function zipTable(base64: string): Table {
-  const texts = zipTexts(base64, (n) => /\.(csv|md)$/i.test(n) && !n.startsWith("__MACOSX"));
-  const csvs = [...texts.keys()].filter((k) => /\.csv$/i.test(k)).sort((a, b) => Number(/_all\.csv$/i.test(b)) - Number(/_all\.csv$/i.test(a)) || a.length - b.length);
-  if (!csvs.length) throw new ImportFileError("This zip has no table (CSV) in it. To bring in pages, choose Docs instead.");
-  const t = readTable(texts.get(csvs[0])!, csvs[0]);
-  const pages = new Map<string, string>();
-  for (const [k, v] of texts) if (/\.md$/i.test(k)) pages.set(pageTitle(k).toLowerCase(), pageBody(v));
-  const titleAt = defaultMapping(t).title ? t.headers.indexOf(defaultMapping(t).title!) : 0;
-  const headers = [...t.headers, "Page"];
-  const rows = t.rows.map((r) => [...r, pages.get((r[titleAt] ?? "").trim().toLowerCase()) ?? ""]);
-  return { ...t, source: t.source === "csv" ? "notion" : t.source, headers, rows, name: t.name ?? pageTitle(csvs[0]) };
-}
-
-// ------------------------------------------------------------------ Todoist
-
-const TODOIST_HEADERS = ["Task ID", "Content", "Section", "Priority", "Responsible", "Date", "Deadline", "Parent ID", "Description", "Labels", "Comments"];
-const isTodoist = (headers: string[]) => ["TYPE", "CONTENT", "INDENT"].every((n) => headers.some((h) => h.toUpperCase() === n));
-const TODOIST_PRIORITY: Record<string, string> = { "1": "Urgent", "2": "High", "3": "Medium", "4": "" };
-
-/**
- * A task list CSV: TYPE (task, section, note), CONTENT, DESCRIPTION, PRIORITY (1 is the highest), INDENT (1 top level,
- * 2 a subtask of the task above, and so on), RESPONSIBLE ("Name (id)"), DATE, DEADLINE. A section names the column the
- * tasks under it sit in, and a note is a comment on the task above it. Labels ride in the task name as @label.
- */
-function todoistTable(headers: string[], rows: string[][], fileName: string): Table {
-  const col = (n: string) => headers.findIndex((h) => h.toUpperCase() === n);
-  const [type, content, desc, prio, indent, resp, date, deadline] = ["TYPE", "CONTENT", "DESCRIPTION", "PRIORITY", "INDENT", "RESPONSIBLE", "DATE", "DEADLINE"].map(col);
-  const out: { cells: string[]; comments: string[] }[] = [];
-  let section = "";
-  const stack: string[] = [];
-  for (const r of rows) {
-    const kind = (r[type] ?? "").trim().toLowerCase();
-    const text = (r[content] ?? "").trim();
-    if (kind === "section") { section = text; stack.length = 0; continue; }
-    if (kind === "note") { out.at(-1)?.comments.push(text); continue; }
-    if (kind !== "task" || !text) continue;
-    const id = `todoist-${out.length + 1}`;
-    const level = Math.max(1, Number.parseInt(r[indent] ?? "1", 10) || 1);
-    stack.length = level - 1;
-    const parent = stack[level - 2] ?? "";
-    stack[level - 1] = id;
-    const labels = [...text.matchAll(/(?:^|\s)@([\w-]+)/g)].map((m) => m[1]);
-    const title = text.replace(/(?:^|\s)@[\w-]+/g, "").trim() || text;
-    out.push({
-      cells: [id, title, section, TODOIST_PRIORITY[(r[prio] ?? "").trim()] ?? "", (r[resp] ?? "").replace(/\s*\(\d+\)\s*$/, "").trim(),
-        (r[date] ?? "").trim(), deadline >= 0 ? (r[deadline] ?? "").trim() : "", parent, desc >= 0 ? (r[desc] ?? "").trim() : "", labels.join(", ")],
-      comments: [],
-    });
-  }
-  const most = Math.max(1, ...out.map((o) => o.comments.length));
-  return {
-    source: "todoist", headers: [...TODOIST_HEADERS.slice(0, -1), ...Array.from({ length: most }, () => "Comments")],
-    rows: out.map((o) => [...o.cells, ...Array.from({ length: most }, (_, i) => o.comments[i] ?? "")]),
-    scope: "", name: fileName ? fileName.replace(/\.csv$/i, "") : null,
-  };
 }
 
 /** An .xlsx file arrives as this prefix and the file in base64 (the browser reads it as bytes). */
@@ -294,8 +200,7 @@ const DEFAULTS: Record<WorkSource, Partial<Record<MapField, string[]>>> = {
   monday: { id: ["Item ID"], title: ["Name"], status: ["Status"], assignee: ["Person", "Owner", "People"], due: ["Date", "Due date", "Due Date", "Deadline"], start: ["Start date", "Start Date"], priority: ["Priority"], labels: ["Tags", "Labels"], parent: ["Parent item", "Parent Item ID"], description: ["Notes", "Description", "Text"], comments: ["Updates", "Comments"] },
   jira: { id: ["Issue id"], title: ["Summary"], status: ["Status"], statusGroup: ["Status Category"], assignee: ["Assignee"], due: ["Due date", "Due Date"], start: ["Start date", "Start Date"], priority: ["Priority"], labels: ["Labels"], parent: ["Parent id", "Parent"], description: ["Description"], comments: ["Comment"] },
   linear: { id: ["ID"], title: ["Title"], status: ["Status"], completed: ["Completed"], assignee: ["Assignee"], due: ["Due Date", "Due date"], priority: ["Priority"], labels: ["Labels"], parent: ["Parent issue"], description: ["Description"] },
-  todoist: { id: ["Task ID"], title: ["Content"], status: ["Section"], assignee: ["Responsible"], due: ["Deadline", "Date"], priority: ["Priority"], labels: ["Labels"], parent: ["Parent ID"], description: ["Description"], comments: ["Comments"] },
-  notion: { title: ["Name", "Task name", "Title"], status: ["Status"], assignee: ["Assign", "Assignee", "Assignees", "Person"], due: ["Due", "Due date", "Date", "Deadline"], start: ["Start", "Start date"], priority: ["Priority"], labels: ["Tags", "Labels"], parent: ["Parent item", "Parent task", "Parent"], description: ["Page", "Description", "Notes"], comments: ["Comments"] },
+  notion: { title: ["Name", "Task name", "Title"], status: ["Status"], assignee: ["Assign", "Assignee", "Assignees", "Person"], due: ["Due", "Due date", "Date", "Deadline"], start: ["Start", "Start date"], priority: ["Priority"], labels: ["Tags", "Labels"], parent: ["Parent item", "Parent task", "Parent"], description: ["Description", "Notes"], comments: ["Comments"] },
   csv: { id: ["ID", "Id", "Key", "Task ID"], title: ["Title", "Name", "Task", "Summary", "Task Name"], status: ["Status", "State", "Stage", "List", "Column"], completed: ["Completed", "Done", "Completed At"], assignee: ["Assignee Email", "Assignee", "Owner", "Assigned to", "Person"], due: ["Due", "Due date", "Due Date", "Deadline"], start: ["Start", "Start date", "Start Date"], priority: ["Priority"], labels: ["Labels", "Tags"], parent: ["Parent", "Parent ID", "Parent task"], description: ["Description", "Notes", "Details"], comments: ["Comments", "Comment"] },
 };
 

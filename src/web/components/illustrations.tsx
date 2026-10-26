@@ -173,3 +173,16 @@ export function SmallNoResultsArt() {
     </svg>
   );
 }
+
+/** R39: a receipt with a check, for an empty invoice list. */
+export function ReceiptArt() {
+  return (
+    <Frame label="A paper receipt">
+      <path d="M40 12h40v66l-6.7-5-6.6 5-6.7-5-6.7 5-6.6-5-6.7 5z" fill={B} opacity="0.12" />
+      <path d="M40 12h40v66l-6.7-5-6.6 5-6.7-5-6.7 5-6.6-5-6.7 5z" fill="none" stroke={B} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M49 28h22M49 38h22M49 48h12" stroke={B} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <circle cx="82" cy="60" r="10" fill={B} />
+      <path d="M77.5 60l3 3 5.5-6" fill="none" stroke="var(--color-surface, #fff)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </Frame>
+  );
+}

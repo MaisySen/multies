@@ -1963,32 +1963,3 @@ export const userBlocks = sqliteTable("user_blocks", {
   blockedUserId: text("blocked_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 }, (t) => [primaryKey({ columns: [t.blockerUserId, t.blockedUserId] }), index("user_blocks_blocked_idx").on(t.blockedUserId)]);
-
-/**
- * R38 move your data: one row per import or export run. `created` is JSON listing what an import made
- * ({ tasks: [ids], statuses: [ids], projectCreated, meetings: [ids], contacts: [ids], docs: [ids] }) so Undo
- * removes exactly that. An export keeps a hash of its download token and when the link stops working.
- * Writes: one insert per run, one update per chunk (essential: the person started it).
- */
-export const dataMoves = sqliteTable("data_moves", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  kind: text("kind", { enum: ["import", "export"] }).notNull(),
-  source: text("source").notNull(),
-  fileName: text("file_name"),
-  status: text("status", { enum: ["running", "stopped", "done", "undone", "failed", "ready", "expired"] }).notNull().default("running"),
-  projectId: text("project_id"),
-  total: integer("total").notNull().default(0),
-  done: integer("done").notNull().default(0),
-  created: text("created").notNull().default("{}"),
-  counts: text("counts").notNull().default("{}"),
-  tokenHash: text("token_hash"),
-  expiresAt: ts("expires_at"),
-  error: text("error"),
-  createdByUserId: text("created_by_user_id"),
-  createdByEmail: text("created_by_email"),
-  createdAt: createdAt(),
-  updatedAt: ts("updated_at").notNull(),
-  finishedAt: ts("finished_at"),
-  undoneAt: ts("undone_at"),
-}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt)]);

@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 193 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 189 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -99,10 +99,6 @@ A key with limited scopes can hide the tools it can't use, so an agent's tool li
 | `check_task_schedule` | Date clashes along dependencies: tasks that start before a task they wait on ends, each with `lagDays`, `overlapDays` and `fix { taskId, start, due }`; with `projectId` also the project's schedule rules (R37, R38, `tasks:read`) |
 | `reschedule_task` | Move a task (`start`, `due`) and shift the tasks that wait on it by just enough, keeping their length; `strict: true` moves them all by the same days (R38); `moveDependents: false` moves only this one, `preview: true` changes nothing (R37, `tasks:write`) |
 | `set_project_schedule` | A project's rules for dependency dates: `workingDaysOnly` (with `daysOff`) and `strict` moves (R38, `tasks:write`) |
-| `export_workspace` | Starts a full workspace export and answers `downloadUrl` (a ZIP that works for 24 hours) and `counts` (R38, `admin:read`, owners and admins) |
-| `list_data_moves` | The last 50 imports and exports with status, progress and whether each can be undone (R38, `admin:read`) |
-| `import_file` | Brings in a file: `kind` tasks, calendar, contacts, docs or workspace, one step of about 15 seconds; call again with `moveId` while it says stopped (R38, `admin:write`) |
-| `undo_import` | Removes exactly what one import made (R38, `admin:write`) |
 | `set_task_repeat` | Make a task repeat |
 | `list_custom_fields` | List a project's custom fields |
 | `create_custom_field` | Add a custom field to a project (any type; formula and rollup take a config) |

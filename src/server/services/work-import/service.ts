@@ -138,13 +138,7 @@ export async function previewImport(deps: Deps, actor: SuiteActor, input: FileIn
   };
 }
 
-export interface RunInput extends FileInput {
-  projectId?: string | null; projectName?: string | null;
-  /** R38: a status name in the file (any case) to a status id in the chosen project. Unlisted names are added as new statuses. */
-  statusMap?: Record<string, string | null> | null;
-  /** R38: a person as the file names them to a member's user id, or "" to leave their tasks unassigned. Unlisted names match by email or name. */
-  people?: Record<string, string | null> | null;
-}
+export interface RunInput extends FileInput { projectId?: string | null; projectName?: string | null }
 export type StopReason = "daily_cap" | "write_budget" | "time";
 
 /** Brings the file in. Safe to run again: tasks already in are skipped, and a stopped run carries on. */
@@ -165,14 +159,13 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     const early: StopReason | null = level === "warn" || level === "shed" ? "write_budget" : (await usedToday(deps, actor.orgId)) >= DAILY_TASK_CAP ? "daily_cap" : null;
     if (early) {
       if (input.projectId) await getProject(deps, actor.orgId, input.projectId);
-      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, unknownAssignees: 0, stopped: early, projectCreated: false, createdTaskIds: [] as string[], createdStatusIds: [] as string[] };
+      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, unknownAssignees: 0, stopped: early };
     }
   }
 
   // Where it goes: the chosen project, or a new one (a re-run of a file into "new project" carries on in the first run's project).
   let projectId = input.projectId ?? null;
   let continued = false;
-  let projectCreated = false;
   if (!projectId) {
     const prior = [...existing.values()][0];
     if (prior) {
@@ -180,7 +173,6 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       if (p) { projectId = p.id; continued = true; }
     }
   }
-  const mapped = new Map(Object.entries(input.statusMap ?? {}).filter(([, v]) => v).map(([k, v]) => [k.trim().toLowerCase(), v!]));
   const plan = statusPlan(table, rows, input.content);
   const fallbackNeeded = (c: Category) => rows.some((r) => r.category === c && (!r.status || plan.find((s) => s.name.toLowerCase() === r.status!.toLowerCase())?.category !== c));
   if (!projectId) {
@@ -192,19 +184,16 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     if (!plan.length && !rows.some((r) => r.category)) statuses = DEFAULT_STATUSES.map((s) => ({ name: s.name, category: s.category }));
     const p = await createProject(deps, actor, { name, statuses: statuses.map((s) => ({ ...s, color: COLORS[s.category] })) });
     projectId = p.id;
-    projectCreated = true;
   }
   const project = await getProject(deps, actor.orgId, projectId);
 
   // Statuses the project lacks are added after its own, in the file's order.
   const statuses = [...project.statuses];
-  const mappedOk = (name: string) => { const id = mapped.get(name.toLowerCase()); return !!id && statuses.some((x) => x.id === id); };
-  const missing: { name: string; category: Category }[] = plan.filter((s) => !mappedOk(s.name) && !statuses.some((x) => x.name.toLowerCase() === s.name.toLowerCase()));
+  const missing: { name: string; category: Category }[] = plan.filter((s) => !statuses.some((x) => x.name.toLowerCase() === s.name.toLowerCase()));
   for (const c of ["todo", "doing", "done"] as const) {
     if (fallbackNeeded(c) && ![...statuses, ...missing].some((s) => s.category === c)) missing.push({ name: c === "todo" ? "To do" : c === "doing" ? "In progress" : "Done", category: c });
   }
   const todoRows = rows.filter((_, i) => !existing.has(keys[i]));
-  const createdStatusIds: string[] = [];
   if (missing.length && todoRows.length) {
     const now = deps.now();
     let pos = Math.max(-1, ...statuses.map((s) => s.position));
@@ -212,12 +201,8 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     await deps.db.insert(projectStatuses).values(add);
     invalidateStatuses(deps, actor.orgId); // R25 read cache
     statuses.push(...add.map((s) => ({ id: s.id, name: s.name, category: s.category, color: s.color, position: s.position })));
-    createdStatusIds.push(...add.map((s) => s.id));
   }
   const statusFor = (r: ImportRow) => {
-    const pick = r.status ? mapped.get(r.status.toLowerCase()) : undefined;
-    const chosen = pick ? statuses.find((s) => s.id === pick) : undefined;
-    if (chosen) return chosen;
     const named = r.status ? statuses.find((s) => s.name.toLowerCase() === r.status!.toLowerCase()) : undefined;
     if (named && (!r.category || named.category === r.category)) return named;
     const cat = r.category ?? "todo";
@@ -250,16 +235,12 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   const pending = rows.map((r, i) => ({ r, key: keys[i] })).filter((x) => !existing.has(x.key))
     .map((x, n) => ({ ...x, n })).sort((a, b) => depthOf.get(a.r.externalId)! - depthOf.get(b.r.externalId)! || a.n - b.n);
 
-  const auto = await people(deps, actor.orgId);
-  const chosenPeople = new Map(Object.entries(input.people ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v ?? ""]));
-  // R38: a person picked in the wizard wins; "" means leave unassigned (kept as a note on the task).
-  const match = (a: string) => { const c = chosenPeople.get(a.trim().toLowerCase()); return c !== undefined ? c || null : auto(a); };
+  const match = await people(deps, actor.orgId);
   const maxPos = (await deps.db.select({ m: max(tasks.position) }).from(tasks).where(eq(tasks.projectId, projectId)).get())?.m ?? 0;
   const day = dayOf(now);
   let room = Math.max(0, DAILY_TASK_CAP - (await usedToday(deps, actor.orgId)));
   let created = 0, comments = 0, unknownAssignees = 0;
   let stopped: StopReason | null = null;
-  const createdTaskIds: string[] = [];
   const author = `${label} import`;
 
   for (let i = 0; i < pending.length; i += batchSize) {
@@ -295,7 +276,6 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     stmts.push(deps.db.insert(usageCounters).values({ orgId: actor.orgId, period: day, metric: COUNTER_METRIC, count: part.length })
       .onConflictDoUpdate({ target: [usageCounters.orgId, usageCounters.period, usageCounters.metric], set: { count: sql`${usageCounters.count} + ${part.length}` } }));
     await runBatch(deps.db, stmts);
-    createdTaskIds.push(...part.map(({ r }) => idOf.get(r.externalId)!));
     created += part.length;
     room -= part.length;
   }
@@ -313,6 +293,5 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   return {
     projectId, projectName: project.name, continued, source: table.source, sourceLabel: label,
     total: rows.length, created, alreadyThere: existing.size, left: pending.length - created, skipped, comments, unknownAssignees, stopped,
-    projectCreated, createdTaskIds, createdStatusIds,
   };
 }

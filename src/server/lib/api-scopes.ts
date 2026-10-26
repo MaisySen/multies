@@ -96,7 +96,7 @@ const TOOL_AREAS: Record<ScopeArea, string> = {
   docs: "search_docs read_doc create_doc append_to_doc list_forms create_form docs_append form_logic_set form_results docs_add_block get_doc_tree move_doc get_backlinks create_share_link list_share_links revoke_share_link",
   calendar: "list_meetings schedule_meeting get_meeting_notes create_action_items get_meeting_transcript get_call_status get_call_minutes meeting_summary_so_far meeting_lobby_list meeting_lobby_decide list_calendar_events",
   contacts: "search_contacts contact_timeline upsert_contact",
-  admin: "create_agent_inbox set_mailbox_reply_to list_guests invite_guest list_integrations create_incoming_hook list_agent_triggers create_agent_trigger delete_agent_trigger agent_trigger_history list_automation_recipes enable_automation_recipe update_auth_email_hook list_agent_members create_agent_member update_agent_member get_auth_email_settings update_auth_email_settings regenerate_auth_email_secret preview_auth_email send_auth_email_test export_workspace list_data_moves import_file undo_import",
+  admin: "create_agent_inbox set_mailbox_reply_to list_guests invite_guest list_integrations create_incoming_hook list_agent_triggers create_agent_trigger delete_agent_trigger agent_trigger_history list_automation_recipes enable_automation_recipe update_auth_email_hook list_agent_members create_agent_member update_agent_member get_auth_email_settings update_auth_email_settings regenerate_auth_email_secret preview_auth_email send_auth_email_test",
 };
 const TOOL_AREA = new Map<string, ScopeArea>();
 for (const [area, list] of Object.entries(TOOL_AREAS)) for (const n of list.split(" ")) TOOL_AREA.set(n, area as ScopeArea);
@@ -122,7 +122,7 @@ const ROUTE_AREAS: Record<string, ScopeArea> = {
   docs: "docs", forms: "docs", "share-links": "docs",
   meetings: "calendar", calendar: "calendar", scheduling: "calendar",
   contacts: "contacts", companies: "contacts", deals: "contacts",
-  domains: "admin", mailboxes: "admin", aliases: "admin", webhooks: "admin", integrations: "admin", "incoming-hooks": "admin", "inbound-keys": "admin", "auth-email-hooks": "admin", "auth-email-settings": "admin", "agent-members": "admin", "agent-triggers": "admin", automations: "admin", "work-imports": "admin", "data-moves": "admin", invites: "admin", guests: "admin", "free-address": "admin",
+  domains: "admin", mailboxes: "admin", aliases: "admin", webhooks: "admin", integrations: "admin", "incoming-hooks": "admin", "inbound-keys": "admin", "auth-email-hooks": "admin", "auth-email-settings": "admin", "agent-members": "admin", "agent-triggers": "admin", automations: "admin", "work-imports": "admin", invites: "admin", guests: "admin", "free-address": "admin",
 };
 /** Exact routes whose area differs from their first segment. */
 const ROUTE_OVERRIDES: Record<string, ScopeArea> = {
@@ -133,7 +133,7 @@ const ROUTE_OVERRIDES: Record<string, ScopeArea> = {
 /** Public routes with no key at all (the spec, the reference page). */
 const ROUTE_PUBLIC = new Set(["openapi.json", "reference", "reference.js", "mcp"]);
 /** POSTs that only render or preview (read only keys could always call them). */
-const ROUTE_READ_POSTS = [/^\/snippets\/[^/]+\/render$/, /^\/mail\/splits\/preview$/, /^\/auth-email-hooks\/[^/]+\/preview$/, /^\/auth-email-settings\/preview$/, /^\/work-imports\/preview$/, /^\/data-moves\/imports\/preview$/, /^\/data-moves\/exports$/];
+const ROUTE_READ_POSTS = [/^\/snippets\/[^/]+\/render$/, /^\/mail\/splits\/preview$/, /^\/auth-email-hooks\/[^/]+\/preview$/, /^\/auth-email-settings\/preview$/, /^\/work-imports\/preview$/];
 
 /** The scope a /api/v1 request needs. `path` is relative to /api/v1 (a route pattern or a real path). null: no scope (public or MCP, which checks per tool). "full": not mapped. */
 export function routeScope(method: string, path: string, pattern?: string): Scope | "full" | null {

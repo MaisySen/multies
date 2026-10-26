@@ -45,7 +45,7 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
     { to: "/app/settings/mail", label: "Mail routing", icon: IconMail, tint: "#0A84FF", keywords: "inbound outbound forwarding undo send saved replies read status dns" },
     { to: "/app/settings/mail-apps", label: "Mail apps", icon: IconSmartphone, tint: "#32ADE6", keywords: "imap phone desktop app password apple mail" },
     { to: "/app/settings/sign-up-emails", label: "Sign-up emails", icon: IconMailCheck, tint: "#AF52DE", keywords: "auth emails branded confirm reset hook secret" },
-    { to: "/app/settings/import", label: "Import and export", icon: IconDownload, tint: "#636366", keywords: "import export move data backup download zip csv calendar contacts mail tasks from another app undo" },
+    { to: "/app/settings/import", label: "Import", icon: IconDownload, tint: "#636366", keywords: "import csv mail tasks move from another app" },
   ] },
   { label: "Build", items: [
     { to: "/app/settings/developers", label: "Developers", icon: IconCode, tint: "#1C1C1E", keywords: "api keys scopes mcp webhooks oauth apps tokens" },

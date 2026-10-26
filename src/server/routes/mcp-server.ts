@@ -57,7 +57,6 @@ import { registerTriageR31Tools } from "./mcp-r31-triage"; // R31: notification 
 import { registerTriageR32Tools } from "./mcp-r32-triage"; // R32: task triage list and actions
 import { registerFormsR31Tools } from "./mcp-r31-forms"; // R31: form_logic_set, form_results
 import { registerScheduleR37Tools } from "./mcp-r37-schedule"; // R37: check_task_schedule, reschedule_task
-import { registerDataMoveTools } from "./mcp-r38-move"; // R38: export_workspace, list_data_moves, import_file, undo_import
 import { registerDocsR32Tools } from "./mcp-r32-docs"; // R32: docs_add_block (table, image, callout)
 import { registerChatLiveR32Tools } from "./mcp-r32-live"; // R32: chat_typing
 import { registerCalendarTools } from "./mcp-r23-calendar";
@@ -287,7 +286,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
   registerTriageR32Tools(server, deps, actor, writable, tool); // R32: task triage list and actions
   registerFormsR31Tools(server, deps, actor, writable, tool); // R31: form logic and results
   registerScheduleR37Tools(server, deps, actor, writable, tool); // R37: dates along dependencies
-  registerDataMoveTools(server, deps, actor, writable, tool); // R38: move your data
   registerDocsR32Tools(server, deps, actor, writable, tool); // R32: docs_add_block
   registerChatLiveR32Tools(server, deps, actor, writable, tool); // R32: chat_typing
   registerTaskBulkTools(server, deps, actor, writable, tool);

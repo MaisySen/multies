@@ -16,8 +16,6 @@ import { HttpError, forbidden } from "../lib/errors";
 import { audit } from "./audit";
 import { cancelForDeletion } from "./billing";
 import { inIds } from "../lib/sql-chunks";
-import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
-import { toMboxEntry } from "./data-move/formats";
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -67,7 +65,7 @@ function requireWorkspaceAdmin(auth: AuthContext) {
  * Streams a ZIP of the whole workspace: settings, members, domains, mailboxes, aliases,
  * integrations (no secrets), the audit log, and every message with its attachments.
  */
-export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: (counts: Record<string, number>) => Promise<void> } = {}): ReadableStream<Uint8Array> {
+export function exportWorkspace(deps: Deps, auth: AuthContext): ReadableStream<Uint8Array> {
   requireWorkspaceAdmin(auth);
   const { db } = deps;
   const orgId = auth.orgId;
@@ -107,11 +105,6 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
         }, null, 2));
         add("members.csv", toCsv(mem.map((m) => ({ ...m, joinedAt: iso(m.joinedAt) }))));
         add("audit-log.csv", toCsv(await auditRows(deps, orgId)));
-        add("README.txt", EXPORT_README);
-        // R38: tasks, projects, docs, calendar, contacts and chat (JSON, CSV, Markdown, ICS, vCard).
-        const sink: ZipSink = { file(name) { const f = new ZipDeflate(name, { level: 6 }); zip.add(f); return { push: (t: string) => f.push(enc.encode(t)), end: () => f.push(new Uint8Array(0), true) }; } };
-        const counts = await writeWorkData(deps, orgId, sink);
-        let mailCount = 0;
 
         for (const box of boxes) {
           const file = new ZipDeflate(`mail/${box.address}.jsonl`, { level: 6 });
@@ -128,28 +121,12 @@ export function exportWorkspace(deps: Deps, auth: AuthContext, opts: { onDone?: 
               attachments: atts.filter((a) => a.messageId === m.id).map(({ messageId: _m, ...a }) => a),
             })).join("\n") + "\n";
             file.push(enc.encode(lines));
-            mailCount += page.length;
             cursor = page[page.length - 1]!.id;
             if (page.length < PAGE) break;
           }
           file.push(new Uint8Array(0), true);
-          // R38: the same mailbox as mbox, which desktop mail apps import directly.
-          const mbox = new ZipDeflate(`mail/${box.address}.mbox`, { level: 6 });
-          zip.add(mbox);
-          let c2 = "";
-          for (;;) {
-            const page = await db.select({ id: messages.id, fromAddress: messages.fromAddress, fromName: messages.fromName, to: messages.to, cc: messages.cc, subject: messages.subject, text: messages.text, html: messages.html, messageIdHeader: messages.messageIdHeader, inReplyTo: messages.inReplyTo, createdAt: messages.createdAt })
-              .from(messages).where(and(eq(messages.mailboxId, box.id), c2 ? gt(messages.id, c2) : undefined)).orderBy(asc(messages.id)).limit(PAGE);
-            if (!page.length) break;
-            mbox.push(enc.encode(page.map((m) => toMboxEntry(m)).join("")));
-            c2 = page[page.length - 1]!.id;
-            if (page.length < PAGE) break;
-          }
-          mbox.push(new Uint8Array(0), true);
         }
-        counts.messages = mailCount;
-        await audit(db, { orgId, actorUserId: auth.userId || null, actorEmail: auth.email || null, action: "workspace.exported", metadata: counts });
-        await opts.onDone?.(counts);
+        await audit(db, { orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.exported" });
         zip.end();
       } catch (err) {
         deps.reportError?.(err, { where: "exportWorkspace" });

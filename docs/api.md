@@ -322,42 +322,6 @@ Domains (`/api/domains`, `/api/v1/domains`) carry `sending: { status: verified |
 domain is registered with the outbound provider, and their `records` then list the provider's DKIM, return path
 (`return_mx`, `return_spf`) and receiving MX.
 
-## Move your data (import and export)
-
-Settings, Import and export brings a team in from the tools it uses now and lets it leave with everything. The same
-calls are in the public API (`data-moves`, admin area; a read only key may start an export) and over MCP
-(`export_workspace`, `list_data_moves`, `import_file`, `undo_import`).
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/data-moves` | The last 50 imports and exports: `kind`, `source`, `status` (running, stopped, done, undone, ready, expired), `done` of `total`, `created` (items made), `canUndo` |
-| POST | `/api/v1/data-moves/exports` | Answers `downloadUrl`, a ZIP that works for 24 hours without a key. Owners and admins only, one every 10 minutes (429), written to the audit log |
-| POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
-| POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
-| POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
-
-`kind` is `tasks` (a CSV, an Excel file as `xlsx-base64:...`, a board JSON, or a Markdown and CSV zip as `zip-base64:...`),
-`calendar` (.ics), `contacts` (.vcf, or a CSV with an email column), `docs` (a Markdown file, or a zip of pages) or
-`workspace` (the ZIP an export made, which brings back projects, tasks, contacts, meetings and docs). `statusMap` maps a
-status name in the file to a status id in the project; `people` maps a person in the file to a member's user id, or `""`
-to leave their tasks unassigned (the name stays on the task as a note). Imports write in batches of 50, stay under the
-database's 100 values per statement, stop at the day's cap of 2,000 tasks or the write budget, and carry on when sent again.
-
-The export ZIP holds `data/<table>.json` (every record with its ids), `csv/` (tasks, projects, comments, contacts,
-companies, deals, time entries, chat messages), `docs/<title>.md`, `calendar/meetings.ics`, `contacts/contacts.vcf`,
-`mail/<address>.mbox` and `mail/<address>.jsonl`, plus `workspace.json`, `members.csv` and `audit-log.csv`. Passwords,
-keys and private links are never in it.
-
-## Keep other tools in sync
-
-After a move, keep a spreadsheet, a warehouse or another app up to date in one of three ways:
-
-1. Outgoing webhooks (below): add an endpoint in Settings, Developers, pick events such as `task.created`,
-   `task.updated`, `contact.updated` or `meeting.created`, and verify each delivery with any Standard Webhooks library.
-   Deliveries retry for about nine hours, show in a delivery log, and can be replayed or sent as a test.
-2. Polling: `GET /api/v1/changes?since=<cursor>` answers every change in order, so a nightly job can copy only what moved.
-3. A scheduled export: call `POST /api/v1/data-moves/exports` (at most every 10 minutes) and read the CSV or JSON files.
-
 ## Outgoing webhooks
 
 Endpoints are added in Settings, Developers (or `/api/developer`). Deliveries follow
