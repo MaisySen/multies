@@ -618,11 +618,10 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
-    "name": "0057_r26_agent_members",
+    "name": "0058_r26_task_checklists",
     "statements": [
-      "-- DF-3 (R26): AI agent members can be paused, carry an avatar colour and link an existing agent inbox.\n-- All nullable, no index: read with the member row that People, the team list and API key checks already load.\nALTER TABLE `members` ADD `disabled_at` integer;",
-      "ALTER TABLE `members` ADD `avatar_color` text;",
-      "ALTER TABLE `members` ADD `linked_agent_id` text;"
+      "-- R26 (MB-85): checklist items inside a task. One row per item; one index on task_id (the task panel and the\n-- card chips read by task). A tick or rename writes one row plus that index. No index on tasks changes.\nCREATE TABLE `task_checklist_items` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`task_id` text NOT NULL,\n\t`title` text NOT NULL,\n\t`done` integer DEFAULT 0 NOT NULL,\n\t`position` real DEFAULT 0 NOT NULL,\n\t`assignee` text,\n\t`due` integer,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`task_id`) REFERENCES `tasks`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `task_checklist_items_task_idx` ON `task_checklist_items` (`task_id`);"
     ]
   }
 ];

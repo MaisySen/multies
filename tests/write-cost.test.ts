@@ -1096,32 +1096,3 @@ it("R25 (MB-60): branding an auth email hook is one row; a preview and an unchan
   await previewAuthHook(ctx.deps, actor.orgId, id, "recovery");
   expect(take()).toBe(0);
 });
-
-it("R26 (DF-3): pausing or editing an agent member costs one members row plus one audit row, nothing when unchanged", async () => {
-  const ctx = await makeTestApp();
-  const take = meter(ctx.db);
-  const u = new Client(ctx.app);
-  await u.signup("owner@acme.io", "Olive Owner");
-  const me = (await u.get("/api/account/me")).body;
-  const actor = { orgId: me.organization.id, userId: me.user.id, email: me.user.email, name: me.user.name, role: "owner" as const, sessionId: "s" };
-  const { createAgentMember } = await import("@/server/services/people");
-  const { createAgentMemberR26, updateAgentMember } = await import("@/server/services/suite/agent-members-r26");
-  take();
-  await createAgentMember(ctx.deps, actor, { name: "Plain" });
-  const plain = take();
-  const made = await createAgentMemberR26(ctx.deps, actor, { name: "Builder", avatarColor: "#30B158" });
-  const colour = take();
-  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true });
-  const paused = take();
-  await updateAgentMember(ctx.deps, actor, made.member.userId, { disabled: true, title: null, avatarColor: "#30b158" });
-  const same = take();
-  await updateAgentMember(ctx.deps, actor, made.member.userId, { bio: "Ships code." });
-  const edited = take();
-  // Measured 25 October 2026: plain create 15, with a colour 19, pause 8, edit 8, unchanged 0.
-  // A colour or inbox at create adds one members row update to the existing create.
-  expect(colour - plain).toBeLessThanOrEqual(4);
-  // Pause or edit: the members row (its primary key and two indexes counted) plus one audit row (3 indexes).
-  expect(paused).toBeLessThanOrEqual(8);
-  expect(edited).toBeLessThanOrEqual(8);
-  expect(same).toBe(0);
-});

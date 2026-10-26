@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bot, CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
+import { CheckSquare, FileText, Hash, Inbox, Lock, Mail, MessageSquare, MoreHorizontal, Paperclip, Pin, PinOff, Plus, Send, Users, X } from "lucide-react";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { formatBytes, initials, mailDate } from "@/web/lib/format";
@@ -31,7 +31,7 @@ export interface ChatMessage {
   attachments: { id: string; filename: string; contentType: string; size: number }[]; replyCount: number; lastReplyAt: string | null; editedAt: string | null; deleted: boolean; createdAt: string;
   pinnedAt?: string | null; pinnedBy?: string | null; reactions?: Reaction[];
 }
-interface Person { id: string; type: "member" | "agent"; name: string; email: string | null; isAgent?: boolean; paused?: boolean }
+interface Person { id: string; type: "member" | "agent"; name: string; email: string | null }
 
 const TOKEN_RE = /(<@(?:member|agent):[A-Za-z0-9_-]+>|<#(?:task|thread|doc):[A-Za-z0-9_.@-]+>|<!(?:channel|here)>)/g;
 
@@ -184,7 +184,7 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
   const projects = useProjects();
   const hint = composerHint({ touch: isTouchOnly() || isPhoneWidth(), projectKey: projects.data?.find((p) => !p.archived)?.key });
   const query = text.match(/(?:^|\s)@([\w.-]*)$/)?.[1];
-  const matches = query === undefined ? [] : people.filter((p) => !p.paused && p.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
+  const matches = query === undefined ? [] : people.filter((p) => p.name.toLowerCase().includes(query.toLowerCase())).slice(0, 6);
   const pick = (p: Person) => { setText((t) => t.replace(/@([\w.-]*)$/, `@${p.name} `)); setPicked((l) => [...l.filter((x) => x.id !== p.id), p]); };
   const submit = async (e?: FormEvent) => {
     e?.preventDefault();
@@ -200,7 +200,7 @@ function Composer({ people, placeholder, onSend, testId }: { people: Person[]; p
     <form onSubmit={submit} className="relative border-t border-line p-3">
       {matches.length > 0 && (
         <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-3 mb-1 w-64 overflow-hidden rounded-lg border border-line-strong bg-elevated shadow-pop">
-          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{(p.type === "agent" || p.isAgent) && <span className="inline-flex items-center gap-0.5 text-subtle" data-testid="mention-agent-badge"><Bot className="h-3 w-3" aria-hidden />Agent</span>}</button></li>)}
+          {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{p.type === "agent" && <span className="text-subtle">agent</span>}</button></li>)}
         </ul>
       )}
       {files.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{files.map((f, i) => <span key={i} className="inline-flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-[12px]">{f.name}<button type="button" aria-label={`Remove ${f.name}`} onClick={() => setFiles((l) => l.filter((_, j) => j !== i))}><X className="h-3 w-3" /></button></span>)}</div>}

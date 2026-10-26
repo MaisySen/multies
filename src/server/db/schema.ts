@@ -95,12 +95,6 @@ export const members = sqliteTable("members", {
   title: text("title"),
   bio: text("bio"),
   createdAt: createdAt(),
-  /** R26 (DF-3): set when an admin pauses an agent member. Its keys are refused until it is resumed. */
-  disabledAt: ts("disabled_at"),
-  /** R26 (DF-3): an agent member's avatar colour, a #rrggbb hex. Initials come from the name. */
-  avatarColor: text("avatar_color"),
-  /** R26 (DF-3): an optional agent inbox (agents.id) shown with this agent member. Mailbox stays optional. */
-  linkedAgentId: text("linked_agent_id"),
 }, (t) => [uniqueIndex("members_org_user_uq").on(t.organizationId, t.userId), index("members_user_idx").on(t.userId)]);
 
 /** Better Auth sessions. The cookie carries the token, signed with the app secret. */
@@ -1647,3 +1641,21 @@ export const dashboards = sqliteTable("dashboards", {
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
   version: integer("version").notNull().default(1),
 }, (t) => [index("dashboards_org_idx").on(t.orgId)]);
+
+/**
+ * R26 (MB-85): checklist items inside a task. Permissions follow the task. One index (task_id): a tick, a
+ * rename or a move writes one row plus that index. `assignee` is "member:<id>" or "agent:<id>".
+ */
+export const taskChecklistItems = sqliteTable("task_checklist_items", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull().default(false),
+  position: real("position").notNull().default(0),
+  assignee: text("assignee"),
+  due: ts("due"),
+  createdBy: text("created_by"),
+  createdAt: createdAt(),
+  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
+}, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);
