@@ -806,23 +806,39 @@ The Supabase auth email hook (`/api/v1/auth-email-hooks`, see docs/transactional
 - `POST /api/v1/auth-email-hooks/{id}/preview?type=signup` returns `{ preview: { type, to, subject, html, text, replyTo } }` with a sample link and the code `123456`. Nothing is sent or written. Optional body `{ email, branding }`: the address for `{email}` and unsaved branding to try (merged over the saved one). Read only keys can call it. An unknown `type` answers 422.
 - MCP: `update_auth_email_hook` (see docs/MCP.md).
 
-## Round 26: comments and chat messages can be read back and edited (MB-77), sprint filter (MB-72)
 
-- `GET /api/v1/tasks/{id}/comments` (id or reference) returns `{ taskId, comments: [{ id, taskId, body, author: { type, id, name }, editedAt, createdAt }] }`, oldest first. Read only keys can call it.
-- `GET /api/v1/comments/{id}`, `PATCH /api/v1/comments/{id}` with `{ body }` (author only; then `editedAt` is set), `DELETE /api/v1/comments/{id}` (author, owner or admin).
-- `GET /api/v1/chat/messages/{id}` returns `{ message, channel }`; `PATCH /api/v1/chat/messages/{id}` with `{ body }` (author only, same markup as posting; `editedAt` is set); `DELETE /api/v1/chat/messages/{id}` (author, owner or admin; a deleted placeholder stays so replies keep their place).
-- Another workspace's ids answer 404; private channels and DMs answer 404 to keys; read only keys get 403 `read_only_key` on writes.
-- `GET /api/v1/tasks` and `GET /api/v1/projects/{id}/tasks` take `sprintId=<id>` (one sprint) or `sprintId=none` (the backlog). An unknown query parameter now answers 400 `unknown_parameter` naming it (`field.<id>` filters are still allowed).
-- MCP: `list_task_comments`, `edit_task_comment`, `delete_task_comment`, `edit_chat_message`, `delete_chat_message`.
+## Checklists inside tasks (R26, MB-85)
 
-## AI agent members (R26, DF-3)
+A task can hold a checklist: light to-dos with a title, done, order and an optional assignee and due date. Permissions
+follow the task. Read only keys can list; writes need a full key. Another workspace's ids answer 404.
 
-Agent members are workspace members of kind `agent` (see docs/adr/0008-agents-as-members.md). Creating, keys and removal are in the People section (`POST /api/v1/agent-members`, `/agent-members/{id}/keys`, `DELETE /agent-members/{id}`). R26 adds:
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/api/v1/tasks/{id}/checklist` | Items in order, with `total` and `done`. `{id}` takes a task id or a reference like `OPS-12` |
+| POST | `/api/v1/tasks/{id}/checklist` | Add one item `{ title, done?, assignee?, due?, position? }` or `{ items: [...] }` (up to 200 per task) |
+| POST | `/api/v1/tasks/{id}/checklist/reorder` | `{ ids }`: every item id once, in the new order. Only items that move are written |
+| PATCH | `/api/v1/checklist-items/{id}` | Any of `{ title, done, assignee, due, position }`. A patch that changes nothing writes nothing |
+| DELETE | `/api/v1/checklist-items/{id}` | Remove the item |
+| POST | `/api/v1/checklist-items/{id}/to-subtask` | Make a subtask of the item's task (same title, assignee, due) and remove the item |
 
-- `POST /api/v1/agent-members` also takes `avatarColor` (`#rrggbb`) and `inboxAgentId` (an existing agent inbox to link; mailbox stays optional). The answer's `member` carries `avatar: { color, initials }`, `disabled`, `inbox` and `keys`.
-- `GET /api/v1/agent-members`: `{ agents: [{ userId, name, title, bio, avatar, disabled, disabledAt, inbox, keys, joinedAt }] }`. Any key of the workspace.
-- `GET /api/v1/agent-members/{id}`: `{ agent }` for one, by user id. Another workspace's id answers 404.
-- `PATCH /api/v1/agent-members/{id}` with any of `{ name, title, bio, avatarColor, disabled, inboxAgentId }`. `disabled: true` pauses the agent: every key of it answers 401 until `disabled: false`. A paused agent stays in People and in task history, and leaves the assignee and mention pickers (`/api/tasks/assignees` marks it `paused: true`). Needs a full workspace key or an admin; read only keys get 403 `read_only_key`, agent and agent member keys 403 `agent_key_scope`. One members row and one audit row (`agent_member.updated`, `agent_member.paused` or `agent_member.resumed`); an unchanged PATCH writes nothing.
-- Task assignees and chat people mark agent members `isAgent: true` (assignee `member:<userId>`), and a task assigned to one shows `assignee.isAgent: true` with no email.
-- Session routes for the app: `GET /api/team/agents`, `PATCH /api/team/agents/{userId}` (admins), and `POST /api/team/agents` with the same new fields.
-- MCP: `list_agent_members`, `create_agent_member`, `update_agent_member`.
+Task rows (GET /tasks and friends) carry `checklist: { total, done }`. Each item write costs 3 D1 row writes (the row,
+its primary key and one index on task_id).
+
+## Task query language (R26, MB-86)
+
+`GET /api/v1/tasks?q=...` (and the app's task list) takes a typed query. Terms are ANDed, commas mean any of, a leading
+minus negates a term and quotes keep words together:
+
+    assignee:me status:doing label:bug priority:>=high due:<7d sprint:current type:bug project:MB "free text"
+    -label:wontfix created:>2026-10-01 points:>=3 has:subtasks is:overdue
+
+Keys: `assignee` (me, none, a name or email, member:<id>), `status` (todo, doing, done, open or a status name),
+`label`, `priority` (urgent, high, medium, low, none; `<`, `<=`, `>`, `>=` work), `due` (today, tomorrow, 2026-11-02,
+7d meaning 7 days from now, -3d, none), `sprint` (current, next, none or a sprint name), `type` (task, story, bug,
+epic), `project` (key or name), `created` and `updated` (a date or 7d meaning 7 days ago), `points` (a number or
+none), `has` (subtasks, checklist, due, assignee, labels, points, parent, notes), `is` (overdue, open, done,
+unassigned, subtask, mine) and `title`. Text with no key in it searches titles and notes, as before.
+
+A bad query answers 400 with `error.code` `bad_query`, a message and `error.details.position` (the 1 based character
+where it went wrong). A query holds up to 30 values and 500 characters; names cost the most and about 10 names fit in
+one query. MCP: `search_tasks` with `q`.

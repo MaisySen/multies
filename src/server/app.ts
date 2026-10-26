@@ -38,6 +38,7 @@ import { savedDashboardRoutes } from "./routes/dashboards";
 import { computedRoutes } from "./routes/computed";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
+import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { mailSnippetRoutes } from "./routes/mail-snippets";
 import { meetingNotesRoutes } from "./routes/meeting-notes";
 import { calendarFeedRoutes, calendarRoutes } from "./routes/calendar-sync";
@@ -267,6 +268,8 @@ export function createApp(deps: Deps) {
   app.route("/api/ai", aiRoutes());
   app.route("/api/projects", projectRoutes());
   app.route("/api/tasks", taskBacklinkRoutes()); // R24.5: GET /api/tasks/:id/backlinks
+  app.route("/api/tasks", checklistTaskRoutes()); // R26 (MB-85): /api/tasks/:id/checklist
+  app.route("/api/checklist-items", checklistItemRoutes()); // R26 (MB-85)
   app.route("/api/tasks", taskRoutes());
   app.route("/api/tasks", taskBulkRoutes()); // Round 21: POST /api/tasks/bulk and /bulk-delete
   app.route("/api/docs", docTreeRoutes()); // R24.5: tree, move, backlinks (before /:id)
@@ -295,6 +298,7 @@ export function createApp(deps: Deps) {
   app.route("/api/search", searchRoutes());
   app.route("/api/my-work", myWorkRoutes());
   app.route("/api/guest/search", guestSearchRoutes());
+  app.route("/api/guest/r26", guestChecklistRoutes()); // R26 (MB-85): a guest reads checklists in their project
   app.route("/api/guest/r24", guestDocTreeRoutes()); // R24.5: a guest's page tree and backlinks
   app.route("/api/guest", guestRoutes());
   app.route("/api/imports", importRoutes());
