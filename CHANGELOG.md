@@ -7,6 +7,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 38: timeline names never cut, dependencies round 2, seven new dashboard widgets, grouped settings (27 Oct 2026)
+
+- Timeline: a task name that does not fit inside its bar sits to the right of the bar in normal text; the key alone goes inside only when it fits, and no bar shows an ellipsis. The task column is wider, resizes by dragging the divider (remembered per device), and wraps names to two lines with the full name on hover or long press.
+- Dependencies: a gap per link (wait days or start early days), working days only per project, a "Same days" mode that moves every waiting task by the same number of days, a red "Date clash" badge on list rows and board cards, and a Today line on the timeline. Migration 0079. MCP: 189 tools (`set_project_schedule`).
+- Dashboards: seven new widget types (calculation with a goal, battery, pivot table, created against completed, task list, time tracked, note) and a new add widget sheet with search and previews. No migration.
+- Settings: a grouped side list with icons on desktop and a grouped list on phones, instead of the tab strip. The operator console shows a calm empty state to people without access.
+- Triage: the demo workspace now has items in Triage, and the comment bar has Cancel, Accept and Decline buttons.
+
 ### Round 36: scoped API keys, MCP tool docs, a sharper command menu, drawn empty states, inline edits on board cards (26 Oct 2026)
 
 - API keys can be limited to areas: mail, tasks, chat, docs, calendar, contacts and admin, each read or write (mail read or send). Full access and Read only stay as presets, so existing keys work as before. A call outside a key's scopes is 403 `insufficient_scope` with the scope it needs. Edit a key's scopes from Developers. No migration.

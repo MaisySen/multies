@@ -39,6 +39,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-integrations", label: "Integrations", to: "/app/integrations", icon: IconPlug, keywords: ["apps", "connect", "slack", "github"] },
   { id: "p-activity", label: "Activity", to: "/app/activity", icon: IconActivity, keywords: ["log", "audit"] },
   { id: "p-settings", label: "Settings", to: "/app/settings", icon: IconSettings, keywords: ["workspace", "preferences"] },
+  { id: "p-settings-general", label: "General settings", to: "/app/settings/general", icon: IconSettings, keywords: ["workspace name", "logo", "time zone", "preferences"] },
   { id: "p-team", label: "Team", to: "/app/settings/team", icon: IconTeam, keywords: ["members", "people", "invite"] },
   { id: "p-billing", label: "Billing", to: "/app/settings/billing", icon: IconCreditCard, keywords: ["plan", "upgrade", "invoice"] },
   { id: "p-account", label: "Account and security", to: "/app/settings/account", icon: IconUserCog, keywords: ["profile", "password", "two factor", "sessions"] },
