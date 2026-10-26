@@ -44,9 +44,6 @@ export const TriageActionBody = z.object({
   decline: TriageDecline.optional(),
   until: z.string().max(40).optional(),
   duplicateOf: z.string().max(64).optional(),
-  /** R33: accept or decline with a one line comment; restore with commentId removes it again. */
-  comment: z.string().max(2000).optional(),
-  commentId: z.string().max(64).optional(),
 });
 export const triageActionInput = (b: z.infer<typeof TriageActionBody>): TriageActionInput => ({ ...b, accept: b.accept ? acceptInput(b.accept) : undefined });
 export const TriageBulk = z.object({

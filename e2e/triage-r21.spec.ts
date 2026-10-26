@@ -50,7 +50,7 @@ test("a form submission waits in Triage, is accepted with an assignee and shows 
   const list = page.getByTestId("triage-list");
   await expect(list.getByText(subject)).toBeVisible();
   await expect(page.getByRole("link", { name: /Triage/ }).getByLabel("4 waiting in Triage")).toBeVisible();
-  await list.getByTestId("triage-row").filter({ hasText: subject }).click();
+  await list.getByRole("option").filter({ hasText: subject }).click();
   const preview = page.getByTestId("triage-preview");
   await expect(preview.getByRole("heading", { name: subject })).toBeVisible();
   await expect(preview).toContainText("From grace@harbourcoffee.com.au");
@@ -69,40 +69,12 @@ test("a form submission waits in Triage, is accepted with an assignee and shows 
 
   // Decline the promo with the keyboard: select it, press d, confirm.
   await page.goto("/app/triage");
-  await page.getByTestId("triage-list").getByTestId("triage-row").filter({ hasText: "Limited offer" }).click();
-  await page.keyboard.press("Shift+D"); // R33: D opens the one line comment; Shift+D the full dialog
+  await page.getByTestId("triage-list").getByRole("option").filter({ hasText: "Limited offer" }).click();
+  await page.keyboard.press("d");
   const dialog = page.getByRole("dialog", { name: "Decline this item?" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel(/Reason/).fill("Advertising");
   await dialog.getByRole("button", { name: "Decline" }).click();
   await expect(page.getByTestId("triage-list").getByText("Limited offer")).toHaveCount(0);
   expect((await (await page.request.get("/api/triage/count")).json()).count).toBe(2);
-
-  // R33: D opens a one line comment under the item; Enter declines with it; Undo brings the item back.
-  const triageList = page.getByTestId("triage-list");
-  await triageList.getByTestId("triage-row").filter({ hasText: "Invoice 2041" }).click();
-  await page.keyboard.press("d");
-  const bar = page.getByTestId("triage-comment");
-  await expect(bar).toHaveAttribute("data-mode", "decline");
-  await expect(bar.getByTestId("triage-comment-input")).toBeFocused();
-  await bar.getByTestId("triage-comment-input").fill("Already refunded in October");
-  mkdirSync(shots.replace("r21", "r33"), { recursive: true });
-  await page.screenshot({ path: `${shots.replace("r21", "r33")}/triage-comment.png` });
-  await page.keyboard.press("Enter");
-  await expect(triageList.getByText("Invoice 2041")).toHaveCount(0);
-  await page.getByRole("button", { name: "Undo" }).last().click();
-  await expect(triageList.getByText("Invoice 2041")).toBeVisible();
-  // Esc closes the comment without acting.
-  await triageList.getByTestId("triage-row").filter({ hasText: "Invoice 2041" }).click();
-  await page.keyboard.press("a");
-  await expect(bar).toHaveAttribute("data-mode", "accept");
-  await page.keyboard.press("Escape");
-  await expect(bar).toHaveCount(0);
-  await expect(triageList.getByText("Invoice 2041")).toBeVisible();
-  // A with a comment and Cmd+Enter accepts it as a task.
-  await page.keyboard.press("a");
-  await bar.getByTestId("triage-comment-input").fill("Checking with billing");
-  await page.keyboard.press("ControlOrMeta+Enter");
-  await expect(triageList.getByText("Invoice 2041")).toHaveCount(0);
-  expect((await (await page.request.get("/api/triage/count")).json()).count).toBe(1);
 });

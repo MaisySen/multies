@@ -62,10 +62,12 @@ export function SnoozePresets({ onPick, onClose }: { onPick: (p: (typeof SNOOZE)
   );
 }
 
-export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSnoozeOpen, onAct, onSelectAll, onClear }: {
+export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSnoozeOpen, onAct, onSelectAll, onClear, more }: {
   count: number; total: number; folder: string; connectionId?: string | null;
   snoozeOpen: boolean; setSnoozeOpen: (v: boolean) => void;
   onAct: Act; onSelectAll: () => void; onClear: () => void;
+  /** R33: more rows than are loaded. `offer` picks every one of them (one server job); `chosen` says it is picked. */
+  more?: { all: boolean; offer: string; chosen: string; onAll: () => void };
 }) {
   const { data } = useProviderFolders(connectionId);
   const remote = connectionId ? moveTargets(data, null).filter((t) => t.key.startsWith("f:")) : [];
@@ -75,8 +77,9 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
     <div role="toolbar" aria-label={`${count} selected`} data-testid="bulk-bar"
       className="sticky top-0 z-10 flex items-center gap-1 border-b border-line bg-surface/95 px-2 py-1.5 backdrop-blur supports-[backdrop-filter]:bg-surface/80 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
       <BarBtn label="Clear selection" hint="Esc" onClick={onClear}><X /></BarBtn>
-      <span className="min-w-0 truncate px-1 text-[13px] font-medium text-fg" aria-live="polite" data-testid="bulk-count">{count} selected</span>
-      {count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Select all {total}</button>}
+      <span className="min-w-0 truncate px-1 text-[13px] font-medium text-fg" aria-live="polite" data-testid="bulk-count">{more?.all ? more.chosen : `${count} selected`}</span>
+      {!more?.all && count < total && <button type="button" onClick={onSelectAll} className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">Select all {total}</button>}
+      {more && !more.all && count >= total && <button type="button" onClick={more.onAll} data-testid="bulk-select-everything" className="rounded-md px-1.5 py-0.5 text-[12.5px] text-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">{more.offer}</button>}
       <div className="ml-auto flex items-center gap-0.5">
         {folder === "archive" ? <BarBtn label="Move to Inbox" hint="E" onClick={() => onAct({ action: "inbox" })}><Inbox /></BarBtn>
           : <BarBtn label="Archive" hint="E" onClick={() => onAct({ action: "archive" })}><Archive /></BarBtn>}

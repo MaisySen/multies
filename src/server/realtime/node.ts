@@ -40,8 +40,6 @@ export function attachChatLive(server: Server, deps: Deps) {
     if (!hub.join(orgId, conn)) { ws.close(CLOSE_FULL, "full"); return; }
     ws.on("message", (data: Buffer, isBinary: boolean) => { if (!isBinary && data.toString() === PING) conn.send(PONG); });
     ws.on("close", () => hub.leave(orgId, conn));
-    // R33: the first frame. The browser flushes its held sends once it has this.
-    conn.send(JSON.stringify(hub.hello(orgId)));
     ws.on("error", () => ws.terminate());
   }
 
