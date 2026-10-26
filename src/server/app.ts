@@ -157,7 +157,10 @@ export function createApp(deps: Deps) {
   installCspReport(app); // R30: CSP violation reports, logged only; before the limiters so it writes nothing
   installHttpCache(app); // R25 API speed: ETag and 304 for a few read only GETs (src/server/lib/http-cache.ts)
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
-  const ipKey = (c: { var: { ip: string } }) => c.var.ip;
+  // R34: local E2E servers only (config.auth.localAddresslessUnlimited): a request with no address gets a key of
+  // its own instead of one shared "unknown" counter. Refused in production, where Cloudflare always sends one.
+  const addressless = deps.config.auth.localAddresslessUnlimited ? () => `unknown:${crypto.randomUUID()}` : null;
+  const ipKey = (c: { var: { ip: string } }) => (addressless && c.var.ip === "unknown" ? addressless() : c.var.ip);
   const oauthLimiter = rateLimit("auth", ipKey);
   app.use("/api/auth/*", rateLimit("auth", ipKey));
   app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));

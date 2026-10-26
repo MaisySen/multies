@@ -153,7 +153,7 @@ export function authOptions(deps: Deps) {
       // which is what used up the free daily write budget. The account lockout and the
       // identity provider's own brute force protection still hold across isolates.
       storage: "memory",
-      customStorage: instanceRateLimitStore(),
+      customStorage: instanceRateLimitStore(10_000, { localAddresslessUnlimited: config.auth.localAddresslessUnlimited }),
       window: 60,
       max: 100,
       customRules: {

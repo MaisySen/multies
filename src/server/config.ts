@@ -52,6 +52,12 @@ export interface AppConfig {
     localPassword: boolean;
     /** Believe X-Forwarded-For and X-Real-IP for client addresses (self host behind a known proxy). */
     trustProxy: boolean;
+    /**
+     * R34: local E2E only (E2E_LOCAL_RATE_KEYS, set by playwright.config's web servers). A request with no
+     * client address at all is not counted against one shared auth limit, so a long local run does not trip
+     * it. Requests that carry an address are limited as always. Refused in production.
+     */
+    localAddresslessUnlimited?: boolean;
     /** Refuse passwords found in known breaches (Have I Been Pwned, k-anonymity). */
     breachCheck: boolean;
   };
@@ -286,6 +292,7 @@ const EnvSchema = z.object({
   OPERATOR_INBOX_ADDRESSES: z.string().optional(),
   LIVEKIT_URL: z.string().regex(/^(wss|https):\/\//).optional(),
   CALLS_TEST_HOOK: z.string().optional(),
+  E2E_LOCAL_RATE_KEYS: z.string().optional(),
   LIVEKIT_API_KEY: z.string().optional(),
   LIVEKIT_API_SECRET: z.string().optional(),
   TURNSTILE_SITE_KEY: z.string().optional(),
@@ -381,6 +388,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         ? { auth0Management: { domain: env.AUTH0_DOMAIN.replace(/^https?:\/\//, "").replace(/\/$/, ""), clientId: env.AUTH0_MGMT_CLIENT_ID, clientSecret: env.AUTH0_MGMT_CLIENT_SECRET } } : {}),
       socialConnections: env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET ? parseSocialConnections(env.AUTH0_SOCIAL_CONNECTIONS) : [],
       trustProxy: env.TRUST_PROXY === "true" || env.TRUST_PROXY === "1",
+      localAddresslessUnlimited: localRateKeys(env.E2E_LOCAL_RATE_KEYS, mode),
       localPassword: resolveLocalPassword(env.AUTH_LOCAL_PASSWORD, !!(env.AUTH0_DOMAIN && env.AUTH0_CLIENT_ID && env.AUTH0_CLIENT_SECRET)),
       breachCheck: env.PASSWORD_BREACH_CHECK ? env.PASSWORD_BREACH_CHECK === "true" : mode === "production",
     },
@@ -515,6 +523,16 @@ export function legacyIdp(env: { AUTH0_LEGACY_DOMAIN?: string; AUTH0_LEGACY_NATI
 }
 
 /** AUTH_LOCAL_PASSWORD wins; otherwise the password form is on only when there is no identity provider. */
+/**
+ * R34: E2E_LOCAL_RATE_KEYS=1 (local Playwright servers only). On anywhere APP_MODE or NODE_ENV says
+ * production, the app refuses to start, so a deployed Multies always limits addressless requests too.
+ */
+export function localRateKeys(flag: string | undefined, mode: string): boolean {
+  if (!["1", "true", "on", "yes"].includes(String(flag ?? "").toLowerCase())) return false;
+  if (mode === "production") throw new ConfigError("E2E_LOCAL_RATE_KEYS is for local end to end tests and can't be on in production.");
+  return true;
+}
+
 export function resolveLocalPassword(flag: string | undefined, idpConfigured: boolean): boolean {
   if (flag === "on" || flag === "true") return true;
   if (flag === "off" || flag === "false") return false;
