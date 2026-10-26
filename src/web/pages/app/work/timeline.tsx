@@ -12,9 +12,8 @@ const fmtDay = (d: Date) => String(d.getDate());
  * Timeline (SVAR React Gantt core, MIT). A bar runs from start to due; a task with only a
  * due date shows as one day. Dragging or resizing a bar saves the new dates. Arrows show
  * dependencies (blocked by); dragging from the end of one bar to another adds one.
- * R37: `late` (task ids) draws clashing bars in red; timeline-plan-r37.tsx wraps this with the schedule bar and sheets.
  */
-export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; late?: Set<string>; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
+export function TaskTimeline({ tasks, links = [], onOpen, onDates, onLink }: { tasks: Task[]; links?: { from: string; to: string }[]; onOpen: (id: string) => void; onDates: (id: string, start: string, due: string) => void; onLink?: (blocker: string, blocked: string) => void }) {
   const dated = tasks.filter((t) => t.due || t.start).sort((a, b) => (a.start ?? a.due ?? "").localeCompare(b.start ?? b.due ?? ""));
   const { resolved } = useAppearance();
   const Theme = resolved === "dark" ? WillowDark : Willow;
@@ -29,12 +28,9 @@ export function TaskTimeline({ tasks, links = [], late, onOpen, onDates, onLink 
   const arrows = useMemo(() => links.filter((l) => shown.has(l.from) && shown.has(l.to)).map((l, i) => ({ id: i + 1, source: l.from, target: l.to, type: "e2s" })), [links, rows]); // eslint-disable-line react-hooks/exhaustive-deps
   const min = rows.length ? new Date(Math.min(...rows.map((r) => r.start.getTime())) - (narrow ? 1 : 7) * DAY) : new Date(Date.now() - 7 * DAY);
   const max = rows.length ? new Date(Math.max(...rows.map((r) => r.end.getTime())) + 14 * DAY) : new Date(Date.now() + 30 * DAY);
-  // R37: tasks that start before a task they wait on ends are drawn in red (the chart prefixes string ids with ":").
-  const lateCss = late?.size ? [...late].map((id) => `.mm-gantt .wx-bar[data-task-id=':${CSS.escape(id)}'],.mm-gantt .wx-bar[data-task-id='${CSS.escape(id)}']`).join(",") + "{background:var(--color-bad)!important;border-color:var(--color-bad)!important;box-shadow:0 0 0 3px var(--color-bad-soft)}" : "";
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
     <div className="mm-gantt h-[calc(100dvh-230px)] min-h-[360px] overflow-hidden rounded-xl border border-line" data-testid="task-timeline">
-      {lateCss && <style data-testid="timeline-late-style">{lateCss}</style>}
       <Theme fonts={false}>
         <Gantt
           tasks={rows} links={arrows as never} start={min} end={max} cellWidth={36} cellHeight={36} scaleHeight={30}

@@ -13,7 +13,7 @@ import { MCP_RECIPES } from "@/shared/mcp-recipes";
 const BASE = typeof window !== "undefined" ? window.location.origin : "https://multies.si";
 
 interface Param { name: string; type: string; required: boolean; description: string; default?: unknown; values?: string[] }
-interface Tool { name: string; title: string; description: string; area: string; areaLabel: string; scope: string; readOnly: boolean; destructive: boolean; params: Param[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean } }
+interface Tool { name: string; title: string; description: string; area: string; areaLabel: string; scope: string; readOnly: boolean; destructive: boolean; params: Param[]; example: { arguments: Record<string, unknown>; result: unknown; resultIsShape: boolean; captured?: boolean } }
 
 const AREA_ICONS: Record<string, ComponentType<{ className?: string }>> = { mail: IconMail, tasks: IconTasks, chat: IconChat, docs: IconDocs, calendar: IconCalendar, contacts: IconUser, admin: IconShield };
 
@@ -61,9 +61,76 @@ function ToolCard({ t }: { t: Tool }) {
       ) : <p className="mt-3 text-xs text-subtle">No parameters.</p>}
       <div className="mt-4 grid gap-3 lg:grid-cols-2">
         <Block label="Example call" code={callJson({ name: t.name, arguments: t.example.arguments })} />
-        <Block label={t.example.resultIsShape ? "Result shape" : "Example result"} code={JSON.stringify(t.example.result, null, 2)} />
+        <Block label={t.example.captured ? "Real result" : t.example.resultIsShape ? "Result shape" : "Example result"} code={JSON.stringify(t.example.result, null, 2)} />
       </div>
     </article>
+  );
+}
+
+/** R37: which key the list is shown for. "all" is every tool, "read" a read only key, else a set of picked scopes. */
+type KeyView = "all" | "read" | string[];
+const readOf = (t: { scope: string; area: string }) => (t.scope.endsWith(":read") ? t.scope : `${t.area}:read`);
+function usableBy(view: KeyView, t: Tool): boolean {
+  if (view === "all") return true;
+  if (view === "read") return t.readOnly;
+  if (t.scope === "full") return false;
+  return view.includes(t.scope) || view.some((s) => readOfScope(s) === t.scope); // a write scope includes its read scope
+}
+const readOfScope = (s: string) => (s === "mail:send" ? "mail:read" : s.replace(/:write$/, ":read"));
+
+/** R37: the "Show only the tools a key can use" section, with a live preview that filters the list below. */
+function ScopedToolsSection({ tools, view, setView }: { tools: Tool[] | null; view: KeyView; setView: (v: KeyView) => void }) {
+  const areas = useMemo(() => {
+    const m = new Map<string, { area: string; label: string; read?: string; write?: string }>();
+    for (const t of tools ?? []) {
+      const a = m.get(t.area) ?? { area: t.area, label: t.areaLabel };
+      if (t.scope !== "full") { if (t.readOnly) a.read = readOf(t); else a.write = t.scope; }
+      m.set(t.area, a);
+    }
+    const order = ["mail", "tasks", "chat", "docs", "calendar", "contacts", "admin"];
+    return [...m.values()].sort((x, y) => order.indexOf(x.area) - order.indexOf(y.area));
+  }, [tools]);
+  const picked = Array.isArray(view) ? view : [];
+  const flip = (s: string) => { const next = picked.includes(s) ? picked.filter((x) => x !== s) : [...picked, s]; setView(next.length ? next : "all"); };
+  const count = tools ? tools.filter((t) => usableBy(view, t)).length : 0;
+  const pill = (on: boolean) => cn("rounded-full border px-3 py-1.5 text-[13px] transition-colors max-sm:min-h-11", on ? "border-brand bg-brand-soft text-brand-hover" : "border-line text-muted hover:bg-hover");
+  return (
+    <section className="mx-auto max-w-5xl px-5 pt-14" aria-labelledby="scoped-tools">
+      <h2 id="scoped-tools" className="text-2xl font-semibold tracking-tight">Show only the tools a key can use</h2>
+      <p className="mt-2 max-w-2xl text-sm text-muted">A key with limited scopes can hide every tool it can't use, so an agent's list stays short and everything it sees works. Calling a hidden tool by name still answers insufficient_scope.</p>
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+          <h3 className="font-semibold">Per key</h3>
+          <p className="mt-1 text-sm text-muted">Turn on "Show only the tools this key can use" in Settings, Developers. On by default for new keys with picked areas. Full access keys always see every tool.</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+          <h3 className="font-semibold">Per connection</h3>
+          <p className="mt-1 text-sm text-muted">Add <code className="whitespace-nowrap font-mono text-[12px]">?tools=scoped</code> to the server URL, or send <code className="whitespace-nowrap font-mono text-[12px]">X-Multies-Tools: scoped</code>. <code className="whitespace-nowrap font-mono text-[12px]">?tools=all</code> shows everything. Works for keys and sign-ins.</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+          <h3 className="font-semibold">Check a key</h3>
+          <p className="mt-1 text-sm text-muted"><code className="whitespace-nowrap font-mono text-[12px]">GET /api/mcp-tools?view=key</code> with the key as a Bearer token lists exactly what it sees.</p>
+        </div>
+      </div>
+      <div className="mt-6 rounded-2xl border border-line bg-surface p-5" data-testid="scope-preview">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-semibold">Preview a key</h3>
+          <p className="text-sm text-muted" aria-live="polite"><span className="font-semibold text-fg" data-testid="scope-preview-count">{count}</span> of {tools?.length ?? 0} tools</p>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className={pill(view === "all")} aria-pressed={view === "all"} onClick={() => setView("all")}>Full access</button>
+          <button type="button" className={pill(view === "read")} aria-pressed={view === "read"} onClick={() => setView("read")}>Read only</button>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {areas.flatMap((a) => [a.read, a.write].filter(Boolean).map((s) => (
+            <button key={s} type="button" className={pill(picked.includes(s!))} aria-pressed={picked.includes(s!)} onClick={() => flip(s!)}>
+              <span className="font-mono text-[12px]">{s}</span>
+            </button>
+          )))}
+        </div>
+        <p className="mt-3 text-xs text-subtle">The tool list below follows this preview.</p>
+      </div>
+    </section>
   );
 }
 
@@ -71,6 +138,7 @@ export function McpDocsPage() {
   const [tools, setTools] = useState<Tool[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [q, setQ] = useState("");
+  const [view, setView] = useState<KeyView>("all"); // R37: preview a key's scoped tool list
   useEffect(() => {
     let live = true;
     fetch("/api/mcp-tools").then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status))))).then((b: { tools: Tool[] }) => { if (live) setTools(b.tools); }).catch(() => { if (live) setFailed(true); });
@@ -84,11 +152,11 @@ export function McpDocsPage() {
 
   const groups = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const list = (tools ?? []).filter((t) => !needle || t.name.includes(needle) || t.title.toLowerCase().includes(needle) || t.description.toLowerCase().includes(needle) || t.scope.includes(needle) || t.params.some((p) => p.name.toLowerCase().includes(needle)));
+    const list = (tools ?? []).filter((t) => usableBy(view, t)).filter((t) => !needle || t.name.includes(needle) || t.title.toLowerCase().includes(needle) || t.description.toLowerCase().includes(needle) || t.scope.includes(needle) || t.params.some((p) => p.name.toLowerCase().includes(needle)));
     const out = new Map<string, { label: string; tools: Tool[] }>();
     for (const t of list) { const g = out.get(t.area) ?? { label: t.areaLabel, tools: [] }; g.tools.push(t); out.set(t.area, g); }
     return [...out.entries()];
-  }, [tools, q]);
+  }, [tools, q, view]);
   const shown = groups.reduce((n, [, g]) => n + g.tools.length, 0);
 
   return (
@@ -98,7 +166,7 @@ export function McpDocsPage() {
           <span className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-xs text-muted"><IconCode className="h-3.5 w-3.5" aria-hidden />Developers</span>
           <h1 className="mt-5 text-4xl font-semibold leading-[1.08] tracking-[-0.03em] sm:text-5xl">MCP tools</h1>
           <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-muted">
-            Every tool the Multies MCP server offers{tools ? `, all ${tools.length} of them` : ""}, read straight from the server. Each one shows the key scope it needs, its parameters and an example.
+            Every tool the Multies MCP server offers{tools ? `, all ${tools.length} of them` : ""}, read straight from the server. Each one shows the key scope it needs, its parameters and an example{tools ? `, ${tools.filter((t) => t.example.captured).length} with a real result` : ""}.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2 text-sm">
             <code className="rounded-lg border border-line bg-surface px-3 py-2 font-mono text-[13px]">{BASE}/api/v1/mcp</code>
@@ -133,6 +201,8 @@ export function McpDocsPage() {
           ))}
         </div>
       </section>
+
+      <ScopedToolsSection tools={tools} view={view} setView={setView} />
 
       <section className="mx-auto max-w-5xl px-5 py-14" aria-labelledby="all-tools">
         <div className="sticky top-14 z-10 -mx-5 border-b border-line bg-bg/80 px-5 py-3 backdrop-blur-xl">

@@ -4,7 +4,7 @@ import { agents, apiKeys, members, organizations, users } from "../../db/schema"
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { conflict, notFound } from "../../lib/errors";
 import { deferrableWrite } from "../write-priority";
-import { grantedScopes, scopeChips } from "../../lib/api-scopes";
+import { grantedScopes, scopeChips, splitToolList, withToolList } from "../../lib/api-scopes";
 
 /** How often a key's last used time is written (D1 daily write budget). */
 export const LAST_USED_EVERY_MS = 15 * 60_000;
@@ -14,7 +14,8 @@ export const MAX_API_KEYS = 25;
 export type ApiKeyScope = "full" | "read" | (string & {});
 
 export function presentApiKey(k: typeof apiKeys.$inferSelect) {
-  return { id: k.id, name: k.name, prefix: k.prefix, scope: k.scope, scopes: [...grantedScopes(k.scope)], scopeChips: scopeChips(k.scope), agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
+  const { scope, scopedList } = splitToolList(k.scope); // R37: the tool list option rides in the scope column
+  return { id: k.id, name: k.name, prefix: k.prefix, scope, showOnlyUsableTools: scopedList, scopes: [...grantedScopes(scope)], scopeChips: scopeChips(scope), agentId: k.agentId ?? null, lastUsedAt: k.lastUsedAt, createdAt: k.createdAt, createdByUserId: k.createdByUserId };
 }
 
 export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
@@ -23,13 +24,13 @@ export async function listApiKeys(deps: Deps, orgId: string, agentId?: string) {
 }
 
 /** Creates a key. The full key is returned once; only its hash is kept. */
-export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string }) {
+export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, input: { name: string; scope: ApiKeyScope; agentId?: string; showOnlyUsableTools?: boolean }) {
   const count = (await deps.db.select({ id: apiKeys.id }).from(apiKeys).where(eq(apiKeys.orgId, auth.orgId))).length;
   if (count >= MAX_API_KEYS) throw conflict(`A workspace can have up to ${MAX_API_KEYS} API keys. Delete one you no longer use.`);
   const secret = `mm_live_${randomToken(30)}`;
   const id = newId("key");
   await deps.db.insert(apiKeys).values({
-    id, orgId: auth.orgId, createdByUserId: auth.userId || null, name: input.name, scope: input.scope, agentId: input.agentId ?? null,
+    id, orgId: auth.orgId, createdByUserId: auth.userId || null, name: input.name, scope: withToolList(input.scope, !!input.showOnlyUsableTools), agentId: input.agentId ?? null,
     prefix: secret.slice(0, 12), keyHash: await sha256Hex(secret),
   });
   const row = await deps.db.select().from(apiKeys).where(eq(apiKeys.id, id)).get();
@@ -37,11 +38,14 @@ export async function createApiKey(deps: Deps, auth: Pick<AuthContext, "orgId" |
 }
 
 /** R36: change a key's scopes (the value is already normalised by the route). Essential write: one row, on a person's click. */
-export async function updateApiKeyScope(deps: Deps, orgId: string, id: string, scope: string) {
+export async function updateApiKeyScope(deps: Deps, orgId: string, id: string, scope: string | undefined, showOnlyUsableTools?: boolean) {
   const k = await deps.db.select().from(apiKeys).where(and(eq(apiKeys.id, id), eq(apiKeys.orgId, orgId))).get();
   if (!k) throw notFound("API key");
-  await deps.db.update(apiKeys).set({ scope }).where(eq(apiKeys.id, k.id));
-  return presentApiKey({ ...k, scope });
+  // R37: either part can change alone; the other keeps its stored value.
+  const was = splitToolList(k.scope);
+  const stored = withToolList(scope ?? was.scope, showOnlyUsableTools ?? was.scopedList);
+  await deps.db.update(apiKeys).set({ scope: stored }).where(eq(apiKeys.id, k.id));
+  return presentApiKey({ ...k, scope: stored });
 }
 
 export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
@@ -56,7 +60,7 @@ export async function deleteApiKey(deps: Deps, orgId: string, id: string) {
  * acts as a workspace admin; `read` keys are limited to GET by the API layer. An agent
  * key (agentId set) acts only as that agent, enforced by the agent routes.
  */
-export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null };
+export type ApiKeyAuth = AuthContext & { apiKeyId: string; scope: ApiKeyScope; orgSuspended: boolean; agentId: string | null; title?: string | null; toolList?: "scoped" };
 
 export async function resolveApiKey(deps: Deps, header: string | undefined): Promise<ApiKeyAuth | null> {
   const token = header?.match(/^Bearer\s+(mm_live_[A-Za-z0-9_-]{20,})$/)?.[1];
@@ -88,6 +92,12 @@ export async function resolveApiKey(deps: Deps, header: string | undefined): Pro
   const name = agentMember ? row.creatorName ?? k.name : row.agentName ?? row.orgName;
   return {
     userId, email: `api-key:${k.prefix}`, name, title: agentMember ? row.memberTitle ?? null : null, orgId: k.orgId, role: agentMember ? "member" : "admin",
-    sessionId: `apikey:${k.id}`, apiKeyId: k.id, scope: k.scope, orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null,
+    sessionId: `apikey:${k.id}`, apiKeyId: k.id, ...keyScope(k.scope), orgSuspended: !!row.suspendedAt, agentId: k.agentId ?? null,
   };
+}
+
+/** R37: the plain scope every check reads, plus the key's tool list option for the MCP tools/list answer. */
+function keyScope(stored: string): { scope: ApiKeyScope; toolList?: "scoped" } {
+  const { scope, scopedList } = splitToolList(stored);
+  return scopedList ? { scope, toolList: "scoped" } : { scope };
 }

@@ -8,6 +8,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { capturedExamplesMarkdown } from "../src/server/services/developer/mcp-examples";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SITE = "https://multies.si";
@@ -47,6 +48,10 @@ export function buildLlms(read: (f: string) => string = (f) => readFileSync(join
     `> The public developer docs for Multies (${SITE}). Generated from the docs in the repository at build time.`,
     "",
     ...PUBLIC_DOCS.flatMap((d) => [`Source: ${SITE}${d.path}`, "", read(d.file).trim(), ""]),
+    // R37: the real tool examples, from the same source as /developers/mcp and /developers/mcp.md.
+    `Source: ${SITE}/developers/mcp.md`,
+    "",
+    ...capturedExamplesMarkdown(),
   ].join("\n");
   // R33: a Markdown copy of each docs page, served at its path (e.g. /docs/api.md).
   const pages: Record<string, string> = Object.fromEntries(PUBLIC_DOCS.map((d) => [d.path, `${read(d.file).trim()}\n`]));

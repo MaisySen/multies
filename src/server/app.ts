@@ -234,9 +234,29 @@ export function createApp(deps: Deps) {
   for (const p of DOCS_MD_PATHS) app.get(p, docsMarkdown); // R33: a .md copy of each docs page
   // R36: the MCP tool catalog, generated from the server's own tool registrations (no D1).
   app.get("/api/mcp-tools", async (c) => {
-    const { mcpCatalog } = await import("./services/developer/mcp-catalog");
-    c.header("cache-control", "public, max-age=3600");
-    return c.json({ release: c.var.deps.config.release, endpoint: "/api/v1/mcp", tools: mcpCatalog(c.var.deps.config.release) });
+    const { mcpCatalog, mcpCatalogView } = await import("./services/developer/mcp-catalog");
+    const release = c.var.deps.config.release;
+    // R37: a key's view. Send the key (Authorization: Bearer ...) with ?view=key, or preview any scope
+    // value with ?scope=mail:read+tasks:write. Without either, every tool, as before.
+    const scopeParam = c.req.query("scope");
+    const wantsKey = c.req.query("view") === "key" && !!c.req.header("authorization");
+    if (!scopeParam && !wantsKey) {
+      c.header("cache-control", "public, max-age=3600");
+      return c.json({ release, endpoint: "/api/v1/mcp", tools: mcpCatalog(release) });
+    }
+    let scope = scopeParam ?? "full";
+    if (wantsKey) {
+      const { resolveApiKey } = await import("./services/developer/api-keys");
+      const { resolveOAuthToken } = await import("./services/developer/oauth");
+      const header = c.req.header("authorization");
+      const auth = (await resolveApiKey(c.var.deps, header)) ?? (await resolveOAuthToken(c.var.deps, header));
+      if (!auth) return c.json({ error: { code: "unauthorized", message: "That key or token is not valid." } }, 401);
+      scope = auth.scope ?? "full";
+    }
+    const view = mcpCatalogView(release, scope);
+    if (!view.ok) return c.json({ error: { code: "invalid_scope", message: `Unknown scope: ${view.unknown.join(", ")}.` } }, 422);
+    c.header("cache-control", wantsKey ? "private, no-store" : "public, max-age=3600");
+    return c.json({ release, endpoint: "/api/v1/mcp", scope: view.scope, total: view.total, tools: view.tools });
   });
   app.get(MCP_TOOLS_MD_PATH, async (c) => {
     const { mcpCatalogMarkdown } = await import("./services/developer/mcp-catalog");

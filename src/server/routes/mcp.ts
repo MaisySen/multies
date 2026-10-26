@@ -5,11 +5,15 @@
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { AppEnv } from "../context";
 import type { Scoped } from "./mcp-server";
+import { toolListChoice } from "../lib/api-scopes";
 
 export function registerMcpRoute(api: OpenAPIHono<AppEnv>) {
   api.all("/mcp", async (c) => {
     const base = c.var.auth as Scoped;
     const { handleMcp } = await import("./mcp-server");
-    return handleMcp(c, { ...base, sessionId: `mcp:${base.sessionId}` });
+    // R37: per connection choice (?tools=scoped or ?tools=all, or the X-Multies-Tools header) beats the key's own setting.
+    const choice = toolListChoice(c.req.query("tools"), c.req.header("x-multies-tools"));
+    const toolList = choice ?? base.toolList;
+    return handleMcp(c, { ...base, toolList, sessionId: `mcp:${base.sessionId}` });
   });
 }

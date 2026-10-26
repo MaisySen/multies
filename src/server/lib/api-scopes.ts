@@ -91,7 +91,7 @@ export function scopeChips(stored: string | null | undefined): string[] {
  */
 const TOOL_AREAS: Record<ScopeArea, string> = {
   mail: "list_inboxes list_threads read_thread search search_everything send_email reply wait_for_email snooze_thread schedule_send list_scheduled cancel_scheduled assign_thread unassign_thread set_thread_status list_threads_by_view get_reply_stats list_thread_comments add_thread_comment delete_thread_comment get_thread_presence list_thread_drafts take_over_draft list_snippets render_snippet create_snippet mail_split_list mail_split_create mail_split_update mail_split_delete mail_read_status mail_bulk_action mail_bulk_job",
-  tasks: "my_work list_tasks get_task next_task create_task update_task comment_on_task list_projects start_timer stop_timer log_time get_timesheet set_task_blocked_by check_task_schedule reschedule_task get_report list_people list_custom_fields create_custom_field set_task_fields find_tasks_by_field get_portfolio set_project_health update_project list_templates use_template create_template set_task_repeat list_goals create_goal update_key_result list_notifications list_epics get_epic add_to_epic list_sprints get_sprint create_sprint start_sprint complete_sprint add_to_sprint remove_from_sprint list_triage triage_accept triage_decline triage_merge create_triage_item list_checklist add_checklist_items update_checklist_item reorder_checklist delete_checklist_item checklist_item_to_subtask list_task_watchers watch_task unwatch_task duplicate_task search_tasks start_task_run add_run_step finish_task_run list_task_runs agent_run_cancel notification_list notification_done notification_undone notification_snooze catchup_get get_counts task_triage_list task_triage_action bulk_update_tasks get_workload set_weekly_capacity list_dashboards get_dashboard_data create_dashboard add_dashboard_widget get_computed_fields create_formula_field create_rollup_field list_saved_views create_saved_view delete_saved_view get_board_settings set_board_settings list_task_comments edit_task_comment delete_task_comment",
+  tasks: "my_work list_tasks get_task next_task create_task update_task comment_on_task list_projects start_timer stop_timer log_time get_timesheet set_task_blocked_by get_report list_people list_custom_fields create_custom_field set_task_fields find_tasks_by_field get_portfolio set_project_health update_project list_templates use_template create_template set_task_repeat list_goals create_goal update_key_result list_notifications list_epics get_epic add_to_epic list_sprints get_sprint create_sprint start_sprint complete_sprint add_to_sprint remove_from_sprint list_triage triage_accept triage_decline triage_merge create_triage_item list_checklist add_checklist_items update_checklist_item reorder_checklist delete_checklist_item checklist_item_to_subtask list_task_watchers watch_task unwatch_task duplicate_task search_tasks start_task_run add_run_step finish_task_run list_task_runs agent_run_cancel notification_list notification_done notification_undone notification_snooze catchup_get get_counts task_triage_list task_triage_action bulk_update_tasks get_workload set_weekly_capacity list_dashboards get_dashboard_data create_dashboard add_dashboard_widget get_computed_fields create_formula_field create_rollup_field list_saved_views create_saved_view delete_saved_view get_board_settings set_board_settings list_task_comments edit_task_comment delete_task_comment",
   chat: "list_channels read_channel read_chat_thread post_message message_to_task pin_message react_to_chat_message chat_typing create_report list_blocks add_block remove_block edit_chat_message delete_chat_message",
   docs: "search_docs read_doc create_doc append_to_doc list_forms create_form docs_append form_logic_set form_results docs_add_block get_doc_tree move_doc get_backlinks create_share_link list_share_links revoke_share_link",
   calendar: "list_meetings schedule_meeting get_meeting_notes create_action_items get_meeting_transcript get_call_status get_call_minutes meeting_summary_so_far meeting_lobby_list meeting_lobby_decide list_calendar_events",
@@ -161,4 +161,50 @@ export function routeScopeForRequest(method: string, path: string): Scope | "ful
 
 export function insufficientScopeBody(required: string) {
   return { error: { code: "insufficient_scope", message: `This API key does not have the ${required} scope. Edit the key's scopes in Settings, Developers, or use a key with Full access.`, required } };
+}
+
+// ------------------------------------------------------------------------ R37: scoped tool list
+
+/**
+ * R37: "Show only the tools this key can use". Stored as one extra word in the same scope column (no
+ * migration): "mail:read tasks:write list:scoped". grantedScopes() already ignores the word, and the key
+ * resolver strips it, so every other check sees the plain scope value it saw before R37.
+ */
+export const TOOL_LIST_MARKER = "list:scoped";
+
+/** Splits a stored value into the plain scope value and the tool list option. */
+export function splitToolList(stored: string | null | undefined): { scope: string; scopedList: boolean } {
+  const words = (stored ?? "full").trim().split(/\s+/).filter(Boolean);
+  const scopedList = words.includes(TOOL_LIST_MARKER);
+  const rest = words.filter((w) => w !== TOOL_LIST_MARKER).join(" ");
+  return { scope: rest || "full", scopedList };
+}
+
+/** Joins a plain scope value and the option back into the stored value. A Full access key never hides tools. */
+export function withToolList(scope: string, scopedList: boolean): string {
+  const plain = splitToolList(scope).scope;
+  return scopedList && plain !== "full" ? `${plain} ${TOOL_LIST_MARKER}` : plain;
+}
+
+/**
+ * Whether a tool can run for this scope value (the same rule the MCP dispatcher and writable() apply):
+ * "full" runs everything, "read" runs read only tools, a per area value needs the tool's scope.
+ */
+export function canUseTool(scope: string | null | undefined, name: string, readOnly: boolean): boolean {
+  const plain = splitToolList(scope).scope;
+  if (plain === "full") return true;
+  if (plain === "read") return readOnly;
+  const need = toolScope(name, readOnly);
+  return need !== "full" && hasScope(plain, need);
+}
+
+/**
+ * The per connection option: ?tools=scoped (or the X-Multies-Tools header) hides tools the key can't use,
+ * ?tools=all shows every tool even when the key hides them. Anything else: the key's own setting.
+ */
+export function toolListChoice(query: string | null | undefined, header?: string | null): "scoped" | "all" | null {
+  const v = (query ?? header ?? "").trim().toLowerCase();
+  if (v === "scoped" || v === "usable" || v === "mine") return "scoped";
+  if (v === "all") return "all";
+  return null;
 }

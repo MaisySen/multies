@@ -1,4 +1,4 @@
-import { IconArrowDown, IconArrowUp, IconCalendarDays, IconCircleDot, IconFlag, IconRows, IconTag, IconUserRound, IconWarning } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconCalendarDays, IconCircleDot, IconFlag, IconRows, IconTag, IconUserRound } from "@/web/components/ui/icon";
 import type { Command } from "../types";
 
 const focused = (ctx: { focus: { kind: string | null } }) => ctx.focus.kind === "task";
@@ -19,8 +19,6 @@ export const taskCommands: Command[] = [
   { id: "task-prev", title: "Previous task", group: "Tasks", scope: "tasks-list", keys: ["K"], keywords: ["up"], icon: IconArrowUp, handler: "page" },
   // R34 (MB-186): on a board with swimlanes, fold every lane or open them all.
   { id: "board-lanes-collapse", title: "Collapse or open all lanes", group: "Tasks", scope: "tasks-list", keys: ["Shift", "L"], keywords: ["swimlanes", "lanes", "board", "fold"], icon: IconRows, palette: true, handler: "page" },
-  // R37: on the timeline, list the tasks that start before what they wait on is finished (with Fix and Fix all).
-  { id: "timeline-clashes", title: "Show date clashes", group: "Tasks", scope: "tasks-list", keys: ["Shift", "D"], keywords: ["dependencies", "timeline", "gantt", "blocked", "schedule", "overlap"], icon: IconWarning, palette: true, handler: "page" },
   ...TASK_PICKERS.map((p): Command => ({
     id: `task-${p.page}`, title: p.title, group: "Tasks", scope: "task", keys: [p.key], keywords: p.keywords, icon: p.icon,
     palette: true, when: focused, handler: "run", run: (c) => c.openPalette(`task:${p.page}`),

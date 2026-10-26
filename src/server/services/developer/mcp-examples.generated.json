@@ -1,0 +1,2230 @@
+{
+  "capturedAt": "2026-10-26",
+  "note": "Real answers from a local Multies server with example seed data. Ids are made stable, secrets hidden, lists cut to 3.",
+  "examples": {
+    "add_checklist_items": {
+      "arguments": {
+        "taskId": "tsk_007agkj7",
+        "items": [
+          {
+            "title": "Export the PDF"
+          },
+          {
+            "title": "Email it to Ada"
+          }
+        ]
+      },
+      "result": {
+        "items": [
+          {
+            "id": "chk_007azrnq",
+            "taskId": "tsk_007agkj7",
+            "title": "Export the PDF",
+            "done": false,
+            "position": 1,
+            "assignee": null,
+            "due": null,
+            "createdAt": "2026-10-26T17:42:05.173Z",
+            "updatedAt": "2026-10-26T17:42:05.173Z"
+          },
+          {
+            "id": "chk_007b2ie3",
+            "taskId": "tsk_007agkj7",
+            "title": "Email it to Ada",
+            "done": false,
+            "position": 2,
+            "assignee": null,
+            "due": null,
+            "createdAt": "2026-10-26T17:42:05.173Z",
+            "updatedAt": "2026-10-26T17:42:05.173Z"
+          }
+        ]
+      }
+    },
+    "add_thread_comment": {
+      "arguments": {
+        "threadId": "thr_0079meh8",
+        "body": "I'll take this one, the PDF is ready."
+      },
+      "result": {
+        "comment": {
+          "id": "tcm_007a0451",
+          "threadId": "thr_0079meh8",
+          "mailboxId": "mbx_0079gx0i",
+          "author": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera"
+          },
+          "body": "I'll take this one, the PDF is ready.",
+          "mentions": [],
+          "editedAt": null,
+          "createdAt": "2026-10-26T17:42:04.835Z",
+          "canEdit": true,
+          "canDelete": true
+        }
+      }
+    },
+    "append_to_doc": {
+      "arguments": {
+        "id": "doc_007bog8z",
+        "text": "Escalate to the account owner after 14 days."
+      },
+      "result": {
+        "id": "doc_007bog8z",
+        "version": 2
+      }
+    },
+    "assign_thread": {
+      "arguments": {
+        "threadId": "thr_0079meh8",
+        "userId": "usr_0079xdeo"
+      },
+      "result": {
+        "state": {
+          "threadId": "thr_0079meh8",
+          "status": "waiting",
+          "assignee": {
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera"
+          },
+          "assignedAt": "2026-10-26T17:42:04.820Z",
+          "doneAt": null
+        }
+      }
+    },
+    "catchup_get": {
+      "arguments": {
+        "type": "task",
+        "id": "tsk_007agkj7"
+      },
+      "result": {
+        "catchup": {
+          "type": "task",
+          "id": "tsk_007agkj7",
+          "since": null,
+          "hasNew": false,
+          "mode": "digest",
+          "counts": {
+            "messages": 0,
+            "replies": 0,
+            "comments": 0,
+            "edits": 0,
+            "statusChanges": 0,
+            "assigneeChanges": 0,
+            "mentions": 0
+          },
+          "actors": [],
+          "decisions": [],
+          "latest": [],
+          "canSummarise": false
+        }
+      }
+    },
+    "comment_on_task": {
+      "arguments": {
+        "id": "TSK-1",
+        "body": "Sent the PDF, waiting on Ada."
+      },
+      "result": {
+        "comment": {
+          "id": "cmt_007ax0xd",
+          "taskId": "tsk_007agkj7",
+          "body": "Sent the PDF, waiting on Ada.",
+          "author": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Acme"
+          },
+          "createdAt": "2026-10-26T17:42:05.143Z"
+        }
+      }
+    },
+    "contact_timeline": {
+      "arguments": {
+        "id": "con_007ab32h"
+      },
+      "result": {
+        "contact": {
+          "id": "con_007ab32h",
+          "name": "Ada Lovelace",
+          "email": "ada@example.com",
+          "phone": null,
+          "title": "Head of Finance",
+          "notes": "",
+          "source": "mail",
+          "company": {
+            "id": "cmp_007adtsu",
+            "name": "Example",
+            "domain": "example.com"
+          },
+          "companyId": "cmp_007adtsu",
+          "messageCount": 1,
+          "firstContactAt": "2026-10-26T17:42:04.636Z",
+          "lastContactAt": "2026-10-26T17:42:04.636Z",
+          "createdAt": "2026-10-26T17:42:04.648Z",
+          "updatedAt": "2026-10-26T17:42:04.985Z",
+          "version": 2
+        },
+        "threads": [
+          {
+            "threadId": "thr_0079meh8",
+            "subject": "Invoice 1042",
+            "lastAt": "2026-10-26T17:42:04.636Z",
+            "firstAt": "2026-10-26T17:42:04.636Z",
+            "count": 1,
+            "lastDirection": "inbound",
+            "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+            "messageId": "msg_0079p57l",
+            "mailboxId": "mbx_0079gx0i"
+          }
+        ],
+        "tasks": [],
+        "deals": [],
+        "timeline": [
+          {
+            "kind": "thread",
+            "at": "2026-10-26T17:42:04.636Z",
+            "thread": {
+              "threadId": "thr_0079meh8",
+              "subject": "Invoice 1042",
+              "lastAt": "2026-10-26T17:42:04.636Z",
+              "firstAt": "2026-10-26T17:42:04.636Z",
+              "count": 1,
+              "lastDirection": "inbound",
+              "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+              "messageId": "msg_0079p57l",
+              "mailboxId": "mbx_0079gx0i"
+            }
+          }
+        ],
+        "activity": [
+          {
+            "id": "chg_3",
+            "actor": {
+              "type": "member",
+              "id": "usr_0079xdeo",
+              "name": "Acme"
+            },
+            "verb": "updated",
+            "data": {
+              "fields": [
+                "name",
+                "title"
+              ]
+            },
+            "at": "2026-10-26T17:42:04.985Z"
+          },
+          {
+            "id": "chg_2",
+            "actor": {
+              "type": "system",
+              "id": null,
+              "name": "Multies"
+            },
+            "verb": "created_from_email",
+            "data": {
+              "email": "ada@example.com"
+            },
+            "at": "2026-10-26T17:42:04.649Z"
+          }
+        ]
+      }
+    },
+    "create_agent_inbox": {
+      "arguments": {
+        "name": "Support agent",
+        "localPart": "support",
+        "approvalMode": "external"
+      },
+      "result": {
+        "agent": {
+          "id": "agt_0079e6a5",
+          "name": "Support agent",
+          "description": null,
+          "address": "support@acme.io",
+          "inboxId": "mbx_0079gx0i",
+          "approvalMode": "external",
+          "sendCapDaily": 100,
+          "allowedRecipients": null,
+          "status": "active",
+          "mailboxIds": [
+            "mbx_0079gx0i"
+          ],
+          "sentToday": 0,
+          "pendingApprovals": 0,
+          "createdAt": "2026-10-26T17:42:04.608Z"
+        },
+        "apiKey": {
+          "id": "key_0079jnqv",
+          "prefix": "mm_live_(hidden)",
+          "secret": "(shown once, hidden here)"
+        }
+      }
+    },
+    "create_dashboard": {
+      "arguments": {
+        "name": "Billing",
+        "starter": "team"
+      },
+      "result": {
+        "dashboard": {
+          "id": "dsh_007bzf6f",
+          "name": "Billing",
+          "shared": true,
+          "owner": "usr_0079xdeo",
+          "mine": true,
+          "widgets": [
+            {
+              "id": "wdg_007c25ws",
+              "type": "breakdown",
+              "title": "Tasks by status",
+              "source": {},
+              "groupBy": "status",
+              "chart": "donut",
+              "size": 1,
+              "position": 0
+            },
+            {
+              "id": "wdg_007c4wn5",
+              "type": "breakdown",
+              "title": "Open tasks by person",
+              "source": {},
+              "groupBy": "assignee",
+              "chart": "bar",
+              "size": 1,
+              "position": 1
+            },
+            {
+              "id": "wdg_007c7ndi",
+              "type": "due",
+              "title": "Due this week and overdue",
+              "source": {},
+              "groupBy": null,
+              "chart": "table",
+              "size": 1,
+              "position": 2
+            }
+          ],
+          "createdAt": "2026-10-26T17:42:05.648Z",
+          "updatedAt": "2026-10-26T17:42:05.648Z",
+          "version": 1
+        }
+      }
+    },
+    "create_doc": {
+      "arguments": {
+        "title": "Billing playbook",
+        "text": "# Billing playbook\n\nSend invoices on the 1st. Follow up after 7 days."
+      },
+      "result": {
+        "id": "doc_007bog8z",
+        "title": "Billing playbook",
+        "version": 1
+      }
+    },
+    "create_form": {
+      "arguments": {
+        "name": "Billing question",
+        "description": "Ask us anything about your invoice.",
+        "target": "task",
+        "fields": [
+          {
+            "label": "Email",
+            "type": "email",
+            "required": true
+          },
+          {
+            "label": "Question",
+            "type": "textarea",
+            "required": true
+          }
+        ]
+      },
+      "result": {
+        "form": {
+          "id": "frm_007br6zc",
+          "name": "Billing question",
+          "description": "Ask us anything about your invoice.",
+          "slug": "cikn1twkpfqx",
+          "url": "https://multies.si/f/cikn1twkpfqx",
+          "target": "task",
+          "projectId": null,
+          "assigneeId": null,
+          "fields": [
+            {
+              "id": "field_1",
+              "label": "Email",
+              "type": "email",
+              "required": true
+            },
+            {
+              "id": "field_2",
+              "label": "Question",
+              "type": "textarea",
+              "required": true
+            }
+          ],
+          "successMessage": "Thanks, we got it. We'll be in touch.",
+          "enabled": true,
+          "submitCount": 0,
+          "lastSubmitAt": null,
+          "triage": false,
+          "routing": [],
+          "createdAt": "2026-10-26T17:42:05.550Z",
+          "updatedAt": "2026-10-26T17:42:05.550Z",
+          "version": 1
+        }
+      }
+    },
+    "create_goal": {
+      "arguments": {
+        "name": "Get paid faster",
+        "description": "Cut the average days to payment.",
+        "due": "2026-12-31",
+        "keyResults": [
+          {
+            "name": "Average days to payment",
+            "kind": "number",
+            "start": 30,
+            "target": 14,
+            "current": 21
+          }
+        ]
+      },
+      "result": {
+        "goal": {
+          "id": "gol_007baql6",
+          "name": "Get paid faster",
+          "description": "Cut the average days to payment.",
+          "owner": {
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera"
+          },
+          "parentId": null,
+          "start": null,
+          "due": "2026-12-31T00:00:00.000Z",
+          "health": null,
+          "suggestedHealth": "on_track",
+          "archived": false,
+          "progress": 56,
+          "keyResults": [
+            {
+              "id": "kr_007bdhbj",
+              "goalId": "gol_007baql6",
+              "name": "Average days to payment",
+              "kind": "number",
+              "unit": "",
+              "start": 30,
+              "target": 14,
+              "current": 21,
+              "projectId": null,
+              "taskIds": [],
+              "tasks": null,
+              "progress": 56,
+              "updatedAt": "2026-10-26T17:42:05.345Z"
+            }
+          ],
+          "children": [],
+          "createdAt": "2026-10-26T17:42:05.345Z",
+          "updatedAt": "2026-10-26T17:42:05.345Z"
+        }
+      }
+    },
+    "create_snippet": {
+      "arguments": {
+        "name": "Invoice sent",
+        "body": "Hi {{first_name}}, your invoice is attached. Thanks!",
+        "shortcut": "inv",
+        "shared": true
+      },
+      "result": {
+        "snippet": {
+          "id": "snp_007a5llr",
+          "name": "Invoice sent",
+          "shortcut": "inv",
+          "subject": null,
+          "body": "Hi {{first_name}}, your invoice is attached. Thanks!",
+          "shared": true,
+          "createdBy": {
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera"
+          },
+          "createdAt": "2026-10-26T17:42:04.919Z",
+          "updatedAt": "2026-10-26T17:42:04.919Z",
+          "canEdit": true
+        }
+      }
+    },
+    "create_sprint": {
+      "arguments": {
+        "projectId": "prj_007ajb9k",
+        "name": "Sprint 12",
+        "goal": "Close every open invoice",
+        "startAt": "2026-11-02",
+        "endAt": "2026-11-15"
+      },
+      "result": {
+        "sprint": {
+          "id": "spr_007bwog2",
+          "projectId": "prj_007ajb9k",
+          "name": "Sprint 12",
+          "goal": "Close every open invoice",
+          "status": "planned",
+          "startAt": "2026-11-02T00:00:00.000Z",
+          "endAt": "2026-11-15T23:59:59.999Z",
+          "startedAt": null,
+          "completedAt": null,
+          "createdAt": "2026-10-26T17:42:05.620Z",
+          "updatedAt": "2026-10-26T17:42:05.620Z",
+          "path": "/app/tasks?project=prj_007ajb9k&view=sprints&sprint=spr_007bwog2"
+        }
+      }
+    },
+    "create_task": {
+      "arguments": {
+        "title": "Follow up with Ada about invoice 1042",
+        "notes": "She asked for a PDF copy.",
+        "priority": "high",
+        "due": "2026-11-03",
+        "labels": [
+          "billing"
+        ]
+      },
+      "result": {
+        "task": {
+          "id": "tsk_007agkj7",
+          "ref": "TSK-1",
+          "projectId": "prj_007ajb9k",
+          "number": 1,
+          "title": "Follow up with Ada about invoice 1042",
+          "notes": "She asked for a PDF copy.",
+          "statusId": "sts_007am1zx",
+          "statusName": "To do",
+          "statusColor": "#8a8f98",
+          "status": "todo",
+          "assignee": null,
+          "assigneeId": null,
+          "priority": "high",
+          "labels": [
+            "billing"
+          ],
+          "type": "task",
+          "start": null,
+          "due": "2026-11-03T00:00:00.000Z",
+          "parentId": null,
+          "position": 1024,
+          "source": null,
+          "subtasks": {
+            "total": 0,
+            "done": 0
+          },
+          "checklist": {
+            "total": 0,
+            "done": 0
+          },
+          "commentCount": 0,
+          "fields": {},
+          "repeat": null,
+          "completedAt": null,
+          "sprintId": null,
+          "points": null,
+          "createdBy": {
+            "type": "member",
+            "id": "usr_0079xdeo"
+          },
+          "createdAt": "2026-10-26T17:42:05.037Z",
+          "updatedAt": "2026-10-26T17:42:05.037Z",
+          "version": 1,
+          "triage": null
+        }
+      }
+    },
+    "duplicate_task": {
+      "arguments": {
+        "taskId": "tsk_007agkj7",
+        "title": "Follow up with Grace about invoice 1043"
+      },
+      "result": {
+        "task": {
+          "id": "tsk_007b594g",
+          "ref": "TSK-3",
+          "projectId": "prj_007ajb9k",
+          "number": 3,
+          "title": "Follow up with Grace about invoice 1043",
+          "notes": "She asked for a PDF copy.",
+          "statusId": "sts_007am1zx",
+          "statusName": "To do",
+          "statusColor": "#8a8f98",
+          "status": "todo",
+          "assignee": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera",
+            "email": "sam@acme.io"
+          },
+          "assigneeId": "member:usr_0079xdeo",
+          "priority": "high",
+          "labels": [
+            "billing"
+          ],
+          "type": "task",
+          "start": null,
+          "due": "2026-11-03T00:00:00.000Z",
+          "parentId": null,
+          "position": 3072,
+          "source": null,
+          "subtasks": {
+            "total": 0,
+            "done": 0
+          },
+          "checklist": {
+            "total": 2,
+            "done": 0
+          },
+          "commentCount": 0,
+          "fields": {},
+          "repeat": null,
+          "completedAt": null,
+          "sprintId": null,
+          "points": null,
+          "createdBy": {
+            "type": "member",
+            "id": "usr_0079xdeo"
+          },
+          "createdAt": "2026-10-26T17:42:05.250Z",
+          "updatedAt": "2026-10-26T17:42:05.250Z",
+          "version": 1,
+          "triage": null
+        },
+        "from": {
+          "id": "tsk_007agkj7",
+          "ref": "TSK-1"
+        },
+        "copied": {
+          "tasks": 1,
+          "subtasks": 0,
+          "checklistItems": 2,
+          "dependencies": 0
+        }
+      }
+    },
+    "get_counts": {
+      "arguments": {
+        "tz": "Australia/Sydney"
+      },
+      "result": {
+        "mail": {
+          "inbox": 0,
+          "important": 0,
+          "other": 0
+        },
+        "chat": {
+          "unread": 0,
+          "mentions": 0
+        },
+        "notifications": {
+          "unread": 2
+        },
+        "triage": 0,
+        "tasks": {
+          "dueToday": 0,
+          "overdue": 0
+        },
+        "at": "2026-10-26T17:42:05.316Z"
+      }
+    },
+    "get_doc_tree": {
+      "arguments": {
+        "flat": true
+      },
+      "result": {
+        "pages": [
+          {
+            "id": "doc_007bog8z",
+            "title": "Billing playbook",
+            "parentId": null,
+            "position": 1,
+            "projectId": null,
+            "updatedAt": "2026-10-26T17:42:05.498Z",
+            "depth": 1
+          }
+        ],
+        "count": 1,
+        "truncated": false
+      }
+    },
+    "get_report": {
+      "arguments": {
+        "days": 30
+      },
+      "result": {
+        "range": {
+          "days": 30,
+          "from": "2026-09-26T17:42:05.375Z",
+          "to": "2026-10-26T17:42:05.375Z"
+        },
+        "tasks": {
+          "total": 3,
+          "open": 3,
+          "done": 0,
+          "overdue": 0,
+          "createdInRange": 3,
+          "completedInRange": 0,
+          "byCategory": {
+            "todo": 2,
+            "doing": 1,
+            "done": 0
+          },
+          "byStatus": [
+            {
+              "name": "To do",
+              "category": "todo",
+              "color": "#8a8f98",
+              "count": 2
+            },
+            {
+              "name": "In progress",
+              "category": "doing",
+              "color": "#3b82f6",
+              "count": 1
+            }
+          ],
+          "byAssignee": [
+            {
+              "assigneeId": "member:usr_0079xdeo",
+              "name": "Sam Rivera",
+              "open": 2,
+              "overdue": 0
+            },
+            {
+              "assigneeId": null,
+              "name": "Unassigned",
+              "open": 1,
+              "overdue": 0
+            }
+          ],
+          "overdueList": [],
+          "completedByDay": [
+            {
+              "day": "2026-09-27",
+              "count": 0
+            },
+            {
+              "day": "2026-09-28",
+              "count": 0
+            },
+            {
+              "day": "2026-09-29",
+              "count": 0
+            }
+          ]
+        },
+        "time": {
+          "totalSeconds": 0,
+          "byProject": []
+        },
+        "deals": {
+          "currency": "AUD",
+          "pipeline": [
+            {
+              "stage": "lead",
+              "name": "Lead",
+              "count": 0,
+              "value": 0
+            },
+            {
+              "stage": "qualified",
+              "name": "Qualified",
+              "count": 0,
+              "value": 0
+            },
+            {
+              "stage": "proposal",
+              "name": "Proposal sent",
+              "count": 0,
+              "value": 0
+            }
+          ],
+          "openValue": 0,
+          "openCount": 0,
+          "wonValue": 0
+        }
+      }
+    },
+    "get_task": {
+      "arguments": {
+        "id": "TSK-1"
+      },
+      "result": {
+        "task": {
+          "id": "tsk_007agkj7",
+          "ref": "TSK-1",
+          "projectId": "prj_007ajb9k",
+          "number": 1,
+          "title": "Follow up with Ada about invoice 1042",
+          "notes": "She asked for a PDF copy.",
+          "statusId": "sts_007am1zx",
+          "statusName": "To do",
+          "statusColor": "#8a8f98",
+          "status": "todo",
+          "assignee": null,
+          "assigneeId": null,
+          "priority": "high",
+          "labels": [
+            "billing"
+          ],
+          "type": "task",
+          "start": null,
+          "due": "2026-11-03T00:00:00.000Z",
+          "parentId": null,
+          "position": 1024,
+          "source": null,
+          "subtasks": {
+            "total": 0,
+            "done": 0
+          },
+          "checklist": {
+            "total": 0,
+            "done": 0
+          },
+          "commentCount": 0,
+          "fields": {},
+          "repeat": null,
+          "completedAt": null,
+          "sprintId": null,
+          "points": null,
+          "createdBy": {
+            "type": "member",
+            "id": "usr_0079xdeo"
+          },
+          "createdAt": "2026-10-26T17:42:05.037Z",
+          "updatedAt": "2026-10-26T17:42:05.037Z",
+          "version": 1,
+          "triage": null
+        },
+        "subtasks": [],
+        "comments": [],
+        "thread": [],
+        "activity": [
+          {
+            "id": "chg_5",
+            "actor": {
+              "type": "member",
+              "id": "usr_0079xdeo",
+              "name": "Acme"
+            },
+            "verb": "created",
+            "data": {
+              "title": "Follow up with Ada about invoice 1042",
+              "ref": "TSK-1"
+            },
+            "at": "2026-10-26T17:42:05.041Z"
+          }
+        ],
+        "docs": [],
+        "contacts": [],
+        "blockedBy": [],
+        "blocking": [],
+        "time": {
+          "totalSeconds": 0,
+          "entries": []
+        },
+        "customFields": []
+      }
+    },
+    "get_timesheet": {
+      "arguments": {
+        "from": "2026-10-27",
+        "to": "2026-11-03"
+      },
+      "result": {
+        "from": "2026-10-27T00:00:00.000Z",
+        "to": "2026-11-04T00:00:00.000Z",
+        "days": [
+          "2026-10-27",
+          "2026-10-28",
+          "2026-10-29"
+        ],
+        "total": 1500,
+        "rows": [
+          {
+            "person": "Sam Rivera",
+            "project": "Tasks",
+            "total": 1500,
+            "days": {
+              "2026-11-02": 1500
+            }
+          }
+        ]
+      }
+    },
+    "list_calendar_events": {
+      "arguments": {
+        "from": "2026-11-01",
+        "to": "2026-11-08"
+      },
+      "result": {
+        "from": "2026-11-01T00:00:00.000Z",
+        "to": "2026-11-08T00:00:00.000Z",
+        "timezone": "UTC",
+        "events": [
+          {
+            "id": "task:tsk_007agkj7",
+            "kind": "due",
+            "title": "Due: Follow up with Ada about invoice 1042 (TSK-1)",
+            "start": "2026-11-03",
+            "end": "2026-11-04",
+            "allDay": true,
+            "url": "https://multies.si/app/tasks?task=tsk_007agkj7",
+            "sourceId": null,
+            "sourceName": null,
+            "color": null,
+            "readOnly": false
+          },
+          {
+            "id": "task:tsk_007b594g",
+            "kind": "due",
+            "title": "Due: Follow up with Grace about invoice 1043 (TSK-3)",
+            "start": "2026-11-03",
+            "end": "2026-11-04",
+            "allDay": true,
+            "url": "https://multies.si/app/tasks?task=tsk_007b594g",
+            "sourceId": null,
+            "sourceName": null,
+            "color": null,
+            "readOnly": false
+          },
+          {
+            "id": "mtg_007btxpp",
+            "kind": "meeting",
+            "title": "Invoice review with Ada",
+            "start": "2026-11-04T23:00:00.000Z",
+            "end": "2026-11-04T23:30:00.000Z",
+            "allDay": false,
+            "url": "https://multies.si/app/meetings/mtg_007btxpp",
+            "sourceId": null,
+            "sourceName": null,
+            "color": null,
+            "readOnly": false
+          }
+        ],
+        "errors": []
+      }
+    },
+    "list_channels": {
+      "arguments": {},
+      "result": {
+        "channels": [
+          {
+            "id": "chn_007bg81w",
+            "name": "general",
+            "topic": "Everyone in the workspace",
+            "lastMessage": null,
+            "lastMessageAt": null
+          }
+        ]
+      }
+    },
+    "list_checklist": {
+      "arguments": {
+        "taskId": "tsk_007agkj7"
+      },
+      "result": {
+        "taskId": "tsk_007agkj7",
+        "items": [
+          {
+            "id": "chk_007azrnq",
+            "taskId": "tsk_007agkj7",
+            "title": "Export the PDF",
+            "done": false,
+            "position": 1,
+            "assignee": null,
+            "due": null,
+            "createdAt": "2026-10-26T17:42:05.173Z",
+            "updatedAt": "2026-10-26T17:42:05.173Z"
+          },
+          {
+            "id": "chk_007b2ie3",
+            "taskId": "tsk_007agkj7",
+            "title": "Email it to Ada",
+            "done": false,
+            "position": 2,
+            "assignee": null,
+            "due": null,
+            "createdAt": "2026-10-26T17:42:05.173Z",
+            "updatedAt": "2026-10-26T17:42:05.173Z"
+          }
+        ],
+        "total": 2,
+        "done": 0
+      }
+    },
+    "list_dashboards": {
+      "arguments": {},
+      "result": {
+        "dashboards": [
+          {
+            "id": "dsh_007bzf6f",
+            "name": "Billing",
+            "shared": true,
+            "mine": true,
+            "widgetCount": 4,
+            "updatedAt": "2026-10-26T17:42:05.648Z"
+          }
+        ]
+      }
+    },
+    "list_forms": {
+      "arguments": {},
+      "result": {
+        "forms": [
+          {
+            "id": "frm_007br6zc",
+            "name": "Billing question",
+            "url": "https://multies.si/f/cikn1twkpfqx",
+            "target": "task",
+            "enabled": true,
+            "submitCount": 0,
+            "fields": [
+              {
+                "id": "field_1",
+                "label": "Email",
+                "type": "email",
+                "required": true
+              },
+              {
+                "id": "field_2",
+                "label": "Question",
+                "type": "textarea",
+                "required": true
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "list_goals": {
+      "arguments": {},
+      "result": {
+        "goals": [
+          {
+            "id": "gol_007baql6",
+            "name": "Get paid faster",
+            "description": "Cut the average days to payment.",
+            "owner": {
+              "id": "usr_0079xdeo",
+              "name": "Sam Rivera"
+            },
+            "parentId": null,
+            "start": null,
+            "due": "2026-12-31T00:00:00.000Z",
+            "health": null,
+            "suggestedHealth": "on_track",
+            "archived": false,
+            "progress": 56,
+            "keyResults": [
+              {
+                "id": "kr_007bdhbj",
+                "goalId": "gol_007baql6",
+                "name": "Average days to payment",
+                "kind": "number",
+                "unit": "",
+                "start": 30,
+                "target": 14,
+                "current": 21,
+                "projectId": null,
+                "taskIds": [],
+                "tasks": null,
+                "progress": 56,
+                "updatedAt": "2026-10-26T17:42:05.345Z"
+              }
+            ],
+            "children": [],
+            "createdAt": "2026-10-26T17:42:05.345Z",
+            "updatedAt": "2026-10-26T17:42:05.345Z"
+          }
+        ],
+        "summary": {
+          "goals": 1,
+          "topLevel": 1,
+          "keyResults": 1,
+          "progress": 56,
+          "health": {
+            "on_track": 1,
+            "at_risk": 0,
+            "off_track": 0,
+            "not_set": 0
+          }
+        }
+      }
+    },
+    "list_inboxes": {
+      "arguments": {},
+      "result": {
+        "agents": [
+          {
+            "agentId": "agt_0079e6a5",
+            "name": "Support agent",
+            "address": "support@acme.io",
+            "approvalMode": "external",
+            "sentToday": 0,
+            "sendCapDaily": 100,
+            "status": "active",
+            "mailboxIds": [
+              "mbx_0079gx0i"
+            ]
+          }
+        ],
+        "mailboxes": []
+      }
+    },
+    "list_meetings": {
+      "arguments": {
+        "upcoming": true
+      },
+      "result": {
+        "meetings": [
+          {
+            "id": "mtg_007btxpp",
+            "title": "Invoice review with Ada",
+            "startsAt": "2026-11-04T23:00:00.000Z",
+            "durationMin": 30,
+            "status": "scheduled",
+            "guestUrl": "https://multies.si/m/56epdSkOtKgdnnQzwD1UQqI",
+            "invitees": [
+              "ada@example.com"
+            ],
+            "repeats": null
+          }
+        ]
+      }
+    },
+    "list_notifications": {
+      "arguments": {
+        "unread": true
+      },
+      "result": {
+        "notifications": [
+          {
+            "id": "ntf_007cae3v",
+            "type": "approval.requested",
+            "category": "approval",
+            "entityType": "approval",
+            "entityId": "apr_0079umob",
+            "title": "Support agent wants to send \"Re: Invoice 1042\" to ada@example.com",
+            "actor": {
+              "type": "member",
+              "id": null,
+              "name": "Support agent"
+            },
+            "read": false,
+            "createdAt": "2026-10-26T17:42:04.786Z",
+            "link": "/app/approvals",
+            "doneAt": null,
+            "snoozedUntil": null
+          },
+          {
+            "id": "ntf_007cd4u8",
+            "type": "approval.requested",
+            "category": "approval",
+            "entityType": "approval",
+            "entityId": "apr_0079rvxy",
+            "title": "Support agent wants to send \"Your invoice 1042\" to ada@example.com",
+            "actor": {
+              "type": "member",
+              "id": null,
+              "name": "Support agent"
+            },
+            "read": false,
+            "createdAt": "2026-10-26T17:42:04.759Z",
+            "link": "/app/approvals",
+            "doneAt": null,
+            "snoozedUntil": null
+          }
+        ],
+        "unread": 2,
+        "counts": {
+          "mention": 0,
+          "assignment": 0,
+          "comment": 0,
+          "approval": 2,
+          "due_soon": 0,
+          "chat": 0,
+          "email": 0,
+          "status": 0
+        },
+        "hasMore": false,
+        "view": "inbox",
+        "viewCounts": {
+          "inbox": 2,
+          "later": 0,
+          "done": 0
+        }
+      }
+    },
+    "list_people": {
+      "arguments": {},
+      "result": {
+        "people": [
+          {
+            "id": "usr_0079xdeo",
+            "type": "member",
+            "kind": "human",
+            "userId": "usr_0079xdeo",
+            "agentId": null,
+            "name": "Sam Rivera",
+            "email": "sam@acme.io",
+            "role": "owner",
+            "title": null,
+            "bio": null,
+            "inbox": null,
+            "joinedAt": "2026-10-26T17:42:04.250Z"
+          },
+          {
+            "id": "agt_0079e6a5",
+            "type": "mail_agent",
+            "kind": "agent",
+            "userId": null,
+            "agentId": "agt_0079e6a5",
+            "name": "Support agent",
+            "email": null,
+            "role": null,
+            "title": "Mail agent",
+            "bio": null,
+            "inbox": "support@acme.io",
+            "joinedAt": "2026-10-26T17:42:04.608Z"
+          }
+        ]
+      }
+    },
+    "list_projects": {
+      "arguments": {},
+      "result": {
+        "projects": [
+          {
+            "id": "prj_007ajb9k",
+            "name": "Tasks",
+            "description": "Tasks made from email land here first.",
+            "key": "TSK",
+            "color": "#ff5a36",
+            "archived": false,
+            "statuses": [
+              {
+                "id": "sts_007am1zx",
+                "name": "To do",
+                "category": "todo",
+                "color": "#8a8f98",
+                "position": 0
+              },
+              {
+                "id": "sts_007aosqa",
+                "name": "In progress",
+                "category": "doing",
+                "color": "#3b82f6",
+                "position": 1
+              },
+              {
+                "id": "sts_007arjgn",
+                "name": "In review",
+                "category": "doing",
+                "color": "#f59e0b",
+                "position": 2
+              }
+            ],
+            "counts": {
+              "todo": 1,
+              "doing": 0,
+              "done": 0
+            },
+            "health": null,
+            "healthNote": "",
+            "ownerId": null,
+            "triage": false,
+            "createdAt": "2026-10-26T17:42:05.034Z",
+            "updatedAt": "2026-10-26T17:42:05.034Z",
+            "version": 1
+          }
+        ]
+      }
+    },
+    "list_scheduled": {
+      "arguments": {
+        "view": "snoozed"
+      },
+      "result": {
+        "items": [
+          {
+            "id": "msch_007a2uve",
+            "kind": "snooze",
+            "status": "pending",
+            "mailboxId": "mbx_0079gx0i",
+            "threadId": "thr_0079meh8",
+            "messageId": "msg_0079p57l",
+            "dueAt": "2026-10-27T08:00:00.000Z",
+            "createdAt": "2026-10-26T17:42:04.885Z",
+            "error": null,
+            "message": {
+              "id": "msg_0079p57l",
+              "mailboxId": "mbx_0079gx0i",
+              "folder": "inbox",
+              "threadId": "thr_0079meh8",
+              "from": {
+                "address": "ada@example.com",
+                "name": "Ada Lovelace"
+              },
+              "to": [
+                {
+                  "address": "support@acme.io"
+                }
+              ],
+              "subject": "Invoice 1042",
+              "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+              "date": "2026-10-26T17:42:04.636Z",
+              "isRead": false,
+              "isStarred": false,
+              "hasAttachments": false,
+              "sentByAgentId": null,
+              "remoteBox": null,
+              "receivedAt": "2026-10-26T17:42:04.638Z"
+            },
+            "send": null
+          }
+        ]
+      }
+    },
+    "list_snippets": {
+      "arguments": {},
+      "result": {
+        "snippets": [
+          {
+            "id": "snp_007a5llr",
+            "name": "Invoice sent",
+            "shortcut": "inv",
+            "subject": null,
+            "body": "Hi {{first_name}}, your invoice is attached. Thanks!",
+            "shared": true,
+            "createdBy": {
+              "id": "usr_0079xdeo",
+              "name": "Sam Rivera"
+            },
+            "createdAt": "2026-10-26T17:42:04.919Z",
+            "updatedAt": "2026-10-26T17:42:04.919Z",
+            "canEdit": true
+          }
+        ]
+      }
+    },
+    "list_sprints": {
+      "arguments": {
+        "projectId": "prj_007ajb9k"
+      },
+      "result": {
+        "unit": "points",
+        "sprints": [
+          {
+            "id": "spr_007bwog2",
+            "projectId": "prj_007ajb9k",
+            "name": "Sprint 12",
+            "goal": "Close every open invoice",
+            "status": "planned",
+            "startAt": "2026-11-02T00:00:00.000Z",
+            "endAt": "2026-11-15T23:59:59.999Z",
+            "startedAt": null,
+            "completedAt": null,
+            "carriedOver": 0,
+            "createdAt": "2026-10-26T17:42:05.620Z",
+            "updatedAt": "2026-10-26T17:42:05.620Z",
+            "version": 1,
+            "path": "/app/tasks?project=prj_007ajb9k&view=sprints&sprint=spr_007bwog2",
+            "counts": {
+              "tasks": 0,
+              "done": 0,
+              "points": 0,
+              "donePoints": 0
+            }
+          }
+        ]
+      }
+    },
+    "list_task_comments": {
+      "arguments": {
+        "taskId": "tsk_007agkj7"
+      },
+      "result": {
+        "taskId": "tsk_007agkj7",
+        "comments": [
+          {
+            "id": "cmt_007ax0xd",
+            "taskId": "tsk_007agkj7",
+            "body": "Sent the PDF, waiting on Ada.",
+            "author": {
+              "type": "member",
+              "id": "usr_0079xdeo",
+              "name": "Acme"
+            },
+            "editedAt": null,
+            "createdAt": "2026-10-26T17:42:05.143Z"
+          }
+        ]
+      }
+    },
+    "list_tasks": {
+      "arguments": {
+        "limit": 3
+      },
+      "result": {
+        "tasks": [
+          {
+            "id": "tsk_007agkj7",
+            "ref": "TSK-1",
+            "title": "Follow up with Ada about invoice 1042",
+            "type": "task",
+            "status": "todo",
+            "statusName": "To do",
+            "priority": "high",
+            "due": "2026-11-03T00:00:00.000Z",
+            "assignee": null,
+            "labels": [
+              "billing"
+            ],
+            "threadId": null,
+            "subtasks": {
+              "total": 0,
+              "done": 0
+            }
+          },
+          {
+            "id": "tsk_007aua70",
+            "ref": "TSK-2",
+            "title": "Send the November statements",
+            "type": "task",
+            "status": "todo",
+            "statusName": "To do",
+            "priority": "medium",
+            "due": null,
+            "assignee": null,
+            "labels": [],
+            "threadId": null,
+            "subtasks": {
+              "total": 0,
+              "done": 0
+            }
+          }
+        ]
+      }
+    },
+    "list_templates": {
+      "arguments": {},
+      "result": {
+        "templates": [
+          {
+            "id": "starter-client-onboarding",
+            "kind": "project",
+            "name": "Client onboarding",
+            "description": "Welcome a new client: kick-off, access, first delivery and a check-in a month later.",
+            "category": "Clients",
+            "builtin": true,
+            "taskCount": 6
+          },
+          {
+            "id": "starter-content-calendar",
+            "kind": "project",
+            "name": "Content calendar",
+            "description": "Plan, write, review and publish posts, with a weekly newsletter that repeats.",
+            "category": "Marketing",
+            "builtin": true,
+            "taskCount": 4
+          },
+          {
+            "id": "starter-sales-pipeline",
+            "kind": "project",
+            "name": "Sales pipeline",
+            "description": "Track leads from first contact to won or lost, with deal value in AUD.",
+            "category": "Sales",
+            "builtin": true,
+            "taskCount": 3
+          }
+        ]
+      }
+    },
+    "list_thread_comments": {
+      "arguments": {
+        "threadId": "thr_0079meh8"
+      },
+      "result": {
+        "threadId": "thr_0079meh8",
+        "comments": [
+          {
+            "id": "tcm_007a0451",
+            "threadId": "thr_0079meh8",
+            "mailboxId": "mbx_0079gx0i",
+            "author": {
+              "type": "member",
+              "id": "usr_0079xdeo",
+              "name": "Sam Rivera"
+            },
+            "body": "I'll take this one, the PDF is ready.",
+            "mentions": [],
+            "editedAt": null,
+            "createdAt": "2026-10-26T17:42:04.835Z",
+            "canEdit": true,
+            "canDelete": true
+          }
+        ],
+        "mentionable": [
+          {
+            "userId": "usr_0079xdeo",
+            "name": "Sam Rivera",
+            "email": "sam@acme.io"
+          }
+        ]
+      }
+    },
+    "list_threads": {
+      "arguments": {
+        "limit": 3
+      },
+      "result": {
+        "data": [
+          {
+            "id": "thr_0079meh8",
+            "mailboxId": "mbx_0079gx0i",
+            "subject": "Invoice 1042",
+            "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+            "lastMessageAt": "2026-10-26T17:42:04.636Z",
+            "messageCount": 1,
+            "unreadCount": 1,
+            "from": {
+              "address": "ada@example.com",
+              "name": "Ada Lovelace"
+            },
+            "lastSentBy": {
+              "type": "external"
+            },
+            "agentsInvolved": [],
+            "pendingApprovals": 0,
+            "assignee": null,
+            "status": "open",
+            "lastInboundAt": "2026-10-26T17:42:04.636Z"
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    "log_time": {
+      "arguments": {
+        "taskId": "tsk_007agkj7",
+        "minutes": 25,
+        "date": "2026-11-02",
+        "note": "Prepared the PDF",
+        "billable": true
+      },
+      "result": {
+        "entry": {
+          "id": "tim_007b7zut",
+          "taskId": "tsk_007agkj7",
+          "task": {
+            "id": "tsk_007agkj7",
+            "ref": "TSK-1",
+            "title": "Follow up with Ada about invoice 1042"
+          },
+          "projectId": "prj_007ajb9k",
+          "project": {
+            "id": "prj_007ajb9k",
+            "name": "Tasks",
+            "key": "TSK",
+            "color": "#ff5a36"
+          },
+          "person": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera"
+          },
+          "personId": "member:usr_0079xdeo",
+          "startedAt": "2026-11-02T09:00:00.000Z",
+          "endedAt": "2026-11-02T09:25:00.000Z",
+          "running": false,
+          "seconds": 1500,
+          "note": "Prepared the PDF",
+          "billable": true,
+          "source": "manual",
+          "createdAt": "2026-10-26T17:42:05.272Z",
+          "version": 1
+        }
+      }
+    },
+    "message_to_task": {
+      "arguments": {
+        "messageId": "chm_007biys9",
+        "title": "Check the 2 invoice follow ups"
+      },
+      "result": {
+        "task": {
+          "id": "tsk_007blpim",
+          "ref": "TSK-4",
+          "title": "Check the 2 invoice follow ups"
+        }
+      }
+    },
+    "my_work": {
+      "arguments": {
+        "timeZone": "Australia/Sydney"
+      },
+      "result": {
+        "date": "2026-10-27",
+        "timeZone": "Australia/Sydney",
+        "overdue": [],
+        "dueToday": [],
+        "mentions": [],
+        "threads": [],
+        "assignedThreads": [],
+        "approvals": [
+          {
+            "id": "apr_0079umob",
+            "title": "Re: Invoice 1042",
+            "subtitle": "Support agent wants to send to ada@example.com",
+            "url": "/app/approvals",
+            "at": "2026-10-26T17:42:04.784Z"
+          },
+          {
+            "id": "apr_0079rvxy",
+            "title": "Your invoice 1042",
+            "subtitle": "Support agent wants to send to ada@example.com",
+            "url": "/app/approvals",
+            "at": "2026-10-26T17:42:04.757Z"
+          }
+        ],
+        "meetings": [],
+        "snoozed": [
+          {
+            "id": "msch_007a2uve",
+            "title": "Invoice 1042",
+            "subtitle": "Ada Lovelace",
+            "url": "/app/mail?mailbox=mbx_0079gx0i&folder=inbox&m=msg_0079p57l",
+            "at": "2026-10-27T08:00:00.000Z"
+          }
+        ],
+        "tookMs": 4
+      }
+    },
+    "pin_message": {
+      "arguments": {
+        "messageId": "chm_007biys9",
+        "pinned": true
+      },
+      "result": {
+        "message": {
+          "id": "chm_007biys9",
+          "channelId": "chn_007bg81w",
+          "parentId": null,
+          "author": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Acme",
+            "title": null,
+            "agent": false
+          },
+          "body": "Standup: invoices sent, 2 follow ups today, nothing blocked.",
+          "mentions": [],
+          "links": [],
+          "attachments": [],
+          "replyCount": 0,
+          "lastReplyAt": null,
+          "editedAt": null,
+          "deleted": false,
+          "pinnedAt": "2026-10-26T17:42:05.454Z",
+          "pinnedBy": "Acme",
+          "createdAt": "2026-10-26T17:42:05.405Z",
+          "updatedAt": "2026-10-26T17:42:05.454Z",
+          "reactions": [
+            {
+              "emoji": "👍",
+              "count": 1,
+              "reactors": [
+                {
+                  "id": "member:usr_0079xdeo",
+                  "name": "Acme"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "post_message": {
+      "arguments": {
+        "channelId": "chn_007bg81w",
+        "body": "Standup: invoices sent, 2 follow ups today, nothing blocked."
+      },
+      "result": {
+        "message": {
+          "id": "chm_007biys9",
+          "channelId": "chn_007bg81w",
+          "parentId": null,
+          "author": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Acme",
+            "title": null,
+            "agent": false
+          },
+          "body": "Standup: invoices sent, 2 follow ups today, nothing blocked.",
+          "mentions": [],
+          "links": [],
+          "attachments": [],
+          "replyCount": 0,
+          "lastReplyAt": null,
+          "editedAt": null,
+          "deleted": false,
+          "pinnedAt": null,
+          "pinnedBy": null,
+          "createdAt": "2026-10-26T17:42:05.405Z",
+          "updatedAt": "2026-10-26T17:42:05.405Z",
+          "reactions": []
+        }
+      }
+    },
+    "react_to_chat_message": {
+      "arguments": {
+        "messageId": "chm_007biys9",
+        "emoji": "👍"
+      },
+      "result": {
+        "messageId": "chm_007biys9",
+        "emoji": "👍",
+        "added": true,
+        "reactions": [
+          {
+            "emoji": "👍",
+            "count": 1,
+            "reactors": [
+              {
+                "id": "member:usr_0079xdeo",
+                "name": "Acme"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "read_channel": {
+      "arguments": {
+        "channelId": "chn_007bg81w",
+        "limit": 3
+      },
+      "result": {
+        "messages": [
+          {
+            "id": "chm_007biys9",
+            "channelId": "chn_007bg81w",
+            "parentId": null,
+            "author": {
+              "type": "member",
+              "id": "usr_0079xdeo",
+              "name": "Acme",
+              "title": null,
+              "agent": false
+            },
+            "body": "Standup: invoices sent, 2 follow ups today, nothing blocked.",
+            "mentions": [],
+            "links": [],
+            "attachments": [],
+            "replyCount": 0,
+            "lastReplyAt": null,
+            "editedAt": null,
+            "deleted": false,
+            "pinnedAt": null,
+            "pinnedBy": null,
+            "createdAt": "2026-10-26T17:42:05.405Z",
+            "updatedAt": "2026-10-26T17:42:05.405Z",
+            "reactions": []
+          }
+        ],
+        "hasMore": false
+      }
+    },
+    "read_doc": {
+      "arguments": {
+        "id": "doc_007bog8z"
+      },
+      "result": {
+        "id": "doc_007bog8z",
+        "title": "Billing playbook",
+        "text": "Billing playbook\nSend invoices on the 1st. Follow up after 7 days.\nEscalate to the account owner after 14 days.",
+        "links": [],
+        "version": 2,
+        "updatedAt": "2026-10-26T17:42:05.498Z"
+      }
+    },
+    "read_thread": {
+      "arguments": {
+        "threadId": "thr_0079meh8"
+      },
+      "result": {
+        "id": "thr_0079meh8",
+        "mailboxId": "mbx_0079gx0i",
+        "subject": "Invoice 1042",
+        "messageCount": 1,
+        "messages": [
+          {
+            "id": "msg_0079p57l",
+            "threadId": "thr_0079meh8",
+            "mailboxId": "mbx_0079gx0i",
+            "folder": "inbox",
+            "direction": "inbound",
+            "from": {
+              "address": "ada@example.com",
+              "name": "Ada Lovelace"
+            },
+            "to": [
+              {
+                "address": "support@acme.io"
+              }
+            ],
+            "cc": [],
+            "replyTo": null,
+            "subject": "Invoice 1042",
+            "date": "2026-10-26T17:42:04.636Z",
+            "isRead": false,
+            "text": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+            "latestText": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+            "html": null,
+            "codes": [],
+            "links": [],
+            "attachments": [],
+            "sentBy": {
+              "type": "external"
+            },
+            "auth": {
+              "spf": "pass",
+              "dkim": "pass",
+              "dmarc": "pass"
+            }
+          }
+        ],
+        "pendingApprovals": []
+      }
+    },
+    "render_snippet": {
+      "arguments": {
+        "snippetId": "snp_007a5llr",
+        "threadId": "thr_0079meh8"
+      },
+      "result": {
+        "id": "snp_007a5llr",
+        "subject": "",
+        "body": "Hi Ada, your invoice is attached. Thanks!",
+        "variables": {
+          "first_name": "Ada",
+          "name": "Ada Lovelace",
+          "email": "ada@example.com",
+          "my_name": "Sam Rivera",
+          "my_first_name": "Sam",
+          "company": "Acme",
+          "mailbox": "support@acme.io",
+          "date": "26 October 2026"
+        }
+      }
+    },
+    "reply": {
+      "arguments": {
+        "threadId": "thr_0079meh8",
+        "agentId": "agt_0079e6a5",
+        "text": "Thanks Ada, the invoice is on its way."
+      },
+      "result": {
+        "status": "pending_approval",
+        "approval": {
+          "id": "apr_0079umob",
+          "agentId": "agt_0079e6a5",
+          "mailboxId": "mbx_0079gx0i",
+          "threadId": "thr_0079meh8",
+          "status": "pending",
+          "to": [
+            "ada@example.com"
+          ],
+          "cc": [],
+          "bcc": [],
+          "subject": "Re: Invoice 1042",
+          "text": "Thanks Ada, the invoice is on its way.",
+          "html": null,
+          "inReplyToId": "msg_0079p57l",
+          "decidedBy": null,
+          "decidedAt": null,
+          "note": null,
+          "messageId": null,
+          "error": null,
+          "expiresAt": "2026-11-02T17:42:04.784Z",
+          "createdAt": "2026-10-26T17:42:04.784Z"
+        }
+      }
+    },
+    "schedule_meeting": {
+      "arguments": {
+        "title": "Invoice review with Ada",
+        "startsAt": "2026-11-04T23:00:00.000Z",
+        "durationMin": 30,
+        "invitees": [
+          "ada@example.com"
+        ],
+        "sendInvites": false
+      },
+      "result": {
+        "meeting": {
+          "id": "mtg_007btxpp",
+          "title": "Invoice review with Ada",
+          "startsAt": "2026-11-04T23:00:00.000Z",
+          "guestUrl": "https://multies.si/m/56epdSkOtKgdnnQzwD1UQqI",
+          "invitees": [
+            "ada@example.com"
+          ],
+          "videoEnabled": false,
+          "repeats": null
+        },
+        "invites": null
+      }
+    },
+    "schedule_send": {
+      "arguments": {
+        "agentId": "agt_0079e6a5",
+        "to": [
+          "ada@example.com"
+        ],
+        "subject": "Friendly reminder",
+        "text": "Hi Ada, a quick reminder about invoice 1042.",
+        "preset": "tomorrow"
+      },
+      "result": {
+        "id": "msch_007a8cc4",
+        "dueAt": "2026-10-27T08:00:00.000Z"
+      }
+    },
+    "search": {
+      "arguments": {
+        "query": "invoice",
+        "limit": 3
+      },
+      "result": {
+        "results": [
+          {
+            "id": "msg_0079p57l",
+            "threadId": "thr_0079meh8",
+            "mailboxId": "mbx_0079gx0i",
+            "folder": "inbox",
+            "subject": "Invoice 1042",
+            "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+            "from": {
+              "address": "ada@example.com",
+              "name": "Ada Lovelace"
+            },
+            "date": "2026-10-26T17:42:04.636Z"
+          }
+        ]
+      }
+    },
+    "search_contacts": {
+      "arguments": {
+        "q": "ada",
+        "limit": 3
+      },
+      "result": {
+        "contacts": [
+          {
+            "id": "con_007ab32h",
+            "name": "Ada Lovelace",
+            "email": "ada@example.com",
+            "phone": null,
+            "title": "Head of Finance",
+            "notes": "",
+            "source": "mail",
+            "company": {
+              "id": "cmp_007adtsu",
+              "name": "Example",
+              "domain": "example.com"
+            },
+            "companyId": "cmp_007adtsu",
+            "messageCount": 1,
+            "firstContactAt": "2026-10-26T17:42:04.636Z",
+            "lastContactAt": "2026-10-26T17:42:04.636Z",
+            "createdAt": "2026-10-26T17:42:04.648Z",
+            "updatedAt": "2026-10-26T17:42:04.985Z",
+            "version": 2
+          }
+        ],
+        "total": 1
+      }
+    },
+    "search_docs": {
+      "arguments": {
+        "q": "billing"
+      },
+      "result": {
+        "docs": [
+          {
+            "id": "doc_007bog8z",
+            "title": "Billing playbook",
+            "projectId": null,
+            "parentId": null,
+            "position": 1,
+            "excerpt": "Send invoices on the 1st. Follow up after 7 days.\nEscalate to the account owner after 14 days.",
+            "createdBy": {
+              "type": "member",
+              "id": "usr_0079xdeo"
+            },
+            "createdAt": "2026-10-26T17:42:05.486Z",
+            "updatedAt": "2026-10-26T17:42:05.498Z",
+            "version": 2
+          }
+        ]
+      }
+    },
+    "search_everything": {
+      "arguments": {
+        "q": "invoice",
+        "limit": 3
+      },
+      "result": {
+        "query": "invoice",
+        "groups": [
+          {
+            "type": "mail",
+            "label": "Mail",
+            "items": [
+              {
+                "type": "mail",
+                "id": "msg_0079p57l",
+                "title": "Invoice 1042",
+                "subtitle": "Ada Lovelace <ada@example.com>",
+                "snippet": "Hi, could you send invoice 1042 as a PDF? Thanks, Ada",
+                "url": "/app/mail?mailbox=mbx_0079gx0i&folder=inbox&m=msg_0079p57l",
+                "at": "2026-10-26T17:42:04.636Z"
+              }
+            ]
+          }
+        ],
+        "tookMs": 4,
+        "partial": false
+      }
+    },
+    "search_tasks": {
+      "arguments": {
+        "q": "invoice",
+        "limit": 3
+      },
+      "result": {
+        "count": 1,
+        "tasks": [
+          {
+            "id": "tsk_007agkj7",
+            "ref": "TSK-1",
+            "title": "Follow up with Ada about invoice 1042",
+            "status": "In progress",
+            "assignee": "Sam Rivera",
+            "priority": "high",
+            "labels": [
+              "billing"
+            ],
+            "due": "2026-11-03T00:00:00.000Z",
+            "type": "task",
+            "sprintId": null,
+            "points": null,
+            "checklist": {
+              "total": 2,
+              "done": 0
+            }
+          }
+        ]
+      }
+    },
+    "send_email": {
+      "arguments": {
+        "agentId": "agt_0079e6a5",
+        "to": [
+          "ada@example.com"
+        ],
+        "subject": "Your invoice 1042",
+        "text": "Hi Ada, here is invoice 1042. Thanks, Sam"
+      },
+      "result": {
+        "status": "pending_approval",
+        "approval": {
+          "id": "apr_0079rvxy",
+          "agentId": "agt_0079e6a5",
+          "mailboxId": "mbx_0079gx0i",
+          "threadId": null,
+          "status": "pending",
+          "to": [
+            "ada@example.com"
+          ],
+          "cc": [],
+          "bcc": [],
+          "subject": "Your invoice 1042",
+          "text": "Hi Ada, here is invoice 1042. Thanks, Sam",
+          "html": null,
+          "inReplyToId": null,
+          "decidedBy": null,
+          "decidedAt": null,
+          "note": null,
+          "messageId": null,
+          "error": null,
+          "expiresAt": "2026-11-02T17:42:04.756Z",
+          "createdAt": "2026-10-26T17:42:04.757Z"
+        }
+      }
+    },
+    "set_task_blocked_by": {
+      "arguments": {
+        "taskId": "tsk_007aua70",
+        "blockedBy": "tsk_007agkj7"
+      },
+      "result": {
+        "blocked": true,
+        "blockedBy": [
+          {
+            "ref": "TSK-1",
+            "title": "Follow up with Ada about invoice 1042",
+            "status": "doing"
+          }
+        ],
+        "blocking": []
+      }
+    },
+    "set_thread_status": {
+      "arguments": {
+        "threadId": "thr_0079meh8",
+        "status": "waiting"
+      },
+      "result": {
+        "state": {
+          "threadId": "thr_0079meh8",
+          "status": "waiting",
+          "assignee": null,
+          "assignedAt": null,
+          "doneAt": null
+        }
+      }
+    },
+    "snooze_thread": {
+      "arguments": {
+        "threadId": "thr_0079meh8",
+        "preset": "tomorrow"
+      },
+      "result": {
+        "id": "msch_007a2uve",
+        "threadId": "thr_0079meh8",
+        "mailboxId": "mbx_0079gx0i",
+        "dueAt": "2026-10-27T08:00:00.000Z"
+      }
+    },
+    "update_task": {
+      "arguments": {
+        "id": "TSK-1",
+        "status": "doing",
+        "assignee": "member:usr_0079xdeo"
+      },
+      "result": {
+        "task": {
+          "id": "tsk_007agkj7",
+          "ref": "TSK-1",
+          "projectId": "prj_007ajb9k",
+          "number": 1,
+          "title": "Follow up with Ada about invoice 1042",
+          "notes": "She asked for a PDF copy.",
+          "statusId": "sts_007aosqa",
+          "statusName": "In progress",
+          "statusColor": "#3b82f6",
+          "status": "doing",
+          "assignee": {
+            "type": "member",
+            "id": "usr_0079xdeo",
+            "name": "Sam Rivera",
+            "email": "sam@acme.io"
+          },
+          "assigneeId": "member:usr_0079xdeo",
+          "priority": "high",
+          "labels": [
+            "billing"
+          ],
+          "type": "task",
+          "start": null,
+          "due": "2026-11-03T00:00:00.000Z",
+          "parentId": null,
+          "position": 1024,
+          "source": null,
+          "subtasks": {
+            "total": 0,
+            "done": 0
+          },
+          "checklist": {
+            "total": 0,
+            "done": 0
+          },
+          "commentCount": 0,
+          "fields": {},
+          "repeat": null,
+          "completedAt": null,
+          "sprintId": null,
+          "points": null,
+          "createdBy": {
+            "type": "member",
+            "id": "usr_0079xdeo"
+          },
+          "createdAt": "2026-10-26T17:42:05.037Z",
+          "updatedAt": "2026-10-26T17:42:05.122Z",
+          "version": 2,
+          "triage": null
+        }
+      }
+    },
+    "upsert_contact": {
+      "arguments": {
+        "email": "ada@example.com",
+        "name": "Ada Lovelace",
+        "title": "Head of Finance"
+      },
+      "result": {
+        "contact": {
+          "id": "con_007ab32h",
+          "name": "Ada Lovelace",
+          "email": "ada@example.com",
+          "phone": null,
+          "title": "Head of Finance",
+          "notes": "",
+          "source": "mail",
+          "company": {
+            "id": "cmp_007adtsu",
+            "name": "Example",
+            "domain": "example.com"
+          },
+          "companyId": "cmp_007adtsu",
+          "messageCount": 1,
+          "firstContactAt": "2026-10-26T17:42:04.636Z",
+          "lastContactAt": "2026-10-26T17:42:04.636Z",
+          "createdAt": "2026-10-26T17:42:04.648Z",
+          "updatedAt": "2026-10-26T17:42:04.985Z",
+          "version": 2
+        }
+      }
+    },
+    "watch_task": {
+      "arguments": {
+        "taskId": "tsk_007agkj7"
+      },
+      "result": {
+        "taskId": "tsk_007agkj7",
+        "watching": true,
+        "count": 1,
+        "watchers": [
+          {
+            "userId": "usr_0079xdeo",
+            "name": "Sam Rivera",
+            "email": "sam@acme.io",
+            "source": "auto",
+            "since": "2026-10-26T17:42:05.042Z"
+          }
+        ]
+      }
+    }
+  }
+}

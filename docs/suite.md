@@ -137,22 +137,6 @@ blocked task). `POST /api/v1/tasks/{id}/dependencies { blockedBy }` adds one and
 task detail lists `blockedBy` and `blocking`; the timeline draws them as finish to start arrows, and
 dragging from one bar to another adds one. MCP: `set_task_blocked_by`.
 
-R37, dependencies that plan for you (services/suite/dependency-schedule-r37.ts). A link is finish to start: the
-blocked task should start after the blocker's last day (a task with one date takes that day).
-
-- `GET /api/v1/tasks/dependencies/check?projectId=` (app: `/api/tasks/dependencies/check`) returns `{ links, conflicts }`.
-  A conflict is a blocked task that starts on or before its blocker's last day; it carries `blocker`, `blocked`,
-  `overlapDays` and `fix { taskId, start, due }` (the dates that clear it). Done tasks never conflict. Read only.
-- `POST /api/v1/tasks/{id}/reschedule { start?, due?, moveDependents? = true, preview? }` sets the dates and shifts every
-  task down the chain that would now clash, later by just enough, keeping its length. Moving a task earlier never pulls
-  the tasks after it (nothing is squeezed). `preview: true` returns the same `{ task, moved: [{ id, ref, title, from,
-  to, days }] }` and writes nothing. More than 50 tasks in one move answers 422 `chain_too_long`. Each moved task is one
-  task update (an essential write, the person asked for it).
-- Web: the timeline shows "Dates line up" or "2 date clashes" above the chart, draws clashing bars in red with a Today
-  line, and Shift+D (command menu: "Show date clashes") opens the clash sheet with Fix and Fix all. With "Move tasks that
-  wait" on (remembered per device, on by default), dragging a bar into the tasks after it opens a sheet with each
-  task's old and new dates: "Move all" or "Only this one". MCP: `check_task_schedule`, `reschedule_task`.
-
 ## Forms
 
 A form has a random public address (`/f/<slug>`) and makes a task (answers in the notes, label

@@ -3,8 +3,6 @@
  * automations, notifications, phone push registration and the change feed.
  * The same services back the REST API (v1-suite.ts) and the MCP tools.
  */
-import { RescheduleBody } from "../services/suite/dependency-schedule-r37-schema";
-import { rescheduleTask, scheduleCheck } from "../services/suite/dependency-schedule-r37";
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
@@ -90,9 +88,6 @@ export function taskRoutes() {
     .get("/views", async (c) => c.json({ views: await listViews(c.var.deps, c.var.auth, c.req.query("projectId")) }))
     .post("/views", async (c) => c.json({ view: await createView(c.var.deps, c.var.auth, await parseBody(c, ViewCreate)) }, 201))
     .delete("/views/:id", async (c) => c.json(await deleteView(c.var.deps, c.var.auth, c.req.param("id"))))
-    // R37: date clashes along "blocks" links, and moving a task with the tasks that wait on it.
-    .get("/dependencies/check", async (c) => c.json(await scheduleCheck(c.var.deps, c.var.auth.orgId, c.req.query("projectId"))))
-    .post("/:id/reschedule", async (c) => c.json(await rescheduleTask(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, RescheduleBody))))
     .get("/dependencies", async (c) => c.json({ links: await dependencyLinks(c.var.deps, c.var.auth.orgId, c.req.query("projectId")) }))
     .get("/:id", async (c) => c.json(await taskDetail(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/dependencies", async (c) => c.json(await addDependency(c.var.deps, c.var.auth, c.req.param("id"), (await parseBody(c, z.object({ blockedBy: z.string().min(1) }))).blockedBy), 201))

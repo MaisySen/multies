@@ -34,7 +34,7 @@ import { LaneBoard, SWIMLANE_LABEL, assigneeKey, useBoardSettings, type LaneTarg
 import { NO_LANE, SWIMLANES, boardViewKeys, lanesFrom, type Swimlanes } from "@/shared/board-lanes";
 
 const TaskCalendar = lazy(() => import("./calendar").then((m) => ({ default: m.TaskCalendar })));
-const PlannedTimeline = lazy(() => import("./timeline-plan-r37")); // R37: timeline with dependency planning
+const TaskTimeline = lazy(() => import("./timeline").then((m) => ({ default: m.TaskTimeline })));
 const SprintsView = lazy(() => import("./sprints").then((m) => ({ default: m.SprintsView })));
 const WorkloadView = lazy(() => import("./workload").then((m) => ({ default: m.WorkloadView })));
 
@@ -98,6 +98,11 @@ export function TasksPage() {
     sprint: (sprintList.data ?? []).map((s) => s.name),
     };
   }, [projects.data, tasks.data, people.data, sprintList.data]);
+  const deps = useQuery({ queryKey: ["task-deps", projectId], enabled: view === "timeline", queryFn: async () => (await api.get<{ links: { from: string; to: string }[] }>(`/tasks/dependencies${projectId ? `?projectId=${projectId}` : ""}`)).links });
+  const addLink = useCallback(async (blocker: string, blocked: string) => {
+    try { await api.post(`/tasks/${blocked}/dependencies`, { blockedBy: blocker }); } catch (e) { showError(e as Error); }
+    void deps.refetch();
+  }, [deps]);
   const [newTask, setNewTask] = useState<{ statusId?: string } | null>(null);
   // R30: empty views say why and offer the way out (clear the filters, or add the first task).
   const filtered = hasTaskFilters(params.entries(), FILTER_KEYS);
@@ -292,7 +297,7 @@ export function TasksPage() {
           <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
             {view === "calendar"
               ? <TaskCalendar tasks={tasks.data ?? []} onOpen={open} onDue={(id, due) => update.mutate({ id, patch: { due } })} />
-              : <PlannedTimeline tasks={tasks.data ?? []} projectId={projectId || undefined} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
+              : <TaskTimeline tasks={tasks.data ?? []} links={deps.data ?? []} onLink={(a, b) => void addLink(a, b)} onOpen={open} onDates={(id, start, due) => update.mutate({ id, patch: { start, due } })} />}
           </Suspense>
         )}
       </div>

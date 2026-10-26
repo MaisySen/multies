@@ -9,8 +9,6 @@ import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
 import { addDependency, dependenciesOf, removeDependency, resolveTaskId } from "../services/suite/tasks";
-import { rescheduleTask, scheduleCheck } from "../services/suite/dependency-schedule-r37";
-import { RescheduleBody } from "../services/suite/dependency-schedule-r37-schema";
 import { addEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet } from "../services/suite/time";
 import { createForm, getForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
@@ -90,17 +88,6 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "delete", path: "/tasks/{id}/dependencies/{blockedBy}", tags: ["Tasks"], summary: "Remove a dependency", security: secured,
     request: { params: Id.extend({ blockedBy: z.string().openapi({ param: { name: "blockedBy", in: "path" } }) }) }, responses: { 200: json(Any, "The task's dependencies."), 401: errors[401], 404: errors[404] } }),
   async (c) => { const p = c.req.valid("param"); return send(c, await removeDependency(c.var.deps, actor(c), p.id, p.blockedBy)); });
-
-  // ---------------------------------------------------------------- R37: schedule along dependencies
-  api.openapi(createRoute({ method: "get", path: "/tasks/dependencies/check", tags: ["Tasks"], summary: "Date clashes along dependencies", security: secured,
-    description: "Every \"blocks\" link (optionally in one project) and the clashes: a blocked task that starts on or before the last day of the task blocking it. Each clash carries overlapDays and fix { taskId, start, due }, the dates that would clear it. Done tasks never clash.",
-    request: { query: z.object({ projectId: z.string().optional() }) }, responses: { 200: json(Any, "{ links, conflicts }"), 401: errors[401] } }),
-  async (c) => send(c, await scheduleCheck(c.var.deps, actor(c).orgId, c.req.valid("query").projectId)));
-
-  api.openapi(createRoute({ method: "post", path: "/tasks/{id}/reschedule", tags: ["Tasks"], summary: "Move a task and the tasks that wait on it", security: secured,
-    description: "Sets start and/or due (YYYY-MM-DD, null clears). Unless moveDependents is false, every task that waits on it (down the chain) and would now start on or before a blocker's last day shifts later by just enough, keeping its length. Moving earlier never pulls tasks after it. preview: true returns the plan and writes nothing. At most 50 tasks move at once (422 chain_too_long). Returns { preview, task, moved: [{ id, ref, title, from, to, days }] }.",
-    request: { params: Id, ...body(RescheduleBody) }, responses: { 200: json(Any, "The task and the tasks that moved."), 401: errors[401], 403: errors[403], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, await rescheduleTask(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json"))));
 
   // ---------------------------------------------------------------- forms
   api.openapi(createRoute({ method: "get", path: "/forms", tags: ["Forms"], summary: "List forms", security: secured,

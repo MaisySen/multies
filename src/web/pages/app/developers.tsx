@@ -4,7 +4,7 @@ import { IconAgent, IconBook, IconCheck, IconKey, IconPlus, IconSend, IconTrash,
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
-import { CopyButton, Skeleton } from "@/web/components/ui/misc";
+import { CopyButton, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
@@ -12,7 +12,7 @@ import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 
-interface ApiKey { id: string; name: string; prefix: string; scope: string; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; createdAt: string }
+interface ApiKey { id: string; name: string; prefix: string; scope: string; showOnlyUsableTools?: boolean; scopeChips?: string[]; agentId?: string | null; lastUsedAt: string | null; createdAt: string }
 interface Endpoint { id: string; url: string; description: string | null; events: string[]; enabled: boolean; disabledReason?: string | null; createdAt: string }
 interface Delivery { id: string; eventType: string; status: "pending" | "delivered" | "failed"; attempts: number; responseStatus: number | null; lastError: string | null; createdAt: string }
 
@@ -86,6 +86,36 @@ function ScopePicker({ preset, picked, onChange }: { preset: Preset; picked: str
   );
 }
 
+/**
+ * R37: "Show only the tools this key can use". Shows how many MCP tools an agent with these scopes sees,
+ * from the same catalog the docs page reads (/api/mcp-tools?scope=...).
+ */
+function ToolListToggle({ preset, picked, on, onChange }: { preset: Preset; picked: string[]; on: boolean; onChange: (v: boolean) => void }) {
+  const scope = preset === "custom" ? picked.join(" ") : preset;
+  const view = useQuery({
+    queryKey: ["mcp-tools-view", scope],
+    enabled: preset !== "full" && !!scope,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const r = await fetch(`/api/mcp-tools?scope=${encodeURIComponent(scope)}`);
+      if (!r.ok) throw new Error(String(r.status));
+      const b = (await r.json()) as { total: number; tools: unknown[] };
+      return { usable: b.tools.length, total: b.total };
+    },
+  });
+  if (preset === "full") return <p className="rounded-lg bg-hover/60 px-3 py-2.5 text-xs text-subtle" data-testid="tool-list-note">Full access keys see every MCP tool.</p>;
+  const count = view.data ? `${view.data.usable} of ${view.data.total} tools` : "Only the tools it can use";
+  return (
+    <div className="flex items-start gap-3 rounded-lg border border-line px-3 py-2.5" data-testid="tool-list-toggle">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium">Show only the tools this key can use</p>
+        <p className="mt-0.5 text-xs text-subtle">{on ? `Agents see ${count}. Shorter lists help an agent pick the right tool.` : "Agents see every tool. Ones outside the scopes answer insufficient_scope."} A connection can still ask with <code className="whitespace-nowrap font-mono">?tools=all</code> or <code className="whitespace-nowrap font-mono">?tools=scoped</code>.</p>
+      </div>
+      <Switch checked={on} onChange={onChange} label="Show only the tools this key can use" />
+    </div>
+  );
+}
+
 function ApiKeys() {
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ["api-keys"], queryFn: async () => (await api.get<{ apiKeys: ApiKey[] }>("/developer/keys")).apiKeys });
@@ -97,19 +127,21 @@ function ApiKeys() {
   const [editing, setEditing] = useState<ApiKey | null>(null);
   const [editPreset, setEditPreset] = useState<Preset>("full");
   const [editPicked, setEditPicked] = useState<string[]>([]);
+  const [hideTools, setHideTools] = useState(true); // R37: on by default for new scoped keys
+  const [editHide, setEditHide] = useState(false);
   const create = useMutation({
-    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope: scopeValue(preset, picked) }),
-    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setPreset("full"); setPicked([]); setSecret(r.secret); },
+    mutationFn: () => api.post<{ secret: string }>("/developer/keys", { name, scope: scopeValue(preset, picked), showOnlyUsableTools: preset !== "full" && hideTools }),
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setOpen(false); setName(""); setPreset("full"); setPicked([]); setHideTools(true); setSecret(r.secret); },
   });
   const edit = useMutation({
-    mutationFn: () => api.patch(`/developer/keys/${editing!.id}`, { scope: scopeValue(editPreset, editPicked) }),
+    mutationFn: () => api.patch(`/developer/keys/${editing!.id}`, { scope: scopeValue(editPreset, editPicked), showOnlyUsableTools: editPreset !== "full" && editHide }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["api-keys"] }); setEditing(null); toast.success("Scopes saved. They apply to the next request."); },
   });
   const del = useMutation({
     mutationFn: (id: string) => api.del(`/developer/keys/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["api-keys"] }); toast.success("Key deleted. Requests using it now fail."); },
   });
-  const startEdit = (k: ApiKey) => { const p = presetOf(k.scope); setEditPreset(p.preset); setEditPicked(p.picked); setEditing(k); };
+  const startEdit = (k: ApiKey) => { const p = presetOf(k.scope); setEditPreset(p.preset); setEditPicked(p.picked); setEditHide(!!k.showOnlyUsableTools); setEditing(k); };
   const customEmpty = (p: Preset, list: string[]) => p === "custom" && list.length === 0;
   return (
     <Section title="API keys" description="Give each app or script its own key with only the access it needs, so you can change or delete one without breaking the rest.">
@@ -121,6 +153,7 @@ function ApiKeys() {
               <span className="truncate text-sm font-medium">{k.name}</span>
               <code className="font-mono text-[12px] text-subtle">{k.prefix}...</code>
               <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
+              {k.showOnlyUsableTools ? <span data-testid="tool-list-chip" className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted">Shows only its tools</span> : null}
             </div>
             <div className="flex items-center gap-2 text-xs text-subtle">
               <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
@@ -140,12 +173,14 @@ function ApiKeys() {
           <Field label="Name" hint="What will use it, for example: Billing service" error={create.error instanceof ApiError ? create.error.message : undefined}>
             {(p) => <Input {...p} autoFocus value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />}
           </Field>
-          <ScopePicker preset={preset} picked={picked} onChange={(pr, list) => { setPreset(pr); setPicked(list); }} />
+          <ScopePicker preset={preset} picked={picked} onChange={(pr, list) => { if (pr !== preset) setHideTools(pr === "custom"); setPreset(pr); setPicked(list); }} />
+          <ToolListToggle preset={preset} picked={picked} on={hideTools} onChange={setHideTools} />
         </form>
       </Dialog>
       <Dialog open={!!editing} onClose={() => setEditing(null)} title={editing ? `Scopes for ${editing.name}` : "Scopes"} description="Apps using this key keep working; calls outside the new scopes get insufficient_scope."
         footer={<><Button variant="secondary" onClick={() => setEditing(null)}>Cancel</Button><Button loading={edit.isPending} disabled={customEmpty(editPreset, editPicked)} onClick={() => edit.mutate()}>Save scopes</Button></>}>
         <ScopePicker preset={editPreset} picked={editPicked} onChange={(pr, list) => { setEditPreset(pr); setEditPicked(list); }} />
+        <div className="mt-4"><ToolListToggle preset={editPreset} picked={editPicked} on={editHide} onChange={setEditHide} /></div>
         {edit.error instanceof ApiError ? <p className="mt-2 text-sm text-bad">{edit.error.message}</p> : null}
       </Dialog>
       <Dialog open={!!secret} onClose={() => setSecret(null)} title="Copy your API key" description="It is shown once. Store it in your app's secret settings."
