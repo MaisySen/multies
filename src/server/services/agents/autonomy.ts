@@ -3,10 +3,11 @@
  * approval mode from that record. Read only: it counts the agent's latest approval requests and
  * the audit rows that say whether a person edited them, and writes nothing.
  */
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { agents, auditLogs, sendApprovals } from "../../db/schema";
 import { notFound } from "../../lib/errors";
+import { inIds } from "../../lib/sql-chunks";
 
 export type ApprovalModeName = "always" | "external" | "never";
 
@@ -78,7 +79,7 @@ export async function agentTrackRecord(deps: Deps, actor: Pick<AuthContext, "org
   const edited = new Set<string>();
   if (sentIds.length) {
     const approvals = await deps.db.select({ targetId: auditLogs.targetId, metadata: auditLogs.metadata }).from(auditLogs)
-      .where(and(eq(auditLogs.orgId, actor.orgId), eq(auditLogs.action, "approval.approved"), inArray(auditLogs.targetId, sentIds)));
+      .where(and(eq(auditLogs.orgId, actor.orgId), eq(auditLogs.action, "approval.approved"), inIds(auditLogs.targetId, sentIds)));
     for (const x of approvals) {
       try { if (x.targetId && (JSON.parse(x.metadata ?? "{}") as { edited?: boolean }).edited) edited.add(x.targetId); } catch { /* old rows without metadata */ }
     }

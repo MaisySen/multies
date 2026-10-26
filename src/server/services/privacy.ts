@@ -6,7 +6,7 @@
  */
 import { Zip, ZipDeflate } from "fflate";
 import Papa from "papaparse";
-import { and, asc, eq, gt, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, gt, ne } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import {
   accounts, aliases, apiKeys, appPasswords, attachments, auditLogs, domains, invitations, mailboxAccess, mailboxes,
@@ -15,6 +15,7 @@ import {
 import { HttpError, forbidden } from "../lib/errors";
 import { audit } from "./audit";
 import { cancelForDeletion } from "./billing";
+import { inIds } from "../lib/sql-chunks";
 
 const PAGE = 200;
 const enc = new TextEncoder();
@@ -114,7 +115,7 @@ export function exportWorkspace(deps: Deps, auth: AuthContext): ReadableStream<U
               .where(and(eq(messages.mailboxId, box.id), cursor ? gt(messages.id, cursor) : undefined))
               .orderBy(asc(messages.id)).limit(PAGE);
             if (!page.length) break;
-            const atts = await db.select().from(attachments).where(inArray(attachments.messageId, page.map((m) => m.id)));
+            const atts = await db.select().from(attachments).where(inIds(attachments.messageId, page.map((m) => m.id)));
             const lines = page.map((m) => JSON.stringify({
               ...m, to: JSON.parse(m.to), cc: JSON.parse(m.cc), bcc: JSON.parse(m.bcc),
               attachments: atts.filter((a) => a.messageId === m.id).map(({ messageId: _m, ...a }) => a),

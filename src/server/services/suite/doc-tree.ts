@@ -11,12 +11,13 @@
  * co-editing room keeps its own state and never writes here: the doc row (and so its links) is saved
  * by the leader's periodic snapshot through the normal update, which is when links are read.
  */
-import { and, asc, desc, eq, inArray, isNull, max } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, max } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { docLinks, docs, projects, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { cachedWriteBudget } from "../write-budget";
 import { assertWritable, type SuiteActor } from "./common";
+import { inIds } from "../../lib/sql-chunks";
 
 export const MAX_DEPTH = 6;
 export const MAX_TREE = 2000;
@@ -88,9 +89,9 @@ async function ownRefs(deps: Deps, orgId: string, sourceId: string, refs: DocLin
   const ids = (t: DocLinkType) => refs.filter((r) => r.type === t && !(t === "doc" && r.id === sourceId)).map((r) => r.id);
   const [d, t, p] = [ids("doc"), ids("task"), ids("project")];
   const ok = new Set<string>();
-  if (d.length) for (const r of await deps.db.select({ id: docs.id }).from(docs).where(and(eq(docs.orgId, orgId), inArray(docs.id, d), isNull(docs.deletedAt)))) ok.add(`doc:${r.id}`);
-  if (t.length) for (const r of await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, t)))) ok.add(`task:${r.id}`);
-  if (p.length) for (const r of await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), inArray(projects.id, p)))) ok.add(`project:${r.id}`);
+  if (d.length) for (const r of await deps.db.select({ id: docs.id }).from(docs).where(and(eq(docs.orgId, orgId), inIds(docs.id, d), isNull(docs.deletedAt)))) ok.add(`doc:${r.id}`);
+  if (t.length) for (const r of await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, t)))) ok.add(`task:${r.id}`);
+  if (p.length) for (const r of await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), inIds(projects.id, p)))) ok.add(`project:${r.id}`);
   return refs.filter((r) => ok.has(key(r)));
 }
 

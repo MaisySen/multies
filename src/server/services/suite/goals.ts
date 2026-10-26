@@ -5,13 +5,14 @@
  * can sit under a bigger goal: its progress is the average of its key results and child goals,
  * and the portfolio roll-up is the average of the top level goals.
  */
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { entityLinks, goals, keyResults, members, tasks, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, sortableId, type SuiteActor } from "./common";
 import { notify } from "./notify";
 import { resolveTaskId } from "./tasks";
+import { inIds } from "../../lib/sql-chunks";
 
 type GoalRow = typeof goals.$inferSelect;
 type KrRow = typeof keyResults.$inferSelect;
@@ -44,15 +45,15 @@ async function taskCounts(deps: Deps, orgId: string, krs: KrRow[]) {
   const taskKrs = krs.filter((k) => k.kind === "tasks");
   if (!taskKrs.length) return out;
   const links = await deps.db.select({ fromId: entityLinks.fromId, toId: entityLinks.toId }).from(entityLinks)
-    .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "key_result"), inArray(entityLinks.fromId, taskKrs.map((k) => k.id)), eq(entityLinks.toType, "task")));
+    .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.fromType, "key_result"), inIds(entityLinks.fromId, taskKrs.map((k) => k.id)), eq(entityLinks.toType, "task")));
   const linkedIds = [...new Set(links.map((l) => l.toId))];
-  const linkedRows = linkedIds.length ? await deps.db.select({ id: tasks.id, status: tasks.status }).from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.id, linkedIds), isNull(tasks.deletedAt))) : [];
+  const linkedRows = linkedIds.length ? await deps.db.select({ id: tasks.id, status: tasks.status }).from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.id, linkedIds), isNull(tasks.deletedAt))) : [];
   const statusOf = new Map(linkedRows.map((t) => [t.id, t.status]));
   const projectIds = [...new Set(taskKrs.map((k) => k.projectId).filter(Boolean))] as string[];
   const byProject = new Map<string, { total: number; done: number }>();
   if (projectIds.length) {
     const rows = await deps.db.select({ projectId: tasks.projectId, total: sql<number>`count(*)`, done: sql<number>`sum(case when ${tasks.status} = 'done' then 1 else 0 end)` })
-      .from(tasks).where(and(eq(tasks.orgId, orgId), inArray(tasks.projectId, projectIds), isNull(tasks.parentId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId);
+      .from(tasks).where(and(eq(tasks.orgId, orgId), inIds(tasks.projectId, projectIds), isNull(tasks.parentId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId);
     for (const r of rows) byProject.set(r.projectId, { total: Number(r.total) || 0, done: Number(r.done) || 0 });
   }
   for (const k of taskKrs) {
@@ -85,10 +86,10 @@ interface GoalNode {
 export async function goalTree(deps: Deps, orgId: string, opts: { includeArchived?: boolean } = {}) {
   const rows = await deps.db.select().from(goals).where(and(eq(goals.orgId, orgId), isNull(goals.deletedAt), opts.includeArchived ? undefined : eq(goals.archived, false))).orderBy(asc(goals.createdAt));
   const ids = rows.map((r) => r.id);
-  const krs = ids.length ? await deps.db.select().from(keyResults).where(and(inArray(keyResults.goalId, ids), isNull(keyResults.deletedAt))).orderBy(asc(keyResults.position), asc(keyResults.createdAt)) : [];
+  const krs = ids.length ? await deps.db.select().from(keyResults).where(and(inIds(keyResults.goalId, ids), isNull(keyResults.deletedAt))).orderBy(asc(keyResults.position), asc(keyResults.createdAt)) : [];
   const counts = await taskCounts(deps, orgId, krs);
   const ownerIds = [...new Set(rows.map((r) => r.ownerId).filter(Boolean))] as string[];
-  const owners = ownerIds.length ? new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ownerIds))).map((u) => [u.id, u.name])) : new Map<string, string>();
+  const owners = ownerIds.length ? new Map((await deps.db.select({ id: users.id, name: users.name }).from(users).where(inIds(users.id, ownerIds))).map((u) => [u.id, u.name])) : new Map<string, string>();
   const now = deps.now();
   const nodes = new Map<string, GoalNode>();
   for (const g of rows) {

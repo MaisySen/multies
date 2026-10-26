@@ -26,6 +26,7 @@ import { scopeOf, type SuiteActor } from "./suite/common";
 import { plainText } from "./suite/chat";
 import { linkFor } from "./suite/notify";
 import { dateFormat, dayInZone } from "../lib/intl-cache";
+import { inIds } from "../lib/sql-chunks";
 
 export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
@@ -94,7 +95,7 @@ async function searchMail(deps: Deps, actor: SuiteActor, term: string, limit: nu
     id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, subject: messages.subject,
     fromName: messages.fromName, fromAddress: messages.fromAddress, snippet: messages.snippet, date: messages.date,
   }).from(messages)
-    .where(and(eq(messages.orgId, actor.orgId), scope ? inArray(messages.mailboxId, scope) : undefined, ne(messages.folder, "trash"),
+    .where(and(eq(messages.orgId, actor.orgId), scope ? inIds(messages.mailboxId, scope) : undefined, ne(messages.folder, "trash"),
       likeAny([sql`${messages.subject}`, sql`${messages.fromName}`, sql`${messages.fromAddress}`, sql`${messages.snippet}`], pattern)))
     .orderBy(desc(messages.date)).limit(limit * 3);
   // One result per thread: the newest message that matched.
@@ -152,7 +153,7 @@ export async function readableChannels(deps: Deps, v: SearchViewer) {
   const a = v.actor;
   const viewer = isKey(a) || !a.userId ? null : a.userId;
   const mine = viewer ? (await deps.db.select({ id: chatMembers.channelId }).from(chatMembers).where(and(eq(chatMembers.userId, viewer), eq(chatMembers.orgId, a.orgId)))).map((r) => r.id) : [];
-  const visible = or(and(eq(chatChannels.kind, "channel"), eq(chatChannels.isPrivate, false)), mine.length ? inArray(chatChannels.id, mine) : sql`0`);
+  const visible = or(and(eq(chatChannels.kind, "channel"), eq(chatChannels.isPrivate, false)), mine.length ? inIds(chatChannels.id, mine) : sql`0`);
   return deps.db.select({ id: chatChannels.id, name: chatChannels.name, kind: chatChannels.kind }).from(chatChannels)
     .where(and(eq(chatChannels.orgId, a.orgId), isNull(chatChannels.deletedAt), visible));
 }
@@ -166,7 +167,7 @@ async function searchChat(deps: Deps, v: SearchViewer, term: string, limit: numb
     id: chatMessages.id, channelId: chatMessages.channelId, parentId: chatMessages.parentId, authorName: chatMessages.authorName, body: chatMessages.body,
     mentions: chatMessages.mentions, links: chatMessages.links, createdAt: chatMessages.createdAt,
   }).from(chatMessages)
-    .where(and(eq(chatMessages.orgId, orgId), inArray(chatMessages.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt), likeAny([sql`${chatMessages.body}`], contains(term))))
+    .where(and(eq(chatMessages.orgId, orgId), inIds(chatMessages.channelId, [...byId.keys()]), isNull(chatMessages.deletedAt), likeAny([sql`${chatMessages.body}`], contains(term))))
     .orderBy(desc(chatMessages.createdAt)).limit(limit);
   return rows.map((m) => {
     const c = byId.get(m.channelId)!;
@@ -337,7 +338,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     if (!rows.length) return [];
     // Only threads in mailboxes this person can open; the link opens the newest message.
     const msgs = await deps.db.select({ id: messages.id, threadId: messages.threadId, mailboxId: messages.mailboxId, folder: messages.folder, date: messages.date }).from(messages)
-      .where(and(eq(messages.orgId, actor.orgId), inArray(messages.threadId, rows.map((r) => r.threadId!)), scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+      .where(and(eq(messages.orgId, actor.orgId), inIds(messages.threadId, rows.map((r) => r.threadId!)), scope ? inIds(messages.mailboxId, scope) : undefined))
       .orderBy(desc(messages.date)).limit(200);
     const newest = new Map<string, (typeof msgs)[number]>();
     for (const m of msgs) if (!newest.has(m.threadId)) newest.set(m.threadId, m);
@@ -356,7 +357,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     const chatIds = rows.filter((r) => r.entityType === "chat_message").map((r) => r.entityId);
     const channelOf = new Map<string, string>();
     if (chatIds.length) {
-      const ms = await deps.db.select({ id: chatMessages.id, channelId: chatMessages.channelId }).from(chatMessages).where(and(eq(chatMessages.orgId, actor.orgId), inArray(chatMessages.id, chatIds)));
+      const ms = await deps.db.select({ id: chatMessages.id, channelId: chatMessages.channelId }).from(chatMessages).where(and(eq(chatMessages.orgId, actor.orgId), inIds(chatMessages.id, chatIds)));
       for (const m of ms) channelOf.set(m.id, m.channelId);
     }
     return rows.map((r) => ({ id: r.id, title: r.title, subtitle: r.readAt ? "Read" : "Unread", url: linkFor(r, channelOf.get(r.entityId)), at: iso(r.createdAt) }));
@@ -367,7 +368,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     if (scope && !scope.length && !actor.agentId) return [];
     const rows = await deps.db.select({ a: sendApprovals, agentName: agentsTable.name }).from(sendApprovals).leftJoin(agentsTable, eq(agentsTable.id, sendApprovals.agentId))
       .where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.status, "pending"), gt(sendApprovals.expiresAt, now),
-        actor.agentId ? eq(sendApprovals.agentId, actor.agentId) : scope ? inArray(sendApprovals.mailboxId, scope) : undefined))
+        actor.agentId ? eq(sendApprovals.agentId, actor.agentId) : scope ? inIds(sendApprovals.mailboxId, scope) : undefined))
       .orderBy(desc(sendApprovals.createdAt)).limit(10);
     return rows.map(({ a, agentName }) => {
       let subject = "";

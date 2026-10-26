@@ -7,11 +7,12 @@
  * The round robin pointer rides on that same automation row update, so it adds no write. The reopen hook
  * reads the state row by its primary key and writes only when a waiting or done thread goes back to open.
  */
-import { and, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { mailboxAccess, mailboxes, mailThreadState, members, messages } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import type { SuiteActor } from "./common";
+import { inIds } from "../../lib/sql-chunks";
 
 export type AssignThreadConfig =
   | { mode: "person"; userId: string }
@@ -47,11 +48,11 @@ export function parseAssignConfig(raw: Record<string, unknown> | undefined): Ass
 export async function eligibleAssignees(deps: Deps, orgId: string, userIds: string[], mailboxId?: string | null) {
   if (!userIds.length) return new Set<string>();
   const rows = await deps.db.select({ userId: members.userId, role: members.role }).from(members)
-    .where(and(eq(members.organizationId, orgId), inArray(members.userId, userIds)));
+    .where(and(eq(members.organizationId, orgId), inIds(members.userId, userIds)));
   const needGrant = rows.filter((r) => r.role === "member").map((r) => r.userId);
   const granted = mailboxId && needGrant.length
     ? new Set((await deps.db.select({ userId: mailboxAccess.userId }).from(mailboxAccess)
-        .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.mailboxId, mailboxId), inArray(mailboxAccess.userId, needGrant)))).map((r) => r.userId))
+        .where(and(eq(mailboxAccess.orgId, orgId), eq(mailboxAccess.mailboxId, mailboxId), inIds(mailboxAccess.userId, needGrant)))).map((r) => r.userId))
     : new Set<string>();
   return new Set(rows.filter((r) => r.role !== "member" || !mailboxId || granted.has(r.userId)).map((r) => r.userId));
 }

@@ -109,10 +109,10 @@ function Audit() {
   return (
     <Card className="divide-y divide-line">
       {rows.map((e) => {
-        const { verb, object, subject } = describeAudit(e);
+        const { verb, object } = describeAudit(e);
         return (
           <div key={e.id} className="flex flex-col gap-1 px-4 py-3 text-[13px] sm:flex-row sm:items-center sm:justify-between">
-            <span className="min-w-0"><span className="font-medium">{subject ?? e.actorEmail ?? "System"}</span> <span className="text-muted">{verb}</span>{object && <span className="font-medium"> {object}</span>}</span>
+            <span className="min-w-0"><span className="font-medium">{e.actorEmail ?? "System"}</span> <span className="text-muted">{verb}</span>{object && <span className="font-medium"> {object}</span>}</span>
             <span className="flex shrink-0 items-center gap-3 text-xs text-subtle">{e.ip && e.ip !== "unknown" && <span className="font-mono">{e.ip}</span>}<time dateTime={e.createdAt} title={fullDate(e.createdAt)}>{timeAgo(e.createdAt)}</time></span>
           </div>
         );

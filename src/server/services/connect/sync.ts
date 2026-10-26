@@ -28,6 +28,7 @@ import { classifyProblem } from "./problems";
 import { pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
 import type { Folder } from "@/shared/mail";
 import type { ConnectPresetId } from "@/shared/mail-connect";
+import { inIds } from "../../lib/sql-chunks";
 
 interface FolderState { path: string; v: string; last: number }
 /**
@@ -301,7 +302,7 @@ async function pushChanges(deps: Deps, c: Connection, session: ImapSession, stat
       }
     }
   }
-  await runBatch(deps.db, [...relink, deps.db.delete(mailSyncOutbox).where(inArray(mailSyncOutbox.id, rows.map((r) => r.id)))]);
+  await runBatch(deps.db, [...relink, deps.db.delete(mailSyncOutbox).where(inIds(mailSyncOutbox.id, rows.map((r) => r.id)))]);
   return rows.length;
 }
 

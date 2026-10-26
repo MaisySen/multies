@@ -13,6 +13,7 @@ import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } f
 import { normalizeConfig, type ComputedConfig } from "./formula-config";
 import { renameReferences } from "./formula-rename";
 import { invalidateFieldDefs } from "./read-cache";
+import { inIds } from "../../lib/sql-chunks";
 
 export const FIELD_TYPES = ["text", "number", "currency", "date", "select", "multiselect", "person", "checkbox", "url", "formula", "rollup"] as const;
 /** R24.1: computed on read from other values; nothing is stored per task. */
@@ -244,7 +245,7 @@ export async function valuesForTasks(deps: Deps, orgId: string, taskIds: string[
   const parts = await Promise.all(chunks.map((ids) => deps.db
     .select({ taskId: taskFieldValues.taskId, fieldId: taskFieldValues.fieldId, valueText: taskFieldValues.valueText, valueNum: taskFieldValues.valueNum, type: customFields.type })
     .from(taskFieldValues).innerJoin(customFields, eq(customFields.id, taskFieldValues.fieldId))
-    .where(and(eq(taskFieldValues.orgId, orgId), inArray(taskFieldValues.taskId, ids), isNull(customFields.deletedAt)))));
+    .where(and(eq(taskFieldValues.orgId, orgId), inIds(taskFieldValues.taskId, ids), isNull(customFields.deletedAt)))));
   for (const r of parts.flat()) {
     const m = out.get(r.taskId) ?? {};
     m[r.fieldId] = decodeValue(r.type as FieldType, r);
@@ -311,7 +312,7 @@ const has = (fieldId: string, cond: SQL) => sql`exists (select 1 from task_field
 /** SQL conditions for the filters; field ids are checked against the workspace. */
 export async function fieldFilterConditions(deps: Deps, orgId: string, filters: FieldFilter[]): Promise<SQL[]> {
   if (!filters.length) return [];
-  const defs = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inArray(customFields.id, filters.map((f) => f.fieldId)), isNull(customFields.deletedAt)));
+  const defs = await deps.db.select().from(customFields).where(and(eq(customFields.orgId, orgId), inIds(customFields.id, filters.map((f) => f.fieldId)), isNull(customFields.deletedAt)));
   const byId = new Map(defs.map((d) => [d.id, presentField(d)]));
   const out: SQL[] = [];
   for (const f of filters) {

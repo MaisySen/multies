@@ -8,13 +8,14 @@
  * open the thread's mailbox. D1 cost: 1 row plus 1 index entry per note, plus one notification row
  * per mentioned person (never the author).
  */
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, members, messages, threadComments, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, scopeOf, sortableId, type SuiteActor } from "../suite/common";
 import { notify } from "../suite/notify";
 import { usersWhoCanOpen } from "../team";
+import { inIds } from "../../lib/sql-chunks";
 
 export const COMMENT_MAX = 4000;
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -27,7 +28,7 @@ async function openThread(deps: Deps, a: SuiteActor, threadId: string) {
   if (!threadId || threadId.length > 200) throw notFound("Thread");
   const scope = await scopeOf(deps, a);
   const rows = await deps.db.select({ mailboxId: messages.mailboxId, subject: messages.subject }).from(messages)
-    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), sql`${messages.folder} <> 'drafts'`, scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), sql`${messages.folder} <> 'drafts'`, scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(asc(messages.date)).limit(50);
   if (!rows.length) throw notFound("Thread");
   return { mailboxId: rows[0].mailboxId, mailboxIds: [...new Set(rows.map((r) => r.mailboxId))], subject: rows[0].subject || "(no subject)" };
@@ -40,7 +41,7 @@ export async function mentionable(deps: Deps, orgId: string, mailboxIds: string[
   if (!ids.size) return [];
   const rows = await deps.db.select({ userId: users.id, name: users.name, email: users.email, kind: members.kind }).from(members)
     .innerJoin(users, eq(users.id, members.userId))
-    .where(and(eq(members.organizationId, orgId), inArray(members.userId, [...ids]), ne(members.kind, "agent")));
+    .where(and(eq(members.organizationId, orgId), inIds(members.userId, [...ids]), ne(members.kind, "agent")));
   return rows.map((r) => ({ userId: r.userId, name: r.name || r.email, email: r.email })).sort((x, y) => x.name.localeCompare(y.name));
 }
 
@@ -76,8 +77,8 @@ async function authorNames(deps: Deps, orgId: string, rows: Row[]) {
   const memberIds = [...new Set(rows.filter((r) => r.authorType === "member").map((r) => r.authorId).concat(rows.flatMap((r) => JSON.parse(r.mentions) as string[])))];
   const agentIds = [...new Set(rows.filter((r) => r.authorType === "agent").map((r) => r.authorId))];
   const [people, bots] = await Promise.all([
-    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, memberIds)) : [],
-    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inArray(agents.id, agentIds))) : [],
+    memberIds.length ? deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, memberIds)) : [],
+    agentIds.length ? deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inIds(agents.id, agentIds))) : [],
   ]);
   return { people: new Map(people.map((p) => [p.id, p.name || p.email])), bots: new Map(bots.map((b) => [b.id, b.name])) };
 }
@@ -191,7 +192,7 @@ export async function commentCounts(deps: Deps, a: SuiteActor, threadIds: string
   if (!ids.length) return {} as Record<string, number>;
   const scope = await scopeOf(deps, a);
   const rows = await deps.db.select({ threadId: threadComments.threadId, n: sql<number>`count(*)` }).from(threadComments)
-    .where(and(eq(threadComments.orgId, a.orgId), inArray(threadComments.threadId, ids), scope ? inArray(threadComments.mailboxId, scope.length ? scope : ["-"]) : undefined))
+    .where(and(eq(threadComments.orgId, a.orgId), inIds(threadComments.threadId, ids), scope ? inIds(threadComments.mailboxId, scope) : undefined))
     .groupBy(threadComments.threadId);
   return Object.fromEntries(rows.map((r) => [r.threadId, Number(r.n)]));
 }

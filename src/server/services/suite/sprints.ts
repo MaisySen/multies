@@ -25,6 +25,7 @@ import { assertWritable, createdBy, iso, sortableId, actorOf, type SuiteActor } 
 import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from "./sprint-dates";
 import { listTasks, resolveTaskId, type Task } from "./tasks";
 import { dateFormat, dayInZone } from "../../lib/intl-cache";
+import { inIds } from "../../lib/sql-chunks";
 
 export type SprintStatus = "planned" | "active" | "completed";
 type SprintRow = typeof sprints.$inferSelect;
@@ -267,7 +268,7 @@ async function moveTasks(deps: Deps, actor: SuiteActor, s: SprintRow | null, pro
   const found: { id: string; projectId: string; sprintId: string | null; points: number | null }[] = [];
   for (const part of chunk(ids, 90)) {
     found.push(...await deps.db.select({ id: tasks.id, projectId: tasks.projectId, sprintId: tasks.sprintId, points: tasks.points }).from(tasks)
-      .where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part), isNull(tasks.deletedAt))));
+      .where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part), isNull(tasks.deletedAt))));
   }
   if (found.length !== ids.length) throw notFound("Task");
   if (found.some((t) => t.projectId !== projectId)) throw new HttpError(422, "validation_failed", "Every task has to be in the sprint's project.");
@@ -277,13 +278,13 @@ async function moveTasks(deps: Deps, actor: SuiteActor, s: SprintRow | null, pro
   const now = deps.now();
   const { runBatch } = await import("../../db");
   const statements: PromiseLike<unknown>[] = chunk(moving.map((t) => t.id), 90)
-    .map((part) => deps.db.update(tasks).set({ sprintId: target, updatedAt: now, version: sql`${tasks.version} + 1` }).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part))));
+    .map((part) => deps.db.update(tasks).set({ sprintId: target, updatedAt: now, version: sql`${tasks.version} + 1` }).where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part))));
   // Tasks leaving an active sprint (moved to another sprint) and tasks joining one: one activity row dates the change.
   const touched = new Set<string>();
   if (s?.status === "active") touched.add(s.id);
   if (op === "add") for (const t of moving) if (t.sprintId) touched.add(t.sprintId);
   if (touched.size) {
-    const activeIds = (await deps.db.select({ id: sprints.id }).from(sprints).where(and(eq(sprints.orgId, actor.orgId), inArray(sprints.id, [...touched]), eq(sprints.status, "active")))).map((r) => r.id);
+    const activeIds = (await deps.db.select({ id: sprints.id }).from(sprints).where(and(eq(sprints.orgId, actor.orgId), inIds(sprints.id, [...touched]), eq(sprints.status, "active")))).map((r) => r.id);
     const a = actorOf(actor);
     for (const sid of activeIds) {
       const added = op === "add" && sid === target ? moving.map((t) => t.id) : [];
@@ -357,10 +358,10 @@ export async function burndownFor(deps: Deps, actor: SuiteActor, s: SprintRow, o
   // R25: the chunks (D1 takes at most 100 bound values a query) run side by side, then are read in order.
   const parts = await Promise.all(chunk([...ids], 90).map((part) => Promise.all([
     deps.db.select({ id: tasks.id, status: tasks.status, points: tasks.points, completedAt: tasks.completedAt, createdAt: tasks.createdAt, sprintId: tasks.sprintId })
-      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, part), isNull(tasks.deletedAt))),
+      .from(tasks).where(and(eq(tasks.orgId, actor.orgId), inIds(tasks.id, part), isNull(tasks.deletedAt))),
     s.status === "active"
       ? deps.db.select({ entityId: activity.entityId, data: activity.data, createdAt: activity.createdAt }).from(activity)
-        .where(and(eq(activity.entityType, "task"), inArray(activity.entityId, part), gte(activity.createdAt, new Date(startMs)), like(activity.data, "%\"points\"%")))
+        .where(and(eq(activity.entityType, "task"), inIds(activity.entityId, part), gte(activity.createdAt, new Date(startMs)), like(activity.data, "%\"points\"%")))
       : Promise.resolve([]),
   ])));
   for (const [taskRows, ptsRows] of parts) {

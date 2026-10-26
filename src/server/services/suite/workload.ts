@@ -9,7 +9,7 @@
  * Overdue column. Capacity per person per week: a request's capacity applies to everyone; else
  * the person's stored weekly capacity (workload-capacity.ts); else the default (40 hours or 20 points).
  */
-import { and, asc, eq, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { notFound } from "../../lib/errors";
@@ -17,6 +17,7 @@ import type { SuiteActor } from "./common";
 import { assignees } from "./tasks";
 import { listCapacities } from "./workload-capacity";
 import { topLevelCondition } from "./task-types";
+import { inIds } from "../../lib/sql-chunks";
 
 export type WorkloadUnit = "points" | "hours";
 export const DEFAULT_CAPACITY: Record<WorkloadUnit, number> = { hours: 40, points: 20 };
@@ -108,7 +109,7 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
   const projectIds = [...new Set(q.projectIds ?? [])].filter(Boolean);
   // Another workspace's ids are refused, never read as an empty answer.
   if (projectIds.length) {
-    const found = await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, actor.orgId), inArray(projects.id, projectIds), isNull(projects.deletedAt)));
+    const found = await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, actor.orgId), inIds(projects.id, projectIds), isNull(projects.deletedAt)));
     if (found.length !== projectIds.length) throw notFound("Project");
   }
   if (q.sprintId) {
@@ -124,7 +125,7 @@ export async function getWorkload(deps: Deps, actor: SuiteActor, q: WorkloadQuer
       sql`(${tasks.dueAt} is null and ${tasks.startAt} >= ${start} and ${tasks.startAt} < ${end})`,
     ),
   ];
-  if (projectIds.length) conds.push(inArray(tasks.projectId, projectIds));
+  if (projectIds.length) conds.push(inIds(tasks.projectId, projectIds));
   if (q.sprintId) conds.push(eq(tasks.sprintId, q.sprintId));
   const people = (q.people ?? []).filter(Boolean);
   if (people.length) {

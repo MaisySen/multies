@@ -11,12 +11,13 @@
  * scope), the same rule as the shared inbox. D1 cost: create, update and delete are 1 row plus
  * 1 index entry each; list and render write nothing.
  */
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, mailboxes, mailSnippets, messages, organizations, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { firstNameOf, firstRecipient, renderSnippet, snippetDate, SNIPPET_BODY_MAX, SNIPPET_NAME_MAX, SNIPPET_SHORTCUT_RE, SNIPPET_SUBJECT_MAX, type SnippetVars } from "@/shared/snippets";
 import { assertWritable, scopeOf, sortableId, type SuiteActor } from "./common";
+import { inIds } from "../../lib/sql-chunks";
 
 type Row = typeof mailSnippets.$inferSelect;
 export interface SnippetInput { name?: string; shortcut?: string | null; subject?: string | null; body?: string; shared?: boolean }
@@ -46,8 +47,8 @@ async function authorNames(deps: Deps, orgId: string, rows: Row[]) {
   const ids = [...new Set(rows.map((r) => r.createdBy))];
   if (!ids.length) return new Map<string, string>();
   const [people, bots] = await Promise.all([
-    deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, ids)),
-    deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inArray(agents.id, ids))),
+    deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, ids)),
+    deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(eq(agents.orgId, orgId), inIds(agents.id, ids))),
   ]);
   return new Map<string, string>([...people.map((p) => [p.id, p.name || p.email] as [string, string]), ...bots.map((b) => [b.id, b.name] as [string, string])]);
 }
@@ -147,7 +148,7 @@ export async function deleteSnippet(deps: Deps, a: SuiteActor, id: string) {
 async function threadContext(deps: Deps, a: SuiteActor, threadId: string, scope: string[] | null) {
   if (!threadId || threadId.length > 200) throw notFound("Thread");
   const rows = await deps.db.select({ mailboxId: messages.mailboxId, folder: messages.folder, fromAddress: messages.fromAddress, fromName: messages.fromName }).from(messages)
-    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), sql`${messages.folder} <> 'drafts'`, scope ? inArray(messages.mailboxId, scope.length ? scope : ["-"]) : undefined))
+    .where(and(eq(messages.orgId, a.orgId), eq(messages.threadId, threadId), sql`${messages.folder} <> 'drafts'`, scope ? inIds(messages.mailboxId, scope) : undefined))
     .orderBy(desc(messages.date)).limit(50);
   if (!rows.length) throw notFound("Thread");
   const inbound = rows.find((m) => m.folder !== "sent" && m.folder !== "trash");

@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { z } from "zod";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { saveDraftSchema, sendMessageSchema, updateMessageSchema } from "@/shared/schemas";
@@ -18,6 +18,7 @@ import { connectionForMailbox, queueRemoteChange, type RemoteAction } from "../s
 import { localFolderFor, syncConnection } from "../services/connect/sync";
 import { snoozeHiddenCond } from "../services/mail/schedules";
 import { checkDraftSave, ownedBy, replyTarget } from "../services/suite/thread-collab";
+import { inIds } from "../lib/sql-chunks";
 
 /** What a bulk action means at a connected mailbox's provider (services/connect, applied on the next sync). */
 const BULK_REMOTE: Partial<Record<string, RemoteAction>> = { read: "seen", unread: "unseen", star: "flag", unstar: "unflag", archive: "archive", trash: "trash", spam: "spam", inbox: "inbox" };
@@ -116,7 +117,7 @@ export function mailRoutes() {
       if (action === "move" && !to) throw badRequest("Say which folder to move to.");
       const { db } = c.var.deps;
       const scope = await mailboxScope(db, c.var.auth);
-      const rows = (await db.select().from(messages).where(and(eq(messages.orgId, c.var.auth.orgId), inArray(messages.id, ids))))
+      const rows = (await db.select().from(messages).where(and(eq(messages.orgId, c.var.auth.orgId), inIds(messages.id, ids))))
         .filter((r) => !scope || scope.includes(r.mailboxId));
       const own = rows.map((r) => r.id);
       if (!own.length) return c.json({ updated: 0 });
@@ -127,7 +128,7 @@ export function mailRoutes() {
       if (action === "move") {
         // Only synced mail of connected mailboxes moves to a provider folder; the rest stays put.
         const movable = rows.filter((r) => r.remoteBox && r.remoteUid && r.folder !== "sent" && r.folder !== "drafts");
-        if (movable.length) await db.update(messages).set({ folder: localFolderFor(to!) }).where(inArray(messages.id, movable.map((r) => r.id)));
+        if (movable.length) await db.update(messages).set({ folder: localFolderFor(to!) }).where(inIds(messages.id, movable.map((r) => r.id)));
         const queued = await queueChange(c, movable, "move", { dest: to });
         if (!queued) {
           // Put them back: the folder isn't one this mailbox syncs.
@@ -137,7 +138,7 @@ export function mailRoutes() {
         return c.json({ updated: queued });
       }
       if (action === "delete") await deleteMessagesPermanently(db, rows);
-      else await db.update(messages).set(set).where(inArray(messages.id, own));
+      else await db.update(messages).set(set).where(inIds(messages.id, own));
       const remote = BULK_REMOTE[action];
       if (remote) await queueChange(c, rows.filter((r) => r.folder !== "sent" && r.folder !== "drafts"), remote);
       return c.json({ updated: own.length });

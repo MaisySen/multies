@@ -1684,27 +1684,3 @@ export const taskChecklistItems = sqliteTable("task_checklist_items", {
   createdAt: createdAt(),
   updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
 }, (t) => [index("task_checklist_items_task_idx").on(t.taskId)]);
-
-/**
- * R27 (DF-3 slice 2): an AI agent member's run on a task. `steps` is a JSON array of { at, kind, text }, appended in
- * place (one row write per step, no index touched). One run that is queued or running per agent and task, held by a
- * partial unique index. ADR 0008, "Slice 2: agent runs".
- */
-export const agentRuns = sqliteTable("agent_runs", {
-  id: text("id").primaryKey(),
-  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
-  taskId: text("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
-  agentUserId: text("agent_user_id").notNull(),
-  status: text("status", { enum: ["queued", "running", "succeeded", "failed", "cancelled"] }).notNull(),
-  startedAt: ts("started_at"),
-  finishedAt: ts("finished_at"),
-  result: text("result"),
-  steps: text("steps").notNull().default("[]"),
-  stepCount: integer("step_count").notNull().default(0),
-  createdByUserId: text("created_by_user_id"),
-  createdAt: createdAt(),
-  updatedAt: ts("updated_at").notNull().$defaultFn(() => new Date()),
-}, (t) => [
-  index("agent_runs_task_idx").on(t.taskId),
-  uniqueIndex("agent_runs_active_uq").on(t.taskId, t.agentUserId).where(sql`${t.status} IN ('queued', 'running')`),
-]);
