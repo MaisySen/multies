@@ -109,8 +109,18 @@ just keeps the current bundle.
 
 | Store build | Runtime version |
 | --- | --- |
-| iOS 1.9.3 (17) | see `store/runtime-versions.json` |
-| Android 1.9.3 (15) | see `store/runtime-versions.json` |
+| iOS 1.9.3 (17) | e184c142208d3b3fae34511c791824950b768f8a |
+| Android 1.9.3 (15) | e5a5bb6ce563a5072e021a35eb0966285dc7af8a |
 
 Builds before these (iOS 16 and earlier, Android 14 and earlier) have no EAS Update and need the
 store to update them.
+
+The first update, 1.9.4 (OTA), went to preview and then production on 26 Oct 2026 (ids in
+docs/RELEASES.md).
+
+## Not proven on a device yet
+
+This box has no hardware acceleration for an Android emulator (no /dev/kvm), so the pickup on a phone
+was not filmed here. What was checked: the update manifest that phones request answers with the new
+update for each store build's runtime version and channel. On a phone: install build 17 or 15, open
+the app, close it fully, open it again, and Settings reads Multies 1.9.4 (OTA).
