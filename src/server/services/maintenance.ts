@@ -58,8 +58,6 @@ export async function runMaintenance(deps: Deps) {
   const mailSync = await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
   // Round 20: scheduled sends, snoozes and reminders that are due. Reads first; an idle pass writes nothing.
   const mailSchedules = await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
-  // R28 (DF-3 slice 3): schedule triggers that are due queue agent runs. One read on a partial index; idle writes nothing.
-  const agentTriggers = await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([
@@ -67,7 +65,7 @@ export async function runMaintenance(deps: Deps) {
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
-  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, agentTriggers, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 
 /**

@@ -6,6 +6,7 @@ import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { link, linked } from "./tasks";
 import { liftChildren, placeNewDoc, syncDocLinks } from "./doc-tree";
+import { markdownToDoc } from "./markdown-doc";
 import { inIds } from "../../lib/sql-chunks";
 
 export type LinkTarget = { type: "project" | "task" | "thread" | "contact" | "deal"; id: string };
@@ -135,30 +136,45 @@ export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: s
   return getDoc(deps, actor.orgId, id);
 }
 
-export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; links?: LinkTarget[] }) {
+export async function updateDoc(deps: Deps, actor: SuiteActor, id: string, patch: { title?: string; content?: unknown; text?: string; version?: number; ifVersion?: number; links?: LinkTarget[] }) {
   assertWritable(actor);
   const d = await docRow(deps, actor.orgId, id);
-  if (patch.version !== undefined && patch.version !== d.version) throw new HttpError(409, "version_conflict", "This doc changed since you opened it. Reload to see the latest.");
+  const expected = patch.version ?? patch.ifVersion; // R28: ifVersion is the API's name for it
+  if (expected !== undefined && expected !== d.version) throw versionConflict(d.version);
   // MB-58: plain text replaces the body too, with the same rules as create (# headings, - bullets).
   const body = patch.content !== undefined ? validDoc(patch.content) : patch.text !== undefined ? docFromText(patch.text) : undefined;
   await assertLinkTargets(deps, actor.orgId, patch.links ?? []);
-  await deps.db.update(docs).set({
+  const written = await deps.db.update(docs).set({
     ...(patch.title !== undefined ? { title: patch.title.trim() || "Untitled" } : {}),
     ...(body ? { content: JSON.stringify(body), plainText: plainTextOf(body) } : {}),
     updatedAt: deps.now(), version: d.version + 1,
-  }).where(eq(docs.id, id));
+  }).where(and(eq(docs.id, id), eq(docs.version, d.version))).returning({ id: docs.id }); // R28: no lost update between the read and this write
+  if (!written.length) throw versionConflict((await docRow(deps, actor.orgId, id)).version);
   if (body) await syncDocLinks(deps, actor.orgId, id, body); // R24: only changed links are written
   for (const l of patch.links ?? []) await link(deps, actor.orgId, { type: "doc", id }, l);
   await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "update", version: d.version + 1, verb: "edited", data: {}, event: "doc.updated", eventData: { id, title: patch.title ?? d.title, version: d.version + 1 } });
   return getDoc(deps, actor.orgId, id);
 }
 
-/** For agents: add text to the end of a doc without rewriting it. */
-export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, text: string) {
+/** R28: a stale write answers 409 with the doc's current version, so a client can re-read and retry. */
+export const versionConflict = (currentVersion: number) =>
+  new HttpError(409, "version_conflict", "This doc changed since you opened it. Reload to see the latest.", { currentVersion });
+
+/**
+ * For agents: add to the end of a doc without rewriting it. Plain text keeps the create rules
+ * (# headings, - bullets); markdown (R28) also takes numbered and task lists, quotes, code,
+ * bold, italic and links. ifVersion makes the append fail with 409 if the doc changed since it was read.
+ */
+export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, text: string, opts: { markdown?: boolean; ifVersion?: number } = {}) {
+  assertWritable(actor);
   const d = await docRow(deps, actor.orgId, id);
+  if (opts.ifVersion !== undefined && opts.ifVersion !== d.version) throw versionConflict(d.version);
   const cur = JSON.parse(d.content) as PMNode;
-  const add = docFromText(text).content ?? [];
-  return updateDoc(deps, actor, id, { content: { ...cur, content: [...(cur.content ?? []), ...add] } });
+  const keep = [...(cur.content ?? [])];
+  while (keep.length && keep[keep.length - 1].type === "paragraph" && !keep[keep.length - 1].content?.length) keep.pop(); // an empty last line
+  const add = (opts.markdown ? markdownToDoc(text) : docFromText(text)).content ?? [];
+  // The version just read guards the write too: another write in between is a 409, not a lost edit.
+  return updateDoc(deps, actor, id, { content: { ...cur, content: [...keep, ...add] }, version: d.version });
 }
 
 export async function deleteDoc(deps: Deps, actor: SuiteActor, id: string) {

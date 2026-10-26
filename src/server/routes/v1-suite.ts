@@ -24,9 +24,22 @@ function strictTaskParams(query: Record<string, string>, allowed?: string[]) {
   const bad = unknownTaskParams(query, allowed);
   if (bad.length) throw new HttpError(400, "unknown_parameter", `Unknown query parameter${bad.length > 1 ? "s" : ""}: ${bad.join(", ")}.`, { unknown: bad });
 }
+/**
+ * R28: the version a doc write expects, from the body or an If-Match header ("3", W/"3" or 3).
+ * A body value and a header that disagree, or a header that is not a version, is a 400.
+ */
+export function expectedVersion(c: Context<AppEnv>, fromBody: number | undefined): number | undefined {
+  const raw = c.req.header("if-match")?.trim();
+  if (!raw || raw === "*") return fromBody;
+  const m = raw.match(/^(?:W\/)?"?(\d{1,12})"?$/);
+  if (!m) throw new HttpError(400, "bad_if_match", "If-Match must be a doc version, like \"3\".");
+  const v = Number(m[1]);
+  if (fromBody !== undefined && fromBody !== v) throw new HttpError(400, "bad_if_match", "If-Match and ifVersion disagree.");
+  return v;
+}
 const sprintFilter = (v: string | undefined) => (v === undefined ? undefined : v === "none" ? null : v);
 import {
-  CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
+  CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocAppend, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
 } from "./suite-schemas";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
@@ -45,9 +58,7 @@ const Task = z.object({
   type: z.enum(["task", "story", "bug", "epic"]).openapi({ description: "task, story, bug or epic." }),
   start: z.string().nullable(), due: z.string().nullable(), parentId: z.string().nullable(), position: z.number(),
   source: z.object({ threadId: z.string().nullable(), messageId: z.string().nullable(), from: z.string(), subject: z.string() }).nullable(),
-  subtasks: z.object({ total: z.number(), done: z.number() }),
-  checklist: z.object({ total: z.number().int(), done: z.number().int() }).openapi({ description: "R28: checklist progress inside the task (items, and how many are ticked). 0 and 0 when the task has no checklist.", example: { total: 5, done: 3 } }),
-  commentCount: z.number(), completedAt: z.string().nullable(),
+  subtasks: z.object({ total: z.number(), done: z.number() }), commentCount: z.number(), completedAt: z.string().nullable(),
   createdBy: z.object({ type: z.string(), id: z.string().nullable() }), createdAt: z.string(), updatedAt: z.string(), version: z.number().int(),
   fields: z.record(z.string(), z.unknown()).openapi({ description: "Custom field values by field id. See Field for the value types." }),
   sprintId: z.string().nullable().optional(), points: z.number().nullable().optional(),
@@ -154,15 +165,31 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "get", path: "/docs/{id}", tags: tag("Docs"), summary: "Read a doc", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ doc: Doc }), "The doc, with content and plain text."), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, { doc: await getDoc(c.var.deps, actor(c).orgId, c.req.valid("param").id) }));
+  async (c) => {
+    const doc = await getDoc(c.var.deps, actor(c).orgId, c.req.valid("param").id);
+    c.header("etag", `"${doc.version}"`); // R28: send it back as If-Match on a write
+    return send(c, { doc });
+  });
 
   api.openapi(createRoute({ method: "patch", path: "/docs/{id}", tags: tag("Docs"), summary: "Update a doc", security: secured,
+    description: "Optimistic version check (R28): send the version you read as ifVersion (or version, or an If-Match header). If the doc changed since, the answer is 409 with details.currentVersion and nothing is written.",
     request: { params: Id, ...body(DocPatch) }, responses: { 200: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 404: errors[404], 409: errors[409], 422: errors[422] } }),
-  async (c) => send(c, { doc: await updateDoc(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
+  async (c) => {
+    const { ifVersion, version, ...patch } = c.req.valid("json");
+    const doc = await updateDoc(c.var.deps, actor(c), c.req.valid("param").id, { ...patch, version: expectedVersion(c, ifVersion ?? version) });
+    c.header("etag", `"${doc.version}"`);
+    return send(c, { doc });
+  });
 
-  api.openapi(createRoute({ method: "post", path: "/docs/{id}/append", tags: tag("Docs"), summary: "Add text to the end of a doc", security: secured,
-    request: { params: Id, ...body(z.object({ text: z.string().min(1).max(200_000) })) }, responses: { 200: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, { doc: await appendToDoc(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").text) }));
+  api.openapi(createRoute({ method: "post", path: "/docs/{id}/append", tags: tag("Docs"), summary: "Add to the end of a doc", security: secured,
+    description: "Adds markdown (headings, paragraphs, bullet, numbered and task lists, quotes, code, bold, italic, strike, links) or plain text after the doc's existing content, which stays as it is. ifVersion (or an If-Match header) makes it a 409 with details.currentVersion if the doc changed since you read it. A doc can be up to 1 MB (413 past that).",
+    request: { params: Id, ...body(DocAppend) }, responses: { 200: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 403: errors[403], 404: errors[404], 409: errors[409], 413: err("The doc would be over 1 MB."), 422: errors[422] } }),
+  async (c) => {
+    const b = c.req.valid("json");
+    const doc = await appendToDoc(c.var.deps, actor(c), c.req.valid("param").id, b.markdown ?? b.text ?? "", { markdown: b.markdown !== undefined, ifVersion: expectedVersion(c, b.ifVersion) });
+    c.header("etag", `"${doc.version}"`);
+    return send(c, { doc });
+  });
 
   api.openapi(createRoute({ method: "delete", path: "/docs/{id}", tags: tag("Docs"), summary: "Delete a doc", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 404: errors[404] } }),

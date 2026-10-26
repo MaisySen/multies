@@ -111,7 +111,14 @@ export const DocCreate = z.object({
 export const DocPatch = z.object({
   title: z.string().trim().max(200).optional(), content: z.record(z.string(), z.unknown()).optional(), version: z.number().int().optional(), links: z.array(LinkTarget).max(20).optional(),
   text: z.string().max(200_000).optional().openapi({ description: "Or plain text that replaces the whole body: one paragraph per line, # headings and - bullets." }),
+  ifVersion: z.number().int().optional().openapi({ description: "R28: the version you read. A doc changed since then answers 409 with details.currentVersion. Same as version, or an If-Match header." }),
 }).openapi("DocPatch");
+/** R28: add to the end of a doc. One of markdown or text. */
+export const DocAppend = z.object({
+  markdown: z.string().min(1).max(200_000).optional().openapi({ description: "Markdown: headings, paragraphs, bullet, numbered and task lists, quotes, code, bold, italic, strike and links." }),
+  text: z.string().min(1).max(200_000).optional().openapi({ description: "Or plain text: one paragraph per line, # headings and - bullets." }),
+  ifVersion: z.number().int().optional().openapi({ description: "The version you read. A doc changed since then answers 409 with details.currentVersion. Or send an If-Match header." }),
+}).refine((b) => (b.markdown === undefined) !== (b.text === undefined), { message: "Send markdown or text (one of them)." }).openapi("DocAppend");
 
 export const ContactCreate = z.object({
   email: z.string().trim().email().max(254), name: z.string().trim().max(120).optional(), phone: z.string().trim().max(40).optional(),
