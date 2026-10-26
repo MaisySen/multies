@@ -97,7 +97,7 @@ function Tile({ s, onPick, active }: { s: Source; onPick: () => void; active: bo
       className={"group flex min-h-[64px] w-full min-w-0 items-center gap-3 rounded-xl border bg-surface px-3 py-2.5 text-left shadow-[0_1px_2px_rgb(0_0_0/0.04)] transition-[border-color,box-shadow,transform] duration-150 hover:-translate-y-px hover:shadow-[0_4px_14px_rgb(0_0_0/0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none motion-reduce:hover:translate-y-0 " + (active ? "border-brand ring-1 ring-brand/40" : "border-line")}>
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-white [&_svg]:h-[18px] [&_svg]:w-[18px]" style={{ background: s.tint }} aria-hidden>{s.icon}</span>
       <span className="min-w-0">
-        <span className="block truncate text-[13.5px] font-semibold">{s.label}</span>
+        <span className="block break-words text-[13.5px] font-semibold leading-snug">{s.label}</span>
         <span className="block text-[12px] leading-snug text-muted">{s.hint}</span>
       </span>
     </button>
