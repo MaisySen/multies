@@ -133,13 +133,13 @@ async function assertLinkTargets(deps: Deps, orgId: string, targets: LinkTarget[
   }
 }
 
-export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }) {
+export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }, opts: { id?: string } = {}) {
   assertWritable(actor);
   const body = input.content !== undefined ? validDoc(input.content) : editorShape(docFromText(input.text ?? "")); // R29: as the editor holds it
   await assertLinkTargets(deps, actor.orgId, [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]);
   const place = await placeNewDoc(deps, actor.orgId, input.parentId); // R24: tree position
   const now = deps.now();
-  const id = sortableId("doc", now.getTime());
+  const id = opts.id ?? sortableId("doc", now.getTime()); // R51 (MB-239): the same id on an Idempotency-Key retry
   await deps.db.insert(docs).values({ id, orgId: actor.orgId, title: input.title.trim() || "Untitled", content: JSON.stringify(body), plainText: plainTextOf(body), projectId: input.projectId ?? null, ...place, ...createdBy(actor), createdAt: now, updatedAt: now });
   await syncDocLinks(deps, actor.orgId, id, body); // R24: backlinks
   for (const l of [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]) await link(deps, actor.orgId, { type: "doc", id }, l);
@@ -195,9 +195,9 @@ export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, tex
 
 export async function deleteDoc(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
-  await docRow(deps, actor.orgId, id);
+  const d = await docRow(deps, actor.orgId, id);
   await liftChildren(deps, actor.orgId, id); // R24: sub pages move up to this page's parent
   await deps.db.update(docs).set({ deletedAt: deps.now(), updatedAt: deps.now() }).where(eq(docs.id, id));
-  await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "delete", verb: "deleted" });
+  await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "delete", verb: "deleted", event: "doc.deleted", eventData: { id, object: "doc", title: d.title } }); // R51 (MB-239)
   return { ok: true };
 }

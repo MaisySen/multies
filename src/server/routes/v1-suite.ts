@@ -147,7 +147,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/comments", tags: tag("Tasks"), summary: "Comment on a task", security: secured,
     request: { params: Id, ...body(CommentCreate) }, responses: { 201: json(z.object({ comment: Comment }), "The comment."), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").body) }, 201));
+  async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").body, { id: await idempotentId(c.req.raw, "cmt") }) }, 201));
 
   // ---------------------------------------------------------------- projects
   api.openapi(createRoute({ method: "get", path: "/projects", tags: tag("Projects"), summary: "List projects with their statuses", security: secured,
@@ -184,7 +184,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/docs", tags: tag("Docs"), summary: "Create a doc", security: secured,
     description: "Send Tiptap JSON as content, or plain text as text. links ties it to tasks, projects, threads, contacts or deals.",
     request: body(DocCreate), responses: { 201: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { doc: await createDoc(c.var.deps, actor(c), c.req.valid("json")) }, 201));
+  async (c) => send(c, { doc: await createDoc(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "doc") }) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/docs/{id}", tags: tag("Docs"), summary: "Read a doc", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ doc: Doc }), "The doc, with content and plain text."), 401: errors[401], 404: errors[404] } }),
@@ -248,7 +248,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "post", path: "/deals", tags: tag("Contacts"), summary: "Create a deal", security: secured,
     request: body(DealCreate), responses: { 201: json(z.object({ deal: Deal }), "The deal."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { deal: await createDeal(c.var.deps, actor(c), c.req.valid("json")) }, 201));
+  async (c) => send(c, { deal: await createDeal(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "del") }) }, 201));
 
   api.openapi(createRoute({ method: "patch", path: "/deals/{id}", tags: tag("Contacts"), summary: "Update or move a deal", security: secured,
     request: { params: Id, ...body(DealPatch) }, responses: { 200: json(z.object({ deal: Deal }), "The deal."), 401: errors[401], 404: errors[404] } }),

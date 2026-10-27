@@ -340,12 +340,12 @@ async function dealRow(deps: Deps, orgId: string, id: string) {
   return d;
 }
 
-export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null }) {
+export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null }, opts: { id?: string } = {}) {
   assertWritable(actor);
   let companyId = input.companyId ?? null;
   if (input.contactId) { const c = await contactRow(deps, actor.orgId, input.contactId); companyId = companyId ?? c.companyId; }
   const now = deps.now();
-  const id = sortableId("del", now.getTime());
+  const id = opts.id ?? sortableId("del", now.getTime()); // R51 (MB-239)
   const max = await deps.db.select({ p: sql<number>`coalesce(max(${deals.position}), 0)` }).from(deals).where(and(eq(deals.orgId, actor.orgId), eq(deals.stage, input.stage ?? "lead"))).get();
   await deps.db.insert(deals).values({ id, orgId: actor.orgId, title: input.title.trim(), stage: input.stage ?? "lead", valueCents: Math.round((input.value ?? 0) * 100), contactId: input.contactId ?? null, companyId, ownerUserId: actor.userId || null, expectedCloseAt: parseDate(input.expectedClose), position: Number(max?.p ?? 0) + 1024, ...createdBy(actor), createdAt: now, updatedAt: now });
   const deal = presentDeal(await dealRow(deps, actor.orgId, id));

@@ -239,7 +239,7 @@ export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
   const now = deps.now();
   await deps.db.update(projects).set({ deletedAt: now, updatedAt: now, version: p.version + 1 }).where(eq(projects.id, id));
   await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now }).where(and(eq(tasks.projectId, id), isNull(tasks.deletedAt)));
-  await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "delete", verb: "deleted", data: { name: p.name } });
+  await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "delete", verb: "deleted", data: { name: p.name }, event: "project.deleted", eventData: { id, object: "project", name: p.name } }); // R51 (MB-239)
   return { ok: true };
 }
 
@@ -769,18 +769,18 @@ export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string)
 
 // ---------------------------------------------------------------- comments, thread, detail
 
-export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string, body: string) {
+export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string, body: string, opts: { id?: string } = {}) {
   assertWritable(actor);
   const t = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, idOrRef));
   const text = body.trim();
   if (!text) throw new HttpError(422, "validation_failed", "Write something first.");
   const now = deps.now();
-  const id = sortableId("cmt", now.getTime());
+  const id = opts.id ?? sortableId("cmt", now.getTime()); // R51 (MB-239)
   const by = createdBy(actor);
   await deps.db.insert(taskComments).values({ id, orgId: actor.orgId, taskId: t.id, authorName: actor.name || actor.email, body: text.slice(0, 20_000), ...by, createdAt: now, updatedAt: now });
   await deps.db.update(tasks).set({ updatedAt: now }).where(eq(tasks.id, t.id));
   const comment = { id, taskId: t.id, body: text, author: { type: by.createdByType, id: by.createdById, name: actor.name || actor.email }, createdAt: now.toISOString() };
-  await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "commented", data: { commentId: id, excerpt: text.slice(0, 140) }, event: "task.commented", eventData: { taskId: t.id, comment } });
+  await recordWrite(deps, actor, { entityType: "task", entityId: t.id, op: "update", version: t.version, verb: "commented", data: { commentId: id, excerpt: text.slice(0, 140) }, event: ["task.commented", "comment.created"], eventData: { id, object: "comment", taskId: t.id, comment } }); // R51 (MB-239): comment.created too
   const { notify } = await import("./notify");
   const mentioned = await mentionedMembers(deps, actor.orgId, text);
   for (const u of mentioned) if (u !== actor.userId) await notify(deps, actor.orgId, u, { type: "task.mentioned", entityType: "task", entityId: t.id, title: `${actor.name || actor.email} mentioned you on ${t.title}`, actorName: actor.name || actor.email });

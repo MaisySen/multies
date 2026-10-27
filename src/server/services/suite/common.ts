@@ -59,7 +59,7 @@ export type EntityType = "task" | "project" | "doc" | "contact" | "company" | "d
  */
 export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   entityType: EntityType; entityId: string; op: "create" | "update" | "delete"; version?: number;
-  verb: string; data?: Record<string, unknown>; event?: WebhookEvent; eventData?: Record<string, unknown>;
+  verb: string; data?: Record<string, unknown>; event?: WebhookEvent | readonly WebhookEvent[]; eventData?: Record<string, unknown>;
 }) {
   const actor = actorOf(a);
   const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), w);

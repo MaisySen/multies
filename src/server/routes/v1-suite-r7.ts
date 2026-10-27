@@ -15,6 +15,7 @@ import { getScheduleSettings, setScheduleSettings } from "../services/suite/sche
 import { addEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet } from "../services/suite/time";
 import { createForm, getForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
+import { idempotentId } from "../lib/idempotency"; // R51 (MB-239)
 import { createMeeting, getMeeting, joinMeeting, listMeetings, sendInvites } from "../services/suite/meetings";
 import { getAgent } from "../services/agents";
 import { FormCreate, MeetingCreate, ReportQuery, TimeEntryCreate, TimeQuery, TimeStart, TimeStop } from "./suite-r7";
@@ -151,7 +152,7 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   async (c) => {
     const b = c.req.valid("json");
     const a = b.sendInvites ? await asAgent(c, b.agentId) : actor(c);
-    return send(c, await createMeeting(c.var.deps, a, b), 201);
+    return send(c, await createMeeting(c.var.deps, a, b, { id: await idempotentId(c.req.raw, "mtg") }), 201); // R51 (MB-239)
   });
 
   api.openapi(createRoute({ method: "get", path: "/meetings/{id}", tags: ["Meetings"], summary: "Get a meeting", security: secured,
