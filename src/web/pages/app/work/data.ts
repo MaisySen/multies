@@ -96,7 +96,7 @@ export function useTaskMutations() {
     onError: (e, _v, ctx) => { for (const [key, list] of ctx?.snapshots ?? []) qc.setQueryData(key, list); showError(e as Error); },
     onSettled: refresh,
   });
-  const create = useMutation({ mutationFn: (body: Record<string, unknown>) => api.create<{ task: Task }>("/tasks", body), onSuccess: refresh, onError: (e) => showError(e as Error) });
+  const create = useMutation({ mutationFn: (body: Record<string, unknown>) => api.post<{ task: Task }>("/tasks", body), onSuccess: refresh, onError: (e) => showError(e as Error) });
   const remove = useMutation({ mutationFn: (id: string) => api.del(`/tasks/${id}`), onSuccess: refresh, onError: (e) => showError(e as Error) });
   return { update, create, remove, refresh };
 }

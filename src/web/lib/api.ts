@@ -7,29 +7,6 @@ export class ApiError extends Error {
   }
 }
 
-/** R40 (MB-205): the one plain message for a server that did not answer properly. */
-export const UNREACHABLE_MESSAGE = "Couldn't reach Multies. Trying again.";
-
-/**
- * R40 (MB-200, MB-205): true when the call failed because Multies could not be reached
- * (no connection, a dropped request, or a 5xx with no proper answer), not because the
- * request itself was wrong. These are worth retrying and never mean "signed out".
- */
-/** Codes that mean "the server did not finish"; app answers with their own code (write_budget, resend_failed) keep their own words. */
-const TRANSIENT_CODES = new Set(["network", "unreachable", "internal", "d1_busy", "busy", "idempotency_in_progress"]);
-
-export function isTransientError(err: unknown): boolean {
-  if (!(err instanceof ApiError)) return err instanceof TypeError; // fetch throws TypeError offline
-  if (err.code === "read_only") return false; // the app's own read only answer has its own banner
-  return TRANSIENT_CODES.has(err.code) || err.status === 0 || err.status === 408 || (err.status === 502 && err.code === "error") || err.status === 504;
-}
-
-/** Message for any error: transient failures get the one plain line, never a status code. */
-export function errorMessage(err: unknown, fallback = "Something went wrong. Try again."): string {
-  if (isTransientError(err)) return UNREACHABLE_MESSAGE;
-  return err instanceof ApiError && err.message ? err.message : fallback;
-}
-
 interface RequestOptions {
   /** Makes a POST safe to retry: the server replays the first response for the same key. */
   idempotencyKey?: string;
@@ -37,28 +14,28 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
-/** R40: backoff between automatic retries of a GET (or a keyed write). Tests may shorten it. */
-export const retryDelays = { ms: [300, 900] as number[] };
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** A new Idempotency-Key for one user action. Reuse it when the same action is retried. */
-export function newIdempotencyKey(prefix = "web"): string {
-  const rnd = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
-  return `${prefix}-${rnd}`;
-}
-
-async function once<T>(method: string, path: string, body: unknown, headers: Record<string, string>): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`/api${path}`, {
-      method,
-      credentials: "same-origin",
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "network", UNREACHABLE_MESSAGE);
+async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
+  let res: Response | undefined;
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+  if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
+  if (opts.headers) Object.assign(headers, opts.headers);
+  // With an idempotency key a dropped connection is retried once, without one it is not.
+  const tries = opts.idempotencyKey ? 2 : 1;
+  for (let i = 0; i < tries && !res; i++) {
+    try {
+      res = await fetch(`/api${path}`, {
+        method,
+        credentials: "same-origin",
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      if (i === tries - 1) throw new ApiError(0, "network", "Can't reach Multies. Check your connection.");
+      await new Promise((r) => setTimeout(r, 800));
+    }
   }
+  if (!res) throw new ApiError(0, "network", "Can't reach Multies. Check your connection.");
   const text = await res.text();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let json: any = null;
@@ -66,58 +43,15 @@ async function once<T>(method: string, path: string, body: unknown, headers: Rec
   if (!res.ok) {
     const e = json?.error;
     if (res.status === 503 && e?.code === "read_only") markReadOnly();
-    // An empty or non JSON 5xx is the platform, not Multies: one plain message, no status code.
-    if (!e && res.status >= 500) throw new ApiError(res.status, "unreachable", UNREACHABLE_MESSAGE);
-    if (!e) throw new ApiError(res.status, "error", res.status >= 500 ? UNREACHABLE_MESSAGE : "Something went wrong. Try again.");
-    const code: string = e.code ?? "error";
-    throw new ApiError(res.status, code, TRANSIENT_CODES.has(code) ? UNREACHABLE_MESSAGE : (e.message ?? "Something went wrong. Try again."), e.details?.fields);
+    throw new ApiError(res.status, e?.code ?? "error", e?.message ?? `Request failed (${res.status})`, e?.details?.fields);
   }
   return json as T;
 }
 
-async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (body !== undefined) headers["content-type"] = "application/json";
-  if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;
-  if (opts.headers) Object.assign(headers, opts.headers);
-  // R40 (MB-199/200): GETs and keyed writes are safe to repeat, so a dropped request or an
-  // empty 5xx is retried with a short backoff. Unkeyed writes are never repeated here.
-  const safe = method === "GET" || !!opts.idempotencyKey;
-  const delays = safe ? retryDelays.ms : [];
-  for (let i = 0; ; i++) {
-    try {
-      return await once<T>(method, path, body, headers);
-    } catch (err) {
-      if (i >= delays.length || !isTransientError(err)) throw err;
-      await sleep(delays[i]!);
-    }
-  }
-}
-
-/**
- * R40 (MB-201): one key per user action. The same create (same path and body) reuses its key until it succeeds,
- * so pressing Retry after "Couldn't reach Multies" can never make a second project, task or invite.
- */
-const actionKeys = new Map<string, { key: string; at: number }>();
-const ACTION_KEY_MS = 10 * 60_000;
-async function postOnce<T>(path: string, body: unknown = {}, opts: RequestOptions = {}): Promise<T> {
-  const sig = `${path}\n${JSON.stringify(body)}`;
-  let entry = actionKeys.get(sig);
-  if (!entry || Date.now() - entry.at > ACTION_KEY_MS) {
-    entry = { key: newIdempotencyKey(), at: Date.now() };
-    actionKeys.set(sig, entry);
-  }
-  const out = await request<T>("POST", path, body, { ...opts, idempotencyKey: entry.key });
-  actionKeys.delete(sig);
-  return out;
-}
-
 export const api = {
-  /** POST for creates: sends an Idempotency-Key and reuses it when the same action is retried. */
-  create: <T>(p: string, b: unknown = {}, o?: RequestOptions) => postOnce<T>(p, b, o),
   get: <T>(p: string) => request<T>("GET", p),
   post: <T>(p: string, b: unknown = {}, o?: RequestOptions) => request<T>("POST", p, b, o),
-  patch: <T>(p: string, b: unknown, o?: RequestOptions) => request<T>("PATCH", p, b, o),
+  patch: <T>(p: string, b: unknown) => request<T>("PATCH", p, b),
   put: <T>(p: string, b: unknown) => request<T>("PUT", p, b),
   del: <T>(p: string, b?: unknown) => request<T>("DELETE", p, b),
 };
