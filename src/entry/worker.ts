@@ -309,10 +309,9 @@ function startupWarm(_env: WorkerEnv, vars: Record<string, string | undefined>) 
     const wdb = drizzle(replayD1(fixture) as never, { schema }) as unknown as DB;
     const wenv = { DB: replayD1(fixture), ASSETS: { fetch: async () => { throw new Error("warm up: no assets"); } } } as unknown as WorkerEnv;
     const copy = bootWith(wenv, wdb, wvars);
-    // The outer wrapper gets a placeholder error reporting address, so a warm up can never report anything real.
-    const outerEnv = { SENTRY_DSN_API: "https://0@o0.ingest.sentry.io/0", SENTRY_ENVIRONMENT: "warmup", SENTRY_TRACES_SAMPLE_RATE: "0" };
-    const outerCtx = { waitUntil(p: Promise<unknown>) { void Promise.resolve(p).catch(() => undefined); }, passThroughOnException() {} };
-    void warmHotRoutes(copy.app as never, fixture, origin, (fn) => withAuthRequestState(fn), (req) => wrapped.fetch(req, outerEnv, outerCtx))
+    // Only the app copy is warmed, never the outer error reporting wrapper: that wrapper keeps one client per isolate
+    // with the address it was first given, so warming it would send every later report to the warm up's address.
+    void warmHotRoutes(copy.app as never, fixture, origin, (fn) => withAuthRequestState(fn))
       .then((r) => { lastWarmReport = r; if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] warm up", JSON.stringify(r)); })
       .catch(() => { endWarmup(); });
   } catch {
@@ -542,7 +541,7 @@ let firstRequestSeen = false;
 function noteFirstRequest(request: Request) {
   if (firstRequestSeen) return;
   firstRequestSeen = true;
-  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport })); } catch { /* never in the way */ }
+  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport, reportingClientBefore: Boolean((globalThis as Record<string, unknown>).__SENTRY_CLOUDFLARE_CLIENT__) })); } catch { /* never in the way */ }
 }
 export default {
   fetch(request: Request, env: unknown, ctx: unknown) { endWarmup(); noteFirstRequest(request); return wrapped.fetch(request, env, ctx); },

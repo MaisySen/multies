@@ -20,6 +20,9 @@ with the real app; config, database, bindings and caches are not. Startup forbid
 random values, so stand ins are swapped in for the warm up and put back when it ends, and again first thing in every
 real request, cron run and Durable Object handler. Per isolate caches are cleared after each warm route.
 
+- Never warm the outer error reporting wrapper: it keeps one client per isolate with the address it was first
+  given (R42 deploy 1 did, with a placeholder address; removed in the next deploy). The first request log line
+  `[isolate] first request` carries `reportingClientBefore`, which must be false.
 - Turn off: set `STARTUP_WARM=off` (a Worker var). `STARTUP_BOOT_LOG=1` logs the warm up report at startup.
 - Local check in the real runtime: `wrangler dev --local` with `STARTUP_BOOT_LOG=1` in `.dev.vars` prints
   `[startup] warm up {"ran":10,"ok":10,...}`.
