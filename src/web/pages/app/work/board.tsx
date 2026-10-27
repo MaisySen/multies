@@ -65,11 +65,7 @@ export function SortableCard({ t, onOpen, project }: { t: Task; onOpen: () => vo
  * next one; the new row shows at once (faded until the server answers). Escape, or leaving the field empty, closes it.
  * Creates go through the idempotent api.create, so a retried add is never doubled.
  */
-export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
-  title: string; onQuickAdd: (title: string) => Promise<unknown>;
-  /** R42: "list" is the same rapid add drawn as a row at the foot of the Tasks list. */
-  variant?: "column" | "list";
-}) {
+export function ColumnComposer({ title, onQuickAdd }: { title: string; onQuickAdd: (title: string) => Promise<unknown> }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [pending, setPending] = useState<{ key: number; title: string }[]>([]);
@@ -84,14 +80,10 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
     requestAnimationFrame(() => ref.current?.focus());
     void onQuickAdd(t).catch(() => { setText((cur) => cur || t); }).finally(() => setPending((p) => p.filter((x) => x.key !== key)));
   };
-  const list = variant === "list";
   return (
-    <div className={list ? "mt-2" : "px-2 pb-2"} data-testid={list ? "list-composer" : `composer-${title}`}>
+    <div className="px-2 pb-2" data-testid={`composer-${title}`}>
       {pending.map((p) => (
-        <div key={p.key} className={list ? "mb-2 flex min-h-12 items-center gap-2.5 rounded-xl border border-line bg-surface px-3.5 text-[14px] text-fg opacity-60 sm:min-h-10"
-          : "mb-2 rounded-lg border border-line bg-elevated px-3 py-2.5 text-[13.5px] opacity-60 elev-1"} data-testid="pending-card" aria-busy="true">
-          {list && <span className="h-4 w-4 shrink-0 animate-pulse rounded-full border-2 border-line-strong motion-reduce:animate-none" aria-hidden />}{p.title}
-        </div>
+        <div key={p.key} className="mb-2 rounded-lg border border-line bg-elevated px-3 py-2.5 text-[13.5px] opacity-60 elev-1" data-testid="pending-card" aria-busy="true">{p.title}</div>
       ))}
       {open ? (
         <input ref={ref} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Task name, then Enter" aria-label={`New task in ${title}`} maxLength={500}
@@ -99,17 +91,9 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
           onBlur={() => { if (!text.trim()) setOpen(false); }}
           className="h-11 w-full rounded-lg border border-brand bg-surface px-3 text-[14px] text-fg outline-none ring-4 ring-brand/15 placeholder:text-subtle max-sm:text-base sm:h-10" />
       ) : (
-        list ? (
-          <button type="button" onClick={() => setOpen(true)} aria-label="Add task" title={`Add a task to ${title}`}
-            className="group flex min-h-12 w-full items-center gap-2.5 rounded-xl border border-dashed border-line-strong px-3.5 text-left text-[15px] text-muted transition-colors duration-150 hover:border-brand/50 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 motion-reduce:transition-none sm:min-h-10 sm:text-[13.5px]">
-            <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-soft text-brand-hover transition-transform duration-150 group-active:scale-90 motion-reduce:transition-none" aria-hidden><IconPlus className="h-3.5 w-3.5" /></span>
-            <span>Add task</span><span className="ml-auto truncate text-[12px] text-subtle">{title}</span>
-          </button>
-        ) : (
-          <button type="button" onClick={() => setOpen(true)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg motion-reduce:transition-none sm:min-h-9">
-            <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task
-          </button>
-        )
+        <button type="button" onClick={() => setOpen(true)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg motion-reduce:transition-none sm:min-h-9">
+          <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task
+        </button>
       )}
     </div>
   );

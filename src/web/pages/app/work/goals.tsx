@@ -58,12 +58,11 @@ export function GoalsPage() {
               <p className="text-[12.5px] text-subtle">{g.owner ? `${g.owner.name} · ` : ""}{g.due ? `due ${shortDate(g.due)}` : "no due date"}{!g.health && g.suggestedHealth ? " · health suggested from the dates" : ""}</p>
             </div>
             <div className="flex items-center gap-3">
-              <Select bare aria-label={`Health of ${g.name}`} value={g.health ?? ""} onChange={(e) => void setHealth(g, e.target.value)}
-                className={cn("h-10 rounded-md border-0 px-2 text-[12.5px] font-medium sm:h-7", h ? HEALTH[h].cls : "bg-fill text-muted")}
-                phoneClassName={cn("inline-flex h-10 max-w-[10rem] items-center rounded-md px-3 text-left text-[13px] font-medium", h ? HEALTH[h].cls : "bg-fill text-muted")}>
+              <select aria-label={`Health of ${g.name}`} value={g.health ?? ""} onChange={(e) => void setHealth(g, e.target.value)}
+                className={cn("h-10 rounded-md border-0 px-2 text-[12.5px] font-medium sm:h-7", h ? HEALTH[h].cls : "bg-fill text-muted")}>
                 <option value="">{g.suggestedHealth ? `${HEALTH[g.suggestedHealth].label} (suggested)` : "Not set"}</option>
                 {(Object.keys(HEALTH) as Health[]).map((x) => <option key={x} value={x}>{HEALTH[x].label}</option>)}
-              </Select>
+              </select>
               <Bar value={g.progress} label={`${g.name} progress`} />
             </div>
           </div>

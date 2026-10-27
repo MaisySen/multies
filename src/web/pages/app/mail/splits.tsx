@@ -11,7 +11,6 @@ import { showError } from "@/web/lib/show-error";
 import { cn } from "@/web/lib/cn";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Button } from "@/web/components/ui/button";
-import { Select, PHONE_PICK } from "@/web/components/ui/input";
 import { Switch } from "@/web/components/ui/misc";
 import { mailDate } from "@/web/lib/format";
 import {
@@ -80,19 +79,17 @@ function SplitForm({ draft, setDraft, mailboxId }: { draft: Draft; setDraft: (d:
       </label>
       <div className="flex items-center gap-2 text-[13px] text-muted">
         <span>Mail that matches</span>
-        <Select bare aria-label="Match" value={draft.match} onChange={(e) => setDraft({ ...draft, match: e.target.value as "all" | "any" })} className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-fg"
-          phoneClassName={`${PHONE_PICK} h-10 px-3`}>
+        <select aria-label="Match" value={draft.match} onChange={(e) => setDraft({ ...draft, match: e.target.value as "all" | "any" })} className="h-8 rounded-md border border-line bg-surface px-2 text-[13px] text-fg">
           <option value="all">all rules</option>
           <option value="any">any rule</option>
-        </Select>
+        </select>
       </div>
       <ul className="space-y-2">
         {draft.rules.map((r, i) => (
           <li key={i} className="flex items-center gap-2">
-            <Select bare aria-label={`Rule ${i + 1}`} value={r.field} onChange={(e) => setRule(i, { field: e.target.value as SplitField })} className="h-9 w-44 shrink-0 rounded-lg border border-line bg-surface px-2 text-[13px]"
-              phoneClassName={`${PHONE_PICK} h-10 w-36 shrink-0 px-3`}>
+            <select aria-label={`Rule ${i + 1}`} value={r.field} onChange={(e) => setRule(i, { field: e.target.value as SplitField })} className="h-9 w-44 shrink-0 rounded-lg border border-line bg-surface px-2 text-[13px]">
               {SPLIT_FIELDS.map((f) => <option key={f} value={f}>{SPLIT_FIELD_LABEL[f]}</option>)}
-            </Select>
+            </select>
             {fieldNeedsValue(r.field)
               ? <input aria-label={`Rule ${i + 1} value`} value={r.value} onChange={(e) => setRule(i, { value: e.target.value })} placeholder={PLACEHOLDER[r.field]}
                   className="h-9 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-sm outline-none focus:border-brand/60 focus:ring-4 focus:ring-brand/10" />
