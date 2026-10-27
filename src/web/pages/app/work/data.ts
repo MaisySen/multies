@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
+import { usePagedTasks } from "./paged-tasks-r46"; // R46 (MB-234)
 import { announceTaskChange } from "@/web/lib/task-sync-r40"; // R40 (MB-204)
 import { showError } from "@/web/lib/show-error";
 
@@ -71,9 +72,9 @@ export const useViews = () => useQuery({ queryKey: sk.views, queryFn: async () =
 
 export function useTasks(f: Record<string, string | undefined>, opts: { enabled?: boolean } = {}) {
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v) as [string, string][]).toString();
-  // Polls the change feed's effect cheaply: lists refresh every 20 s and on focus.
+  // R46 (MB-234): every page on the first read, then the change feed every 20 s and on focus (paged-tasks-r46.ts).
   // R33: the lists the person opened keep a stored copy for offline (offline-lists.ts).
-  return useQuery({ queryKey: sk.tasks(f), networkMode: "offlineFirst", queryFn: withOfflineCopy(`tasks?${qs}`, async () => (await api.get<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ""}`)).tasks), refetchInterval: 20_000, enabled: opts.enabled ?? true });
+  return usePagedTasks({ key: sk.tasks(f), path: "/tasks", qs, enabled: opts.enabled, offlineKey: `tasks?${qs}`, sorted: !!f.sort });
 }
 
 export const useTaskDetail = (id: string | null) =>
