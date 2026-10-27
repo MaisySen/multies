@@ -126,6 +126,7 @@ for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.setViewportSize({ width: 390, height: 844 });
     await demo(page);
+    meetingId = ""; docId = ""; // each test opens its own demo workspace
     await setup(page);
     const report: Record<string, Metrics | { error: string }> = {};
     for (const w of widths) {
