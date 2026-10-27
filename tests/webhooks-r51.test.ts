@@ -67,7 +67,7 @@ describe("webhook events for projects, docs and comments (R51 MB-239)", () => {
     for (const events of [null, ["message.received"]]) {
       const s = await setup(events);
       const db = s.db as unknown as { all: (q: unknown) => { org?: string }[] };
-      const orgId = db.all(sql`select org_id as org from members limit 1`)[0]!.org!;
+      const orgId = db.all(sql`select organization_id as org from members limit 1`)[0]!.org!;
       const before = s.total();
       const out = await emitEvent(s.deps, orgId, ["comment.created", "task.commented", "project.deleted"], { id: "cmt_x" });
       expect(out).toEqual([]);
