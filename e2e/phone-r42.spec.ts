@@ -61,6 +61,17 @@ for (const scheme of ["light", "dark"] as const) {
     await shot(page, `mailpick-after-undo-window-phone-${scheme}`);
     await sheet.locator("[aria-checked='true']").click();
     await expect(sheet).toBeHidden();
+    await page.getByRole("button", { name: "Close and save draft" }).click();
+
+    // The selection bar's Move to: an icon on phones that opens the same sheet.
+    await page.getByTestId("mail-select").first().click();
+    await expect(page.getByTestId("bulk-bar")).toBeVisible();
+    await pick(page, "Move to").click({ timeout: 10_000 });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole("radio", { name: "Archive" })).toBeVisible();
+    await shot(page, `mailpick-after-bulk-move-phone-${scheme}`);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways).toBeLessThanOrEqual(1);
   });
