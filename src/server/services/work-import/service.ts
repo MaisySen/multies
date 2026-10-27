@@ -5,7 +5,6 @@
  * Write cost, in D1 rows (1 per table row plus 1 per index it touches):
  *   each task          8  (the tasks row, its key, its 5 indexes and the import key index; measured 819 for 100)
  *   each comment       2
- *   each checklist item 2  (R49: the row and its task index)
  *   each batch of 50   about 4 (task numbers claimed on the project, and the day's import counter)
  *   each import        5  (one summary activity row and one change entry on the project)
  * No per task activity or change rows. A re-run of the same file writes nothing for tasks already in.
@@ -15,7 +14,7 @@
 import { invalidateStatuses } from "../suite/read-cache";
 import { and, eq, max, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { changes, members, projects, projectStatuses, taskChecklistItems, taskComments, tasks, usageCounters, users } from "../../db/schema";
+import { changes, members, projects, projectStatuses, taskComments, tasks, usageCounters, users } from "../../db/schema";
 import { runBatch } from "../../db";
 import { HttpError } from "../../lib/errors";
 import { writeBudget } from "../write-budget";
@@ -111,7 +110,7 @@ function present(r: ImportRow) {
   return {
     title: r.title, status: r.status, group: r.category, assignees: r.assignees, due: r.due?.toISOString().slice(0, 10) ?? null,
     start: r.start?.toISOString().slice(0, 10) ?? null, priority: r.priority, labels: r.labels, parent: r.parent,
-    description: r.description.slice(0, 200), comments: r.comments.length, checklist: r.checklist.length,
+    description: r.description.slice(0, 200), comments: r.comments.length,
   };
 }
 
@@ -166,7 +165,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     const early: StopReason | null = level === "warn" || level === "shed" ? "write_budget" : (await usedToday(deps, actor.orgId)) >= DAILY_TASK_CAP ? "daily_cap" : null;
     if (early) {
       if (input.projectId) await getProject(deps, actor.orgId, input.projectId);
-      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, checklistItems: 0, unknownAssignees: 0, stopped: early, projectCreated: false, createdTaskIds: [] as string[], createdStatusIds: [] as string[] };
+      return { projectId: input.projectId ?? null, projectName: null, continued: false, source: table.source, sourceLabel: label, total: rows.length, created: 0, alreadyThere: existing.size, left: pendingCount, skipped, comments: 0, unknownAssignees: 0, stopped: early, projectCreated: false, createdTaskIds: [] as string[], createdStatusIds: [] as string[] };
     }
   }
 
@@ -258,9 +257,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   const maxPos = (await deps.db.select({ m: max(tasks.position) }).from(tasks).where(eq(tasks.projectId, projectId)).get())?.m ?? 0;
   const day = dayOf(now);
   let room = Math.max(0, DAILY_TASK_CAP - (await usedToday(deps, actor.orgId)));
-  let created = 0, comments = 0, checklistItems = 0, unknownAssignees = 0;
-  const byActor = actorOf(actor);
-  const by = byActor.id ? `${byActor.type}:${byActor.id}` : byActor.type;
+  let created = 0, comments = 0, unknownAssignees = 0;
   let stopped: StopReason | null = null;
   const createdTaskIds: string[] = [];
   const author = `${label} import`;
@@ -290,11 +287,6 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
         labels: JSON.stringify(r.labels), parentId: parentOf(r), position: maxPos + (created + j + 1) * 1024, completedAt: st.category === "done" ? at : null,
         importKey: key, ...createdBy(actor), createdAt: at, updatedAt: at,
       }).onConflictDoNothing());
-      // R49: checklist items land as checklist items on the task (2 rows each: the row and its task index).
-      r.checklist.forEach((c, k) => {
-        stmts.push(deps.db.insert(taskChecklistItems).values({ id: sortableId("chk", at.getTime() + j * 100 + k), orgId: actor.orgId, taskId: id, title: c.title, done: c.done, position: k + 1, createdBy: by, createdAt: at, updatedAt: at }));
-        checklistItems++;
-      });
       r.comments.forEach((body, k) => {
         stmts.push(deps.db.insert(taskComments).values({ id: sortableId("cmt", at.getTime() + j * 100 + k), orgId: actor.orgId, taskId: id, authorName: author, body, ...createdBy(actor), createdAt: at, updatedAt: at }));
         comments++;
@@ -312,7 +304,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   if (created) {
     // One summary row for the whole import instead of an activity and change row per task.
     const who = actorOf(actor);
-    const data = { source: table.source, file: input.fileName ?? null, created, comments, checklistItems, alreadyThere: existing.size, left: pending.length - created, stopped };
+    const data = { source: table.source, file: input.fileName ?? null, created, comments, alreadyThere: existing.size, left: pending.length - created, stopped };
     await runBatch(deps.db, [
       // R33: one change row carries the timeline entry (was an activity row plus a change row).
       deps.db.insert(changes).values(changeRow(actor.orgId, who, now, { entityType: "project", entityId: projectId, op: "update", version: project.version, verb: "tasks.imported", data })),
@@ -320,7 +312,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   }
   return {
     projectId, projectName: project.name, continued, source: table.source, sourceLabel: label,
-    total: rows.length, created, alreadyThere: existing.size, left: pending.length - created, skipped, comments, checklistItems, unknownAssignees, stopped,
+    total: rows.length, created, alreadyThere: existing.size, left: pending.length - created, skipped, comments, unknownAssignees, stopped,
     projectCreated, createdTaskIds, createdStatusIds,
   };
 }

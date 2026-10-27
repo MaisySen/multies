@@ -13,7 +13,7 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { members, oauthClients, oauthGrants, organizations, users } from "../../db/schema";
-import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
+import { hmacSha256Hex, newId, randomToken, safeEqual, sha256Hex, tryFromB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import type { ApiKeyAuth, ApiKeyScope } from "./api-keys";
 import { deferrableWrite } from "../write-priority";
@@ -33,7 +33,8 @@ export class OAuthError extends Error {
 }
 
 const b64url = (s: string) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const fromB64url = (s: string) => atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+// R49: the shared tolerant decode; a token part that is not base64url reads as "" so JSON.parse fails and the token is refused (401), never an atob throw.
+const fromB64url = (s: string) => { const b = tryFromB64(s); return b ? new TextDecoder().decode(b) : ""; };
 
 /** S256 of a PKCE verifier, base64url without padding (RFC 7636). */
 export async function pkceChallenge(verifier: string): Promise<string> {

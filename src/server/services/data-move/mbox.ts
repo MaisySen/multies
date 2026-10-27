@@ -18,12 +18,14 @@ import { audit } from "../audit";
 import { storageRoom, storeImportedRaw } from "../import";
 import { assertMailboxAccess } from "../team";
 import { assertWritable, type SuiteActor } from "../suite/common";
-import { base64Bytes } from "../work-import/parse";
+import { tryFromB64 } from "../../lib/crypto";
 import { notifyMoveEnded, presentMove, starterEmail } from "./service";
 import { dropKeptFile } from "./kept-file"; // R43
 
 export const MBOX_BATCH = 3; // R40 lead: 3, not 10, after prod hit the free plan CPU limit (parsing is server CPU)
 export const MBOX_BATCH_BYTES = 192 * 1024;
+/** R49: the plain answer when an uploaded message is not base64 (Sentry MYMAIL-API-15 was a 500). */
+export const MBOX_UNREADABLE = "This file could not be read. Export it again as an mbox file and try once more.";
 /** The largest .mbox file the page reads, stated in the page too. */
 export const MBOX_MAX_FILE_MB = 200;
 
@@ -47,7 +49,10 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
   const mb = await deps.db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.id, input.mailboxId), eq(mailboxes.orgId, actor.orgId))).get();
   if (!mb) throw notFound("Mailbox");
   await assertMailboxAccess(deps.db, { userId: actor.userId, orgId: actor.orgId, role: actor.role ?? "member" }, input.mailboxId);
-  const raws = input.messages.map((m) => base64Bytes(m));
+  // R49 (MYMAIL-API-15): a message that is not base64 is a clear 422 before any write, never a 500.
+  const decoded = input.messages.map((m) => tryFromB64(m));
+  if (decoded.some((r) => r === null)) throw new HttpError(422, "unreadable_file", MBOX_UNREADABLE);
+  const raws = decoded as Uint8Array[];
   const bytes = raws.reduce((n, r) => n + r.byteLength, 0);
   if (bytes > MBOX_BATCH_BYTES + deps.config.maxMessageBytes) throw new HttpError(413, "too_large", "That batch is too big. Send fewer messages at a time.");
 

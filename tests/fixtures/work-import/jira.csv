@@ -1,5 +1,0 @@
-﻿Summary,Issue key,Issue id,Issue Type,Status,Status Category,Priority,Assignee,Reporter,Created,Due date,Labels,Labels,Labels,Description,Parent,Parent summary,Sub-tasks,Comment,Comment
-Checkout page,SHOP-1,20001,Story,In Progress,In Progress,High,ana@acme.io,ana@acme.io,01/Oct/26 9:00 AM,30/Oct/26 5:00 PM,frontend,payments,q4,"Build the page.
-Two steps at most.",,,"20002, 20003",01/Oct/26 10:00 AM;557058:abc;Looks good,"02/Oct/26 10:00 AM;557058:abc;Ship it, please"
-Card form,SHOP-2,20002,Sub-task,To Do,To Do,Medium,,ana@acme.io,02/Oct/26 9:00 AM,,payments,,,,20001,Checkout page,,,
-Receipt mail,SHOP-3,20003,Sub-task,Done,Done,Low,Ben Builder,ana@acme.io,02/Oct/26 9:00 AM,2026-10-20,,,,,SHOP-1,Checkout page,,,
