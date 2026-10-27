@@ -340,10 +340,18 @@ export async function listWorkspaces(db: DB, userId: string) {
     .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId)).where(eq(members.userId, userId));
 }
 
-export async function switchWorkspace(deps: Deps, auth: AuthContext, headers: Headers, orgId: string) {
-  const m = await deps.db.select().from(members).where(and(eq(members.userId, auth.userId), eq(members.organizationId, orgId))).get();
+/**
+ * Moves this session to another workspace the person belongs to. Multiws (27 Oct 2026): one direct write on the
+ * session row (the same write joining or creating a workspace makes), which also bumps updatedAt, so the next
+ * sign in on any device opens the workspace switched to last. Answers the workspace so the caller can confirm it.
+ */
+export async function switchWorkspace(deps: Deps, auth: AuthContext, _headers: Headers, orgId: string) {
+  const m = await deps.db.select({ name: organizations.name, role: members.role }).from(members)
+    .innerJoin(organizations, eq(organizations.id, members.organizationId))
+    .where(and(eq(members.userId, auth.userId), eq(members.organizationId, orgId))).get();
   if (!m) throw notFound("Workspace");
-  await authFor(deps).api.setActiveOrganization({ headers, body: { organizationId: orgId } });
+  await deps.db.update(sessions).set({ activeOrganizationId: orgId, updatedAt: new Date() }).where(eq(sessions.id, auth.sessionId));
+  return { id: orgId, name: m.name, role: m.role };
 }
 
 export async function createWorkspace(deps: Deps, auth: AuthContext, headers: Headers, name: string) {

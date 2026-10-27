@@ -9,6 +9,7 @@ import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
 import { SSO_METHODS } from "./session";
+import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 
 /*
@@ -133,7 +134,7 @@ export async function joinPendingInviteOnFirstSignIn(deps: Deps, headers: Header
  */
 export const AUTH_CACHE_MS = 15_000;
 const AUTH_CACHE_MAX = 2_000;
-const authCache = new Map<string, { auth: AuthContext; until: number }>();
+const authCache = new Map<string, { auth: AuthContext; until: number; mark: string }>();
 
 /** The session cookie value a request carries (either cookie name), or null. */
 export function sessionCookieKey(headers: Headers): string | null {
@@ -193,9 +194,11 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   const read = (method === "GET" || method === "HEAD") && (me || !path.startsWith("/api/account")) && !path.startsWith("/api/admin");
   if (!key) return resolveAuth(deps, headers);
   const now = Date.now();
+  // Multiws: a copy made before this browser switched workspace (in any isolate) carries another mark and is not used.
+  const mark = workspaceMark(headers);
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now && (!me || (hit.auth.emailVerified && !hit.auth.ssoBlocked))) return hit.auth;
+    if (hit && hit.until > now && hit.mark === mark && (!me || (hit.auth.emailVerified && !hit.auth.ssoBlocked))) return hit.auth;
     // /me that does not use the copy also drops it, as it did when /me always read afresh (it is the app's refresh).
     if (me) authCache.delete(key);
   } else {
@@ -207,7 +210,7 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   if (!read || me) return auth;
   if (auth) {
     if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
-    authCache.set(key, { auth, until: now + AUTH_CACHE_MS });
+    authCache.set(key, { auth, until: now + AUTH_CACHE_MS, mark });
   } else {
     authCache.delete(key);
   }

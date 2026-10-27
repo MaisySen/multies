@@ -19,6 +19,7 @@ import { IsolateCache } from "../lib/isolate-cache";
 import { createDemoWorkspace } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
+import { markWorkspace } from "../auth/workspace-mark";
 import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
 
 /**
@@ -253,11 +254,17 @@ export function accountRoutes() {
       const { auth, deps } = c.var;
       const id = await createWorkspace(deps, auth, c.req.raw.headers, name);
       await audit(deps.db, { orgId: id, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.created", metadata: { name }, ip: c.var.ip });
+      markWorkspace(c, id);
       return c.json({ id }, 201);
     })
     .post("/workspaces/:id/switch", async (c) => {
-      await switchWorkspace(c.var.deps, c.var.auth, c.req.raw.headers, c.req.param("id"));
-      return c.json({ ok: true });
+      const { auth, deps } = c.var;
+      const workspace = await switchWorkspace(deps, auth, c.req.raw.headers, c.req.param("id"));
+      if (workspace.id !== auth.orgId) {
+        await audit(deps.db, { orgId: workspace.id, actorUserId: auth.userId, actorEmail: auth.email, action: "workspace.switched", metadata: { from: auth.orgId }, ip: c.var.ip });
+      }
+      markWorkspace(c, workspace.id);
+      return c.json({ ok: true, workspace });
     })
     // Privacy: a copy of everything held about the signed-in person (JSON download).
     .get("/export", async (c) => {

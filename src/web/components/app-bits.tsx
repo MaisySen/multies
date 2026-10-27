@@ -64,6 +64,7 @@ const ACTIONS: Record<string, string> = {
   "member.removed": "removed",
   "member.left": "left the workspace",
   "workspace.created": "created the workspace",
+  "workspace.switched": "switched to the workspace",
   "workspace.ownership_transferred": "transferred ownership to",
   "app_password.created": "created an app password for",
   "app_password.revoked": "revoked an app password for",
