@@ -80,22 +80,21 @@ test("the main pages fit a 390 px phone with no sideways scroll", async () => {
 });
 
 test("DF-10: Tasks opens as a List on a phone, keeps a Board the person picks, and the Board snaps sideways", async () => {
+  // R41 MB-226 made the phone list card rows and folded the six view tabs into one View picker (a bottom sheet);
+  // R42 follows that here (phone-r41 covers the picker sheet itself).
   await page.evaluate(() => localStorage.removeItem("multies:tasks-view"));
   await page.goto("/app/tasks");
-  const tabs = page.getByRole("tablist", { name: "View" });
-  await expect(tabs.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.locator("tr[data-task]").first()).toBeVisible();
-  for (const tab of await tabs.getByRole("tab").all()) {
-    const b = (await tab.boundingBox())!;
-    expect(b.height).toBeGreaterThanOrEqual(40);
-    expect(b.width).toBeGreaterThanOrEqual(40);
-  }
+  const picker = page.locator('[data-testid="phone-select"][data-name="View"]');
+  await expect(page.getByTestId("phone-task-list")).toBeVisible({ timeout: 15_000 });
+  const pb = (await picker.boundingBox())!;
+  expect(pb.height).toBeGreaterThanOrEqual(40);
   await noSidewaysScroll("tasks list");
   await page.screenshot({ path: `${SHOTS}/phone-tasks.png` });
   await page.screenshot({ path: `${SHOTS}/r25-web.png` });
 
   // The person picks the Board: it scrolls sideways with snap, each column fits the screen, and it is kept.
-  await tabs.getByRole("tab", { name: "Board" }).click();
+  await picker.click();
+  await page.getByTestId("picker-sheet").getByRole("radio", { name: "Board" }).click();
   const board = page.getByTestId("board");
   await expect(board).toBeVisible();
   const snap = await board.evaluate((el) => ({ type: getComputedStyle(el).scrollSnapType, overflow: getComputedStyle(el).overflowX, scroll: el.scrollWidth > el.clientWidth }));
@@ -107,11 +106,12 @@ test("DF-10: Tasks opens as a List on a phone, keeps a Board the person picks, a
   expect(col.width).toBeLessThanOrEqual(390 * 0.86);
   await noSidewaysScroll("tasks board");
   await page.goto("/app/tasks");
-  await expect(tabs.getByRole("tab", { name: "Board" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("board")).toBeVisible();
   // Back to the List for the next person on this device.
-  await tabs.getByRole("tab", { name: "List" }).click();
+  await page.locator('[data-testid="phone-select"][data-name="View"]').click();
+  await page.getByTestId("picker-sheet").getByRole("radio", { name: "List" }).click();
   await page.goto("/app/tasks");
-  await expect(tabs.getByRole("tab", { name: "List" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("phone-task-list")).toBeVisible({ timeout: 15_000 });
 });
 
 test("DF-10: goal key results stack on a phone instead of wrapping in a narrow column", async () => {
