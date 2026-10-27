@@ -811,12 +811,5 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R38 (move your data): one row per import or export run, so a person can see the history, follow progress,\n-- download an export through a link that expires, and undo an import (the row lists exactly what it created).\n-- Writes: one insert when a run starts and one update per chunk of up to 50 items (essential: the person started it).\nCREATE TABLE `data_moves` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL REFERENCES `organizations`(`id`) ON DELETE cascade,\n\t`kind` text NOT NULL,\n\t`source` text NOT NULL,\n\t`file_name` text,\n\t`status` text DEFAULT 'running' NOT NULL,\n\t`project_id` text,\n\t`total` integer DEFAULT 0 NOT NULL,\n\t`done` integer DEFAULT 0 NOT NULL,\n\t`created` text DEFAULT '{}' NOT NULL,\n\t`counts` text DEFAULT '{}' NOT NULL,\n\t`token_hash` text,\n\t`expires_at` integer,\n\t`error` text,\n\t`created_by_user_id` text,\n\t`created_by_email` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL,\n\t`finished_at` integer,\n\t`undone_at` integer\n);",
       "CREATE INDEX `data_moves_org_idx` ON `data_moves` (`org_id`,`created_at`);"
     ]
-  },
-  {
-    "name": "0082_r40_task_list_indexes",
-    "statements": [
-      "-- R40 D1 reads: task lists in their default order (position, newest first) walk an index and stop at the page size,\n-- instead of reading and sorting every live task of the workspace or project. Measured on production (HQ, 489 tasks):\n-- a page of 50 read 927 rows, a project page of 50 read 897.\nCREATE INDEX IF NOT EXISTS `tasks_org_live_pos_idx` ON `tasks` (`org_id`,`position`,`created_at` desc) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;",
-      "CREATE INDEX IF NOT EXISTS `tasks_org_project_live_pos_idx` ON `tasks` (`org_id`,`project_id`,`position`,`created_at` desc) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;"
-    ]
   }
 ];

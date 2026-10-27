@@ -45,6 +45,6 @@ describe("R33 measure", () => {
     out.chat = [take.byTable(), take()];
     console.log("R33MEASURE " + JSON.stringify(out));
     const total = (k: string) => { const v = out[k] as unknown[]; return v[v.length - 1]; };
-    expect([total("create"), total("title"), total("move"), total("docSave")]).toEqual([11, 7, 11, 6]); // R40 (0082): a create adds 2 entries to the two task list indexes. R34: a move keeps the old ref (1 entity_links row and its 2 index entries)
+    expect([total("create"), total("title"), total("move"), total("docSave")]).toEqual([9, 7, 11, 6]); // R34: a move keeps the old ref (1 entity_links row and its 2 index entries)
   });
 });

@@ -57,33 +57,14 @@ function keyFrom(name: string) {
   return k.slice(0, 5) || "TSK";
 }
 
-/*
- * R40 D1 reads: the per project status counts read every live task of the workspace (979 rows on HQ) and the
- * project list is fetched on most page loads, so it was the top reader. The counts are kept for PROJECT_COUNTS_MS
- * inside the isolate; any write to the workspace through the API drops them (app.ts), so the person who made the
- * change sees it at once and others within a few seconds. Memory only.
- */
-export const PROJECT_COUNTS_MS = 20_000;
-const projectCountsCache = new Map<string, { at: number; rows: { projectId: string; status: Category; n: number }[] }>();
-export function forgetProjectCounts(orgId?: string) { if (orgId) projectCountsCache.delete(orgId); else projectCountsCache.clear(); }
-async function projectCounts(deps: Deps, orgId: string) {
-  const now = Date.now();
-  const hit = projectCountsCache.get(orgId);
-  if (hit && now - hit.at < PROJECT_COUNTS_MS) return hit.rows;
-  const rows = await deps.db.select({ projectId: tasks.projectId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
-    .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId, tasks.status);
-  if (projectCountsCache.size >= 2_000) projectCountsCache.delete(projectCountsCache.keys().next().value as string);
-  projectCountsCache.set(orgId, { at: now, rows: rows as { projectId: string; status: Category; n: number }[] });
-  return rows;
-}
-
 export async function listProjects(deps: Deps, orgId: string, opts: { includeArchived?: boolean } = {}) {
   const ps = await deps.db.select().from(projects).where(and(eq(projects.orgId, orgId), isNull(projects.deletedAt), opts.includeArchived ? undefined : isNull(projects.archivedAt))).orderBy(asc(projects.createdAt));
   if (!ps.length) return [];
   const ids = ps.map((p) => p.id);
   const [sts, counts] = await Promise.all([
     deps.db.select().from(projectStatuses).where(and(inIds(projectStatuses.projectId, ids), isNull(projectStatuses.deletedAt))),
-    projectCounts(deps, orgId),
+    deps.db.select({ projectId: tasks.projectId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
+      .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId, tasks.status),
   ]);
   const byProject = new Map<string, Record<Category, number>>();
   for (const c of counts) {
@@ -256,10 +237,8 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     inChunks(memberIds, (ids) => deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, ids))),
     inChunks(agentIds, (ids) => deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, ids), eq(agents.orgId, orgId)))),
     // D1 allows 100 bound variables per query: IN lists go in chunks of SQL_IN_CHUNK (R25, Sentry MYMAIL-API-V).
-    // R40 D1 reads: "+org_id" keeps the workspace check but stops SQLite choosing the workspace index (every task of
-    // the workspace, 491 rows on HQ) over tasks_parent_idx (only the subtasks of these parents).
     inChunks(parentIds, (ids) => deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
-      .where(and(sql`+${tasks.orgId} = ${orgId}`, inIds(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
+      .where(and(eq(tasks.orgId, orgId), inIds(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
     inChunks(parentIds, (ids) => deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
       .where(and(inIds(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),

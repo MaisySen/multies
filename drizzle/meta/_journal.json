@@ -533,13 +533,6 @@
       "when": 1793000081000,
       "tag": "0081_r38_data_moves",
       "breakpoints": true
-    },
-    {
-      "idx": 82,
-      "version": "6",
-      "when": 1793000082000,
-      "tag": "0082_r40_task_list_indexes",
-      "breakpoints": true
     }
   ]
 }

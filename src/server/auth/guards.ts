@@ -84,65 +84,9 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   };
 }
 
-/*
- * R40 (MB-199): the free plan stops a Worker at 10 ms of CPU, and resolving a session through Better Auth
- * plus the membership query was about 3 ms of every signed in request before the route did any work.
- * Reads (GET and HEAD) reuse a resolved session for a few seconds inside the same isolate, keyed by the exact
- * session cookie value (only a value that already resolved is ever stored). Writes always resolve afresh and
- * drop the cached copy for that cookie first, so signing out, switching workspace or a role change made by the
- * person is seen at once. A change made by someone else (an admin removing a member, revoking a session) is
- * seen by reads within AUTH_CACHE_MS. Memory only: never a D1 write, nothing shared across isolates.
- */
-export const AUTH_CACHE_MS = 15_000;
-const AUTH_CACHE_MAX = 2_000;
-const authCache = new Map<string, { auth: AuthContext; until: number }>();
-
-/** The session cookie value a request carries (either cookie name), or null. */
-export function sessionCookieKey(headers: Headers): string | null {
-  const cookie = headers.get("cookie");
-  if (!cookie || !cookie.includes("session_token=")) return null;
-  const m = cookie.match(/(?:^|;\s*)(?:__Host-|__Secure-)?mymail\.session_token=([^;]+)/);
-  return m ? m[1] : null;
-}
-
-/** Drops the cached session for this cookie (called before every write and on sign out). */
-export function forgetCachedAuth(headers: Headers) {
-  const key = sessionCookieKey(headers);
-  if (key) authCache.delete(key);
-}
-
-/** Test hook: empties the in-isolate session cache. */
-export function clearAuthCache() { authCache.clear(); }
-
-export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
-  const key = sessionCookieKey(headers);
-  // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
-  // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
-  const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");
-  if (!key) return resolveAuth(deps, headers);
-  const now = Date.now();
-  if (read) {
-    const hit = authCache.get(key);
-    if (hit && hit.until > now) return hit.auth;
-  } else {
-    authCache.delete(key);
-  }
-  const auth = await resolveAuth(deps, headers);
-  // A write can change what the session points at (accepting an invite, switching workspace), so only reads
-  // fill the cache.
-  if (!read) return auth;
-  if (auth) {
-    if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
-    authCache.set(key, { auth, until: now + AUTH_CACHE_MS });
-  } else {
-    authCache.delete(key);
-  }
-  return auth;
-}
-
 /** Requires a valid session; populates `c.var.auth`. */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const auth = await resolveAuthCached(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
+  const auth = await resolveAuth(c.var.deps, c.req.raw.headers);
   if (!auth) throw unauthorized();
   // A workspace that requires SSO only lets password sessions reach account level routes
   // (profile, export, switching workspaces), so the person can still move or leave.
