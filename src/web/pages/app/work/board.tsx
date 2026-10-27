@@ -73,9 +73,7 @@ export function SortableCard({ t, onOpen, project, win }: { t: Task; onOpen: () 
 export function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[]; project?: Project; onOpen: (id: string) => void;
   listRef: React.RefObject<HTMLUListElement | null>; activeId: string | null }) {
   const ids = useMemo(() => list.map((t) => t.id), [list]);
-  // R45: while the column is jump scrolled the window draws light cards (no drag hooks, no menus, nothing measured);
-  // the full cards come back as soon as it settles. Never during a drag: the dragged card needs real targets.
-  const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6, shells: !activeId });
+  const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6 });
   useRevealRow(ids, win, listRef);
   const rows: { t: Task; i: number }[] = [];
   for (let i = win.start; i < win.end; i++) rows.push({ t: list[i], i });
@@ -86,26 +84,12 @@ export function ColumnCards({ list, project, onOpen, listRef, activeId }: { list
     <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       {win.start > 0 && <li aria-hidden className="shrink-0" style={{ height: win.padTop }} />}
       {keepActive && activeAt < win.start && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
-      {win.fast
-        ? rows.map(({ t, i }) => <ShellCard key={t.id} t={t} index={i} height={win.sizeOf(i)} />)
-        : rows.map(({ t, i }) => <WinCard key={t.id} t={t} project={project} onOpen={onOpen} index={i} size={win.windowed ? list.length : 0} />)}
+      {rows.map(({ t, i }) => <WinCard key={t.id} t={t} project={project} onOpen={onOpen} index={i} size={win.windowed ? list.length : 0} />)}
       {keepActive && activeAt >= win.end && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
       {win.end < list.length && <li aria-hidden className="shrink-0" style={{ height: win.padBottom }} />}
     </SortableContext>
   );
 }
-
-/**
- * R45: the light card drawn while a column is jump scrolled: the same card surface, title and key at the card's known
- * height, with no drag hooks, menus or icons. The text comes from CSS (attr), so it is one element with no text nodes,
- * hidden from screen readers and from text queries; it lives for a fraction of a second.
- */
-const ShellCard = memo(function ShellCard({ t, index, height }: { t: Task; index: number; height: number }) {
-  return (
-    <li aria-hidden data-win-row={index} data-win-shell="" data-title={t.title} data-ref={t.ref} style={{ height }}
-      className="board-shell shrink-0 overflow-hidden rounded-lg border border-line bg-elevated px-3 py-3 shadow-sm" />
-  );
-});
 
 /** R44: a card that re-renders only when its task, position or column size changes (scrolling mounts a few per frame). */
 const WinCard = memo(function WinCard({ t, project, onOpen, index, size }: { t: Task; project?: Project; onOpen: (id: string) => void; index: number; size: number }) {

@@ -29,9 +29,7 @@ const CONTEXT: Record<string, string> = { chat: "Channel", dm: "Direct message",
 /** Amber past 12 hours, red past 24: the operator acts within 24 hours. */
 export function ageTone(hours: number): "ok" | "warn" | "bad" { return hours >= 24 ? "bad" : hours >= 12 ? "warn" : "ok"; }
 
-export function useOpenReportCount(enabled: boolean) {
-  return useQuery({ queryKey: ["admin", "reports", "count"], enabled, refetchInterval: 120_000, queryFn: async () => (await api.get<{ open: number }>("/admin/reports/count")).open });
-}
+export { useOpenReportCount } from "@/web/lib/open-report-count"; // R45: moved so the app frame does not load this page
 
 export function ModerationPage() {
   const qc = useQueryClient();
