@@ -46,20 +46,16 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
   );
 }
 
-export function SortableCard({ t, onOpen, project, win, pinTop }: { t: Task; onOpen: () => void; project?: Project;
+export function SortableCard({ t, onOpen, project, win }: { t: Task; onOpen: () => void; project?: Project;
   /** R44: position in a windowed column (index from 0, and the column's full size) for the windowing hook and screen readers. */
-  win?: { index: number; size: number };
-  /** R45: pinned at this offset in its column (the dragged card while it is outside the window). */
-  pinTop?: number }) {
+  win?: { index: number; size: number } }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, data: { statusId: t.statusId } });
-  const pinned = pinTop !== undefined;
   return (
     // The card drags by pointer anywhere on it; keyboard and screen reader users get a
     // separate handle, so the list item itself is not a button wrapping other buttons.
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, ...(pinned ? { position: "absolute", top: pinTop, left: 8, right: 8, zIndex: 1 } : {}) }} {...listeners}
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...listeners}
       className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}
-      {...(win && !pinned ? { "data-win-row": win.index, "data-win-key": t.id } : {})}
-      {...(win ? { "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}>
+      {...(win ? { "data-win-row": win.index, "data-win-key": t.id, "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}>
       <TaskCard t={t} onOpen={onOpen} project={project} handle={
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
           className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
@@ -77,50 +73,28 @@ export function SortableCard({ t, onOpen, project, win, pinTop }: { t: Task; onO
 export function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[]; project?: Project; onOpen: (id: string) => void;
   listRef: React.RefObject<HTMLUListElement | null>; activeId: string | null }) {
   const ids = useMemo(() => list.map((t) => t.id), [list]);
-  // R45: while the column is jump scrolled the window draws light cards (no drag hooks, no menus, nothing measured);
-  // the full cards come back as soon as it settles. Never during a drag: the dragged card needs real targets.
-  const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6, shells: !activeId });
+  const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6 });
   useRevealRow(ids, win, listRef);
   const rows: { t: Task; i: number }[] = [];
   for (let i = win.start; i < win.end; i++) rows.push({ t: list[i], i });
-  // The card being dragged stays mounted even when the column scrolls it out of the window. R45: it stays the same
-  // element (same key in the same children list, so React moves it rather than mounting a new one) and is pinned at
-  // its own place in the column, over the spacer. Before, it was remounted at the edge of the window, its box jumped,
-  // and a keyboard drag stopped finding cards below it once it left the window (MB-210 follow up).
+  // The card being dragged stays mounted even when the column scrolls it out of the window.
   const activeAt = activeId && win.windowed ? ids.indexOf(activeId) : -1;
   const keepActive = activeAt >= 0 && (activeAt < win.start || activeAt >= win.end);
-  const size = win.windowed ? list.length : 0;
-  const cards = win.fast
-    ? rows.map(({ t, i }) => <ShellCard key={t.id} t={t} index={i} height={win.sizeOf(i)} />)
-    : rows.map(({ t, i }) => <WinCard key={t.id} t={t} project={project} onOpen={onOpen} index={i} size={size} />);
-  if (keepActive) cards.push(<WinCard key={activeId} t={list[activeAt]} project={project} onOpen={onOpen} index={activeAt} size={size} pinTop={win.offsetOf(activeAt)} />);
   return (
     <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       {win.start > 0 && <li aria-hidden className="shrink-0" style={{ height: win.padTop }} />}
-      {cards}
+      {keepActive && activeAt < win.start && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
+      {rows.map(({ t, i }) => <WinCard key={t.id} t={t} project={project} onOpen={onOpen} index={i} size={win.windowed ? list.length : 0} />)}
+      {keepActive && activeAt >= win.end && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
       {win.end < list.length && <li aria-hidden className="shrink-0" style={{ height: win.padBottom }} />}
     </SortableContext>
   );
 }
 
-/**
- * R45: the light card drawn while a column is jump scrolled: the same card surface, title and key at the card's known
- * height, with no drag hooks, menus or icons. The text comes from CSS (attr), so it is one element with no text nodes,
- * hidden from screen readers and from text queries; it lives for a fraction of a second.
- */
-const ShellCard = memo(function ShellCard({ t, index, height }: { t: Task; index: number; height: number }) {
-  return (
-    <li aria-hidden data-win-row={index} data-win-shell="" data-title={t.title} data-ref={t.ref} style={{ height }}
-      className="board-shell shrink-0 overflow-hidden rounded-lg border border-line bg-elevated px-3 py-3 shadow-sm" />
-  );
-});
-
 /** R44: a card that re-renders only when its task, position or column size changes (scrolling mounts a few per frame). */
-const WinCard = memo(function WinCard({ t, project, onOpen, index, size, pinTop }: { t: Task; project?: Project; onOpen: (id: string) => void; index: number; size: number;
-  /** R45: the dragged card outside the window, pinned at its own offset in the column. */
-  pinTop?: number }) {
+const WinCard = memo(function WinCard({ t, project, onOpen, index, size }: { t: Task; project?: Project; onOpen: (id: string) => void; index: number; size: number }) {
   const open = useCallback(() => onOpen(t.id), [onOpen, t.id]);
-  return <SortableCard t={t} project={project} onOpen={open} win={size ? { index, size } : undefined} pinTop={pinTop} />;
+  return <SortableCard t={t} project={project} onOpen={open} win={size ? { index, size } : undefined} />;
 });
 
 function BoardColumn({ list, project, onOpen, activeId, ...col }: Omit<React.ComponentProps<typeof Column>, "children" | "listRef" | "count"> & {
@@ -207,7 +181,7 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5" /></button>
       </header>
       <ul ref={(el) => { setNodeRef(el); if (listRef) listRef.current = el; }} aria-label={`${title} cards`} data-testid="board-column-cards"
-        className={cn("relative flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
+        className={cn("flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
       {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}
     </section>
   );

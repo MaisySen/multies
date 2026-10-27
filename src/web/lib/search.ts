@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
-import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
+import { readLastCopy, withOfflineCopy } from "@/web/lib/offline-lists"; // R33, R45
 
 export type SearchType = "mail" | "tasks" | "docs" | "chat" | "contacts" | "deals";
 export interface SearchItem { type: SearchType; id: string; title: string; subtitle: string; snippet: string; url: string; at: string | null }
@@ -41,5 +41,16 @@ export function useContentSearch(raw: string, enabled = true) {
 /** "Today" is the person's own time zone (or the workspace's), worked out on the server. */
 export function useMyWork() {
   // R33: offline, the last stored copy for this person and workspace shows instead of the empty state.
-  return useQuery({ queryKey: ["my-work"], refetchInterval: 60_000, networkMode: "offlineFirst", queryFn: withOfflineCopy("my-work", () => api.get<MyWork>("/my-work")) });
+  const q = useQuery({ queryKey: ["my-work"], refetchInterval: 60_000, networkMode: "offlineFirst", queryFn: withOfflineCopy("my-work", () => api.get<MyWork>("/my-work")) });
+  // R45 (MB-203): on a slow link the last stored copy draws at once and the page says it is updating.
+  const [copy, setCopy] = useState<{ data: MyWork; at: number } | null>(null);
+  const waiting = q.data === undefined;
+  useEffect(() => {
+    if (!waiting) return;
+    let on = true;
+    void readLastCopy<MyWork>("my-work").then((c) => { if (on && c) setCopy(c); });
+    return () => { on = false; };
+  }, [waiting]);
+  const cached = waiting && !!copy;
+  return { ...q, data: cached ? copy.data : q.data, cachedAt: cached ? copy.at : null };
 }
