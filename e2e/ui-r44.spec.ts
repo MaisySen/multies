@@ -149,7 +149,7 @@ test("5,000 card board column: small DOM, the last card, keyboard, drag between 
   // Measured card heights can grow the column while it scrolls, so keep going to the end the way a person would.
   await expect.poll(async () => {
     if (box) await box.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    return col.getByText(`Long list task ${N}`, { exact: true }).isVisible();
+    return col.locator(`[aria-posinset="${N}"]`).first().isVisible();
   }, { timeout: 15_000 }).toBe(true);
   await expect(col.getByRole("button", { name: /add task/i }).last()).toBeVisible();
   // J walks the full list: past the rendered window the focused card is brought in with its ring.
@@ -165,6 +165,8 @@ test("5,000 card board column: small DOM, the last card, keyboard, drag between 
   if (box) await box.evaluate((el) => { el.scrollTop = 0; });
   const target = board.locator("section").filter({ hasNot: page.getByText("Long list task 1", { exact: true }) }).first();
   const card = col.getByTestId("board-card").first();
+  await expect(card).toBeInViewport();
+  await page.waitForTimeout(200);
   const id = await card.getAttribute("data-task-id");
   const req = page.waitForRequest((r) => r.method() !== "GET" && r.url().includes(`/api/tasks/${id}`), { timeout: 15_000 });
   const a = (await card.boundingBox())!;
@@ -234,6 +236,14 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(page.getByTestId("board").getByText("Long list task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
       const box = await scroller(page, "[data-testid=board-card]");
       if (box) await box.evaluate((el) => { el.scrollTop = el.scrollHeight / 2; });
+      // Keep the page header in view and bring the 5,000 card column on screen (on a phone the columns swipe sideways).
+      await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector("main")?.scrollTo({ top: 0 }); });
+      const col = page.getByTestId("board").locator("section").filter({ has: page.getByTestId("board-card") }).first();
+      await col.evaluate((el) => {
+        let p = el.parentElement;
+        while (p && p.scrollWidth <= p.clientWidth + 1) p = p.parentElement;
+        if (p) p.scrollLeft = Math.max(0, (el as HTMLElement).offsetLeft - 16);
+      });
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${DIR}/board-${LABEL}-5000-${kind}-${scheme}.png` });
       await page.unrouteAll({ behavior: "ignoreErrors" });

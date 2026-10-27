@@ -207,8 +207,14 @@ test("5,000 task board: a column renders a window of cards (R44: windowed, no Sh
   expect(domNodes).toBeLessThan(12000);
   await expect(board.getByTestId("board-show-more")).toHaveCount(0);
   await expect.poll(async () => {
-    await board.getByTestId("board-column-cards").first().evaluate((el) => { el.scrollTop = el.scrollHeight; });
-    return board.getByText(`Long list task ${N}`, { exact: true }).isVisible();
+    // Scroll whichever box scrolls the column (the column itself, or the page around it).
+    await board.getByTestId("board-card").first().evaluate((el) => {
+      let p: HTMLElement | null = el.parentElement;
+      while (p && !(p.scrollHeight > p.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(p).overflowY))) p = p.parentElement;
+      if (p) p.scrollTop = p.scrollHeight; else window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    // The end of the column is the card at position N, whatever the sort order puts there.
+    return board.locator(`[aria-posinset="${N}"]`).first().isVisible();
   }, { timeout: 15_000 }).toBe(true);
 });
 
