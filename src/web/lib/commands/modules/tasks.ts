@@ -25,6 +25,11 @@ export const taskCommands: Command[] = [
     id: `task-${p.page}`, title: p.title, group: "Tasks", scope: "task", keys: [p.key], keywords: p.keywords, icon: p.icon,
     palette: true, when: focused, handler: "run", run: (c) => c.openPalette(`task:${p.page}`),
   })),
+  // R45: the backlog's keyboard selection (sprints.tsx); the list handles these keys itself.
+  { id: "backlog-extend", title: "Select more backlog rows", group: "Tasks", scope: "tasks-list", keys: ["Shift", "Up or Down"], keywords: ["backlog", "select", "multi"], handler: "local" },
+  { id: "backlog-toggle", title: "Select or clear a backlog row", group: "Tasks", scope: "tasks-list", keys: ["Space"], keywords: ["backlog", "select", "checkbox"], handler: "local" },
+  { id: "backlog-move", title: "Move the selected backlog rows to a sprint", group: "Tasks", scope: "tasks-list", keys: ["M"], keywords: ["backlog", "sprint", "move"], handler: "local" },
+  { id: "backlog-clear", title: "Clear the backlog selection", group: "Tasks", scope: "tasks-list", keys: ["Esc"], keywords: ["backlog", "select", "deselect"], handler: "local" },
   { id: "check-move", title: "Move a checklist item", group: "Tasks", scope: "writing", keys: ["Alt", "Up or Down"], keywords: ["reorder", "checklist"], handler: "local" },
   { id: "check-next", title: "Add the next checklist item", group: "Tasks", scope: "writing", keys: ["Enter"], keywords: ["checklist"], handler: "local" },
 ];

@@ -106,9 +106,6 @@ export function requestIp(ip: string, localAddresslessUnlimited?: boolean): stri
 /** Writes that can change another person's access or end their sessions (R40 sec). */
 const ACCESS_WRITE = /^\/api\/(team|org|admin|invites|account)(\/|$)|^\/api\/auth\/(revoke|change-password|reset-password|organization|admin|two-factor|delete-user)/;
 
-/** R45 (MB-199): per app, builds the lazily made public API now. Used by the Worker at isolate startup only. */
-export const appPrebuild = new WeakMap<object, () => void>();
-
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
   const notFoundHandler = (c: Context<AppEnv>) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404));
@@ -282,8 +279,6 @@ export function createApp(deps: Deps) {
     }
   };
   app.get("/api/health", health);
-  // R45: production test session for the build team (404 unless the TEST_SESSION_* settings are set; see routes/test-session-r45.ts).
-  app.post("/api/_test-session", async (c) => (await import("./routes/test-session-r45")).mintTestSession(c));
   // Uptime monitors try /health and /healthz first (MB-53): same JSON answer, never the HTML 404 page.
   app.get("/health", health);
   // R32: release check for open tabs, and the public developer docs for agents.
@@ -485,24 +480,19 @@ export function createApp(deps: Deps) {
   // the build, and with it every API call there went over the 10 ms CPU limit and was
   // answered 503 with an empty body (round 8 and 9 load tests).
   let v1: ReturnType<typeof v1Routes> | undefined;
-  const buildV1 = () => {
-    if (v1) return;
-    v1 = v1Routes();
-    v1.notFound((c) => c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404));
-    v1.onError(errorHandler);
-  };
-  // R45 (MB-199): the Worker builds it at isolate startup instead (src/entry/worker.ts startupBoot, its own and much
-  // larger CPU allowance), so the first /api/v1 request of a new isolate no longer pays for it.
-  appPrebuild.set(app, buildV1);
   const v1Handler = (c: Context<AppEnv>) => {
-    if (!v1) buildV1();
+    if (!v1) {
+      v1 = v1Routes();
+      v1.notFound((c) => c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404));
+      v1.onError(errorHandler);
+    }
     const url = new URL(c.req.url);
     url.pathname = url.pathname.slice("/api/v1".length) || "/";
     const req = new Request(url, c.req.raw);
     v1ParentVars.set(req, { deps: c.var.deps, ip: c.var.ip, requestId: c.var.requestId, log: c.var.log });
     let ctx: Parameters<ReturnType<typeof v1Routes>["fetch"]>[2];
     try { ctx = c.executionCtx; } catch { ctx = undefined; }
-    return v1!.fetch(req, c.env, ctx);
+    return v1.fetch(req, c.env, ctx);
   };
   // Round 10 (chat, templates, goals, guest chat) is built on its first request too, for the same reason.
   type R10 = import("hono").Hono<AppEnv>;

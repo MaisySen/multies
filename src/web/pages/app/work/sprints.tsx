@@ -4,6 +4,7 @@
  * choice), plan and edit sprints, and "Move to sprint" on every row. The chart is a plain inline SVG.
  */
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconCircle, IconEdit, IconFlag, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
@@ -11,13 +12,14 @@ import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
-import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, Kbd, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
 import type { Project, Task } from "./data";
 import { useSprints, type Sprint } from "./sprint-fields";
 import { NoSprintsArt } from "@/web/components/illustrations"; // R36
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R44 (MB-210 follow up)
+import { listKey, selectionMessage } from "@/web/lib/list-keys"; // R45: backlog keyboard selection
 
 export type { Sprint };
 
@@ -174,7 +176,9 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 type RowWin = { index: number; size: number } | undefined;
 
-function TaskRow({ task: t, unit, onOpen, menu, compact, win, select, drag }: { task: Task; unit: string; onOpen: (id: string) => void; menu?: React.ReactNode; compact?: boolean;
+function TaskRow({ task: t, unit, onOpen, menu, compact, win, select, drag, rowIndex }: { task: Task; unit: string; onOpen: (id: string) => void; menu?: React.ReactNode; compact?: boolean;
+  /** R45: the row's place in the whole list, for keyboard selection. */
+  rowIndex?: number;
   /** R44: position in a windowed list. */
   win?: RowWin;
   /** R44: the backlog's selection box (Shift selects a run). */
@@ -183,13 +187,13 @@ function TaskRow({ task: t, unit, onOpen, menu, compact, win, select, drag }: { 
   drag?: () => string[] }) {
   return (
     <li className={cn("group flex items-center gap-2.5 border-b border-line px-4 py-2 last:border-0 hover:bg-hover/60", select?.checked && "bg-brand/[0.06] hover:bg-brand/10", drag && "cursor-grab active:cursor-grabbing")}
-      data-testid={select ? "backlog-row" : undefined} data-task-id={t.id}
+      data-testid={select ? "backlog-row" : undefined} data-task-id={t.id} data-row-index={rowIndex}
       {...(win ? { "data-win-row": win.index, "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}
       draggable={drag ? true : undefined}
       onDragStart={drag ? (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(drag())); e.dataTransfer.setData("text/plain", t.ref ?? t.title); } : undefined}>
       {select && (
-        <input type="checkbox" aria-label={`Select ${t.title}`} checked={select.checked} readOnly
-          onClick={(e) => select.onToggle(e.shiftKey)} className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0071E3]" />
+        <input type="checkbox" aria-label={`Select ${t.title}`} checked={select.checked} readOnly data-backlog-check=""
+          onClick={(e) => select.onToggle(e.shiftKey)} className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded accent-[#0071E3] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand" />
       )}
       {t.status === "done" ? <IconCheckCircle className="h-4 w-4 shrink-0 text-ok" aria-label="Done" /> : <IconCircle className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
       <span className={cn("shrink-0 text-[12px] tabular-nums text-subtle", compact ? "w-12" : "w-14")}>{t.ref}</span>
@@ -208,13 +212,30 @@ const DRAG_TYPE = "application/x-multies-task-ids";
  * R44 (MB-210 follow up): a sprint or backlog list that renders only the rows in view from 150 rows up, with spacer
  * rows for the rest (rows are one fixed height). Counts and totals are worked out by the callers over every task.
  */
-function WindowedRows({ label, tasks, render }: { label: string; tasks: Task[]; render: (t: Task, win: RowWin) => React.ReactNode }) {
+function WindowedRows({ label, tasks, render, onKeyDown, reveal }: { label: string; tasks: Task[]; render: (t: Task, win: RowWin) => React.ReactNode;
+  /** R45: keys on the rows (the backlog's keyboard selection). */
+  onKeyDown?: (e: React.KeyboardEvent<HTMLUListElement>) => void;
+  /** R45: filled with a function that brings row i into view and focuses its checkbox. */
+  reveal?: React.MutableRefObject<((i: number) => void) | null> }) {
   const ref = useRef<HTMLUListElement | null>(null);
   const win = useWindowedList({ count: tasks.length, estimate: 41, listRef: ref });
+  const scrollTo = win.scrollToIndex;
+  if (reveal) reveal.current = (i: number) => {
+    const focusIt = () => {
+      const el = ref.current?.querySelector<HTMLElement>(`[data-row-index="${i}"] [data-backlog-check]`);
+      if (el) { el.focus(); el.closest("li")?.scrollIntoView({ block: "nearest" }); }
+      return !!el;
+    };
+    if (focusIt()) return;
+    // Render the new window now, so the next key press already lands on the new row (fast key repeat).
+    flushSync(() => scrollTo(i));
+    if (focusIt()) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!focusIt()) requestAnimationFrame(focusIt); }));
+  };
   const rows: React.ReactNode[] = [];
   for (let i = win.start; i < win.end; i++) rows.push(render(tasks[i], win.windowed ? { index: i, size: tasks.length } : undefined));
   return (
-    <ul ref={ref} aria-label={label}>
+    <ul ref={ref} aria-label={label} onKeyDown={onKeyDown}>
       {win.start > 0 && <li aria-hidden style={{ height: win.padTop }} />}
       {rows}
       {win.end < tasks.length && <li aria-hidden style={{ height: win.padBottom }} />}
@@ -262,7 +283,12 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
   const anchor = useRef<number | null>(null);
   const ids = useMemo(() => tasks.map((t) => t.id), [tasks]);
   useEffect(() => { setPicked((p) => { if (!p.size) return p; const live = new Set(ids); const n = new Set([...p].filter((id) => live.has(id))); return n.size === p.size ? p : n; }); }, [ids]);
+  // R45: keyboard selection state (focused row, the Shift run's anchor and what was picked before the run).
+  const kb = useRef<{ anchor: number | null; base: Set<number> | null }>({ anchor: null, base: null });
+  const reveal = useRef<((i: number) => void) | null>(null);
+  const [moveFor, setMoveFor] = useState<{ ids: string[]; back: number } | null>(null);
   const toggle = (i: number, shift: boolean) => {
+    kb.current = { anchor: null, base: null };
     const from = anchor.current; // read now: the state update below runs later
     setPicked((p) => {
       const n = new Set(p);
@@ -277,9 +303,35 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
   const pickedIds = ids.filter((id) => picked.has(id));
   const pickedPts = tasks.reduce((a, t) => a + (picked.has(t.id) ? t.points ?? 0 : 0), 0);
   const u = unit === "hours" ? "h" : "pt";
-  const moveTo = (to: string, list: string[]) => { onMove(list, to); setPicked(new Set()); anchor.current = null; };
+  const moveTo = (to: string, list: string[]) => { onMove(list, to); setPicked(new Set()); anchor.current = null; kb.current = { anchor: null, base: null }; };
+  // R45: the move menu lists the sprint on screen first, then the other open sprints.
+  const moveTargets = target ? [target, ...sprints.filter((x) => x.id !== target.id)] : sprints;
+  const onKeys = (e: React.KeyboardEvent<HTMLUListElement>) => {
+    const el = e.target as HTMLElement;
+    if (!el.hasAttribute("data-backlog-check") || e.altKey) return;
+    if (e.key === " ") return; // the checkbox toggles itself (and keeps Shift click runs working)
+    const focus = Number(el.closest<HTMLElement>("[data-row-index]")?.dataset.rowIndex ?? -1);
+    if (focus < 0) return;
+    const now = new Set<number>();
+    ids.forEach((id, i) => { if (picked.has(id)) now.add(i); });
+    const res = listKey({ focus, anchor: kb.current.anchor, base: kb.current.base ?? now, picked: now }, e.key, { shift: e.shiftKey, mod: e.metaKey || e.ctrlKey }, ids.length);
+    if (!res.handled) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (res.openMove) {
+      if (!moveTargets.length) return;
+      setMoveFor({ ids: pickedIds.length ? pickedIds : [ids[focus]], back: focus });
+      return;
+    }
+    kb.current = { anchor: res.state.anchor, base: new Set(res.state.base) };
+    if (res.state.picked !== now) {
+      setPicked(new Set([...res.state.picked].map((i) => ids[i])));
+      anchor.current = res.state.focus;
+    }
+    if (res.state.focus !== focus) reveal.current?.(res.state.focus);
+  };
   return (
-    <Card className={cn("h-fit overflow-hidden", className)} aria-label="Backlog">
+    <Card className={cn("relative h-fit overflow-hidden", className)} aria-label="Backlog">
       <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <h2 className="text-[13px] font-semibold">Backlog</h2>
         <span className="text-[12px] tabular-nums text-subtle">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
@@ -287,6 +339,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
       {pickedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-brand/[0.05] px-4 py-2" role="toolbar" aria-label="Selected backlog tasks">
           <span className="text-[12.5px] font-medium tabular-nums">{pickedIds.length} selected{pickedPts ? `, ${fmtNum(pickedPts)} ${u}` : ""}</span>
+          {moveTargets.length > 0 && <span className="hidden items-center gap-1 text-[11.5px] text-subtle sm:inline-flex" data-testid="backlog-move-hint"><Kbd>M</Kbd>move to a sprint</span>}
           <div className="ml-auto flex items-center gap-1.5">
             <Button variant="ghost" size="sm" onClick={() => { setPicked(new Set()); anchor.current = null; }}>Clear</Button>
             {target ? (
@@ -298,17 +351,61 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
         </div>
       )}
       {tasks.length === 0 ? <p className="px-4 py-6 text-center text-[13px] text-subtle">Nothing waiting. Every open task is in a sprint.</p> : (
-        <WindowedRows label="Backlog tasks" tasks={tasks} render={(t, win) => {
+        <WindowedRows label="Backlog tasks" tasks={tasks} onKeyDown={onKeys} reveal={reveal} render={(t, win) => {
           const i = win ? win.index : ids.indexOf(t.id);
           return (
-            <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} compact win={win}
+            <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} compact win={win} rowIndex={i}
               select={{ checked: picked.has(t.id), onToggle: (shift) => toggle(i, shift) }}
               drag={sprints.length ? () => (picked.has(t.id) ? pickedIds : [t.id]) : undefined}
               menu={<MoveMenu sprints={sprints} onMove={(to) => to && moveTo(to, picked.has(t.id) ? pickedIds : [t.id])} />} />
           );
         }} />
       )}
+      <span className="sr-only" aria-live="polite" data-testid="backlog-live">{pickedIds.length ? selectionMessage(pickedIds.length, tasks.length, pickedPts ? `${fmtNum(pickedPts)} ${u}` : undefined) : ""}</span>
+      {moveFor && (
+        <KeyMoveMenu count={moveFor.ids.length} sprints={moveTargets}
+          onPick={(to) => { const back = moveFor.back; setMoveFor(null); moveTo(to, moveFor.ids); requestAnimationFrame(() => reveal.current?.(Math.min(back, Math.max(0, ids.length - 1)))); }}
+          onClose={() => { const back = moveFor.back; setMoveFor(null); requestAnimationFrame(() => reveal.current?.(back)); }} />
+      )}
     </Card>
+  );
+}
+
+/**
+ * R45: Move to sprint from the keyboard. M on a backlog row opens it for the selection (or that row); arrows pick a
+ * sprint, Enter moves, Escape goes back to the row. A sheet over the backlog's header, so it works at 390 px too.
+ */
+function KeyMoveMenu({ count, sprints, onPick, onClose }: { count: number; sprints: Sprint[]; onPick: (id: string) => void; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => { ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus(); }, []);
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const items = [...(ref.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const go = (i: number) => { e.preventDefault(); items[(i + items.length) % items.length]?.focus(); };
+    if (e.key === "ArrowDown") go(at + 1);
+    else if (e.key === "ArrowUp") go(at - 1);
+    else if (e.key === "Home") go(0);
+    else if (e.key === "End") go(items.length - 1);
+    else if (e.key === "Escape" || e.key === "Tab") { e.preventDefault(); onClose(); }
+    e.stopPropagation();
+  };
+  return (
+    <div className="absolute inset-x-3 top-24 z-40 sm:left-auto sm:w-72" onKeyDown={onKeyDown}>
+      <div ref={ref} role="menu" aria-label={`Move ${count} to sprint`} data-testid="backlog-move-menu"
+        className="animate-pop-in overflow-hidden rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop motion-reduce:animate-none"
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(); }}>
+        <p className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium text-subtle">Move {count === 1 ? "1 task" : `${count} tasks`} to</p>
+        {sprints.map((x) => (
+          <button key={x.id} type="button" role="menuitem" onClick={() => onPick(x.id)}
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13.5px] text-fg outline-none transition-colors duration-100 hover:bg-hover focus-visible:bg-brand focus-visible:text-white motion-reduce:transition-none">
+            <IconTarget className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">{x.name}</span>
+            {x.status === "active" && <span className="text-[11.5px] opacity-70">Active</span>}
+          </button>
+        ))}
+        <p className="flex items-center gap-1 px-2.5 pb-1.5 pt-1 text-[11px] text-subtle"><Kbd>Enter</Kbd>move<span className="ml-2" /><Kbd>Esc</Kbd>back</p>
+      </div>
+    </div>
   );
 }
 

@@ -37,8 +37,6 @@ export const BulkJobBody = z.object({
     remote: z.string().max(520).regex(/^f:/).optional(),
     q: z.string().max(200).optional(),
     split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
-    /** R45 (MB-137): only mail dated before this time ("Archive older mail": 1 week, 1 month, 3 months, 1 year). */
-    before: z.string().max(40).optional(),
   }),
   // R34: the unticked ids are kept on the job row (JSON) and reach SQL through notInIds (one bound variable), so the
   // cap is the job's own ceiling, not the old 5,000.
@@ -56,7 +54,7 @@ export const BULK_JOB_MAX = 20000;
 /** Chunks per request: 10 x 90 = 900 messages, well inside a Worker request. */
 export const STEP_CHUNKS = 10;
 
-export interface BulkJobScope { mailboxId: string; folder?: string; remote?: string; q?: string; split?: string; before?: string }
+export interface BulkJobScope { mailboxId: string; folder?: string; remote?: string; q?: string; split?: string }
 export interface BulkJobInput {
   clientJobId: string; action: BulkJobAction; scope: BulkJobScope;
   excludeIds?: string[]; maxReceivedAt: string | number | Date;
@@ -102,12 +100,6 @@ async function scopeConds(deps: Deps, actor: ScheduleActor, job: { params: Param
   if (scope.folder === "inbox" && !scope.q && !scope.remote) {
     conds.push(snoozeHiddenCond(deps.now()));
     if (scope.split) conds.push(await splitCond(deps, actor as never, scope.split));
-  }
-  // R45 (MB-137): "Archive older mail" counts by the mail's own date, not by when it reached Multies.
-  if (scope.before) {
-    const before = new Date(scope.before);
-    if (Number.isNaN(before.getTime())) throw badRequest("before isn't a time.");
-    conds.push(lt(messages.date, before));
   }
   // Drafts and sent mail never move with a select all (the bar never offered it for them either).
   conds.push(sql`${messages.folder} not in ('drafts', 'sent')`);
@@ -299,17 +291,6 @@ export async function runBulkJob(deps: Deps, actor: ScheduleActor, input: BulkJo
   // Essential write: the job row (one per select all).
   await deps.db.insert(mailBulkJobs).values(job);
   return view(await stepForward(deps, actor, job, queue));
-}
-
-/** R45 (MB-137): the count preview before a job runs ("Archive 1,240 conversations older than 1 month?"). Read only:
- * the same scope rules as the job (a member or guest only sees mailboxes they can open, others answer 404). */
-export const BulkPreviewBody = z.object({ scope: BulkJobBody.shape.scope, max_received_at: BulkJobBody.shape.max_received_at });
-export async function previewBulkJob(deps: Deps, actor: ScheduleActor, input: { scope: BulkJobScope; maxReceivedAt: string | number }): Promise<{ total: number; max: number }> {
-  const maxReceivedAt = new Date(input.maxReceivedAt);
-  if (Number.isNaN(maxReceivedAt.getTime())) throw badRequest("max_received_at isn't a time.");
-  const conds = await scopeConds(deps, actor, { params: { scope: input.scope, excludeIds: [] }, maxReceivedAt });
-  const total = Number((await deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(and(...conds)).get())?.n ?? 0);
-  return { total, max: BULK_JOB_MAX };
 }
 
 /** Continues a running job (or a running undo) by its id or client id. */

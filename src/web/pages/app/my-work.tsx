@@ -2,7 +2,7 @@
 import type { ReactNode } from "react";
 import { displayFirstName } from "@/shared/display-name";
 import { Link } from "react-router";
-import { IconApprovals, IconCalendarClock, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconRefresh, IconSnooze, IconTasks, IconToday, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
+import { IconApprovals, IconCalendarClock, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconSnooze, IconTasks, IconToday, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { ClearDayArt } from "@/web/components/illustrations";
 import { Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -85,11 +85,6 @@ export function MyWorkPage() {
           <p className="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#0071E3] dark:text-brand-hover" data-testid="today-date"><span>My Work</span><span aria-hidden> · </span><span className="text-muted">{day}</span></p>
           <h1 data-large-title className="text-[32px] font-bold leading-[38px] tracking-[-0.025em] text-fg sm:text-[34px] sm:leading-[41px]">Good {dayPart()}{first ? `, ${first}` : ""}</h1>
           <p className="mt-1 text-[14px] text-muted">{!w ? "What is waiting on you today." : nothing ? "Nothing is waiting on you. Enjoy the quiet." : overdue > 0 ? `${overdue} overdue and ${due} due today. Start with the top of Focus.` : `${due ? `${due} due today` : "Nothing due today"}${next ? `, next up: ${next.item.title}` : ""}.`}</p>
-          {q.cachedAt !== null && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-elevated px-2.5 py-1 text-[12px] font-medium text-muted" role="status" data-testid="mywork-updating">
-              <IconRefresh className="h-3.5 w-3.5 motion-safe:animate-spin [animation-duration:1.6s]" aria-hidden="true" />Updating. Showing your list from {new Date(q.cachedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-            </p>
-          )}
         </div>
         <Link to="/app/tasks" className="pressable inline-flex h-8 items-center gap-1 self-start rounded-lg px-3 text-[13px] text-muted hover:bg-elevated hover:text-fg max-sm:min-h-11 sm:self-auto">All tasks<IconChevronRight size={14} /></Link>
       </div>
@@ -102,7 +97,7 @@ export function MyWorkPage() {
         ))}
       </div>
 
-      {q.isPending && !w ? (
+      {q.isPending ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5"><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /><Skeleton className="h-32" /></div>
       ) : q.isError || !w ? (
         <EmptyState icon={<IconToday />} title="My Work didn't load" body="Check your connection and try again in a moment." />

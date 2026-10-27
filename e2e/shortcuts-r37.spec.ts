@@ -1,7 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
-import path from "node:path";
-import Database from "better-sqlite3";
 
 /**
  * R37: every keyboard shortcut the ? sheet lists, pressed for real. Global keys and every G then key,
@@ -279,14 +277,12 @@ test("task keys: J K, then S A P L D open their pickers, Shift+L folds board lan
 test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
   test.setTimeout(300_000);
   await demo(page);
-  // R45: the test seeds its own three notifications (rows for the signed in person, pointing at real tasks) instead of
-  // skipping when the demo happens to have fewer than two. Written straight into the local e2e database.
-  await seedNotifications(page, 3);
   await page.goto("/app/notifications");
   const rows = page.getByTestId("notification-row");
   await expect(page.getByTestId("notifications-list")).toBeVisible({ timeout: 60_000 });
   await settled(page);
-  await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+  const n = await rows.count();
+  test.skip(n < 2, "the demo has fewer than two notifications");
   const current = page.locator('[data-testid="notification-row"][aria-current="true"]');
   await blur(page);
   await page.keyboard.press("j");
@@ -382,20 +378,3 @@ test("timeline key: Shift+D opens the date clashes sheet", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(sheet).toBeHidden({ timeout: 10_000 });
 });
-
-/** R45: inserts `count` unread notifications for the signed in person, each pointing at one of their workspace's tasks. */
-async function seedNotifications(page: Page, count: number) {
-  const me = (await (await page.request.get("/api/account/me")).json()) as { user: { id: string }; organization: { id: string } };
-  const res = await page.request.get("/api/tasks");
-  const tasks = (((await res.json()) as { tasks?: { id: string; title: string }[] }).tasks ?? []).slice(0, 5);
-  expect(tasks.length, `the demo workspace has tasks to point at (GET /api/tasks ${res.status()})`).toBeGreaterThan(0);
-  const db = new Database(path.resolve(".data/e2e.db"), { fileMustExist: true, timeout: 10_000 });
-  try {
-    const insert = db.prepare("insert into notifications (id, org_id, user_id, type, entity_type, entity_id, title, actor_name, created_at) values (?, ?, ?, 'task.mentioned', 'task', ?, ?, 'Test seed', ?)");
-    const now = Date.now();
-    for (let i = 0; i < count; i++) {
-      const t = tasks[i % tasks.length];
-      insert.run(`ntf_e2eseed${now.toString(36)}${i}`, me.organization.id, me.user.id, t.id, `Test seed mentioned you on ${t.title}`, now - i * 1000);
-    }
-  } finally { db.close(); }
-}

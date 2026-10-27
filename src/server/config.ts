@@ -299,8 +299,7 @@ const EnvSchema = z.object({
   XERO_CLIENT_ID: z.string().optional(),
   XERO_CLIENT_SECRET: z.string().optional(),
   AGENT_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
-  // R45: "" is allowed and means off (staging sets it empty on purpose; see wrangler.toml).
-  FREE_MAIL_DOMAIN: z.union([z.literal(""), z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i)]).optional(),
+  FREE_MAIL_DOMAIN: z.string().regex(/^[a-z0-9.-]+\.[a-z]{2,}$/i).optional(),
   FREE_MAIL_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   FREE_MAIL_NEW_DAILY_SENDS: z.string().regex(/^\d+$/).optional(),
   // R34 (MB-166, MB-169): shared sender headroom and new sender limit (0 turns a check off).

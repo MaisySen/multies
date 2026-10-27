@@ -10,7 +10,6 @@
  */
 import { useSyncExternalStore } from "react";
 import { ApiError } from "./api";
-import { readMeCache } from "./me-cache"; // R45
 
 export const OFFLINE_DB = "multies-offline";
 export const OFFLINE_STORE = "lists";
@@ -166,17 +165,6 @@ export async function saveCopy(list: string, data: unknown, s: OfflineScope | nu
 export async function readCopy(list: string, s: OfflineScope | null = scope, st: OfflineStore | null = getStore()): Promise<StoredCopy | undefined> {
   if (!s || !st) return undefined;
   try { return await st.get(copyKey(s, list)); } catch { return undefined; }
-}
-
-/**
- * R45 (MB-203): the last stored copy of a list, for drawing it at once while the network read runs (slow links).
- * The scope is the signed in person's (from /account/me), or before that answers, the saved account copy, which is
- * per person and dropped on sign out, on a 401 and when another person signs in (lib/me-cache.ts).
- */
-export async function readLastCopy<T>(list: string, st: OfflineStore | null = getStore()): Promise<{ data: T; at: number } | null> {
-  const s = scope ?? scopeOf(readMeCache());
-  const c = await readCopy(list, s, st);
-  return c ? { data: c.data as T, at: c.at } : null;
 }
 
 /**

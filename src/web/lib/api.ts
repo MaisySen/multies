@@ -47,24 +47,10 @@ export function newIdempotencyKey(prefix = "web"): string {
   return `${prefix}-${rnd}`;
 }
 
-/**
- * R45 (MB-203): public/boot.js starts the account, config and My Work reads from the page before any app code runs.
- * The first GET of the same path takes that answer (once, and only within 30 s of the page loading); later reads fetch.
- */
-const EARLY_MS = 30_000;
-export function takeEarlyRead(path: string, now = Date.now()): Promise<Response> | null {
-  const box = (globalThis as { __mmEarly?: Record<string, { at: number; res: Promise<Response> } | undefined> }).__mmEarly;
-  const hit = box?.[path];
-  if (!box || !hit) return null;
-  delete box[path];
-  return now - hit.at <= EARLY_MS ? hit.res : null;
-}
-
 async function once<T>(method: string, path: string, body: unknown, headers: Record<string, string>): Promise<T> {
   let res: Response;
   try {
-    const early = method === "GET" && !Object.keys(headers).length ? takeEarlyRead(path) : null;
-    res = early ? await early : await fetch(`/api${path}`, {
+    res = await fetch(`/api${path}`, {
       method,
       credentials: "same-origin",
       headers,
