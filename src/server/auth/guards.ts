@@ -105,51 +105,76 @@ export function sessionCookieKey(headers: Headers): string | null {
   return m ? m[1] : null;
 }
 
-/** Drops the cached session for this cookie (called before every write and on sign out). */
+const SESSION_NAMES = ["mymail.session_token", "__Secure-mymail.session_token", "__Host-mymail.session_token"];
+
+/** Every session cookie value in the header, under any of the three names. */
+function sessionCookieValues(cookie: string | null): { name: string; value: string }[] {
+  if (!cookie) return [];
+  const out: { name: string; value: string }[] = [];
+  for (const part of cookie.split(";")) {
+    const i = part.indexOf("=");
+    if (i <= 0) continue;
+    const name = part.slice(0, i).trim();
+    if (SESSION_NAMES.includes(name)) out.push({ name, value: part.slice(i + 1).trim() });
+  }
+  return out;
+}
+
+/*
+ * R40 sec: the cache key is the value of the one cookie the sign in library will actually read for this request
+ * (after the __Host- rewrite), never simply the first session cookie in the header. Before this, a header such as
+ * "mymail.session_token=X; __Host-mymail.session_token=REAL" resolved REAL's session but stored it under X, so
+ * whoever could plant cookie X in a victim's browser (a sibling subdomain) could then send X alone and read as
+ * the victim. A request whose effective cookie appears more than once, or that carries an Authorization header,
+ * is never cached.
+ */
+export function effectiveSessionKey(headers: Headers, production: boolean): string | null {
+  if (headers.has("authorization")) return null;
+  const effective = authHeaders(headers, production);
+  const want = production ? "__Secure-mymail.session_token" : "mymail.session_token";
+  const found = sessionCookieValues(effective.get("cookie")).filter((p) => p.name === want);
+  if (found.length !== 1 || !found[0].value) return null;
+  return found[0].value;
+}
+
+/** Drops the cached session for every session cookie value this request carries (before every write and on sign out). */
 export function forgetCachedAuth(headers: Headers) {
-  const key = sessionCookieKey(headers);
-  if (key) authCache.delete(key);
+  for (const { value } of sessionCookieValues(headers.get("cookie"))) authCache.delete(value);
 }
 
 /** Test hook: empties the in-isolate session cache. */
 export function clearAuthCache() { authCache.clear(); }
 
 export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
-  return (await resolveAuthCachedInfo(deps, headers, method, path)).auth;
-}
-
-/** The same, saying whether the answer came from the cache (shown as Server-Timing so production can be measured). */
-export async function resolveAuthCachedInfo(deps: Deps, headers: Headers, method: string, path = ""): Promise<{ auth: AuthContext | null; hit: boolean }> {
-  const key = sessionCookieKey(headers);
+  const key = effectiveSessionKey(headers, deps.config.mode === "production");
   // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
   // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
   const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");
-  if (!key) return { auth: await resolveAuth(deps, headers), hit: false };
+  if (!key) return resolveAuth(deps, headers);
   const now = Date.now();
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now) return { auth: hit.auth, hit: true };
+    if (hit && hit.until > now) return hit.auth;
   } else {
     authCache.delete(key);
   }
   const auth = await resolveAuth(deps, headers);
   // A write can change what the session points at (accepting an invite, switching workspace), so only reads
   // fill the cache.
-  if (!read) return { auth, hit: false };
+  if (!read) return auth;
   if (auth) {
     if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
     authCache.set(key, { auth, until: now + AUTH_CACHE_MS });
   } else {
     authCache.delete(key);
   }
-  return { auth, hit: false };
+  return auth;
 }
 
 /** Requires a valid session; populates `c.var.auth`. */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const { auth, hit } = await resolveAuthCachedInfo(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
+  const auth = await resolveAuthCached(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
   if (!auth) throw unauthorized();
-  c.header("server-timing", hit ? "auth;desc=cache" : "auth;desc=fresh", { append: true });
   // A workspace that requires SSO only lets password sessions reach account level routes
   // (profile, export, switching workspaces), so the person can still move or leave.
   if (auth.ssoBlocked && !c.req.path.startsWith("/api/account")) {

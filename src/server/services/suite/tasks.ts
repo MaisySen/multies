@@ -111,12 +111,10 @@ export async function getProject(deps: Deps, orgId: string, id: string) {
 
 export interface StatusInput { id?: string; name: string; category: Category; color?: string }
 
-export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[] }, opts: { id?: string } = {}) {
+export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[] }) {
   assertWritable(actor);
-  // R40 (MB-201): a retried create (same Idempotency-Key) carries the same id; if the first attempt committed, return it.
-  if (opts.id && await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, opts.id), eq(projects.orgId, actor.orgId))).get()) return getProject(deps, actor.orgId, opts.id);
   const now = deps.now();
-  const id = opts.id ?? sortableId("prj", now.getTime());
+  const id = sortableId("prj", now.getTime());
   const base = (input.key ?? keyFrom(input.name)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "TSK";
   // R32: a key is unique in the workspace (two "Client work" projects were both CW, so CW-1 named two tasks and
   // a ref could open the wrong one). A taken key gets the next free number: CW2, CW3. One read, no extra write.
@@ -479,10 +477,8 @@ export interface CreateTaskInput {
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
 
-export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput, opts: { id?: string } = {}) {
+export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput) {
   assertWritable(actor);
-  // R40 (MB-201): a retried create (same Idempotency-Key) carries the same id; if the first attempt committed, return it.
-  if (opts.id && await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.id, opts.id), eq(tasks.orgId, actor.orgId))).get()) return getTask(deps, actor, opts.id);
   const title = input.title.trim();
   if (!title) throw new HttpError(422, "validation_failed", "Give the task a title.");
   let projectId = input.projectId;
@@ -513,7 +509,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
   // Claim the next number in the project. The unique index on (project, number) guards races.
   // R33: one narrow UPSERT on project_counters (1 row written) instead of rewriting the projects row (3).
   const number = await claimNumbers(deps, project.id);
-  const id = opts.id ?? sortableId("tsk", now.getTime());
+  const id = sortableId("tsk", now.getTime());
   const row = {
     id, orgId: actor.orgId, projectId: project.id, number, statusId: status.id, status: status.category,
     title, notes: input.notes ?? "", assigneeType: input.assignee?.type ?? null, assigneeId: input.assignee?.id ?? null,
@@ -590,8 +586,7 @@ export interface UpdateTaskInput {
 export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string, patch: UpdateTaskInput) {
   assertWritable(actor);
   const t = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, idOrRef));
-  // R40 (MB-204): the conflict carries the task as it is now, so the app can offer "keep yours or use theirs".
-  if (patch.version !== undefined && patch.version !== t.version) throw new HttpError(409, "version_conflict", "Changed in another tab or by someone else.", { task: await getTask(deps, actor, t.id) });
+  if (patch.version !== undefined && patch.version !== t.version) throw new HttpError(409, "version_conflict", "Someone else changed this task. Reload and try again.");
   const now = deps.now();
   const set: Partial<typeof tasks.$inferInsert> = { updatedAt: now, version: t.version + 1 };
   const changed: Record<string, unknown> = {};

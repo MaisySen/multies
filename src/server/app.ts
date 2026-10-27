@@ -17,7 +17,7 @@ import { contactFormRoutes } from "./routes/contact";
 import { adminRoutes } from "./routes/admin";
 import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b";
 import { authFor } from "./auth";
-import { forgetCachedAuth } from "./auth/guards";
+import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
@@ -100,6 +100,9 @@ export function requestIp(ip: string, localAddresslessUnlimited?: boolean): stri
   return localAddresslessUnlimited && ip === "unknown" ? `unknown:${crypto.randomUUID()}` : ip;
 }
 
+/** Writes that can change another person's access or end their sessions (R40 sec). */
+const ACCESS_WRITE = /^\/api\/(team|org|admin|invites|account)(\/|$)|^\/api\/auth\/(revoke|change-password|reset-password|organization|admin|two-factor|delete-user)/;
+
 export function createApp(deps: Deps) {
   const app = new Hono<AppEnv>();
   const notFoundHandler = (c: Context<AppEnv>) => (c.req.path.startsWith("/api/") ? c.json({ error: { code: "not_found", message: "No such endpoint." } }, 404) : c.text("Not found", 404));
@@ -138,6 +141,9 @@ export function createApp(deps: Deps) {
   app.use("/api/*", async (c, next) => {
     const write = c.req.method !== "GET" && c.req.method !== "HEAD";
     if (write || c.req.path.startsWith("/api/auth/")) forgetCachedAuth(c.req.raw.headers);
+    // R40 sec: a write that can change someone else's access (removing a member, a role change, revoking sessions,
+    // a password reset) empties this isolate's whole copy, so that person's next read here sees it at once.
+    if (write && ACCESS_WRITE.test(c.req.path)) clearAuthCache();
     await next();
     // R40 D1 reads: a write to the workspace drops its cached project counts (services/suite/tasks.ts).
     if (write) forgetProjectCounts(c.var.auth?.orgId);

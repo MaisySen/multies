@@ -238,27 +238,15 @@ export function v1Routes() {
   });
   api.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", { type: "http", scheme: "bearer", description: "An API key from Settings, Developers. Starts with mm_live_." });
 
-  // R40 (MB-199): the document is built once per isolate and origin and kept as text. Building it walks every
-  // route schema (300 to 450 ms of CPU on production per request), far past the free plan's per request limit.
-  const openApiText = new Map<string, string>();
-  api.get("/openapi.json", (c) => {
-    const origin = new URL(c.req.url).origin;
-    let text = openApiText.get(origin);
-    if (!text) {
-      text = JSON.stringify(api.getOpenAPI31Document({
-        openapi: "3.1.0",
-        info: {
-          title: "Multies API",
-          version: "1.0.0",
-          description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
-        },
-        servers: [{ url: `${origin}/api/v1` }],
-      }));
-      if (openApiText.size >= 8) openApiText.clear();
-      openApiText.set(origin, text);
-    }
-    return c.body(text, 200, { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300" });
-  });
+  api.doc31("/openapi.json", (c) => ({
+    openapi: "3.1.0",
+    info: {
+      title: "Multies API",
+      version: "1.0.0",
+      description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
+    },
+    servers: [{ url: `${new URL(c.req.url).origin}/api/v1` }],
+  }));
   // R30: our own page and boot script (pinned Scalar, no inline script), see lib/api-reference-page.ts.
   api.get("/reference", (c) => c.html(apiReferenceHtml()));
   api.get("/reference.js", (c) => c.body(apiReferenceBootJs(), 200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "public, max-age=3600" }));
