@@ -10,7 +10,7 @@ import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
 import { changesSince, type SuiteActor } from "../services/suite/common";
 import {
-  addComment, createProject, createTask, createTaskFromThread, deleteProject, deleteTask, getProject, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateProject, updateTask,
+  addComment, createProject, createTask, createTaskFromThread, deleteTask, getProject, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateProject, updateTask,
 } from "../services/suite/tasks";
 import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
 import { appendToDoc, createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
@@ -155,15 +155,6 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "patch", path: "/projects/{id}", tags: tag("Projects"), summary: "Update a project or its statuses", security: secured,
     request: { params: Id, ...body(ProjectPatch) }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404], 409: err("The key is used by another project (key_taken)."), 422: errors[422] } }),
   async (c) => send(c, { project: await updateProject(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }));
-
-  // R44: a key could create a project but not remove it. Same rule as the app: admins only, so an agent
-  // member's key (role member) is refused; the project and its tasks are soft deleted.
-  api.openapi(createRoute({ method: "delete", path: "/projects/{id}", tags: tag("Projects"), summary: "Delete a project and its tasks", security: secured,
-    request: { params: Id }, responses: { 200: json(z.object({ ok: z.boolean() }), "Deleted."), 401: errors[401], 403: err("Only an admin's key can delete a project (admin_only)."), 404: errors[404] } }),
-  async (c) => {
-    if (c.var.auth.role === "member") throw new HttpError(403, "admin_only", "Only an admin can delete a project. Use a workspace key.");
-    return send(c, await deleteProject(c.var.deps, actor(c), c.req.valid("param").id));
-  });
 
   // ---------------------------------------------------------------- docs
   api.openapi(createRoute({ method: "get", path: "/docs", tags: tag("Docs"), summary: "List or search docs", security: secured,

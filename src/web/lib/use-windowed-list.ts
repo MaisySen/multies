@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 /**
  * R43 (MB-210): a small windowing hook for long lists. A list below `minCount` rows renders every row (nothing
@@ -28,6 +28,14 @@ interface Options {
   scrollRef?: RefObject<HTMLElement | null>;
   overscan?: number;
   minCount?: number;
+  /**
+   * R44: one stable key per row (task ids). With keys, each row's measured height is cached by its key and the
+   * spacers sum the real heights (unknown rows count as the average of the measured ones), so cards of very
+   * different heights (a board column) scroll without jumps, and a row keeps its height when rows move.
+   */
+  keys?: readonly string[];
+  /** R44: space between rows that offsetHeight does not include (a flex gap), added to every measured row. */
+  gap?: number;
 }
 
 const isScroller = (el: HTMLElement) => {
@@ -48,12 +56,41 @@ export function windowRange(count: number, rowHeight: number, offset: number, vi
   return [first, last];
 }
 
-export function useWindowedList({ count, estimate, listRef, scrollRef, overscan = 8, minCount = WINDOW_FROM }: Options): WindowedList {
+/** R44: prefix offsets for rows of measured heights; `offsets[i]` is the top of row i, `offsets[count]` the full height. */
+export function rowOffsets(keys: readonly string[], sizes: ReadonlyMap<string, number>, fallback: number): Float64Array {
+  const o = new Float64Array(keys.length + 1);
+  for (let i = 0; i < keys.length; i++) o[i + 1] = o[i] + (sizes.get(keys[i]) ?? fallback);
+  return o;
+}
+
+/** R44: the range math of `windowRange` for rows of different heights (binary search over the prefix offsets). */
+export function windowRangeVar(offsets: Float64Array, offset: number, viewport: number, overscan: number): [number, number] {
+  const count = offsets.length - 1;
+  const find = (y: number) => { // first row whose bottom is below y
+    let lo = 0, hi = count;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (offsets[mid + 1] <= y) lo = mid + 1; else hi = mid; }
+    return lo;
+  };
+  const first = Math.min(count, Math.max(0, find(Math.max(0, offset)) - overscan));
+  const last = Math.min(count, Math.max(first, find(offset + Math.max(0, viewport)) + 1 + overscan));
+  return [first, last];
+}
+
+export function useWindowedList({ count, estimate, listRef, scrollRef, overscan = 8, minCount = WINDOW_FROM, keys, gap = 0 }: Options): WindowedList {
   const windowed = count >= minCount;
   const [rowHeight, setRowHeight] = useState(estimate);
   const [range, setRange] = useState<[number, number]>(() => [0, Math.min(count, 40)]);
   const hRef = useRef(rowHeight);
   hRef.current = rowHeight;
+  // R44: measured heights by row key, and a version that changes when one of them does.
+  const sizes = useRef(new Map<string, number>());
+  const [sizesVersion, setSizesVersion] = useState(0);
+  const variable = !!keys && keys.length === count;
+  const offsets = useMemo(() => (windowed && variable ? rowOffsets(keys!, sizes.current, rowHeight) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [windowed, variable, keys, rowHeight, sizesVersion]);
+  const oRef = useRef(offsets);
+  oRef.current = offsets;
 
   const scroller = useCallback(() => scrollRef?.current ?? findScrollParent(listRef.current), [listRef, scrollRef]);
 
@@ -64,7 +101,10 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     const listTop = list.getBoundingClientRect().top;
     const viewTop = sc ? sc.getBoundingClientRect().top : 0;
     const viewH = sc ? sc.clientHeight : window.innerHeight;
-    const next = windowRange(count, hRef.current, viewTop - listTop, viewH, overscan);
+    // R44: when the list is its own scroll box (a board column), its box does not move; its scrollTop does.
+    const offset = viewTop - listTop + (sc === list ? sc.scrollTop : 0);
+    const o = oRef.current;
+    const next = o ? windowRangeVar(o, offset, viewH, overscan) : windowRange(count, hRef.current, offset, viewH, overscan);
     setRange((r) => (r[0] === next[0] && r[1] === next[1] ? r : next));
   }, [count, overscan, listRef, scroller]);
 
@@ -97,12 +137,27 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     if (!list) return;
     const rows = list.querySelectorAll<HTMLElement>(":scope > [data-win-row]");
     let sum = 0;
-    for (const r of rows) sum += r.offsetHeight;
+    let changed = false;
+    for (const r of rows) {
+      const h = r.offsetHeight + gap;
+      sum += h;
+      const k = variable ? r.dataset.winKey : undefined;
+      if (k && h > gap && Math.abs((sizes.current.get(k) ?? -1) - h) > 0.5) { sizes.current.set(k, h); changed = true; }
+    }
+    if (changed) setSizesVersion((v) => v + 1);
+    if (variable) {
+      // Unknown rows count as the average of every row measured so far.
+      let all = 0;
+      for (const v of sizes.current.values()) all += v;
+      const avg = sizes.current.size ? all / sizes.current.size : 0;
+      if (avg > 0 && Math.abs(avg - hRef.current) > 0.5) setRowHeight(avg);
+      return;
+    }
     const avg = rows.length ? sum / rows.length : 0;
     if (avg > 0 && Math.abs(avg - hRef.current) > 0.5) setRowHeight(avg);
   });
 
-  useLayoutEffect(() => { if (windowed) compute(); }, [windowed, count, rowHeight, compute]);
+  useLayoutEffect(() => { if (windowed) compute(); }, [windowed, count, rowHeight, offsets, compute]);
 
   const scrollToIndex = useCallback((index: number) => {
     const list = listRef.current;
@@ -110,13 +165,13 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     const el = list.querySelector<HTMLElement>(`:scope > [data-win-row="${index}"]`);
     if (el) { el.scrollIntoView({ block: "nearest" }); return; }
     const sc = scroller();
-    const h = hRef.current;
+    const at = oRef.current ? oRef.current[index] : index * hRef.current;
     if (sc) {
-      const top = list.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-      sc.scrollTop = Math.max(0, top + index * h - sc.clientHeight / 2);
+      const top = sc === list ? 0 : list.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+      sc.scrollTop = Math.max(0, top + at - sc.clientHeight / 2);
     } else {
       const top = list.getBoundingClientRect().top + window.scrollY;
-      window.scrollTo({ top: Math.max(0, top + index * h - window.innerHeight / 2) });
+      window.scrollTo({ top: Math.max(0, top + at - window.innerHeight / 2) });
     }
     compute();
   }, [count, listRef, scroller, compute]);
@@ -124,6 +179,12 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
   if (!windowed) return { windowed, start: 0, end: count, padTop: 0, padBottom: 0, rowHeight, scrollToIndex };
   const start = Math.min(range[0], count);
   const end = Math.min(Math.max(range[1], start), count);
+  if (offsets) {
+    // Spacers stand in for the rows and their gaps; the flex gap next to each spacer is taken off again.
+    const padTop = Math.max(0, offsets[start] - (start ? gap : 0));
+    const padBottom = Math.max(0, offsets[count] - offsets[end] - (end < count ? gap : 0));
+    return { windowed, start, end, padTop, padBottom, rowHeight, scrollToIndex };
+  }
   return { windowed, start, end, padTop: start * rowHeight, padBottom: (count - end) * rowHeight, rowHeight, scrollToIndex };
 }
 

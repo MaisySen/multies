@@ -51,11 +51,12 @@ describe("R43 list windowing", () => {
     expect(html).toContain('data-testid="win-pad-bottom"');
   });
 
-  it("a 500 card board column renders 100 cards and a Show more button with the count left", () => {
+  it("a 500 card board column renders a window of cards (R44: windowed, the R43 Show more cap is gone)", () => {
     const html = wrap(createElement(Board, { project, tasks: many(500), onOpen: () => {}, onMove: () => {}, onAdd: () => {} }));
-    expect(count(html, />Task number \d+</g)).toBe(100);
-    expect(html).toContain('data-testid="board-show-more"');
-    expect(html).toMatch(/Show <!-- -->100<!-- --> more/);
-    expect(html).toMatch(/400(<!-- -->)? left/);
+    const cards = count(html, />Task number \d+</g);
+    expect(cards).toBeGreaterThan(0);
+    expect(cards).toBeLessThanOrEqual(40);
+    expect(html).not.toContain('data-testid="board-show-more"');
+    expect(html).toContain('aria-setsize="500"');
   });
 });

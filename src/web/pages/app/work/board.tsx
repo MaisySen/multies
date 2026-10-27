@@ -4,7 +4,8 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconAgent, IconChat, IconChevronDown, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
+import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R44 (MB-210 follow up)
+import { IconAgent, IconChat, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -45,18 +46,58 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
   );
 }
 
-export function SortableCard({ t, onOpen, project }: { t: Task; onOpen: () => void; project?: Project }) {
+export function SortableCard({ t, onOpen, project, win }: { t: Task; onOpen: () => void; project?: Project;
+  /** R44: position in a windowed column (index from 0, and the column's full size) for the windowing hook and screen readers. */
+  win?: { index: number; size: number } }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: t.id, data: { statusId: t.statusId } });
   return (
     // The card drags by pointer anywhere on it; keyboard and screen reader users get a
     // separate handle, so the list item itself is not a button wrapping other buttons.
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} {...listeners}
-      className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}>
+      className={cn("touch-none rounded-lg", isDragging && "opacity-40")} data-testid="board-card" data-task-id={t.id}
+      {...(win ? { "data-win-row": win.index, "data-win-key": t.id, "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}>
       <TaskCard t={t} onOpen={onOpen} project={project} handle={
         <button type="button" {...attributes} {...listeners} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`}
           className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg"><IconGrip className="h-3.5 w-3.5" aria-hidden /></button>
       } />
     </li>
+  );
+}
+
+/**
+ * R44 (MB-210 follow up): the cards of one column, windowed. From 150 cards only the cards in view (plus a few above
+ * and below) are mounted; spacers keep the column's scroll height, using each card's measured height. The sortable
+ * list still holds every id, so drops land in the right place, the dragged card's column follows the pointer, and
+ * J and K bring a card outside the window into view with its ring.
+ */
+function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[]; project: Project; onOpen: (id: string) => void;
+  listRef: React.RefObject<HTMLUListElement | null>; activeId: string | null }) {
+  const ids = useMemo(() => list.map((t) => t.id), [list]);
+  const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6 });
+  useRevealRow(ids, win, listRef);
+  const rows: { t: Task; i: number }[] = [];
+  for (let i = win.start; i < win.end; i++) rows.push({ t: list[i], i });
+  // The card being dragged stays mounted even when the column scrolls it out of the window.
+  const activeAt = activeId && win.windowed ? ids.indexOf(activeId) : -1;
+  const keepActive = activeAt >= 0 && (activeAt < win.start || activeAt >= win.end);
+  return (
+    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      {win.start > 0 && <li aria-hidden className="shrink-0" style={{ height: win.padTop }} />}
+      {keepActive && activeAt < win.start && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
+      {rows.map(({ t, i }) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} win={win.windowed ? { index: i, size: list.length } : undefined} />)}
+      {keepActive && activeAt >= win.end && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
+      {win.end < list.length && <li aria-hidden className="shrink-0" style={{ height: win.padBottom }} />}
+    </SortableContext>
+  );
+}
+
+function BoardColumn({ list, project, onOpen, activeId, ...col }: Omit<React.ComponentProps<typeof Column>, "children" | "listRef" | "count"> & {
+  list: Task[]; project: Project; onOpen: (id: string) => void; activeId: string | null }) {
+  const listRef = useRef<HTMLUListElement | null>(null);
+  return (
+    <Column {...col} count={list.length} listRef={listRef}>
+      <ColumnCards list={list} project={project} onOpen={onOpen} listRef={listRef} activeId={activeId} />
+    </Column>
   );
 }
 
@@ -115,7 +156,9 @@ export function ColumnComposer({ title, onQuickAdd, variant = "column" }: {
   );
 }
 
-function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, onQuickAdd }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, onQuickAdd, listRef }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+  /** R44: the card list element, for the windowing hook. */
+  listRef?: React.MutableRefObject<HTMLUListElement | null>;
   onQuickAdd?: (title: string) => Promise<unknown>;
   /** R34 (MB-186): this column's WIP limit, and the header menu to change it. */
   limit?: ColumnLimit; onSetLimit?: (v: { max?: number | null; min?: number | null }) => void }) {
@@ -131,7 +174,8 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5" /></button>
       </header>
-      <ul ref={setNodeRef} className={cn("flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
+      <ul ref={(el) => { setNodeRef(el); if (listRef) listRef.current = el; }} aria-label={`${title} cards`} data-testid="board-column-cards"
+        className={cn("flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
       {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}
     </section>
   );
@@ -157,7 +201,7 @@ export function epicKey(t: Pick<Task, "parentId">, cols: { id: string }[]) {
  * Kanban: columns are the project's statuses, or the options of a single select field when
  * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
  */
-const BOARD_PAGE = 100;
+const EMPTY: Task[] = [];
 
 export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuickAdd, groupBy, byEpic, limits, onSetLimit }: {
   /** R41 (MB-208): inline rapid add at the foot of each status column (not offered when grouped by a field or epic). */
@@ -200,9 +244,7 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
     return t ? overrides[t.id] ?? keyOf(t) : undefined;
   };
   const active = tasks.find((t) => t.id === activeId);
-  // R43 (MB-210): a column renders its first 100 cards, then "Show 100 more", so a 5,000 task board stays light.
-  // Drag and drop works on the rendered cards; a drop on the column itself still lands at its end.
-  const [shown, setShown] = useState<Record<string, number>>({});
+  // R44 (MB-210 follow up): each column windows its cards (ColumnCards); the R43 "Show 100 more" cap is gone.
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const onDragOver = (e: DragOverEvent) => {
@@ -240,27 +282,9 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
     <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragOver={onDragOver} onDragEnd={onDragEnd} onDragCancel={() => { setActiveId(null); setOverrides({}); }}>
       <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-4 sm:snap-none" data-testid="board">
         {cols.map((s) => (
-          <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}
+          <BoardColumn key={s.id} id={s.id} title={s.name} color={s.color} list={columns[s.id] ?? EMPTY} project={project} onOpen={onOpen} activeId={activeId} onAdd={() => onAdd(s.id)}
             onQuickAdd={onQuickAdd && !groupBy && !byEpic ? (title) => onQuickAdd(s.id, title) : undefined}
-            limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}>
-            {(() => {
-              const list = columns[s.id] ?? [];
-              const n = shown[s.id] ?? BOARD_PAGE;
-              const vis = list.length > n ? list.slice(0, n) : list;
-              const left = list.length - vis.length;
-              return <>
-                <SortableContext items={vis.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                  {vis.map((t) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} />)}
-                </SortableContext>
-                {left > 0 && (
-                  <button type="button" data-testid="board-show-more" onClick={() => setShown((m) => ({ ...m, [s.id]: n + BOARD_PAGE }))}
-                    className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-brand-hover shadow-[var(--shadow-e1)] transition-colors duration-150 hover:bg-hover motion-reduce:transition-none">
-                    <IconChevronDown className="h-4 w-4" aria-hidden />Show {Math.min(BOARD_PAGE, left)} more<span className="font-normal text-subtle">{left.toLocaleString()} left</span>
-                  </button>
-                )}
-              </>;
-            })()}
-          </Column>
+            limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined} />
         ))}
       </div>
       <DragOverlay>{active ? <TaskCard t={active} dragging /> : null}</DragOverlay>

@@ -186,7 +186,7 @@ test("3,000 message mail list: rows are windowed and the end is reachable", asyn
   await expect(rowsL.last()).toHaveAttribute("aria-setsize", String(M));
 });
 
-test("5,000 task board: a column renders 100 cards and Show more adds the next 100", async ({ page }) => {
+test("5,000 task board: a column renders a window of cards (R44: windowed, no Show more)", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await demo(page);
   await manyTasks(page);
@@ -202,14 +202,12 @@ test("5,000 task board: a column renders 100 cards and Show more adds the next 1
   if (process.env.SHOTS) await page.screenshot({ path: `${DIR}/mb210-${LABEL}-board-5000-desktop-light.png` });
   if (!AFTER) return;
 
-  expect(cards).toBe(100);
+  // R44: the column windows its cards; the R43 Show more cap is gone and the last card is reachable by scrolling.
+  expect(cards).toBeLessThan(80);
   expect(domNodes).toBeLessThan(12000);
-  const more = board.getByTestId("board-show-more");
-  await expect(more).toContainText("Show 100 more");
-  await expect(more).toContainText("4,900 left");
-  await more.click();
-  await expect(board.getByText(/^Long list task \d+$/)).toHaveCount(200);
-  await expect(board.getByText("Long list task 200", { exact: true })).toBeAttached();
+  await expect(board.getByTestId("board-show-more")).toHaveCount(0);
+  await board.getByTestId("board-column-cards").first().evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect(board.getByText(`Long list task ${N}`, { exact: true })).toBeVisible();
 });
 
 for (const scheme of ["light", "dark"] as const) {

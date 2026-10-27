@@ -3,7 +3,7 @@
  * totals and burndown on the left; the backlog on the right. Start and Complete (with the carry over
  * choice), plan and edit sprints, and "Move to sprint" on every row. The chart is a plain inline SVG.
  */
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconCircle, IconEdit, IconFlag, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
@@ -17,6 +17,7 @@ import { cn } from "@/web/lib/cn";
 import type { Project, Task } from "./data";
 import { useSprints, type Sprint } from "./sprint-fields";
 import { NoSprintsArt } from "@/web/components/illustrations"; // R36
+import { useWindowedList } from "@/web/lib/use-windowed-list"; // R44 (MB-210 follow up)
 
 export type { Sprint };
 
@@ -129,26 +130,25 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
           {d && <BurndownChart data={d.burndown} unitLabel={d.burndown.unit === "tasks" ? "tasks" : unit} className="mt-4" />}
         </Card>
 
-        <Card className="overflow-hidden">
+        <SprintDrop enabled={sprint.status !== "completed"} name={sprint.name} onDrop={(ids) => void move(ids, sprint.id)}>
           <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
             <h2 className="text-[13px] font-semibold">In {sprint.name}</h2>
             <span className="text-[12px] text-subtle">{d?.tasks.length ?? 0} tasks</span>
           </div>
           {!d ? <Skeleton className="m-4 h-24" /> : d.tasks.length === 0 ? (
-            <p className="px-4 py-6 text-center text-[13px] text-subtle">No tasks yet. Use Move to sprint on a backlog task.</p>
+            <p className="px-4 py-6 text-center text-[13px] text-subtle">No tasks yet. Drag a backlog task here, or use Move to sprint.</p>
           ) : (
-            <ul aria-label="Sprint tasks">
-              {d.tasks.map((t) => (
-                <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} menu={sprint.status !== "completed" && (
-                  <MoveMenu sprints={open.filter((s) => s.id !== sprint.id)} onMove={(to) => void move([t.id], to, sprint.id)} backlog />
-                )} />
-              ))}
-            </ul>
+            <WindowedRows label="Sprint tasks" tasks={d.tasks} render={(t, win) => (
+              <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} win={win} menu={sprint.status !== "completed" && (
+                <MoveMenu sprints={open.filter((s) => s.id !== sprint.id)} onMove={(to) => void move([t.id], to, sprint.id)} backlog />
+              )} />
+            )} />
           )}
-        </Card>
+        </SprintDrop>
       </div>
 
-      <BacklogPanel tasks={backlog.data ?? []} sprints={open} unit={unit} onOpen={onOpen} onMove={(ids, to) => void move(ids, to)} />
+      <BacklogPanel tasks={backlog.data ?? []} sprints={open} unit={unit} onOpen={onOpen} onMove={(ids, to) => void move(ids, to)}
+        target={sprint.status !== "completed" ? sprint : undefined} />
 
       {editing && <SprintDialog projectId={project.id} sprint={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(s) => { setPicked(s.id); refresh(); }} />}
       {completing && (
@@ -172,9 +172,25 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TaskRow({ task: t, unit, onOpen, menu, compact }: { task: Task; unit: string; onOpen: (id: string) => void; menu?: React.ReactNode; compact?: boolean }) {
+type RowWin = { index: number; size: number } | undefined;
+
+function TaskRow({ task: t, unit, onOpen, menu, compact, win, select, drag }: { task: Task; unit: string; onOpen: (id: string) => void; menu?: React.ReactNode; compact?: boolean;
+  /** R44: position in a windowed list. */
+  win?: RowWin;
+  /** R44: the backlog's selection box (Shift selects a run). */
+  select?: { checked: boolean; onToggle: (shift: boolean) => void };
+  /** R44: the task ids this row carries when dragged (the selection when the row is in it). */
+  drag?: () => string[] }) {
   return (
-    <li className="group flex items-center gap-2.5 border-b border-line px-4 py-2 last:border-0 hover:bg-hover/60">
+    <li className={cn("group flex items-center gap-2.5 border-b border-line px-4 py-2 last:border-0 hover:bg-hover/60", select?.checked && "bg-brand/[0.06] hover:bg-brand/10", drag && "cursor-grab active:cursor-grabbing")}
+      data-testid={select ? "backlog-row" : undefined} data-task-id={t.id}
+      {...(win ? { "data-win-row": win.index, "aria-posinset": win.index + 1, "aria-setsize": win.size } : {})}
+      draggable={drag ? true : undefined}
+      onDragStart={drag ? (e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData(DRAG_TYPE, JSON.stringify(drag())); e.dataTransfer.setData("text/plain", t.ref ?? t.title); } : undefined}>
+      {select && (
+        <input type="checkbox" aria-label={`Select ${t.title}`} checked={select.checked} readOnly
+          onClick={(e) => select.onToggle(e.shiftKey)} className="h-3.5 w-3.5 shrink-0 cursor-pointer accent-[#0071E3]" />
+      )}
       {t.status === "done" ? <IconCheckCircle className="h-4 w-4 shrink-0 text-ok" aria-label="Done" /> : <IconCircle className="h-4 w-4 shrink-0 text-subtle" aria-hidden />}
       <span className={cn("shrink-0 text-[12px] tabular-nums text-subtle", compact ? "w-12" : "w-14")}>{t.ref}</span>
       <button className={cn("min-w-0 flex-1 truncate text-left text-[13.5px]", t.status === "done" && "text-muted line-through")} onClick={() => onOpen(t.id)}>{t.title}</button>
@@ -182,6 +198,47 @@ function TaskRow({ task: t, unit, onOpen, menu, compact }: { task: Task; unit: s
       <span className="w-14 text-right text-[12px] tabular-nums text-muted" title={unit === "hours" ? "Hours" : "Points"}>{t.points != null ? `${fmtNum(t.points)} ${unit === "hours" ? "h" : "pt"}` : ""}</span>
       {menu}
     </li>
+  );
+}
+
+/** R44: drag data for backlog rows going into a sprint. */
+const DRAG_TYPE = "application/x-multies-task-ids";
+
+/**
+ * R44 (MB-210 follow up): a sprint or backlog list that renders only the rows in view from 150 rows up, with spacer
+ * rows for the rest (rows are one fixed height). Counts and totals are worked out by the callers over every task.
+ */
+function WindowedRows({ label, tasks, render }: { label: string; tasks: Task[]; render: (t: Task, win: RowWin) => React.ReactNode }) {
+  const ref = useRef<HTMLUListElement | null>(null);
+  const win = useWindowedList({ count: tasks.length, estimate: 41, listRef: ref });
+  const rows: React.ReactNode[] = [];
+  for (let i = win.start; i < win.end; i++) rows.push(render(tasks[i], win.windowed ? { index: i, size: tasks.length } : undefined));
+  return (
+    <ul ref={ref} aria-label={label}>
+      {win.start > 0 && <li aria-hidden style={{ height: win.padTop }} />}
+      {rows}
+      {win.end < tasks.length && <li aria-hidden style={{ height: win.padBottom }} />}
+    </ul>
+  );
+}
+
+/** R44: the sprint's task card takes backlog rows dropped on it; it lights up while a drag is over it. */
+function SprintDrop({ enabled, name, onDrop, children }: { enabled: boolean; name: string; onDrop: (ids: string[]) => void; children: React.ReactNode }) {
+  const [over, setOver] = useState(false);
+  const accepts = (e: React.DragEvent) => enabled && e.dataTransfer.types.includes(DRAG_TYPE);
+  return (
+    <Card className={cn("overflow-hidden transition-[box-shadow,border-color] duration-150 motion-reduce:transition-none", over && "border-brand/50 ring-2 ring-brand/30")}
+      data-testid="sprint-drop" aria-label={`Tasks in ${name}`}
+      onDragOver={(e) => { if (!accepts(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (!over) setOver(true); }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(false); }}
+      onDrop={(e) => {
+        setOver(false);
+        if (!accepts(e)) return;
+        e.preventDefault();
+        try { const ids = JSON.parse(e.dataTransfer.getData(DRAG_TYPE)) as unknown; if (Array.isArray(ids) && ids.length) onDrop(ids.map(String)); } catch { /* not ours */ }
+      }}>
+      {children}
+    </Card>
   );
 }
 
@@ -196,24 +253,64 @@ function MoveMenu({ sprints, onMove, backlog }: { sprints: Sprint[]; onMove: (to
   );
 }
 
-function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className }: { tasks: Task[]; sprints: Sprint[]; unit: string; onOpen: (id: string) => void; onMove: (ids: string[], to: string) => void; className?: string }) {
+function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target }: { tasks: Task[]; sprints: Sprint[]; unit: string; onOpen: (id: string) => void; onMove: (ids: string[], to: string) => void; className?: string;
+  /** R44: the sprint on screen; selected rows move there in one go, and rows can be dragged onto it. */
+  target?: Sprint }) {
   const pts = tasks.reduce((a, t) => a + (t.points ?? 0), 0);
+  // R44: multi select. A click toggles one row, Shift with a click selects the run from the last clicked row.
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const anchor = useRef<number | null>(null);
+  const ids = useMemo(() => tasks.map((t) => t.id), [tasks]);
+  useEffect(() => { setPicked((p) => { if (!p.size) return p; const live = new Set(ids); const n = new Set([...p].filter((id) => live.has(id))); return n.size === p.size ? p : n; }); }, [ids]);
+  const toggle = (i: number, shift: boolean) => {
+    setPicked((p) => {
+      const n = new Set(p);
+      if (shift && anchor.current != null) {
+        const [a, b] = anchor.current < i ? [anchor.current, i] : [i, anchor.current];
+        for (let k = a; k <= b; k++) n.add(ids[k]);
+      } else if (n.has(ids[i])) n.delete(ids[i]); else n.add(ids[i]);
+      return n;
+    });
+    anchor.current = i;
+  };
+  const pickedIds = ids.filter((id) => picked.has(id));
+  const pickedPts = tasks.reduce((a, t) => a + (picked.has(t.id) ? t.points ?? 0 : 0), 0);
+  const u = unit === "hours" ? "h" : "pt";
+  const moveTo = (to: string, list: string[]) => { onMove(list, to); setPicked(new Set()); anchor.current = null; };
   return (
     <Card className={cn("h-fit overflow-hidden", className)} aria-label="Backlog">
-      <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
+      <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <h2 className="text-[13px] font-semibold">Backlog</h2>
-        <span className="text-[12px] text-subtle">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${unit === "hours" ? "h" : "pt"}` : ""}</span>
+        <span className="text-[12px] tabular-nums text-subtle">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
       </div>
+      {pickedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-brand/[0.05] px-4 py-2" role="toolbar" aria-label="Selected backlog tasks">
+          <span className="text-[12.5px] font-medium tabular-nums">{pickedIds.length} selected{pickedPts ? `, ${fmtNum(pickedPts)} ${u}` : ""}</span>
+          <div className="ml-auto flex items-center gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => { setPicked(new Set()); anchor.current = null; }}>Clear</Button>
+            {target ? (
+              <Button size="sm" onClick={() => moveTo(target.id, pickedIds)}><IconArrowRightLeft className="h-3.5 w-3.5" />Move {pickedIds.length} to {target.name}</Button>
+            ) : sprints.length > 0 && (
+              <Button size="sm" onClick={() => moveTo(sprints[0].id, pickedIds)}><IconArrowRightLeft className="h-3.5 w-3.5" />Move {pickedIds.length} to {sprints[0].name}</Button>
+            )}
+          </div>
+        </div>
+      )}
       {tasks.length === 0 ? <p className="px-4 py-6 text-center text-[13px] text-subtle">Nothing waiting. Every open task is in a sprint.</p> : (
-        <ul aria-label="Backlog tasks">
-          {tasks.map((t) => <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} compact menu={<MoveMenu sprints={sprints} onMove={(to) => to && onMove([t.id], to)} />} />)}
-        </ul>
+        <WindowedRows label="Backlog tasks" tasks={tasks} render={(t, win) => {
+          const i = win ? win.index : ids.indexOf(t.id);
+          return (
+            <TaskRow key={t.id} task={t} unit={unit} onOpen={onOpen} compact win={win}
+              select={{ checked: picked.has(t.id), onToggle: (shift) => toggle(i, shift) }}
+              drag={sprints.length ? () => (picked.has(t.id) ? pickedIds : [t.id]) : undefined}
+              menu={<MoveMenu sprints={sprints} onMove={(to) => to && moveTo(to, picked.has(t.id) ? pickedIds : [t.id])} />} />
+          );
+        }} />
       )}
     </Card>
   );
 }
 
-/** The chart: remaining work per day (solid, brand blue) against the ideal line (dashed). */
 export function BurndownChart({ data, unitLabel, className }: { data: Burndown; unitLabel: string; className?: string }) {
   const W = 640, H = 200, L = 34, R = 10, T = 12, B = 26;
   const n = data.days.length;
