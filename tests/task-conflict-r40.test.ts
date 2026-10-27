@@ -45,7 +45,8 @@ describe("stale task edits (R40 MB-204)", () => {
   });
 
   it("only adopts a newer server copy into a field the person has not typed in", () => {
-    expect(mayAdopt("Original", "Original")).toBe(true);
-    expect(mayAdopt("My edit", "Original")).toBe(false);
+    expect(mayAdopt("Original", "Original", "From elsewhere")).toBe(true);
+    expect(mayAdopt("My edit", "Original", "From elsewhere")).toBe(false);
+    expect(mayAdopt("My edit", "Original", "My edit")).toBe(true); // right after our own save
   });
 });

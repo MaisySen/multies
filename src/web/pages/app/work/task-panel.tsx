@@ -60,8 +60,8 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   useEffect(() => {
     if (!t) return;
     const prev = shown.current?.id === t.id ? shown.current : null;
-    const takeTitle = !prev || mayAdopt(title, prev.title);
-    const takeNotes = !prev || mayAdopt(notes, prev.notes);
+    const takeTitle = !prev || mayAdopt(title, prev.title, t.title);
+    const takeNotes = !prev || mayAdopt(notes, prev.notes, t.notes);
     if (takeTitle) setTitle(t.title);
     if (takeNotes) setNotes(t.notes);
     setLabels(t.labels.join(", "));

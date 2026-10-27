@@ -39,9 +39,10 @@ export function useTaskChanges(id: string | null | undefined, onChange: () => vo
 }
 
 /**
- * Whether a text field may take the server's new value: only when the person has not typed since the
- * last value we showed them. Otherwise their text stays and the save reports a conflict instead.
+ * Whether a text field may take the server's new value: when the person has not typed since the last value
+ * we showed them, or their text already matches the server. Otherwise their text stays and the save reports a conflict instead.
  */
-export function mayAdopt(local: string, lastShown: string): boolean {
-  return local === lastShown;
+export function mayAdopt(local: string, lastShown: string, server: string): boolean {
+  // Untouched since we last showed it, or already the same as the server (for example right after our own save).
+  return local === lastShown || local === server;
 }
