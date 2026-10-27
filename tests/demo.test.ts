@@ -26,13 +26,33 @@ describe("demo mode", () => {
     const inbox = await c.get("/api/mail/messages?folder=inbox");
     expect(inbox.body.messages.length).toBeGreaterThanOrEqual(6);
     const dash = await c.get("/api/dashboard");
-    expect(dash.body.usage).toMatchObject({ domains: 1, mailboxes: 4, aliases: 2 });
+    // R40: four sample mailboxes plus the sample connected mailbox, all inside the plan.
+    expect(dash.body.usage).toMatchObject({ domains: 1, mailboxes: 5, aliases: 2 });
+    if (dash.body.limits?.mailboxes != null) expect(dash.body.usage.mailboxes).toBeLessThanOrEqual(dash.body.limits.mailboxes);
     expect(dash.body.series).toHaveLength(14);
     expect(dash.body.series.reduce((n: number, d: { inbound: number }) => n + d.inbound, 0)).toBeGreaterThan(0);
     // A second visitor gets their own sandbox.
     const other = new Client(app);
     await other.post("/api/account/demo");
     expect((await other.get("/api/domains")).body.domains[0].name).not.toBe((await c.get("/api/domains")).body.domains[0].name);
+  });
+
+  it("R40: shows one sample connected mailbox that never reaches a provider", async () => {
+    const ctx = await makeTestApp({ DEMO_MODE: "true" });
+    const c = new Client(ctx.app);
+    expect((await c.post("/api/account/demo")).status).toBe(201);
+    const list = await c.get("/api/connections");
+    expect(list.status).toBe(200);
+    const conns = list.body.connections;
+    expect(conns).toHaveLength(1);
+    expect(conns[0].status).toBe("active");
+    expect(conns[0].email).toMatch(/@personal\.example$/);
+    expect(conns[0].imapHost).toBe("imap.sample.example");
+    // No password or token is stored, and a sync is skipped before any network call.
+    const row = (await ctx.db.query.mailConnections.findMany())[0]!;
+    expect(row.secretEnc).toBe("sample:none");
+    const { syncConnection } = await import("../src/server/services/connect/sync");
+    expect((await syncConnection(ctx.deps, row.id, { force: true })).skipped).toBe("sample");
   });
 
   it("stays small enough for a Worker request and never sends outside Multies", async () => {

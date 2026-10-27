@@ -51,7 +51,7 @@ export function StorageRing({ used, max, label, show }: { used: number; max: num
             strokeDasharray={c} strokeDashoffset={c - (c * Math.max(pct, used > 0 ? 4 : 0)) / 100} />
         </svg>
       </span>
-      <div className="min-w-0 text-right leading-tight">
+      <div className="min-w-0 text-right leading-tight" data-ring-text>
         <div className="whitespace-nowrap text-[13px] font-semibold tabular-nums">{show(used)}</div>
         <div className="whitespace-nowrap text-[11px] text-subtle tabular-nums">of {show(max)}</div>
       </div>

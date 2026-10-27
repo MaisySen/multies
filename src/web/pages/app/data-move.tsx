@@ -24,9 +24,8 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { useAssignees, useProjects } from "./work/data";
 import { ImportSection } from "./import-section";
 import { Section } from "./settings";
-import { MboxImport } from "./data-move-mbox"; // R40 mbox upload
 
-type Kind = "tasks" | "calendar" | "contacts" | "docs" | "workspace" | "mail";
+type Kind = "tasks" | "calendar" | "contacts" | "docs" | "workspace";
 type Group = "todo" | "doing" | "done";
 type Mapping = Record<string, string | null>;
 interface Move {
@@ -58,7 +57,6 @@ export const SOURCES: Source[] = [
   { id: "calendar", kind: "calendar", label: "Calendar", hint: ".ics file", how: "Export or download your calendar as an .ics file from any calendar app. Events become meetings; nobody is sent an invite.", accept: ".ics,text/calendar", icon: <IconCalendar />, tint: "#FF9500" },
   { id: "contacts", kind: "contacts", label: "Contacts", hint: "vCard or CSV", how: "Export your address book as a .vcf file, or a CSV with an email column. People already in Contacts are skipped.", accept: ".vcf,.csv,text/vcard,text/csv", icon: <IconContacts />, tint: "#30B0C7" },
   { id: "docs", kind: "docs", label: "Docs", hint: "Markdown or a zip", how: "Upload a Markdown file (.md) or a zip of them. Headings, lists, tables and links come across.", accept: ".md,.markdown,.txt,.zip,text/markdown,application/zip", icon: <IconDocs />, tint: "#AF52DE" },
-  { id: "mbox", kind: "mail", label: "Mail archive", hint: ".mbox file", how: "An .mbox export from Gmail (Takeout) or Apple Mail. It is read on this device and sent in small batches.", accept: ".mbox", icon: <IconMail />, tint: "#0A84FF" }, // R40
   { id: "workspace", kind: "workspace", label: "From another Multies workspace", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
 ];
 
@@ -139,9 +137,7 @@ export function ImportExportSettings() {
         </div>
       </Section>
       <div ref={wizardRef} className="scroll-mt-6 empty:hidden">
-        {source && (source.kind === "mail"
-          ? <MboxImport key={source.id} onClose={() => setSource(null)} ring={(value, label) => <ProgressRing value={value} label={label} />} />
-          : <ImportWizard key={source.id} source={source} onClose={() => setSource(null)} />)}
+        {source && <ImportWizard key={source.id} source={source} onClose={() => setSource(null)} />}
       </div>
       {isAdmin && <ExportCard />}
       <HistoryCard />

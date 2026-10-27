@@ -11,14 +11,6 @@ import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R4
 import { exportWorkspace } from "../services/privacy";
 import { exportFinished, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { WorkImportRun } from "./work-imports";
-import { importMboxBatch, MBOX_BATCH, stopMbox } from "../services/data-move/mbox"; // R40 mbox upload
-
-/** R40: one batch of an .mbox upload, read and split in the browser. */
-export const MboxBatch = z.object({
-  mailboxId: z.string().min(1).max(64), moveId: z.string().max(64).nullable().optional(), fileName: z.string().max(255).optional(),
-  total: z.number().int().min(0).max(1_000_000), folder: z.string().max(100).optional(), last: z.boolean().optional(),
-  messages: z.array(z.string().max(40_000_000)).max(MBOX_BATCH),
-});
 
 export const DataMoveRun = WorkImportRun.extend({
   kind: z.enum(["tasks", "calendar", "contacts", "docs", "workspace"]).default("tasks"),
@@ -47,7 +39,5 @@ export function dataMoveRoutes() {
     .post("/exports", async (c) => c.json(await startExport(c.var.deps, c.var.auth)))
     .post("/imports/preview", async (c) => c.json(await previewMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
     .post("/imports/run", async (c) => c.json(await runMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
-    .post("/mbox/batch", async (c) => c.json(await importMboxBatch(c.var.deps, c.var.auth, await parseBody(c, MboxBatch))))
-    .post("/mbox/:id/stop", async (c) => c.json(await stopMbox(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/undo", async (c) => c.json(await undoMove(c.var.deps, c.var.auth, c.req.param("id"))));
 }
