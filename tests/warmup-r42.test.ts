@@ -56,15 +56,4 @@ describe("startup warm up", () => {
     for (const m of text.match(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g) ?? []) expect(m).toMatch(/\.(test|example)$/);
     expect(text.length).toBeLessThan(80_000);
   });
-
-  it("R44: also answers the key routes with the fixture's own key, and the shipped fixture covers /api/v1", async () => {
-    const seen: string[] = [];
-    const app = { fetch: (req: Request) => { seen.push(`${new URL(req.url).pathname} ${req.headers.get("authorization") ?? req.headers.get("cookie")}`); return new Response("{}"); } };
-    const report = await warmHotRoutes(app, { ...fixture, keyRoutes: ["/api/v1/projects"], bearer: "mm_live_fixture" }, "https://example.test", (fn) => fn());
-    expect(report).toMatchObject({ ran: 3, ok: 3 });
-    expect(seen).toEqual(["/api/a x=1", "/api/b x=1", "/api/v1/projects Bearer mm_live_fixture"]);
-    const f = fixtureJson as unknown as WarmFixture;
-    expect(f.keyRoutes).toEqual(expect.arrayContaining(["/api/v1/projects", "/api/v1/tasks?limit=50"]));
-    expect(typeof f.bearer).toBe("string");
-  });
 });

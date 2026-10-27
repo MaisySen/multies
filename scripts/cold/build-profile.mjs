@@ -2,7 +2,7 @@
 import { build } from "esbuild";
 import { builtinModules } from "node:module";
 import path from "node:path";
-const root = process.cwd(); // run from the checkout (R44: was a fixed R42 path)
+const root = "/home/user/tab/work/mymail/r42-lead";
 const minify = process.argv.includes("--minify");
 const outfile = process.argv[2];
 const builtinNames = new Set(builtinModules.filter((m) => !m.startsWith("_") && !m.includes("/") && m !== "module" && m !== "punycode"));

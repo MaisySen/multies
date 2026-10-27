@@ -93,7 +93,3 @@ not the `/api/v1` key routes, so a new isolate still pays about 40 ms on its fir
 next few different `/api/v1` routes. A public route that does no auth costs 2 ms. Warming the key path (a fixture
 for the key lookup) is the next lever.
 
-R44 (MB-199): the fixture now also records four `/api/v1` GETs answered with a key of the throwaway demo workspace
-(`keyRoutes`, `bearer`; that key exists only in the deleted local database), and the warm up runs them after the
-session routes. Locally the startup warm up answers 14 of 14 routes with 200. Re-measure with the method above.
-
