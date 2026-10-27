@@ -57,7 +57,7 @@ export const SOURCES: Source[] = [
   { id: "calendar", kind: "calendar", label: "Calendar", hint: ".ics file", how: "Export or download your calendar as an .ics file from any calendar app. Events become meetings; nobody is sent an invite.", accept: ".ics,text/calendar", icon: <IconCalendar />, tint: "#FF9500" },
   { id: "contacts", kind: "contacts", label: "Contacts", hint: "vCard or CSV", how: "Export your address book as a .vcf file, or a CSV with an email column. People already in Contacts are skipped.", accept: ".vcf,.csv,text/vcard,text/csv", icon: <IconContacts />, tint: "#30B0C7" },
   { id: "docs", kind: "docs", label: "Docs", hint: "Markdown or a zip", how: "Upload a Markdown file (.md) or a zip of them. Headings, lists, tables and links come across.", accept: ".md,.markdown,.txt,.zip,text/markdown,application/zip", icon: <IconDocs />, tint: "#AF52DE" },
-  { id: "workspace", kind: "workspace", label: "Multies export", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
+  { id: "workspace", kind: "workspace", label: "From another Multies workspace", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
 ];
 
 const MAX_BYTES = 6_000_000;

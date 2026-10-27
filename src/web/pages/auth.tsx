@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { READ_ONLY_MESSAGE } from "@/web/lib/read-only";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { IconCheckCircle, IconEye, IconEyeOff, IconKey, IconMailCheck, IconPlay, IconShieldCheck } from "@/web/components/ui/icon";
+import { IconCheckCircle, IconChevronDown, IconEye, IconEyeOff, IconKey, IconMailCheck, IconPlay, IconShieldCheck } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Button } from "@/web/components/ui/button";
@@ -41,7 +41,9 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
       qc.clear();
       const next = params.get("next");
       const dest = next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : HOME;
-      navigate(opts.thanks ? `/thanks?from=signup&next=${encodeURIComponent(dest)}` : dest);
+      // R40 (MB-218): straight into the app after sign up (no /thanks stop), with a one time welcome toast.
+      navigate(dest);
+      if (opts.thanks) toast.success("Welcome to Multies", { id: "welcome", description: "Your workspace is ready. We sent a link to confirm your email address.", duration: 6000 });
     } catch (err) {
       if (err instanceof ApiError && err.fields) setFields(err.fields);
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -80,14 +82,28 @@ function IdentityButtons({ mode, showDivider }: { mode: "signin" | "signup"; sho
   };
   const primary = mode === "signup" ? "signup" : "signin";
   const secondary = primary === "signin" ? "signup" : "signin";
-  const label = { signin: "Continue with Multies", signup: "Create your account" };
+  // R40 (MB-213): the sign up heading already says "Create your account"; the button says what it does.
+  const label = { signin: "Continue with Multies", signup: "Sign up with email" };
   return (
     <div className="mt-6 space-y-2">
       <Button className="w-full" size="lg" loading={busy === primary} onClick={() => go(primary)} data-testid="idp-primary">{label[primary]}</Button>
       <Button variant="secondary" className="w-full" loading={busy === secondary} onClick={() => go(secondary)} data-testid="idp-secondary">{secondary === "signup" ? "Create account" : "Sign in instead"}</Button>
-      {/* Round 25: Google and Microsoft straight through the identity provider, when this deployment turns them on. */}
-      <div className="pt-2"><SocialSignInButtons callbackURL={safeNext(params.get("next"))} loginHint={params.get("email") ?? undefined} /></div>
-      <p className="pt-1 text-center text-xs text-subtle">Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.</p>
+      {/* Round 25: Google and Microsoft straight through the identity provider, when this deployment turns them on.
+          R40 (MB-213): on sign up they fold under "Other ways to sign up", so the page leads with one path. */}
+      {mode === "signup" ? (
+        <details className="group pt-2" data-testid="other-signup">
+          <summary className="flex min-h-10 cursor-pointer list-none items-center justify-center gap-1.5 rounded-lg text-[13px] font-medium text-muted hover:text-fg [&::-webkit-details-marker]:hidden">
+            Other ways to sign up<IconChevronDown className="h-4 w-4 transition-transform duration-150 group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+          </summary>
+          <div className="space-y-2 pt-2">
+            <SocialSignInButtons callbackURL={safeNext(params.get("next"))} loginHint={params.get("email") ?? undefined} />
+            <p className="pt-1 text-center text-xs text-subtle">Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.</p>
+          </div>
+        </details>
+      ) : <>
+        <div className="pt-2"><SocialSignInButtons callbackURL={safeNext(params.get("next"))} loginHint={params.get("email") ?? undefined} /></div>
+        <p className="pt-1 text-center text-xs text-subtle">Use your email, a one time code, a passkey, or your Google, Apple or GitHub account.</p>
+      </>}
       {showDivider && <div className="flex items-center gap-3 pt-2 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or use your password<span className="h-px flex-1 bg-line" /></div>}
     </div>
   );
