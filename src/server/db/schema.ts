@@ -877,6 +877,10 @@ export const tasks = sqliteTable("tasks", {
   uniqueIndex("tasks_org_import_key_uq").on(t.orgId, t.importKey).where(sql`${t.importKey} IS NOT NULL`),
   index("tasks_sprint_idx").on(t.sprintId).where(sql`${t.sprintId} IS NOT NULL`),
   index("tasks_org_triage_idx").on(t.orgId, t.createdAt).where(sql`${t.triageState} IS NOT NULL`),
+  // R40 (0082): task lists in their default order (position, newest first) walk these and stop at the page size,
+  // instead of reading and sorting every task of the workspace or project (927 rows for a page of 50 on HQ).
+  index("tasks_org_live_pos_idx").on(t.orgId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
+  index("tasks_org_project_live_pos_idx").on(t.orgId, t.projectId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
 ]);
 
 export const taskComments = sqliteTable("task_comments", {

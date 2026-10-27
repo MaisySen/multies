@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 40: fewer empty errors on busy moments, lighter database reads (27 Oct 2026)
+
+- Signed in pages and the API spend less server time per request, so the free plan's per request limit (the cause of the empty "503" errors) is hit far less: the app is built when the server starts instead of inside the first request, a signed in read reuses its checked session for up to 15 seconds on the same server (any change you make, signing out included, is seen at once; account pages and the operator console always check afresh), and request tracing samples fewer requests.
+- Database reads: task lists in their usual order read about one page of rows instead of every task in the workspace (migration 0082 adds two indexes; a new task costs 2 more rows written), subtask counts read only the subtasks, and the per project counts on the project list are kept for 20 seconds and refreshed by any change made through the app.
+
 ### Round 39 security hotfix: live demo, audit log and invites (27 Oct 2026)
 
 - Try the live demo works again on multies.si. The demo account is made on the server, so public sign up with a password stays off. The post deploy smoke check now opens a demo and checks it lands in the demo workspace.

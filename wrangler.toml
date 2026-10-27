@@ -131,7 +131,8 @@ SCHEDULING_ENABLED = "true"
 APP_URL = "https://multies.si"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
-SENTRY_TRACES_SAMPLE_RATE = "0.1"
+# R40 (MB-199): every traced request spends extra CPU against the free plan's 10 ms; trace 2% here.
+SENTRY_TRACES_SAMPLE_RATE = "0.02"
 SECURITY_CONTACT = "mailto:security@multies.si"
 # Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
 SUPPORT_EMAIL = "support@multies.si"
@@ -257,7 +258,8 @@ DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "staging"
 # R25: Continue with Google and Microsoft on staging (Auth0 developer keys, client "Multies Staging").
 AUTH0_SOCIAL_CONNECTIONS = "google-oauth2,windowslive"
-SENTRY_TRACES_SAMPLE_RATE = "1"
+# R40 (MB-199): tracing every staging request was the main reason staging hit the 10 ms CPU limit far more than production.
+SENTRY_TRACES_SAMPLE_RATE = "0.05"
 SECURITY_CONTACT = "mailto:security@multies.si"
 # Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
 SUPPORT_EMAIL = "support@multies.si"

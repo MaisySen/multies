@@ -300,8 +300,8 @@ it("triage (round 21): accept costs the task update plus its one partial index e
   const update = take() - limiter;
   await u.post(`/api/triage/${a}/accept`, { priority: "high" });
   const accept = take() - limiter;
-  // Exactly one more than the plain update: the triage_state flag leaves the partial index. No other row.
-  expect(accept - update).toBe(1);
+  // The triage_state flag leaves the triage partial index (1) and the task joins the two R40 list indexes (2). No other row.
+  expect(accept - update).toBe(3);
   await u.get("/api/triage"); await u.get("/api/triage/count"); await u.get("/api/tasks");
   expect(take()).toBe(0);
   await u.post(`/api/triage/${b}/decline`, { reason: "spam" });
@@ -1039,7 +1039,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(9) // R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(11) // R40 (0082): 11, two entries in the task list indexes that make a page of tasks read about 50 rows instead of every task. R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);
