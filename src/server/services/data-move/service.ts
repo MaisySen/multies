@@ -54,24 +54,6 @@ function requireImportAdmin(actor: SuiteActor) {
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can import or undo an import.");
 }
 
-/** R44: a real email address (a workspace key's actor email is its label, "api-key:mm_live_..."). */
-export function isAddress(v: string | null | undefined): v is string {
-  return !!v && /^[^\s@:]+@[^\s@]+\.[^\s@]+$/.test(v);
-}
-
-/**
- * R44: the email a run records as who started it. Started through a workspace key, the actor email is the key label,
- * so the history line read "by api-key:mm_live_..." (and, before R43b's fix, the done email went to that label).
- * Read the key creator's account email instead: one indexed read, only when a run starts through a key, never on a
- * hot read route. Null when the key outlived its creator's membership (the line then names nobody).
- */
-export async function starterEmail(deps: Deps, actor: SuiteActor): Promise<string | null> {
-  if (isAddress(actor.email)) return actor.email;
-  if (!actor.userId) return null;
-  const u = await deps.db.select({ email: users.email }).from(users).where(eq(users.id, actor.userId)).get();
-  return isAddress(u?.email) ? u!.email : null;
-}
-
 export function presentMove(m: typeof dataMoves.$inferSelect) {
   const created = parseJson<Created>(m.created, {});
   const counts = parseJson<Record<string, number>>(m.counts, {});
@@ -80,7 +62,7 @@ export function presentMove(m: typeof dataMoves.$inferSelect) {
     id: m.id, kind: m.kind, source: m.source, fileName: m.fileName, status: m.status, projectId: m.projectId,
     total: m.total, done: m.done, counts, created: made,
     canUndo: m.kind === "import" && m.status !== "undone" && made > 0,
-    expiresAt: m.expiresAt?.toISOString() ?? null, error: m.error, by: isAddress(m.createdByEmail) ? m.createdByEmail : null, // R44: never a key label
+    expiresAt: m.expiresAt?.toISOString() ?? null, error: m.error, by: m.createdByEmail,
     createdAt: m.createdAt.toISOString(), finishedAt: m.finishedAt?.toISOString() ?? null, undoneAt: m.undoneAt?.toISOString() ?? null,
     // R43: the upload is kept, so the scheduled pass finishes the run if its page closes.
     background: Boolean(m.fileKey) && (m.status === "running" || m.status === "stopped"),
@@ -136,7 +118,7 @@ export async function startExport(deps: Deps, actor: SuiteActor) {
   await deps.db.insert(dataMoves).values({
     id, orgId: actor.orgId, kind: "export", source: "workspace", status: "ready", total, done: 0, counts: JSON.stringify(counts),
     tokenHash: await sha256Hex(token), expiresAt: new Date(now.getTime() + EXPORT_LINK_HOURS * 3600_000),
-    createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now,
+    createdByUserId: actor.userId || null, createdByEmail: actor.email || null, createdAt: now, updatedAt: now,
   });
   await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: "workspace.export_requested", targetType: "data_move", targetId: id });
   const row = await moveRow(deps, actor.orgId, id);
@@ -167,7 +149,7 @@ async function startRow(deps: Deps, actor: SuiteActor, kind: MoveKind, source: s
   const id = newId("mov");
   // Essential write: the run row the history and Undo read.
   await deps.db.insert(dataMoves).values({ id, orgId: actor.orgId, kind: "import", source: `${kind}:${source}`, fileName: fileName?.slice(0, 255) ?? null, status: "running", total, done: 0,
-    createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now });
+    createdByUserId: actor.userId || null, createdByEmail: actor.email || null, createdAt: now, updatedAt: now });
   await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: "data.import_started", targetType: "data_move", targetId: id, metadata: { kind, source } });
   return moveRow(deps, actor.orgId, id);
 }
@@ -600,7 +582,7 @@ export function moveEmail(deps: Deps, m: typeof dataMoves.$inferSelect, why: "do
  * not an email address falls back to the account email of the user who started the run (the key's owner).
  */
 export async function moveRecipient(deps: Deps, m: typeof dataMoves.$inferSelect): Promise<string | null> {
-  if (isAddress(m.createdByEmail)) return m.createdByEmail;
+  if (m.createdByEmail && /^[^\s@:]+@[^\s@]+\.[^\s@]+$/.test(m.createdByEmail)) return m.createdByEmail;
   if (!m.createdByUserId) return null;
   const u = await deps.db.select({ email: users.email }).from(users).where(eq(users.id, m.createdByUserId)).get();
   return u?.email ?? null;

@@ -19,7 +19,7 @@ import { storageRoom, storeImportedRaw } from "../import";
 import { assertMailboxAccess } from "../team";
 import { assertWritable, type SuiteActor } from "../suite/common";
 import { base64Bytes } from "../work-import/parse";
-import { notifyMoveEnded, presentMove, starterEmail } from "./service";
+import { notifyMoveEnded, presentMove } from "./service";
 import { dropKeptFile } from "./kept-file"; // R43
 
 export const MBOX_BATCH = 3; // R40 lead: 3, not 10, after prod hit the free plan CPU limit (parsing is server CPU)
@@ -60,7 +60,7 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
     const id = newId("mov");
     // Essential write: the run row the history and progress read.
     await deps.db.insert(dataMoves).values({ id, orgId: actor.orgId, kind: "import", source: "mail:mbox", fileName: input.fileName?.slice(0, 255) ?? null, status: "running",
-      total: Math.max(0, Math.min(input.total, 1_000_000)), done: 0, createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now });
+      total: Math.max(0, Math.min(input.total, 1_000_000)), done: 0, createdByUserId: actor.userId || null, createdByEmail: actor.email || null, createdAt: now, updatedAt: now });
     await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: "data.import_started", targetType: "data_move", targetId: id, metadata: { kind: "mail", source: "mbox", mailboxId: input.mailboxId } });
     m = (await deps.db.select().from(dataMoves).where(eq(dataMoves.id, id)).get())!;
   }
