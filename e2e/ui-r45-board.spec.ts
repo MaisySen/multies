@@ -259,32 +259,29 @@ test("backlog keyboard: Shift with arrows selects, Space toggles, Escape clears,
   await expect(page.locator(":focus")).toHaveAttribute("data-backlog-check", "");
 });
 
-test("R46 (MB-234): board and backlog read every page, so counts cover a project past one read", async ({ page }) => {
+test("R45b: a full task read says so on the board and in the backlog", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await demo(page);
-  // The server sends 500 tasks per page: answer page one with 500 and a cursor, page two with 200 more.
-  const paged = (route: import("@playwright/test").Route, title: string) => (async () => {
+  // The server sends at most 500 tasks per read: answer with exactly that many.
+  const full = (route: import("@playwright/test").Route, title: string) => (async () => {
     const res = await route.fetch();
     const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
     if (!body?.tasks?.[0]) return route.fulfill({ response: res });
     const b = body.tasks[0];
-    const url = new URL(route.request().url());
-    const second = url.searchParams.get("cursor") === "r46p2";
-    const from = second ? 500 : 0;
-    const tasks = Array.from({ length: second ? 200 : 500 }, (_, i) => ({ ...b, id: `r46p_${from + i}`, ref: `C-${from + i + 1}`, number: from + i + 1, title: `${title} ${from + i + 1}`, status: "todo", statusId: b.statusId, position: from + i }));
-    await route.fulfill({ response: res, json: { ...body, tasks, next: second ? null : "r46p2" } });
+    const tasks = Array.from({ length: 500 }, (_, i) => ({ ...b, id: `r45c_${i}`, ref: `C-${i + 1}`, number: i + 1, title: `${title} ${i + 1}`, status: "todo", position: i }));
+    await route.fulfill({ response: res, json: { ...body, tasks } });
   })();
-  await page.route(/\/api\/tasks(\?[^/]*)?$/, (route) => route.request().method() === "GET" ? paged(route, "Paged task") : route.fallback());
+  await page.route(/\/api\/tasks(\?[^/]*)?$/, (route) => route.request().method() === "GET" ? full(route, "Capped task") : route.fallback());
   await page.goto("/app/tasks?view=board");
-  await expect(page.getByTestId("board").getByText("Paged task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("board")).toContainText("700");
-  await expect(page.getByTestId("list-cap-notice")).toHaveCount(0);
-  await page.route(/\/api\/sprints\/backlog\?/, (route) => paged(route, "Paged backlog"));
+  await expect(page.getByTestId("board").getByText("Capped task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 tasks\. Counts cover only these/);
+  await page.route(/\/api\/sprints\/backlog\?/, (route) => full(route, "Capped backlog"));
   await page.goto("/app/tasks?view=sprints");
   const panel = page.locator("[aria-label=Backlog]").first();
-  await expect(panel.getByText("Paged backlog 1", { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(panel).toContainText("700 tasks");
-  await expect(page.getByTestId("list-cap-notice")).toHaveCount(0);
+  await expect(panel.getByText("Capped backlog 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(panel.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 backlog tasks/);
+  await expect(panel).toContainText("500+ tasks");
+  await expect(page.getByTestId("list-cap-notice")).toHaveCount(1); // the board notice is not shown on the sprints view
 });
 
 test("swimlanes under load: 5,000 tasks across lanes and columns stay light", async ({ page }) => {

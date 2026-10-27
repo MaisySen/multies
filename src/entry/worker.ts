@@ -48,7 +48,6 @@ import { DocRoom as DocRoomClass } from "../server/collab/durable-object";
 import { ThreadPresence as ThreadPresenceClass } from "../server/collab/thread-presence";
 import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
 import { bindTestSessionEnv } from "../server/test-session-env-r45";
-import { OPENAPI_ORIGIN_PLACEHOLDER } from "../server/routes/v1"; // R46
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -381,24 +380,6 @@ async function collabUpgrade(request: Request, env: WorkerEnv, docId: string): P
 }
 
 /**
- * R46: GET /api/v1/openapi.json from the file the build wrote (_spec/openapi-v1.json), with this host's origin in place
- * of the placeholder, so no isolate builds the document (that walked every route schema: 266 to 413 ms of CPU). Null
- * when the file is missing (an older build, a host without assets) and the app route builds it as before.
- */
-let openApiCache: { origin: string; text: string } | null = null;
-async function builtOpenApi(env: WorkerEnv, url: URL): Promise<Response | null> {
-  if (openApiCache?.origin !== url.origin) {
-    try {
-      const res = await env.ASSETS.fetch(new Request(new URL("/_spec/openapi-v1.json", url.origin)));
-      if (!res.ok) return null;
-      const text = (await res.text()).replace(OPENAPI_ORIGIN_PLACEHOLDER, url.origin);
-      openApiCache = { origin: url.origin, text };
-    } catch { return null; }
-  }
-  return new Response(openApiCache.text, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300" } });
-}
-
-/**
  * Better Auth keeps per-request state in AsyncLocalStorage. Opening that store once at
  * the start of each request keeps it for the whole request: when Better Auth opened it
  * lazily inside each auth call, concurrent requests in one isolate lost it and getSession
@@ -418,10 +399,6 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const { deps } = await getReady(env);
     const res = await chatLiveUpgrade(request, env.CHAT_HUB, deps);
     return res.status === 101 ? res : withSecurityHeaders(res, apiHeaders);
-  }
-  if (url.pathname === "/api/v1/openapi.json" && request.method === "GET") {
-    const spec = await builtOpenApi(env, url);
-    if (spec) return withSecurityHeaders(spec, apiHeaders);
   }
   if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);

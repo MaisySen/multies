@@ -4,9 +4,9 @@
  * functions, through the app, the REST API and MCP.
  */
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
-import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
+import { agents, docs, entityLinks, members, messages, projectKeyAliases, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -348,8 +348,6 @@ export interface TaskFilters {
   sprintId?: string | null;
   /** R21: "pending" lists only items waiting in Triage; without it they are left out. */
   triage?: "pending";
-  /** R46 (MB-234): only these task ids (at most 100), still under every other filter. */
-  ids?: string[];
   /** R26 (MB-86): conditions from a task query (services/suite/task-query.ts), ANDed with the rest. */
   queryConds?: SQL[];
 }
@@ -367,7 +365,7 @@ async function orderFor(deps: Deps, orgId: string, f: TaskFilters): Promise<SQL[
   return [asc(tasks.position), desc(tasks.createdAt)];
 }
 
-async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise<(SQL | undefined)[]> {
+export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
   const conds: (SQL | undefined)[] = [eq(tasks.orgId, actor.orgId), isNull(tasks.deletedAt)];
   conds.push(f.triage ? eq(tasks.triageState, f.triage) : isNull(tasks.triageState));
   if (f.projectId) conds.push(eq(tasks.projectId, f.projectId));
@@ -393,68 +391,9 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
   if (f.fieldFilters?.length) conds.push(...await fieldFilterConditions(deps, actor.orgId, f.fieldFilters));
   if (f.sprintId !== undefined) conds.push(f.sprintId === null ? isNull(tasks.sprintId) : eq(tasks.sprintId, f.sprintId));
   if (f.queryConds?.length) conds.push(...f.queryConds); // R26 (MB-86)
-  // R46 (MB-234): only these tasks (a change feed refresh asks for the few tasks that changed, with the list's own filters,
-  // so a task that no longer matches comes back missing and leaves the list).
-  if (f.ids) conds.push(f.ids.length ? inIds(tasks.id, f.ids) : sql`0`);
-  return conds;
-}
-
-export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
-  const conds = await listConds(deps, actor, f);
   const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? TASK_LIST_LIMIT, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
-}
-
-/** R46 (MB-234): a page cursor. In the default order (position, newest first) it is the last row's keys, so the next page
- * walks the position index from there and reads only its own rows; in any other order it is an offset. */
-type PageCursor = { p: number; c: number; i: string } | { o: number };
-export const encodeTaskCursor = (c: PageCursor) => btoa(JSON.stringify(c)).replace(/=+$/, "");
-export function decodeTaskCursor(s: string | undefined): PageCursor | null {
-  if (!s) return null;
-  try {
-    const v = JSON.parse(atob(s)) as Record<string, unknown>;
-    if (typeof v.o === "number" && Number.isInteger(v.o) && v.o >= 0) return { o: v.o };
-    if (typeof v.p === "number" && typeof v.c === "number" && typeof v.i === "string") return { p: v.p, c: v.c, i: v.i };
-  } catch { /* falls through */ }
-  throw new HttpError(400, "invalid_cursor", "That page cursor is not valid. Start again without one.");
-}
-
-/**
- * R46 (MB-234): one page of a task list, with the cursor for the next page (null on the last). Board, list and backlog
- * read every page once, then follow the change feed (GET /changes) instead of reading the whole list again, so a project
- * of any size shows every task and counts. The first page also carries the change feed cursor as of the read.
- */
-export async function listTasksPage(deps: Deps, actor: SuiteActor, f: TaskFilters & { cursor?: string }) {
-  const size = Math.min(f.limit ?? TASK_LIST_LIMIT, 1000);
-  const cur = decodeTaskCursor(f.cursor);
-  const changeCursor = cur ? undefined : await latestChangeSeq(deps, actor.orgId);
-  const conds = await listConds(deps, actor, f);
-  const keyset = !f.sort;
-  let order: SQL[];
-  if (keyset) {
-    order = [asc(tasks.position), desc(tasks.createdAt), asc(tasks.id)];
-    if (cur && "p" in cur) {
-      const at = new Date(cur.c);
-      conds.push(or(gt(tasks.position, cur.p), and(eq(tasks.position, cur.p), lt(tasks.createdAt, at)), and(eq(tasks.position, cur.p), eq(tasks.createdAt, at), gt(tasks.id, cur.i))));
-    }
-  } else order = [...await orderFor(deps, actor.orgId, f), asc(tasks.id)];
-  const offset = cur && "o" in cur ? cur.o : 0;
-  let q = deps.db.select().from(tasks).where(and(...conds)).orderBy(...order).limit(size + 1).$dynamic();
-  if (!keyset && offset) q = q.offset(offset);
-  const rows = await q;
-  const more = rows.length > size;
-  if (more) rows.length = size;
-  const last = rows[rows.length - 1];
-  const next = !more || !last ? null : encodeTaskCursor(keyset ? { p: last.position, c: new Date(last.createdAt).getTime(), i: last.id } : { o: offset + size });
-  const l = await lookups(deps, actor.orgId, rows);
-  return { tasks: rows.map((r) => presentTask(r, l)), next, ...(changeCursor !== undefined ? { changeCursor } : {}) };
-}
-
-/** R46 (MB-234): the newest change feed position for the workspace (one row from the org and seq index). */
-export async function latestChangeSeq(deps: Deps, orgId: string) {
-  const row = await deps.db.select({ seq: changes.seq }).from(changes).where(eq(changes.orgId, orgId)).orderBy(desc(changes.seq)).limit(1).get();
-  return row?.seq ?? 0;
 }
 
 async function taskRow(deps: Deps, orgId: string, id: string) {
