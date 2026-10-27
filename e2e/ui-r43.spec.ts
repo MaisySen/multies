@@ -201,3 +201,33 @@ test("5,000 task board: a column renders 100 cards and Show more adds the next 1
   await expect(board.getByText(/^Long list task \d+$/)).toHaveCount(200);
   await expect(board.getByText("Long list task 200", { exact: true })).toBeAttached();
 });
+
+for (const scheme of ["light", "dark"] as const) {
+  test(`shots: 5,000 tasks list and board, desktop and phone (${scheme})`, async ({ page }) => {
+    test.skip(!process.env.SHOTS, "screenshots only");
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await demo(page);
+    await manyTasks(page);
+    await page.goto("/app/tasks?view=board");
+    await expect(page.getByTestId("board").getByText("Long list task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+    const more = page.getByTestId("board-show-more");
+    if (await more.count()) await more.first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${DIR}/board-${LABEL}-5000-desktop-${scheme}.png` });
+    await page.goto("/app/tasks?view=list");
+    await expect(page.getByTestId("task-table").locator("tr[data-task-id]").first()).toBeVisible({ timeout: 60_000 });
+    await page.getByTestId("task-table").evaluate((el) => { el.scrollTop = el.scrollHeight / 2; });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${DIR}/tasks-${LABEL}-list-5000-desktop-${scheme}.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/app/tasks?view=list");
+    await expect(page.getByTestId("phone-task-row").first()).toBeVisible({ timeout: 60_000 });
+    await page.mouse.wheel(0, 20000);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${DIR}/tasks-${LABEL}-list-5000-phone-${scheme}.png` });
+    await page.goto("/app/tasks?view=board");
+    await expect(page.getByTestId("board")).toBeVisible({ timeout: 60_000 });
+    if (await more.count()) await more.first().scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${DIR}/board-${LABEL}-5000-phone-${scheme}.png` });
+  });
+}
