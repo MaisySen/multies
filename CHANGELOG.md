@@ -7,6 +7,14 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 39 security hotfix: live demo, audit log and invites (27 Oct 2026)
+
+- Try the live demo works again on multies.si. The demo account is made on the server, so public sign up with a password stays off. The post deploy smoke check now opens a demo and checks it lands in the demo workspace.
+- The audit log is for owners and admins only; members get 403. Invitation ids, which work as invite links, are masked everywhere in audit output, exports included (only the last 4 characters show). Members see recent activity without IP addresses or invited emails.
+- Accepting an invitation needs a confirmed email that matches it; the link alone is no longer enough. The sign in service's own invitation endpoints are closed over HTTP. Pending invitations made before this fix were expired.
+- A teammate who signs up from an invite and lands in their own new workspace sees a Join banner once their email is confirmed.
+- D1 reads: `/api/health` shows today's rows read against the free plan's 5 million a day, load scripts refuse to start at 50%, and placing a task at the bottom of a column reads one index entry instead of scanning tasks.
+
 ### Round 39: page history for docs, a premium pass over billing, notifications, domains, mailboxes and team, timeline polish (27 Oct 2026)
 
 - Docs: page history. A version is kept when a new editing session starts (10 minutes after the last save, or a different person), when you save one, and before every restore. Name versions to keep them for good (the newest 50 unnamed ones stay), compare any version with the page now as added and removed lines, and restore with Undo, because the current page is saved first. History button in the doc header, or Ctrl or Cmd, Alt, Shift, H; a full sheet on phones. The same in the API (`/api/v1/docs/{id}/versions`) and over MCP (`list_doc_versions`, `read_doc_version`, `save_doc_version`, `restore_doc_version`). Migration 0080.
