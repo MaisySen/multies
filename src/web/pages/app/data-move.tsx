@@ -13,6 +13,8 @@ import {
   IconDownload, IconFileUp, IconHistory, IconSheet, IconTable, IconTasks, IconUndo, IconUpload, IconWarning,
 } from "@/web/components/ui/icon";
 import { api, ApiError, newIdempotencyKey } from "@/web/lib/api";
+import { ErrorRetry } from "@/web/components/reconnecting-r40"; // R40 (MB-205)
+
 import { useMe } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
 import { Badge, CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -164,7 +166,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState<{ move: Move; stopped: string | null } | null>(null);
   const [running, setRunning] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<unknown>(null); // R40 (MB-205): the error itself, shown plainly with Retry
 
   const preview = useMutation({
     mutationFn: (b: { name: string; content: string; mapping?: Mapping }) => api.post<Preview>("/data-moves/imports/preview", { kind: source.kind, fileName: b.name, content: b.content, mapping: b.mapping }),
@@ -210,13 +212,14 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
       }
       qc.invalidateQueries();
     } catch (e) {
-      setRunError(e instanceof ApiError ? e.message : "The import stopped. Press Import again with the same file and it carries on.");
+      setRunError(e);
     } finally { setRunning(false); }
   };
 
   const next = () => setStep((s) => Math.min(steps.length - 2, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
-  const err = (preview.error instanceof ApiError ? preview.error.message : null) ?? fileError;
+  // R40 (MB-205): a failed preview keeps the chosen file and offers Retry; no status code is shown.
+  const err = fileError;
   const count = p ? (tp ? tp.total - tp.alreadyImported : p.kind === "contacts" ? p.total - (p.alreadyThere ?? 0) : p.total) : 0;
   const noun = source.kind === "tasks" ? "tasks" : source.kind === "calendar" ? "events" : source.kind === "contacts" ? "contacts" : source.kind === "docs" ? "pages" : "items";
   const pct = progress ? (progress.move.total ? progress.move.done / progress.move.total : progress.move.status === "done" ? 1 : null) : null;
@@ -250,6 +253,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
             </div>
             <input ref={input} type="file" accept={source.accept} aria-label="File to import" className="sr-only" data-testid="move-file" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
             {err && <p className="flex items-center gap-1.5 text-sm text-bad" role="alert"><IconWarning className="h-4 w-4" aria-hidden />{err}</p>}
+            {!err && <ErrorRetry error={preview.error} onRetry={file ? () => preview.mutate({ ...file, mapping: mapping ?? undefined }) : undefined} retrying={preview.isPending} fallback="Couldn't read this file. Check it is an export from the list above." />}
           </>
         )}
 
@@ -352,7 +356,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
             <ProgressRing value={running && !progress ? null : pct} label="Import progress" />
             {running && <p className="text-sm text-muted">Bringing {noun} in{progress ? `: ${progress.move.done} of ${progress.move.total}` : ""}. You can keep working.</p>}
             {!running && progress && <ImportSummary move={progress.move} stopped={progress.stopped} onRetry={start} noun={noun} />}
-            {runError && <p className="text-sm text-bad" role="alert">{runError}</p>}
+            <ErrorRetry error={runError} onRetry={running ? undefined : () => void start()} retrying={running} fallback="The import stopped. Press Import again with the same file and it carries on." />
           </div>
         )}
 
@@ -430,7 +434,8 @@ const plural = (n: number | undefined, word: string) => `${n ?? 0} ${word}${n ==
 function ExportCard() {
   const qc = useQueryClient();
   const exp = useMutation({
-    mutationFn: () => api.post<Move & { downloadPath: string }>("/data-moves/exports", {}),
+    // R40 (MB-201, MB-205): keyed, so a retry after a dropped answer returns the same export instead of a 429.
+    mutationFn: () => api.create<Move & { downloadPath: string }>("/data-moves/exports", {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["data-moves"] }),
   });
   const r = exp.data;
@@ -464,7 +469,7 @@ function ExportCard() {
           </div>
         )}
       </div>
-      {exp.error instanceof ApiError && <p className="mt-2 text-sm text-bad" role="alert">{exp.error.message}</p>}
+      <ErrorRetry className="mt-2" error={exp.error} onRetry={() => exp.mutate()} retrying={exp.isPending} fallback="The export didn't start. Try again in a moment." />
       <p className="mt-3 text-[12.5px] text-muted">To keep another tool in sync after you move, use webhooks or the API in <Link to="/app/settings/developers" className="font-medium text-brand hover:underline">Developers</Link>.</p>
     </Section>
   );

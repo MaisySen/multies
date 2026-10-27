@@ -7,7 +7,9 @@ import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
 import { BoardSkeleton, TasksEmpty } from "./tasks-empty";
 import { CalendarSkeleton, PanelListSkeleton, TimelineSkeleton } from "@/web/components/skeletons-r36"; // R36
-import { api, ApiError } from "@/web/lib/api";
+import { api, ApiError, isTransientError } from "@/web/lib/api";
+import { ErrorRetry } from "@/web/components/reconnecting-r40"; // R40 (MB-205)
+
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
 import { requireText, useDialogs } from "@/web/components/ui/confirm";
@@ -361,8 +363,9 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   const [triage, setTriage] = useState(project ? !!(project as Project & { triage?: boolean }).triage : true);
   const move = (i: number, d: number) => setStatuses((s) => { const n = [...s]; const [x] = n.splice(i, 1); n.splice(i + d, 0, x); return n; });
   const valid = useMemo(() => name.trim() && statuses.length && statuses.some((s) => s.category === "done") && statuses.every((s) => s.name.trim()), [name, statuses]);
+  const [failure, setFailure] = useState<unknown>(null);
   const save = async () => {
-    setBusy(true); setError(null); setKeyError(null);
+    setBusy(true); setError(null); setKeyError(null); setFailure(null);
     const k = key.trim().toUpperCase();
     const body = { name, ...(k && k !== project?.key ? { key: k } : {}), statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
@@ -372,6 +375,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
       onSaved(r.project);
     } catch (e) {
       if (e instanceof ApiError && e.code === "key_taken") setKeyError(e.message);
+      else if (isTransientError(e)) setFailure(e); // R40 (MB-205): not a field error, a calm line with Retry
       else setError((e as Error).message);
     } finally { setBusy(false); }
   };
@@ -380,6 +384,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
       <div className="space-y-4">
         <Field label="Name" error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
+        <ErrorRetry error={failure} onRetry={save} retrying={busy} />
         <Field label="Key" hint={keyError ? undefined : "Shown before task numbers, like OPS-12. Letters and digits, up to 6."} error={keyError ?? undefined}>{(f) => <Input {...f} value={key} maxLength={6} onChange={(e) => { setKey(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setKeyError(null); }} placeholder={project ? "" : "Made from the name"} className="w-32 font-mono uppercase" data-testid="project-key" />}</Field>
         <div>
           <p className="mb-2 text-[13px] font-medium">Statuses</p>

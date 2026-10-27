@@ -6,6 +6,7 @@
 import { IconRefresh, IconWifiOff } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { AppSkeleton } from "@/web/layouts/app-skeleton";
+import { errorMessage, isTransientError } from "@/web/lib/api";
 
 export function ReconnectingPill({ onRetry }: { onRetry?: () => void }) {
   return (
@@ -40,6 +41,25 @@ export function ReconnectScreen({ onRetry, retrying }: { onRetry: () => void; re
           <Button className="mt-5 w-full" loading={retrying} onClick={onRetry}>Retry</Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * R40 (MB-205): one plain line for a failed action, never a status code. When Multies could not be reached the
+ * line offers Retry; the caller keeps what the person chose (the file, the form) so Retry needs nothing new.
+ */
+export function ErrorRetry({ error, onRetry, retrying, fallback, className }: { error: unknown; onRetry?: () => void; retrying?: boolean; fallback?: string; className?: string }) {
+  if (!error) return null;
+  const transient = isTransientError(error);
+  return (
+    <div role="alert" data-testid="error-retry"
+      className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm ${transient ? "border-line bg-elevated/70 text-fg" : "border-bad/25 bg-bad-soft text-bad"} ${className ?? ""}`}>
+      {transient && <IconWifiOff className="h-4 w-4 shrink-0 text-muted" aria-hidden="true" />}
+      <span className="min-w-0 flex-1">{errorMessage(error, fallback)}</span>
+      {onRetry && transient && (
+        <Button size="sm" variant="secondary" loading={retrying} onClick={onRetry}>Retry</Button>
+      )}
     </div>
   );
 }
