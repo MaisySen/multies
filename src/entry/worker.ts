@@ -42,6 +42,11 @@ import { withReadRetry } from "../server/lib/d1-busy";
 import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant, type LoginVariantOf } from "../server/auth/config";
 import { authFor } from "../server/auth";
+import { endWarmup, replayD1, warmHotRoutes, WARM_SECRET, type WarmFixture, type WarmReport } from "./warmup";
+import warmFixtureJson from "./warm-fixture.json";
+import { DocRoom as DocRoomClass } from "../server/collab/durable-object";
+import { ThreadPresence as ThreadPresenceClass } from "../server/collab/thread-presence";
+import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -281,6 +286,7 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
     try { authFor(built.deps); } catch { /* built on first use instead */ }
     ready = Promise.resolve(built);
     if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] app built before the first request");
+    if (vars.STARTUP_WARM !== "off") startupWarm(env, vars);
     return true;
   } catch (err) {
     ready = null;
@@ -288,6 +294,41 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
     return false;
   }
 }
+/**
+ * R42 (MB-199, cold start): answers the hot signed in GETs once from a throwaway copy of the app on a replay only
+ * fake database, so the engine has compiled the request path before the first real request (src/entry/warmup.ts).
+ * The copy shares no config, database, bindings or caches with the real app. STARTUP_WARM=off turns it off.
+ */
+export let lastWarmReport: WarmReport | null = null;
+function startupWarm(_env: WorkerEnv, vars: Record<string, string | undefined>) {
+  try {
+    const fixture = warmFixtureJson as unknown as WarmFixture;
+    if (!fixture?.routes?.length) return;
+    const origin = vars.APP_URL && /^https?:\/\//.test(vars.APP_URL) ? vars.APP_URL.replace(/\/+$/, "") : "https://multies.si";
+    const wvars: Record<string, string | undefined> = { ...vars, APP_SECRET: WARM_SECRET, OUTBOUND_DRIVER: "log", RESEND_API_KEY: undefined, SENTRY_DSN_API: undefined, STRIPE_SECRET_KEY: undefined, LIVEKIT_API_SECRET: undefined };
+    const wdb = drizzle(replayD1(fixture) as never, { schema }) as unknown as DB;
+    const wenv = { DB: replayD1(fixture), ASSETS: { fetch: async () => { throw new Error("warm up: no assets"); } } } as unknown as WorkerEnv;
+    const copy = bootWith(wenv, wdb, wvars);
+    // The outer wrapper gets a placeholder error reporting address, so a warm up can never report anything real.
+    const outerEnv = { SENTRY_DSN_API: "https://0@o0.ingest.sentry.io/0", SENTRY_ENVIRONMENT: "warmup", SENTRY_TRACES_SAMPLE_RATE: "0" };
+    const outerCtx = { waitUntil(p: Promise<unknown>) { void Promise.resolve(p).catch(() => undefined); }, passThroughOnException() {} };
+    void warmHotRoutes(copy.app as never, fixture, origin, (fn) => withAuthRequestState(fn), (req) => wrapped.fetch(req, outerEnv, outerCtx))
+      .then((r) => { lastWarmReport = r; if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] warm up", JSON.stringify(r)); })
+      .catch(() => { endWarmup(); });
+  } catch {
+    endWarmup(); // less warm, never broken
+  }
+}
+
+// The Durable Object classes are entry points too: each of their handlers puts the platform classes back first.
+for (const cls of [DocRoomClass, ThreadPresenceClass, ChatHubClass, MailSyncRunner] as unknown as { prototype: Record<string, unknown> }[]) {
+  for (const name of ["fetch", "alarm", "webSocketMessage", "webSocketClose", "webSocketError"]) {
+    const orig = cls?.prototype?.[name];
+    if (typeof orig !== "function") continue;
+    cls.prototype[name] = function (this: unknown, ...args: unknown[]) { endWarmup(); return (orig as (...a: unknown[]) => unknown).apply(this, args); };
+  }
+}
+
 startupBoot(startupEnv as unknown as WorkerEnv | undefined);
 
 function envVar(env: WorkerEnv, key: string): string | undefined {
@@ -473,7 +514,7 @@ function tracesRate(env: WorkerEnv): number | undefined {
 }
 
 /** Sentry wraps the handler when SENTRY_DSN_API is set; without it the SDK stays off. */
-export default Sentry.withSentry((rawEnv: unknown) => {
+const sentryWrapped = Sentry.withSentry((rawEnv: unknown) => {
   const env = rawEnv as WorkerEnv;
   const dsn = (typeof env.SENTRY_DSN_API === "string" ? env.SENTRY_DSN_API : undefined) ?? buildEnv.SENTRY_DSN_API;
   if (!dsn) return undefined;
@@ -489,3 +530,13 @@ export default Sentry.withSentry((rawEnv: unknown) => {
     beforeSendTransaction: sentryPrivacy.beforeSendTransaction,
   };
 }, handler as never);
+
+/*
+ * R42: the real entry points put the platform classes back first (a no-op unless a startup warm up is somehow
+ * still holding its stand ins), so no real request or cron run ever sees them.
+ */
+const wrapped = sentryWrapped as unknown as { fetch(r: Request, e: unknown, c: unknown): Promise<Response>; scheduled(ev: unknown, e: unknown, c: unknown): Promise<void> };
+export default {
+  fetch(request: Request, env: unknown, ctx: unknown) { endWarmup(); return wrapped.fetch(request, env, ctx); },
+  scheduled(event: unknown, env: unknown, ctx: unknown) { endWarmup(); return wrapped.scheduled(event, env, ctx); },
+};
