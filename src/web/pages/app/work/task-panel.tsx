@@ -1,11 +1,11 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { FieldInput } from "./fields";
 import { taskFields } from "./computed-fields";
 import { TaskFiles } from "./task-files";
 import { TaskDocBacklinks } from "./doc-tree";
 import { Link, useNavigate } from "react-router";
 import { CatchupCard } from "@/web/components/catchup-card"; // R31
-import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCopy, IconDocs, IconLink, IconMail, IconMore, IconTrash, IconUser, IconVideo } from "@/web/components/ui/icon";
+import { IconAgent, IconCalendar, IconCheckCircle, IconCircle, IconClose, IconCopy, IconDocs, IconLink, IconMail, IconMore, IconTrash, IconUser, IconVideo, IconWarning } from "@/web/components/ui/icon";
 import { TaskTime } from "./time";
 import { EpicSection, TaskTypeRows } from "./task-type";
 import { SprintFields } from "./sprint-fields";
@@ -13,7 +13,8 @@ import { TaskChecklist } from "./task-checklist"; // R26 (MB-85)
 import { TaskRuns } from "./task-runs"; // R27 (DF-3 slice 2)
 import { useDuplicateTask, WatchButton } from "./task-watch-r27"; // R27 teardown
 import { startMeeting } from "./meeting-start";
-import { api } from "@/web/lib/api";
+import { api, ApiError } from "@/web/lib/api";
+import { announceTaskChange, mayAdopt, useTaskChanges } from "@/web/lib/task-sync-r40"; // R40 (MB-204)
 import { showError } from "@/web/lib/show-error";
 import { toast } from "sonner";
 import { Button } from "@/web/components/ui/button";
@@ -52,10 +53,49 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   const t = q.data?.task;
   // R36: a task you open anywhere joins "Recently opened" in the command menu (device only, no server write).
   useEffect(() => { if (t) recordRecent({ kind: "item", id: `/app/tasks?task=${t.id}`, label: `${t.ref} ${t.title}`, url: `/app/tasks?task=${t.id}`, hint: "Task" }); }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // R40 (MB-204): what the fields last showed from the server. A newer server copy replaces a field only if the
+  // person has not typed in it since; otherwise their text stays and saving it reports the conflict.
+  const shown = useRef<{ id: string; title: string; notes: string; titleVersion: number; notesVersion: number } | null>(null);
+  const [conflict, setConflict] = useState<{ patch: { title?: string; notes?: string }; theirs: Task } | null>(null);
   useEffect(() => {
     if (!t) return;
-    setTitle(t.title); setNotes(t.notes); setLabels(t.labels.join(", "));
+    const prev = shown.current?.id === t.id ? shown.current : null;
+    const takeTitle = !prev || mayAdopt(title, prev.title, t.title);
+    const takeNotes = !prev || mayAdopt(notes, prev.notes, t.notes);
+    if (takeTitle) setTitle(t.title);
+    if (takeNotes) setNotes(t.notes);
+    setLabels(t.labels.join(", "));
+    // Each field remembers the version its text is based on; a kept edit still saves against the old one.
+    shown.current = {
+      id: t.id, title: takeTitle ? t.title : prev!.title, notes: takeNotes ? t.notes : prev!.notes,
+      titleVersion: takeTitle ? t.version : prev!.titleVersion, notesVersion: takeNotes ? t.version : prev!.notesVersion,
+    };
   }, [t?.id, t?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  useTaskChanges(t?.id, () => void q.refetch());
+
+  /** Title and notes are saved against the version on screen, so an edit made elsewhere is never overwritten silently. */
+  const saveText = async (patch: { title?: string; notes?: string }, version = patch.title !== undefined ? shown.current?.titleVersion : shown.current?.notesVersion) => {
+    if (!t) return;
+    try {
+      const r = await api.patch<{ task: Task }>(`/tasks/${t.id}`, { ...patch, version });
+      setConflict(null);
+      announceTaskChange(t.id, r.task.version);
+      refresh();
+      await q.refetch();
+    } catch (e) {
+      const theirs = (e instanceof ApiError && e.code === "version_conflict" ? (e.details as { task?: Task } | undefined)?.task : undefined);
+      if (theirs) setConflict({ patch, theirs });
+      else showError(e as Error);
+    }
+  };
+  const keepMine = () => { if (conflict) void saveText(conflict.patch, conflict.theirs.version); };
+  const useTheirs = () => {
+    if (!conflict) return;
+    if (conflict.patch.title !== undefined) setTitle(conflict.theirs.title);
+    if (conflict.patch.notes !== undefined) setNotes(conflict.theirs.notes);
+    setConflict(null);
+    void q.refetch();
+  };
 
   useEffect(() => {
     const on = (e: KeyboardEvent) => { if (e.key === "Escape" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) onClose(); };
@@ -106,12 +146,13 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="space-y-3 p-5">{q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <><Skeleton className="h-7 w-3/4" /><Skeleton className="w-1/2" /><Skeleton className="h-24" /></>}</div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-10">
+          {conflict && <ConflictBar onKeepMine={keepMine} onUseTheirs={useTheirs} />}
           <CatchupCard key={`catchup-${t.id}`} type="task" id={t.id} className="mx-0 mb-0 mt-3" />
           <div className="flex items-start gap-2 pt-4">
             <button className="mt-1.5 text-muted hover:text-ok" aria-label={t.status === "done" ? "Mark as not done" : "Mark as done"} onClick={() => save({ status: t.status === "done" ? "todo" : "done" })}>
               {t.status === "done" ? <IconCheckCircle className="h-5 w-5 text-ok" /> : <IconCircle className="h-5 w-5" />}
             </button>
-            <textarea aria-label="Title" rows={1} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && save({ title })}
+            <textarea aria-label="Title" rows={1} value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && void saveText({ title })}
               className="w-full resize-none bg-transparent text-lg font-semibold leading-snug outline-none [field-sizing:content]" />
           </div>
 
@@ -158,7 +199,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
             </section>
           )}
 
-          <Textarea aria-label="Notes" placeholder="Add notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && save({ notes })} className="mt-4 min-h-24 text-[13.5px]" />
+          <Textarea aria-label="Notes" placeholder="Add notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== t.notes && void saveText({ notes })} className="mt-4 min-h-24 text-[13.5px]" />
 
           {t.source && (
             <section className="mt-6" aria-label="Email thread">
@@ -333,6 +374,21 @@ function RepeatPicker({ value, onChange }: { value: Repeat | null; onChange: (r:
         </div>
       )}
       {value && <p className="text-[11.5px] text-subtle">{value.text}. Finishing it makes the next one.</p>}
+    </div>
+  );
+}
+
+/** R40 (MB-204): the person's text stays on screen; they choose which version wins. */
+function ConflictBar({ onKeepMine, onUseTheirs }: { onKeepMine: () => void; onUseTheirs: () => void }) {
+  return (
+    <div role="alert" data-testid="task-conflict"
+      className="sticky top-0 z-10 -mx-5 mt-0 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-warn/25 bg-warn-soft/95 px-5 py-2.5 text-[13px] text-fg backdrop-blur motion-safe:animate-[fade-in_160ms_ease-out]">
+      <IconWarning className="h-4 w-4 shrink-0 text-warn" aria-hidden="true" />
+      <span className="min-w-0 flex-1">Changed in another tab or by someone else. Keep yours or use theirs.</span>
+      <span className="flex gap-2">
+        <Button size="sm" variant="secondary" onClick={onUseTheirs}>Use theirs</Button>
+        <Button size="sm" onClick={onKeepMine}>Keep yours</Button>
+      </span>
     </div>
   );
 }

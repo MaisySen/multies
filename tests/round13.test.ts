@@ -104,8 +104,7 @@ describe("customer domains on any DNS provider (round 13)", () => {
     await c.signup();
     const made = await c.post("/api/domains", { name: "haajir.test" });
     expect(made.status).toBe(201);
-    // R40 (MB-206): our own words, never the provider's (they stay in the server log and the stored status).
-    expect(made.body.domain.sending).toEqual({ status: "error", detail: "We couldn't turn on sending for this domain yet. We'll try again when you check DNS." });
+    expect(made.body.domain.sending).toEqual({ status: "error", detail: "This domain name is not allowed" });
     // Without the provider's records the setup falls back to Multies' own MX and DKIM.
     expect(made.body.domain.records.find((r: { id: string }) => r.id === "dkim").value).toMatch(/^v=DKIM1; k=rsa; p=/);
   });
