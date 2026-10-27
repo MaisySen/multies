@@ -19,7 +19,9 @@ import type { Project, Task } from "./data";
 import { useSprints, type Sprint } from "./sprint-fields";
 import { NoSprintsArt } from "@/web/components/illustrations"; // R36
 import { useWindowedList } from "@/web/lib/use-windowed-list"; // R44 (MB-210 follow up)
-import { listKey, selectionMessage } from "@/web/lib/list-keys"; // R45: backlog keyboard selection
+import { listKey, selectionMessage } from "@/web/lib/list-keys";
+import { ListCapNotice } from "@/web/components/list-cap-notice"; // R45b
+import { listIsCapped } from "@/shared/task-list-limit"; // R45: backlog keyboard selection
 
 export type { Sprint };
 
@@ -278,6 +280,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
   /** R44: the sprint on screen; selected rows move there in one go, and rows can be dragged onto it. */
   target?: Sprint }) {
   const pts = tasks.reduce((a, t) => a + (t.points ?? 0), 0);
+  const capped = listIsCapped(tasks.length); // R45b: the backlog read came back full
   // R44: multi select. A click toggles one row, Shift with a click selects the run from the last clicked row.
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const anchor = useRef<number | null>(null);
@@ -334,8 +337,9 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
     <Card className={cn("relative h-fit overflow-hidden", className)} aria-label="Backlog">
       <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5">
         <h2 className="text-[13px] font-semibold">Backlog</h2>
-        <span className="text-[12px] tabular-nums text-subtle">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
+        <span className="text-[12px] tabular-nums text-subtle">{tasks.length}{capped ? "+" : ""} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
       </div>
+      {capped && <ListCapNotice what="backlog tasks" hint="Totals cover only these. Move some into a sprint to see the rest." className="mx-4 mt-3" />}
       {pickedIds.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-brand/[0.05] px-4 py-2" role="toolbar" aria-label="Selected backlog tasks">
           <span className="text-[12.5px] font-medium tabular-nums">{pickedIds.length} selected{pickedPts ? `, ${fmtNum(pickedPts)} ${u}` : ""}</span>

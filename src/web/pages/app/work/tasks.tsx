@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMediaQuery } from "@/web/lib/use-compact";
 import { PHONE_QUERY } from "@/web/lib/phone";
 import { PhoneTaskList } from "./tasks-phone-r41";
+import { ListCapNotice } from "@/web/components/list-cap-notice"; // R45b
+import { listIsCapped } from "@/shared/task-list-limit";
 import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
@@ -283,6 +285,9 @@ export function TasksPage() {
       {project && fieldsOpen && <FieldsDialog projectId={project.id} fields={allFields} open onClose={() => setFieldsOpen(false)} />}
       {project && guestsOpen && <GuestsDialog project={project} onClose={() => setGuestsOpen(false)} />}
       {project && epicsOpen && <EpicsDialog project={project} onClose={() => setEpicsOpen(false)} onOpen={(id) => { setEpicsOpen(false); open(id); }} />}
+      {listIsCapped(tasks.data?.length ?? 0) && view !== "sprints" && view !== "workload" && (
+        <ListCapNotice what="tasks" hint="Counts cover only these. Filter by status, person or label to see the rest." className="mb-2" />
+      )}
       <div className="min-h-0 flex-1">
         <ClashScope projectId={projectId || undefined} enabled={view === "list" || view === "board"}>{/* R38: one date clash check for the list or board */}
         {!list.length ? (

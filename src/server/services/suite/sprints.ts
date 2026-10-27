@@ -17,7 +17,7 @@
  * finishing or re-estimating a task costs no extra write for the chart. At complete the chart is
  * frozen into the snapshot, so a finished sprint reads in one row.
  */
-import { and, asc, eq, gte, inArray, isNull, like, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, like, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, activityFeed, organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
@@ -26,6 +26,7 @@ import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from
 import { listTasks, resolveTaskId, type Task } from "./tasks";
 import { dateFormat, dayInZone } from "../../lib/intl-cache";
 import { inIds } from "../../lib/sql-chunks";
+import { TASK_LIST_LIMIT } from "../../../shared/task-list-limit";
 
 export type SprintStatus = "planned" | "active" | "completed";
 type SprintRow = typeof sprints.$inferSelect;
@@ -447,7 +448,9 @@ export async function getSprint(deps: Deps, actor: SuiteActor, id: string, opts:
 /** The project's backlog: unfinished tasks in no sprint. */
 export async function backlog(deps: Deps, actor: SuiteActor, projectId: string): Promise<Task[]> {
   await projectOf(deps, actor.orgId, projectId);
-  const list = await listTasks(deps, actor, { projectId, sprintId: null, limit: 500 });
+  // R45b: done tasks are left out in the query itself, so they no longer use up the read's limit (on prod a project with
+  // 1,000 tasks showed 450 of 894 open ones). The limit is the shared list limit; the panel says when it is reached.
+  const list = await listTasks(deps, actor, { projectId, sprintId: null, limit: TASK_LIST_LIMIT, queryConds: [ne(tasks.status, "done")] });
   return list.filter((t) => t.status !== "done");
 }
 

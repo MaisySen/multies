@@ -259,6 +259,18 @@ test("backlog keyboard: Shift with arrows selects, Space toggles, Escape clears,
   await expect(page.locator(":focus")).toHaveAttribute("data-backlog-check", "");
 });
 
+test("R45b: a full task read says so on the board and in the backlog", async ({ page }) => {
+  await openBoard(page);
+  await expect(page.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 tasks\. Counts cover only these/);
+  await demo(page);
+  await bigBacklog(page);
+  await page.goto("/app/tasks?view=sprints");
+  const panel = page.locator("[aria-label=Backlog]").first();
+  await expect(panel.getByText("Backlog task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(panel.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 backlog tasks/);
+  await expect(page.getByTestId("list-cap-notice")).toHaveCount(1); // the board notice is not shown on the sprints view
+});
+
 test("swimlanes under load: 5,000 tasks across lanes and columns stay light", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await demo(page);

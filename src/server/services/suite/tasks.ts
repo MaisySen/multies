@@ -3,6 +3,7 @@
  * comments and saved filters. People, workspace keys and agent keys all use these
  * functions, through the app, the REST API and MCP.
  */
+import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
 import { and, asc, desc, eq, gte, inArray, isNull, like, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { agents, docs, entityLinks, members, messages, projectKeyAliases, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
@@ -390,7 +391,7 @@ export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = 
   if (f.fieldFilters?.length) conds.push(...await fieldFilterConditions(deps, actor.orgId, f.fieldFilters));
   if (f.sprintId !== undefined) conds.push(f.sprintId === null ? isNull(tasks.sprintId) : eq(tasks.sprintId, f.sprintId));
   if (f.queryConds?.length) conds.push(...f.queryConds); // R26 (MB-86)
-  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? 500, 1000));
+  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? TASK_LIST_LIMIT, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
 }
