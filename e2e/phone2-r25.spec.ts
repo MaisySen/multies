@@ -165,7 +165,8 @@ test("mail: the star shows on touch and is a 40 px target", async () => {
 test("walk: nav drawer, compose, task panel, meeting, docs toolbar and Settings tabs fit a 390 px phone", async () => {
   // The nav drawer opens and closes.
   await page.goto("/app/my-work");
-  await page.getByRole("button", { name: "Open navigation" }).tap();
+  // R46 mobile: on a phone the menu opens from the More tab of the tab bar.
+  await page.getByTestId("tab-more").tap();
   const close = page.getByRole("button", { name: "Close navigation" });
   await expect(close).toBeVisible();
   await noSidewaysScroll("nav open");

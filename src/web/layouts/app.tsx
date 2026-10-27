@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconActivity, IconAgent, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconZap, type IconComponent } from "@/web/components/ui/icon";
@@ -10,6 +10,7 @@ import { PaletteHost } from "@/web/components/palette-host"; // R31: the menu it
 import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
 import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
 import { TimerChip } from "@/web/pages/app/work/time";
+import { PhoneTabBar } from "@/web/components/phone-tab-bar"; // R46 mobile web
 // R31: the call dock and onboarding load on demand (their code is not on the first paint path).
 const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
 const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
@@ -85,6 +86,13 @@ const NAV_TINT: Record<string, string> = {
 // "Workspace", not "Admin": everyone sees this group (settings, people, billing); the operator's console is gated separately.
 const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;
 
+/** Nav items in their groups, in the order the groups first appear. */
+function navGroups(items: NavItem[]): { group: NavItem["group"]; items: NavItem[] }[] {
+  const out: { group: NavItem["group"]; items: NavItem[] }[] = [];
+  for (const it of items) { const last = out[out.length - 1]; if (last && last.group === it.group) last.items.push(it); else out.push({ group: it.group, items: [it] }); }
+  return out;
+}
+
 /** The booking page sits under Meetings when the server has scheduling switched on. */
 const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: IconCalendarClock, group: "work" as const }] : [n]));
 
@@ -155,6 +163,18 @@ export function AppLayout() {
     if (await (await authClientModule()).signOutEverywhere({ idp: !!providers?.idp }) === "done") navigate("/login");
   };
 
+  /** The account menu: in the sidebar footer, and behind the avatar in the phone top bar (R46 mobile). */
+  const accountMenu = (trigger: ReactElement, align: "start" | "end") => (
+    <Menu align={align} trigger={trigger}>
+          <MenuLabel>{user.email}</MenuLabel>
+          <div className="px-1.5 pb-1.5 pt-0.5"><AppearanceControl className="w-full [&>button]:flex-1 [&>button]:justify-center" /></div>
+          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
+          <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
+          <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
+          <MenuItem icon={<IconLogOut />} onSelect={signOut} danger>Sign out</MenuItem>
+    </Menu>
+  );
+
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex h-14 shrink-0 items-center justify-between px-4">
@@ -169,26 +189,31 @@ export function AppLayout() {
           <IconSearch className="h-4 w-4" aria-hidden /><span className="flex-1 text-left">Search</span><span className="[@media(hover:none)]:hidden"><Kbd>{isMac ? "⌘" : "Ctrl"} K</Kbd></span>
         </button>
       </div>
-      <nav className="mt-3 min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 pb-3" aria-label="App">
-        {([...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[]).map(({ to, label, icon: Icon, end, group }, i, all) => (
-          <Fragment key={to}>
-          {(i === 0 || all[i - 1].group !== group) && <div data-testid="nav-group" className={cn("px-2.5 pb-1 text-[11.5px] font-semibold text-subtle", i > 0 && "pt-4")}>{GROUP_LABEL[group]}</div>}
-          <NavLink to={to} end={end} className={({ isActive }) => cn(
-            "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
-            isActive ? "bg-brand font-medium text-brand-fg shadow-[var(--shadow-e1)] [&_[data-badge]]:bg-white/25 [&_[data-badge]]:text-white" : "text-fg/85 hover:bg-hover hover:text-fg",
-          )}>
-            {({ isActive }) => (<>
-            {/* R35: a tinted rounded tile per section, like the system settings sidebar; the glyph fills when active. */}
-            <span className="nav-tile" style={{ background: NAV_TINT[to] ?? "#8E8E93" }}><Icon filled={isActive} /></span>{label}
-            {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
-            {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{mailUnread > 999 ? "999+" : mailUnread}</span>}
-            {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
-            {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${triageCount.data} waiting in Triage`}>{triageCount.data}</span>}
-            {to === "/app/admin" && (openReports.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-bad px-1.5 text-[11px] font-semibold tabular-nums text-white" data-badge aria-label={`${openReports.data} reports to review`} data-testid="nav-reports-badge">{openReports.data}</span>}
-            {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
-            </>)}
-          </NavLink>
-          </Fragment>
+      <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
+        {navGroups(([...(config.data?.scheduling ? withScheduling : nav), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
+          <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
+          <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{GROUP_LABEL[group]}</div>
+          {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}
+          <div className="space-y-0.5 max-lg:overflow-hidden max-lg:rounded-[14px] max-lg:bg-surface max-lg:p-1 max-lg:shadow-[var(--shadow-e1)]">
+          {items.map(({ to, label, icon: Icon, end }) => (
+            <NavLink to={to} end={end} className={({ isActive }) => cn(
+              "flex items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] transition-colors duration-150 max-lg:min-h-11 max-lg:text-[15px]",
+              isActive ? "bg-brand font-medium text-brand-fg shadow-[var(--shadow-e1)] [&_[data-badge]]:bg-white/25 [&_[data-badge]]:text-white" : "text-fg/85 hover:bg-hover hover:text-fg",
+            )}>
+              {({ isActive }) => (<>
+              {/* R35: a tinted rounded tile per section, like the system settings sidebar; the glyph fills when active. */}
+              <span className="nav-tile" style={{ background: NAV_TINT[to] ?? "#8E8E93" }}><Icon filled={isActive} /></span>{label}
+              {to === "/app/notifications" && (unreadNotes.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${unreadNotes.data} unread`}>{unreadNotes.data}</span>}
+              {to === "/app/mail" && mailUnread > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${mailUnread} unread in Inbox`}>{mailUnread > 999 ? "999+" : mailUnread}</span>}
+              {to === "/app/chat" && (chatUnread.data?.total ?? 0) > 0 && <span className="ml-auto rounded-full bg-fill px-1.5 text-[11px] font-semibold tabular-nums text-fg" data-badge aria-label={`${chatUnread.data?.total} unread messages`}>{chatUnread.data?.total}</span>}
+              {to === "/app/triage" && (triageCount.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${triageCount.data} waiting in Triage`}>{triageCount.data}</span>}
+              {to === "/app/admin" && (openReports.data ?? 0) > 0 && <span className="ml-auto rounded-full bg-bad px-1.5 text-[11px] font-semibold tabular-nums text-white" data-badge aria-label={`${openReports.data} reports to review`} data-testid="nav-reports-badge">{openReports.data}</span>}
+              {to === "/app/approvals" && pendingCount > 0 && <span className="ml-auto rounded-full bg-brand px-1.5 text-[11px] font-semibold tabular-nums text-brand-fg" data-badge aria-label={`${pendingCount} waiting`}>{pendingCount}</span>}
+              </>)}
+            </NavLink>
+          ))}
+          </div>
+          </div>
         ))}
       </nav>
       {organization?.isDemo && (
@@ -199,61 +224,57 @@ export function AppLayout() {
         </div>
       )}
       <div className="shrink-0 border-t border-line p-3">
-        <Menu align="start" trigger={
-          <button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-hover">
+        {accountMenu(<button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-hover">
             <Avatar label={initials(user.name)} className="h-7 w-7" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-medium">{user.name}</div>
               <div className="truncate text-[11.5px] text-subtle">{user.email}</div>
             </div>
             <IconChevronsUpDown className="h-4 w-4 text-subtle" />
-          </button>
-        }>
-          <MenuLabel>{user.email}</MenuLabel>
-          <div className="px-1.5 pb-1.5 pt-0.5"><AppearanceControl className="w-full [&>button]:flex-1 [&>button]:justify-center" /></div>
-          <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
-          <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
-          <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
-          <MenuItem icon={<IconLogOut />} onSelect={signOut} danger>Sign out</MenuItem>
-        </Menu>
+          </button>, "start")}
       </div>
     </div>
   );
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    <div className="app-shell flex h-dvh overflow-hidden">
       <aside aria-label="Sidebar" className="glass-sidebar hairline-r hidden w-60 shrink-0 lg:block">{sidebar}</aside>
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
           <div className="absolute inset-0 animate-fade-in bg-black/40" onClick={() => setDrawer(false)} />
-          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3">{sidebar}</aside>
+          <aside aria-label="Sidebar" className="absolute inset-y-0 left-0 w-72 max-w-[85vw] animate-drawer-in border-r border-line bg-surface pt-[env(safe-area-inset-top)] elev-3 max-md:w-[min(20rem,88vw)] max-md:bg-bg">{sidebar}</aside>
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 glass hairline-b px-2 pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
-          <button className="grid h-11 w-11 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover" onClick={() => setDrawer(true)} aria-label="Open navigation"><IconMenu className="h-[22px] w-[22px]" /></button>
-          {barTitle
-            ? <span className="absolute left-1/2 max-w-[60%] -translate-x-1/2 animate-fade-in truncate text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title">{barTitle}</span>
-            : <Link to="/app" aria-label="Multies overview" className="absolute left-1/2 -translate-x-1/2"><Logo className="h-[22px]" /></Link>}
+        <header className="sticky top-0 z-20 flex h-[calc(3rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 glass hairline-b pl-[max(0.375rem,env(safe-area-inset-left))] pr-[max(0.375rem,env(safe-area-inset-right))] pt-[env(safe-area-inset-top)] lg:hidden" data-topbar>
+          {/* R46 mobile: phones get the tab bar (More opens the menu); a tablet keeps the menu button here. */}
+          <button className="hidden h-11 w-11 shrink-0 place-items-center rounded-full text-brand-hover transition-colors hover:bg-hover md:grid" onClick={() => setDrawer(true)} aria-label="Open navigation"><IconMenu className="h-[22px] w-[22px]" /></button>
+          <div className="min-w-0"><WorkspaceSwitcher current={organization} variant="chip" compact={!!barTitle} /></div>
+          {barTitle && <span className="pointer-events-none absolute left-1/2 top-[env(safe-area-inset-top)] flex h-12 max-w-[46%] -translate-x-1/2 animate-fade-in items-center text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title"><span className="truncate">{barTitle}</span></span>}
+          <div className="ml-auto flex shrink-0 items-center">
+            <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label="Search" data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
+            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><Avatar label={initials(user.name)} className="h-8 w-8" /></button>, "end")}
+          </div>
         </header>
         <ReadOnlyBanner />
         <OfflineBanner />
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
-        <main ref={setMainEl} className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
+        <main ref={setMainEl} className={cn("min-h-0 flex-1 overflow-x-hidden", isMail ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className="route-in mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
+        <PhoneTabBar mailUnread={mailUnread} moreOpen={drawer} onMore={() => setDrawer((d) => !d)} />
         <PaletteHost onSignOut={signOut} />
         <UpdatePill />{/* R32: new version prompt */}
         <ShortcutsHost />
-        <div className="pointer-events-none fixed bottom-4 right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
+        <div className="pointer-events-none fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-30 [&>*]:pointer-events-auto"><TimerChip /></div>
         <Suspense fallback={null}><CallDockHost /></Suspense>
       </div>
     </div>
   );
 }
 
-function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
+function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { current: Me["organization"]; /** R46 mobile: "chip" is the phone top bar's workspace button. */ variant?: "sidebar" | "chip"; compact?: boolean }) {
   const ws = useWorkspaces();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -284,7 +305,13 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
   };
   return (
     <>
-      <Menu align="start" trigger={
+      <Menu align="start" trigger={variant === "chip" ? (
+        <button className="flex h-11 min-w-0 max-w-[58vw] items-center gap-2 rounded-full pl-1 pr-2 text-left transition-colors hover:bg-hover" aria-label={`Workspace ${current?.name ?? ""}. Switch workspace`} data-testid="topbar-workspace">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#0071E3] text-[14px] font-bold text-white shadow-[var(--shadow-e1)]" aria-hidden>{current?.name[0]?.toUpperCase()}</span>
+          {!compact && <span className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em] text-fg">{current?.name}</span>}
+          {!compact && <IconChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />}
+        </button>
+      ) : (
         <button className="flex w-full items-center gap-2.5 rounded-lg border border-line bg-elevated/60 px-2.5 py-2 text-left transition-colors hover:border-line-strong">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-line-strong bg-elevated text-[11px] font-bold text-fg">{current?.name[0]?.toUpperCase()}</span>
           <span className="min-w-0 flex-1">
@@ -292,8 +319,7 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
             <span className="block text-[11px] text-subtle">{current ? PLANS[current.plan].name : ""} plan</span>
           </span>
           <IconChevronsUpDown className="h-4 w-4 shrink-0 text-subtle" />
-        </button>
-      }>
+        </button>)      }>
         <MenuLabel>Workspaces</MenuLabel>
         {(ws.data?.workspaces ?? []).map((w) => (
           <MenuItem key={w.id} icon={w.id === current?.id ? <IconCheck /> : <span className="grid h-4 w-4 place-items-center rounded bg-fill text-[9px] font-bold">{w.name[0]?.toUpperCase()}</span>} onSelect={() => go(w.id)}>
@@ -303,7 +329,7 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
         <div className="my-1 border-t border-line" />
         <MenuItem icon={<IconPlus />} onSelect={() => setCreating(true)}>New workspace</MenuItem>
       </Menu>
-      {switchError && <p role="alert" className="mt-1.5 px-1 text-[12px] text-bad" data-testid="workspace-switch-error">{switchError}</p>}
+      {switchError && <p role="alert" className={variant === "chip" ? "fixed inset-x-3 top-[calc(3.5rem+env(safe-area-inset-top))] z-40 rounded-xl bg-elevated p-3 text-[13px] text-bad elev-3" : "mt-1.5 px-1 text-[12px] text-bad"} data-testid="workspace-switch-error">{switchError}</p>}
       <Dialog open={creating} onClose={() => setCreating(false)} title="Create a workspace" description="A separate space with its own domains, mailboxes, team and plan."
         footer={<><Button variant="secondary" onClick={() => setCreating(false)}>Cancel</Button><Button loading={busy} disabled={!name.trim()} onClick={create}>Create workspace</Button></>}>
         <form onSubmit={(e) => { e.preventDefault(); void create(); }}>

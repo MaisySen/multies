@@ -17,3 +17,8 @@ export function focusItems(w: MyWork, n = 5): (MyWorkItem & { kind: "overdue" | 
   return [...tag(w.overdue, "overdue" as const), ...tag(w.dueToday, "due" as const), ...tag(w.mentions, "mention" as const), ...tag(w.approvals, "approval" as const), ...tag(w.threads, "mail" as const)].slice(0, n);
 }
 
+
+/** R46 mobile: true when My Work has nothing to show in any summary card (the calm "all clear" line replaces them). */
+export function allClear(c: { unread?: number | null; due: number; overdue: number; mentions: number; approvals: number; meeting: boolean }): boolean {
+  return !(c.unread ?? 0) && c.due === 0 && c.overdue === 0 && c.mentions === 0 && c.approvals === 0 && !c.meeting;
+}
