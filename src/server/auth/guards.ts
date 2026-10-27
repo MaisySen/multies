@@ -116,9 +116,9 @@ export function clearAuthCache() { authCache.clear(); }
 
 export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
   const key = sessionCookieKey(headers);
-  // Account routes (the app shell's /me, security, sessions) always read the session afresh, so a confirmed
-  // address, a new workspace or a revoked session shows there at once.
-  const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account");
+  // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
+  // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
+  const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");
   if (!key) return resolveAuth(deps, headers);
   const now = Date.now();
   if (read) {
