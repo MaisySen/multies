@@ -98,7 +98,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const [important, other] = await Promise.all([splitCond(deps, split, "important", list), splitCond(deps, split, "other", list)]);
   // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
   const scope = (a.role ?? "member") === "member"
-    ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId))))
+    ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId)))) // D1: a subquery, not a bound list
     : undefined;
   const unread = unreadQuery(deps, a.orgId, a.userId).as("u");
   const chatTotal = deps.db.select({ n: sql<number>`coalesce(sum(${unread.unread}), 0)` }).from(unread);

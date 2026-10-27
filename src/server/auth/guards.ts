@@ -157,7 +157,9 @@ export async function resolveAuthCached(deps: Deps, headers: Headers, method: st
   const now = Date.now();
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now && (!me || hit.auth.emailVerified)) return hit.auth;
+    if (hit && hit.until > now && (!me || (hit.auth.emailVerified && !hit.auth.ssoBlocked))) return hit.auth;
+    // /me that does not use the copy also drops it, as it did when /me always read afresh (it is the app's refresh).
+    if (me) authCache.delete(key);
   } else {
     authCache.delete(key);
   }
