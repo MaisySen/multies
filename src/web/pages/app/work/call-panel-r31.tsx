@@ -154,12 +154,12 @@ export function useCallPanel(meetingId: string | undefined, member: boolean) {
 export function CallToolbar({ tab, setTab, member }: { tab: CallTab | null; setTab: (t: CallTab | null) => void; member: boolean }) {
   const btn = (t: CallTab, label: string, icon: ReactNode) => (
     <button type="button" onClick={() => setTab(tab === t ? null : t)} aria-pressed={tab === t} data-testid={`call-tab-${t}`}
-      className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none", tab === t ? "bg-brand-soft text-brand" : "text-muted hover:bg-hover hover:text-fg")}>
+      className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-[13px] font-medium max-sm:h-11 max-sm:rounded-full max-sm:px-3.5 max-sm:text-[15px] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none", tab === t ? "bg-brand-soft text-brand" : "text-muted hover:bg-hover hover:text-fg")}>
       {icon}{label}
     </button>
   );
   return (
-    <div className="flex items-center gap-1" role="toolbar" aria-label="Call panels">
+    <div className="flex items-center gap-1" role="toolbar" aria-label="Call panels" data-testid="call-toolbar">
       {btn("notes", "Notes", <IconNotes className="h-4 w-4" aria-hidden />)}
       {member && btn("so-far", "So far", <IconClock className="h-4 w-4" aria-hidden />)}
     </div>

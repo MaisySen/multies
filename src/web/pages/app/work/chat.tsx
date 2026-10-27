@@ -208,7 +208,7 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
     try { await onSend(body, files); setText(""); setFiles([]); setPicked([]); } catch (err) { showError(err as Error); } finally { setBusy(false); }
   };
   return (
-    <form onSubmit={submit} className="relative border-t border-line p-3">
+    <form onSubmit={submit} className="relative border-t border-line p-3 max-sm:px-2 max-sm:py-1.5">
       {matches.length > 0 && (
         <ul role="listbox" aria-label="Mention someone" className="absolute bottom-full left-3 mb-1 w-64 overflow-hidden rounded-lg border border-line-strong bg-elevated shadow-pop">
           {matches.map((p) => <li key={p.id}><button type="button" role="option" aria-selected={false} onClick={() => pick(p)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-hover"><Avatar label={initials(p.name)} className="h-5 w-5 text-[9px]" />{p.name}{(p.type === "agent" || p.isAgent) && <span className="inline-flex items-center gap-0.5 text-subtle" data-testid="mention-agent-badge"><IconAgent className="h-3 w-3" aria-hidden />Agent</span>}</button></li>)}
@@ -219,12 +219,12 @@ function Composer({ people, placeholder, onSend, testId, onType }: { people: Per
         <label className="sr-only" htmlFor={`${testId ?? "composer"}-input`}>Message</label>
         <textarea id={`${testId ?? "composer"}-input`} data-testid={testId} value={text} onChange={(e) => { setText(e.target.value); if (e.target.value) onType?.(); }} rows={1} placeholder={placeholder}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !matches.length) { e.preventDefault(); void submit(); } if (e.key === "Tab" && matches.length) { e.preventDefault(); pick(matches[0]); } }}
-          className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
+          className="max-h-40 min-h-10 flex-1 resize-y rounded-lg border border-line bg-surface px-3 py-2 text-sm max-sm:min-h-11 max-sm:resize-none max-sm:rounded-[22px] max-sm:px-4 max-sm:py-2.5 max-sm:text-[16px] focus:border-brand/70 focus:outline-none focus:ring-4 focus:ring-brand/15" />
         <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => setFiles((l) => [...l, ...Array.from(e.target.files ?? [])].slice(0, 5))} />
         <Button variant="ghost" size="icon" type="button" aria-label="Attach a file" onClick={() => fileRef.current?.click()}><IconAttachment className="h-4 w-4" /></Button>
-        <Button type="submit" size="icon" aria-label="Send" loading={busy}><IconSend className="h-4 w-4" /></Button>
+        <Button type="submit" size="icon" aria-label="Send" loading={busy} data-testid={testId === "chat-composer" ? "chat-send" : undefined} className="max-sm:rounded-full"><IconSend className="h-4 w-4" /></Button>
       </div>
-      <p className="mt-1 text-[11.5px] text-subtle" data-testid="composer-hint">{hint}</p>
+      <p className="mt-1 text-[11.5px] text-subtle max-sm:sr-only" data-testid="composer-hint">{hint}</p>
     </form>
   );
 }
@@ -342,7 +342,8 @@ export function ChatPage() {
   const navItem = (c: ChatChannel, icon: ReactNode) => (
     <li key={c.id}>
       <Link to={`/app/chat/${c.id}`} aria-current={c.id === current?.id ? "page" : undefined}
-        className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-[13.5px]", c.id === current?.id ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg", c.unread > 0 && "font-semibold text-fg")}>
+        data-testid="chat-channel"
+        className={cn("flex items-center gap-2 rounded-md px-2 py-1.5 text-[13.5px] max-sm:min-h-11 max-sm:gap-3 max-sm:rounded-lg max-sm:px-3 max-sm:text-[16px] max-sm:[&>svg]:h-[18px] max-sm:[&>svg]:w-[18px]", c.id === current?.id ? "bg-fill text-fg" : "text-muted hover:bg-hover hover:text-fg", c.unread > 0 && "font-semibold text-fg")}>
         {icon}<span className="flex-1 truncate">{c.name}</span>
         {c.mentions > 0 ? <span className="rounded-full bg-brand px-1.5 text-[11px] font-semibold text-brand-fg" aria-label={`${c.mentions} mentions`}>{c.mentions}</span>
           : c.unread > 0 ? <span className="rounded-full bg-fill px-1.5 text-[11px]" aria-label={`${c.unread} unread`}>{c.unread}</span> : null}
@@ -351,7 +352,7 @@ export function ChatPage() {
   );
 
   return (
-    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:h-dvh">
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] sm:-m-6 lg:h-dvh max-sm:-mx-4 max-sm:-my-6 max-md:h-[calc(100dvh-3rem-env(safe-area-inset-top)-var(--tabbar-h,0px))]" data-testid="chat-page">
       {dialogs}
       {moderation.sheet}
       <h1 className="sr-only">Chat</h1>
@@ -367,8 +368,8 @@ export function ChatPage() {
       <section aria-label={current ? `Messages in ${current.name}` : "Messages"} className={cn("flex min-w-0 flex-1 flex-col", !channelId && "hidden sm:flex", threadId && "hidden lg:flex")}>
         {current ? (
           <>
-            <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5">
-              <Link to="/app/chat" className="-my-2 -ml-2 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><IconBack className="h-5 w-5" aria-hidden />Back</Link>
+            <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2.5 max-sm:gap-1 max-sm:px-2 max-sm:py-1" data-testid="chat-head">
+              <Link to="/app/chat" className="-my-2 -ml-2 max-sm:my-0 max-sm:ml-0 inline-flex min-h-11 shrink-0 items-center gap-0.5 rounded-lg pl-1 pr-2 text-[15px] text-brand-hover transition-colors duration-150 hover:bg-hover sm:hidden" onClick={(e) => { e.preventDefault(); navigate("/app/chat?list=1"); }}><IconBack className="h-5 w-5" aria-hidden />Back</Link>
               <h2 className="min-w-0 truncate text-[15px] font-semibold">{current.kind === "channel" ? `#${current.name}` : current.name}</h2>
               {current.guestAccess && <span className="shrink-0 rounded bg-ok/15 px-1.5 text-[11.5px] text-ok max-sm:hidden">shared with guests</span>}
               <span className="min-w-0 truncate text-[12.5px] text-subtle max-sm:hidden">{current.topic}</span>
@@ -379,7 +380,7 @@ export function ChatPage() {
                   if (others.length !== 1) return null;
                   const o = others[0]; const oid = o.id.replace(/^member:/, ""); const isBlocked = moderation.blocked.has(oid);
                   return (
-                    <Menu trigger={<button type="button" aria-label={`More options for ${o.name}`} data-testid="dm-more" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><IconMore className="h-4 w-4" aria-hidden /></button>}>
+                    <Menu trigger={<button type="button" aria-label={`More options for ${o.name}`} data-testid="dm-more" className="inline-flex h-8 w-8 max-sm:h-11 max-sm:w-11 items-center justify-center rounded-lg text-muted hover:bg-elevated hover:text-fg"><IconMore className="h-4 w-4" aria-hidden /></button>}>
                       <MenuItem onSelect={() => moderation.report({ targetType: "user", userId: oid, name: o.name, context: "dm" })} icon={<IconFlag className="h-4 w-4" />}>Report {o.name}</MenuItem>
                       {isBlocked ? <MenuItem onSelect={() => void moderation.unblock(oid, o.name)} icon={<IconBlock className="h-4 w-4" />}>Unblock {o.name}</MenuItem>
                         : <MenuItem onSelect={() => void moderation.block(oid, o.name)} icon={<IconBlock className="h-4 w-4" />} danger>Block {o.name}</MenuItem>}

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
 import { showError } from "@/web/lib/show-error";
+import { cn } from "@/web/lib/cn";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
@@ -96,7 +97,7 @@ const when = zonedDateTime;
  * The call, with the Round 31 side panel (Notes, So far). A connect that never succeeded shows a
  * message instead of silently leaving; once connected, a disconnect leaves.
  */
-function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeave: () => void; prefs?: JoinPrefs; member: boolean; guestToken?: string }) {
+function Room({ join, onLeave, prefs, member, guestToken, title }: { join: Join; onLeave: () => void; prefs?: JoinPrefs; member: boolean; guestToken?: string; title?: string }) {
   const meetingId = join.meeting?.id;
   useCallNotesDoc(meetingId, member);
   const panel = useCallPanel(meetingId, member);
@@ -104,10 +105,15 @@ function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeav
   const [failed, setFailed] = useState<string | null>(null);
   const media = roomMedia(prefs ?? loadPrefs());
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-end"><CallToolbar tab={panel.tab} setTab={panel.setTab} member={member} /></div>
-      <div className="flex flex-col gap-3 md:flex-row">
-        <div data-lk-theme="default" className="relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line" data-testid="meeting-room">
+    // R49 mobile: in the app on a phone the call fills the screen between the top bar and the tab bar, so its
+    // controls dock right above the tabs like a native call screen (desktop and the guest page are unchanged).
+    <div className={cn("space-y-2", member && "max-md:fixed max-md:inset-x-0 max-md:bottom-[var(--tabbar-h,0px)] max-md:top-[calc(3rem+env(safe-area-inset-top))] max-md:z-20 max-md:flex max-md:flex-col max-md:space-y-0 max-md:bg-bg")} data-testid="call-screen">
+      <div className={cn("flex items-center justify-end", member && "max-md:min-h-[52px] max-md:justify-between max-md:gap-2 max-md:pl-4 max-md:pr-2")}>
+        {member && title && <h2 className="min-w-0 truncate text-[16px] font-semibold tracking-[-0.01em] md:hidden">{title}</h2>}
+        <CallToolbar tab={panel.tab} setTab={panel.setTab} member={member} />
+      </div>
+      <div className={cn("flex flex-col gap-3 md:flex-row", member && "max-md:relative max-md:min-h-0 max-md:flex-1 max-md:gap-0")}>
+        <div data-lk-theme="default" className={cn("relative h-[calc(100dvh-220px)] min-h-[420px] min-w-0 flex-1 overflow-hidden rounded-xl border border-line", member && "max-md:h-auto max-md:min-h-0 max-md:rounded-none max-md:border-x-0 max-md:border-b-0")} data-testid="meeting-room">
           {failed ? (
             <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 bg-[#1c1c1e] p-6 text-center text-[13px] text-white/85" data-testid="meeting-connect-failed">
               <p>Couldn't connect to the call. Check your connection and try again.</p>
@@ -126,7 +132,7 @@ function Room({ join, onLeave, prefs, member, guestToken }: { join: Join; onLeav
           {member && <LobbyRequests meetingId={meetingId} className="absolute right-3 top-3 z-30" />}
           {member && <CallMinutesBanner meetingId={meetingId} className="absolute bottom-20 left-3 z-30" />}
         </div>
-        {panel.tab && <CallSidePanel meetingId={meetingId} guestToken={guestToken} member={member} tab={panel.tab} onClose={panel.close} so={panel.so} />}
+        {panel.tab && <div className={cn("contents", member && "max-md:absolute max-md:inset-x-2 max-md:bottom-[76px] max-md:top-2 max-md:z-40 max-md:flex max-md:[&>aside]:elev-3")}><CallSidePanel meetingId={meetingId} guestToken={guestToken} member={member} tab={panel.tab} onClose={panel.close} so={panel.so} /></div>}
       </div>
     </div>
   );
@@ -237,7 +243,7 @@ export function MeetingPage() {
   };
   const setStatus = async (status: "ended" | "cancelled") => { try { await api.patch(`/meetings/${id}`, { status }); void qc.invalidateQueries({ queryKey: ["meeting", id] }); } catch (e) { showError(e as Error); } };
   if (!m) return q.error ? <p className="text-sm text-muted">{(q.error as Error).message}</p> : <Skeleton className="h-40" />;
-  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} prefs={prefs} member onLeave={() => setJoin(null)} /></div>;
+  if (join) return <div><PageHeader title={m.title} actions={<Button variant="secondary" onClick={() => setJoin(null)}>Leave</Button>} /><Room join={join} prefs={prefs} member title={m.title} onLeave={() => setJoin(null)} /></div>;
   if (prejoin) return <div className="py-2"><PreJoin title={m.title} who={{ mode: "member", name: me.data?.user?.name || me.data?.user?.email || "you" }} inCall={inCall.data?.participants.map((p) => p.name)} busy={busy} footnote={PREJOIN_NOTE} onJoin={(p) => void enter(p)} onCancel={() => setPrejoin(false)} /></div>;
   const source = m.source ? (m.source.type === "task" ? { to: `/app/tasks?task=${m.source.id}`, label: "the task" } : m.source.type === "contact" ? { to: `/app/contacts/${m.source.id}`, label: "the contact" } : { to: `/app/mail`, label: "the thread" }) : null;
   return (

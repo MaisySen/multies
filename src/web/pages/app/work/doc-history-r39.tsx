@@ -56,8 +56,8 @@ export function DocHistoryButton({ onOpen }: { onOpen: () => void }) {
   }, [onOpen]);
   return (
     <button type="button" aria-label="Page history" title="Page history (Ctrl or Cmd, Alt, Shift, H)" onClick={onOpen} data-testid="doc-history-button"
-      className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:min-w-10">
-      <IconHistory className="h-4 w-4" /><span className="max-sm:hidden">History</span>
+      className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg">
+      <IconHistory className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">History</span>
     </button>
   );
 }

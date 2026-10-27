@@ -165,7 +165,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
     const Icon = on ? onIcon : offIcon;
     return (
       <button type="button" onClick={flip} aria-pressed={on} aria-label={`${label} ${on ? "on" : "off"}`} data-testid={testId}
-        className={cn("inline-flex h-10 w-10 items-center justify-center rounded-full border transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none",
+        className={cn("inline-flex h-10 w-10 items-center justify-center rounded-full border max-sm:h-12 max-sm:w-12 transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none",
           on ? "border-white/30 bg-black/40 text-white hover:bg-black/55" : "border-transparent bg-bad text-white hover:bg-bad/90")}>
         <Icon className="h-4.5 w-4.5" aria-hidden />
       </button>
@@ -237,7 +237,7 @@ export function PreJoin({ title, who, inCall, inCallCount, busy, compact, bare, 
             callName === null ? (
               <p className="flex items-center gap-2 text-[12.5px] text-muted" data-testid="prejoin-joining-as">
                 <span>Joining as <span className="font-medium text-fg">{who.name}</span></span>
-                <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand" data-testid="prejoin-change-name">Change</button>
+                <button type="button" onClick={() => setCallName(who.name)} className="rounded text-brand hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center max-sm:justify-center max-sm:px-1" data-testid="prejoin-change-name">Change</button>
               </p>
             ) : (
               <div>

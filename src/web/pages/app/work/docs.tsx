@@ -73,7 +73,7 @@ export function DocsPage() {
 
 function ToolButton({ on, label, active, children }: { on: () => void; label: string; active?: boolean; children: React.ReactNode }) {
   return <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={on} aria-label={label} aria-pressed={active} title={label}
-    className={cn("inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted transition-colors duration-150 ease-out hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4", active && "bg-brand-soft text-brand-hover hover:bg-brand-soft hover:text-brand-hover")}>{children}</button>;
+    className={cn("inline-flex shrink-0 items-center justify-center rounded-md p-1.5 text-muted transition-colors duration-150 ease-out hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:w-11 max-sm:rounded-lg [&_svg]:h-4 [&_svg]:w-4 max-sm:[&_svg]:h-5 max-sm:[&_svg]:w-5", active && "bg-brand-soft text-brand-hover hover:bg-brand-soft hover:text-brand-hover")}>{children}</button>;
 }
 
 export function DocPage() {
@@ -166,11 +166,11 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
   return (
     <div className="mx-auto max-w-3xl">
       {dialogs}
-      <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle">
-        <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" />Docs</Link>
+      <div className="mb-3 flex items-center gap-2 text-[12.5px] text-subtle max-sm:-mx-2 max-sm:-mt-3 max-sm:mb-1 max-sm:gap-0" data-testid="doc-bar">
+        <Link to="/app/docs" className="inline-flex items-center gap-1 hover:text-fg max-sm:h-11 max-sm:shrink-0 max-sm:gap-0.5 max-sm:rounded-lg max-sm:pl-1 max-sm:pr-2 max-sm:text-[16px] max-sm:text-brand-hover max-sm:active:bg-hover"><IconArrowLeft className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" />Docs</Link>
         {session && (
-          <div className="ml-auto flex items-center gap-1.5" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
-            <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />Live</span>
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 max-sm:mr-1" data-testid="collab-presence" aria-label={peers.length ? `Also here: ${peers.map((p) => p.name).join(", ")}` : "Only you are here"}>
+            <span className="inline-flex items-center gap-1 text-[12px]"><span className="h-1.5 w-1.5 rounded-full bg-good max-sm:h-2 max-sm:w-2" aria-hidden /><span className="max-sm:sr-only">Live</span></span>
             {peers.map((p) => (
               <span key={p.clientId} data-testid="collab-peer" title={p.name} className="inline-flex max-w-[10rem] items-center gap-1 whitespace-nowrap rounded-full border border-line px-2 py-0.5 text-[12px] text-fg">
                 <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone(p.color) }} aria-hidden /><span className="truncate">{p.name.split(" ")[0]}</span>
@@ -178,18 +178,18 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
             ))}
           </div>
         )}
-        <span className={cn(!session && "ml-auto")} role="status">{status}</span>
+        <span className={cn(!session && "ml-auto", "max-sm:mr-1 max-sm:whitespace-nowrap", state === "saved" && "max-sm:sr-only", state === "conflict" && "max-sm:order-last max-sm:basis-full max-sm:whitespace-normal max-sm:px-2 max-sm:pt-1 max-sm:text-bad")} role="status">{status}</span>
         <ShareButton kind="doc" targetId={id} />
         <DocHistoryButton onOpen={openHistory} />
-        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-10 max-sm:min-w-10"
+        <button aria-label="Save as template" title="Save as template" className="inline-flex items-center justify-center gap-1 rounded px-1.5 py-1 hover:bg-hover hover:text-fg max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg"
           onClick={async () => {
             // Save pending edits first: the template copies the stored doc.
             if (state === "unsaved") { clearTimeout(timer.current); await save(); }
             try { await api.post("/templates", { kind: "doc", fromDocId: id, name: title.trim() || undefined }); toast.success("Saved as a doc template"); } catch (err) { showError(err as Error); }
           }}>
-          <IconTemplate className="h-4 w-4" /><span className="max-sm:hidden">Save as template</span>
+          <IconTemplate className="h-4 w-4 max-sm:h-5 max-sm:w-5" /><span className="max-sm:hidden">Save as template</span>
         </button>
-        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-10 max-sm:w-10" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4" /></button>
+        <button aria-label="Delete doc" className="inline-flex shrink-0 items-center justify-center rounded p-1 hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-lg" onClick={async () => { if (!(await confirm({ ...deleteDocConfirm(tree.data?.tree, id, title), confirmLabel: "Delete doc" }))) return; await api.del(`/docs/${id}`); void qc.invalidateQueries({ queryKey: ["doc-tree"] }); navigate("/app/docs"); }}><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
       </div>
       <DocBreadcrumbs docId={id} title={title} />
       <h1 className="sr-only">{title || "Untitled doc"}</h1>
@@ -210,7 +210,7 @@ function DocEditor({ doc, session, onReplaced }: { doc: Doc; session: CollabSess
         </div>
       )}
       {e && (
-        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:[scrollbar-width:none]" role="toolbar" aria-label="Formatting">
+        <div className="sticky top-0 z-10 mt-4 flex flex-wrap gap-0.5 rounded-lg border border-line bg-surface/95 p-1 shadow-card backdrop-blur max-sm:-mx-1 max-sm:mt-3 max-sm:flex-nowrap max-sm:justify-between max-sm:gap-0 max-sm:rounded-xl max-sm:p-0.5" role="toolbar" aria-label="Formatting" data-testid="doc-toolbar">
           <ToolButton label="Bold" active={e.isActive("bold")} on={() => e.chain().focus().toggleBold().run()}><IconBold /></ToolButton>
           <ToolButton label="Italic" active={e.isActive("italic")} on={() => e.chain().focus().toggleItalic().run()}><IconItalic /></ToolButton>
           <ToolButton label="Heading" active={e.isActive("heading", { level: 2 })} on={() => e.chain().focus().toggleHeading({ level: 2 }).run()}><IconHeading2 /></ToolButton>

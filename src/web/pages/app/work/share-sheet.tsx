@@ -23,7 +23,7 @@ export function ShareButton({ kind, targetId, size = "sm" }: { kind: Kind; targe
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-10 max-sm:min-w-10" onClick={() => setOpen(true)} aria-label="Share" data-testid="share-button"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>
+      <Button variant="ghost" size={size} className="shrink-0 max-sm:h-11 max-sm:min-w-11 max-sm:rounded-lg max-sm:px-0 max-sm:[&_svg]:h-5 max-sm:[&_svg]:w-5" onClick={() => setOpen(true)} aria-label="Share" data-testid="share-button"><IconShare className="h-4 w-4" /><span className="max-sm:hidden">Share</span></Button>
       {open && <ShareSheet kind={kind} targetId={targetId} onClose={() => setOpen(false)} />}
     </>
   );

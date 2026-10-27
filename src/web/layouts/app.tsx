@@ -11,6 +11,7 @@ import { ShortcutsHost } from "@/web/components/shortcuts-sheet"; // R30
 import { openPalette, openShortcutsSheet } from "@/web/lib/shortcuts";
 import { TimerChip } from "@/web/pages/app/work/time";
 import { PhoneTabBar } from "@/web/components/phone-tab-bar"; // R46 mobile web
+import { watchKeyboardInset } from "@/web/lib/keyboard-inset"; // R49 mobile web
 // R31: the call dock and onboarding load on demand (their code is not on the first paint path).
 const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
 const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
@@ -109,6 +110,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
+  useEffect(() => watchKeyboardInset(), []); // R49 mobile: composers stay above the on screen keyboard
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,
     queryFn: async () => (await api.get<{ approvals: unknown[] }>("/approvals?status=pending")).approvals,
