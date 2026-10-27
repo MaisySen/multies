@@ -7,6 +7,7 @@ import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
 import * as Sentry from "@sentry/cloudflare";
+import { env as startupEnv } from "cloudflare:workers";
 import { sentryPrivacy } from "../shared/sentry-scrub";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
@@ -40,6 +41,7 @@ import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect
 import { withReadRetry } from "../server/lib/d1-busy";
 import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant, type LoginVariantOf } from "../server/auth/config";
+import { authFor } from "../server/auth";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -85,9 +87,19 @@ async function boot(env: WorkerEnv) {
   // deploy hook below on hosts where wrangler cannot reach the database).
   // R28: a read retries once after a short pause when D1 is briefly unavailable (lib/d1-busy.ts).
   const db = drizzle(withReadRetry(env.DB) as never, { schema }) as unknown as DB;
+  const vars = envVars(env);
+  if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
+  return bootWith(env, db, vars);
+}
+
+function envVars(env: WorkerEnv): Record<string, string | undefined> {
   const vars: Record<string, string | undefined> = { ...(typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) };
   for (const [k, v] of Object.entries(env)) if (typeof v === "string") vars[k] = v;
-  if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
+  return vars;
+}
+
+/** Synchronous part of boot: no I/O, so it can also run at isolate startup (R40, MB-199). */
+function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefined>) {
   const config = loadConfig(vars);
   const outbound = config.outbound.driver === "resend" ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!)) : new LogOutbound();
   const deps: Deps = {
@@ -244,6 +256,39 @@ function getReady(env: WorkerEnv) {
   ready ??= boot(env).catch((err) => { ready = null; throw err; });
   return ready;
 }
+
+/*
+ * R40 (MB-199): the free plan stops a request at 10 ms of CPU, and building the app (config, the route
+ * table, the router's matchers and the sign in library) took about 60 ms inside the first request of every new
+ * isolate. Script startup has its own, much larger allowance, so when the bindings are readable at startup and
+ * the app secret is set (no D1 read needed), the app is built here, before any request. No I/O, no timers and
+ * no random values happen in this step. Anything that fails leaves `ready` empty and the first request boots
+ * as before.
+ */
+export function startupBoot(env: WorkerEnv | undefined): boolean {
+  try {
+    if (!env || !env.DB || ready) return false;
+    const vars = envVars(env);
+    if (!vars.APP_SECRET) return false;
+    const db = drizzle(withReadRetry(env.DB) as never, { schema }) as unknown as DB;
+    const built = bootWith(env, db, vars);
+    // Hono compiles a method's route matcher on its first match; do it now for the common methods.
+    const router = (built.app as unknown as { router?: { match: (m: string, p: string) => unknown } }).router;
+    for (const m of ["GET", "POST", "PATCH", "PUT", "DELETE"]) {
+      try { router?.match(m, "/api/account/me"); } catch { /* compiled on first request instead */ }
+    }
+    // The sign in library's instance too (about 20 ms of setup otherwise paid by the first signed in request).
+    try { authFor(built.deps); } catch { /* built on first use instead */ }
+    ready = Promise.resolve(built);
+    if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] app built before the first request");
+    return true;
+  } catch (err) {
+    ready = null;
+    console.warn("[startup] app build moved to the first request:", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+startupBoot(startupEnv as unknown as WorkerEnv | undefined);
 
 function envVar(env: WorkerEnv, key: string): string | undefined {
   const v = env[key];

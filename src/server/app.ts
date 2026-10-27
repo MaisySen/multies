@@ -17,6 +17,7 @@ import { contactFormRoutes } from "./routes/contact";
 import { adminRoutes } from "./routes/admin";
 import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b";
 import { authFor } from "./auth";
+import { forgetCachedAuth } from "./auth/guards";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
@@ -132,6 +133,11 @@ export function createApp(deps: Deps) {
 
   // R31: the session cookie travels as __Host-mymail.session_token in production (dual read of the old name).
   app.use("*", hostSessionCookie(deps.config.mode === "production"));
+  // R40 (MB-199): any write and any sign in route (sign out, confirming an address) drops the in-isolate copy of this cookie's session first.
+  app.use("/api/*", async (c, next) => {
+    if ((c.req.method !== "GET" && c.req.method !== "HEAD") || c.req.path.startsWith("/api/auth/")) forgetCachedAuth(c.req.raw.headers);
+    await next();
+  });
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
     const started = Date.now();
