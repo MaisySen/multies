@@ -89,8 +89,10 @@ const chevron = "bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org
 export const phoneButtonClass = cn("flex h-11 w-full items-center rounded-lg border border-line-strong bg-surface pl-3 pr-9 text-left text-base text-fg transition-[border-color,box-shadow] duration-150 focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:opacity-60 sm:hidden", chevron);
 
 /** The phone half of an adaptive Select: reads options from the real select each time it opens. */
-export function PhoneSelectButton({ selectRef, className, disabled }: {
+export function PhoneSelectButton({ selectRef, className, disabled, bare }: {
   selectRef: RefObject<HTMLSelectElement | null>; className?: string; disabled?: boolean;
+  /** R42: draw only the caller's classes (a chip or an icon overlay) instead of the full width field button. */
+  bare?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [label, setLabel] = useState("");
@@ -118,7 +120,7 @@ export function PhoneSelectButton({ selectRef, className, disabled }: {
       {/* The real select (visually hidden on phones) stays the accessible control, so screen readers, keyboards and
           tests find one labelled field; this button is the touch surface and is hidden from assistive tech. */}
       <button type="button" onClick={show} disabled={disabled} aria-hidden="true" tabIndex={-1} data-name={name}
-        data-testid="phone-select" className={cn(phoneButtonClass, className, "max-sm:h-11")}>
+        data-testid="phone-select" className={bare ? cn("sm:hidden", className) : cn(phoneButtonClass, className, "max-sm:h-11")}>
         <span className="min-w-0 flex-1 truncate">{label || "Choose"}</span>
       </button>
       <PickerSheet open={open} title={name} choices={choices} value={value} onClose={() => setOpen(false)}

@@ -12,6 +12,7 @@ import { useMe, useTeam } from "@/web/lib/queries";
 import { cn } from "@/web/lib/cn";
 import { Avatar, Card } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
+import { Select } from "@/web/components/ui/input";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 
 export type InboxView = "open" | "mine" | "unassigned" | "assigned" | "waiting" | "done";
@@ -65,11 +66,12 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
           {seg("open", "All")}
           {seg("mine", "Mine")}
           {seg("unassigned", "Unassigned")}
-          <select aria-label="Assigned to" value={view === "assigned" && assignee ? assignee : ""} onChange={(e) => e.target.value ? set("assigned", e.target.value) : set("open")}
-            className={cn("h-7 rounded-md bg-transparent px-2 text-[13px] font-medium outline-none", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>
+          <Select bare aria-label="Assigned to" value={view === "assigned" && assignee ? assignee : ""} onChange={(e) => e.target.value ? set("assigned", e.target.value) : set("open")}
+            className={cn("h-7 rounded-md bg-transparent px-2 text-[13px] font-medium outline-none", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}
+            phoneClassName={cn("h-7 max-w-[9rem] rounded-md px-2 text-left text-[13px] font-medium", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted")}>
             <option value="">Assigned to...</option>
             {people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
-          </select>
+          </Select>
           {seg("waiting", "Waiting")}
           {seg("done", "Done")}
         </div>
