@@ -6,6 +6,8 @@
  * path to open, never message text.
  */
 
+import { tryFromB64 } from "./crypto";
+
 const enc = new TextEncoder();
 
 export function b64urlEncode(bytes: Uint8Array | ArrayBuffer): string {
@@ -16,10 +18,9 @@ export function b64urlEncode(bytes: Uint8Array | ArrayBuffer): string {
 }
 
 export function b64urlDecode(s: string): Uint8Array<ArrayBuffer> {
-  const norm = s.replace(/-/g, "+").replace(/_/g, "/").replace(/\s+/g, "");
-  const bin = atob(norm + "=".repeat((4 - (norm.length % 4)) % 4));
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  // R49: the shared tolerant decode; a key that is not base64url is a plain Error the send path skips, never an atob throw.
+  const out = tryFromB64(s);
+  if (!out) throw new Error("not base64url");
   return out;
 }
 

@@ -167,7 +167,7 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   const tasksRun = take();
   // Measured 819: 8 a task (the row, its key and 6 indexes including the import key), plus 2 batches (number claim and day counter) and the summary activity and change rows.
   // Round 21: the meter bills the partial sprint index on tasks too (9 a task, measured 919), though D1 writes no entry for a task with no sprint.
-  expect(tasksRun).toBeLessThanOrEqual(100 * 14 + 70); // R49 (0087/0088 counts triggers): measured 1462 (was 930): each imported task adds its project status bucket, and each comment or checklist row recounts its task row; the meter books trigger rows with the parent table's indexes, local D1 measures about +1 to +2 rows a task
+  expect(tasksRun).toBeLessThanOrEqual(100 * 9 + 30);
   const again = await u.post("/api/work-imports/run", { content, projectId: project.id });
   expect(again.body).toMatchObject({ created: 0, alreadyThere: 100 });
   expect(take()).toBeLessThanOrEqual(4);
@@ -175,7 +175,7 @@ it("work tool import (round 20): about 8 rows a task, 2 a comment, and a re-run 
   await u.post("/api/work-imports/run", { content: trello, projectId: project.id });
   // Measured 66: 5 tasks, 2 comments, 2 new statuses for the board's lists, one batch and the summary.
   const withComments = take();
-  expect(withComments).toBeLessThanOrEqual(5 * 12 + 2 * 2 + 30); // R49 (0087/0088 counts triggers): measured 94 (was 74 lock): each imported task joins its project status bucket and each comment recounts its task row's comment_count
+  expect(withComments).toBeLessThanOrEqual(5 * 8 + 2 * 2 + 30);
 });
 
 it("mail schedules (round 20): an idle pass writes 0 rows; snooze, send later and reminders cost 2 rows a step", async () => {
@@ -238,12 +238,12 @@ it("task types and epics (round 21): a type change is a normal task update; addi
   const addWrites = take();
   // Measured 57 for 5 items: each task row with its indexes (8) and its change entry (2), one activity entry on the epic (4),
   // and the local rate limit counter (3), which production keeps in a binding. A type change measured 17 (8 + 2 + 4 + 3).
-  expect(addWrites).toBeLessThanOrEqual(5 * 11 + 4 + 3); // R49 (0087/0088 counts triggers): measured 62 (was 57): each item added to an epic recounts the epic's subtask totals
+  expect(addWrites).toBeLessThanOrEqual(5 * 10 + 4 + 3);
   // Reading epics and their progress writes nothing.
   await u.get(`/api/epics?project=${projectId}`); await u.get(`/api/epics/${epic.id}`); await u.get(`/api/tasks?projectId=${projectId}&type=bug`);
   expect(take()).toBe(0);
   await u.call("DELETE", `/api/epics/${epic.id}/items`, { ids: ids.slice(0, 2) });
-  expect(take()).toBeLessThanOrEqual(2 * 11 + 4 + 3); // R49 (0087/0088 counts triggers): measured 29 (was 27 lock): each item recounts the epic's subtask totals
+  expect(take()).toBeLessThanOrEqual(2 * 10 + 4 + 3);
 });
 it("sprints (round 21): a sprint row is 2, a task added is one tasks row, a bulk add is one batch, burndown reads write nothing", async () => {
   const { addToSprint, completeSprint, createSprint, getSprint, startSprint } = await import("@/server/services/suite/sprints");
@@ -301,7 +301,7 @@ it("triage (round 21): accept costs the task update plus its one partial index e
   await u.post(`/api/triage/${a}/accept`, { priority: "high" });
   const accept = take() - limiter;
   // The triage_state flag leaves the triage partial index (1) and the task joins the two R40 list indexes (2). No other row.
-  expect(accept - update).toBe(7); // R49 (0087/0088 counts triggers): was 3: an accepted task now joins its project status bucket (the summary the project list reads)
+  expect(accept - update).toBe(3);
   await u.get("/api/triage"); await u.get("/api/triage/count"); await u.get("/api/tasks");
   expect(take()).toBe(0);
   await u.post(`/api/triage/${b}/decline`, { reason: "spam" });
@@ -381,8 +381,8 @@ it("bulk task changes (round 21): a 50 task update is one batch with no per task
   // 204 for status (4 a task: the status and position index too), 255 for a move (5 a task: the project and number indexes).
   // The plain meter above counts every index on every write (10 a task here); D1 bills only the indexes a write touches.
   expect(assign.d1Rows).toBeLessThanOrEqual(50 * 3 + 10);
-  expect(status.d1Rows).toBeLessThanOrEqual(50 * 8 + 10); // R49 (0087/0088 counts triggers): measured 404 (was 210 lock, 50 * 4 + 10): a status change moves the task between two project status buckets (one down, one up)
-  expect(move.d1Rows).toBeLessThanOrEqual(50 * 12 + 10); // R49 (0087/0088 counts triggers): measured 605 (was 310 lock): a project move takes each task out of its old project bucket and into the new one
+  expect(status.d1Rows).toBeLessThanOrEqual(50 * 4 + 10);
+  expect(move.d1Rows).toBeLessThanOrEqual(50 * 6 + 10);
 });
 
 it("thread notes (round 22): a note is its row and one index entry, each mention adds one notification row (3 with its indexes); reads write nothing", async () => {
@@ -1039,7 +1039,7 @@ it("API speed (R25): 0052 swaps two indexes for composites, so a task or message
   await createTask(ctx.deps, actor, { title: "Warm up", projectId });
   const take = meter(ctx.db);
   await createTask(ctx.deps, actor, { title: "Ship it", projectId });
-  expect(take()).toBe(15) // R49 (0087/0088 counts triggers): 15, the task joins its project status bucket (the meter books the trigger row with the tasks indexes; local D1 measures +1 row). // R40 (0082): 11, two entries in the task list indexes that make a page of tasks read about 50 rows instead of every task. R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
+  expect(take()).toBe(11) // R40 (0082): 11, two entries in the task list indexes that make a page of tasks read about 50 rows instead of every task. R33 (0073): 9, one change row (3) instead of activity (4) plus change (2), and the number claim on project_counters (1) instead of projects (3). R32 (0072): 14, three NULL index entries fewer (no parent, thread or due date). Measured on main 93dc6c7 before 0052: 16; R27 adds 1, the creator's task_watchers row (WITHOUT ROWID, no other index);
   // The read cache, the intl cache and the ETag path add no writes.
   for (const p of ["/api/config", "/api/team/people", "/api/tasks/assignees", "/api/projects", `/api/tasks?projectId=${projectId}`, "/api/my-work"]) {
     expect((await u.get(p)).status, p).toBe(200);
@@ -1219,11 +1219,11 @@ it("R26 (MB-85): a checklist item costs its row plus two index entries to add, t
   const item = (await u.post(`/api/tasks/${taskId}/checklist`, { title: "One" })).body.items[0];
   // Measured 6: 3 for the item (the row, its primary key index and task_checklist_items_task_idx) and 3 that every
   // app write pays here (the local rate limit counter, kept in a binding in production). No activity rows.
-  expect(take()).toBe(9); // R49 (0087/0088 counts triggers): was 6: each add, tick or delete recounts the task row's checklist totals so task lists stop reading checklist items
+  expect(take()).toBe(6);
   await u.post(`/api/tasks/${taskId}/checklist`, { items: [{ title: "Two" }, { title: "Three" }] });
-  expect(take()).toBe(15); // R49 (0087/0088 counts triggers): was 9: two items, each recounting the task row's checklist totals
+  expect(take()).toBe(9);
   await u.patch(`/api/checklist-items/${item.id}`, { done: true });
-  expect(take()).toBe(9); // R49 (0087/0088 counts triggers): was 6: a tick recounts checklist_done on the task row
+  expect(take()).toBe(6);
   await u.patch(`/api/checklist-items/${item.id}`, { done: true });
   expect(take()).toBe(3);
   const list = (await u.get(`/api/tasks/${taskId}/checklist`)).body.items as { id: string }[];
@@ -1231,7 +1231,7 @@ it("R26 (MB-85): a checklist item costs its row plus two index entries to add, t
   await u.post(`/api/tasks/${taskId}/checklist/reorder`, { ids: [list[2].id, list[0].id, list[1].id] });
   expect(take()).toBeLessThanOrEqual(12);
   await u.del(`/api/checklist-items/${item.id}`);
-  expect(take()).toBe(9); // R49 (0087/0088 counts triggers): was 6: a delete recounts the task row's checklist totals
+  expect(take()).toBe(6);
   await u.get(`/api/tasks?q=${encodeURIComponent("has:checklist status:todo -label:wontfix")}`);
   expect(take()).toBe(0);
 });

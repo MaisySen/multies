@@ -6,6 +6,7 @@
  */
 import Papa from "papaparse";
 import { strFromU8, unzipSync } from "fflate";
+import { fromB64Or } from "../../lib/crypto";
 
 export type WorkSource = "trello" | "asana" | "clickup" | "monday" | "jira" | "linear" | "notion" | "todoist" | "csv";
 export type Category = "todo" | "doing" | "done";
@@ -79,12 +80,13 @@ export function readTable(text: string, fileName = ""): Table {
 /** R38: a .zip (the Markdown and CSV export of a notes and wiki tool) arrives as this prefix and the file in base64. */
 export const ZIP_PREFIX = "zip-base64:";
 
+/** R49: an uploaded file in base64 (or base64url); a body that is not base64 is an ImportFileError (422), never a 500. */
 export function base64Bytes(base64: string) {
-  const bin = atob(base64.trim());
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
+  return fromB64Or(base64, () => new ImportFileError(UNREADABLE_FILE));
 }
+
+/** R49: the plain answer when an uploaded body is not base64. */
+export const UNREADABLE_FILE = "This file could not be read. Export it again and try once more.";
 
 /** The files in an uploaded zip, by path (text only, folders skipped, at most 2,000 files). */
 export function zipTexts(base64: string, keep: (name: string) => boolean): Map<string, string> {
@@ -181,10 +183,7 @@ const colIndex = (ref: string) => [...(/^[A-Z]+/.exec(ref)?.[0] ?? "A")].reduce(
 export function xlsxRows(base64: string): string[][] {
   let files: Record<string, Uint8Array>;
   try {
-    const bin = atob(base64.trim());
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    files = unzipSync(bytes, { filter: (f) => f.name === "xl/sharedStrings.xml" || f.name.startsWith("xl/worksheets/sheet") });
+    files = unzipSync(base64Bytes(base64), { filter: (f) => f.name === "xl/sharedStrings.xml" || f.name.startsWith("xl/worksheets/sheet") });
   } catch { throw new ImportFileError("This Excel file could not be read. Save it as CSV and upload that."); }
   const sheetName = Object.keys(files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort((a, b) => Number(/\d+/.exec(a)![0]) - Number(/\d+/.exec(b)![0]))[0];
   if (!sheetName) throw new ImportFileError("This Excel file has no sheet to read.");

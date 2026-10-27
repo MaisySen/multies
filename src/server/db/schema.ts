@@ -866,17 +866,6 @@ export const tasks = sqliteTable("tasks", {
   /** R32 (0069): why a Triage item was declined, and the task it was marked a duplicate of. */
   triageReason: text("triage_reason"),
   duplicateOf: text("duplicate_of"),
-  /**
-   * R48 (0087): what the task lists show, kept on the row by triggers that recount from the source rows (comments,
-   * checklist items, subtasks, field values), so a list reads no other table for them. fieldCount > 0 only says the
-   * task has field values to read. Never set these from code.
-   */
-  commentCount: integer("comment_count").notNull().default(0),
-  checklistTotal: integer("checklist_total").notNull().default(0),
-  checklistDone: integer("checklist_done").notNull().default(0),
-  subtaskTotal: integer("subtask_total").notNull().default(0),
-  subtaskDone: integer("subtask_done").notNull().default(0),
-  fieldCount: integer("field_count").notNull().default(0),
   ...suiteCols(),
 }, (t) => [
   // R25 (0052): replaces tasks_org_project_idx with the same leading columns plus three, so counts read the index only.
@@ -893,17 +882,6 @@ export const tasks = sqliteTable("tasks", {
   index("tasks_org_live_pos_idx").on(t.orgId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
   index("tasks_org_project_live_pos_idx").on(t.orgId, t.projectId, t.position, sql`${t.createdAt} desc`).where(sql`${t.deletedAt} IS NULL AND ${t.triageState} IS NULL`),
 ]);
-
-/**
- * R48 (0088): live task counts per project and status category, kept by triggers on tasks (see the migration), so the
- * project list reads a few summary rows instead of every live task of the workspace.
- */
-export const projectStatusCounts = sqliteTable("project_status_counts", {
-  orgId: text("org_id").notNull(),
-  projectId: text("project_id").notNull(),
-  status: text("status", { enum: ["todo", "doing", "done"] }).notNull(),
-  n: integer("n").notNull().default(0),
-}, (t) => [primaryKey({ columns: [t.orgId, t.projectId, t.status] })]);
 
 export const taskComments = sqliteTable("task_comments", {
   id: text("id").primaryKey(),

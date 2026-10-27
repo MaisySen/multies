@@ -6,7 +6,7 @@
 import { TASK_LIST_LIMIT } from "@/shared/task-list-limit"; // R45b
 import { and, asc, desc, eq, gt, gte, inArray, isNull, like, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatusCounts, projectStatuses, projects, savedViews, taskComments, tasks, users } from "../../db/schema";
+import { agents, changes, docs, entityLinks, members, messages, projectKeyAliases, projectStatuses, projects, savedViews, taskChecklistItems, taskComments, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { latestText } from "../agents/parse";
 import { computeForRows } from "./computed";
@@ -71,9 +71,8 @@ async function projectCounts(deps: Deps, orgId: string) {
   const now = Date.now();
   const hit = projectCountsCache.get(orgId);
   if (hit && now - hit.at < PROJECT_COUNTS_MS) return hit.rows;
-  // R48 (0088): a few summary rows (one per project and status, kept by triggers) instead of every live task.
-  const rows = await deps.db.select({ projectId: projectStatusCounts.projectId, status: projectStatusCounts.status, n: projectStatusCounts.n }).from(projectStatusCounts)
-    .where(eq(projectStatusCounts.orgId, orgId));
+  const rows = await deps.db.select({ projectId: tasks.projectId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
+    .where(and(eq(tasks.orgId, orgId), isNull(tasks.deletedAt), isNull(tasks.triageState))).groupBy(tasks.projectId, tasks.status);
   if (projectCountsCache.size >= 2_000) projectCountsCache.delete(projectCountsCache.keys().next().value as string);
   projectCountsCache.set(orgId, { at: now, rows: rows as { projectId: string; status: Category; n: number }[] });
   return rows;
@@ -254,17 +253,31 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
   const statusIds = [...new Set(rows.map((r) => r.statusId))];
   const memberIds = [...new Set(rows.filter((r) => r.assigneeType === "member" && r.assigneeId).map((r) => r.assigneeId!))];
   const agentIds = [...new Set(rows.filter((r) => r.assigneeType === "agent" && r.assigneeId).map((r) => r.assigneeId!))];
-  // R48 (0087): subtask, comment and checklist counts come from the task row (kept by triggers), so a list reads no
-  // other table for them; field values are read only for tasks that have some (fieldCount > 0).
-  const withFields = rows.filter((r) => (r.fieldCount ?? 0) > 0).map((r) => r.id);
-  const [sts, us, ags, prs, fieldValues] = await Promise.all([
+  const parentIds = rows.map((r) => r.id);
+  const [sts, us, ags, subs, cms, prs, fieldValues, chk] = await Promise.all([
     statusIds.length ? orgStatuses(deps, orgId).then((all) => { const want = new Set(statusIds); return all.filter((s) => want.has(s.id)); }) : [], // R25 read cache
-    // D1 allows 100 bound variables per query: IN lists go in chunks of SQL_IN_CHUNK (R25, Sentry MYMAIL-API-V).
     inChunks(memberIds, (ids) => deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, ids))),
     inChunks(agentIds, (ids) => deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(and(inArray(agents.id, ids), eq(agents.orgId, orgId)))),
+    // D1 allows 100 bound variables per query: IN lists go in chunks of SQL_IN_CHUNK (R25, Sentry MYMAIL-API-V).
+    // R40 D1 reads: "+org_id" keeps the workspace check but stops SQLite choosing the workspace index (every task of
+    // the workspace, 491 rows on HQ) over tasks_parent_idx (only the subtasks of these parents).
+    inChunks(parentIds, (ids) => deps.db.select({ parentId: tasks.parentId, status: tasks.status, n: sql<number>`count(*)` }).from(tasks)
+      .where(and(sql`+${tasks.orgId} = ${orgId}`, inIds(tasks.parentId, ids), isNull(tasks.deletedAt))).groupBy(tasks.parentId, tasks.status)),
+    inChunks(parentIds, (ids) => deps.db.select({ taskId: taskComments.taskId, n: sql<number>`count(*)` }).from(taskComments)
+      .where(and(inIds(taskComments.taskId, ids), isNull(taskComments.deletedAt))).groupBy(taskComments.taskId)),
     deps.db.select({ id: projects.id, key: projects.key, name: projects.name }).from(projects).where(eq(projects.orgId, orgId)),
-    valuesForTasks(deps, orgId, withFields),
+    valuesForTasks(deps, orgId, parentIds),
+    // R26 (MB-85): checklist counts for the "3/5" chip on cards.
+    inChunks(parentIds, (ids) => deps.db.select({ taskId: taskChecklistItems.taskId, total: sql<number>`count(*)`, done: sql<number>`coalesce(sum(${taskChecklistItems.done}), 0)` }).from(taskChecklistItems)
+      .where(inIds(taskChecklistItems.taskId, ids)).groupBy(taskChecklistItems.taskId)),
   ]);
+  const subtasks = new Map<string, { total: number; done: number }>();
+  for (const s of subs) {
+    const m = subtasks.get(s.parentId!) ?? { total: 0, done: 0 };
+    m.total += Number(s.n);
+    if (s.status === "done") m.done += Number(s.n);
+    subtasks.set(s.parentId!, m);
+  }
   // R24.1: formula and rollup values, computed on read (no writes).
   const stMap = new Map(sts.map((s) => [s.id, s.name]));
   const usMap = new Map(us.map((u) => [u.id, u.name]));
@@ -279,8 +292,11 @@ async function lookups(deps: Deps, orgId: string, rows: TaskRow[]) {
     statuses: new Map(sts.map((s) => [s.id, s])),
     members: new Map(us.map((u) => [u.id, u])),
     agents: new Map(ags.map((a) => [a.id, a])),
+    subtasks,
+    comments: new Map(cms.map((c) => [c.taskId, Number(c.n)])),
     projects: new Map(prs.map((p) => [p.id, p])),
     fields: fieldValues,
+    checklists: new Map(chk.map((c) => [c.taskId, { total: Number(c.total), done: Number(c.done) }])),
   };
 }
 type Lookups = Awaited<ReturnType<typeof lookups>>;
@@ -304,9 +320,9 @@ function presentTask(t: TaskRow, l: Lookups) {
     priority: t.priority, labels: JSON.parse(t.labels) as string[], type: t.type ?? "task",
     start: iso(t.startAt), due: iso(t.dueAt), parentId: t.parentId, position: t.position,
     source: t.threadId || t.messageId ? { threadId: t.threadId, messageId: t.messageId, from: t.sourceFrom ?? "", subject: t.sourceSubject ?? "" } : null,
-    subtasks: { total: t.subtaskTotal ?? 0, done: t.subtaskDone ?? 0 }, // R48 (0087): kept on the row
-    checklist: { total: t.checklistTotal ?? 0, done: t.checklistDone ?? 0 }, // R26 (MB-85)
-    commentCount: t.commentCount ?? 0,
+    subtasks: l.subtasks.get(t.id) ?? { total: 0, done: 0 },
+    checklist: l.checklists.get(t.id) ?? { total: 0, done: 0 }, // R26 (MB-85)
+    commentCount: l.comments.get(t.id) ?? 0,
     fields: l.fields.get(t.id) ?? {},
     ...(l.fieldErrors.get(t.id) ? { fieldErrors: l.fieldErrors.get(t.id) } : {}),
     repeat: t.repeatRule ? { ...(JSON.parse(t.repeatRule) as RepeatRule), text: describeRule(JSON.parse(t.repeatRule) as RepeatRule) } : null,
