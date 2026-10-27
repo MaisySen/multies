@@ -17,7 +17,6 @@
  * finishing or re-estimating a task costs no extra write for the chart. At complete the chart is
  * frozen into the snapshot, so a finished sprint reads in one row.
  */
-import { notifyLiveChanges } from "../../realtime/changes-live-r47"; // R47 (MB-139)
 import { and, asc, eq, gte, inArray, isNull, like, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, activityFeed, changes, organizations, projects, sprints, tasks, users } from "../../db/schema";
@@ -259,7 +258,6 @@ export async function completeSprint(deps: Deps, actor: SuiteActor, id: string, 
     ...chunk(open, 90).map((ids) => deps.db.update(tasks).set({ sprintId: next?.id ?? null, updatedAt: now, version: sql`${tasks.version} + 1` }).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, ids)))),
     ...feedRows(deps, actor.orgId, open, now), // R46 (MB-234)
   ]);
-  await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)
   return { sprint: presentSprint({ ...s, ...set }), carriedOver: open.length, carriedTo: next ? { type: "sprint" as const, sprint: next } : { type: "backlog" as const } };
 }
 
@@ -304,7 +302,6 @@ async function moveTasks(deps: Deps, actor: SuiteActor, s: SprintRow | null, pro
   // R46 (MB-234): one feed row per moved task, so open boards and backlogs that follow the change feed see the move.
   statements.push(...feedRows(deps, actor.orgId, moving.map((t) => t.id), now));
   await runBatch(deps.db, statements);
-  await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)
   return { moved: moving.length };
 }
 

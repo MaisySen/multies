@@ -88,7 +88,7 @@ export function SnoozeMenu({ messageId, onDone }: { messageId: string; onDone?: 
   });
   return (
     <>
-      <Menu label="Snooze" trigger={<button type="button" className="grid place-items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" title="Snooze" data-testid="snooze-menu"><IconSnooze className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>}>
+      <Menu label="Snooze" trigger={<button type="button" className="rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Snooze" data-testid="snooze-menu"><IconSnooze className="h-4 w-4" /></button>}>
         <MenuLabel>Snooze until</MenuLabel>
         {PRESETS.map((p) => (
           <MenuItem key={p.id} icon={<p.icon />} onSelect={() => snooze.mutate({ preset: p.id })}>
@@ -120,7 +120,7 @@ export function SendLaterMenu({ disabled, onPick }: { disabled?: boolean; onPick
   return (
     <div ref={ref} className="relative">
       <button type="button" disabled={disabled} aria-haspopup="menu" aria-expanded={open} aria-label="Schedule for later" onClick={() => setOpen((o) => !o)}
-        className="rounded-lg border border-line px-2.5 py-2 text-muted hover:bg-hover hover:text-fg disabled:opacity-50 max-sm:grid max-sm:h-11 max-sm:w-11 max-sm:place-items-center max-sm:rounded-full max-sm:border-0 max-sm:p-0" title="Send later" data-testid="send-later"><IconClock className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+        className="rounded-lg border border-line px-2.5 py-2 text-muted hover:bg-hover hover:text-fg disabled:opacity-50" title="Send later" data-testid="send-later"><IconClock className="h-4 w-4" /></button>
       {open && (
         <div role="menu" className="absolute bottom-full left-0 z-50 mb-1.5 min-w-56 origin-bottom-left animate-pop-in rounded-xl border border-line bg-elevated p-1 shadow-pop">
           <MenuLabel>Send later</MenuLabel>
@@ -142,10 +142,10 @@ export const REMIND_CHOICES = [0, 1, 2, 3, 5, 7, 14] as const;
 /** "Remind me if no reply" in Compose. 0 means off. */
 export function RemindSelect({ value, onChange }: { value: number; onChange: (n: number) => void }) {
   return (
-    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover max-sm:min-h-11 max-sm:min-w-0 max-sm:px-2", value ? "text-[#0071E3]" : "text-muted")} title="Bring this thread back if nobody replies">
+    <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover", value ? "text-[#0071E3]" : "text-muted")} title="Bring this thread back if nobody replies">
       <IconBellRing className="h-3.5 w-3.5" aria-hidden />
       <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
-        phoneClassName="inline-flex min-h-11 min-w-0 max-w-[7.5rem] items-center truncate whitespace-nowrap bg-transparent text-left text-[13px]">
+        phoneClassName="inline-flex min-h-9 items-center bg-transparent text-left text-[13px]">
         {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? "No reminder" : `Remind in ${n} day${n > 1 ? "s" : ""}`}</option>)}
       </Select>
     </label>

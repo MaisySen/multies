@@ -34,9 +34,7 @@ export type LiveEvent =
   | { t: "message"; op: "created" | "updated"; channelId: string; message: LiveMessage; clientMsgId?: string }
   | { t: "reactions"; channelId: string; messageId: string; reactions: unknown[] }
   | { t: "typing"; channelId: string; userId: string; name: string }
-  | { t: "read"; channelId: string; userId: string; at: string }
-  /** R47 (MB-139): the workspace change feed moved (task lists follow it, see live-changes-r47.ts). */
-  | { t: "changes"; cursor: number };
+  | { t: "read"; channelId: string; userId: string; at: string };
 /** R33: the server's first frame on a socket (see src/server/realtime/hub.ts ChatHello). */
 export interface LiveHello { t: "hello"; serverTime: string; seq: number }
 export interface LiveMessage { id: string; channelId: string; parentId: string | null; createdAt: string; replyCount?: number; lastReplyAt?: string | null; reactions?: unknown[]; [k: string]: unknown }
@@ -256,7 +254,7 @@ export type Followup = "channels" | "unread" | "messages" | "pins";
  * when a reply arrives for a thread nobody has open.
  */
 export function applyLiveEvent(qc: Pick<QueryClient, "getQueryData" | "setQueryData" | "setQueriesData">, e: LiveEvent): Followup[] {
-  if (e.t === "typing" || e.t === "changes") return [];
+  if (e.t === "typing") return [];
   if (e.t === "read") return ["channels", "unread"];
   if (e.t === "reactions") {
     qc.setQueryData<Msg[]>(["chat", "messages", e.channelId], (l) => patchReactions(l, e.messageId, e.reactions));
@@ -425,7 +423,6 @@ export function useLiveChat(myId: string | undefined) {
       url: socketUrl(),
       makeSocket: (url) => new WebSocket(url) as unknown as SocketLike,
       onEvent: (e) => {
-        if (e.t === "changes") return; // R47: task lists listen on their own (live-changes-r47.ts)
         if (e.t === "typing") { if (e.userId !== me.current) typing.add(e.channelId, e.userId, e.name); return; }
         if (e.t === "message" && e.op === "created" && e.clientMsgId) outbox.settle(e.clientMsgId, e.message);
         if (e.t === "message" && e.op === "created") {

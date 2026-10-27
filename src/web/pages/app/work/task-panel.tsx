@@ -131,7 +131,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
         <div className="ml-auto flex items-center gap-1">
           {t && <WatchButton taskId={t.id} />}
           {t && (
-            <Menu trigger={<button className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded-md sm:p-1.5" aria-label="More"><IconMore className="h-4 w-4" /></button>}>
+            <Menu trigger={<button className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="More"><IconMore className="h-4 w-4" /></button>}>
               <MenuItem icon={<IconDocs />} onSelect={newDoc}>New doc for this task</MenuItem>
               <MenuItem icon={<IconVideo />} onSelect={() => void startMeeting({ type: "task", id: t.id }, navigate)}>Start a meeting</MenuItem>
               <MenuItem icon={<IconDocs />} onSelect={() => void api.post("/templates", { kind: "task", fromTaskId: t.id }).then(() => toast.success("Saved as a task template")).catch((e: Error) => showError(e))}>Save as template</MenuItem>
@@ -139,7 +139,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               <MenuItem icon={<IconTrash />} danger onSelect={() => remove.mutate(t.id, { onSuccess: onClose })}>Delete task</MenuItem>
             </Menu>
           )}
-          <button onClick={onClose} className="inline-flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded-md sm:p-1.5" aria-label="Close task"><IconClose className="h-4 w-4" /></button>
+          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1.5" aria-label="Close task"><IconClose className="h-4 w-4" /></button>
         </div>
       </div>
       {!t ? (
@@ -159,28 +159,28 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
           <dl className="mt-4 grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-2.5 text-[13px]">
             <TaskTypeRows task={t} onSave={save} />
             <dt className="text-subtle">Status</dt>
-            <dd><Select aria-label="Status" value={t.statusId} onChange={(e) => save({ statusId: e.target.value })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+            <dd><Select aria-label="Status" value={t.statusId} onChange={(e) => save({ statusId: e.target.value })} className="h-8 text-[13px]">
               {project?.statuses.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </Select></dd>
             <dt className="text-subtle">Assignee</dt>
-            <dd><Select aria-label="Assignee" value={t.assigneeId ?? ""} onChange={(e) => save({ assignee: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+            <dd><Select aria-label="Assignee" value={t.assigneeId ?? ""} onChange={(e) => save({ assignee: e.target.value || null })} className="h-8 text-[13px]">
               <option value="">Nobody</option>
               <optgroup label="People">{people.data?.filter((p) => !isAgentLike(p)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
               <optgroup label="Agents">{people.data?.filter(isAgentLike).map((p) => <option key={p.id} value={p.id}>{p.name} (agent)</option>)}</optgroup>
             </Select></dd>
             <dt className="text-subtle">Priority</dt>
-            <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+            <dd><Select aria-label="Priority" value={t.priority} onChange={(e) => save({ priority: e.target.value as Priority })} className="h-8 text-[13px]">
               {(Object.keys(PRIORITY_LABEL) as Priority[]).map((p) => <option key={p} value={p}>{PRIORITY_LABEL[p]}</option>)}
             </Select></dd>
             <dt className="text-subtle">Start</dt>
-            <dd><Input type="date" aria-label="Start date" value={dateInput(t.start)} onChange={(e) => save({ start: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
+            <dd><Input type="date" aria-label="Start date" value={dateInput(t.start)} onChange={(e) => save({ start: e.target.value || null })} className="h-8 text-[13px]" /></dd>
             <dt className="text-subtle">Due</dt>
-            <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
+            <dd><Input type="date" aria-label="Due date" value={dateInput(t.due)} onChange={(e) => save({ due: e.target.value || null })} className="h-8 text-[13px]" /></dd>
             <dt className="text-subtle">Repeat</dt>
             <dd><RepeatPicker value={t.repeat ?? null} onChange={(repeat) => save({ repeat })} /></dd>
             <dt className="text-subtle">Labels</dt>
             <dd><Input aria-label="Labels" placeholder="ops, client" value={labels} onChange={(e) => setLabels(e.target.value)}
-              onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" /></dd>
+              onBlur={() => { const next = labels.split(",").map((x) => x.trim()).filter(Boolean); if (next.join(",") !== t.labels.join(",")) save({ labels: next }); }} className="h-8 text-[13px]" /></dd>
             <SprintFields task={t} onSave={(patch) => save(patch)} />
           </dl>
 
@@ -245,7 +245,7 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
               ))}
             </ul>
             <form className="mt-1.5" onSubmit={(e) => { e.preventDefault(); void addSub(); }}>
-              <Input aria-label="New subtask" placeholder="Add a subtask and press Enter" value={sub} onChange={(e) => setSub(e.target.value)} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base" />
+              <Input aria-label="New subtask" placeholder="Add a subtask and press Enter" value={sub} onChange={(e) => setSub(e.target.value)} className="h-8 text-[13px]" />
             </form>
           </section>
 
@@ -359,7 +359,7 @@ function RepeatPicker({ value, onChange }: { value: Repeat | null; onChange: (r:
   return (
     <div className="space-y-1.5" data-testid="repeat-picker">
       <div className="flex gap-1.5">
-        <Select aria-label="Repeat" value={freq} onChange={(e) => (e.target.value ? set({ freq: e.target.value as Repeat["freq"] }) : onChange(null))} className="h-8 text-[13px] max-sm:h-11 max-sm:text-base">
+        <Select aria-label="Repeat" value={freq} onChange={(e) => (e.target.value ? set({ freq: e.target.value as Repeat["freq"] }) : onChange(null))} className="h-8 text-[13px]">
           <option value="">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option>
         </Select>
         {freq && <label className="flex items-center gap-1 text-[12.5px] text-muted">every<Input aria-label="Repeat every" type="number" min={1} max={365} value={interval} onChange={(e) => set({ interval: Math.max(1, Number(e.target.value) || 1) })} className="h-8 w-14 text-[13px]" /></label>}

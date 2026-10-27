@@ -616,8 +616,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
   replyRef.current = { reply: (all) => reply(all), forward };
   return (
     <div className="flex min-w-0 flex-1 flex-col">
-      <div data-testid="thread-toolbar" className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:h-14 max-sm:justify-between max-sm:gap-0 max-sm:px-1">
-        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:ml-0 max-sm:mr-auto max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Back to list"><IconArrowLeft className="h-[18px] w-[18px]" /></button>
+      <div className="flex h-[57px] shrink-0 items-center gap-1 border-b border-line px-3 max-sm:gap-0.5 max-sm:px-2">
+        <button onClick={onBack} className="-ml-1 grid place-items-center rounded-md p-2 text-brand-hover transition-colors duration-150 hover:bg-hover md:hidden max-sm:h-10 max-sm:w-10" aria-label="Back to list"><IconArrowLeft className="h-[18px] w-[18px]" /></button>
         {m.folder !== "sent" && m.folder !== "drafts" && <>
           <SnoozeMenu messageId={m.id} onDone={onBack} />
           <IconBtn label={m.folder === "archive" ? "Move to inbox" : "Archive (e)"} onClick={() => onMove(m.folder === "archive" ? "inbox" : "archive")}><IconArchive /></IconBtn>
@@ -626,8 +626,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
         <IconBtn label={m.folder === "trash" ? "Delete forever" : "Delete (#)"} onClick={() => onMove(m.folder === "trash" ? "delete" : "trash")}><IconTrash /></IconBtn>
         {m.remoteBox && m.folder !== "sent" && m.folder !== "drafts" && <MoveTo message={m} mailboxes={mailboxes} onMove={onMove} onMoveTo={onMoveTo} />}
         <IconBtn label={m.isStarred ? "Unstar (s)" : "Star (s)"} onClick={() => onStar(m)} active={m.isStarred}><IconStar filled={m.isStarred} /></IconBtn>
-        {/* R48 mobile: on a phone Reply and Forward live in the thumb bar at the foot (below), so this row never crowds. */}
-        <div className="ml-auto flex gap-1 max-sm:hidden">
+        <div className="ml-auto flex gap-1">
           <IconBtn label="Reply" onClick={() => reply(false)}><IconReply /></IconBtn>
           <IconBtn label="Forward" onClick={forward}><IconForward /></IconBtn>
         </div>
@@ -641,18 +640,12 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}
           </div>
-          <div className="mt-6 flex gap-2 max-sm:hidden">
+          <div className="mt-6 flex gap-2">
             <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />Reply</Button>
             {(last.to.length + last.cc.length > 1) && <Button variant="secondary" onClick={() => reply(true)}>Reply all</Button>}
             <Button variant="ghost" onClick={forward}><IconForward className="h-4 w-4" />Forward</Button>
           </div>
         </div>
-      </div>
-      {/* R48 mobile: the reply bar sits under the thumb on a phone, like a native mail app; 44 px targets, one row at 360. */}
-      <div data-testid="thread-reply-bar" className="hidden shrink-0 items-stretch gap-2 border-t border-line bg-elevated/95 px-3 py-2 backdrop-blur max-sm:flex">
-        <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0071E3] text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />Reply</button>
-        {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">Reply all</button>}
-        <button type="button" onClick={forward} aria-label="Forward" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
       </div>
     </div>
   );
@@ -669,7 +662,7 @@ function Assistant({ messageId, onDraft }: { messageId: string; onDraft: (text: 
   if (!status.data) return null;
   if (!status.data.connected) {
     return (
-      <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted max-sm:hidden">
+      <section aria-label="Assistant" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-line bg-elevated/60 p-3 text-sm text-muted">
         <IconSparkle className="h-4 w-4 text-brand-hover" aria-hidden />
         <span>{BYO_AI_LINE}</span>
         <span className="ml-auto flex gap-2">
@@ -753,7 +746,7 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
   const targets = moveTargets(data, m.remoteBox);
   if (!connectionId || !targets.length) return null;
   return (
-    <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full" title="Move to folder">
+    <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Move to folder">
       <IconMove className="h-4 w-4" aria-hidden />
       <Select bare aria-label="Move to folder" value="" data-testid="move-to" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
         onChange={(e) => { const to = e.target.value; if (!to) return; if (to.startsWith("f:")) onMoveTo(m, to); else onMove(to); }}
@@ -767,7 +760,7 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
 
 function IconBtn({ label, onClick, children, active }: { label: string; onClick: () => void; children: React.ReactNode; active?: boolean }) {
   return (
-    <button onClick={onClick} title={label} aria-label={label} className={cn("grid place-items-center rounded-md p-2 transition-colors duration-150 ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-11 max-sm:w-11 max-sm:rounded-full [&_svg]:h-4 [&_svg]:w-4 max-sm:[&_svg]:h-5 max-sm:[&_svg]:w-5", active ? "text-warn" : "text-muted hover:text-fg")}>
+    <button onClick={onClick} title={label} aria-label={label} className={cn("grid place-items-center rounded-md p-2 transition-colors duration-150 ease-out hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:h-10 max-sm:w-10 [&_svg]:h-4 [&_svg]:w-4 max-sm:[&_svg]:h-[18px] max-sm:[&_svg]:w-[18px]", active ? "text-warn" : "text-muted hover:text-fg")}>
       {children}
     </button>
   );

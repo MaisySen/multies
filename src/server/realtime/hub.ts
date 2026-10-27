@@ -45,9 +45,7 @@ export type ChatLiveEvent =
   | { t: "message"; op: "created" | "updated"; channelId: string; message: { id: string; channelId: string; parentId: string | null } & Record<string, unknown>; /** R33: the sender's client id, so the sending tab swaps its pending bubble for this one. */ clientMsgId?: string }
   | { t: "reactions"; channelId: string; messageId: string; reactions: unknown[] }
   | { t: "typing"; channelId: string; userId: string; name: string }
-  | { t: "read"; channelId: string; userId: string; at: string }
-  /** R47 (MB-139): the workspace change feed moved to `cursor`. No data: open task lists read the feed themselves (their own access rules). */
-  | { t: "changes"; cursor: number };
+  | { t: "read"; channelId: string; userId: string; at: string };
 
 /** One open socket, as the hub sees it. */
 export interface HubConn { userId: string; openedAt: number; send(data: string): void; close(code: number, reason: string): void }

@@ -11,7 +11,6 @@
  * Epic progress (done of total, by count and by points when tasks carry points) and the epic's date
  * span are worked out when read, so they cost no writes.
  */
-import { notifyLiveChanges } from "../../realtime/changes-live-r47"; // R47 (MB-139)
 import { and, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, changes, tasks } from "../../db/schema";
@@ -198,7 +197,6 @@ async function moveItems(deps: Deps, actor: SuiteActor, epicIdOrRef: string, ids
       data: JSON.stringify({ ids: moving.map((r) => r.id) }), createdAt: now,
     }));
     await runBatch(deps.db, statements);
-    await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)
   }
   const out = await getEpic(deps, actor, epic.id);
   return { ...out, moved: moving.length };

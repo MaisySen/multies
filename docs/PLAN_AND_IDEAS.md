@@ -99,3 +99,21 @@ Business blockers (Apple will approve without these, but customers will hit them
 - Keywords (100 max) today: `custom domain,inbox,small business,approvals,AI,team,shared inbox,Australia,timer,CRM,projects`. "CRM" promises something the app is not, and "timer" is weak. Suggested: `domain email,business email,shared inbox,custom domain,mail,AI agent,approvals,tasks,team,small business`.
 - First screenshot message: "Your business email, on your own domain". Second: "AI agents ask before they send". Third: "Turn any email into a task".
 - Description: open with who it is for and the free plan in one line. The current text is good; cut the meeting and portfolio sections from the store text so the main promise stands out.
+
+
+## Plan Oct 28 (28 Oct 2026, overnight planning pass)
+
+Written by the planning pass on 28 Oct 2026 (Sydney). Research only; no code changed. Full document: files/plans/multies-plan-2026-10-28.md on the build box (also Plan-Oct28.pdf).
+
+Where it stands: R46 is live (every task on big boards, workspace switch fixed, legal pages final). The weak points are the phone web layout (being fixed), the 100 a day shared sender, and D1 free daily limits.
+
+Positioning: one bill per business, not per person, with mail inside the work and agents that ask before they act. Every competitor in the table (ClickUp, monday.com, Jira, Linear, Notion, Superhuman) charges per person.
+
+Top 5 next builds (for the next leads, after R47's live boards):
+1. MB-235 per workspace send and write budgets, so one customer never makes Multies read only for all (R48).
+2. MB-236 import from Trello, Asana, ClickUp, monday.com and Jira CSV, OSS comparison first (R49).
+3. MB-238 mail to task in one swipe on the phone, plus the assigned to you push for shared inboxes (R51).
+4. MB-240 the 1.10 store build from mobile/docs/native-batch-1.md plus Approve and Reply push actions (R51).
+5. MB-239 Idempotency-Key on every POST and webhooks for every object (R52).
+
+Owner decisions: Workers Paid or stay free with budgets; a paid sender before inviting 100 teams; free plan seats (MB-44, plan says 10); Apple team move to Fintex and DSA status; GitHub 2FA (MB-165).

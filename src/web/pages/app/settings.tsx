@@ -79,7 +79,7 @@ function SettingsSearch({ value, onChange, onEnter }: { value: string; onChange:
       <input
         type="search" value={value} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onEnter(); } if (e.key === "Escape") onChange(""); }}
         placeholder="Search settings" data-testid="settings-search"
-        className="h-8 w-full rounded-lg border border-line bg-fill/60 pl-8 pr-2 text-[13px] outline-none transition-[box-shadow,border-color] duration-150 placeholder:text-subtle focus:border-brand focus:bg-surface focus:shadow-[0_0_0_3px_rgb(0_113_227/0.18)] max-md:h-11 max-md:rounded-xl max-md:text-[16px]"
+        className="h-8 w-full rounded-lg border border-line bg-fill/60 pl-8 pr-2 text-[13px] outline-none transition-[box-shadow,border-color] duration-150 placeholder:text-subtle focus:border-brand focus:bg-surface focus:shadow-[0_0_0_3px_rgb(0_113_227/0.18)] max-md:h-10 max-md:text-[15px]"
       />
     </label>
   );
@@ -160,7 +160,7 @@ export function SettingsLayout() {
           </NavLink>
         )}
         <div className={cn(atHub && "max-md:hidden")}>
-          <div className="mb-6 flex items-center gap-3 max-md:mb-4">
+          <div className="mb-6 flex items-center gap-3">
             <span className="max-md:hidden"><Tile pane={pane} /></span>
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-brand-hover max-md:hidden">Settings</p>
