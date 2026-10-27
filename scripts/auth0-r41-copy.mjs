@@ -21,6 +21,15 @@ export function fixSentenceSpacing(html) {
   return String(html).replace(/([a-z0-9)])\.((?:<[^>]+>)*)(?=[A-Z])/g, (_m, a, tags) => (tags && /<\/?(p|br|div|h\d|tr|td|li)\b/i.test(tags) ? `${a}.${tags}` : `${a}. ${tags ?? ""}`));
 }
 
+/**
+ * R45 (MB-233): the plain text part of the mail is made from the HTML by joining text with nothing between table rows
+ * or after a line break, so "join your team." and "The link" in two rows became "team.The link", and "browser:" ran into
+ * the link. A line break in the source after each row and each <br> gives the text part its line breaks. Pure for tests.
+ */
+export function fixTextBreaks(html) {
+  return String(html).replace(/<\/tr>(?=\s*<tr)(?!\s)/gi, "</tr>\r\n").replace(/(<br\s*\/?>)(?![\r\n])/gi, "$1\r\n");
+}
+
 /** Copy rules the hosted page text must meet: no exclamation marks, no dashes, no Title Case Headings. */
 export function copyProblems(copy) {
   const out = [];
@@ -79,9 +88,9 @@ async function main() {
   } else console.log("skip login URI: no web client id (AUTH0_CLIENT_ID or web_client_id)");
   for (const name of copy.email_templates.names) {
     const t = await api("GET", `/email-templates/${name}`);
-    const body = fixSentenceSpacing(t.body ?? "");
+    const body = fixTextBreaks(fixSentenceSpacing(t.body ?? ""));
     const changed = body !== t.body;
-    console.log(`${name}: ${changed ? `${apply ? "fixed" : "would fix"} sentence spacing` : "spacing already fine"}`);
+    console.log(`${name}: ${changed ? `${apply ? "fixed" : "would fix"} sentence spacing or text line breaks` : "spacing already fine"}`);
     if (apply && changed) await api("PATCH", `/email-templates/${name}`, { body });
   }
 }
