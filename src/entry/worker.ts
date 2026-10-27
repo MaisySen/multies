@@ -536,7 +536,15 @@ const sentryWrapped = Sentry.withSentry((rawEnv: unknown) => {
  * still holding its stand ins), so no real request or cron run ever sees them.
  */
 const wrapped = sentryWrapped as unknown as { fetch(r: Request, e: unknown, c: unknown): Promise<Response>; scheduled(ev: unknown, e: unknown, c: unknown): Promise<void> };
+// One line per isolate, on its first request: whether the startup warm up ran and how it went (MB-199 evidence in
+// the tail; startup logs themselves are not delivered there).
+let firstRequestSeen = false;
+function noteFirstRequest(request: Request) {
+  if (firstRequestSeen) return;
+  firstRequestSeen = true;
+  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport })); } catch { /* never in the way */ }
+}
 export default {
-  fetch(request: Request, env: unknown, ctx: unknown) { endWarmup(); return wrapped.fetch(request, env, ctx); },
+  fetch(request: Request, env: unknown, ctx: unknown) { endWarmup(); noteFirstRequest(request); return wrapped.fetch(request, env, ctx); },
   scheduled(event: unknown, env: unknown, ctx: unknown) { endWarmup(); return wrapped.scheduled(event, env, ctx); },
 };

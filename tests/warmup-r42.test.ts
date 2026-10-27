@@ -39,12 +39,13 @@ describe("startup warm up", () => {
   });
 
   it("the replay database answers from the fixture and refuses everything once a real request started", async () => {
-    const db = replayD1(fixture);
-    expect(await (db.prepare("select 1").bind(1) as unknown as { all(): Promise<unknown> }).all()).toEqual({ results: [{ a: 1 }] });
-    expect(await (db.prepare("select 2") as unknown as { all(): Promise<unknown> }).all()).toEqual({ results: [], success: true, meta: { changes: 0 } });
+    type Stmt = { bind(...a: unknown[]): Stmt; all(): Promise<unknown> };
+    const db = replayD1(fixture) as unknown as { prepare(sql: string): Stmt };
+    expect(await db.prepare("select 1").bind(1).all()).toEqual({ results: [{ a: 1 }] });
+    expect(await db.prepare("select 2").all()).toEqual({ results: [], success: true, meta: { changes: 0 } });
     endWarmup();
     expect(warmupActive()).toBe(false);
-    await expect((db.prepare("select 1") as unknown as { all(): Promise<unknown> }).all()).rejects.toThrow(/warm up over/);
+    await expect(db.prepare("select 1").all()).rejects.toThrow(/warm up over/);
   });
 
   it("the shipped fixture covers the hot routes and holds no real address", () => {
