@@ -308,7 +308,10 @@ test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
   // U flips read on the focused row (the server's list is the check).
   const focused = await current.getAttribute("data-id"); // R47: the row K landed on (see above)
   const readOf = async () => ((await (await page.request.get("/api/notifications?view=inbox&limit=100")).json()).notifications as { id: string; read: boolean }[]).find((x) => x.id === focused)?.read;
-  const r0 = await readOf();
+  // R47: U flips what the row shows. Start from the row as drawn (its "unread" mark): the server copy can already be
+  // read while the list on screen has not refetched yet, and then U rightly marks it read (the old check expected unread).
+  const shownRead = async () => !/·\s*unread/.test(await page.locator(`[data-testid="notification-row"][data-id="${focused}"]`).innerText());
+  const r0 = await shownRead();
   await page.keyboard.press("u");
   await expect.poll(readOf, { timeout: 10_000 }).toBe(!r0);
   await page.keyboard.press("u");
