@@ -3,13 +3,13 @@ import { isD1LimitError } from "../lib/d1-limit";
 import { expireApprovals, pruneAgentEvents } from "./agents";
 import { pruneImports } from "./import";
 import { pruneDeliveries, retryDueDeliveries } from "./developer/webhooks";
-import { sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte, ne, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { Deps } from "../context";
 import type { DB } from "../db";
 import { appSettings } from "../db/schema";
 import { migrationDriver, pendingMigrations } from "../db";
 import { lt } from "drizzle-orm";
-import { sessions, verifications } from "../db/schema";
+import { agentTriggers, automations, dataMoves, jobs, mailConnections, mailSchedules, organizations, sendApprovals, sessions, verifications, webhookDeliveries } from "../db/schema";
 import { purgeDemoWorkspaces } from "./demo";
 import { recheckStaleDomains } from "./domains";
 import { checkWriteBudget } from "./write-budget";
@@ -28,12 +28,16 @@ import "./suite/push";
  * DNS, expire sessions, purge old sandboxes, apply billing grace periods and prune
  * short-lived tables. Each step is isolated so one failure cannot stop the others.
  */
-export async function runMaintenance(deps: Deps, opts: { rotate?: boolean } = {}) {
+export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe?: boolean } = {}) {
   // R50 (CPU limit): the 15 minute cron pass cost the Worker 50 to 60 ms of CPU, about 27 statements each time. With
   // rotate (the cron sets it) housekeeping that can wait an hour runs in one of the four passes of each hour, a
   // different group each quarter, so a pass carries about 10 fewer statements. Work people wait on (jobs, mail,
   // imports, reminders, triggers, webhook retries, approvals) still runs every pass. Without rotate everything runs.
   const slot = opts.rotate ? Math.floor(deps.now().getUTCMinutes() / 15) : -1;
+  // R51 (CPU): most passes find nothing to do. With probe (the cron sets it, through rotate) one statement asks which
+  // of the steps below have anything waiting, and a step with nothing waiting is skipped (about 10 statements to 1 on
+  // an idle pass). If the probe itself fails, every step runs as before.
+  const has = (opts.probe ?? opts.rotate) ? await probeWaiting(deps) : ALL_WAITING;
   const inSlot = (k: number) => slot < 0 || slot === k;
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); } catch (err) {
@@ -50,29 +54,29 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean } = {}
   // cron is hourly, so after the jobs step the email waited a whole extra hour).
   // R43: kept imports (the upload waits in KV) carry on here when their page has closed: at most 2 runs a pass, each a
   // few steps as the person who started it. Runs before the jobs step, so a "finished" email goes out in this pass.
-  await step("data_move_continue", async () => (await import("./data-move/continue")).continueKeptMoves(deps));
-  await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
-  const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
+  if (has.moves) await step("data_move_continue", async () => (await import("./data-move/continue")).continueKeptMoves(deps));
+  if (has.moves) await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
+  const jobsRun = !has.jobs ? { ran: 0, failed: 0, dead: 0 } : await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
   const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, , writes] = await Promise.all([
     step("uptime", () => recordUptimeCheck(deps)),
     inSlot(2) ? step("cross_check", () => crossCheck(deps)) : Promise.resolve(undefined),
-    step("legacy", () => legacyMaintenance(deps, inSlot(0))),
+    step("legacy", () => legacyMaintenance(deps, inSlot(0), has.webhooks)),
     inSlot(2) ? step("dunning", () => enforceGracePeriods(deps)) : Promise.resolve(undefined),
-    step("approvals", () => expireApprovals(deps)),
-    step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
+    has.approvals ? step("approvals", () => expireApprovals(deps)) : Promise.resolve(0),
+    !has.dueSoon ? Promise.resolve(undefined) : step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
     // R24.4: due_passed rules (reads only when there are none; pauses at a warn or shed write budget).
-    step("due_passed", async () => (await import("./suite/automations-r24")).runDuePassed(deps)),
+    !has.duePassed ? Promise.resolve(undefined) : step("due_passed", async () => (await import("./suite/automations-r24")).runDuePassed(deps)),
     // Reads the account's D1 writes today from analytics (no database write) and alerts past 60%.
     step("write_budget", () => checkWriteBudget(deps)),
   ]);
   // Connected mailboxes: each due one is handed to its own invocation (services/connect/sync.ts).
-  const mailSync = await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
+  const mailSync = !has.mailSync ? { dispatched: 0 } : await step("mail_sync", async () => (await import("./connect/sync")).runDueMailSyncs(deps));
   // Round 20: scheduled sends, snoozes and reminders that are due. Reads first; an idle pass writes nothing.
-  const mailSchedules = await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
+  const mailSchedules = !has.mailSchedules ? undefined : await step("mail_schedules", async () => (await import("./mail/schedules")).runMailSchedules(deps));
   // R28 (DF-3 slice 3): schedule triggers that are due queue agent runs. One read on a partial index; idle writes nothing.
-  const agentTriggers = await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
+  const agentTriggersRun = !has.agentTriggers ? undefined : await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
@@ -88,7 +92,53 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean } = {}
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
-  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, agentTriggers, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+  return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
+}
+
+type Waiting = { moves: boolean; jobs: boolean; webhooks: boolean; approvals: boolean; dueSoon: boolean; duePassed: boolean; mailSync: boolean; mailSchedules: boolean; agentTriggers: boolean };
+const ALL_WAITING: Waiting = { moves: true, jobs: true, webhooks: true, approvals: true, dueSoon: true, duePassed: true, mailSync: true, mailSchedules: true, agentTriggers: true };
+
+/**
+ * R51 (CPU): one statement that answers, for each step of the maintenance pass that can be idle, whether it has
+ * anything waiting. Each part is the same condition (or a wider one) as the first read of that step, so a step is
+ * only skipped when its own read would have found nothing. Any error: run everything.
+ */
+export async function probeWaiting(deps: Deps): Promise<Waiting> {
+  const now = deps.now();
+  const db = deps.db;
+  // A query builder inside sql`` renders in its own parentheses, so exists takes it as written.
+  const ex = (q: SQLWrapper) => sql`exists ${q}`;
+  const one = { one: sql`1` };
+  // The data move steps read runs idle for 2 (kept) or 10 (left behind) minutes; the shorter wait covers both.
+  const movesBefore = new Date(now.getTime() - 2 * 60_000);
+  const returnedBefore = new Date(now.getTime() - 14 * 86_400_000);
+  const rule = (trigger: string) => db.select(one).from(automations).innerJoin(organizations, eq(organizations.id, automations.orgId))
+    .where(and(sql`${automations.trigger} = ${trigger}`, eq(automations.enabled, true), isNull(automations.deletedAt), eq(organizations.isDemo, false))).limit(1);
+  const parts: Record<keyof Waiting, SQLWrapper> = {
+    moves: db.select(one).from(dataMoves).where(and(inArray(dataMoves.status, ["running", "stopped"]), lt(dataMoves.lastStepAt, movesBefore), eq(dataMoves.kind, "import"))).limit(1),
+    jobs: db.select(one).from(jobs).where(and(or(and(eq(jobs.status, "pending"), lte(jobs.runAt, now)), and(eq(jobs.status, "running"), lt(jobs.lockedUntil, now))), ne(jobs.type, "demo.seed_suite"))).limit(1),
+    webhooks: db.select(one).from(webhookDeliveries).where(and(eq(webhookDeliveries.status, "pending"), lte(webhookDeliveries.nextAttemptAt, now))).limit(1),
+    approvals: db.select(one).from(sendApprovals).where(and(eq(sendApprovals.status, "pending"), lt(sendApprovals.expiresAt, now))).limit(1),
+    dueSoon: rule("due_soon"),
+    duePassed: rule("due_passed"),
+    mailSync: db.select(one).from(mailConnections).where(and(sql`${mailConnections.status} in ('active', 'error', 'syncing')`, sql`coalesce(${mailConnections.nextSyncAt}, 0) <= ${now.getTime()}`)).limit(1),
+    mailSchedules: db.select(one).from(mailSchedules).where(or(and(eq(mailSchedules.status, "pending"), lte(mailSchedules.dueAt, now)), and(eq(mailSchedules.status, "returned"), lte(mailSchedules.dueAt, returnedBefore)))).limit(1),
+    agentTriggers: db.select(one).from(agentTriggers).where(and(eq(agentTriggers.enabled, true), eq(agentTriggers.kind, "schedule"), lte(agentTriggers.nextRunAt, now))).limit(1),
+  };
+  const keys = Object.keys(parts) as (keyof Waiting)[];
+  try {
+    const cols = sql.join(keys.map((k) => sql`${ex(parts[k])} as ${sql.identifier(k)}`), sql`, `);
+    const rows = (await db.all(sql`select ${cols}`)) as Record<string, unknown>[];
+    const row = rows[0];
+    if (!row) return ALL_WAITING;
+    const out = {} as Waiting;
+    for (const k of keys) out[k] = Number(row[k]) !== 0;
+    if (!deps.config.mailConnect.enabled) out.mailSync = false;
+    return out;
+  } catch (err) {
+    deps.log?.warn("maintenance.probe_failed", { error: err });
+    return ALL_WAITING;
+  }
 }
 
 /**
@@ -130,14 +180,14 @@ export async function runMaintenanceIfMigrated(deps: Deps, opts: { rotate?: bool
   return runMaintenance(deps, opts);
 }
 
-async function legacyMaintenance(deps: Deps, housekeeping = true) {
+async function legacyMaintenance(deps: Deps, housekeeping = true, webhooks = true) {
   const skip = Promise.resolve(undefined);
   const [rechecked, , , purged, webhooksRetried] = await Promise.all([
     housekeeping ? recheckStaleDomains(deps) : Promise.resolve([]),
     housekeeping ? deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now())) : skip,
     housekeeping ? deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now())) : skip,
     housekeeping && deps.config.demoEnabled ? purgeDemoWorkspaces(deps) : Promise.resolve(0),
-    retryDueDeliveries(deps),
+    webhooks ? retryDueDeliveries(deps) : Promise.resolve(0),
     housekeeping ? pruneDeliveries(deps) : skip,
   ]);
   return { rechecked: rechecked.length, purged, webhooksRetried };

@@ -28,10 +28,8 @@ export const WEBHOOK_EVENTS = [
   "task.deleted",
   "task.commented",
   "project.created",
-  "project.deleted",
   "doc.created",
   "doc.updated",
-  "doc.deleted",
   "contact.created",
   "contact.updated",
   "deal.created",
@@ -66,9 +64,6 @@ export const WEBHOOK_EVENTS = [
   "triage.accepted",
   "triage.declined",
   "triage.merged",
-  "comment.created",
-  "comment.updated",
-  "comment.deleted",
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
@@ -246,31 +241,22 @@ export async function replayFailed(deps: Deps, orgId: string, endpointId: string
  * Records an event for every enabled endpoint subscribed to it and makes the first
  * attempt right away. Never throws: webhooks must not break the action behind them.
  */
-/**
- * Queues and sends one event (or several names for the same change, R51: a comment is both `task.commented` and
- * `comment.created`) to every enabled endpoint subscribed to it. One read of the endpoints either way; with no
- * endpoint subscribed it writes nothing, so an event costs no D1 write until someone listens for it.
- */
-export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | readonly WebhookEvent[], data: Record<string, unknown>) {
-  const types: readonly WebhookEvent[] = typeof type === "string" ? [type] : type;
+export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent, data: Record<string, unknown>) {
   try {
     const endpoints = (await deps.db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.orgId, orgId), eq(webhookEndpoints.enabled, true))))
-      .map((e) => { const ev = JSON.parse(e.events) as string[]; return { e, want: types.filter((t) => ev.includes("*") || ev.includes(t)) }; })
-      .filter((x) => x.want.length > 0);
+      .filter((e) => { const ev = JSON.parse(e.events) as string[]; return ev.includes("*") || ev.includes(type); });
     if (!endpoints.length) return [];
+    const payload = JSON.stringify({ type, timestamp: deps.now().toISOString(), data });
     const ids: string[] = [];
-    for (const { e, want } of endpoints) {
-      for (const t of want) {
-        const id = newId("msg");
-        const payload = JSON.stringify({ type: t, timestamp: deps.now().toISOString(), data });
-        await deps.db.insert(webhookDeliveries).values({ id, orgId, endpointId: e.id, eventType: t, payload, nextAttemptAt: deps.now() });
-        ids.push(id);
-      }
+    for (const e of endpoints) {
+      const id = newId("msg");
+      await deps.db.insert(webhookDeliveries).values({ id, orgId, endpointId: e.id, eventType: type, payload, nextAttemptAt: deps.now() });
+      ids.push(id);
     }
     await Promise.all(ids.map((id) => attempt(deps, id)));
     return ids;
   } catch (err) {
-    deps.reportError?.(err, { where: "emitEvent", type: types.join(",") });
+    deps.reportError?.(err, { where: "emitEvent", type });
     return [];
   }
 }

@@ -195,9 +195,9 @@ export async function appendToDoc(deps: Deps, actor: SuiteActor, id: string, tex
 
 export async function deleteDoc(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
-  const d = await docRow(deps, actor.orgId, id);
+  await docRow(deps, actor.orgId, id);
   await liftChildren(deps, actor.orgId, id); // R24: sub pages move up to this page's parent
   await deps.db.update(docs).set({ deletedAt: deps.now(), updatedAt: deps.now() }).where(eq(docs.id, id));
-  await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "delete", verb: "deleted", event: "doc.deleted", eventData: { id, object: "doc", title: d.title } }); // R51 (MB-239)
+  await recordWrite(deps, actor, { entityType: "doc", entityId: id, op: "delete", verb: "deleted" });
   return { ok: true };
 }
