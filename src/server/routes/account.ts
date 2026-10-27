@@ -2,7 +2,7 @@ import { optionalWritesPaused } from "../services/write-budget";
 import { exportWorkspace, personalData } from "../services/privacy";
 import { Hono } from "hono";
 import { z } from "zod";
-import { and, count, eq, gt, ne } from "drizzle-orm";
+import { and, count, eq, gt, isNotNull, ne, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
@@ -15,6 +15,7 @@ import { verifyPassword } from "../lib/crypto";
 import { DbRateLimitStore, RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
 import { peekOrgCached } from "../services/plans";
+import { IsolateCache } from "../lib/isolate-cache";
 import { createDemoWorkspace } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
@@ -69,6 +70,29 @@ async function myPendingInvites(deps: AppEnv["Variables"]["deps"], auth: AppEnv[
   if (!rows.length) return [];
   const mine = new Set((await deps.db.select({ orgId: members.organizationId }).from(members).where(eq(members.userId, auth.userId))).map((m) => m.orgId));
   return rows.filter((r) => !mine.has(r.orgId)).map((r) => ({ token: r.id, organization: { name: r.orgName }, role: (r.role ?? "member") as "admin" | "member", invitedBy: r.inviter }));
+}
+
+/*
+ * R41 (MB-199 CPU): the person's own preferences, whether they have a password and their pending invites, in one
+ * query plus the invites read, kept per isolate for a few seconds (lib/isolate-cache.ts). The app shell reads /me
+ * on every page load and every write by this person drops the copy (app.ts), so their own change shows at once.
+ * Only for a confirmed address: an unconfirmed person is always read afresh (they are waiting on that email).
+ */
+type MeExtras = { prefs: { timezone: string | null; locale: string | null; createdAt: Date | null } | undefined; hasPassword: boolean; pendingInvites: Awaited<ReturnType<typeof myPendingInvites>> };
+const meCopy = new IsolateCache<MeExtras>(15_000);
+async function meExtras(deps: AppEnv["Variables"]["deps"], auth: AppEnv["Variables"]["auth"]): Promise<MeExtras> {
+  const key = `${auth.userId}:${auth.orgId}`;
+  const hit = auth.emailVerified ? meCopy.get(key) : undefined;
+  if (hit) return hit;
+  const hasPw = deps.db.select({ one: sql<number>`1` }).from(accounts)
+    .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"), isNotNull(accounts.password))).limit(1);
+  const [row, pendingInvites] = await Promise.all([
+    deps.db.select({ timezone: users.timezone, locale: users.locale, createdAt: users.createdAt, hasPassword: sql<number>`exists ${hasPw}` }).from(users).where(eq(users.id, auth.userId)).get(),
+    myPendingInvites(deps, auth),
+  ]);
+  const out: MeExtras = { prefs: row ? { timezone: row.timezone, locale: row.locale, createdAt: row.createdAt } : undefined, hasPassword: !!Number(row?.hasPassword ?? 0), pendingInvites };
+  if (auth.emailVerified) meCopy.set(key, out);
+  return out;
 }
 
 export function accountRoutes() {
@@ -172,10 +196,11 @@ export function accountRoutes() {
       // isolate copy (services/plans.ts); one that is not yet onboarded is always read fresh, so finishing
       // onboarding in another isolate can never show the onboarding again.
       const cachedOrg = peekOrgCached(auth.orgId);
-      const [org, prefs] = await Promise.all([
+      const [org, extras] = await Promise.all([
         cachedOrg && readOrgMeta(cachedOrg.metadata).onboardedAt ? cachedOrg : c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
-        c.var.deps.db.select({ timezone: users.timezone, locale: users.locale, createdAt: users.createdAt }).from(users).where(eq(users.id, auth.userId)).get(),
+        meExtras(c.var.deps, auth),
       ]);
+      const prefs = extras.prefs;
       const onboardedAt = readOrgMeta(org?.metadata).onboardedAt;
       const workspaceOnboarded = !!onboardedAt;
       // DF-21: a person who already runs an onboarded workspace (its owner or an admin), or who was
@@ -192,9 +217,8 @@ export function accountRoutes() {
           workspace: !!org && !org.isDemo && !workspaceOnboarded && auth.role !== "member",
         },
         session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },
-        hasPassword: !!(await c.var.deps.db.select({ password: accounts.password }).from(accounts)
-          .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get())?.password,
-        pendingInvites: await myPendingInvites(c.var.deps, auth),
+        hasPassword: extras.hasPassword,
+        pendingInvites: extras.pendingInvites,
       });
     })
     .post("/onboarding", async (c) => {

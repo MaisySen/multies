@@ -135,16 +135,21 @@ async function ensureGeneral(deps: Deps, a: SuiteActor) {
   if (a.userId && !isKey(a)) await deps.db.insert(chatMembers).values({ channelId: id, userId: a.userId, orgId: a.orgId, lastReadAt: now, joinedAt: now }).onConflictDoNothing();
 }
 
-async function unreadFor(deps: Deps, orgId: string, userId: string) {
-  const rows = await deps.db.select({
+/** R41: the unread per channel query, also embedded as a subquery by the badge counts (services/counts-r34.ts). */
+export function unreadQuery(deps: Deps, orgId: string, userId: string) {
+  return deps.db.select({
     channelId: chatMessages.channelId,
-    unread: sql<number>`count(*)`,
-    mentions: sql<number>`sum(case when ${chatMessages.mentionKeys} like ${`%member:${userId}%`} or ${chatMessages.mentionKeys} like '%channel%' then 1 else 0 end)`,
+    unread: sql<number>`count(*)`.as("unread"),
+    mentions: sql<number>`sum(case when ${chatMessages.mentionKeys} like ${`%member:${userId}%`} or ${chatMessages.mentionKeys} like '%channel%' then 1 else 0 end)`.as("mentions"),
   }).from(chatMessages)
     .innerJoin(chatMembers, and(eq(chatMembers.channelId, chatMessages.channelId), eq(chatMembers.userId, userId)))
     .where(and(eq(chatMessages.orgId, orgId), isNull(chatMessages.parentId), isNull(chatMessages.deletedAt),
       sql`${chatMessages.createdAt} > coalesce(${chatMembers.lastReadAt}, 0)`, sql`coalesce(${chatMessages.authorId}, '') <> ${userId}`, notBlockedBy(chatMessages.authorId, userId)))
     .groupBy(chatMessages.channelId);
+}
+
+async function unreadFor(deps: Deps, orgId: string, userId: string) {
+  const rows = await unreadQuery(deps, orgId, userId);
   return new Map(rows.map((r) => [r.channelId, { unread: Number(r.unread) || 0, mentions: Number(r.mentions) || 0 }]));
 }
 

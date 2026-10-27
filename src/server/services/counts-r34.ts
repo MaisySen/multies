@@ -8,17 +8,17 @@
  *   { mail: { inbox, important, other }, chat: { unread, mentions }, notifications: { unread }, triage,
  *     tasks: { dueToday, overdue }, at }
  */
-import { and, count, eq, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Deps } from "../context";
-import { messages, notifications, tasks } from "../db/schema";
-import { inIds } from "../lib/sql-chunks";
+import { mailboxAccess, messages, notifications, tasks } from "../db/schema";
+import { IsolateCache } from "../lib/isolate-cache";
 import { snoozeHiddenCond } from "./mail/schedules";
-import { splitTabs } from "./mail/splits";
-import { unreadSummary } from "./suite/chat";
+import { listSplits, splitCond } from "./mail/splits";
+import { unreadQuery } from "./suite/chat";
 import type { SuiteActor } from "./suite/common";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
-import { triageCount } from "./suite/triage";
-import { mailboxScope } from "./team";
+import { triageCountQuery } from "./suite/triage";
+import type { MailSplit } from "@/shared/mail-splits";
 
 export interface Counts {
   mail: { inbox: number; important: number; other: number };
@@ -63,6 +63,15 @@ export function localDay(now: Date, tz: string): { start: Date; end: Date } {
   return { start: new Date(start), end: new Date(start + 86_400_000) };
 }
 
+/*
+ * R41 (MB-199 CPU): every count in ONE statement. Each D1 query costs the Worker about 1 to 2 ms of its 10 ms CPU
+ * budget (the round trip itself is free), and this route is polled by every open tab, so the parts that used to be
+ * six to eight queries are scalar subqueries of one aggregate over the person's unread inbox mail. A member's
+ * mailbox scope is a subquery too. Only the person's own mail tabs (their split rules) are read first, from a
+ * short per isolate copy.
+ */
+const splitsCopy = new IsolateCache<MailSplit[]>(60_000);
+
 /** Every count for the caller. An agent key has no inbox, chat or notifications: those parts are 0. */
 export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string | null } = {}): Promise<Counts> {
   const now = deps.now();
@@ -70,33 +79,49 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const person = !a.agentId && !!a.userId;
   const day = localDay(now, zoneOr(opts.tz));
   const mine = a.agentId ? and(eq(tasks.assigneeType, "agent"), eq(tasks.assigneeId, a.agentId)) : and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, a.userId));
-  const open = and(eq(tasks.orgId, a.orgId), mine, isNull(tasks.deletedAt), ne(tasks.status, "done"), isNull(tasks.triageState));
+  const open = and(eq(tasks.orgId, a.orgId), mine, isNull(tasks.deletedAt), ne(tasks.status, "done"), isNull(tasks.triageState), lt(tasks.dueAt, day.end));
+  const nowParam = sql.param(now, tasks.dueAt);
+  const dueToday = deps.db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(open, sql`${tasks.dueAt} >= ${nowParam}`));
+  const overdue = deps.db.select({ n: sql<number>`count(*)` }).from(tasks).where(and(open, sql`${tasks.dueAt} < ${nowParam}`));
+  const triage = triageCountQuery(deps, a);
 
-  // R40 (MB-199): due today and overdue in one statement (the same index range, split by a CASE).
-  const [due, triage] = await Promise.all([
-    deps.db.select({
-      dueToday: sql<number>`coalesce(sum(case when ${tasks.dueAt} >= ${sql.param(now, tasks.dueAt)} then 1 else 0 end), 0)`,
-      overdue: sql<number>`coalesce(sum(case when ${tasks.dueAt} < ${sql.param(now, tasks.dueAt)} then 1 else 0 end), 0)`,
-    }).from(tasks).where(and(open, lt(tasks.dueAt, day.end))).get(),
-    triageCount(deps, a),
-  ]);
-  out.tasks = { dueToday: Number(due?.dueToday ?? 0), overdue: Number(due?.overdue ?? 0) };
-  out.triage = triage;
-  if (!person) return out;
+  if (!person) {
+    const r = await deps.db.get<{ due_today: number; overdue: number; triage: number }>(
+      sql`select (${dueToday}) as due_today, (${overdue}) as overdue, (${triage}) as triage`);
+    out.tasks = { dueToday: Number(r?.due_today ?? 0), overdue: Number(r?.overdue ?? 0) };
+    out.triage = Number(r?.triage ?? 0);
+    return out;
+  }
 
-  const scope = await mailboxScope(deps.db, { orgId: a.orgId, userId: a.userId, role: a.role ?? "member" });
-  const [inbox, tabs, chat, notes] = await Promise.all([
-    scope && !scope.length ? Promise.resolve({ n: 0 }) : deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(and(
-      eq(messages.orgId, a.orgId), scope ? inIds(messages.mailboxId, scope) : undefined, eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(now),
-    )).get(),
-    scope && !scope.length ? Promise.resolve([]) : splitTabs(deps, { orgId: a.orgId, userId: a.userId }, { scope }),
-    unreadSummary(deps, a),
-    deps.db.select({ n: count() }).from(notifications).where(and(eq(notifications.orgId, a.orgId), eq(notifications.userId, a.userId), isNull(notifications.readAt), inboxWhere(now))).get(),
-  ]);
-  const tab = (id: string) => Number(tabs.find((t) => t.id === id)?.unread ?? 0);
-  out.mail = { inbox: Number(inbox?.n ?? 0), important: tab("important"), other: tab("other") };
-  out.chat = { unread: chat.total, mentions: chat.mentions };
-  out.notifications = { unread: Number(notes?.n ?? 0) };
+  const list = await splitsCopy.getOr(`${a.userId}:${a.orgId}`, () => listSplits(deps, { orgId: a.orgId, userId: a.userId }));
+  const split = { orgId: a.orgId, userId: a.userId };
+  const [important, other] = await Promise.all([splitCond(deps, split, "important", list), splitCond(deps, split, "other", list)]);
+  // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
+  const scope = (a.role ?? "member") === "member"
+    ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId))))
+    : undefined;
+  const unread = unreadQuery(deps, a.orgId, a.userId).as("u");
+  const chatTotal = deps.db.select({ n: sql<number>`coalesce(sum(${unread.unread}), 0)` }).from(unread);
+  const chatMentions = deps.db.select({ n: sql<number>`coalesce(sum(${unread.mentions}), 0)` }).from(unread);
+  const notes = deps.db.select({ n: count() }).from(notifications).where(and(eq(notifications.orgId, a.orgId), eq(notifications.userId, a.userId), isNull(notifications.readAt), inboxWhere(now)));
+  const r = await deps.db.select({
+    inbox: sql<number>`count(*)`,
+    important: sql<number>`coalesce(sum(case when ${important} then 1 else 0 end), 0)`,
+    other: sql<number>`coalesce(sum(case when ${other} then 1 else 0 end), 0)`,
+    dueToday: sql<number>`(${dueToday})`,
+    overdue: sql<number>`(${overdue})`,
+    triage: sql<number>`(${triage})`,
+    chat: sql<number>`(${chatTotal})`,
+    mentions: sql<number>`(${chatMentions})`,
+    notes: sql<number>`(${notes})`,
+  }).from(messages).where(and(
+    eq(messages.orgId, a.orgId), scope, eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(now),
+  )).get();
+  out.tasks = { dueToday: Number(r?.dueToday ?? 0), overdue: Number(r?.overdue ?? 0) };
+  out.triage = Number(r?.triage ?? 0);
+  out.mail = { inbox: Number(r?.inbox ?? 0), important: Number(r?.important ?? 0), other: Number(r?.other ?? 0) };
+  out.chat = { unread: Number(r?.chat ?? 0), mentions: Number(r?.mentions ?? 0) };
+  out.notifications = { unread: Number(r?.notes ?? 0) };
   return out;
 }
 

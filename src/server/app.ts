@@ -20,6 +20,7 @@ import { authFor } from "./auth";
 import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
 import { forgetOrgCache } from "./services/plans";
+import { forgetUserCaches } from "./lib/isolate-cache";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
@@ -152,6 +153,8 @@ export function createApp(deps: Deps) {
       // R40 deploy 3: and its cached workspace row and plan. A write with no session (a billing webhook, an
       // operator call) drops every workspace's copy in this isolate.
       forgetOrgCache(c.var.auth?.orgId);
+      // R41: and this person's per isolate copies (preferences, mail tabs); every copy when there is no session.
+      forgetUserCaches(c.var.auth?.userId);
     }
   });
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });

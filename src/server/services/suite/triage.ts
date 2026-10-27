@@ -43,9 +43,14 @@ export async function listTriage(deps: Deps, actor: SuiteActor, q: { projectId?:
 
 /** How many items wait in Triage (the nav badge). Reads the partial index only. */
 export async function triageCount(deps: Deps, actor: SuiteActor) {
-  const r = await deps.db.select({ n: count() }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt),
-    or(isNull(tasks.triageSnoozedUntil), lte(tasks.triageSnoozedUntil, deps.now())))).get();
+  const r = await triageCountQuery(deps, actor).get();
   return Number(r?.n ?? 0);
+}
+
+/** R41: the triage count as a query builder, also embedded as a subquery by the badge counts. */
+export function triageCountQuery(deps: Deps, actor: SuiteActor) {
+  return deps.db.select({ n: count() }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.triageState, "pending"), isNull(tasks.deletedAt),
+    or(isNull(tasks.triageSnoozedUntil), lte(tasks.triageSnoozedUntil, deps.now()))));
 }
 
 export async function getTriageItem(deps: Deps, actor: SuiteActor, id: string) {

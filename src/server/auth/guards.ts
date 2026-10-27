@@ -147,21 +147,24 @@ export function clearAuthCache() { authCache.clear(); }
 
 export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
   const key = effectiveSessionKey(headers, deps.config.mode === "production");
-  // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
-  // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
-  const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");
+  // Account routes (security, sessions) and the operator console always read the session afresh, so a revoked
+  // session or an operator role change shows at once. R41 (MB-199): the app shell's /me reads the copy too, but
+  // only once the address is confirmed, so confirming it in another isolate (or on the phone) shows at once; a new
+  // workspace, a switch or signing out are writes, which drop the copy first.
+  const me = path === "/api/account/me";
+  const read = (method === "GET" || method === "HEAD") && (me || !path.startsWith("/api/account")) && !path.startsWith("/api/admin");
   if (!key) return resolveAuth(deps, headers);
   const now = Date.now();
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now) return hit.auth;
+    if (hit && hit.until > now && (!me || hit.auth.emailVerified)) return hit.auth;
   } else {
     authCache.delete(key);
   }
   const auth = await resolveAuth(deps, headers);
   // A write can change what the session points at (accepting an invite, switching workspace), so only reads
-  // fill the cache.
-  if (!read) return auth;
+  // fill the cache. /me reads a copy another read made but never fills one (it is the first call after sign in).
+  if (!read || me) return auth;
   if (auth) {
     if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
     authCache.set(key, { auth, until: now + AUTH_CACHE_MS });
