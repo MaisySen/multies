@@ -288,6 +288,12 @@ SYSTEM_FROM = "staging@mail.multies.si"
 SYSTEM_FROM_NAME = "Multies Staging"
 # R43: small import steps (5 items), so a small test file still exercises the background finish (kept upload, cron).
 IMPORT_STEP_MAX_ITEMS = "5"
+# R45: set here on purpose (wrangler warned they were missing from staging). Staging has no operator shared inbox (that
+# workspace lives only in the production database) and no free personal addresses: mail to mail.multies.si reaches the
+# production email worker, so a staging free address could never receive. Empty means off, as before.
+OPERATOR_INBOX_ORG_ID = ""
+FREE_MAIL_DOMAIN = ""
+FREE_MAIL_DAILY_SENDS = "50"
 
 [[env.staging.kv_namespaces]]
 binding = "IMPORT_FILES"

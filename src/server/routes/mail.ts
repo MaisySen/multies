@@ -22,7 +22,7 @@ import { splitCond } from "../services/mail/splits";
 import { readStatusFor } from "../services/mail/read-status";
 import { BULK_MAIL_ACTIONS, BULK_MAIL_MAX, runBulkMail } from "../services/mail/bulk-r32";
 import { deferrableWrite } from "../services/write-priority";
-import { BulkJobBody, BulkPreviewBody, bodyToInput, getBulkJob, previewBulkJob, runBulkJob, stepBulkJob, undoBulkJob } from "../services/mail/bulk-job-r33"; // R33, R45 preview
+import { BulkJobBody, bodyToInput, getBulkJob, runBulkJob, stepBulkJob, undoBulkJob } from "../services/mail/bulk-job-r33"; // R33
 
 
 /** The provider side of a single message edit: read, star and folder moves. */
@@ -145,8 +145,6 @@ export function mailRoutes() {
     })
     // R33: "select all" as one server job (services/mail/bulk-job-r33.ts). Repeat the same body (or POST .../step) to
     // continue it; undo puts back exactly what it changed.
-    // R45 (MB-137): how many a job would touch, before it runs (the "Archive older mail" sheet's count).
-    .post("/bulk-jobs/preview", async (c) => { const b = await parseBody(c, BulkPreviewBody); return c.json(await previewBulkJob(c.var.deps, c.var.auth, { scope: b.scope, maxReceivedAt: b.max_received_at })); })
     .post("/bulk-jobs", async (c) => c.json(await runBulkJob(c.var.deps, c.var.auth, bodyToInput(await parseBody(c, BulkJobBody)), (rows, action, opts) => queueChange(c, rows, action, opts))))
     .get("/bulk-jobs/:id", async (c) => c.json(await getBulkJob(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/bulk-jobs/:id/step", async (c) => c.json(await stepBulkJob(c.var.deps, c.var.auth, c.req.param("id"), (rows, action, opts) => queueChange(c, rows, action, opts))))

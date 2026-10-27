@@ -21,9 +21,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { ReadOnlyBanner } from "@/web/lib/read-only";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input } from "@/web/components/ui/input";
-import type { AuthProviders } from "@/web/lib/auth-client";
-// R45 (MB-203): the auth client (14 KB) loads when someone signs out, not with every page's first load.
-const authClientModule = () => import("@/web/lib/auth-client");
+import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/auth-client";
 import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
@@ -39,7 +37,7 @@ import { PLANS } from "@/shared/plans";
 import { prefetchWhenIdle } from "@/web/lib/prefetch";
 import { useCollapsingTitle } from "@/web/lib/large-title";
 import { badgeTotal, useCounts, useTitleCount } from "@/web/lib/counts"; // R34: one counts query for every badge
-import { useOpenReportCount } from "@/web/lib/open-report-count"; // R35 (R45: its own module, not the moderation page)
+import { useOpenReportCount } from "../pages/app/admin-moderation-r35"; // R35
 
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -135,7 +133,7 @@ export function AppLayout() {
           <h1 className="text-lg font-semibold">{organization?.name} requires single sign on</h1>
           <p className="mt-2 text-sm text-muted">You signed in with a password. Sign out, then choose your company's SSO on the sign in page.</p>
           <button className="mt-5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-fg hover:bg-brand/90"
-            onClick={async () => { await clearOfflineData(); try { await (await authClientModule()).authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
+            onClick={async () => { await clearOfflineData(); try { await authClient.signOut(); } catch { /* already signed out */ } await clearOfflineData(); qc.clear(); navigate("/login?sso=required"); }}>
             Sign out and use SSO
           </button>
         </div>
@@ -152,7 +150,7 @@ export function AppLayout() {
     clearMeCache(); // R40: the saved account copy goes with the session
     const providers = qc.getQueryData<AuthProviders>(["auth-providers"]) ?? await api.get<AuthProviders>("/account/providers").catch(() => null);
     qc.clear();
-    if (await (await authClientModule()).signOutEverywhere({ idp: !!providers?.idp }) === "done") navigate("/login");
+    if (await signOutEverywhere({ idp: !!providers?.idp }) === "done") navigate("/login");
   };
 
   const sidebar = (
