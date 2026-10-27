@@ -2,9 +2,7 @@ import { useRef, useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconChecklist, IconFileUp } from "@/web/components/ui/icon";
-import { api } from "@/web/lib/api";
-import { ErrorRetry } from "@/web/components/reconnecting-r40"; // R40 (MB-205)
-
+import { api, ApiError } from "@/web/lib/api";
 import { Badge } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
@@ -69,7 +67,7 @@ export function WorkToolsImport() {
     },
   });
   const run = useMutation({
-    mutationFn: () => api.create<RunResult>("/work-imports/run", { fileName: file!.name, content: file!.content, mapping, projectId: target || null, projectName: target ? null : projectName }),
+    mutationFn: () => api.post<RunResult>("/work-imports/run", { fileName: file!.name, content: file!.content, mapping, projectId: target || null, projectName: target ? null : projectName }),
     onSuccess: (r) => {
       setResult(r);
       qc.invalidateQueries();
@@ -93,9 +91,7 @@ export function WorkToolsImport() {
   };
 
   const p = preview.data;
-  // R40 (MB-205): a failed preview keeps the chosen file and offers Retry; no status code is shown.
-  const err = fileError;
-  const retryPreview = () => { if (file) preview.mutate({ ...file, mapping: mapping ?? undefined }); };
+  const err = (preview.error instanceof ApiError ? preview.error.message : null) ?? fileError;
   return (
     <Section id="work-tools" title="Work tools" description="Bring boards and task lists over from Trello, Asana, ClickUp, monday.com, Jira, Linear or Notion. Export a CSV file (JSON from Trello, Excel or CSV from monday.com), upload it, check the columns, and import. Running it again with the same file only adds what is new.">
       <div className="space-y-5">
@@ -126,7 +122,6 @@ export function WorkToolsImport() {
           {p && <Badge tone="brand">{p.source === "csv" ? "CSV file" : `From ${p.sourceLabel}`}</Badge>}
         </div>
         {err && <p className="text-sm text-bad" role="alert">{err}</p>}
-        {!err && <ErrorRetry error={preview.error} onRetry={file ? retryPreview : undefined} retrying={preview.isPending} fallback="Couldn't read this file. Check it is an export from the list above." />}
 
         {p && mapping && (
           <>
@@ -194,7 +189,7 @@ export function WorkToolsImport() {
                 <Button type="submit" size="sm" loading={run.isPending} disabled={!mapping.title || !p.total || p.alreadyImported >= p.total}><IconChecklist className="h-4 w-4" aria-hidden />{p.alreadyImported >= p.total ? "All tasks are in" : `Import ${p.total - p.alreadyImported} tasks`}</Button>
                 {p.leftToday < p.total - p.alreadyImported && <span className="text-xs text-subtle">{p.leftToday} can come in today; the rest tomorrow.</span>}
               </div>
-              <ErrorRetry className="sm:col-span-2" error={run.error} onRetry={() => run.mutate()} retrying={run.isPending} fallback="The import stopped. Press Retry and it carries on." />
+              {run.error instanceof ApiError && <p className="text-sm text-bad sm:col-span-2">{run.error.message}</p>}
             </form>
           </>
         )}
