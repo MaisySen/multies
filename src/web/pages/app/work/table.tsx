@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
+import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 import { IconAgent, IconArrowDown, IconArrowUp, IconCalendarDays, IconCheck, IconCircleDot, IconClose, IconMail, IconMove, IconShapes, IconSprint, IconTag, IconTrash, IconUserRound, IconCheckCircle, IconMore } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
@@ -333,12 +334,21 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
     }
   };
 
+  // R43 (MB-210): long lists render only the rows on screen; arrow keys and J/K bring a row in before focusing it.
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const win = useWindowedList({ count: rows.length, estimate: 41, listRef: bodyRef, scrollRef: gridRef });
+  const rowIds = useMemo(() => rows.map((t) => t.id), [rows]);
+  useRevealRow(rowIds, win, bodyRef);
+  const { windowed, scrollToIndex } = win;
+  useEffect(() => { if (windowed && focus) scrollToIndex(focus.r); }, [windowed, focus, scrollToIndex]);
+  const span = columns.length + 1;
+
   const allPicked = rows.length > 0 && rows.every((t) => selected.has(t.id));
   const picked = rows.filter((t) => selected.has(t.id));
 
   return (
     <div className="relative">
-      <div ref={gridRef} role="grid" aria-label="Tasks" aria-multiselectable="true" tabIndex={0} onKeyDown={onKeyDown}
+      <div ref={gridRef} role="grid" aria-label="Tasks" aria-multiselectable="true" aria-rowcount={rows.length + 1} tabIndex={0} onKeyDown={onKeyDown}
         onFocus={(e) => { if (e.target === gridRef.current && !focus && rows.length) setFocus({ r: 0, c: 1 }); }}
         className="max-h-[calc(100dvh-13rem)] overflow-auto rounded-xl border border-line outline-none focus-visible:ring-2 focus-visible:ring-brand/30" data-testid="task-table">
         <table className="w-full border-separate border-spacing-0 text-[13px]">
@@ -360,12 +370,14 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
               ))}
             </tr>
           </thead>
-          <tbody>
-            {rows.map((t, r) => {
+          <tbody ref={bodyRef}>
+            {win.padTop > 0 && <tr aria-hidden="true" data-testid="win-pad-top" style={{ height: win.padTop }}><td colSpan={span} className="p-0" /></tr>}
+            {rows.slice(win.start, win.end).map((t, i) => {
+              const r = win.start + i;
               const isPicked = selected.has(t.id);
               const doneStatus = ctx.statusesFor(t).find((s) => s.category === "done");
               return (
-                <SwipeTr key={t.id} aria-selected={isPicked} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}
+                <SwipeTr key={t.id} aria-selected={isPicked} aria-rowindex={r + 2} data-win-row={String(r)} data-task={t.ref} data-task-id={t.id} className={cn("group", isPicked ? "bg-brand/[0.06]" : "hover:bg-hover")}
                   disabled={selected.size > 0 || editing !== null}
                   right={doneStatus && t.status !== "done" ? { label: "Done", icon: IconCheckCircle, tone: "green", onCommit: () => void writes.edit(t, { statusId: doneStatus.id }, statusDisplay(doneStatus)) } : undefined}
                   left={{ label: "More", icon: IconMore, tone: "grey", onCommit: () => onOpen(t.id) }}
@@ -400,6 +412,7 @@ export function TaskTable({ tasks, projects, onOpen, fields = [], people = [], p
                   </>)} />
               );
             })}
+            {win.padBottom > 0 && <tr aria-hidden="true" data-testid="win-pad-bottom" style={{ height: win.padBottom }}><td colSpan={span} className="p-0" /></tr>}
             {rows.length === 0 && <tr><td colSpan={columns.length + 1} className="px-3 py-10 text-center text-muted">No tasks match these filters.</td></tr>}
           </tbody>
         </table>

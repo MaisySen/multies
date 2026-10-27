@@ -5,6 +5,8 @@ import { cn } from "@/web/lib/cn";
 import { tone } from "@/web/components/app-bits";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, isAgentLike, type Project, type Task } from "./data";
 import { TypeIcon } from "./task-type";
+import { useRef } from "react";
+import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 
 /**
  * R41 (MB-226): the Tasks list on a phone. Below the sm breakpoint each task is one card row, the way native task apps
@@ -14,12 +16,17 @@ import { TypeIcon } from "./task-type";
 export function PhoneTaskList({ tasks, projects, onOpen }: { tasks: Task[]; projects: Project[]; onOpen: (id: string) => void }) {
   const name = (id: string) => projects.find((p) => p.id === id)?.name;
   const multi = new Set(tasks.map((t) => t.projectId)).size > 1;
+  // R43 (MB-210): a long list keeps only the cards on screen in the DOM; spacers hold the scroll height.
+  const listRef = useRef<HTMLUListElement>(null);
+  const win = useWindowedList({ count: tasks.length, estimate: 77, listRef });
   return (
-    <ul className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-e1)]" aria-label="Tasks" data-testid="phone-task-list">
-      {tasks.map((t) => {
+    <ul ref={listRef} className="overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--shadow-e1)]" aria-label="Tasks" data-testid="phone-task-list">
+      {win.padTop > 0 && <li aria-hidden="true" style={{ height: win.padTop }} />}
+      {tasks.slice(win.start, win.end).map((t, i) => {
         const overdue = isOverdue(t);
+        const n = win.start + i;
         return (
-          <li key={t.id} className="border-b border-line last:border-b-0">
+          <li key={t.id} className="border-b border-line last:border-b-0" data-win-row={n} data-task-id={t.id} aria-setsize={tasks.length} aria-posinset={n + 1}>
             <button type="button" onClick={() => onOpen(t.id)} data-testid="phone-task-row"
               className="flex min-h-16 w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 active:bg-hover motion-reduce:transition-none">
               <span className="min-w-0 flex-1">
@@ -42,6 +49,7 @@ export function PhoneTaskList({ tasks, projects, onOpen }: { tasks: Task[]; proj
           </li>
         );
       })}
+      {win.padBottom > 0 && <li aria-hidden="true" style={{ height: win.padBottom }} />}
     </ul>
   );
 }

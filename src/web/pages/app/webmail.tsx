@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { applyMailAction, type MailAction, type MailListData } from "@/web/lib/optimistic-mail"; // R30
 import { SwipeRow } from "@/web/components/ui/swipe-row";
+import { useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
 import { IconAgent, IconArchive, IconArrowLeft, IconAttachment, IconBlock, IconClose, IconCompose, IconFile, IconFileEdit, IconForward, IconInbox, IconMove, IconReply, IconSearch, IconSend, IconShieldAlert, IconShieldCheck, IconSparkle, IconStar, IconTrash, type IconComponent, IconSnooze } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -135,6 +136,9 @@ export function WebmailPage() {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<BulkCall | null>(null);
   const rowIds = useMemo(() => items.map((m) => m.id), [items]);
+  // R43 (MB-210): with Load more a folder can reach thousands of rows; only the rows on screen are rendered.
+  const mailListRef = useRef<HTMLUListElement>(null);
+  const mailWin = useWindowedList({ count: items.length, estimate: 86, listRef: mailListRef });
   const rowKey = rowIds.join(",");
   useEffect(() => { setSel(emptySelection()); setSnoozeOpen(false); }, [mailboxId, folder, q, split]);
   useEffect(() => { setSel((s) => prune(s, rowKey ? rowKey.split(",") : [])); }, [rowKey]);
@@ -310,6 +314,8 @@ export function WebmailPage() {
     open(next.id);
   };
   useEffect(() => { setFocus("mail", focusId); }, [focusId]);
+  const { windowed: mailWindowed, scrollToIndex: mailScrollTo } = mailWin;
+  useEffect(() => { if (mailWindowed && selected) mailScrollTo(rowIds.indexOf(selected)); }, [mailWindowed, selected, rowIds, mailScrollTo]);
   useEffect(() => () => setFocus("mail", null), []);
   useCommandHandlers({
     "mail-next": () => { if (!items.length) return false; step(1); },
@@ -465,12 +471,14 @@ export function WebmailPage() {
                 body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
                 action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">Back to Inbox</ButtonLink> : undefined} />
             ) : (
-              <ul>
-                {items.map((m) => <ListRow key={m.id} m={m} active={m.id === selected} folder={folder}
+              <ul ref={mailListRef}>
+                {mailWin.padTop > 0 && <li aria-hidden="true" style={{ height: mailWin.padTop }} />}
+                {items.slice(mailWin.start, mailWin.end).map((m, i) => <ListRow key={m.id} row={mailWin.start + i} total={items.length} m={m} active={m.id === selected} folder={folder}
                   checked={everything ? !everything.includes(m.id) : sel.ids.includes(m.id)} selecting={hasSel} onCheck={(shift) => toggleRow(m.id, shift)}
                   onOpen={() => (m.folder === "drafts" ? openDraft(m.id) : open(m.id))}
                   onStar={() => act.mutate({ ids: [m.id], action: m.isStarred ? "unstar" : "star" })}
                   onSwipe={hasSel ? undefined : (action) => swipeAct(m.id, action)} />)}
+                {mailWin.padBottom > 0 && <li aria-hidden="true" style={{ height: mailWin.padBottom }} />}
               </ul>
             )}
           {list.hasNextPage && <div className="p-3"><Button variant="ghost" className="w-full" loading={list.isFetchingNextPage} onClick={() => list.fetchNextPage()}>Load more</Button></div>}
@@ -514,10 +522,10 @@ export function WebmailPage() {
   }
 }
 
-function ListRow({ m, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe }: { m: MessageListItem; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void }) {
+function ListRow({ m, row, total, active, folder, onOpen, onStar, checked, selecting, onCheck, onSwipe }: { m: MessageListItem; row?: number; total?: number; active: boolean; folder: View; onOpen: () => void; onStar: () => void; checked: boolean; selecting: boolean; onCheck: (shift: boolean) => void; onSwipe?: (action: "archive" | "snooze") => void }) {
   const who = folder === "sent" || folder === "drafts" ? `To: ${m.to.map((t) => t.name || t.address).join(", ") || "(no recipients)"}` : m.from.name || m.from.address;
   return (
-    <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row">
+    <li className={cn("group relative border-b border-line transition-colors duration-150 ease-out", checked ? "bg-brand-soft/80" : active ? "bg-brand-soft/60" : "hover:bg-hover")} data-selected={checked || undefined} data-testid="mail-row" data-win-row={row} aria-setsize={total} aria-posinset={row === undefined ? undefined : row + 1}>
       <SwipeRow disabled={!onSwipe || selecting} testId="mail-swipe"
         left={onSwipe && folder !== "archive" ? { label: "Archive", icon: IconArchive, tone: "blue", onCommit: () => onSwipe("archive") } : undefined}
         right={onSwipe && folder !== "snoozed" && folder !== "sent" && folder !== "drafts" ? { label: "Snooze", icon: IconSnooze, tone: "orange", onCommit: () => onSwipe("snooze") } : undefined}>
