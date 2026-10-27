@@ -95,6 +95,16 @@ test("5,000 task desktop list: DOM size, scroll frames, keyboard and sticky head
   await expect(focused).toBeVisible();
   await expect(focused).toBeInViewport();
   await expect(focused).toHaveAttribute("aria-rowindex", "62");
+  // J over the page (R31 task focus) walks past the rendered window: the focused row is brought in with its ring.
+  await page.keyboard.press("Escape");
+  await page.locator("body").click({ position: { x: 5, y: 5 } });
+  await grid.evaluate((el) => { el.scrollTop = 0; (document.activeElement as HTMLElement | null)?.blur(); });
+  for (let i = 0; i < 45; i++) await page.keyboard.press("j");
+  const ring = page.locator("[data-kb-focus]");
+  await expect(ring).toHaveCount(1);
+  await expect(ring).toBeInViewport();
+  const at = Number(await ring.getAttribute("data-win-row"));
+  expect(at).toBeGreaterThan(30);
   // The R42 inline Add task row still sits at the foot of the list.
   await expect(page.getByRole("button", { name: /add task/i }).last()).toBeVisible();
 });
