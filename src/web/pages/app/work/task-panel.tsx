@@ -384,8 +384,8 @@ function ConflictBar({ onKeepMine, onUseTheirs }: { onKeepMine: () => void; onUs
     <div role="alert" data-testid="task-conflict"
       className="sticky top-0 z-10 -mx-5 mt-0 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-warn/25 bg-warn-soft/95 px-5 py-2.5 text-[13px] text-fg backdrop-blur motion-safe:animate-[fade-in_160ms_ease-out]">
       <IconWarning className="h-4 w-4 shrink-0 text-warn" aria-hidden="true" />
-      <span className="min-w-0 flex-1">Changed in another tab or by someone else. Keep yours or use theirs.</span>
-      <span className="flex gap-2">
+      <span className="min-w-0 flex-1 basis-[calc(100%-2rem)] sm:basis-0">Changed in another tab or by someone else. Keep yours or use theirs.</span>
+      <span className="ml-auto flex gap-2">
         <Button size="sm" variant="secondary" onClick={onUseTheirs}>Use theirs</Button>
         <Button size="sm" onClick={onKeepMine}>Keep yours</Button>
       </span>
