@@ -6,7 +6,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconCircle, IconEdit, IconFlag, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
+import { IconArrowRightLeft, IconCalendarRange, IconCheckCircle, IconChevronsUpDown, IconCircle, IconClose, IconEdit, IconFlag, IconMore, IconPlay, IconPlus, IconTarget } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { showError } from "@/web/lib/show-error";
 import { Button } from "@/web/components/ui/button";
@@ -109,19 +109,28 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-4">
         <Card className="p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Select aria-label="Sprint" value={sprint.id} onChange={(e) => setPicked(e.target.value)} className="h-9 w-auto! min-w-[150px] text-[13px] font-medium">
+          {/* R46: one row on a phone (picker, the main action, More for the rest); status and dates wrap under it. */}
+          <div className="flex flex-wrap items-center gap-2" data-testid="sprint-header-row">
+            <Select aria-label="Sprint" value={sprint.id} onChange={(e) => setPicked(e.target.value)} className="h-9 w-auto! min-w-0 flex-1 text-[13px] font-medium sm:min-w-[150px] sm:flex-none max-sm:h-11 max-sm:text-[15px]">
               {sprints.map((s) => <option key={s.id} value={s.id}>{s.name}{s.status === "active" ? " (active)" : s.status === "completed" ? " (done)" : ""}</option>)}
             </Select>
-            <StatusBadge status={sprint.status} />
-            <span className="text-[13px] text-muted">{dayLabel(sprint.startAt)} to {dayLabel(sprint.endAt)}</span>
-            <div className="ml-auto flex items-center gap-2">
-              {sprint.status !== "completed" && <Button variant="ghost" size="sm" onClick={() => setEditing(sprint)}><IconEdit className="h-3.5 w-3.5" />Edit</Button>}
-              <Button variant="secondary" size="sm" onClick={() => setEditing("new")}><IconPlus className="h-3.5 w-3.5" />Plan sprint</Button>
+            <div data-header-meta className="flex items-center gap-2 max-sm:order-last max-sm:basis-full">
+              <StatusBadge status={sprint.status} />
+              <span className="text-[13px] tabular-nums text-muted">{dayLabel(sprint.startAt)} to {dayLabel(sprint.endAt)}</span>
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {sprint.status !== "completed" && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setEditing(sprint)}><IconEdit className="h-3.5 w-3.5" />Edit</Button>}
+              <Button variant="secondary" size="sm" className="max-sm:hidden" onClick={() => setEditing("new")}><IconPlus className="h-3.5 w-3.5" />Plan sprint</Button>
               {sprint.status === "planned" && (
                 <Button size="sm" disabled={!!active} title={active ? `${active.name} is still running` : undefined} onClick={() => void start(sprint)}><IconPlay className="h-3.5 w-3.5" />Start sprint</Button>
               )}
               {sprint.status === "active" && <Button size="sm" onClick={() => setCompleting(true)}><IconFlag className="h-3.5 w-3.5" />Complete sprint</Button>}
+              <div className="sm:hidden">
+                <Menu label="More sprint actions" trigger={<Button variant="ghost" size="icon" aria-label="More sprint actions" title="More sprint actions"><IconMore className="h-5 w-5" /></Button>}>
+                  {sprint.status !== "completed" && <MenuItem icon={<IconEdit />} onSelect={() => setEditing(sprint)}>Edit sprint</MenuItem>}
+                  <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>Plan a sprint</MenuItem>
+                </Menu>
+              </div>
             </div>
           </div>
           {sprint.goal && <p className="mt-3 flex items-start gap-2 text-[13.5px] text-fg/90"><IconTarget className="mt-0.5 h-4 w-4 shrink-0 text-brand" />{sprint.goal}</p>}
@@ -287,7 +296,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
   // R45: keyboard selection state (focused row, the Shift run's anchor and what was picked before the run).
   const kb = useRef<{ anchor: number | null; base: Set<number> | null }>({ anchor: null, base: null });
   const reveal = useRef<((i: number) => void) | null>(null);
-  const [moveFor, setMoveFor] = useState<{ ids: string[]; back: number } | null>(null);
+  const [moveFor, setMoveFor] = useState<{ ids: string[]; back: number; docked?: boolean } | null>(null);
   const toggle = (i: number, shift: boolean) => {
     kb.current = { anchor: null, base: null };
     const from = anchor.current; // read now: the state update below runs later
@@ -332,23 +341,35 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
     if (res.state.focus !== focus) reveal.current?.(res.state.focus);
   };
   return (
-    <Card className={cn("relative h-fit overflow-hidden", className)} aria-label="Backlog">
-      <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5">
-        <h2 className="text-[13px] font-semibold">Backlog</h2>
-        <span className="text-[12px] tabular-nums text-subtle">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
+    <Card className={cn("relative h-fit overflow-hidden", pickedIds.length > 0 && "max-sm:mb-24", className)} aria-label="Backlog">
+      <div className="flex min-h-[45px] items-center justify-between gap-2 border-b border-line px-4 py-2.5" data-testid="backlog-header">
+        <h2 className="text-[13px] font-semibold max-sm:text-[15px]">Backlog</h2>
+        <span className="truncate text-[12px] tabular-nums text-subtle max-sm:text-[13px]">{tasks.length} tasks{pts ? `, ${fmtNum(pts)} ${u}` : ""}</span>
       </div>
       {pickedIds.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-brand/[0.05] px-4 py-2" role="toolbar" aria-label="Selected backlog tasks">
-          <span className="text-[12.5px] font-medium tabular-nums">{pickedIds.length} selected{pickedPts ? `, ${fmtNum(pickedPts)} ${u}` : ""}</span>
-          {moveTargets.length > 0 && <span className="hidden items-center gap-1 text-[11.5px] text-subtle sm:inline-flex" data-testid="backlog-move-hint"><Kbd>M</Kbd>move to a sprint</span>}
-          <div className="ml-auto flex items-center gap-1.5">
-            <Button variant="ghost" size="sm" onClick={() => { setPicked(new Set()); anchor.current = null; }}>Clear</Button>
-            {target ? (
-              <Button size="sm" onClick={() => moveTo(target.id, pickedIds)}><IconArrowRightLeft className="h-3.5 w-3.5" />Move {pickedIds.length} to {target.name}</Button>
-            ) : sprints.length > 0 && (
-              <Button size="sm" onClick={() => moveTo(sprints[0].id, pickedIds)}><IconArrowRightLeft className="h-3.5 w-3.5" />Move {pickedIds.length} to {sprints[0].name}</Button>
+        // R46: in the card on desktop; on a phone a bottom toolbar above the safe area (clear, count, sprint picker, Move).
+        <div data-testid="backlog-selection-bar" role="toolbar" aria-label="Selected backlog tasks"
+          className={cn("flex items-center gap-2 border-b border-line bg-brand/[0.05] px-4 py-2 sm:flex-wrap",
+            "max-sm:fixed max-sm:inset-x-0 max-sm:bottom-0 max-sm:z-40 max-sm:gap-1 max-sm:border-b-0 max-sm:border-t max-sm:bg-elevated/95 max-sm:px-2 max-sm:pt-1.5 max-sm:pb-[calc(0.375rem+env(safe-area-inset-bottom))] max-sm:shadow-pop max-sm:backdrop-blur-md",
+            "animate-pop-in motion-reduce:animate-none")}>
+          <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Clear selection" title="Clear selection" onClick={() => { setPicked(new Set()); anchor.current = null; }}><IconClose className="h-5 w-5" /></Button>
+          <span className="min-w-0 whitespace-nowrap text-[12.5px] font-medium tabular-nums max-sm:flex max-sm:flex-col max-sm:text-[14px] max-sm:leading-tight">
+            <span>{pickedIds.length} selected</span>
+            {pickedPts > 0 && <span className="max-sm:text-[12px] max-sm:font-normal max-sm:text-subtle"><span className="max-sm:hidden">, </span>{fmtNum(pickedPts)} {u}</span>}
+          </span>
+          {moveTargets.length > 0 && <span className="hidden items-center gap-1 whitespace-nowrap text-[11.5px] text-subtle sm:inline-flex lg:hidden" data-testid="backlog-move-hint"><Kbd>M</Kbd>move to a sprint</span>}
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <Button variant="ghost" size="sm" className="max-sm:hidden" aria-label="Clear selection" onClick={() => { setPicked(new Set()); anchor.current = null; }}>Clear</Button>
+            {moveTargets.length > 1 && (
+              <Button variant="ghost" size="icon" aria-label="Choose a sprint" title="Choose a sprint"
+                onClick={() => setMoveFor({ ids: pickedIds, back: Math.max(0, ids.indexOf(pickedIds[0])), docked: true })}><IconChevronsUpDown className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></Button>
             )}
           </div>
+          {moveTargets.length > 0 && (
+            <Button size="sm" className="shrink-0 lg:w-full" aria-label={`Move ${pickedIds.length} to ${moveTargets[0].name}`} title={`Move ${pickedIds.length} to ${moveTargets[0].name}`} onClick={() => moveTo(moveTargets[0].id, pickedIds)}>
+              <IconArrowRightLeft className="h-3.5 w-3.5 max-sm:h-4 max-sm:w-4" /><span className="sm:hidden">Move</span><span className="max-sm:hidden">Move {pickedIds.length} to {moveTargets[0].name}</span>
+            </Button>
+          )}
         </div>
       )}
       {tasks.length === 0 ? <p className="px-4 py-6 text-center text-[13px] text-subtle">Nothing waiting. Every open task is in a sprint.</p> : (
@@ -364,7 +385,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
       )}
       <span className="sr-only" aria-live="polite" data-testid="backlog-live">{pickedIds.length ? selectionMessage(pickedIds.length, tasks.length, pickedPts ? `${fmtNum(pickedPts)} ${u}` : undefined) : ""}</span>
       {moveFor && (
-        <KeyMoveMenu count={moveFor.ids.length} sprints={moveTargets}
+        <KeyMoveMenu count={moveFor.ids.length} sprints={moveTargets} docked={moveFor.docked}
           onPick={(to) => { const back = moveFor.back; setMoveFor(null); moveTo(to, moveFor.ids); requestAnimationFrame(() => reveal.current?.(Math.min(back, Math.max(0, ids.length - 1)))); }}
           onClose={() => { const back = moveFor.back; setMoveFor(null); requestAnimationFrame(() => reveal.current?.(back)); }} />
       )}
@@ -376,7 +397,7 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
  * R45: Move to sprint from the keyboard. M on a backlog row opens it for the selection (or that row); arrows pick a
  * sprint, Enter moves, Escape goes back to the row. A sheet over the backlog's header, so it works at 390 px too.
  */
-function KeyMoveMenu({ count, sprints, onPick, onClose }: { count: number; sprints: Sprint[]; onPick: (id: string) => void; onClose: () => void }) {
+function KeyMoveMenu({ count, sprints, onPick, onClose, docked }: { count: number; sprints: Sprint[]; onPick: (id: string) => void; onClose: () => void; docked?: boolean }) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => { ref.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus(); }, []);
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -391,7 +412,7 @@ function KeyMoveMenu({ count, sprints, onPick, onClose }: { count: number; sprin
     e.stopPropagation();
   };
   return (
-    <div className="absolute inset-x-3 top-24 z-40 sm:left-auto sm:w-72" onKeyDown={onKeyDown}>
+    <div className={cn("absolute inset-x-3 top-24 z-40 sm:left-auto sm:w-72", docked && "max-sm:fixed max-sm:top-auto max-sm:bottom-[calc(4.5rem+env(safe-area-inset-bottom))] max-sm:z-50")} onKeyDown={onKeyDown}>
       <div ref={ref} role="menu" aria-label={`Move ${count} to sprint`} data-testid="backlog-move-menu"
         className="animate-pop-in overflow-hidden rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop motion-reduce:animate-none"
         onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onClose(); }}>
