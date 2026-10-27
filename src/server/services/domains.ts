@@ -36,8 +36,6 @@ export function presentDomain(d: DomainRow, deps: Deps, counts?: { mailboxes: nu
  * the domain is kept and still receives mail, mail between Multies addresses works, and it is
  * registered by itself when a slot frees up. Mail is never sent under another domain's name.
  */
-export const SENDING_ERROR_COPY = "We couldn't turn on sending for this domain yet. We'll try again when you check DNS.";
-
 export function sendingState(providerStatus: string) {
   if (providerStatus.startsWith(QUEUED_PREFIX)) {
     return {
@@ -45,11 +43,9 @@ export function sendingState(providerStatus: string) {
       detail: "Waiting for a sending slot with our email service. Your domain is saved and receives mail, and mail inside Multies works. Sending to outside addresses starts by itself when a slot frees up, usually without anything to do on your side.",
     };
   }
-  // R40 (MB-206): never the provider's raw words (they were wrong for a new domain and ended in a double full
-  // stop); those stay in the server log and the stored status.
   return {
     status: providerStatus.startsWith("error:") ? "error" as const : providerStatus === "verified" ? "verified" as const : "pending" as const,
-    detail: providerStatus.startsWith("error:") ? SENDING_ERROR_COPY : null,
+    detail: providerStatus.startsWith("error:") ? providerStatus.slice(6).trim() : null,
   };
 }
 

@@ -12,11 +12,8 @@ import { createPortal } from "react-dom";
 import { cn } from "@/web/lib/cn";
 import { dayWord, lagLabel } from "./schedule-r38";
 
-/** R40: room an "early" pill takes just left of the waiting task's bar, in its own row (labels keep clear of it). */
-export const LEAD_PILL_ROOM = 72;
-
 export interface GapLink { from: string; to: string; lag?: number }
-export interface GapBox { kind: "lag" | "lead"; left: number; width: number; top: number; height: number; barH?: number }
+export interface GapBox { kind: "lag" | "lead"; left: number; width: number; top: number; height: number }
 
 /** Where the gap goes, in chart content pixels. `srcRight` is where the blocker ends, `tgt*` is the waiting task's bar. */
 export function gapGeometry(lag: number, srcRight: number, tgt: { left: number; top: number; height: number }, cellWidth: number): GapBox | null {
@@ -28,16 +25,8 @@ export function gapGeometry(lag: number, srcRight: number, tgt: { left: number; 
     const width = real >= cellWidth / 2 ? real : lag * cellWidth;
     return { kind: "lag", left: srcRight, width, top: tgt.top, height: tgt.height };
   }
-  // R40: a thin bracket on the bar's top edge (inside its own row, so it never reaches the row above); the "early"
-  // pill sits left of the bar at its middle, in the room LEAD_PILL_ROOM keeps free of the bar's own label.
   const width = Math.abs(lag) * cellWidth;
-  return { kind: "lead", left: srcRight - width, width, top: tgt.top - 4, height: 4, barH: tgt.height };
-}
-
-/** R40: the box the "early" pill takes, in chart content pixels (left of the bracket, centred on the bar). */
-export function leadPillBox(g: GapBox, pillWidth = LEAD_PILL_ROOM - 8) {
-  const mid = g.top + 4 + (g.barH ?? 24) / 2;
-  return { left: g.left - 6 - pillWidth, right: g.left - 6, top: mid - 8, bottom: mid + 8 };
+  return { kind: "lead", left: srcRight - width, width, top: tgt.top - 7, height: 5 };
 }
 
 export const gapPill = (lag: number) => (lag > 0 ? `+${lag}d` : `${Math.abs(lag)}d early`);
@@ -46,7 +35,7 @@ export function gapTitle(lag: number, blockerRef: string, workingDays?: boolean)
   return lag > 0 ? `Waits ${unit} after ${blockerRef} ends` : `${lagLabel(lag).replace(dayWord(lag), unit)}, before ${blockerRef} ends`;
 }
 
-export const barSel = (id: string) => `.wx-bar[data-task-id=':${CSS.escape(id)}'], .wx-bar[data-task-id='${CSS.escape(id)}']`;
+const barSel = (id: string) => `.wx-bar[data-task-id=':${CSS.escape(id)}'], .wx-bar[data-task-id='${CSS.escape(id)}']`;
 
 export function LagGaps({ root, links, refs, cellWidth, version, workingDays }: { root: React.RefObject<HTMLElement | null>; links: GapLink[]; refs: Map<string, string>; cellWidth: number; version: string; workingDays?: boolean }) {
   const [state, setState] = useState<{ host: HTMLElement; boxes: (GapBox & { key: string; lag: number; title: string })[] } | null>(null);
@@ -84,7 +73,7 @@ export function LagGaps({ root, links, refs, cellWidth, version, workingDays }: 
       {state.boxes.map((b) => (
         <div key={b.key} data-testid="timeline-lag-gap" data-kind={b.kind} title={b.title} role="img" aria-label={b.title}
           className={cn("absolute motion-safe:animate-[fadeIn_180ms_ease-out]", b.kind === "lag" ? "mm-gap-lag" : "mm-gap-lead")}
-          style={{ left: b.left, width: Math.max(b.width, 2), top: b.top, height: b.height, ["--mm-bar-h" as string]: `${b.kind === "lead" ? b.barH ?? 24 : b.height}px` }}>
+          style={{ left: b.left, width: Math.max(b.width, 2), top: b.top, height: b.height }}>
           <span className="mm-gap-pill pointer-events-auto">{gapPill(b.lag)}</span>
         </div>
       ))}

@@ -7,15 +7,6 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
-### Round 40, deploy 2: steadier under load, reliability fixes from the QA pass, mail archive import (27 Oct 2026)
-
-- Fewer empty "503" errors: the free plan's per request CPU limit started being enforced on 27 Oct around 01:05 UTC, so a hotfix went out at 01:19 (request tracing off, errors still reported; the API description is built once instead of on every request; workspace usage, seats and badge counts use fewer database queries).
-- If Multies doesn't answer for a moment, the app keeps your last workspace on screen with a "Reconnecting" pill and tries again; only a real sign out sends you to sign in. Reads retry quietly; creating a project, task, invite, import or export is never doubled by a retry (one key per action). Couldn't reach Multies messages are plain and offer Retry.
-- Editing a task in two tabs: the other tab refreshes, and a save based on an older copy offers Keep yours or Use theirs instead of overwriting.
-- Faster first load of My Work on slow phones (fewer, larger script files; error reporting and prefetch wait on slow links). Meetings has Start now; New task has Add another; new projects start from Simple, Kanban or Sprint; Tasks on phones uses one Filter button with chips; domain errors use our own words.
-- Move your data: import a mail archive (.mbox, as Gmail Takeout and Apple Mail export it) into a mailbox, read in your browser and sent in small batches, with progress, Pause and a count of messages already there.
-- Timeline labels never sit on top of each other; the demo shows a sample connected mailbox; founders@, finance@ and similar shared addresses are labelled Shared; API keys and webhooks in Developers have a cleaner card layout, and mailbox storage shows on phones.
-
 ### Round 40: fewer empty errors on busy moments, lighter database reads (27 Oct 2026)
 
 - Signed in pages and the API spend less server time per request, so the free plan's per request limit (the cause of the empty "503" errors) is hit far less: the app is built when the server starts instead of inside the first request, a signed in read reuses its checked session for up to 15 seconds on the same server (any change you make, signing out included, is seen at once; account pages and the operator console always check afresh), and request tracing samples fewer requests.

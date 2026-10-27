@@ -38,7 +38,6 @@ export function expectedVersion(c: Context<AppEnv>, fromBody: number | undefined
   return v;
 }
 const sprintFilter = (v: string | undefined) => (v === undefined ? undefined : v === "none" ? null : v);
-import { idempotentId } from "../lib/idempotency"; // R40 (MB-201)
 import {
   CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocAppend, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
 } from "./suite-schemas";
@@ -104,7 +103,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
     description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage, the new task waits there (triage.state pending, source api) until someone accepts it.",
     request: body(TaskCreate), responses: { 201: json(z.object({ task: Task }), "The task."), 401: errors[401], 422: errors[422] } }),
-  async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }, { id: await idempotentId(c.req.raw, "tsk") }) }, 201); }); // R32: waits in Triage when the project uses it
+  async (c) => { const b = c.req.valid("json"); return send(c, { task: await createTask(c.var.deps, actor(c), { ...b, assignee: assigneeOf(b), triage: { source: "api", when: "if_project" } }) }, 201); }); // R32: waits in Triage when the project uses it
 
   api.openapi(createRoute({ method: "post", path: "/tasks/from-email", tags: tag("Tasks"), summary: "Make a task from an email", security: secured,
     description: "One call: the title comes from the subject, the notes from the newest text without quoted history, and the task links to the thread.",
@@ -146,7 +145,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/projects", tags: tag("Projects"), summary: "Create a project", security: secured,
     description: "Statuses are optional: the default is To do, In progress, In review and Done. Each status belongs to a group (todo, doing, done).",
     request: body(ProjectCreate), responses: { 201: json(z.object({ project: Project }), "The project."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { project: await createProject(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "prj") }) }, 201));
+  async (c) => send(c, { project: await createProject(c.var.deps, actor(c), c.req.valid("json")) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/projects/{id}", tags: tag("Projects"), summary: "Get a project", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ project: Project }), "The project."), 401: errors[401], 404: errors[404] } }),
