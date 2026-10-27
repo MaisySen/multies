@@ -5,7 +5,7 @@ import { z } from "zod";
 import { and, count, eq, gt, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { accounts, members, organizations, sessions, users } from "../db/schema";
+import { accounts, invitations, members, organizations, sessions, users } from "../db/schema";
 import { deleteAuth0User, resendAuth0Verification, sendAuth0PasswordReset } from "../services/auth0-management";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
@@ -49,6 +49,25 @@ const onboardingSchema = z.object({
   workspaceTimezone: zone.optional(),
 });
 const preferencesSchema = z.object({ timezone: zone.optional(), locale: localeTag.optional() });
+
+/**
+ * R39 (MB-202): invitations waiting for this person's own confirmed address, in workspaces they are not in
+ * yet. A teammate who signed up from an invite (or confirmed their email later) lands in their own empty
+ * workspace; the app shows these as a "Join" banner so the invite isn't lost. Only once the address is
+ * confirmed: an unconfirmed account proves nothing about the address. One read (at most 5 rows).
+ */
+async function myPendingInvites(deps: AppEnv["Variables"]["deps"], auth: AppEnv["Variables"]["auth"]) {
+  if (!auth.emailVerified || !auth.email) return [];
+  const rows = await deps.db.select({ id: invitations.id, orgId: invitations.organizationId, orgName: organizations.name, role: invitations.role, inviter: users.name })
+    .from(invitations)
+    .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+    .innerJoin(users, eq(users.id, invitations.inviterId))
+    .where(and(eq(invitations.email, auth.email.toLowerCase()), eq(invitations.status, "pending"), gt(invitations.expiresAt, deps.now())))
+    .limit(5);
+  if (!rows.length) return [];
+  const mine = new Set((await deps.db.select({ orgId: members.organizationId }).from(members).where(eq(members.userId, auth.userId))).map((m) => m.orgId));
+  return rows.filter((r) => !mine.has(r.orgId)).map((r) => ({ token: r.id, organization: { name: r.orgName }, role: (r.role ?? "member") as "admin" | "member", invitedBy: r.inviter }));
+}
 
 export function accountRoutes() {
   const resendLimiter = new RateLimiter(3, 10 * 60_000);
@@ -153,6 +172,7 @@ export function accountRoutes() {
         session: { loginMethod: auth.loginMethod ?? "email", ssoBlocked: !!auth.ssoBlocked },
         hasPassword: !!(await c.var.deps.db.select({ password: accounts.password }).from(accounts)
           .where(and(eq(accounts.userId, auth.userId), eq(accounts.providerId, "credential"))).get())?.password,
+        pendingInvites: await myPendingInvites(c.var.deps, auth),
       });
     })
     .post("/onboarding", async (c) => {

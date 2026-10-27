@@ -128,6 +128,16 @@ describe("R39: accepting an invite needs a confirmed matching email", () => {
     expect(team.body.members.map((m: { email: string }) => m.email)).not.toContain("victim@example.com");
   });
 
+  it("lists the pending invite on /me only once the address is confirmed (MB-202)", async () => {
+    const { attacker, db, id } = await setup();
+    expect((await attacker.get("/api/account/me")).body.pendingInvites).toEqual([]);
+    await db.update(users).set({ emailVerified: true }).where(eq(users.email, "victim@example.com"));
+    const me = await attacker.get("/api/account/me");
+    expect(me.body.pendingInvites).toEqual([{ token: id, organization: { name: "Acme" }, role: "admin", invitedBy: "Ada Lovelace" }]);
+    expect((await attacker.post(`/api/invites/${id}/accept`)).status).toBe(200);
+    expect((await attacker.get("/api/account/me")).body.pendingInvites).toEqual([]);
+  });
+
   it("still refuses a different address, and accepts once the address is confirmed", async () => {
     const { attacker, db, app, id } = await setup();
     const other = new Client(app);

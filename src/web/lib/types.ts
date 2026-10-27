@@ -12,6 +12,8 @@ export interface Me {
   session?: { loginMethod: string; ssoBlocked: boolean };
   /** The person has a Multies password (an email and password account); Auth0-only people do not. */
   hasPassword?: boolean;
+  /** R39 (MB-202): invitations for this person's confirmed address, in workspaces they haven't joined yet. */
+  pendingInvites?: { token: string; organization: { name: string }; role: "admin" | "member"; invitedBy: string | null }[];
 }
 
 export interface PublicConfig {

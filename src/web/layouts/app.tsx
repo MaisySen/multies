@@ -25,6 +25,7 @@ import { authClient, signOutEverywhere, type AuthProviders } from "@/web/lib/aut
 import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
+import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
 import { api, ApiError } from "@/web/lib/api";
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -230,6 +231,7 @@ export function AppLayout() {
         </header>
         <ReadOnlyBanner />
         <OfflineBanner />
+        <PendingInviteBanner />
         <main ref={setMainEl} className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className="route-in mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}
         </main>
