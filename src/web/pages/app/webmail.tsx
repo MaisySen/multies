@@ -12,7 +12,7 @@ import { api } from "@/web/lib/api";
 import { qk } from "@/web/lib/queries";
 import type { Folder, Message, MailboxOverview, MessageListItem } from "@/web/lib/types";
 import { Avatar, EmptyState, Kbd, Skeleton } from "@/web/components/ui/misc";
-import { Select } from "@/web/components/ui/input";
+import { PHONE_PICK, Select } from "@/web/components/ui/input";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { formatBytes, fullDate, initials, mailDate } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -400,9 +400,10 @@ export function WebmailPage() {
         </div>
         <div className="px-3">
           <label htmlFor="mailbox-switch" className="sr-only">Mailbox</label>
-          <select id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60">
+          <Select bare id="mailbox-switch" value={mb.id} onChange={(e) => setParam({ mailbox: e.target.value, m: null, q: null })} className="h-9 w-full truncate rounded-lg border border-line bg-surface px-2 text-[13px] outline-none focus:border-brand/60"
+            phoneClassName={`${PHONE_PICK} h-11 w-full px-3`}>
             {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.address}{m.kind === "agent" ? " (agent)" : ""}{m.folders.inbox?.unread ? ` (${m.folders.inbox.unread})` : ""}</option>)}
-          </select>
+          </Select>
         </div>
         <nav className="mt-3 flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Folders">
           {FOLDER_UI.map(({ id, label, icon: Icon }) => {
@@ -723,12 +724,12 @@ function MoveTo({ message: m, mailboxes, onMove, onMoveTo }: { message: Message;
   return (
     <label className="relative flex items-center rounded-md p-2 text-muted hover:bg-hover hover:text-fg" title="Move to folder">
       <IconMove className="h-4 w-4" aria-hidden />
-      <select aria-label="Move to folder" value="" data-testid="move-to"
+      <Select bare aria-label="Move to folder" value="" data-testid="move-to" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
         onChange={(e) => { const to = e.target.value; if (!to) return; if (to.startsWith("f:")) onMoveTo(m, to); else onMove(to); }}
         className="absolute inset-0 cursor-pointer opacity-0">
         <option value="">Move to</option>
         {targets.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-      </select>
+      </Select>
     </label>
   );
 }

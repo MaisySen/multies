@@ -6,6 +6,7 @@ import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
 import type { Mailbox, MailboxOverview } from "@/web/lib/types";
 import { Button } from "@/web/components/ui/button";
+import { Select } from "@/web/components/ui/input";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
@@ -156,9 +157,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
       {!minimized && (
         <form className="flex min-h-0 flex-1 flex-col" onSubmit={(e) => { e.preventDefault(); send(); }}>
           <Row label="From">
-            <select value={d.mailboxId} onChange={set("mailboxId")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="From">
+            <Select bare value={d.mailboxId} onChange={set("mailboxId")} className="h-9 w-full bg-transparent text-sm outline-none" aria-label="From"
+              phoneClassName="flex h-11 w-full min-w-0 items-center bg-transparent text-left text-base text-fg">
               {mailboxes.map((m) => <option key={m.id} value={m.id}>{m.displayName} &lt;{m.address}&gt;</option>)}
-            </select>
+            </Select>
           </Row>
           <Row label="To">
             <input ref={toRef} value={d.to} onChange={set("to")} className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-subtle" placeholder="name@example.com" aria-label="To" autoComplete="off" spellCheck={false} />
@@ -187,9 +189,10 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover" title="How long you have to undo after pressing Send">
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />
-                <select value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window">
+                <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window"
+                  phoneClassName="inline-flex min-h-9 items-center bg-transparent text-left text-[13px]">
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
-                </select>
+                </Select>
               </label>
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />

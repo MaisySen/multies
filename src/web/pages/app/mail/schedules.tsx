@@ -9,6 +9,7 @@ import { isoToZonedInput, zonedDateTime } from "@/web/lib/format";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Button } from "@/web/components/ui/button";
+import { Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import type { MessageListItem } from "@/web/lib/types";
 
@@ -143,9 +144,10 @@ export function RemindSelect({ value, onChange }: { value: number; onChange: (n:
   return (
     <label className={cn("flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] hover:bg-hover", value ? "text-[#0071E3]" : "text-muted")} title="Bring this thread back if nobody replies">
       <IconBellRing className="h-3.5 w-3.5" aria-hidden />
-      <select value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply">
+      <Select bare value={value} onChange={(e) => onChange(Number(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Remind me if no reply"
+        phoneClassName="inline-flex min-h-9 items-center bg-transparent text-left text-[13px]">
         {REMIND_CHOICES.map((n) => <option key={n} value={n}>{n === 0 ? "No reminder" : `Remind in ${n} day${n > 1 ? "s" : ""}`}</option>)}
-      </select>
+      </Select>
     </label>
   );
 }

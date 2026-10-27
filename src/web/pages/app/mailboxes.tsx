@@ -152,9 +152,10 @@ function AddressInput({ domains, domainId, setDomainId, localPart, setLocalPart,
           <input {...p} value={localPart} onChange={(e) => setLocalPart(e.target.value)} placeholder="hello" autoFocus autoComplete="off" spellCheck={false}
             className="h-10 min-w-0 flex-1 bg-surface px-3 text-sm outline-none placeholder:text-subtle" />
           <span className="grid place-items-center border-l border-line bg-elevated px-2 text-sm text-subtle">@</span>
-          <select aria-label="Domain" value={domainId} onChange={(e) => setDomainId(e.target.value)} className="h-10 max-w-[55%] border-l border-line bg-elevated px-2 text-sm outline-none">
+          <Select bare aria-label="Domain" value={domainId} onChange={(e) => setDomainId(e.target.value)} className="h-10 max-w-[55%] border-l border-line bg-elevated px-2 text-sm outline-none"
+            phoneClassName="flex h-11 min-w-0 max-w-[55%] items-center truncate border-l border-line bg-elevated px-3 text-left text-base text-fg">
             {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          </Select>
         </div>
       )}
     </Field>
