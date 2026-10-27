@@ -12,6 +12,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Boards scroll smoothly even when you fling a long column from top to bottom: while a column moves faster than a screen per frame, cards are drawn as light outlines with their title and the full cards return as soon as it slows.
 - Dragging a card with the keyboard (Space, then arrows) keeps it in hand past the cards on screen: the column scrolls with it and the drop lands where it is shown.
 - Backlog keyboard: Shift with arrows selects a run, Space picks or unpicks a task, Ctrl or Cmd with A selects all, Esc clears, and M opens Move to sprint, which works with arrows and Enter. Screen readers hear the selection.
+- Big projects: a board, list or backlog read brings at most 500 tasks. When a read comes back full, the page now says so ("Showing the first 500 tasks") instead of showing counts that only cover those, and the backlog no longer lets done tasks use up its 500, so every open task up to that limit is listed. This corrects the Round 44 note: counts and totals cover every task only up to 500 tasks per project for now.
 
 ### Round 44 (27 Oct 2026)
 
