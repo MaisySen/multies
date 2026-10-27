@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 45 (27 Oct 2026)
+
+- Boards scroll smoothly even when you fling a long column from top to bottom: while a column moves faster than a screen per frame, cards are drawn as light outlines with their title and the full cards return as soon as it slows.
+- Dragging a card with the keyboard (Space, then arrows) keeps it in hand past the cards on screen: the column scrolls with it and the drop lands where it is shown.
+- Backlog keyboard: Shift with arrows selects a run, Space picks or unpicks a task, Ctrl or Cmd with A selects all, Esc clears, and M opens Move to sprint, which works with arrows and Enter. Screen readers hear the selection.
+
 ### Round 44 (27 Oct 2026)
 
 - API: `DELETE /api/v1/projects/{id}` removes a project and its tasks with a workspace key.
