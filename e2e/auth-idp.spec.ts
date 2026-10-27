@@ -44,6 +44,6 @@ test("Create account opens the provider's sign up screen", async ({ page }) => {
     await route.fulfill({ status: 200, body: "provider page", headers: { "content-type": "text/plain" } });
   });
   await page.goto(`${BASE}/signup`);
-  await page.getByRole("button", { name: "Create your account" }).click();
+  await page.getByRole("button", { name: "Sign up with email" }).click(); // R40 (MB-213): the heading keeps "Create your account"
   await expect.poll(() => hint).toBe("signup");
 });

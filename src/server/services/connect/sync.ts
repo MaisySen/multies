@@ -48,7 +48,7 @@ export interface SyncState {
 }
 
 export interface SyncResult {
-  skipped?: "not_found" | "paused" | "auth_failed" | "budget" | "daily_cap" | "busy" | "unchanged";
+  skipped?: "not_found" | "paused" | "auth_failed" | "budget" | "daily_cap" | "busy" | "unchanged" | "sample";
   stored: number;
   duplicates: number;
   flagsUpdated: number;
@@ -121,6 +121,8 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
   const c = await deps.db.select().from(mailConnections).where(eq(mailConnections.id, connectionId)).get();
   if (!c) return { ...empty, skipped: "not_found" };
   if (c.status === "paused") return { ...empty, skipped: "paused" };
+  // R40: the demo's sample connection has no password and a .example host: never open a network connection for it.
+  if ((await import("../demo")).isSampleConnection(c)) return { ...empty, skipped: "sample" };
   if (c.status === "auth_failed" && !opts.force) return { ...empty, skipped: "auth_failed" };
   const now = deps.now();
   // A pass that started under two minutes ago is still running (another invocation took it).

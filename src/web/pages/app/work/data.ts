@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33
+import { announceTaskChange } from "@/web/lib/task-sync-r40"; // R40 (MB-204)
 import { showError } from "@/web/lib/show-error";
 
 export type Category = "todo" | "doing" | "done";
@@ -94,9 +95,10 @@ export function useTaskMutations() {
       return { snapshots };
     },
     onError: (e, _v, ctx) => { for (const [key, list] of ctx?.snapshots ?? []) qc.setQueryData(key, list); showError(e as Error); },
+    onSuccess: (r, v) => announceTaskChange(v.id, r?.task?.version), // R40 (MB-204): other tabs refresh this task
     onSettled: refresh,
   });
-  const create = useMutation({ mutationFn: (body: Record<string, unknown>) => api.post<{ task: Task }>("/tasks", body), onSuccess: refresh, onError: (e) => showError(e as Error) });
+  const create = useMutation({ mutationFn: (body: Record<string, unknown>) => api.create<{ task: Task }>("/tasks", body), onSuccess: refresh, onError: (e) => showError(e as Error) });
   const remove = useMutation({ mutationFn: (id: string) => api.del(`/tasks/${id}`), onSuccess: refresh, onError: (e) => showError(e as Error) });
   return { update, create, remove, refresh };
 }

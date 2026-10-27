@@ -84,12 +84,13 @@ describe("service worker routes (R32)", () => {
 
   it("precaches the entry, its static imports, CSS and fonts, not lazy pages", () => {
     const list = precacheList({
-      "index.html": { file: "assets/index-a.js", isEntry: true, imports: ["_vendor-react"], css: ["assets/index-a.css"], assets: ["assets/inter-latin.woff2", "assets/x.map"] },
+      "index.html": { file: "assets/index-a.js", isEntry: true, imports: ["_vendor-react"], css: ["assets/index-a.css"], assets: ["assets/inter-latin-wght-normal-a1.woff2", "assets/inter-cyrillic-wght-normal-a2.woff2", "assets/jetbrains-mono-latin-wght-normal-a3.woff2", "assets/x.map"] },
       _vendor: { file: "assets/vendor-react-b.js" },
       "_vendor-react": { file: "assets/vendor-react-b.js", imports: ["index.html"] },
       "src/web/pages/app/mail.tsx": { file: "assets/mail-c.js" },
     });
-    expect(list).toEqual(["/assets/index-a.css", "/assets/index-a.js", "/assets/inter-latin.woff2", "/assets/vendor-react-b.js"]);
+    // R40: only the Latin interface font; other subsets and the code font load on use.
+    expect(list).toEqual(["/assets/index-a.css", "/assets/index-a.js", "/assets/inter-latin-wght-normal-a1.woff2", "/assets/vendor-react-b.js"]);
     expect(() => precacheList({})).toThrow();
   });
 

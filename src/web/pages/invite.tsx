@@ -2,8 +2,9 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconCalendarClock, IconShieldCheck, IconUser, IconWarning } from "@/web/components/ui/icon";
 import { authClient } from "@/web/lib/auth-client";
-import { api, ApiError } from "@/web/lib/api";
+import { api, errorMessage, isTransientError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
+import { isSignedOut } from "@/web/lib/me-cache";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { Badge, Skeleton } from "@/web/components/ui/misc";
 import { LOCALE } from "@/shared/locale";
@@ -38,7 +39,9 @@ export function InvitePage() {
     );
   }
   const inv = invite.data;
-  const signedInAs = me.data?.user.email?.toLowerCase();
+  // R40 (MB-200): a failed session check is "reconnecting", never "signed out".
+  const signedInAs = isSignedOut(me.error) ? undefined : me.data?.user.email?.toLowerCase();
+  const meDown = !me.data && !!me.error && isTransientError(me.error);
   const dead = inv.state !== "pending";
 
   return (
@@ -57,8 +60,13 @@ export function InvitePage() {
         </p>
       ) : signedInAs === inv.email ? (
         <>
-          {accept.error && <p className="mt-6 rounded-lg border border-bad/25 bg-bad-soft px-3 py-2 text-sm text-bad">{accept.error instanceof ApiError ? accept.error.message : "Couldn't accept."}</p>}
+          {accept.error && <p className="mt-6 rounded-lg border border-bad/25 bg-bad-soft px-3 py-2 text-sm text-bad">{errorMessage(accept.error, "Couldn't accept.")}</p>}
           <Button size="lg" className="mt-6 w-full" loading={accept.isPending} onClick={() => accept.mutate()}>Accept and open workspace</Button>
+        </>
+      ) : meDown ? (
+        <>
+          <p role="status" className="mt-6 rounded-lg border border-line bg-elevated/60 px-3 py-2 text-sm text-muted">Couldn't reach Multies to check your sign in. Trying again.</p>
+          <Button size="lg" variant="secondary" className="mt-3 w-full" loading={me.isFetching} onClick={() => void me.refetch()}>Retry</Button>
         </>
       ) : signedInAs ? (
         <>
