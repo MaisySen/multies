@@ -12,7 +12,7 @@ import {
   IconArrowLeft, IconArrowRight, IconBoard, IconCalendar, IconChat, IconMail, IconCheck, IconCheckCircle, IconChecklist, IconContacts, IconDatabaseBackup, IconDocs,
   IconDownload, IconFileUp, IconHistory, IconSheet, IconTable, IconTasks, IconUndo, IconUpload, IconWarning,
 } from "@/web/components/ui/icon";
-import { api, ApiError } from "@/web/lib/api";
+import { api, ApiError, newIdempotencyKey } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
 import { Badge, CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -196,13 +196,14 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
     if (!file) return;
     setRunning(true); setRunError(null); setStep(steps.length - 1);
     let moveId: string | null = null;
+    const runKey = newIdempotencyKey("move"); // R40 (MB-201): one key per step, so a retried step never runs twice
     try {
       for (let i = 0; i < 400; i++) {
         const body: Record<string, unknown> = { kind: source.kind, fileName: file.name, content: file.content, mapping: mapping ?? undefined, moveId,
           projectId: target || null, projectName: target ? null : projectName,
           people: Object.fromEntries(Object.entries(who).map(([k, v]) => [k, v === "none" ? "" : v])),
           statusMap: Object.fromEntries(Object.entries(statusMap).filter(([, v]) => v)) };
-        const r: RunAnswer = await api.post<RunAnswer>("/data-moves/imports/run", body);
+        const r: RunAnswer = await api.post<RunAnswer>("/data-moves/imports/run", body, { idempotencyKey: `${runKey}-s${i}` });
         moveId = r.move.id;
         setProgress(r);
         if (r.move.status === "done" || r.stopped !== "time") break;

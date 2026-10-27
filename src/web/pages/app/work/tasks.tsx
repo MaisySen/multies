@@ -1,5 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
@@ -200,7 +199,7 @@ export function TasksPage() {
         {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><IconAssign className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
         {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><IconMountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
         {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
-        <Button variant="ghost" size="sm" onClick={() => setEditing("new")} aria-label="New project"><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">New project</span></Button>
+        <Button variant="ghost" size="sm" onClick={() => setEditing("new")}><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">Project</span></Button>
         <div className="ml-auto flex items-center gap-2">
           <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
             {VIEWS.map((v) => (
@@ -303,13 +302,13 @@ export function TasksPage() {
 
       {openId && <TaskPanel id={openId} onClose={() => set({ task: null })} />}
       {newTask && <NewTaskDialog projects={list} projectId={projectId || list[0]?.id} statusId={newTask.statusId} onClose={() => setNewTask(null)}
-        onCreate={async (body, more) => { const r = await create.mutateAsync(body); if (more) { toast.success(`Added ${r.task.ref}`); return; } setNewTask(null); open(r.task.id); }} />}
+        onCreate={async (body) => { const r = await create.mutateAsync(body); setNewTask(null); open(r.task.id); }} />}
       {editing && <ProjectDialog project={editing === "new" ? null : editing} onClose={() => setEditing(null)} onSaved={(p) => { setEditing(null); set({ project: p.id }); }} />}
     </div>
   );
 }
 
-function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { projects: Project[]; projectId?: string; statusId?: string; onClose: () => void; onCreate: (b: Record<string, unknown>, more: boolean) => Promise<void> }) {
+function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { projects: Project[]; projectId?: string; statusId?: string; onClose: () => void; onCreate: (b: Record<string, unknown>) => Promise<void> }) {
   const people = useAssignees();
   const [title, setTitle] = useState("");
   const [pid, setPid] = useState(projectId ?? "");
@@ -320,24 +319,15 @@ function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { p
   const [type, setType] = useState<TaskType>("task");
   const [busy, setBusy] = useState(false);
   const p = projects.find((x) => x.id === pid);
-  const titleRef = useRef<HTMLInputElement>(null);
-  // R40 (MB-208): "Add another" keeps the dialog open with the same project, column and fields, clears the title and
-  // puts the cursor back, so five tasks in a row is type, Enter, type, Enter. Plain Create task opens the new task.
-  const [keepGoing, setKeepGoing] = useState(!!statusId);
-  const submit = async (more = keepGoing) => {
+  const submit = async () => {
     if (!title.trim()) return;
     setBusy(true);
-    try {
-      await onCreate({ title, projectId: pid || undefined, statusId: sid || undefined, assignee: assignee || null, due: due || null, priority, type }, more);
-      if (more) { setTitle(""); requestAnimationFrame(() => titleRef.current?.focus()); }
-    } catch (e) { showError(e as Error); } finally { setBusy(false); }
+    try { await onCreate({ title, projectId: pid || undefined, statusId: sid || undefined, assignee: assignee || null, due: due || null, priority, type }); } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title="New task" footer={<>
-      <label className="mr-auto inline-flex min-h-10 cursor-pointer items-center gap-2 text-[13px] text-muted"><input type="checkbox" className="h-4 w-4 accent-[#0071E3]" checked={keepGoing} onChange={(e) => setKeepGoing(e.target.checked)} />Add another</label>
-      <Button variant="secondary" onClick={onClose}>{keepGoing ? "Done" : "Cancel"}</Button><Button loading={busy} disabled={!title.trim()} onClick={() => void submit()}>{keepGoing ? "Add task" : "Create task"}</Button></>}>
+    <Dialog open onClose={onClose} title="New task" footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!title.trim()} onClick={submit}>Create task</Button></>}>
       <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Field label="Title">{(f) => <Input {...f} ref={titleRef} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />}</Field>
+        <Field label="Title">{(f) => <Input {...f} autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" />}</Field>
         <TypePicker value={type} onChange={setType} />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Project">{(f) => <Select {...f} value={pid} onChange={(e) => { setPid(e.target.value); setSid(""); }}>{projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>}</Field>
@@ -351,21 +341,6 @@ function NewTaskDialog({ projects, projectId, statusId, onClose, onCreate }: { p
   );
 }
 
-type ProjectTemplate = "simple" | "kanban" | "sprint";
-const PROJECT_TEMPLATES: { id: ProjectTemplate; label: string; hint: string; icon: React.ReactNode }[] = [
-  { id: "simple", label: "Simple", hint: "To do and Done", icon: <IconList className="h-4 w-4" /> },
-  { id: "kanban", label: "Kanban", hint: "A board in three columns", icon: <IconBoard className="h-4 w-4" /> },
-  { id: "sprint", label: "Sprint", hint: "Backlog to review", icon: <IconSprint className="h-4 w-4" /> },
-];
-export function templateStatuses(t: ProjectTemplate): { id: string; name: string; category: Category; color: string; position: number }[] {
-  const rows: [string, Category, string][] = t === "simple"
-    ? [["To do", "todo", "#8a8f98"], ["Done", "done", "#22c55e"]]
-    : t === "sprint"
-      ? [["Backlog", "todo", "#6e6e73"], ["To do", "todo", "#8a8f98"], ["In progress", "doing", "#3b82f6"], ["In review", "doing", "#a855f7"], ["Done", "done", "#22c55e"]]
-      : [["To do", "todo", "#8a8f98"], ["In progress", "doing", "#3b82f6"], ["Done", "done", "#22c55e"]];
-  return rows.map(([name, category, color], position) => ({ id: "", name, category, color, position }));
-}
-
 const SWATCHES = ["#8e8e93", "#5b7fa6", "#4f8a8b", "#5e8c61", "#a3824a", "#a65e5e", "#7d6b9e", "#6e6e73"];
 
 function ProjectDialog({ project, onClose, onSaved }: { project: Project | null; onClose: () => void; onSaved: (p: Project) => void }) {
@@ -374,12 +349,11 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
   // R33: the key is editable; a key another project uses (any case) is refused inline under the field.
   const [key, setKey] = useState(project?.key ?? "");
   const [keyError, setKeyError] = useState<string | null>(null);
-  // R40 (MB-211): a new project starts from a template (name plus one choice); statuses, key and triage sit under
-  // Customize. Project settings for an existing project show everything, as before.
-  const [template, setTemplate] = useState<ProjectTemplate>("kanban");
-  const [customize, setCustomize] = useState(!!project);
-  const [statuses, setStatuses] = useState(project?.statuses.map((s) => ({ ...s })) ?? templateStatuses("kanban"));
-  const pickTemplate = (t: ProjectTemplate) => { setTemplate(t); setStatuses(templateStatuses(t)); };
+  const [statuses, setStatuses] = useState(project?.statuses.map((s) => ({ ...s })) ?? [
+    { id: "", name: "To do", category: "todo" as Category, color: "#8a8f98", position: 0 },
+    { id: "", name: "In progress", category: "doing" as Category, color: "#3b82f6", position: 1 },
+    { id: "", name: "Done", category: "done" as Category, color: "#22c55e", position: 2 },
+  ]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // R21: new mail and form tasks for this project wait in Triage.
@@ -392,7 +366,7 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
     const k = key.trim().toUpperCase();
     const body = { name, ...(k && k !== project?.key ? { key: k } : {}), statuses: statuses.map((s) => ({ ...(s.id ? { id: s.id } : {}), name: s.name, category: s.category, color: s.color })) };
     try {
-      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.post<{ project: Project }>("/projects", body);
+      let r = project ? await api.patch<{ project: Project }>(`/projects/${project.id}`, { ...body, triage }) : await api.create<{ project: Project }>("/projects", body);
       if (!project && triage) r = await api.patch<{ project: Project }>(`/projects/${r.project.id}`, { triage });
       await qc.invalidateQueries({ queryKey: sk.projects }); await qc.invalidateQueries({ queryKey: ["tasks"] });
       onSaved(r.project);
@@ -402,29 +376,10 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
     } finally { setBusy(false); }
   };
   return (
-    <Dialog open onClose={onClose} title={project ? "Project settings" : "New project"} description={project || customize ? "Statuses are the board's columns. Each belongs to a group: to do, doing or done." : "Pick how work moves. You can change it any time."}
+    <Dialog open onClose={onClose} title={project ? "Project settings" : "New project"} description="Statuses are the board's columns. Each belongs to a group: to do, doing or done."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={busy} disabled={!valid} onClick={save}>{project ? "Save" : "Create project"}</Button></>}>
       <div className="space-y-4">
         <Field label="Name" error={error ?? undefined}>{(f) => <Input {...f} value={name} onChange={(e) => setName(e.target.value)} placeholder="Client onboarding" autoFocus />}</Field>
-        {!project && (
-          <div role="radiogroup" aria-label="Template" className="grid grid-cols-3 gap-2">
-            {PROJECT_TEMPLATES.map((t) => (
-              <button key={t.id} type="button" role="radio" aria-checked={template === t.id} onClick={() => pickTemplate(t.id)} data-testid={`template-${t.id}`}
-                className={cn("flex min-h-[88px] flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-[border-color,box-shadow,background-color] duration-150 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40",
-                  template === t.id ? "border-brand bg-brand/5 shadow-[0_0_0_1px_var(--color-brand,#0071E3)]" : "border-line bg-surface hover:border-line-strong")}>
-                <span className={cn("grid h-7 w-7 place-items-center rounded-lg", template === t.id ? "bg-brand text-white" : "bg-elevated text-muted")}>{t.icon}</span>
-                <span className="text-[13px] font-semibold leading-tight">{t.label}</span>
-                <span className="text-[11.5px] leading-snug text-muted">{t.hint}</span>
-              </button>
-            ))}
-          </div>
-        )}
-        {!project && (
-          <button type="button" onClick={() => setCustomize((v) => !v)} aria-expanded={customize} className="inline-flex min-h-9 items-center gap-1.5 text-[13px] font-medium text-brand-hover hover:underline">
-            {customize ? <IconChevronUp className="h-4 w-4" /> : <IconChevronDown className="h-4 w-4" />}Customize
-          </button>
-        )}
-        {customize && <>
         <Field label="Key" hint={keyError ? undefined : "Shown before task numbers, like OPS-12. Letters and digits, up to 6."} error={keyError ?? undefined}>{(f) => <Input {...f} value={key} maxLength={6} onChange={(e) => { setKey(e.target.value.replace(/[^A-Za-z0-9]/g, "").toUpperCase()); setKeyError(null); }} placeholder={project ? "" : "Made from the name"} className="w-32 font-mono uppercase" data-testid="project-key" />}</Field>
         <div>
           <p className="mb-2 text-[13px] font-medium">Statuses</p>
@@ -451,7 +406,6 @@ function ProjectDialog({ project, onClose, onSaved }: { project: Project | null;
           <div><div className="text-[13px] font-medium">Send to triage</div><div className="text-[12px] text-muted">Tasks made from mail rules and forms wait in Triage until someone accepts them.</div></div>
           <Switch checked={triage} onChange={setTriage} label="Send to triage" />
         </div>
-        </>}
       </div>
     </Dialog>
   );

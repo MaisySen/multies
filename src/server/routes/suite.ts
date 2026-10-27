@@ -33,6 +33,7 @@ import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; //
 import { QUERY_MAX_LENGTH } from "../../shared/task-query";
 import { getBoardSettings, setBoardSettings } from "../services/suite/board-settings"; // R34 (MB-186)
 import { BoardPatchSchema } from "./board-schema-r34";
+import { idempotency, idempotentId, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 
 type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
 /** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
@@ -41,6 +42,7 @@ export const assigneeOf = (b: TaskBody) => parseAssignee(b.assignee !== undefine
 export function projectRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201): a retried create returns the first result
     .get("/", async (c) => {
       const archived = c.req.query("archived") === "1";
       let list = await listProjects(c.var.deps, c.var.auth.orgId, { includeArchived: archived });
@@ -48,7 +50,7 @@ export function projectRoutes() {
       if (!list.length && !archived) { await defaultProject(c.var.deps, c.var.auth); list = await listProjects(c.var.deps, c.var.auth.orgId); }
       return c.json({ projects: list });
     })
-    .post("/", async (c) => c.json({ project: await createProject(c.var.deps, c.var.auth, await parseBody(c, ProjectCreate)) }, 201))
+    .post("/", async (c) => c.json({ project: await createProject(c.var.deps, c.var.auth, await parseBody(c, ProjectCreate), { id: await idempotentId(c.req.raw, "prj") }) }, 201))
     .get("/:id", async (c) => c.json({ project: await getProject(c.var.deps, c.var.auth.orgId, c.req.param("id")) }))
     .patch("/:id", async (c) => c.json({ project: await updateProject(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ProjectPatch)) }))
     .delete("/:id", requireAdmin, async (c) => c.json(await deleteProject(c.var.deps, c.var.auth, c.req.param("id"))))
@@ -63,6 +65,7 @@ export function projectRoutes() {
 export function taskRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201)
     .get("/", async (c) => {
       const q = parseQuery(c, TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional() }));
       const fieldFilters = parseFieldFilters(c.req.query());
@@ -84,7 +87,7 @@ export function taskRoutes() {
     })
     .post("/", async (c) => {
       const b = await parseBody(c, TaskCreate);
-      return c.json({ task: await createTask(c.var.deps, c.var.auth, { ...b, assignee: assigneeOf(b) }) }, 201);
+      return c.json({ task: await createTask(c.var.deps, c.var.auth, { ...b, assignee: assigneeOf(b) }, { id: await idempotentId(c.req.raw, "tsk") }) }, 201);
     })
     .post("/from-email", async (c) => {
       const b = await parseBody(c, TaskFromEmail);

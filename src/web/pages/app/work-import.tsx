@@ -67,7 +67,7 @@ export function WorkToolsImport() {
     },
   });
   const run = useMutation({
-    mutationFn: () => api.post<RunResult>("/work-imports/run", { fileName: file!.name, content: file!.content, mapping, projectId: target || null, projectName: target ? null : projectName }),
+    mutationFn: () => api.create<RunResult>("/work-imports/run", { fileName: file!.name, content: file!.content, mapping, projectId: target || null, projectName: target ? null : projectName }),
     onSuccess: (r) => {
       setResult(r);
       qc.invalidateQueries();

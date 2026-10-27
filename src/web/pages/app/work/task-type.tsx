@@ -156,7 +156,7 @@ export function EpicsDialog({ project, onClose, onOpen }: { project: Project; on
     if (!title.trim()) return;
     setBusy(true);
     try {
-      await api.post("/tasks", { title, projectId: project.id, type: "epic" });
+      await api.create("/tasks", { title, projectId: project.id, type: "epic" });
       setTitle(""); await epics.refetch(); void qc.invalidateQueries({ queryKey: ["tasks"] });
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };

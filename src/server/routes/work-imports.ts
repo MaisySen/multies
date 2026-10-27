@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
+import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { MAP_FIELDS } from "../services/work-import/parse";
 import { previewImport, runImport } from "../services/work-import/service";
 
@@ -24,6 +25,7 @@ export const WorkImportRun = WorkImportFile.extend({
 export function workImportRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
+    .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201): a retried import run replays its first answer
     .post("/preview", async (c) => c.json(await previewImport(c.var.deps, c.var.auth, await parseBody(c, WorkImportFile))))
     .post("/run", async (c) => c.json(await runImport(c.var.deps, c.var.auth, await parseBody(c, WorkImportRun))));
 }
