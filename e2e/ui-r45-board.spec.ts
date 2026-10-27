@@ -264,7 +264,9 @@ test("R46 (MB-234): board and backlog read every page, so counts cover a project
   await demo(page);
   // The server sends 500 tasks per page: answer page one with 500 and a cursor, page two with 200 more.
   const paged = (route: import("@playwright/test").Route, title: string) => (async () => {
-    const res = await route.fetch();
+    const real = new URL(route.request().url());
+    real.searchParams.delete("cursor"); // the made up cursor is ours; the real server would refuse it
+    const res = await route.fetch({ url: real.toString() });
     const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
     if (!body?.tasks?.[0]) return route.fulfill({ response: res });
     const b = body.tasks[0];

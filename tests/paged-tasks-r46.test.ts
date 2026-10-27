@@ -95,6 +95,10 @@ describe("R46 paged task lists", () => {
 
 describe("mergeChanged", () => {
   const t = (id: string, position: number, createdAt = "2026-10-27T00:00:00.000Z") => ({ id, position, createdAt }) as unknown as Parameters<typeof mergeChanged>[0][number];
+  it("takes only the tasks the feed named from the answer, so nothing is listed twice", () => {
+    const out = mergeChanged([t("a", 1), t("b", 2)], ["b"], [t("a", 1), t("b", 3), t("z", 4)], true);
+    expect(out.map((x) => x.id)).toEqual(["a", "b"]);
+  });
   it("replaces, removes and places in the board order", () => {
     const out = mergeChanged([t("a", 1), t("b", 2), t("c", 3)], ["b", "c", "d"], [t("c", 0.5), t("d", 2.5)], true);
     expect(out.map((x) => x.id)).toEqual(["c", "a", "d"]);

@@ -46,7 +46,8 @@ const defaultOrder = (a: Task, b: Task) => a.position - b.position || Date.parse
 /** Applies a refresh: each changed id either comes back (placed or replaced) or leaves the list. */
 export function mergeChanged(list: Task[], changed: string[], fresh: Task[], resort: boolean): Task[] {
   const gone = new Set(changed);
-  const byId = new Map(fresh.map((t) => [t.id, t]));
+  // Only tasks the feed named are taken from the answer: anything else in it is ignored, never added twice.
+  const byId = new Map(fresh.filter((t) => gone.has(t.id)).map((t) => [t.id, t]));
   const out: Task[] = [];
   for (const t of list) {
     if (!gone.has(t.id)) out.push(t);
