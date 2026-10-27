@@ -5,10 +5,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
-import { parseBody, parseQuery, requireAuth } from "../middleware";
-import { PageQuery, splitIds } from "./page-query-r46";
+import { parseBody, requireAuth } from "../middleware";
 import {
-  addToSprint, backlog, backlogPage, completeSprint, createSprint, deleteSprint, getSprint, listSprints, MAX_SPRINT_TASKS, removeFromSprint, setEstimateUnit, startSprint, updateSprint,
+  addToSprint, backlog, completeSprint, createSprint, deleteSprint, getSprint, listSprints, MAX_SPRINT_TASKS, removeFromSprint, setEstimateUnit, startSprint, updateSprint,
 } from "../services/suite/sprints";
 import { HttpError } from "../lib/errors";
 
@@ -30,13 +29,7 @@ export function sprintRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => c.json(await listSprints(c.var.deps, c.var.auth, projectParam(c.req.query("projectId")))))
-    .get("/backlog", async (c) => {
-      const projectId = projectParam(c.req.query("projectId"));
-      // R46 (MB-234): paged=1 then cursor reads the whole backlog page by page; ids=a,b refreshes the tasks the change feed names.
-      const q = parseQuery(c, z.object({ projectId: z.string(), ...PageQuery }));
-      if (q.paged || q.ids !== undefined) return c.json(await backlogPage(c.var.deps, c.var.auth, projectId, { cursor: q.cursor, ids: splitIds(q.ids) }));
-      return c.json({ tasks: await backlog(c.var.deps, c.var.auth, projectId) });
-    })
+    .get("/backlog", async (c) => c.json({ tasks: await backlog(c.var.deps, c.var.auth, projectParam(c.req.query("projectId"))) }))
     .post("/", async (c) => {
       const b = await parseBody(c, SprintCreate);
       return c.json({ sprint: await createSprint(c.var.deps, c.var.auth, b.projectId, b) }, 201);

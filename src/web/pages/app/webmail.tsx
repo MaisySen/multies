@@ -36,6 +36,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { jobActionFor, jobConfirmWords, needsConfirm, type JobAction } from "@/web/lib/bulk-confirm-r34"; // R34
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
 import { ArchiveOlderSheet } from "./mail/archive-older-r45"; // R45 (MB-137)
+import { archiveOlderOffered, emptyInboxTitle } from "./mail/archive-older-offer"; // R46
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
@@ -469,7 +470,7 @@ export function WebmailPage() {
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
-          {folder === "inbox" && !q && items.length > 0 && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
+          {archiveOlderOffered({ folder, q, loaded: items.length, inboxTotal: mb.folders.inbox?.total ?? 0 }) && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
             className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-10">
             <IconArchive className="h-3.5 w-3.5" />Archive older</button>}
         </div>
@@ -481,7 +482,7 @@ export function WebmailPage() {
           <ReturnedStrip items={returnedItems} onOpen={openReturned} />
           {list.isPending ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="space-y-2 border-b border-line px-4 py-3.5"><Skeleton className="h-3.5 w-32" /><Skeleton className="h-3.5 w-56" /><Skeleton className="h-3 w-full" /></div>)
             : items.length === 0 ? (
-              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" ? (split && split !== DEFAULT_SPLIT ? "Nothing in this tab" : "Inbox zero") : folderEmpty(folder).title}
+              <EmptyState icon={q ? <IconSearch /> : <IconInbox />} art={q ? <NoSearchResultsArt /> : folder === "inbox" ? <InboxZeroArt /> : <MailFolderArt />} title={q ? "No matches" : folder === "inbox" ? emptyInboxTitle({ split, defaultSplit: DEFAULT_SPLIT, tabs: splitsOn ? splitTabs.length : 0, inboxTotal: mb.folders.inbox?.total ?? 0 }) : folderEmpty(folder).title}
                 body={q ? "Try a different word, a sender's address, or check the spelling." : folder === "inbox" ? `New mail to ${mb.address} lands here.` : folderEmpty(folder).body}
                 action={!q && folder !== "inbox" ? <ButtonLink to="/app/mail" variant="secondary">Back to Inbox</ButtonLink> : undefined} />
             ) : (
@@ -500,7 +501,7 @@ export function WebmailPage() {
         </div>
       </section>
 
-      <ArchiveOlderSheet open={olderOpen} onClose={() => setOlderOpen(false)} mailboxId={mailboxId} asOf={olderOpen ? listAsOf() || new Date().toISOString() : ""} onRun={runArchiveOlder} />
+      <ArchiveOlderSheet open={olderOpen} onClose={() => setOlderOpen(false)} mailboxId={mailboxId} asOf={olderOpen ? listAsOf() || new Date().toISOString() : ""} onRun={runArchiveOlder} everyTab={splitsOn && splitTabs.length > 0} />
       {/* Reader */}
       <section className={cn("min-w-0 flex-1", selected ? "flex" : "hidden md:flex")} aria-label="Message">
         {current || selected ? (

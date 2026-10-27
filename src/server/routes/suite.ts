@@ -11,9 +11,8 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { changesSince } from "../services/suite/common";
-import { PageQuery, splitIds } from "./page-query-r46";
 import {
-  addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listTasksPage, listViews,
+  addComment, assignees, createProject, createTask, createTaskFromThread, createView, defaultProject, deleteProject, deleteTask, deleteView, getProject, listProjects, listTasks, listViews,
   parseAssignee, taskDetail, updateProject, updateTask, addDependency, removeDependency, dependencyLinks, setDependencyLag,
 } from "../services/suite/tasks";
 import { createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
@@ -68,19 +67,12 @@ export function taskRoutes() {
     .use("*", requireAuth)
     .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201)
     .get("/", async (c) => {
-      const { paged, cursor, ids, ...q } = parseQuery(c, TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional(), ...PageQuery }));
+      const q = parseQuery(c, TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional() }));
       const fieldFilters = parseFieldFilters(c.req.query());
       // R26 (MB-86): q is the task query language (plain words still search titles and notes).
       const queryConds = q.q ? applyTaskQuery(q.q, { deps: c.var.deps, actor: c.var.auth }) : undefined;
-      const filters = { ...q, q: undefined, queryConds, includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters, sprintId: q.sprintId === "none" ? null : q.sprintId };
-      // R46 (MB-234): board, list and backlog read every page once (paged=1, then cursor), then refresh only the tasks
-      // the change feed names (ids=a,b,c with the same filters).
-      const pageMode = !!paged || ids !== undefined;
-      const readPage = () => listTasksPage(c.var.deps, c.var.auth, { ...filters, cursor, ids: splitIds(ids) });
-      if (pageMode && (cursor || ids !== undefined)) return c.json(await readPage());
-      let page = pageMode ? await readPage() : null;
-      const list = async () => (pageMode ? (page = await readPage()).tasks : listTasks(c.var.deps, c.var.auth, filters));
-      let tasks = page ? page.tasks : await list();
+      const list = () => listTasks(c.var.deps, c.var.auth, { ...q, q: undefined, queryConds, includeSubtasks: q.includeSubtasks === "true" || (!!q.q && wantsSubtasks(q.q)), fieldFilters });
+      let tasks = await list();
       // A demo opened from the mobile app or the API has its sample seed still waiting: run it
       // here, in this request's own budget, the first time someone lists tasks.
       if (!tasks.length && !fieldFilters.length && Object.values(q).every((v) => v === undefined)) {
@@ -91,7 +83,6 @@ export function taskRoutes() {
           tasks = await list();
         }
       }
-      if (page) return c.json(page);
       return c.json({ tasks });
     })
     .post("/", async (c) => {
