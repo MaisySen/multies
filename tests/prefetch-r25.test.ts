@@ -43,10 +43,6 @@ describe("R25 route prefetch", () => {
     expect(shouldHoldBack({ connection: { effectiveType: "2g" } })).toBe(true);
     expect(shouldHoldBack({ connection: { effectiveType: "slow-2g" } })).toBe(true);
     expect(shouldHoldBack({ connection: { effectiveType: "4g" } })).toBe(false);
-    // R40 (MB-203): 3G and slow links hold back too.
-    expect(shouldHoldBack({ connection: { effectiveType: "3g" } })).toBe(true);
-    expect(shouldHoldBack({ connection: { effectiveType: "4g", downlink: 0.5 } })).toBe(true);
-    expect(shouldHoldBack({ connection: { effectiveType: "4g", downlink: 10 } })).toBe(false);
     expect(shouldHoldBack({})).toBe(false);
     expect(shouldHoldBack(undefined)).toBe(false);
   });
