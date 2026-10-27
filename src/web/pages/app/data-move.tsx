@@ -24,7 +24,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { useAssignees, useProjects } from "./work/data";
 import { ImportSection } from "./import-section";
 import { Section } from "./settings";
-import { BACKGROUND_COPY, MboxImport } from "./data-move-mbox"; // R40 mbox upload; R43 background copy switch
+import { MboxImport, useBackgroundCopy } from "./data-move-mbox"; // R40 mbox upload; R43 background copy switch
 
 type Kind = "tasks" | "calendar" | "contacts" | "docs" | "workspace" | "mail";
 type Group = "todo" | "doing" | "done";
@@ -155,6 +155,7 @@ export function ImportExportSettings() {
 // ------------------------------------------------------------------ wizard
 
 function ImportWizard({ source, onClose }: { source: Source; onClose: () => void }) {
+  const backgroundCopy = useBackgroundCopy();
   const qc = useQueryClient();
   const projects = useProjects();
   const people = useAssignees();
@@ -361,7 +362,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
         {step === steps.length - 1 && (
           <div className="flex flex-col items-center gap-3 py-4 text-center" role="status" aria-live="polite" data-testid="move-progress">
             <ProgressRing value={running && !progress ? null : pct} label="Import progress" />
-            {running && <p className="text-sm text-muted">Bringing {noun} in{progress ? `: ${progress.move.done} of ${progress.move.total}` : ""}. {BACKGROUND_COPY && progress?.move.background ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes."}</p>}
+            {running && <p className="text-sm text-muted">Bringing {noun} in{progress ? `: ${progress.move.done} of ${progress.move.total}` : ""}. {backgroundCopy && progress?.move.background ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes."}</p>}
             {!running && progress && <ImportSummary move={progress.move} stopped={progress.stopped} onRetry={() => void start(progress.move.id)} noun={noun} />}
             <ErrorRetry error={runError} onRetry={running ? undefined : () => void start(progress?.move.id ?? null)} retrying={running} fallback="The import stopped. Press Retry, or choose the same file again later, and it carries on from where it stopped." />
           </div>
@@ -395,6 +396,7 @@ function previewRows(p: Preview): string[][] {
 }
 
 function ImportSummary({ move, stopped, onRetry, noun }: { move: Move; stopped: string | null; onRetry: () => void; noun: string }) {
+  const backgroundCopy = useBackgroundCopy();
   const [confirm, setConfirm] = useState(false);
   const [undone, setUndone] = useState(false);
   const undo = useUndo(move.id, () => { setConfirm(false); setUndone(true); });
@@ -405,7 +407,7 @@ function ImportSummary({ move, stopped, onRetry, noun }: { move: Move; stopped: 
       {move.counts.comments ? <p className="text-sm text-muted">{move.counts.comments} comments came with them.</p> : null}
       {stopped === "daily_cap" && <p className="text-sm text-muted">A workspace can bring in 2,000 tasks a day. Choose the same file tomorrow and it carries on from where it stopped.</p>}
       {stopped === "write_budget" && <p className="text-sm text-muted">Big imports are paused for today. Choose the same file tomorrow and it carries on from where it stopped.</p>}
-      {move.status !== "done" && stopped !== "daily_cap" && stopped !== "write_budget" && <p className="text-sm text-muted" data-testid="move-paused-note">{BACKGROUND_COPY && move.background ? "This import carries on by itself, even if you close this page. We email you when it's done." : "Imports run only while this page is open. Carry on now, or choose the same file again later and it picks up where it stopped."}</p>}
+      {move.status !== "done" && stopped !== "daily_cap" && stopped !== "write_budget" && <p className="text-sm text-muted" data-testid="move-paused-note">{backgroundCopy && move.background ? "This import carries on by itself, even if you close this page. We email you when it's done." : "Imports run only while this page is open. Carry on now, or choose the same file again later and it picks up where it stopped."}</p>}
       <div className="flex flex-wrap justify-center gap-2 pt-1">
         {move.status !== "done" && <Button size="sm" variant="outline" onClick={onRetry}>Carry on</Button>}
         {move.projectId && <Link to={`/app/tasks?project=${move.projectId}&view=list`} className="inline-flex h-8 items-center gap-1 rounded-lg px-3 text-[13px] font-medium text-brand hover:bg-brand-soft">Open project<IconArrowRight className="h-4 w-4" aria-hidden /></Link>}

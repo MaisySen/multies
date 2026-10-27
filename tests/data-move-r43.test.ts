@@ -165,3 +165,21 @@ describe("R43 a mail archive import finishes after its page closes", () => {
     expect((await keep(ctx, c, id, "part=0&parts=1", "a")).status).toBe(422);
   });
 });
+
+describe("R43 IMPORT_STEP_CAP_ORGS (a live check on production)", () => {
+  it("takes one item steps only in the named workspace, so a tiny file still exercises the background finish", async () => {
+    const { ctx, c, store } = await setup({});
+    const plain = await c.post("/api/data-moves/imports/run", { kind: "calendar", fileName: "plain.ics", content: ics });
+    expect(plain.body.move).toMatchObject({ status: "done", done: 3, total: 3 });
+    expect(store.data.size).toBe(0);
+    const orgId = (await row(ctx, plain.body.move.id as string)).orgId;
+    (ctx.deps.config as { importStepCapOrgs?: string[] }).importStepCapOrgs = ["org_someoneelse", orgId];
+    const two = ["BEGIN:VCALENDAR", "VERSION:2.0", ...ev(7), ...ev(8), "END:VCALENDAR", ""].join("\r\n");
+    const capped = await c.post("/api/data-moves/imports/run", { kind: "calendar", fileName: "two.ics", content: two });
+    expect(capped.body.move).toMatchObject({ status: "stopped", done: 1, total: 2, background: true });
+    expect(store.data.size).toBe(1);
+    await quiet(ctx, capped.body.move.id as string);
+    expect(await continueKeptMoves(ctx.deps)).toMatchObject({ continued: 1, finished: 1 });
+    expect(store.data.size).toBe(0);
+  });
+});

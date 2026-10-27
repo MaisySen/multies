@@ -292,7 +292,8 @@ export async function runMoveStep(deps: Deps, actor: SuiteActor, input: ImportIn
     if (await budgetStop(deps)) { stopped = "write_budget"; break; }
     if (done > m.done && Date.now() - started > STEP_MS) { stopped = "time"; break; }
     // R43: staging takes small steps (IMPORT_STEP_MAX_ITEMS), so a small file still exercises the background finish.
-    const cap = deps.config.importStepMaxItems;
+    // R43: a workspace named in IMPORT_STEP_CAP_ORGS takes one item steps (a live check on production).
+    const cap = deps.config.importStepMaxItems ?? (deps.config.importStepCapOrgs?.includes(actor.orgId) ? 1 : undefined);
     if (cap && done - m.done >= cap) { stopped = "time"; break; }
     const part = items.slice(done, done + Math.min(input.kind === "docs" ? 10 : CHUNK, cap ?? CHUNK));
     if (input.kind === "contacts") {

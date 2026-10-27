@@ -27,6 +27,8 @@ export interface PublicConfig {
   scheduling?: boolean;
   /** Round 25: identity provider connections shown as sign in buttons ("google-oauth2", "windowslive"). */
   socialConnections?: string[];
+  /** R43: the import pages say a run carries on after the page closes (BACKGROUND_COPY, set once proven live). */
+  backgroundCopy?: boolean;
   mxHosts: { host: string; priority: number }[];
   plans: Plan[];
   sentry: { dsn: string; environment: string; release?: string; tracesSampleRate?: number } | null;

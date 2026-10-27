@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconCheckCircle, IconMail, IconUpload, IconWarning } from "@/web/components/ui/icon";
 import { api, newIdempotencyKey } from "@/web/lib/api";
-import { useMailboxes } from "@/web/lib/queries";
+import { useConfig, useMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Field, Select } from "@/web/components/ui/input";
 import { ErrorRetry } from "@/web/components/reconnecting-r40";
@@ -17,8 +17,9 @@ type Counts = { stored: number; duplicates: number; unreadable: number };
 interface BatchAnswer { move: { id: string; status: string; done: number; total: number }; counts: Counts }
 type Phase = "pick" | "reading" | "running" | "paused" | "done" | "stopped";
 
-/** R43: the kept copy lets the server finish a run after the page closes. Its words change only once that is proven live. */
-export const BACKGROUND_COPY = false;
+/** R43: the kept copy lets the server finish a run after the page closes. Its words change only once that is proven live
+ * (the server's BACKGROUND_COPY, read from /api/config). */
+export function useBackgroundCopy() { return !!useConfig().data?.backgroundCopy; }
 const KEEP_MAX_BYTES = 100 * 1024 * 1024;
 const PART_CHARS = 2_000_000;
 
@@ -38,6 +39,7 @@ export function keepParts(lines: string[], partChars = PART_CHARS) {
 export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (value: number | null, label: string) => ReactNode }) {
   const qc = useQueryClient();
   const boxes = useMailboxes();
+  const backgroundCopy = useBackgroundCopy();
   const input = useRef<HTMLInputElement>(null);
   const [mailboxId, setMailboxId] = useState("");
   const [fileName, setFileName] = useState<string | null>(null);
@@ -173,7 +175,7 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
               {phase === "done" ? `Done: ${counts.stored} ${counts.stored === 1 ? "message" : "messages"} brought in` : phase === "stopped" ? `Stopped at ${done} of ${total}` : `${done} of ${total} messages`}
             </p>
             <p className="truncate text-[13px] text-muted">{fileName} into {box?.address ?? "your mailbox"}</p>
-            {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">{BACKGROUND_COPY && kept ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped."}</p>}
+            {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">{backgroundCopy && kept ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped."}</p>}
             {(counts.duplicates > 0 || counts.unreadable > 0) && (
               <p className="text-[13px] text-muted" data-testid="mbox-skipped">
                 {counts.duplicates > 0 && `${counts.duplicates} already here`}{counts.duplicates > 0 && counts.unreadable > 0 && ", "}{counts.unreadable > 0 && `${counts.unreadable} could not be read`}

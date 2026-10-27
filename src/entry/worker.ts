@@ -6,9 +6,8 @@
 import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
-import * as Sentry from "@sentry/cloudflare";
 import { env as startupEnv } from "cloudflare:workers";
-import { sentryPrivacy } from "../shared/sentry-scrub";
+import { configureReporting, flushReporting, reportException, reportingClientExists, type ReportingEnv } from "./reporting";
 import { drizzle } from "drizzle-orm/d1";
 import { createApp } from "../server/app";
 import { loadConfig } from "../server/config";
@@ -111,16 +110,8 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
   const deps: Deps = {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
     log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
-    reportError: config.sentry.dsnApi ? (err, context) => {
-      // A report about another environment (an uptime cross check) carries that environment, not this worker's.
-      const about = typeof context?.environment === "string" ? context.environment : null;
-      if (!about) return Sentry.captureException(err, { extra: context });
-      return Sentry.withScope((scope) => {
-        scope.addEventProcessor((e) => ({ ...e, environment: about }));
-        scope.setTag("reported_by", config.sentry.environment);
-        return Sentry.captureException(err, { extra: context });
-      });
-    } : undefined,
+    // R43 (MB-199): reported through our own lazily created client (src/entry/reporting.ts), not a request wrapper.
+    reportError: config.sentry.dsnApi ? (err, context) => reportException(err, context) : undefined,
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     importFiles: env.IMPORT_FILES ? kvImportFileStore(env.IMPORT_FILES) : undefined, // R43
     openSocket: workerSocketOpener,
@@ -503,49 +494,80 @@ const handler = {
 
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
-    ctx.waitUntil(runMaintenanceIfMigrated(deps));
+    // R43: what the maintenance run reports is sent before the run ends.
+    ctx.waitUntil(runMaintenanceIfMigrated(deps).finally(() => flushReporting()));
   },
 };
 
 const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;
 
-function tracesRate(env: WorkerEnv): number | undefined {
-  const rate = Number((typeof env.SENTRY_TRACES_SAMPLE_RATE === "string" ? env.SENTRY_TRACES_SAMPLE_RATE : undefined) ?? buildEnv.SENTRY_TRACES_SAMPLE_RATE ?? 0.1);
-  return rate > 0 ? rate : undefined;
+/** R43: the reporting settings (no SDK work; the client is made only when an error is reported). */
+function reportingEnv(env: WorkerEnv): ReportingEnv {
+  const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
+  return {
+    dsn: str(env.SENTRY_DSN_API) ?? buildEnv.SENTRY_DSN_API,
+    environment: str(env.SENTRY_ENVIRONMENT) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
+    release: str(env.RELEASE) ?? buildEnv.RELEASE,
+  };
 }
 
-/** Sentry wraps the handler when SENTRY_DSN_API is set; without it the SDK stays off. */
-const sentryWrapped = Sentry.withSentry((rawEnv: unknown) => {
-  const env = rawEnv as WorkerEnv;
-  const dsn = (typeof env.SENTRY_DSN_API === "string" ? env.SENTRY_DSN_API : undefined) ?? buildEnv.SENTRY_DSN_API;
-  if (!dsn) return undefined;
-  return {
-    dsn,
-    environment: (typeof env.SENTRY_ENVIRONMENT === "string" ? env.SENTRY_ENVIRONMENT : undefined) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
-    release: (typeof env.RELEASE === "string" ? env.RELEASE : undefined) ?? buildEnv.RELEASE,
-    // R40 (MB-199): a rate of 0 turns tracing off completely (no spans are made at all), which saves CPU on every
-    // request under the free plan's 10 ms limit. Errors are still reported.
-    tracesSampleRate: tracesRate(env),
-    // sendDefaultPii stays at its default (off); the scrubber runs on every event.
-    beforeSend: sentryPrivacy.beforeSend,
-    beforeSendTransaction: sentryPrivacy.beforeSendTransaction,
-  };
-}, handler as never);
+/**
+ * R43: a deliberately thrown error, to prove end to end that an error escaping a request still reaches error
+ * reporting. Answers only POST /api/_report-test with the header x-report-test equal to the REPORT_TEST_TOKEN secret
+ * (at least 32 characters). Without that secret set (the normal state) the path is an ordinary 404.
+ */
+export class ReportTestError extends Error {}
+function reportTest(request: Request, env: WorkerEnv) {
+  const token = typeof env.REPORT_TEST_TOKEN === "string" ? env.REPORT_TEST_TOKEN : "";
+  if (token.length < 32 || request.method !== "POST") return;
+  if (new URL(request.url).pathname !== "/api/_report-test") return;
+  const given = request.headers.get("x-report-test") ?? "";
+  let diff = given.length ^ token.length;
+  for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ given.charCodeAt(i % Math.max(1, given.length));
+  if (diff !== 0) return;
+  throw new ReportTestError(`Multies API report test (${new Date().toISOString()})`);
+}
 
 /*
  * R42: the real entry points put the platform classes back first (a no-op unless a startup warm up is somehow
  * still holding its stand ins), so no real request or cron run ever sees them.
  */
-const wrapped = sentryWrapped as unknown as { fetch(r: Request, e: unknown, c: unknown): Promise<Response>; scheduled(ev: unknown, e: unknown, c: unknown): Promise<void> };
 // One line per isolate, on its first request: whether the startup warm up ran and how it went (MB-199 evidence in
-// the tail; startup logs themselves are not delivered there).
+// the tail; startup logs themselves are not delivered there). reportingClientBefore must stay false: nothing makes a
+// reporting client before a real error (R42 incident, R43 lazy client).
 let firstRequestSeen = false;
 function noteFirstRequest(request: Request) {
   if (firstRequestSeen) return;
   firstRequestSeen = true;
-  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport, reportingClientBefore: Boolean((globalThis as Record<string, unknown>).__SENTRY_CLOUDFLARE_CLIENT__) })); } catch { /* never in the way */ }
+  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport, reportingClientBefore: reportingClientExists() || Boolean((globalThis as Record<string, unknown>).__SENTRY_CLOUDFLARE_CLIENT__), reporting: "lazy" })); } catch { /* never in the way */ }
 }
 export default {
-  fetch(request: Request, env: unknown, ctx: unknown) { endWarmup(); noteFirstRequest(request); return wrapped.fetch(request, env, ctx); },
-  scheduled(event: unknown, env: unknown, ctx: unknown) { endWarmup(); return wrapped.scheduled(event, env, ctx); },
+  async fetch(request: Request, env: unknown, ctx: unknown) {
+    endWarmup(); noteFirstRequest(request);
+    const e = env as WorkerEnv, c = ctx as ExecutionContext;
+    configureReporting(reportingEnv(e));
+    try {
+      reportTest(request, e);
+      return await handler.fetch(request, e, c);
+    } catch (err) {
+      const eventId = reportException(err, { method: request.method, path: new URL(request.url).pathname, where: "worker.fetch" });
+      c.waitUntil(flushReporting());
+      if (err instanceof ReportTestError) return Response.json({ error: { code: "report_test", message: "Test error sent to error reporting.", details: { eventId: eventId ?? null } } }, { status: 500 });
+      throw err;
+    } finally {
+      if (reportingClientExists()) c.waitUntil(flushReporting());
+    }
+  },
+  async scheduled(event: unknown, env: unknown, ctx: unknown) {
+    endWarmup();
+    const e = env as WorkerEnv, c = ctx as ExecutionContext;
+    configureReporting(reportingEnv(e));
+    try {
+      await handler.scheduled(event, e, c);
+    } catch (err) {
+      reportException(err, { where: "worker.scheduled" });
+      c.waitUntil(flushReporting());
+      throw err;
+    }
+  },
 };

@@ -100,7 +100,8 @@ export function CardQuickEdits({ t, project }: { t: Task; project: Project }) {
       </span>
       <Menu align="end" label={t.assignee ? `Assignee: ${t.assignee.name}` : "Assign"} trigger={
         <button type="button" className={chip} data-testid="card-assignee">
-          {t.assignee ? <Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /> : <IconUser className="h-3.5 w-3.5" />}
+          {/* R43: the initials are decoration; the button's name is "Assignee: <name>" (axe label-content-name-mismatch). */}
+          {t.assignee ? <span aria-hidden="true" className="contents"><Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /></span> : <IconUser className="h-3.5 w-3.5" />}
         </button>}>
         <MenuItem onSelect={() => t.assigneeId && save({ assignee: null }, (x) => ({ ...x, assigneeId: null, assignee: null }))} icon={<IconUser className="h-3.5 w-3.5" />}>No one</MenuItem>
         {(people.data ?? []).slice(0, 12).map((p) => (

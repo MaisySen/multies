@@ -352,6 +352,8 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
+      backgroundCopy: !!deps.config.backgroundCopy,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
       socialConnections: deps.config.auth.socialConnections ?? [],
       // R32: the VAPID public key a browser subscribes with (absent when web push is off).

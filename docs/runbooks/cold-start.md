@@ -30,3 +30,21 @@ real request, cron run and Durable Object handler. Per isolate caches are cleare
   `node scripts/cold/build-profile.mjs /tmp/cold/_worker.js && cp /tmp/cold/_worker.js /tmp/cold/w.mjs &&
   node --import ./scripts/cold/register.mjs scripts/cold/record-fixture.mjs /tmp/cold/w.mjs`
   (the fixture is a fresh local demo workspace; tests/warmup-r42.test.ts checks it holds only test addresses).
+
+## R43: no per request error reporting wrapper (src/entry/reporting.ts)
+
+The R43 workerd profile (files/multies-r43/cpu-first-pass.md) showed the reporting SDK's request wrapper as the biggest
+single block of a new isolate's first request: about 17 ms of about 45 ms (its init, isolation scope and request
+span), and about 0.8 ms on every warm request, with tracing already off. R43 removed the wrapper:
+
+- `src/entry/worker.ts` wraps fetch and scheduled in our own try/catch. `deps.reportError` (the API's error handler,
+  the cron, background jobs) and anything that escapes a request or a cron run go to `reportException`.
+- The reporting client is created lazily, on the first error in an isolate, always with the real address
+  (`SENTRY_DSN_API`, read per request; never at startup and never by the warm up). Errors only: no tracing, no
+  request spans, the same privacy scrubber. Queued events leave on `flushReporting()` inside `ctx.waitUntil`.
+- `[isolate] first request` now also says `"reporting":"lazy"`; `reportingClientBefore` must still be false.
+- End to end check: `POST /api/_report-test` with header `x-report-test` equal to the `REPORT_TEST_TOKEN` secret
+  (at least 32 characters) throws a test error through the outer catch and answers 500 with the event id. Without the
+  secret (the normal state) the path is a plain 404. Set it with `wrangler secret put REPORT_TEST_TOKEN` (value on
+  stdin, never in argv), run the check once, then `wrangler secret delete REPORT_TEST_TOKEN`.
+- Admins can still send a handled test event from Operations (`POST /api/admin/sentry-test`).
