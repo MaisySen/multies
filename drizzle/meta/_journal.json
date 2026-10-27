@@ -554,6 +554,20 @@
       "when": 1793000145000,
       "tag": "0086_r43_kept_import_files",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "6",
+      "when": 1793000146000,
+      "tag": "0087_r48_task_row_counts",
+      "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "6",
+      "when": 1793000147000,
+      "tag": "0088_r48_project_status_counts",
+      "breakpoints": true
     }
   ]
 }
