@@ -4,6 +4,7 @@
  * so the timeline, the sync feed and webhooks all read the same truth. The timeline reads `activity_feed`
  * (old activity rows plus change rows with a verb).
  */
+import { notifyLiveChanges } from "../../realtime/changes-live-r47"; // R47 (MB-139)
 import { and, desc, eq, gt } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { activity, activityFeed, changes } from "../../db/schema";
@@ -64,7 +65,12 @@ export async function recordWrite(deps: Deps, a: SuiteActor, w: {
   const change: typeof changes.$inferInsert = changeRow(a.orgId, actor, deps.now(), w);
   try {
     if (deps.writeBuffer) deps.writeBuffer.changes.push(change);
-    else await deps.db.insert(changes).values(change);
+    else if (!deps.chatLive) await deps.db.insert(changes).values(change);
+    else {
+      // R47 (MB-139): the new feed position goes to open task lists over the live socket.
+      const [row] = await deps.db.insert(changes).values(change).returning({ seq: changes.seq });
+      await notifyLiveChanges(deps, a.orgId, row?.seq);
+    }
   } catch (err) {
     deps.reportError?.(err, { where: "recordWrite", entity: w.entityType });
   }

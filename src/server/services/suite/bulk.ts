@@ -17,6 +17,7 @@
  * Write budget: at shed the action is refused; at warn it runs but the summary activity row and
  * the assignment notification are skipped.
  */
+import { notifyLiveChanges } from "../../realtime/changes-live-r47"; // R47 (MB-139)
 import { and, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { activity, automations, changes, projectStatuses, projects, taskFieldValues, tasks, webhookEndpoints } from "../../db/schema";
@@ -293,6 +294,7 @@ export async function bulkUpdateTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   }
   const { runBatch } = await import("../../db");
   await runBatch(deps.db, stmts);
+  await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)
 
   // Finishing a repeating task makes the next one: that path is updateTask's, one task at a time.
   for (const t of repeatToDone) {
@@ -376,6 +378,7 @@ export async function bulkDeleteTasks(deps: Deps, actor: SuiteActor, idsOrRefs: 
   }
   const { runBatch } = await import("../../db");
   await runBatch(deps.db, stmts);
+  await notifyLiveChanges(deps, actor.orgId, 0); // R47 (MB-139)
   if (await hookTargets(deps, actor.orgId, "task.deleted")) {
     const { emitEvent } = await import("../developer/webhooks");
     const a = actorOf(actor);
