@@ -39,8 +39,11 @@ node scripts/creds.mjs run RESEND_API_KEY -- node scripts/auth-mail-check.mjs --
 
 * Read only part: the tenant's email provider is on, and it logged no failed email (`fn`) in the window.
 * `--probe`: creates a throwaway user at a plus address of our test inbox (`~/.multies-secrets/auth-mail-probe.json`) with verify_email on,
-  waits until Resend shows that confirmation as sent or delivered (or the tenant logs a failure),
-  then deletes the user. About 10 seconds, one email.
+  waits until Resend reports that confirmation delivered, bounced or failed (or the tenant logs a failure),
+  then deletes the user. Usually about 10 seconds, one email. R44: it keeps waiting while the email is
+  still "queued" at Resend, up to `--probe-seconds` (180 by default); still queued at the end is a failure,
+  and "sent" with no delivery report yet counts as sent. On 27 Oct (R43b) the old 60 second wait gave up
+  at "queued" while the email went out a little later, so a green smoke now means the email really left.
 * `scripts/smoke.sh` runs it on production deploys (step 6). `SMOKE_AUTH_MAIL=0` skips it.
   Exit 1 is a failure, exit 2 means it could not run (no secrets on this machine), a warning.
 
