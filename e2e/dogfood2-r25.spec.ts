@@ -17,32 +17,14 @@ test.beforeAll(async ({ browser }) => {
 });
 test.afterAll(async () => { await ctx?.close(); });
 
-test("team: invite with a title and bio, see the title on the pending invitation", async () => {
+test("team: in the demo, Invite is off with the reason shown, and the server refuses invites (R41; titles are covered by unit tests)", async () => {
+  // R40 deploy 3 (MB-220) turned demo invites off on the server; R41 shows that in the UI.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/app/settings/team");
   const invite = page.getByRole("button", { name: "Invite", exact: true });
   await expect(invite).toBeVisible();
-  if (await invite.isDisabled()) {
-    // The demo's seats are full: revoke one pending invitation to free a seat.
-    // R33: revoking is a two-tap confirm ("Revoke?"), so tap the same button twice.
-    const revoke = page.getByRole("button", { name: /^Revoke invitation for / }).first();
-    await revoke.click();
-    await expect(revoke).toHaveText("Revoke?");
-    await revoke.click();
-    await expect(invite).toBeEnabled();
-  }
-  await invite.click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Email").fill("chair@example.com");
-  await dialog.getByLabel("Title").fill("Board chair");
-  await dialog.getByLabel("Bio").fill("Chairs the board.");
-  if (process.env.R25_DOGFOOD2_SHOT) await page.screenshot({ path: process.env.R25_DOGFOOD2_SHOT });
-  await dialog.getByRole("button", { name: "Create invitation" }).click();
-  await expect(page.getByTestId("invite-link")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toBeHidden();
-  await expect(page.getByText("chair@example.com").first()).toBeVisible();
-  await expect(page.getByText("· Board chair")).toBeVisible();
-  const team = await page.evaluate(async () => (await (await fetch("/api/team")).json()) as { invites: { email: string; title: string | null; bio: string | null }[] });
-  expect(team.invites.find((i) => i.email === "chair@example.com")).toMatchObject({ title: "Board chair", bio: "Chairs the board." });
+  await expect(invite).toBeDisabled();
+  await expect(page.getByText("Invites are off in the demo.").first()).toBeVisible();
+  const status = await page.evaluate(async () => (await fetch("/api/team/invites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "chair@example.com", role: "member", title: "Board chair" }) })).status);
+  expect(status).toBe(403);
 });
