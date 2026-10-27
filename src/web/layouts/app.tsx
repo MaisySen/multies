@@ -261,20 +261,11 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [switching, setSwitching] = useState<string | null>(null);
-  const [switchError, setSwitchError] = useState<string | null>(null);
-  // Multiws: a switch that fails says so (before, nothing happened and the person stayed put without a word).
   const go = async (id: string) => {
-    if (id === current?.id || switching) return;
-    setSwitching(id); setSwitchError(null);
-    try {
-      await api.post(`/account/workspaces/${id}/switch`);
-      qc.clear();
-      navigate("/app");
-    } catch (e) {
-      setSwitchError(e instanceof Error && e.message ? e.message : "Couldn't open that workspace. Try again.");
-      void ws.refetch();
-    } finally { setSwitching(null); }
+    if (id === current?.id) return;
+    await api.post(`/account/workspaces/${id}/switch`);
+    qc.clear();
+    navigate("/app");
   };
   const create = async () => {
     setBusy(true); setError(null);
@@ -297,13 +288,12 @@ function WorkspaceSwitcher({ current }: { current: Me["organization"] }) {
         <MenuLabel>Workspaces</MenuLabel>
         {(ws.data?.workspaces ?? []).map((w) => (
           <MenuItem key={w.id} icon={w.id === current?.id ? <IconCheck /> : <span className="grid h-4 w-4 place-items-center rounded bg-fill text-[9px] font-bold">{w.name[0]?.toUpperCase()}</span>} onSelect={() => go(w.id)}>
-            <span className="truncate" data-testid="workspace-option">{w.name}{switching === w.id ? "…" : ""}</span>
+            <span className="truncate">{w.name}</span>
           </MenuItem>
         ))}
         <div className="my-1 border-t border-line" />
         <MenuItem icon={<IconPlus />} onSelect={() => setCreating(true)}>New workspace</MenuItem>
       </Menu>
-      {switchError && <p role="alert" className="mt-1.5 px-1 text-[12px] text-bad" data-testid="workspace-switch-error">{switchError}</p>}
       <Dialog open={creating} onClose={() => setCreating(false)} title="Create a workspace" description="A separate space with its own domains, mailboxes, team and plan."
         footer={<><Button variant="secondary" onClick={() => setCreating(false)}>Cancel</Button><Button loading={busy} disabled={!name.trim()} onClick={create}>Create workspace</Button></>}>
         <form onSubmit={(e) => { e.preventDefault(); void create(); }}>

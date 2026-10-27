@@ -7,11 +7,6 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
-### Multiws (27 Oct 2026)
-
-- One account in several workspaces: switching from the sidebar workspace menu now always lands, on every device, and stays put after a reload or a new sign in. If a switch cannot finish, the menu says so and keeps you where you were.
-- The activity log records each workspace switch.
-
 ### Round 45 (27 Oct 2026)
 
 - Boards scroll smoothly even when you fling a long column from top to bottom: while a column moves faster than a screen per frame, cards are drawn as light outlines with their title and the full cards return as soon as it slows.

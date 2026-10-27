@@ -65,21 +65,4 @@ describe("R45 production test session", () => {
       expect((await s.mint({ "x-test-session": TOKEN.slice(1) + "y" }, undefined as unknown as Record<string, string>)).status).toBe(404);
     } finally { bindTestSessionEnv(undefined); }
   });
-  it("multiws: allows a second workspace the test user is alone in, and refuses once anyone else is in it", async () => {
-    const s = await setup();
-    const first = await s.mint({ "x-test-session": TOKEN });
-    const cookie = `mymail.session_token=${((await first.json()) as { cookie: { value: string } }).cookie.value}`;
-    const made = await s.app.request("/api/account/workspaces", { method: "POST", headers: { host: "localhost", cookie, "content-type": "application/json" }, body: JSON.stringify({ name: "QA second (test)" }) });
-    expect(made.status).toBe(201);
-    const second = ((await made.json()) as { id: string }).id;
-    const again = await s.mint({ "x-test-session": TOKEN });
-    expect(again.status).toBe(200);
-    expect(((await again.json()) as { orgId: string }).orgId).toBe(s.member.organizationId);
-    // Someone else joins the second workspace: the test session is refused from then on.
-    const other = new Client(s.app);
-    const otherEmail = await other.signup();
-    const otherUser = (await s.db.select().from(users).where(eq(users.email, otherEmail)).get())!;
-    s.db.insert(members).values({ id: "mem_multiws_other", organizationId: second, userId: otherUser.id, role: "member" }).run();
-    expect((await s.mint({ "x-test-session": TOKEN })).status).toBe(409);
-  });
 });

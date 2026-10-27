@@ -85,7 +85,7 @@ const me = await fetch(`${BASE}/api/account/me`, { headers: H });
 const mj = me.ok ? await me.json() : {};
 const ws = await (await fetch(`${BASE}/api/account/workspaces`, { headers: H })).json().catch(() => ({}));
 const scope = { me: me.status, org: mj?.organization?.id, isDemo: mj?.organization?.isDemo, role: mj?.organization?.role, workspaces: (ws?.workspaces ?? []).length };
-if (scope.org !== ORG_ID || scope.isDemo !== false || scope.workspaces < 1) { console.error("scope check failed", JSON.stringify(scope)); process.exit(1); }
+if (scope.org !== ORG_ID || scope.isDemo !== false || scope.workspaces !== 1) { console.error("scope check failed", JSON.stringify(scope)); process.exit(1); }
 
 let seed = null;
 if (args.has("--seed")) {

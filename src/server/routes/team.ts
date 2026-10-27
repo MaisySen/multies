@@ -4,7 +4,6 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { audit } from "../services/audit";
-import { markWorkspace } from "../auth/workspace-mark";
 import { getPlanCached } from "../services/plans";
 import {
   acceptInvite, createInvite, describeInvite, getInvite, listInvites, listMembers, removeMember, revokeInvite, seatsUsed,
@@ -133,7 +132,6 @@ export function inviteRoutes() {
       const { auth, deps } = c.var;
       const res = await acceptInvite(deps, auth, c.req.raw.headers, c.req.param("token"));
       await audit(deps.db, { orgId: res.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "member.joined", metadata: { email: auth.email, role: res.role }, ip: c.var.ip });
-      markWorkspace(c, res.orgId);
       return c.json(res);
     });
 }
