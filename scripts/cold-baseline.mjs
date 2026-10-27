@@ -22,7 +22,7 @@
  * Run it with nothing else deploying. The signed GET uses a workspace key read from COLD_KEY_FILE (JSON with workspaceKey; never printed), or, without
  * one, GET /api/config (public). Needs dist/ built (npm run build:worker).
  */
-import { spawn, execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, openSync, closeSync, existsSync } from "node:fs";
 
 const args = process.argv.slice(2);
@@ -61,8 +61,8 @@ const envArgs = ENV ? ["--env", ENV] : ["--env="];
 const script = ENV === "staging" ? "mymail-staging" : "mymail";
 const st = await wr(["deployments", "status", ...envArgs, "--json"]);
 let current = null;
-try { const j = JSON.parse(st.out.slice(st.out.indexOf("{"))); const v = j.versions ?? []; if (v.length === 1 && v[0].percentage === 100) current = v[0].version_id; } catch {}
-if (!current) { console.error(`the deployment is not one version at 100%; refusing.\n${st.out.slice(-800)}`); try { process.kill(-tail.pid, "SIGKILL"); } catch {} process.exit(2); }
+try { const j = JSON.parse(st.out.slice(st.out.indexOf("{"))); const v = j.versions ?? []; if (v.length === 1 && v[0].percentage === 100) current = v[0].version_id; } catch { /* ignore */ }
+if (!current) { console.error(`the deployment is not one version at 100%; refusing.\n${st.out.slice(-800)}`); try { process.kill(-tail.pid, "SIGKILL"); } catch { /* ignore */ } process.exit(2); }
 console.log(JSON.stringify({ current: current.slice(0, 8), script }));
 const samples = [];
 try {
@@ -93,9 +93,9 @@ try {
   const back = await wr(["versions", "deploy", ...envArgs, `${current}@100%`, "-y", "--message", "R44 cold samples done: back to one version at 100%"]);
   console.log(JSON.stringify({ restored: back.code === 0, current: current.slice(0, 8) }));
   if (back.code !== 0) console.error(`RESTORE FAILED, run: wrangler versions deploy ${current}@100% -y\n${back.out.slice(-800)}`);
-  try { process.kill(-tail.pid, "SIGTERM"); } catch {}
+  try { process.kill(-tail.pid, "SIGTERM"); } catch { /* ignore */ }
   await sleep(1500);
-  try { process.kill(-tail.pid, "SIGKILL"); } catch {}
+  try { process.kill(-tail.pid, "SIGKILL"); } catch { /* ignore */ }
 }
 
 // 2. Read the tail back. Each line is one JSON event (wrangler prints them pretty; parse by brace depth).
@@ -107,7 +107,7 @@ for (let i = 0; i < raw.length; i++) {
   if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
   if (ch === '"') { inStr = true; continue; }
   if (ch === "{") { if (depth === 0) start = i; depth++; }
-  else if (ch === "}") { depth--; if (depth === 0 && start >= 0) { try { events.push(JSON.parse(raw.slice(start, i + 1))); } catch {} start = -1; } }
+  else if (ch === "}") { depth--; if (depth === 0 && start >= 0) { try { events.push(JSON.parse(raw.slice(start, i + 1))); } catch { /* ignore */ } start = -1; } }
 }
 const pct = (a, p) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.ceil((p / 100) * s.length) - 1)]; };
 const med = (a) => pct(a, 50);
