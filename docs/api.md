@@ -28,7 +28,13 @@ A write scope includes its read scope. Every `/api/v1` route and every MCP tool 
 The v1 OpenAPI 3.1 document is generated from the request schemas at `/api/v1/openapi.json`, with an
 interactive reference at `/api/v1/reference`. That document is the source of truth for request and
 response shapes; this page is the map. Mutating calls accept an `Idempotency-Key` header (8 to 255
-characters); a retry with the same key returns the first answer. Errors are JSON:
+characters); a retry with the same key returns the first answer, marked `idempotent-replayed: true`, and
+writes nothing. Every v1 POST, PUT, PATCH and DELETE takes the key, and a test sends each of them twice to
+check this. The same key with a different body is 422 `idempotency_key_reused`, and a retry while the first
+call is still running is 409 `idempotency_in_progress`. Keys last 24 hours and belong to the API key that sent
+them. A first call that answered 5xx or 429, or was cut off, can be retried with the same key: creating a task,
+project, doc, deal, task comment or meeting then returns the item the first call made instead of a copy.
+Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.
 
 More detail: [MCP.md](MCP.md) (connecting agents) and [suite.md](suite.md) (tasks, projects, docs,
@@ -369,9 +375,11 @@ verify them and reject old timestamps. Failed deliveries retry with backoff for 
 wait as dead letters you can replay. An endpoint that fails five deliveries in a row is switched off
 and its owners are emailed.
 
-Events (51): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `doc.created`, `doc.updated`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`.
+Events (56): `message.received`, `message.sent`, `message.bounced`, `message.complained`, `domain.verified`, `domain.failed`, `approval.requested`, `approval.decided`, `agent.created`, `agent.deleted`, `task.created`, `task.updated`, `task.deleted`, `task.commented`, `task.file_added`, `task.recurred`, `project.created`, `project.updated`, `project.deleted`, `doc.created`, `doc.updated`, `doc.deleted`, `contact.created`, `contact.updated`, `deal.created`, `deal.updated`, `time_entry.created`, `time_entry.updated`, `form.submitted`, `meeting.created`, `meeting.updated`, `custom_field.created`, `custom_field.updated`, `custom_field.deleted`, `guest.invited`, `guest.joined`, `guest.revoked`, `chat.channel.created`, `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.mention`, `template.used`, `goal.created`, `goal.updated`, `goal.deleted`, `incoming_hook.received`, `booking.created`, `booking.cancelled`, `triage.created`, `triage.accepted`, `triage.declined`, `triage.merged`, `comment.created`, `comment.updated`, `comment.deleted`.
 
 Triage events (round 22): `triage.created` carries `{ task, source }` when new work lands in Triage (from mail rules, forms with triage on, incoming hooks, chat or the API); `triage.accepted` carries the accepted `task`; `triage.declined` carries `{ id, title, number, source, reason?, replied }`; `triage.merged` carries `{ id, title, source, into }` (the target task). The matching `task.*` events still fire as before.
+
+Delete and comment events (R51): `project.deleted` carries `{ id, object: "project", name }` (its tasks go with it and each does not send its own `task.deleted`); `doc.deleted` carries `{ id, object: "doc", title }`; `comment.created`, `comment.updated` and `comment.deleted` carry `{ id, object: "comment", taskId }`, with the `comment` on create and update. A new comment still sends `task.commented` too, now with the same `id` and `object` added, and an endpoint gets only the names it subscribed to. Every event carries the `actor`. Events are sent after the change is saved, and an event nobody subscribed to costs no database write. Meetings have no delete; a cancelled meeting is a `meeting.updated` with `status: "cancelled"`.
 
 The list lives in `src/server/services/developer/webhooks.ts`.
 
