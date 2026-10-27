@@ -7,11 +7,6 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
-### Round 44 (27 Oct 2026)
-
-- API: `DELETE /api/v1/projects/{id}` removes a project and its tasks with a workspace key.
-- Data moves started with an API key show the email of the person who made the key as the starter, not the key's name.
-
 ### Round 40, deploy 3: lighter page loads, demo sends no mail (27 Oct 2026)
 
 - The demo can't send email: invitations from a demo workspace are refused with "Invites are off in the demo. Sign up to invite your team.", and no other email tied to a demo workspace leaves Multies. One address can open at most 10 new demos a day (DEMO_PER_IP_DAILY).

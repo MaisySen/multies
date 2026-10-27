@@ -63,9 +63,16 @@ test("the main pages fit a 390 px phone with no sideways scroll", async () => {
   const panel = page.getByRole("dialog", { name: "Task" });
   await expect(panel).toBeVisible();
   await noSidewaysScroll("task panel");
+  // R44: the button is h-10 w-10 (40 px), but the page's route-in entrance (translateY(6px) to none) puts a transform on
+  // an ancestor, and a box measured while it runs comes back as 39.999 px from float transform math (the R43 failure).
+  // Measure once the entrance has finished, and allow sub pixel rounding only (0.01 px), never a smaller target.
+  await page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => null))),
+    new Promise((r) => setTimeout(r, 2_000)),
+  ]));
   const close = await panel.getByRole("button", { name: "Close task" }).boundingBox();
-  expect(close!.height).toBeGreaterThanOrEqual(40);
-  expect(close!.width).toBeGreaterThanOrEqual(40);
+  expect(close!.height).toBeGreaterThanOrEqual(40 - 0.01);
+  expect(close!.width).toBeGreaterThanOrEqual(40 - 0.01);
 
   // A mail thread, opened from the list.
   await page.goto("/app/mail");
