@@ -19,3 +19,4 @@ playwright-report/
 # Self-host package: backups and data imports (docs/self-host.md)
 /backups/
 /import/
+__pycache__/
