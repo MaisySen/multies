@@ -55,20 +55,26 @@ export function TaskPanel({ id, onClose }: { id: string; onClose: () => void }) 
   useEffect(() => { if (t) recordRecent({ kind: "item", id: `/app/tasks?task=${t.id}`, label: `${t.ref} ${t.title}`, url: `/app/tasks?task=${t.id}`, hint: "Task" }); }, [t?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // R40 (MB-204): what the fields last showed from the server. A newer server copy replaces a field only if the
   // person has not typed in it since; otherwise their text stays and saving it reports the conflict.
-  const shown = useRef<{ id: string; title: string; notes: string } | null>(null);
+  const shown = useRef<{ id: string; title: string; notes: string; titleVersion: number; notesVersion: number } | null>(null);
   const [conflict, setConflict] = useState<{ patch: { title?: string; notes?: string }; theirs: Task } | null>(null);
   useEffect(() => {
     if (!t) return;
     const prev = shown.current?.id === t.id ? shown.current : null;
-    if (!prev || mayAdopt(title, prev.title)) setTitle(t.title);
-    if (!prev || mayAdopt(notes, prev.notes)) setNotes(t.notes);
+    const takeTitle = !prev || mayAdopt(title, prev.title);
+    const takeNotes = !prev || mayAdopt(notes, prev.notes);
+    if (takeTitle) setTitle(t.title);
+    if (takeNotes) setNotes(t.notes);
     setLabels(t.labels.join(", "));
-    shown.current = { id: t.id, title: t.title, notes: t.notes };
+    // Each field remembers the version its text is based on; a kept edit still saves against the old one.
+    shown.current = {
+      id: t.id, title: takeTitle ? t.title : prev!.title, notes: takeNotes ? t.notes : prev!.notes,
+      titleVersion: takeTitle ? t.version : prev!.titleVersion, notesVersion: takeNotes ? t.version : prev!.notesVersion,
+    };
   }, [t?.id, t?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   useTaskChanges(t?.id, () => void q.refetch());
 
   /** Title and notes are saved against the version on screen, so an edit made elsewhere is never overwritten silently. */
-  const saveText = async (patch: { title?: string; notes?: string }, version = t?.version) => {
+  const saveText = async (patch: { title?: string; notes?: string }, version = patch.title !== undefined ? shown.current?.titleVersion : shown.current?.notesVersion) => {
     if (!t) return;
     try {
       const r = await api.patch<{ task: Task }>(`/tasks/${t.id}`, { ...patch, version });
