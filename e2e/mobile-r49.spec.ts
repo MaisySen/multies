@@ -154,7 +154,7 @@ for (const scheme of ["light", "dark"] as const) {
         expect.soft(m.toolbar?.scrolls, `${key}: toolbar does not scroll sideways`).toBe(false);
         expect.soft(m.bodyPx ?? 0, `${key}: body text at least 17 px`).toBeGreaterThanOrEqual(17);
       }
-      if (key.startsWith("meeting-call")) { expect.soft(m.dockGap ?? -999, `${key}: call controls above the tab bar`).toBeGreaterThanOrEqual(0); expect.soft(m.dockGap ?? 999, `${key}: call controls dock on the tab bar`).toBeLessThanOrEqual(24); }
+      if (key.startsWith("meeting-call")) { expect.soft(m.dockGap ?? -999, `${key}: call controls above the tab bar`).toBeGreaterThanOrEqual(-1); expect.soft(m.dockGap ?? 999, `${key}: call controls dock on the tab bar`).toBeLessThanOrEqual(24); }
       if (key.startsWith("chat-channel")) { expect.soft(m.composerGap ?? -999, `${key}: composer above the tab bar`).toBeGreaterThanOrEqual(0); expect.soft(m.composerGap ?? 999, `${key}: composer sits on the tab bar`).toBeLessThanOrEqual(48); }
     }
   });

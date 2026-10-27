@@ -19,6 +19,7 @@ import { Avatar, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { useMe } from "@/web/lib/queries";
 import { composerHint, isPhoneWidth, isTouchOnly } from "@/web/lib/phone";
+import { shouldOpenDefaultChannel } from "./chat-list-r49";
 import { messageActions } from "@/web/lib/message-actions";
 import { useCompactActions, useLongPress } from "@/web/lib/use-compact";
 import { MessageActionSheet, copyText } from "./chat-actions-r25";
@@ -247,7 +248,9 @@ export function ChatPage() {
   const people = useQuery({ queryKey: ["chat", "people"], staleTime: 120_000, queryFn: async () => (await api.get<{ people: Person[] }>("/chat/people")).people });
   const list = channels.data ?? [];
   const current = list.find((c) => c.id === channelId) ?? (channelId ? undefined : list.find((c) => c.name === "general") ?? list[0]);
-  useEffect(() => { if (!channelId && current) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate]);
+  // R49: on a phone, Back lands on the channel list (?list=1) instead of bouncing straight into a channel.
+  const listParam = params.get("list");
+  useEffect(() => { if (current && shouldOpenDefaultChannel({ channelId, hasDefault: true, listParam, phone: isPhoneWidth() })) navigate(`/app/chat/${current.id}`, { replace: true }); }, [channelId, current, navigate, listParam]);
   const visible = typeof document === "undefined" || document.visibilityState === "visible";
   const messages = useQuery({
     queryKey: ["chat", "messages", current?.id], enabled: !!current, refetchInterval: visible ? chatPollMs(live.live, 4000) : false,
