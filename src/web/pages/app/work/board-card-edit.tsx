@@ -10,7 +10,7 @@ import { IconCalendar, IconCheck, IconFileEdit, IconFlag, IconUser } from "@/web
 import { Menu, MenuItem } from "@/web/components/ui/menu";
 import { Avatar } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
-import { initials } from "@/web/lib/format";
+import { initials, initialsLabel } from "@/web/lib/format";
 import { cleanTitle, dueInputValue, editTask } from "@/web/lib/inline-task-edit";
 import { PRIORITY_COLOR, PRIORITY_LABEL, dueLabel, isOverdue, useAssignees, type Priority, type Project, type Task } from "./data";
 
@@ -101,7 +101,7 @@ export function CardQuickEdits({ t, project }: { t: Task; project: Project }) {
       {/* R44: the avatar's initials are visible text (axe reads on screen text, aria-hidden or not), so the name must contain
           them as a whole word (WCAG 2.5.3). Not in brackets: axe drops parenthetical text before it compares, which is why
           R43's "Assignee: Ann Brown (AB)" still failed. */}
-      <Menu align="end" label={t.assignee ? `Assignee: ${initials(t.assignee.name)}, ${t.assignee.name}` : "Assign"} trigger={
+      <Menu align="end" label={t.assignee ? initialsLabel("Assignee", t.assignee.name) : "Assign"} trigger={
         <button type="button" className={chip} data-testid="card-assignee">
           {t.assignee ? <Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /> : <IconUser className="h-3.5 w-3.5" />}
         </button>}>
