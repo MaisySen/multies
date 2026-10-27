@@ -85,7 +85,7 @@ describe("trust page facts", () => {
   it("uses the company's standard legal line and location, word for word", async () => {
     const { LEGAL_ENTITY, LEGAL_LINE_TEXT } = await import("../src/shared/legal");
     expect(LEGAL_LINE_TEXT).toBe("Multies is provided by Fintex Australia Pty Ltd (ABN 60 688 406 108), New South Wales, Australia. Contact: contact@fintex.au.");
-    expect(LEGAL_ENTITY.address).toBe("New South Wales, Australia (NSW 2135)");
+    expect(LEGAL_ENTITY.address).toBe("New South Wales, Australia");
     expect(LEGAL_ENTITY.website).toBe("https://fintex.au");
   });
 

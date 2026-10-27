@@ -33,4 +33,15 @@ describe("legal pages", () => {
     expect(terms).toMatch(/delete it when you remove the connection/);
     expect(terms).toMatch(/Privacy policy/);
   });
+
+  it("are final: no draft or review notice, effective date, NSW law and the legal line on every page", async () => {
+    const { readFileSync } = await import("node:fs");
+    const page = readFileSync("src/web/pages/legal.tsx", "utf8");
+    const all = JSON.stringify(LEGAL_DOCS) + page;
+    expect(all).not.toMatch(/draft|lawyer|legal advice|not yet|final agreement|placeholder|template terms/i);
+    expect(all).not.toMatch(/NSW 2135|tab\.bot|[\u2013\u2014]/);
+    expect(page).toMatch(/Effective \{LEGAL_EFFECTIVE\}/);
+    expect(JSON.stringify(LEGAL_DOCS.terms)).toMatch(/laws of New South Wales, Australia/);
+    for (const doc of Object.values(LEGAL_DOCS)) expect(JSON.stringify(doc)).toContain("Multies is provided by Fintex Australia Pty Ltd (ABN 60 688 406 108), New South Wales, Australia. Contact: contact@fintex.au.");
+  });
 });

@@ -2,12 +2,14 @@
 
 The privacy policy, terms of service, acceptable use policy and data processing agreement live in [src/shared/legal.ts](../../src/shared/legal.ts) and render at `/privacy`, `/terms`, `/acceptable-use` and `/dpa`.
 
-They are drafts written against the Privacy Act 1988 and the Australian Privacy Principles, the Spam Act 2003, the Australian Consumer Law and GDPR basics, and every page says so. Before launch:
+They are final, effective 27 October 2026, issued by Fintex Australia Pty Ltd (ABN 60 688 406 108) and governed by the laws of New South Wales, Australia. The owner and director decided on 27 October 2026 to publish them as final without a draft notice. They are written against the Privacy Act 1988 and the Australian Privacy Principles, the Spam Act 2003, the Australian Consumer Law and GDPR basics.
 
-1. Fill in `LEGAL_ENTITY`. Done 25 October 2026: Fintex Australia Pty Ltd, ABN 60 688 406 108, contact contact@fintex.au. Location (25 October 2026, from the company runbook company.md): "New South Wales, Australia (NSW 2135)", no street address; ACN 688 406 108. Pages and footers use LEGAL_LINE, the runbook's standard legal line.
-2. Have an Australian lawyer review all four documents, in particular liability, the consumer guarantee wording and the GDPR transfer clauses.
-3. Remove the draft banner in `src/web/pages/legal.tsx` and update `LEGAL_UPDATED`.
-4. Keep the sub processor table (`SUBPROCESSORS`) in step with reality. Adding a provider that touches customer data needs 30 days notice to customers under the DPA.
+Keeping them true:
+
+1. `LEGAL_ENTITY` and `LEGAL_LINE` hold the company details from the company runbook (no street address).
+2. When the product changes in a way the documents describe (a plan rule, retention, a feature), change the text and update `LEGAL_EFFECTIVE` and `LEGAL_UPDATED`. Material changes need 30 days notice by email to account owners.
+3. Keep the sub processor table (`SUBPROCESSORS`) in step with reality and with `src/shared/trust.ts`. Adding a provider that touches customer data needs 30 days notice to customers under the DPA.
+4. `tests/legal.test.ts` fails if a draft or review notice comes back.
 
 ## Cookies
 

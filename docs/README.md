@@ -18,7 +18,7 @@
 | Mobile app | [mobile.md](mobile.md) |
 | Brand | [brand.md](brand.md) |
 | QA | [qa/report.md](qa/report.md), [qa/inventory.md](qa/inventory.md) |
-| Legal drafts | [legal/README.md](legal/README.md) |
+| Legal documents | [legal/README.md](legal/README.md) |
 
 Secret values never appear in these pages. Where a step needs one, the page names the section of the
 owner's "CREDENTIALS (owner email v7)" list that holds it.

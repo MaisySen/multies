@@ -36,7 +36,7 @@ Documentation index: [docs/README.md](docs/README.md). Changes per release: [CHA
 | **Mail** | Webmail with threads, search, drafts and attachments; IMAP and SMTP through Stalwart; inbound through Cloudflare Email Routing; outbound through Resend with retries, a circuit breaker and a non delivery report when a message finally fails. |
 | **Developers** | REST API with OpenAPI 3.1 and a Scalar reference, API keys, Idempotency-Key support, Standard Webhooks with retries, dead letters, replay and auto disable. |
 | **Billing** | Free forever (1 domain, 3 mailboxes, 3 GB, 3 agent inboxes, bring your own AI) plus A$1 to A$5 add-ons per business on one Stripe subscription, yearly when the total is under A$5 a month; proration, dunning with a 7 day grace period, usage alerts, legacy Pro and Business kept for existing customers. |
-| **Privacy** | Self serve data export (JSON) and workspace export (ZIP with all mail), account deletion that never orphans a shared workspace, legal pages for Australian law (drafts for lawyer review). |
+| **Privacy** | Self serve data export (JSON) and workspace export (ZIP with all mail), account deletion that never orphans a shared workspace, final legal pages under Australian law (NSW). |
 | **Abuse** | Outbound spam scoring, held messages, automatic suspension of new workspaces, per workspace send caps, operator console. |
 | **Operations** | Strict CSP and security headers, rate limits on every scope, JSON logs with request ids, Sentry errors, tracing and releases, uptime history on `/status`, nightly encrypted backups, staging and production. |
 
@@ -214,7 +214,6 @@ untrusted HTML mail, dependency and code scanning. Secrets rotation: [`docs/secu
 
 - Mail on multies.si (Email Routing and the outbound sender) is set up separately from the web address ([docs/runbooks/domain-dns.md](docs/runbooks/domain-dns.md)).
 - R2 backups need a payment method on the Cloudflare account; nightly backups go to GitHub Actions artifacts until then, and D1 Time Travel covers the last 7 days on the free plan ([docs/runbooks/db-backup-restore.md](docs/runbooks/db-backup-restore.md)).
-- Legal pages are drafts for review by an Australian lawyer.
 - Mail is not hosted in Australia yet: D1 is placed in Cloudflare's Oceania region by a hint. `deploy/au` is the groundwork for a Sydney VPS.
 - ChatGPT and Claude Desktop custom connectors need OAuth, which Multies doesn't offer yet; the docs use API key headers (Claude Code, Cursor, OpenAI API) and the mcp-remote bridge.
 - A domain can belong to one workspace; claiming a squatted domain is manual.

@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { Link, useParams } from "react-router";
-import { IconWarning } from "@/web/components/ui/icon";
-import { LEGAL_DOCS, LEGAL_UPDATED, type Block, type LegalSlug } from "@/shared/legal";
+import { LEGAL_DOCS, LEGAL_EFFECTIVE, type Block, type LegalSlug } from "@/shared/legal";
 import { NotFound } from "./not-found";
 
 function Body({ block }: { block: Block }) {
@@ -18,7 +17,7 @@ function Body({ block }: { block: Block }) {
   );
 }
 
-/** Privacy policy, terms and acceptable use: one template, content in src/shared/legal.ts. */
+/** Privacy policy, terms, acceptable use and the DPA: one template, content in src/shared/legal.ts. */
 export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
   const params = useParams();
   const slug = (fixed ?? params.slug) as LegalSlug;
@@ -30,11 +29,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
       <p className="text-xs uppercase tracking-wide text-subtle">Legal</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight">{doc.title}</h1>
       <p className="mt-2 text-muted">{doc.summary}</p>
-      <p className="mt-1 text-xs text-subtle">Last updated {LEGAL_UPDATED}</p>
-      <div role="note" className="mt-6 flex gap-2.5 rounded-lg border border-warn/30 bg-warn/5 px-3.5 py-3 text-[13px] text-warn">
-        <IconWarning className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-        <span>Draft for review by an Australian lawyer before launch. It describes how Multies works today, but it is not yet legal advice or a final agreement.</span>
-      </div>
+      <p className="mt-1 text-xs text-subtle">Effective {LEGAL_EFFECTIVE}. Governed by the laws of New South Wales, Australia.</p>
       <nav aria-label="On this page" className="mt-8 rounded-lg border border-line p-4 text-sm">
         <ol className="grid gap-1.5 sm:grid-cols-2">
           {doc.sections.map((s, i) => <li key={s.id}><a href={`#${s.id}`} className="text-muted hover:text-fg">{i + 1}. {s.title}</a></li>)}

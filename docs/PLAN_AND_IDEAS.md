@@ -47,7 +47,7 @@ Business blockers (Apple will approve without these, but customers will hit them
 5. Outside sending is capped at the free plan. The site promises "Free forever for 1 domain, 3 mailboxes and 3 agent inboxes", but only one more customer domain can send outside before the queue starts, and 100 emails a day are shared by everyone, Haajir included. One busy customer stops everyone's mail by mid-morning. This is the most important thing to fix before inviting anyone.
 6. Cloudflare Free plan read-only days. One busy day of real mail can hit 100,000 D1 writes, as staging and demo seeds did on 24 Oct. Workers Paid (US$5 a month) lifts the daily caps to monthly ones. Move staging to its own account either way.
 7. Seller name. With an individual Apple team, the App Store shows Bidur's own name as the seller while the app and the policies say Fintex Australia Pty Ltd. For a business email product that is a trust problem. Converting the team to Fintex needs a D-U-N-S number.
-8. The "draft for review by a lawyer" line on the live privacy page. Get the review done, or reword it, before public launch.
+8. The "draft for review by a lawyer" line on the live privacy page. Get the review done, or reword it, before public launch. Done 27 Oct 2026: the owner decided to publish the legal pages as final (effective 27 October 2026, NSW law); the notice is gone.
 
 ## 3. Launch plan, in order
 
