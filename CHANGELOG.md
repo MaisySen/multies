@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 51 (27 Oct 2026)
+
+- Agent API: every write can be retried safely with an Idempotency-Key, and a retry after a server error no longer makes a second doc, deal, comment or meeting. New webhook events tell you when a project, doc or comment is deleted, and when a comment is added or edited.
+- The 15 minute background pass first asks, in one check, which of its steps have anything waiting, and skips the rest, so a quiet pass reads the database far less.
+
 ### Round 50 (27 Oct 2026)
 
 - My Work (the Home tab on phones) asks the database far less: one check finds which sections have anything, so an empty section costs nothing. Fewer statements per load keeps each request inside the free plan's CPU limit under busy traffic.
