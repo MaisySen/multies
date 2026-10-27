@@ -102,6 +102,15 @@ export function initials(nameOrEmail: string): string {
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
+/**
+ * R44: the accessible name of a control that shows someone's initials (WCAG 2.5.3, axe label-content-name-mismatch).
+ * The initials are on screen, so the name must contain them as a whole word, outside brackets (axe drops bracketed text
+ * before it compares): "Assignee: AR, Alex Rivera".
+ */
+export function initialsLabel(role: string, name: string): string {
+  return `${role}: ${initials(name)}, ${name}`;
+}
+
 /** "morning", "afternoon" or "evening" in the person's own zone. */
 export function dayPart(now = new Date()) {
   const h = Number(now.toLocaleString("en-AU", { hour: "numeric", hourCycle: "h23", timeZone: tz() }));
