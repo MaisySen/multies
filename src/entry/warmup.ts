@@ -25,6 +25,10 @@ export const WARM_SECRET = "warm-up-only-copy-signing-value-not-a-secret-0001";
 export interface WarmFixture {
   cookie: string;
   routes: string[];
+  /** R44: GETs answered with the fixture's own key (the /api/v1 key path), and that key. The key only exists in the
+   * fixture's throwaway demo database, so it opens nothing anywhere else. */
+  keyRoutes?: string[];
+  bearer?: string;
   calls: { sql: string; method: string; ret: unknown }[];
 }
 export interface WarmReport { ran: number; ok: number; statuses: number[]; outer?: number; error?: string }
@@ -170,11 +174,15 @@ export async function warmHotRoutes(app: FetchApp, fixture: WarmFixture, origin:
   try {
     const host = new URL(origin).host;
     const ctx = { waitUntil() {}, passThroughOnException() {} };
-    for (const path of fixture.routes) {
+    const plan: { path: string; auth: Record<string, string> }[] = [
+      ...fixture.routes.map((path) => ({ path, auth: { cookie: fixture.cookie } })),
+      ...(fixture.bearer ? (fixture.keyRoutes ?? []).map((path) => ({ path, auth: { authorization: `Bearer ${fixture.bearer}` } })) : []),
+    ];
+    for (const { path, auth } of plan) {
       if (closed) break;
       report.ran++;
       try {
-        const req = new WarmRequest(origin + path, { headers: { host, origin, cookie: fixture.cookie, accept: "application/json", "user-agent": "warmup" } });
+        const req = new WarmRequest(origin + path, { headers: { host, origin, ...auth, accept: "application/json", "user-agent": "warmup" } });
         const res = (await wrap(() => Promise.resolve(app.fetch(req as unknown as Request, undefined, ctx)))) as unknown as WarmResponse;
         const text = await res.text();
         report.statuses.push(res.status);

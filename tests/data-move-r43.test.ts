@@ -195,3 +195,21 @@ describe("R43b the run's email goes to a person", () => {
     expect(await moveRecipient(ctx.deps, { ...base, createdByUserId: null, createdByEmail: "api-key:x" })).toBeNull();
   });
 });
+
+describe("R44 a run started with an API key names the person, not the key", () => {
+  it("records the key owner's email as who started it, in the run and in the history", async () => {
+    const { ctx, c } = await setup({});
+    const key = (await c.post("/api/developer/keys", { name: "importer" })).body.secret as string;
+    const two = ["BEGIN:VCALENDAR", "VERSION:2.0", ...ev(4), ...ev(5), "END:VCALENDAR", ""].join("\r\n");
+    const r = await ctx.app.request("/api/v1/data-moves/imports/run", { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ kind: "calendar", fileName: "key.ics", content: two }) });
+    expect(r.status).toBe(200);
+    const move = ((await r.json()) as { move: { id: string; by: string | null } }).move;
+    expect(move.by).toBe("owner@acme.io");
+    expect((await row(ctx, move.id)).createdByEmail).toBe("owner@acme.io");
+    const hist = await c.get("/api/data-moves");
+    expect(JSON.stringify(hist.body)).not.toContain("api-key:");
+    // An old row that kept a key label shows nobody rather than the label.
+    await ctx.db.update(dataMoves).set({ createdByEmail: "api-key:mm_live_old" }).where(eq(dataMoves.id, move.id));
+    expect(JSON.stringify((await c.get("/api/data-moves")).body)).not.toContain("api-key:");
+  });
+});

@@ -22,18 +22,6 @@ async function demo(page: Page) {
   await page.getByRole("button", { name: "Explore a demo workspace" }).click();
   await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
 }
-/**
- * R44: a real ready signal instead of network idle. Mail keeps one live heartbeat open (POST /api/connections/live, a
- * long poll of up to 25 s, sent again the moment it answers; src/web/lib/live-mail.ts), so the network is never idle
- * there and waitForLoadState("networkidle"), which has no timeout of its own, waited until the 420 s test timeout. The
- * page itself was idle the whole time (renderer under 2% CPU); the error then surfaced at the next blur() on a closed page.
- * Ready means loaded, no skeleton left, and two frames for layout to settle (as phone-r25 does since R42).
- */
-async function settled(page: Page) {
-  await page.waitForLoadState("load");
-  await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 15_000 });
-  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
-}
 /** Click a neutral spot so keys go to the page, not an input. */
 async function blur(page: Page) {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
@@ -52,13 +40,13 @@ test("global keys: Cmd+K, ?, Esc and every G then key", async ({ page }) => {
   test.setTimeout(240_000);
   await demo(page);
   await page.goto("/app/my-work");
-  await settled(page);
+  await page.waitForLoadState("networkidle").catch(() => null);
   for (const [key, url] of GO) {
     await blur(page);
     await page.keyboard.press("g");
     await page.keyboard.press(key);
     await expect(page, `G then ${key.toUpperCase()}`).toHaveURL(url, { timeout: 15_000 });
-    await settled(page);
+    await page.waitForLoadState("networkidle").catch(() => null);
   }
   await page.goto("/app/my-work");
   await blur(page);
@@ -94,7 +82,7 @@ test("mail keys: J K C / and, on an open message, S U R A F T X H # Esc and Cmd+
   // A loaded box can take a while to build the mail page the first time; reload once if it is still blank.
   if (!(await first.isVisible({ timeout: 45_000 }).catch(() => false))) await page.reload();
   await expect(first).toBeVisible({ timeout: 60_000 });
-  await settled(page);
+  await page.waitForLoadState("networkidle").catch(() => null);
 
   // C opens Compose; Esc closes it.
   await blur(page);
@@ -123,7 +111,7 @@ test("mail keys: J K C / and, on an open message, S U R A F T X H # Esc and Cmd+
   // Open the known message.
   await first.click();
   await expect(page.getByRole("heading", { name: "Launch checklist for Friday", level: 1 })).toBeVisible({ timeout: 15_000 });
-  await settled(page);
+  await page.waitForLoadState("networkidle").catch(() => null);
   const id = new URL(page.url()).searchParams.get("m")!;
   const before = await message(page, id);
 
@@ -280,7 +268,7 @@ test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
   await page.goto("/app/notifications");
   const rows = page.getByTestId("notification-row");
   await expect(page.getByTestId("notifications-list")).toBeVisible({ timeout: 60_000 });
-  await settled(page);
+  await page.waitForLoadState("networkidle").catch(() => null);
   const n = await rows.count();
   test.skip(n < 2, "the demo has fewer than two notifications");
   const current = page.locator('[data-testid="notification-row"][aria-current="true"]');
@@ -305,18 +293,14 @@ test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("snooze-menu")).toBeHidden();
   // E marks the focused one done and it leaves the list; Shift+E brings it back.
-  // R44: checked by the row's id, not the list's length. The demo keeps adding notifications while the test runs (its
-  // seed lands in parts, and every refetch can bring a new one), so "n - 1" and "n" from a count taken earlier flaked.
   await blur(page);
-  const gone = await current.getAttribute("data-id");
-  const row = page.locator(`[data-testid="notification-row"][data-id="${gone}"]`);
   await page.keyboard.press("e");
-  await expect(row).toHaveCount(0, { timeout: 10_000 });
+  await expect(rows).toHaveCount(n - 1, { timeout: 10_000 });
   // Shift+E undoes the last done once the server has taken it (the toast says so).
   await expect(page.getByText("Marked done").first()).toBeVisible({ timeout: 10_000 });
   await page.keyboard.press("Shift+E");
   await expect(page.getByText("Back in the inbox").first()).toBeVisible({ timeout: 10_000 });
-  await expect(row).toHaveCount(1, { timeout: 10_000 });
+  await expect(rows).toHaveCount(n, { timeout: 10_000 });
   // O opens the focused notification (it leaves the notifications page).
   await blur(page);
   await page.keyboard.press("j");

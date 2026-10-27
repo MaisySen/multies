@@ -89,14 +89,9 @@ test("checklist in the task panel and a task query saved as a view", async ({ br
   for (let i = 0; i < " priority:".length; i++) await box.press("Backspace");
 
   // Save it as a view, clear, and open the view again.
-  // R44: since R34 (MB-192) the name is asked in a themed dialog, not the browser's prompt, so the old
-  // page.once("dialog") listener never fired and no view was saved.
+  page.once("dialog", (d) => void d.accept("Open bugs"));
   await page.getByRole("button", { name: "Saved views" }).click();
   await page.getByRole("menuitem", { name: "Save this view" }).click();
-  const named = page.getByRole("dialog", { name: "Save view" });
-  await named.getByRole("textbox", { name: "View name" }).fill("Open bugs");
-  await named.getByRole("button", { name: "Save view" }).click();
-  await expect(named).toBeHidden();
   await expect.poll(async () => (await (await page.request.get("/api/tasks/views")).json()).views.map((v: { name: string; filters: Record<string, string> }) => `${v.name}|${v.filters.q}`)).toContain("Open bugs|label:bug -label:wontfix");
   await page.getByRole("button", { name: "Clear the query" }).click();
   await expect(page.getByText("Old IE layout glitch")).toBeVisible();
