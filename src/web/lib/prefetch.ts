@@ -40,14 +40,10 @@ export function loaderFor(href: string, table: [string, Loader][] = ROUTE_LOADER
   return null;
 }
 
-/**
- * The connection says to hold back: Save-Data on, 2G or 3G, or under 1.5 Mbps. R40 (MB-203): on a slow phone
- * network the warm up downloads competed with the opened page's own data (3G was let through before).
- */
-export function shouldHoldBack(nav: { connection?: { saveData?: boolean; effectiveType?: string; downlink?: number } } | undefined): boolean {
+/** The connection says to hold back (Save-Data on, or 2G). */
+export function shouldHoldBack(nav: { connection?: { saveData?: boolean; effectiveType?: string } } | undefined): boolean {
   const c = nav?.connection;
-  if (!c) return false;
-  return c.saveData === true || /(^|-)[23]g$/.test(c.effectiveType ?? "") || (typeof c.downlink === "number" && c.downlink > 0 && c.downlink < 1.5);
+  return !!c && (c.saveData === true || /(^|-)2g$/.test(c.effectiveType ?? ""));
 }
 
 const started = new Set<Loader>();
