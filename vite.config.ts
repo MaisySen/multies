@@ -21,6 +21,10 @@ const VENDOR_GROUPS = [
   { name: "vendor-gantt", test: lib("@svar-ui"), priority: 20 },
   { name: "vendor-dnd", test: lib("@dnd-kit"), priority: 20 },
   { name: "vendor-sentry", test: lib("@sentry|@sentry-internal"), priority: 20 },
+  // R40 (MB-203): the glyphs the build keeps (tree shaken, about 38 KB gzip) ride in ONE chunk with the icon base.
+  // Split per page they came out as about 120 files of 300 bytes each, and on a slow phone network every file
+  // costs a round trip: My Work alone waited on 50 of them. Pure modules, no imports back into app code.
+  { name: "icons", test: /[\\/]src[\\/]web[\\/]components[\\/]ui[\\/](icons[\\/]|icon\.tsx|icon-base\.tsx)/, priority: 10 },
 ];
 
 export default defineConfig({

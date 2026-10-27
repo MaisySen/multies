@@ -105,48 +105,17 @@ export function sessionCookieKey(headers: Headers): string | null {
   return m ? m[1] : null;
 }
 
-const SESSION_NAMES = ["mymail.session_token", "__Secure-mymail.session_token", "__Host-mymail.session_token"];
-
-/** Every session cookie value in the header, under any of the three names. */
-function sessionCookieValues(cookie: string | null): { name: string; value: string }[] {
-  if (!cookie) return [];
-  const out: { name: string; value: string }[] = [];
-  for (const part of cookie.split(";")) {
-    const i = part.indexOf("=");
-    if (i <= 0) continue;
-    const name = part.slice(0, i).trim();
-    if (SESSION_NAMES.includes(name)) out.push({ name, value: part.slice(i + 1).trim() });
-  }
-  return out;
-}
-
-/*
- * R40 sec: the cache key is the value of the one cookie the sign in library will actually read for this request
- * (after the __Host- rewrite), never simply the first session cookie in the header. Before this, a header such as
- * "mymail.session_token=X; __Host-mymail.session_token=REAL" resolved REAL's session but stored it under X, so
- * whoever could plant cookie X in a victim's browser (a sibling subdomain) could then send X alone and read as
- * the victim. A request whose effective cookie appears more than once, or that carries an Authorization header,
- * is never cached.
- */
-export function effectiveSessionKey(headers: Headers, production: boolean): string | null {
-  if (headers.has("authorization")) return null;
-  const effective = authHeaders(headers, production);
-  const want = production ? "__Secure-mymail.session_token" : "mymail.session_token";
-  const found = sessionCookieValues(effective.get("cookie")).filter((p) => p.name === want);
-  if (found.length !== 1 || !found[0].value) return null;
-  return found[0].value;
-}
-
-/** Drops the cached session for every session cookie value this request carries (before every write and on sign out). */
+/** Drops the cached session for this cookie (called before every write and on sign out). */
 export function forgetCachedAuth(headers: Headers) {
-  for (const { value } of sessionCookieValues(headers.get("cookie"))) authCache.delete(value);
+  const key = sessionCookieKey(headers);
+  if (key) authCache.delete(key);
 }
 
 /** Test hook: empties the in-isolate session cache. */
 export function clearAuthCache() { authCache.clear(); }
 
 export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
-  const key = effectiveSessionKey(headers, deps.config.mode === "production");
+  const key = sessionCookieKey(headers);
   // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
   // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
   const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");

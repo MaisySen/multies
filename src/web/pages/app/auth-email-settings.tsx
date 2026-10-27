@@ -182,10 +182,13 @@ function AuthEmailSettingsForm() {
             </div>
           </div>
           <div className="space-y-2" aria-live="polite">
-            <p className="flex items-center gap-1.5 text-xs font-medium text-subtle"><IconMail className="h-3.5 w-3.5" />Preview: {TYPE_LABEL[type] ?? type}</p>
-            <div className="overflow-hidden rounded-lg border border-line bg-white">
+            <p className="flex items-center gap-1.5 text-xs font-medium text-subtle"><IconMail className="h-3.5 w-3.5" />Preview: {TYPE_LABEL[type] ?? type}<span className="ml-auto font-normal">Shown as a light email</span></p>
+            {/* R40 (MB-215): the light email sits on an inset surround drawn from theme tokens, dark in dark mode, like a message open in a mail app. */}
+            <div className="rounded-xl bg-fill p-3 ring-1 ring-line" data-testid="auth-preview-frame">
+            <div className="overflow-hidden rounded-lg border border-line bg-white shadow-card">
               <p data-testid="auth-preview-subject" className="border-b border-line px-4 py-2.5 text-[13px] font-medium text-[#1d1d1f]">{preview?.subject ?? " "}</p>
               <iframe title="Email preview" sandbox="" srcDoc={preview?.html ?? ""} className="h-[420px] w-full bg-white" />
+            </div>
             </div>
           </div>
         </div>

@@ -85,7 +85,7 @@ export function DomainDetailPage() {
           <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", d.sending.status === "verified" ? "bg-ok" : d.sending.status === "error" ? "bg-bad" : "bg-warn")} aria-hidden />
           <div>
             <div className="font-medium">{d.sending.status === "verified" ? "Sending and receiving are ready" : d.sending.status === "error" ? "Sending isn't set up for this domain yet" : d.sending.status === "queued" ? "In the queue for a sending slot" : "Sending and receiving start once the records below are in"}</div>
-            <p className="mt-0.5 text-xs text-muted">{d.sending.status === "error" ? `The email service said: ${d.sending.detail ?? "no reason given"}. Check DNS now tries again.` : d.sending.status === "queued" ? d.sending.detail : "Mail to any mailbox on this domain lands in this workspace, and mail you send from it is signed with the key below."}</p>
+            <p className="mt-0.5 text-xs text-muted">{d.sending.status === "error" ? (d.sending.detail ?? "We couldn't turn on sending for this domain yet. We'll try again when you check DNS.") : d.sending.status === "queued" ? d.sending.detail : "Mail to any mailbox on this domain lands in this workspace, and mail you send from it is signed with the key below."}</p>
           </div>
         </Card>
       )}
