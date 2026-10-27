@@ -7,7 +7,6 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
-import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { exportWorkspace } from "../services/privacy";
 import { exportFinished, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { WorkImportRun } from "./work-imports";
@@ -33,7 +32,6 @@ export function dataMoveDownloadRoutes() {
 export function dataMoveRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201)
     .get("/", async (c) => c.json(await listMoves(c.var.deps, c.var.auth)))
     .get("/:id", async (c) => c.json(await getMove(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/exports", async (c) => c.json(await startExport(c.var.deps, c.var.auth)))

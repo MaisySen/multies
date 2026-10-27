@@ -2,7 +2,6 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
-import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { audit } from "../services/audit";
 import { getPlan } from "../services/plans";
 import {
@@ -53,7 +52,6 @@ export function teamRoutes() {
   const inviteLimiter = new RateLimiter(30, 60 * 60_000);
   return new Hono<AppEnv>()
     .use("*", requireAuth)
-    .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201): a retried invite replays its first answer
     .get("/", async (c) => {
       const { db, now } = c.var.deps;
       const { orgId } = c.var.auth;

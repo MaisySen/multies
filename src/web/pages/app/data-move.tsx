@@ -12,9 +12,7 @@ import {
   IconArrowLeft, IconArrowRight, IconBoard, IconCalendar, IconChat, IconMail, IconCheck, IconCheckCircle, IconChecklist, IconContacts, IconDatabaseBackup, IconDocs,
   IconDownload, IconFileUp, IconHistory, IconSheet, IconTable, IconTasks, IconUndo, IconUpload, IconWarning,
 } from "@/web/components/ui/icon";
-import { api, ApiError, newIdempotencyKey } from "@/web/lib/api";
-import { ErrorRetry } from "@/web/components/reconnecting-r40"; // R40 (MB-205)
-
+import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
 import { timeAgo } from "@/web/lib/format";
 import { Badge, CopyButton, EmptyState, Skeleton } from "@/web/components/ui/misc";
@@ -57,7 +55,7 @@ export const SOURCES: Source[] = [
   { id: "calendar", kind: "calendar", label: "Calendar", hint: ".ics file", how: "Export or download your calendar as an .ics file from any calendar app. Events become meetings; nobody is sent an invite.", accept: ".ics,text/calendar", icon: <IconCalendar />, tint: "#FF9500" },
   { id: "contacts", kind: "contacts", label: "Contacts", hint: "vCard or CSV", how: "Export your address book as a .vcf file, or a CSV with an email column. People already in Contacts are skipped.", accept: ".vcf,.csv,text/vcard,text/csv", icon: <IconContacts />, tint: "#30B0C7" },
   { id: "docs", kind: "docs", label: "Docs", hint: "Markdown or a zip", how: "Upload a Markdown file (.md) or a zip of them. Headings, lists, tables and links come across.", accept: ".md,.markdown,.txt,.zip,text/markdown,application/zip", icon: <IconDocs />, tint: "#AF52DE" },
-  { id: "workspace", kind: "workspace", label: "From another Multies workspace", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
+  { id: "workspace", kind: "workspace", label: "Multies export", hint: "Workspace ZIP", how: "The ZIP from Export workspace, from this or another workspace. Projects, tasks, contacts, meetings and docs come back.", accept: ".zip,application/zip", icon: <IconDatabaseBackup />, tint: "#0071E3" },
 ];
 
 const MAX_BYTES = 6_000_000;
@@ -166,7 +164,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
   const [statusMap, setStatusMap] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState<{ move: Move; stopped: string | null } | null>(null);
   const [running, setRunning] = useState(false);
-  const [runError, setRunError] = useState<unknown>(null); // R40 (MB-205): the error itself, shown plainly with Retry
+  const [runError, setRunError] = useState<string | null>(null);
 
   const preview = useMutation({
     mutationFn: (b: { name: string; content: string; mapping?: Mapping }) => api.post<Preview>("/data-moves/imports/preview", { kind: source.kind, fileName: b.name, content: b.content, mapping: b.mapping }),
@@ -198,28 +196,26 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
     if (!file) return;
     setRunning(true); setRunError(null); setStep(steps.length - 1);
     let moveId: string | null = null;
-    const runKey = newIdempotencyKey("move"); // R40 (MB-201): one key per step, so a retried step never runs twice
     try {
       for (let i = 0; i < 400; i++) {
         const body: Record<string, unknown> = { kind: source.kind, fileName: file.name, content: file.content, mapping: mapping ?? undefined, moveId,
           projectId: target || null, projectName: target ? null : projectName,
           people: Object.fromEntries(Object.entries(who).map(([k, v]) => [k, v === "none" ? "" : v])),
           statusMap: Object.fromEntries(Object.entries(statusMap).filter(([, v]) => v)) };
-        const r: RunAnswer = await api.post<RunAnswer>("/data-moves/imports/run", body, { idempotencyKey: `${runKey}-s${i}` });
+        const r: RunAnswer = await api.post<RunAnswer>("/data-moves/imports/run", body);
         moveId = r.move.id;
         setProgress(r);
         if (r.move.status === "done" || r.stopped !== "time") break;
       }
       qc.invalidateQueries();
     } catch (e) {
-      setRunError(e);
+      setRunError(e instanceof ApiError ? e.message : "The import stopped. Press Import again with the same file and it carries on.");
     } finally { setRunning(false); }
   };
 
   const next = () => setStep((s) => Math.min(steps.length - 2, s + 1));
   const back = () => setStep((s) => Math.max(0, s - 1));
-  // R40 (MB-205): a failed preview keeps the chosen file and offers Retry; no status code is shown.
-  const err = fileError;
+  const err = (preview.error instanceof ApiError ? preview.error.message : null) ?? fileError;
   const count = p ? (tp ? tp.total - tp.alreadyImported : p.kind === "contacts" ? p.total - (p.alreadyThere ?? 0) : p.total) : 0;
   const noun = source.kind === "tasks" ? "tasks" : source.kind === "calendar" ? "events" : source.kind === "contacts" ? "contacts" : source.kind === "docs" ? "pages" : "items";
   const pct = progress ? (progress.move.total ? progress.move.done / progress.move.total : progress.move.status === "done" ? 1 : null) : null;
@@ -253,7 +249,6 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
             </div>
             <input ref={input} type="file" accept={source.accept} aria-label="File to import" className="sr-only" data-testid="move-file" onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
             {err && <p className="flex items-center gap-1.5 text-sm text-bad" role="alert"><IconWarning className="h-4 w-4" aria-hidden />{err}</p>}
-            {!err && <ErrorRetry error={preview.error} onRetry={file ? () => preview.mutate({ ...file, mapping: mapping ?? undefined }) : undefined} retrying={preview.isPending} fallback="Couldn't read this file. Check it is an export from the list above." />}
           </>
         )}
 
@@ -356,7 +351,7 @@ function ImportWizard({ source, onClose }: { source: Source; onClose: () => void
             <ProgressRing value={running && !progress ? null : pct} label="Import progress" />
             {running && <p className="text-sm text-muted">Bringing {noun} in{progress ? `: ${progress.move.done} of ${progress.move.total}` : ""}. You can keep working.</p>}
             {!running && progress && <ImportSummary move={progress.move} stopped={progress.stopped} onRetry={start} noun={noun} />}
-            <ErrorRetry error={runError} onRetry={running ? undefined : () => void start()} retrying={running} fallback="The import stopped. Press Import again with the same file and it carries on." />
+            {runError && <p className="text-sm text-bad" role="alert">{runError}</p>}
           </div>
         )}
 
@@ -434,8 +429,7 @@ const plural = (n: number | undefined, word: string) => `${n ?? 0} ${word}${n ==
 function ExportCard() {
   const qc = useQueryClient();
   const exp = useMutation({
-    // R40 (MB-201, MB-205): keyed, so a retry after a dropped answer returns the same export instead of a 429.
-    mutationFn: () => api.create<Move & { downloadPath: string }>("/data-moves/exports", {}),
+    mutationFn: () => api.post<Move & { downloadPath: string }>("/data-moves/exports", {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["data-moves"] }),
   });
   const r = exp.data;
@@ -469,7 +463,7 @@ function ExportCard() {
           </div>
         )}
       </div>
-      <ErrorRetry className="mt-2" error={exp.error} onRetry={() => exp.mutate()} retrying={exp.isPending} fallback="The export didn't start. Try again in a moment." />
+      {exp.error instanceof ApiError && <p className="mt-2 text-sm text-bad" role="alert">{exp.error.message}</p>}
       <p className="mt-3 text-[12.5px] text-muted">To keep another tool in sync after you move, use webhooks or the API in <Link to="/app/settings/developers" className="font-medium text-brand hover:underline">Developers</Link>.</p>
     </Section>
   );
