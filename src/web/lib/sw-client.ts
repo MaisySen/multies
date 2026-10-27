@@ -8,7 +8,6 @@
  *    cache is deleted, so the next person on this device sees nothing of the last one's.
  */
 import { api } from "./api";
-import { clearMeCache } from "./me-cache";
 import { wipeOfflineLists } from "./offline-lists"; // R33
 
 export const SW_UPDATE_EVENT = "mymail:sw-update";
@@ -71,7 +70,6 @@ export const CLEAR_CACHES_MESSAGE = { type: "CLEAR_CACHES" } as const;
 /** Sign out: forget this browser's push subscription, then delete every Multies cache. Never throws. */
 export async function clearOfflineData(): Promise<void> {
   await wipeOfflineLists(); // R33: stored list copies go with the caches
-  clearMeCache(); // R40 (MB-200): and the saved account copy
   try {
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

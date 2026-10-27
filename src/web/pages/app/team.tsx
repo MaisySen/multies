@@ -217,7 +217,7 @@ function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: b
   const [title, setTitle] = useState("");
   const [bio, setBio] = useState("");
   const invite = useMutation({
-    mutationFn: () => api.create<InviteCreated>("/team/invites", { email, role, mailboxIds: role === "member" ? ids : [], ...(title.trim() ? { title } : {}), ...(bio.trim() ? { bio } : {}) }),
+    mutationFn: () => api.post<InviteCreated>("/team/invites", { email, role, mailboxIds: role === "member" ? ids : [], ...(title.trim() ? { title } : {}), ...(bio.trim() ? { bio } : {}) }),
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onCreated({ ...r, email: email.toLowerCase() }); setEmail(""); setIds([]); setRole("member"); setTitle(""); setBio(""); },
   });
   const err = invite.error instanceof ApiError ? invite.error : null;

@@ -26,9 +26,7 @@ import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
-import { api } from "@/web/lib/api";
-import { clearMeCache, isSignedOut } from "@/web/lib/me-cache"; // R40 (MB-200)
-import { ReconnectingPill, ReconnectScreen } from "@/web/components/reconnecting-r40"; // R40 (MB-200)
+import { api, ApiError } from "@/web/lib/api";
 import { browserTimeZone, initials, setDisplayTimeZone } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
 import { AppSkeleton } from "./app-skeleton";
@@ -116,12 +114,15 @@ export function AppLayout() {
   // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
   setDisplayTimeZone(me.data?.user?.timezone, browserTimeZone(), me.data?.organization?.timezone);
 
-  // R40 (MB-200): only a 401 means signed out. A failed check with a saved copy keeps the app on screen
-  // (Reconnecting pill, background retries); with no copy at all the shell frame stays with a calm Retry.
-  if (me.error && isSignedOut(me.error)) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
-  if (!me.data) {
-    if (me.isPending) return <AppSkeleton />;
-    return <ReconnectScreen retrying={me.isFetching} onRetry={() => void me.refetch()} />;
+  if (me.isPending) return <AppSkeleton />;
+  if (me.error) {
+    if (me.error instanceof ApiError && me.error.status === 401) return <Navigate to={`/login?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+    return (
+      <div className="grid min-h-dvh place-items-center p-6 text-center">
+        <div><p className="font-medium">Couldn't load your workspace.</p><p className="mt-1 text-sm text-muted">{me.error.message}</p>
+          <button className="mt-4 text-sm text-brand-hover hover:underline" onClick={() => me.refetch()}>Try again</button></div>
+      </div>
+    );
   }
   const { user, organization } = me.data;
   if (me.data.session?.ssoBlocked) {
@@ -142,7 +143,6 @@ export function AppLayout() {
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 
   const signOut = async () => {
-    clearMeCache(); // R40: the saved account copy goes with the session
     const providers = qc.getQueryData<AuthProviders>(["auth-providers"]) ?? await api.get<AuthProviders>("/account/providers").catch(() => null);
     qc.clear();
     if (await signOutEverywhere({ idp: !!providers?.idp }) === "done") navigate("/login");
@@ -231,7 +231,6 @@ export function AppLayout() {
         </header>
         <ReadOnlyBanner />
         <OfflineBanner />
-        {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
         <PendingInviteBanner />
         <main ref={setMainEl} className={cn("min-h-0 flex-1", isMail ? "overflow-hidden" : "overflow-y-auto")}>
           {isMail ? <Outlet /> : <div key={loc.pathname.split("/").slice(0, 3).join("/")} className="route-in mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8"><Outlet /></div>}

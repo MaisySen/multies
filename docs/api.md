@@ -335,8 +335,6 @@ calls are in the public API (`data-moves`, admin area; a read only key may start
 | POST | `/api/v1/data-moves/imports/preview` | `{ kind, content, fileName?, mapping? }`. Writes nothing; answers the count and the first 20 rows |
 | POST | `/api/v1/data-moves/imports/run` | `{ kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }`. One step of about 15 seconds; while `move.status` is `stopped`, send it again with `moveId` |
 | POST | `/api/v1/data-moves/{id}/undo` | Removes exactly what that import made |
-| POST | `/api/v1/data-moves/mbox/batch` | R40 mail archive upload. `{ mailboxId, total, messages, moveId?, fileName?, folder?, last? }`: at most 10 raw messages (base64), about 512 KB a call, with an `Idempotency-Key`. Messages already in the mailbox (same Message-ID) are counted as duplicates. Answers `move` and `counts` (`stored`, `duplicates`, `unreadable`). Owners and admins only |
-| POST | `/api/v1/data-moves/mbox/{id}/stop` | Stops a mail archive upload part way; what came in stays |
 
 `kind` is `tasks` (a CSV, an Excel file as `xlsx-base64:...`, a board JSON, or a Markdown and CSV zip as `zip-base64:...`),
 `calendar` (.ics), `contacts` (.vcf, or a CSV with an email column), `docs` (a Markdown file, or a zip of pages) or

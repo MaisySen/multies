@@ -3,7 +3,6 @@
  * and loaded only then (it is about a third of the first-load JavaScript otherwise).
  */
 import { sentryPrivacy } from "../../shared/sentry-scrub";
-import { shouldHoldBack as slowConnection } from "./prefetch";
 
 type SentryModule = typeof import("@sentry/react");
 let sdk: SentryModule | null = null;
@@ -62,10 +61,7 @@ export function scheduleSentry(win: Window & typeof globalThis = window) {
   const stopEarly = queueEarlyErrors(win);
   const start = () => void startSentry().finally(stopEarly);
   const ric = (win as { requestIdleCallback?: Window["requestIdleCallback"] }).requestIdleCallback;
-  const now = () => (typeof ric === "function" ? ric.call(win, start, { timeout: 4000 }) : win.setTimeout(start, 1500));
-  // R40 (MB-203): on a slow phone network the SDK (about 145 KB) waits 20 s more, so the opened page's data and
-  // images come first. Errors in the meantime are queued above and sent once it starts.
-  const idle = () => (slowConnection(win.navigator as unknown as Parameters<typeof slowConnection>[0]) ? win.setTimeout(now, 20_000) : now());
+  const idle = () => (typeof ric === "function" ? ric.call(win, start, { timeout: 4000 }) : win.setTimeout(start, 1500));
   if (win.document.readyState === "complete") idle();
   else win.addEventListener("load", idle, { once: true });
 }
