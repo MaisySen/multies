@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 
 /**
@@ -32,6 +33,7 @@ test.beforeAll(async ({ browser }) => {
   const invite = await (await a.request.post("/api/team/invites", { data: { email: `ben-${tag}@example.com`, role: "member" }, headers: headersA })).json();
   const second = await person(browser, `ben-${tag}@example.com`, "Ben Mate");
   ctxB = second.ctx; b = second.page; headersB = second.headers;
+  await confirmEmail(b.request, `ben-${tag}@example.com`);
   expect((await b.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers: headersB })).status()).toBe(200);
   adaId = (await (await a.request.get("/api/account/me")).json()).user.id;
   projectId = (await (await a.request.post("/api/projects", { data: { name: "Launch" }, headers: headersA })).json()).project.id;

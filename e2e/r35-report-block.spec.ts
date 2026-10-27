@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -39,6 +40,7 @@ test("report a message, block the person, DM refused, operator dismisses", async
   const olive = await person(browser, `olive-${tag}@example.com`, "Olive Owner");
   const invite = await (await olive.page.request.post("/api/team/invites", { data: { email: `sam-${tag}@example.com`, role: "member" }, headers: olive.headers })).json();
   const sam = await person(browser, `sam-${tag}@example.com`, "Sam Lee");
+  await confirmEmail(sam.page.request, `sam-${tag}@example.com`);
   expect((await sam.page.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers: sam.headers })).status()).toBe(200);
   const channels = (await (await olive.page.request.get("/api/chat/channels")).json()).channels as { id: string; name: string }[];
   const general = channels.find((c) => c.name === "general")!.id;

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 
 /**
@@ -32,6 +33,7 @@ test("a team note on a thread mentions a teammate, who gets a notification that 
   const priyaCtx = await browser.newContext({ baseURL: base, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
   const priya = await priyaCtx.newPage();
   expect((await priya.request.post("/api/auth/sign-up/email", { data: { name: "Priya Shah", email, password: "a-strong-password" }, headers })).status()).toBe(200);
+  await confirmEmail(priya.request, email);
   expect((await priya.request.post(`/api/invites/${token}/accept`, { headers })).status()).toBe(200);
   // An earlier note from Priya, so the card reads like a real conversation.
   expect((await priya.request.post(`/api/threads/${thread.id}/comments`, { data: { body: "Kai is on the Pro plan. The reset mails bounced on Monday after their DNS change." }, headers })).status()).toBe(201);

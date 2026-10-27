@@ -1,4 +1,5 @@
 import { test, expect, type Browser } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 
 /**
@@ -30,6 +31,7 @@ test("a teammate sees viewing, then replying, then takes over the saved draft", 
   expect(inv.status()).toBe(201);
   const b = await browserFor(browser);
   expect((await b.page.request.post("/api/auth/sign-up/email", { data: { name: "Ben Mate", email: `ben-${tag}@example.com`, password: "a-strong-password" }, headers: b.headers })).status()).toBe(200);
+  await confirmEmail(b.page.request, `ben-${tag}@example.com`);
   expect((await b.page.request.post(`/api/invites/${(await inv.json()).link.split("/invite/")[1]}/accept`, { headers: b.headers })).status()).toBe(200);
 
   const threads = (await (await a.page.request.get("/api/agents/threads")).json()).data as { id?: string; threadId?: string; subject: string }[];

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 
 /**
@@ -32,6 +33,7 @@ test("a round robin mail rule assigns new support threads to two people in turn;
   const priyaCtx = await browser.newContext({ baseURL: base, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
   const priya = await priyaCtx.newPage();
   expect((await priya.request.post("/api/auth/sign-up/email", { data: { name: "Priya Shah", email, password: "a-strong-password" }, headers })).status()).toBe(200);
+  await confirmEmail(priya.request, email);
   expect((await priya.request.post(`/api/invites/${((await inv.json()).link as string).split("/invite/")[1]}/accept`, { headers })).status()).toBe(200);
   await priyaCtx.close();
 

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { confirmEmail } from "./support/confirm-email";
 import { mkdirSync } from "node:fs";
 
 /**
@@ -36,6 +37,7 @@ test("see each person's load per week, drag a task to a teammate and move one to
   const ctx2 = await browser.newContext({ ...opts, extraHTTPHeaders: process.env.E2E_BASE_URL ? {} : { "x-forwarded-for": ip() } });
   const p2 = await ctx2.newPage();
   expect((await p2.request.post("/api/auth/sign-up/email", { data: { name: "Max Builder", email: `max-${tag}@example.com`, password: "a-strong-password" }, headers })).status()).toBe(200);
+  await confirmEmail(p2.request, `max-${tag}@example.com`);
   expect((await p2.request.post(`/api/invites/${invite.link.split("/invite/")[1]}/accept`, { headers })).status()).toBe(200);
   const max = (await (await p2.request.get("/api/account/me")).json()) as { user: { id: string } };
   await ctx2.close();
