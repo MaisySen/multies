@@ -98,8 +98,7 @@ export function CardQuickEdits({ t, project }: { t: Task; project: Project }) {
           </span>
         )}
       </span>
-      {/* R43: the name carries the initials shown on the button too (axe label-content-name-mismatch). */}
-      <Menu align="end" label={t.assignee ? `Assignee: ${t.assignee.name} (${initials(t.assignee.name)})` : "Assign"} trigger={
+      <Menu align="end" label={t.assignee ? `Assignee: ${t.assignee.name}` : "Assign"} trigger={
         <button type="button" className={chip} data-testid="card-assignee">
           {t.assignee ? <Avatar label={initials(t.assignee.name)} className="h-5 w-5 text-[9px]" /> : <IconUser className="h-3.5 w-3.5" />}
         </button>}>
