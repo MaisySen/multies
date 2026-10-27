@@ -29,7 +29,13 @@ async function measure(page: Page): Promise<Metrics> {
     const bar = document.querySelector("[data-testid=phone-tabbar]") as HTMLElement | null;
     const tabBar = !!bar && bar.getBoundingClientRect().height > 0 && bar.getBoundingClientRect().bottom <= window.innerHeight + 1;
     const smallTargets: string[] = [];
-    for (const el of Array.from(document.querySelectorAll("[data-topbar] a, [data-topbar] button, [data-testid=phone-tabbar] a, [data-testid=phone-tabbar] button, [data-testid=today-quick] a"))) {
+    for (const el of Array.from(document.querySelectorAll([
+      "[data-topbar] a, [data-topbar] button, [data-testid=phone-tabbar] a, [data-testid=phone-tabbar] button, [data-testid=today-quick] a",
+      // R48: mail thread and compose toolbars, board column headers, the calendar agenda and the settings hub.
+      "[data-testid=thread-toolbar] button, [data-testid=thread-toolbar] label, [data-testid=thread-reply-bar] button",
+      "[role=dialog][aria-label='New message'] > div:first-child button, [data-testid=compose-foot] button:not([aria-hidden=true][tabindex='-1'][disabled])",
+      "[data-testid=board] section > header button, [data-testid=calendar-mode] button, [data-testid=agenda-row], [data-testid=settings-hub] a",
+    ].join(", ")))) {
       const r = (el as HTMLElement).getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       if (r.height < 43.5 || r.width < 43.5) smallTargets.push(`${(el.getAttribute("aria-label") ?? el.textContent ?? "").trim().slice(0, 30)} ${Math.round(r.width)}x${Math.round(r.height)}`);
@@ -128,4 +134,46 @@ test("sign in at 360 and 390: no sideways scroll, 16 px fields", async ({ page }
       expect.soft(m.smallInputs, `sign in ${w} ${scheme} fields`).toEqual([]);
     }
   }
+});
+
+/** R48: the toolbars that used to wrap or clip at 360 px keep one row, and the board snaps one column at a time. */
+test("R48 mail thread, compose, board and calendar at 360", async ({ page }) => {
+  page.setDefaultTimeout(15_000);
+  await page.setViewportSize({ width: 360, height: 780 });
+  await demo(page);
+  await page.goto("/app/mail");
+  await page.getByTestId("mail-row").first().click({ timeout: 15_000 });
+  const bar = page.getByTestId("thread-toolbar");
+  await expect(bar).toBeVisible();
+  expect((await bar.boundingBox())!.height).toBeLessThanOrEqual(57);
+  await expect(page.getByTestId("thread-reply-bar").getByRole("button", { name: "Reply", exact: true })).toBeVisible();
+  const reply = (await page.getByTestId("thread-reply-bar").boundingBox())!;
+  const tabs = (await page.getByTestId("phone-tabbar").boundingBox())!;
+  expect(reply.y + reply.height).toBeLessThanOrEqual(tabs.y + 1);
+  await page.getByTestId("thread-reply-bar").getByRole("button", { name: "Reply", exact: true }).click();
+  const dlg = page.getByRole("dialog", { name: "New message" });
+  await expect(dlg).toBeVisible();
+  await expect(page.getByTestId("compose-send-phone")).toBeVisible();
+  const foot = (await page.getByTestId("compose-foot").boundingBox())!;
+  expect(foot.height, "compose foot is one row").toBeLessThan(64);
+  expect(foot.x + foot.width).toBeLessThanOrEqual(360);
+  await page.keyboard.press("Escape");
+
+  await page.goto("/app/tasks?view=board");
+  const board = page.getByTestId("board");
+  await expect(board).toBeVisible({ timeout: 20_000 });
+  const snap = await board.evaluate((el) => {
+    const col = el.querySelector("section") as HTMLElement;
+    const cs = getComputedStyle(col);
+    return { type: getComputedStyle(el).scrollSnapType, stop: cs.scrollSnapStop, align: cs.scrollSnapAlign, w: col.getBoundingClientRect().width };
+  });
+  expect(snap.type).toContain("mandatory");
+  expect(snap.stop).toBe("always");
+  expect(snap.w).toBeGreaterThanOrEqual(280);
+  expect(snap.w).toBeLessThanOrEqual(300);
+
+  await page.goto("/app/tasks?view=calendar");
+  await expect(page.getByTestId("calendar-agenda")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("calendar-mode").getByRole("tab", { name: "Month" }).click();
+  await expect(page.getByTestId("calendar-agenda")).toHaveCount(0);
 });

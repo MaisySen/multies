@@ -147,11 +147,16 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
         if ((e.metaKey || e.ctrlKey) && e.key === "Enter") { e.preventDefault(); send(); }
         if (e.key === "Escape") { e.stopPropagation(); close(); }
       }}>
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4">
+      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line px-4 max-sm:h-14 max-sm:pl-4 max-sm:pr-1.5">
         <span className="truncate text-sm font-medium">{d.subject || (d.inReplyToId ? "Reply" : "New message")}</span>
         <div className="flex items-center">
           <button className="hidden rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg sm:block" onClick={() => setMinimized((m) => !m)} aria-label={minimized ? "Expand" : "Minimize"}><IconMinus className="h-4 w-4" /></button>
-          <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:-mr-2 max-sm:h-10 max-sm:w-10" onClick={close} aria-label="Close and save draft"><IconClose className="h-4 w-4" /></button>
+          <button className="inline-flex items-center justify-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:rounded-full" onClick={close} aria-label="Close and save draft"><IconClose className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+          {/* R48 mobile: Send sits top right on a phone, the way native mail apps put it, so the foot row stays one line. */}
+          {!minimized && <button type="button" data-testid="compose-send-phone" disabled={!d.to.trim()} onClick={() => send()} aria-label="Send"
+            className="ml-1 hidden h-11 w-11 place-items-center rounded-full transition-opacity duration-150 disabled:opacity-40 max-sm:grid">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-[#0071E3] text-white"><IconSend className="h-[18px] w-[18px]" aria-hidden /></span>
+          </button>}
         </div>
       </div>
       {!minimized && (
@@ -181,23 +186,23 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             </div>
           )}
           <AlsoReplying people={presence.people} />
-          <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            {/* R25 wave 2: on a 390 px phone the row wraps instead of pushing saved replies and Discard off the screen. */}
-            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-              <Button type="submit" disabled={!d.to.trim()}><IconSend className="h-4 w-4" />Send</Button>
+          <div data-testid="compose-foot" className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:px-1.5 max-sm:py-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+            {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
+              <Button type="submit" disabled={!d.to.trim()} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
               <SendLaterMenu disabled={!d.to.trim()} onPick={(when) => send(true, when)} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
-              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover" title="How long you have to undo after pressing Send">
+              <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />
                 <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window"
-                  phoneClassName="inline-flex min-h-9 items-center bg-transparent text-left text-[13px]">
+                  phoneClassName="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap bg-transparent text-left text-[13px]">
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
                 </Select>
               </label>
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
-            <button type="button" onClick={onClose} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-10 max-sm:w-10" aria-label="Discard"><IconTrash className="h-4 w-4" /></button>
+            <button type="button" onClick={onClose} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           </div>
         </form>
       )}
@@ -207,7 +212,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex shrink-0 items-center gap-3 border-b border-line px-4">
+    <div className="flex shrink-0 items-center gap-3 border-b border-line px-4 max-sm:min-h-11">
       <span className="w-14 shrink-0 text-[13px] text-subtle">{label}</span>
       {children}
     </div>

@@ -83,8 +83,8 @@ export function SavedRepliesButton({ draft, bodyRef, onApply }: { draft: DraftLi
   return (
     <div ref={wrap} className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="listbox" aria-label="Saved replies" title="Saved replies"
-        className={cn("flex items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg", open && "bg-[#0071E3]/10 text-[#0071E3]")}>
-        <IconChatQuote className="h-4 w-4" aria-hidden />
+        className={cn("flex items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg max-sm:h-11 max-sm:w-11 max-sm:justify-center max-sm:rounded-full", open && "bg-[#0071E3]/10 text-[#0071E3]")}>
+        <IconChatQuote className="h-4 w-4 max-sm:h-5 max-sm:w-5" aria-hidden />
       </button>
       {open && (
         <div role="dialog" aria-label="Saved replies" data-testid="saved-replies-picker"

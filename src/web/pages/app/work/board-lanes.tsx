@@ -95,7 +95,7 @@ export function LimitMenu({ title, limit, onSet }: { title: string; limit?: Colu
     <>
       <Menu align="end" label={`Limits for ${title}`} trigger={
         <button type="button" aria-label={`Set a limit for ${title}`} data-testid="column-limit-menu"
-          className="grid h-7 w-7 place-items-center rounded text-subtle transition-colors hover:bg-elevated hover:text-fg sm:h-6 sm:w-6"><IconGauge className="h-3.5 w-3.5" /></button>
+          className="grid h-11 w-11 place-items-center rounded-full text-subtle transition-colors hover:bg-elevated hover:text-fg sm:h-6 sm:w-6 sm:rounded"><IconGauge className="h-3.5 w-3.5 max-sm:h-[18px] max-sm:w-[18px]" /></button>
       }>
         <MenuLabel>Most cards in {title}</MenuLabel>
         <div className="flex flex-wrap gap-1 px-2 pb-1.5">

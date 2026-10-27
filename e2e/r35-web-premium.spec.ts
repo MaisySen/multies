@@ -43,8 +43,16 @@ test("mail row swipes left to archive on a phone, with Undo", async ({ browser }
   await page.goto("/app/mail");
   const rows = page.getByTestId("mail-row");
   await expect(rows.first()).toBeVisible({ timeout: 20_000 });
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(800);
+  // R48: no networkidle here. The demo inbox keeps delivering mail (and the page keeps a live feed open), so the network
+  // never goes quiet for 500 ms and the wait timed out on every run, on main too. Wait for what the swipe needs instead:
+  // a swipeable row with its Archive action rendered, and the list holding still for a moment.
+  await expect(page.getByTestId("mail-swipe").first()).toBeVisible({ timeout: 20_000 });
+  await expect.poll(async () => {
+    const a = await page.getByTestId("mail-swipe").first().boundingBox();
+    await page.waitForTimeout(300);
+    const b = await page.getByTestId("mail-swipe").first().boundingBox();
+    return !!a && !!b && a.y === b.y && a.height === b.height;
+  }, { timeout: 15_000 }).toBe(true);
   const whoOf = async () => (await page.getByTestId("mail-swipe").filter({ has: page.getByRole("button", { name: "Archive" }) }).first().innerText()).split("\n").map((l) => l.trim()).filter((l) => l && !["Unread", "Archive", "Snooze", "Move to Inbox"].includes(l))[2];
   const box = (await page.getByTestId("mail-swipe").first().boundingBox())!;
   const y = box.y + box.height / 2;

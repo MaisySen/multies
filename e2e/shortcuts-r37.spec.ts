@@ -294,11 +294,24 @@ test("notification keys: J K U H E Shift+E and O", async ({ page }) => {
   const a = await current.getAttribute("data-id");
   await page.keyboard.press("j");
   await expect.poll(() => current.getAttribute("data-id")).not.toBe(a);
+  // R47: K goes to the row just above the focused one. Checked against the list as it stands when K lands: the demo
+  // can add a notification at the top between the key presses, which made a fixed "back to a" check flake.
+  const b = await current.getAttribute("data-id");
+  const above = () => page.evaluate((id) => {
+    const ids = [...document.querySelectorAll('[data-testid="notification-row"]')].map((el) => el.getAttribute("data-id"));
+    const i = ids.indexOf(id);
+    return i > 0 ? ids[i - 1] : null;
+  }, b);
+  const want = await above();
   await page.keyboard.press("k");
-  await expect.poll(() => current.getAttribute("data-id")).toBe(a);
+  await expect.poll(async () => { const now = await current.getAttribute("data-id"); return now !== b && (now === want || now === a || now === (await above())); }, { timeout: 10_000 }).toBe(true);
   // U flips read on the focused row (the server's list is the check).
-  const readOf = async () => ((await (await page.request.get("/api/notifications?view=inbox&limit=100")).json()).notifications as { id: string; read: boolean }[]).find((x) => x.id === a)?.read;
-  const r0 = await readOf();
+  const focused = await current.getAttribute("data-id"); // R47: the row K landed on (see above)
+  const readOf = async () => ((await (await page.request.get("/api/notifications?view=inbox&limit=100")).json()).notifications as { id: string; read: boolean }[]).find((x) => x.id === focused)?.read;
+  // R47: U flips what the row shows. Start from the row as drawn (its "unread" mark): the server copy can already be
+  // read while the list on screen has not refetched yet, and then U rightly marks it read (the old check expected unread).
+  const shownRead = async () => !/·\s*unread/.test(await page.locator(`[data-testid="notification-row"][data-id="${focused}"]`).innerText());
+  const r0 = await shownRead();
   await page.keyboard.press("u");
   await expect.poll(readOf, { timeout: 10_000 }).toBe(!r0);
   await page.keyboard.press("u");

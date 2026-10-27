@@ -8,7 +8,9 @@
  * that does not (deleted, or no longer matching the filters) leaves the list. A long gap, a big batch or ten minutes
  * since the last full read fall back to reading every page again.
  */
+import { useEffect } from "react";
 import { useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
+import { liveChanges, listPollMs, NUDGE_DEBOUNCE_MS, useLiveChangesOpen } from "@/web/lib/live-changes-r47"; // R47 (MB-139)
 import { api } from "@/web/lib/api";
 import { withOfflineCopy } from "@/web/lib/offline-lists";
 import type { Task } from "./data";
@@ -79,12 +81,30 @@ export async function refreshList(opts: {
   return { tasks: all.tasks, track: { cursor: all.changeCursor, fullAt: opts.now }, full: true };
 }
 
-/** A task list query that covers every task and refreshes from the change feed. */
+/** True when a pushed feed position means this list is behind (0: position unknown, always behind). */
+export function behind(track: Track | undefined, cursor: number) {
+  return !track || cursor === 0 || cursor > track.cursor;
+}
+
+/** A task list query that covers every task and refreshes from the change feed (pushed over the live socket, R47). */
 export function usePagedTasks(opts: { key: QueryKey; path: string; qs: string; enabled?: boolean; offlineKey: string; sorted?: boolean }) {
   const qc = useQueryClient();
   const k = keyOf(opts.key);
+  const live = useLiveChangesOpen();
+  const enabled = opts.enabled ?? true;
+  useEffect(() => {
+    if (!enabled) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const off = liveChanges.add((cursor) => {
+      if (!behind(tracks.get(k), cursor) || timer) return;
+      timer = setTimeout(() => { timer = null; void qc.invalidateQueries({ queryKey: opts.key, exact: true }); }, NUDGE_DEBOUNCE_MS);
+    });
+    return () => { off(); if (timer) clearTimeout(timer); };
+    // opts.key is described by k
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [k, enabled, qc]);
   return useQuery({
-    queryKey: opts.key, enabled: opts.enabled ?? true, networkMode: "offlineFirst", refetchInterval: POLL_MS,
+    queryKey: opts.key, enabled, networkMode: "offlineFirst", refetchInterval: listPollMs(live, POLL_MS),
     queryFn: withOfflineCopy(opts.offlineKey, async () => {
       const r = await refreshList({ path: opts.path, qs: opts.qs, old: qc.getQueryData<Task[]>(opts.key), track: tracks.get(k), now: Date.now(), resort: !opts.sorted });
       tracks.set(k, r.track);
