@@ -10,7 +10,8 @@
  *
  * Without --probe it is read only: the email provider is on, and the tenant logged no failed email
  * ("fn") in the last --minutes. With --probe it also creates a throwaway user at a plus address of our
- * own test inbox (auth-mail-probe.json beside the secrets file) with verify_email on, waits until Resend has accepted that confirmation email (or
+ * own test inbox (auth-mail-probe.json beside the secrets file) with verify_email on, waits (up to --probe-seconds, 180 by
+ * default) until Resend reports that confirmation email delivered, bounced or failed (or
  * Auth0 logs a failure), then deletes the user. Secrets come from ~/.multies-secrets/auth0-multies.json
  * (the tenant management client) and RESEND_API_KEY in the environment; nothing secret is printed.
  */
@@ -20,8 +21,22 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Resend events that mean the provider took the message. */
+/** Resend events that mean the provider took the message and sent it on. */
 const ACCEPTED = new Set(["sent", "delivered", "delivery_delayed", "opened", "clicked"]);
+/** Events after which nothing more will happen to the message: stop waiting. */
+const FINAL = new Set(["delivered", "opened", "clicked", "bounced", "complained", "failed", "canceled"]);
+
+/**
+ * R44: what the probe loop does after reading the email's last event. "queued" and "scheduled" (and no
+ * email yet) mean it has not left the provider: keep waiting (R43b gave up at "queued" after 60 s and the
+ * smoke failed while the mail went out a little later). "sent" and "delivery_delayed" have left: keep
+ * waiting for the delivery report, but they count as sent if the time runs out. A final event stops at once.
+ * Pure so it can be unit tested.
+ */
+export function probeStep(event, elapsedMs, budgetMs) {
+  if (event && FINAL.has(event)) return "stop";
+  return elapsedMs >= budgetMs ? "stop" : "wait";
+}
 
 /**
  * The verdict, pure so it can be unit tested.
@@ -91,16 +106,28 @@ async function main() {
     const user = await api("POST", "/users", { connection: "Username-Password-Authentication", email, password: `${randomBytes(18).toString("base64url")}aA1!`, verify_email: true, name: "Mail check" });
     try {
       probe = {};
-      for (let i = 0; i < 20 && !probe.event && !probe.authFailure; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
+      // R44: wait up to --probe-seconds (180 by default) for the email to leave the provider and be delivered.
+      const pi = args.indexOf("--probe-seconds");
+      const budgetMs = (pi >= 0 ? Number(args[pi + 1]) || 180 : 180) * 1000;
+      let emailId;
+      for (let i = 0; ; i++) {
+        await new Promise((r) => setTimeout(r, i < 10 ? 3000 : 6000));
         const fl = await api("GET", `/users/${encodeURIComponent(user.user_id)}/logs?per_page=10&sort=date:-1`);
         const fn = (fl ?? []).find((l) => l.type === "fn");
         if (fn) { probe.authFailure = fn.details?.error ?? "failed"; break; }
-        const rr = await fetch("https://api.resend.com/emails?limit=20", { headers: { authorization: `Bearer ${key}` } });
-        if (rr.ok) {
-          const hit = ((await rr.json()).data ?? []).find((e) => (e.to ?? []).includes(email));
-          if (hit) { probe.event = hit.last_event; probe.seconds = Math.round((Date.now() - started) / 1000); }
+        if (!emailId) {
+          const rr = await fetch("https://api.resend.com/emails?limit=50", { headers: { authorization: `Bearer ${key}` } });
+          if (rr.ok) emailId = ((await rr.json()).data ?? []).find((e) => (e.to ?? []).includes(email))?.id;
         }
+        if (emailId) {
+          // Read this one email by id: the list can push it out when other mail goes at the same time.
+          const er = await fetch(`https://api.resend.com/emails/${encodeURIComponent(emailId)}`, { headers: { authorization: `Bearer ${key}` } });
+          if (er.ok) {
+            const e = await er.json();
+            if (e.last_event) { probe.event = e.last_event; probe.seconds = Math.round((Date.now() - started) / 1000); }
+          }
+        }
+        if (probeStep(probe.event, Date.now() - started, budgetMs) === "stop") break;
       }
     } finally {
       await api("DELETE", `/users/${encodeURIComponent(user.user_id)}`).catch(() => undefined);
