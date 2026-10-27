@@ -6,16 +6,18 @@
  * characters) makes one session for the user named by TEST_SESSION_USER_ID, and answers its cookie. Without the
  * secret and both ids set (the normal state), or with a wrong header, the path is an ordinary 404.
  *
- * Scope, checked on every call: the user must be a member of exactly one workspace, that workspace must be the one
- * named by TEST_SESSION_ORG_ID, and it must not be a demo. Each call removes the user's earlier test sessions, so at
+ * Scope, checked on every call: the user must be a member of the workspace named by TEST_SESSION_ORG_ID, and of no
+ * other workspace unless it is that workspace's only member (multiws, 27 Oct 2026: a second workspace the test user
+ * made itself, for checking workspace switching on live); none may be a demo. Each call removes the user's earlier test sessions, so at
  * most one is live; a session lasts 24 hours. Every mint writes an audit line. Runbook: docs/runbooks/deploy.md.
  */
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { members, organizations, sessions, users } from "../db/schema";
 import { randomToken, safeEqual, toB64, toHex, randomBytes } from "../lib/crypto";
 import { audit } from "../services/audit";
+import { inIds } from "../lib/sql-chunks";
 import { testSessionEnv, boundTestSessionEnv } from "../test-session-env-r45";
 export { testSessionEnv, type TestSessionEnv } from "../test-session-env-r45";
 
@@ -40,8 +42,14 @@ export async function mintTestSession(c: Context<AppEnv>) {
   const user = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, cfg.userId)).get();
   const rows = await db.select({ orgId: members.organizationId, isDemo: organizations.isDemo })
     .from(members).innerJoin(organizations, eq(organizations.id, members.organizationId)).where(eq(members.userId, cfg.userId)).all();
-  if (!user || rows.length !== 1 || rows[0].orgId !== cfg.orgId || rows[0].isDemo) {
-    return c.json({ error: { code: "test_session_scope", message: "The test user must belong to exactly the one test workspace, and it must not be a demo." } }, 409);
+  // Multiws: the test user may also be alone in further workspaces it made itself (to check switching on live).
+  // Any other workspace with even one other member, or any demo, and the mint refuses.
+  const others = rows.filter((r) => r.orgId !== cfg.orgId).map((r) => r.orgId);
+  const crowded = others.length
+    ? await db.select({ orgId: members.organizationId }).from(members).where(and(inIds(members.organizationId, others), ne(members.userId, cfg.userId))).limit(1).all()
+    : [];
+  if (!user || !rows.some((r) => r.orgId === cfg.orgId) || rows.some((r) => r.isDemo) || crowded.length) {
+    return c.json({ error: { code: "test_session_scope", message: "The test user must belong to the test workspace, and only to workspaces where it is the only member, none of them a demo." } }, 409);
   }
   const now = new Date(deps.now());
   const expiresAt = new Date(now.getTime() + TEST_SESSION_HOURS * 3600_000);
