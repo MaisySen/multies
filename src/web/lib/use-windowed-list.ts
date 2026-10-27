@@ -88,7 +88,9 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     };
   }, [windowed, compute, scroller]);
 
-  // Measure the rendered rows; their average height drives the spacers.
+  // Measure the rendered rows; their average height drives the spacers. Runs after every render on purpose; the
+  // half pixel guard stops it from looping.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     if (!windowed) return;
     const list = listRef.current;
