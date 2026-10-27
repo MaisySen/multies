@@ -18,6 +18,7 @@ import { adminRoutes } from "./routes/admin";
 import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b";
 import { authFor } from "./auth";
 import { forgetCachedAuth } from "./auth/guards";
+import { forgetProjectCounts } from "./services/suite/tasks";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
@@ -135,8 +136,11 @@ export function createApp(deps: Deps) {
   app.use("*", hostSessionCookie(deps.config.mode === "production"));
   // R40 (MB-199): any write and any sign in route (sign out, confirming an address) drops the in-isolate copy of this cookie's session first.
   app.use("/api/*", async (c, next) => {
-    if ((c.req.method !== "GET" && c.req.method !== "HEAD") || c.req.path.startsWith("/api/auth/")) forgetCachedAuth(c.req.raw.headers);
+    const write = c.req.method !== "GET" && c.req.method !== "HEAD";
+    if (write || c.req.path.startsWith("/api/auth/")) forgetCachedAuth(c.req.raw.headers);
     await next();
+    // R40 D1 reads: a write to the workspace drops its cached project counts (services/suite/tasks.ts).
+    if (write) forgetProjectCounts(c.var.auth?.orgId);
   });
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
