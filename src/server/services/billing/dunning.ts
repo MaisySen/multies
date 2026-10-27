@@ -18,7 +18,7 @@ type Org = typeof organizations.$inferSelect;
 const DAY = 86400_000;
 
 /** Owners and admins: the people who can fix billing. */
-async function billingContacts(deps: Deps, orgId: string) {
+export async function billingContacts(deps: Deps, orgId: string) {
   const rows = await deps.db.select({ email: users.email }).from(members).innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.organizationId, orgId), inArray(members.role, ["owner", "admin"])));
   return rows.map((r) => r.email);

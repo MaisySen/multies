@@ -4,6 +4,7 @@
  * validate requests. Interactive reference (Scalar) at /api/v1/reference.
  * Auth: `Authorization: Bearer mm_live_...` (Settings, Developers).
  */
+import { enforceWorkspaceBudget } from "../auth/guards";
 import { OpenAPIHono, createRoute, z } from "@hono/zod-openapi";
 import { apiReferenceBootJs, apiReferenceHtml } from "../lib/api-reference-page";
 import type { Context, MiddlewareHandler } from "hono";
@@ -191,6 +192,7 @@ const apiKeyAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
   if (auth.orgSuspended) throw new HttpError(403, "workspace_suspended", "This workspace is suspended. Contact support to review it.");
   c.set("auth", auth);
+  await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };
 

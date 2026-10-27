@@ -1,4 +1,4 @@
-import { markReadOnly } from "./read-only";
+import { markReadOnly, markWorkspaceBudget } from "./read-only";
 
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
@@ -80,6 +80,7 @@ async function once<T>(method: string, path: string, body: unknown, headers: Rec
   if (!res.ok) {
     const e = json?.error;
     if (res.status === 503 && e?.code === "read_only") markReadOnly();
+    if (res.status === 429 && e?.code === "workspace_budget") markWorkspaceBudget();
     // An empty or non JSON 5xx is the platform, not Multies: one plain message, no status code.
     if (!e && res.status >= 500) throw new ApiError(res.status, "unreachable", UNREACHABLE_MESSAGE);
     if (!e) throw new ApiError(res.status, "error", res.status >= 500 ? UNREACHABLE_MESSAGE : "Something went wrong. Try again.");

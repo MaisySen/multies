@@ -39,6 +39,7 @@ import { workerSocketOpener } from "./worker-socket";
 import { syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
+import { withWriteMeter } from "../server/services/workspace-budget";
 import { BRAND_CACHE, htmlCacheControl, AUTH_CARD_PATH, loginHtmlFor, originHintsFor, shellFor, withOriginHints, type LoginPrerender } from "../shared/prerender-shell";
 import { loginVariant, type LoginVariantOf } from "../server/auth/config";
 import { authFor } from "../server/auth";
@@ -93,7 +94,7 @@ async function boot(env: WorkerEnv) {
   // No migrations here: they run once per deploy (wrangler d1 migrations apply, or the
   // deploy hook below on hosts where wrangler cannot reach the database).
   // R28: a read retries once after a short pause when D1 is briefly unavailable (lib/d1-busy.ts).
-  const db = drizzle(withReadRetry(env.DB) as never, { schema }) as unknown as DB;
+  const db = drizzle(withWriteMeter(withReadRetry(env.DB)) as never, { schema }) as unknown as DB;
   const vars = envVars(env);
   if (!vars.APP_SECRET && vars.ALLOW_GENERATED_SECRET === "true") vars.APP_SECRET = await getOrCreateStoredSecret(db);
   return bootWith(env, db, vars);
@@ -271,7 +272,7 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
     if (!env || !env.DB || ready) return false;
     const vars = envVars(env);
     if (!vars.APP_SECRET) return false;
-    const db = drizzle(withReadRetry(env.DB) as never, { schema }) as unknown as DB;
+    const db = drizzle(withWriteMeter(withReadRetry(env.DB)) as never, { schema }) as unknown as DB;
     const built = bootWith(env, db, vars);
     // Hono compiles a method's route matcher on its first match; do it now for the common methods.
     const router = (built.app as unknown as { router?: { match: (m: string, p: string) => unknown } }).router;

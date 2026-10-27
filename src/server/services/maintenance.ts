@@ -70,6 +70,12 @@ export async function runMaintenance(deps: Deps) {
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
+  // R48 (MB-235): write out this isolate's per workspace write tallies, and drop daily counters older than a week.
+  await step("workspace_budget", async () => {
+    const wb = await import("./workspace-budget");
+    await wb.flushAllWorkspaces(deps);
+    if (deps.now().getUTCHours() === 1 && deps.now().getUTCMinutes() < 15) await wb.pruneWorkspaceCounters(deps);
+  });
   await step("prune", async () => {
     await Promise.all([
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),

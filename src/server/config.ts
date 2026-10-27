@@ -94,6 +94,8 @@ export interface AppConfig {
    * `strict` (WRITE_BUDGET_GUARD=strict, staging) refuses API writes from the warn level on.
    * `alertTo` (OPS_ALERT_EMAIL, default security@ the support domain; "off" for none) gets the 60% and 85% mail.
    */
+  /** R48 (MB-235): rows one workspace may write per UTC day before its writes pause (0 = off); admins hear from `nearAt`. */
+  workspaceBudget: { daily: number; nearAt: number };
   writeBudget: { token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean; alertTo?: string };
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
@@ -238,6 +240,9 @@ const EnvSchema = z.object({
   CF_ANALYTICS_TOKEN: z.string().optional(),
   CF_ACCOUNT_ID: z.string().optional(),
   D1_DAILY_WRITE_BUDGET: z.string().optional(),
+  // R48 (MB-235): rows one workspace may write per UTC day (default 20000, 0 = off) and the notice level (80).
+  WORKSPACE_DAILY_WRITES: z.string().regex(/^\d+$/).optional(),
+  WORKSPACE_BUDGET_NEAR_PCT: z.string().optional(),
   WRITE_BUDGET_WARN_PCT: z.string().optional(),
   WRITE_BUDGET_SHED_PCT: z.string().optional(),
   WRITE_BUDGET_GUARD: z.string().optional(),
@@ -428,6 +433,10 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
     demoPerIpDaily: Math.max(0, Number.parseInt(env.DEMO_PER_IP_DAILY ?? "10", 10) || 0),
+    workspaceBudget: {
+      daily: Math.max(0, Number.parseInt(env.WORKSPACE_DAILY_WRITES ?? "20000", 10) || 0),
+      nearAt: pct(env.WORKSPACE_BUDGET_NEAR_PCT, 80),
+    },
     writeBudget: {
       token: env.CF_ANALYTICS_TOKEN?.trim() || undefined,
       accountId: env.CF_ACCOUNT_ID?.trim() || undefined,

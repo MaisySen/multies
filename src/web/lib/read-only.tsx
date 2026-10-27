@@ -26,12 +26,24 @@ export function useReadOnly() {
   return useSyncExternalStore(subscribe, () => until > Date.now(), () => false);
 }
 
+/** R48 (MB-235): this workspace reached its own daily limit for changes; reading keeps working and other workspaces are fine. */
+export const WORKSPACE_BUDGET_MESSAGE = "This workspace reached today's limit for changes. Your data is safe and you can keep reading. Changes open again at midnight UTC.";
+let budgetUntil = 0;
+export function markWorkspaceBudget() {
+  budgetUntil = Date.now() + SHOW_MS;
+  for (const l of listeners) l();
+}
+export function useWorkspaceBudget() {
+  return useSyncExternalStore(subscribe, () => budgetUntil > Date.now(), () => false);
+}
+
 export function ReadOnlyBanner() {
   const on = useReadOnly();
-  if (!on) return null;
+  const budget = useWorkspaceBudget();
+  if (!on && !budget) return null;
   return (
     <div role="status" className="border-b border-line bg-surface px-4 py-2 text-center text-[13px] text-muted">
-      {READ_ONLY_MESSAGE}
+      {on ? READ_ONLY_MESSAGE : WORKSPACE_BUDGET_MESSAGE}
     </div>
   );
 }

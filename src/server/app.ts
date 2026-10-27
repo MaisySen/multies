@@ -1,4 +1,5 @@
 import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, versionJson } from "./routes/web-meta-r32";
+import { recordWorkspaceWrites, runMetered, workspaceHealthView } from "./services/workspace-budget";
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
@@ -249,6 +250,19 @@ export function createApp(deps: Deps) {
     return csrfGuard(c, next);
   });
 
+  // R48 (MB-235): count the D1 rows each write request writes and charge them to its workspace
+  // (services/workspace-budget.ts). Reads are not metered: signed in GETs write nothing.
+  if (deps.config.workspaceBudget.daily) {
+    app.use("/api/*", async (c, next) => {
+      if (c.req.method === "GET" || c.req.method === "HEAD" || c.req.method === "OPTIONS") return next();
+      const { rows } = await runMetered(() => next());
+      const orgId = (c.var as { auth?: { orgId?: string | null } }).auth?.orgId;
+      if (!orgId || !rows) return;
+      const flush = recordWorkspaceWrites(deps, orgId, rows);
+      if (flush) { try { c.executionCtx.waitUntil(flush); } catch { await flush; } }
+    });
+  }
+
   // Staging (WRITE_BUDGET_GUARD=strict) shares production's daily D1 write budget, so once the account
   // passes the warn level its API refuses writes with the same read only answer a D1 limit gives.
   // Production never refuses here; it only stops optional writers (services/write-budget.ts).
@@ -276,7 +290,7 @@ export function createApp(deps: Deps) {
       }
       // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
       const wb = await writeBudget(deps);
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead) } : {}) });
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead) } : {}), workspaces: await workspaceHealthView(deps).catch(() => null) });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }

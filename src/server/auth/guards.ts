@@ -1,4 +1,5 @@
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
+import { checkWorkspaceBudget, isBudgetExempt, WORKSPACE_BUDGET_CODE, workspaceBudgetMessage } from "../services/workspace-budget";
 import { authHeaders } from "../lib/host-cookie";
 import { and, desc, eq, gt } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "../context";
@@ -227,6 +228,7 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
     throw new HttpError(403, "sso_required", "This workspace requires single sign on. Sign out, then sign in with your company's SSO.");
   }
   c.set("auth", auth);
+  await enforceWorkspaceBudget(c, auth.orgId);
   await next();
 };
 
@@ -242,3 +244,14 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
+
+/**
+ * R48 (MB-235): a workspace over its own daily write budget gets a calm 429 on writes until 00:00 UTC; reading,
+ * sign in, account and billing keep working, and other workspaces are not affected (services/workspace-budget.ts).
+ */
+export async function enforceWorkspaceBudget(c: Context<AppEnv>, orgId: string | null | undefined) {
+  if (!orgId || isBudgetExempt(c.req.method, c.req.path)) return;
+  const level = await checkWorkspaceBudget(c.var.deps, orgId);
+  if (level === "near") c.header("x-workspace-budget", "near");
+  if (level === "over") throw new HttpError(429, WORKSPACE_BUDGET_CODE, workspaceBudgetMessage(), { resetsAt: "00:00 UTC" });
+}
