@@ -6,7 +6,6 @@
 import { useEffect, useRef } from "react";
 import { IconArchive, IconBlock, IconCheck, IconClose, IconInbox, IconMail, IconMove, IconRead, IconSnooze, IconTrash } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
-import { Select } from "@/web/components/ui/input";
 import type { BulkCall } from "@/web/lib/mail-selection";
 import { moveTargets, useProviderFolders } from "./provider-folders";
 
@@ -90,7 +89,7 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
         </div>
         <label className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-fg focus-within:ring-2 focus-within:ring-brand/60" title="Move to">
           <IconMove className="h-4 w-4" aria-hidden />
-          <Select bare aria-label="Move to" value="" data-testid="bulk-move" phoneClassName="absolute inset-0 cursor-pointer opacity-0"
+          <select aria-label="Move to" value="" data-testid="bulk-move"
             onChange={(e) => {
               const to = e.target.value;
               if (!to) return;
@@ -102,7 +101,7 @@ export function BulkBar({ count, total, folder, connectionId, snoozeOpen, setSno
             <option value="">Move to</option>
             {standard.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
             {remote.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          </Select>
+          </select>
         </label>
         {folder !== "spam" && <BarBtn label="Report spam" onClick={() => onAct({ action: "spam" })}><IconBlock /></BarBtn>}
         <BarBtn label="Mark read" hint="U" onClick={() => onAct({ action: "read" })}><IconRead /></BarBtn>
