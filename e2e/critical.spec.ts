@@ -126,6 +126,14 @@ test("invite a teammate who signs up and joins the workspace", async ({ page, br
   await p2.getByLabel("Your name").fill("Mason Mate");
   await p2.getByLabel("Password", { exact: true }).fill("a-strong-password");
   await p2.getByRole("button", { name: "Create account" }).click();
+  // R39 security hotfix: the invite link alone is not enough. Until the address is confirmed, accepting is refused.
+  await p2.getByRole("button", { name: "Accept and open workspace" }).click();
+  await expect(p2.getByText(/Confirm your email address/).first()).toBeVisible();
+  await expect(p2).toHaveURL(/\/invite\//);
+  test.skip(!local, "confirming the address needs the local outbox");
+  await expect.poll(() => lastEmailTo(mate)?.subject).toContain("Confirm your email");
+  await p2.goto(lastEmailTo(mate)!.text.match(/https?:\/\/\S+/)![0]);
+  await p2.goto(link);
   await p2.getByRole("button", { name: "Accept and open workspace" }).click();
   await expect(p2).toHaveURL(/\/app/);
   await other.close();
