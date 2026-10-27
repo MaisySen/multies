@@ -11,6 +11,8 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 - API: `DELETE /api/v1/projects/{id}` removes a project and its tasks with a workspace key.
 - Data moves started with an API key show the email of the person who made the key as the starter, not the key's name.
+- Boards, swimlanes, the sprint list and the backlog stay fast with thousands of tasks: only the cards on screen are drawn, every task is still reachable by scrolling or J and K, and the "Show 100 more" button is gone. Column counts and point totals still count every task.
+- The backlog has checkboxes (Shift selects a run), a bar with "N selected, X pt" and Move to sprint, and backlog rows can be dragged onto a sprint.
 
 ### Round 40, deploy 3: lighter page loads, demo sends no mail (27 Oct 2026)
 
