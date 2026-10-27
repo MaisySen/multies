@@ -17,6 +17,24 @@ type Counts = { stored: number; duplicates: number; unreadable: number };
 interface BatchAnswer { move: { id: string; status: string; done: number; total: number }; counts: Counts }
 type Phase = "pick" | "reading" | "running" | "paused" | "done" | "stopped";
 
+/** R43: the kept copy lets the server finish a run after the page closes. Its words change only once that is proven live. */
+export const BACKGROUND_COPY = false;
+const KEEP_MAX_BYTES = 100 * 1024 * 1024;
+const PART_CHARS = 2_000_000;
+
+/** Splits base64 messages into parts of about 2 MB (one message a line) with the first message index of each. */
+export function keepParts(lines: string[], partChars = PART_CHARS) {
+  const parts: string[][] = [];
+  const starts: number[] = [];
+  let size = 0;
+  lines.forEach((l, i) => {
+    if (!parts.length || (size + l.length > partChars && parts[parts.length - 1].length)) { parts.push([]); starts.push(i); size = 0; }
+    parts[parts.length - 1].push(l);
+    size += l.length + 1;
+  });
+  return { parts: parts.map((p) => p.join("\n")), starts };
+}
+
 export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (value: number | null, label: string) => ReactNode }) {
   const qc = useQueryClient();
   const boxes = useMailboxes();
@@ -33,6 +51,8 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
   const moveId = useRef<string | null>(null);
   const keys = useRef<string[]>([]);
   const pause = useRef(false);
+  const fileBytes = useRef(0);
+  const [kept, setKept] = useState(false);
 
   useEffect(() => { if (!mailboxId && boxes.data?.length) setMailboxId(boxes.data[0].id); }, [boxes.data, mailboxId]);
 
@@ -42,6 +62,8 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
     if (f.size > MBOX_MAX_FILE_MB * 1024 * 1024) { setFileError(`That file is ${Math.round(f.size / 1048576)} MB. Files up to ${MBOX_MAX_FILE_MB} MB work here: export one label or folder at a time.`); return; }
     setPhase("reading");
     setFileName(f.name);
+    fileBytes.current = f.size;
+    setKept(false);
     const msgs = splitMbox(new Uint8Array(await f.arrayBuffer()));
     if (!msgs.length) { setPhase("pick"); setFileError("No messages found in that file. Choose the .mbox file your mail app exported."); return; }
     batches.current = mboxBatches(msgs);
@@ -68,6 +90,7 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
         moveId.current = r.move.id;
         setCounts(r.counts);
         next.current = i + 1;
+        if (i === 0 && !last) void keepRest(r.move.id);
       } catch (e) {
         setError(e);
         setPhase("paused");
@@ -76,6 +99,25 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
     }
     setPhase("done");
     void qc.invalidateQueries({ queryKey: ["data-moves"] });
+  }
+
+  /**
+   * R43: after the first batch, upload the whole archive once (parts of about 2 MB) so the server can finish the run if
+   * this page closes. Only for files up to 100 MB; a failed part just means the run waits for this page, as before.
+   */
+  async function keepRest(id: string) {
+    if (fileBytes.current > KEEP_MAX_BYTES) return;
+    try {
+      const { parts, starts } = keepParts(batches.current.flat().map(toBase64));
+      for (let p = 0; p < parts.length; p++) {
+        if (pause.current && moveId.current !== id) return;
+        const lastPart = p === parts.length - 1;
+        const qs = new URLSearchParams({ part: String(p), parts: String(parts.length), ...(lastPart ? { starts: starts.join(","), mailboxId, folder: "INBOX" } : {}) });
+        const r = await api.post<{ kept: boolean; reason: string | null }>(`/data-moves/mbox/${id}/keep?${qs}`, { lines: parts[p] });
+        if (r.reason === "ended" || r.reason === "off") return;
+        if (lastPart && r.kept) setKept(true);
+      }
+    } catch { /* the run carries on while this page is open */ }
   }
 
   async function cancel() {
@@ -131,7 +173,7 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
               {phase === "done" ? `Done: ${counts.stored} ${counts.stored === 1 ? "message" : "messages"} brought in` : phase === "stopped" ? `Stopped at ${done} of ${total}` : `${done} of ${total} messages`}
             </p>
             <p className="truncate text-[13px] text-muted">{fileName} into {box?.address ?? "your mailbox"}</p>
-            {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped.</p>}
+            {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">{BACKGROUND_COPY && kept ? "You can close this page. It carries on by itself and we email you when it's done." : "Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped."}</p>}
             {(counts.duplicates > 0 || counts.unreadable > 0) && (
               <p className="text-[13px] text-muted" data-testid="mbox-skipped">
                 {counts.duplicates > 0 && `${counts.duplicates} already here`}{counts.duplicates > 0 && counts.unreadable > 0 && ", "}{counts.unreadable > 0 && `${counts.unreadable} could not be read`}

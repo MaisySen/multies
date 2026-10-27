@@ -14,7 +14,7 @@ your shell, never write them into the repo.
 - [ ] A schema change has a backward compatible migration (`npm run db:generate`). After merging branches that each add one, keep `drizzle/meta/_journal.json` in number order and rerun `npx tsx scripts/bundle-migrations.ts`.
 - [ ] D1 writes: check `writes.level` on `/api/health` is `ok` before a migration that rebuilds indexes ([d1-daily-limits.md](d1-daily-limits.md)).
 - [ ] New environment variables are in `.env.example` and `wrangler.toml`, or set with `wrangler secret put` for staging and production.
-- [ ] A production migration: take a manual D1 export first, except in Sydney business hours (21:00 to 07:00 UTC), when no export runs on production; then record the Time Travel bookmark (`npx wrangler d1 time-travel info mymail-au`) in the deploy log instead ([db-backup-restore.md](db-backup-restore.md)).
+- [ ] Before every production deploy, record the Time Travel bookmark (`npx wrangler d1 time-travel info mymail-au`) in the deploy log ([db-backup-restore.md](db-backup-restore.md)). Owner rule (27 Oct 2026): a manual `wrangler d1 export` of production is allowed ONLY between 21:00 and 07:00 UTC; outside that window take the bookmark only. An export is never required: the bookmark restores to any minute of the last 30 days, and an export blocks every other query while it runs, so prefer the bookmark at any hour.
 - [ ] Email worker: deploy `email-worker/` only from a checkout whose `MYMAIL_ROUTES` carries the current inbound key ids. An old key id makes support@ and security@ bounce. After any email worker deploy or key rotation, send a test mail to security@multies.si and check that it arrives.
 
 ## 1. Build from a clean checkout

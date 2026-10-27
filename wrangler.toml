@@ -162,6 +162,12 @@ PEER_HOST = "mymail-staging.mymail-app.workers.dev"
 # R32: web push. The public half of the VAPID pair; VAPID_PRIVATE_KEY is a secret (scripts/vapid-keygen.mjs).
 VAPID_PUBLIC_KEY = "BD5idyEC8Z2t0LROHN_FwSS6mKaQ_Ki8d8YPKqM-pnhC4hi9mDccU9dmNtZKFP974TfuLLYfKz3xYPTFbqog3MM"
 
+# R43: an import's upload waits here until the run ends (7 days at most), so the scheduled pass can finish it after the
+# page closes. Workers KV free plan: 1 GB stored, 1,000 writes and 100,000 reads a day (account wide, staging included).
+[[kv_namespaces]]
+binding = "IMPORT_FILES"
+id = "91f62eee9a38454f9b6a74e40fc4172d"
+
 [[services]]
 binding = "PEER"
 service = "mymail-staging"
@@ -269,6 +275,17 @@ BILLING_GRACE_DAYS = "7"
 # Staging watches production, through a service binding (see PEER above).
 MONITOR_URLS = "https://mymail.mymail-app.workers.dev"
 PEER_HOST = "mymail.mymail-app.workers.dev"
+# R43 (MB-228): staging mail goes out from the verified mail.multies.si subdomain with a staging name. Before, staging
+# had no SYSTEM_FROM, so it sent as no-reply@preview.multies.si (not a verified sending domain) and every outside
+# address was refused by the mail provider. No new domain and no paid plan: mail.multies.si was already verified.
+SYSTEM_FROM = "staging@mail.multies.si"
+SYSTEM_FROM_NAME = "Multies Staging"
+# R43: small import steps (5 items), so a small test file still exercises the background finish (kept upload, cron).
+IMPORT_STEP_MAX_ITEMS = "5"
+
+[[env.staging.kv_namespaces]]
+binding = "IMPORT_FILES"
+id = "023474320f4a4f25b1533ee43156bbfb"
 
 [[env.staging.services]]
 binding = "PEER"
@@ -279,4 +296,5 @@ enabled = true
 
 # Hourly on staging: nobody depends on its queue, and each pass writes.
 [env.staging.triggers]
-crons = ["0 * * * *"]
+# R43: every 15 minutes like production, so staging proves the same background import timing.
+crons = ["*/15 * * * *"]

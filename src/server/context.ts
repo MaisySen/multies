@@ -29,6 +29,8 @@ export interface Deps {
   log?: Logger;
   /** S3 compatible storage for large attachments (BODY_STORE_*). */
   bodyStore?: import("./services/storage/body-store").BodyStore;
+  /** R43: where an import's upload waits so the scheduled pass can finish it after the page closes (Workers KV IMPORT_FILES). */
+  importFiles?: import("./services/data-move/kept-file").ImportFileStore;
   /** Opens TCP or TLS connections to mail servers (connected mailboxes). Workers inject cloudflare:sockets; Node uses node:net. */
   openSocket?: import("./services/connect/socket").SocketOpener;
   /** Opens IMAP sessions for connected mailboxes. Defaults to ImapFlow; tests inject an in-memory server. */

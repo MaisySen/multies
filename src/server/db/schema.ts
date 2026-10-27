@@ -2026,4 +2026,12 @@ export const dataMoves = sqliteTable("data_moves", {
   lastStepAt: ts("last_step_at"),
   /** R41: when the one "finished" or "paused" email for this run was sent (never twice). */
   notifiedAt: ts("notified_at"),
+  /** R43: the kept upload (Workers KV key, or key prefix for a mail archive's parts) the scheduled pass finishes the run from; null when nothing is kept. */
+  fileKey: text("file_key"),
+  /** R43: how many parts are kept (1 for a one-file import). */
+  fileParts: integer("file_parts"),
+  /** R43: what the pass needs besides the file (mail: mailbox, folder and the first message index of each part), JSON. */
+  fileMeta: text("file_meta"),
+  /** R43: the kept file is deleted by this time at the latest (7 days after it was kept). */
+  fileExpiresAt: ts("file_expires_at"),
 }, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt), index("data_moves_status_step_idx").on(t.status, t.lastStepAt)]);

@@ -22,6 +22,7 @@ import { API_CSP, appCsp, isHttps, withSecurityHeaders } from "../server/lib/sec
 import { jsonLogger } from "../server/lib/logger";
 import { withAuthRequestState } from "../server/lib/request-state";
 import { S3BodyStore } from "../server/services/storage/body-store";
+import { kvImportFileStore } from "../server/services/data-move/kept-file";
 import { collabAccess } from "../server/collab/access";
 import { collabDocId } from "../server/collab/room";
 import type { DocRoomNamespace } from "../server/collab/durable-object";
@@ -121,6 +122,7 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
       });
     } : undefined,
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
+    importFiles: env.IMPORT_FILES ? kvImportFileStore(env.IMPORT_FILES) : undefined, // R43
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
     liveMail: liveMailDispatcher(env),

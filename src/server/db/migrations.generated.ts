@@ -826,5 +826,14 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "ALTER TABLE `data_moves` ADD `notified_at` integer;",
       "CREATE INDEX IF NOT EXISTS `data_moves_status_step_idx` ON `data_moves` (`status`,`last_step_at`);"
     ]
+  },
+  {
+    "name": "0086_r43_kept_import_files",
+    "statements": [
+      "-- R43 imports that finish after the page closes: the run row points at its kept upload (Workers KV), how many parts it\n-- has, what the scheduled pass needs besides the file, and when the kept file expires (7 days at most).\nALTER TABLE `data_moves` ADD `file_key` text;",
+      "ALTER TABLE `data_moves` ADD `file_parts` integer;",
+      "ALTER TABLE `data_moves` ADD `file_meta` text;",
+      "ALTER TABLE `data_moves` ADD `file_expires_at` integer;"
+    ]
   }
 ];

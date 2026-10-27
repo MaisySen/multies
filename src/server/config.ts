@@ -133,6 +133,8 @@ export interface AppConfig {
   webPush?: { publicKey: string; privateKey: string; subject: string };
   /** An S3 compatible bucket for large message parts (BODY_STORE_ENDPOINT, _BUCKET, _REGION, _ACCESS_KEY_ID, _SECRET_ACCESS_KEY). */
   bodyStore?: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string };
+  /** R43: at most this many items per import step (staging sets it small so the background finish is exercised). */
+  importStepMaxItems?: number;
   /** Mail import runners authenticate with this (IMPORT_RUNNER_TOKEN). Import is off without it. */
   importRunnerToken?: string;
   /**
@@ -269,6 +271,7 @@ const EnvSchema = z.object({
   BODY_STORE_ACCESS_KEY_ID: z.string().optional(),
   BODY_STORE_SECRET_ACCESS_KEY: z.string().optional(),
   IMPORT_RUNNER_TOKEN: z.string().min(24).optional(),
+  IMPORT_STEP_MAX_ITEMS: z.string().regex(/^[1-9][0-9]{0,4}$/).optional(),
   MAIL_CONNECT: z.string().optional(),
   MAIL_CONNECT_ALLOW_SELF_SIGNED: z.string().optional(),
   MAIL_CONNECT_ALLOW_PRIVATE_HOSTS: z.string().optional(),
@@ -460,6 +463,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     ...(env.VAPID_PUBLIC_KEY?.trim() && env.VAPID_PRIVATE_KEY?.trim()
       ? { webPush: { publicKey: env.VAPID_PUBLIC_KEY.trim(), privateKey: env.VAPID_PRIVATE_KEY.trim(), subject: env.VAPID_SUBJECT?.trim() || "mailto:security@multies.si" } } : {}),
     importRunnerToken: env.IMPORT_RUNNER_TOKEN,
+    importStepMaxItems: env.IMPORT_STEP_MAX_ITEMS ? Number(env.IMPORT_STEP_MAX_ITEMS) : undefined,
     mailConnect: (() => {
       const on = (v: string | undefined) => v === "1" || v === "true" || v === "on";
       const testOnly = (key: string, v: string | undefined) => {

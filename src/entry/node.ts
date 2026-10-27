@@ -39,6 +39,7 @@ import { mailauthAuthenticator } from "../server/services/mail/mailauth";
 import { attachCollab } from "../server/collab/node";
 import { attachChatLive } from "../server/realtime/node";
 import { SmtpOutbound, smtpSettingsFrom } from "./smtp-outbound";
+import { MemoryImportFileStore } from "../server/services/data-move/kept-file";
 import { domains } from "../server/db/schema";
 import { decryptSecret } from "../server/lib/crypto";
 import { eq } from "drizzle-orm";
@@ -72,6 +73,8 @@ const deps = {
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
   authenticate: mailauthAuthenticator(),
   bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
+  // R43: IMPORT_FILES=memory keeps import uploads in this process so the scheduled pass can finish a run (tests).
+  importFiles: process.env.IMPORT_FILES === "memory" ? new MemoryImportFileStore() : undefined,
   reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
 };
 const app = createApp(deps);

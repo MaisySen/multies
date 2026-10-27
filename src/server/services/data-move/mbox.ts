@@ -20,6 +20,7 @@ import { assertMailboxAccess } from "../team";
 import { assertWritable, type SuiteActor } from "../suite/common";
 import { base64Bytes } from "../work-import/parse";
 import { notifyMoveEnded, presentMove } from "./service";
+import { dropKeptFile } from "./kept-file"; // R43
 
 export const MBOX_BATCH = 3; // R40 lead: 3, not 10, after prod hit the free plan CPU limit (parsing is server CPU)
 export const MBOX_BATCH_BYTES = 192 * 1024;
@@ -89,6 +90,7 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
   if (status !== "running") await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: error ? "data.import_failed" : "data.import_finished", targetType: "data_move", targetId: m.id, metadata: counts });
   const after = { ...m, done, counts: JSON.stringify(counts), created: createdJson, status, error, updatedAt: deps.now() };
   if (status === "done") await notifyMoveEnded(deps, after, "done");
+  if (status !== "running" && m.fileKey) await dropKeptFile(deps, m); // R43: an ended run keeps no file
   if (error) throw new HttpError(413, "storage_full", error, { moveId: m.id, counts });
   return { move: presentMove(after), counts };
 }
@@ -102,6 +104,7 @@ export async function stopMbox(deps: Deps, actor: SuiteActor, moveId: string) {
     // Essential write: the run ends as stopped.
     await deps.db.update(dataMoves).set({ status: "stopped", updatedAt: deps.now(), finishedAt: deps.now() }).where(eq(dataMoves.id, m.id));
   }
+  if (m.fileKey) await dropKeptFile(deps, m); // R43: Cancel means the background pass must not carry on
   return { move: presentMove({ ...m, status: m.status === "running" ? "stopped" : m.status }) };
 }
 

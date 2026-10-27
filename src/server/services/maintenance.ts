@@ -42,6 +42,9 @@ export async function runMaintenance(deps: Deps) {
   // R41: imports left behind (page closed for 10 minutes): at most 5 a pass get their one "paused" email. One indexed
   // read when none. R42: it runs before the jobs step, so the email it queues goes out in this same pass (staging's
   // cron is hourly, so after the jobs step the email waited a whole extra hour).
+  // R43: kept imports (the upload waits in KV) carry on here when their page has closed: at most 2 runs a pass, each a
+  // few steps as the person who started it. Runs before the jobs step, so a "finished" email goes out in this pass.
+  await step("data_move_continue", async () => (await import("./data-move/continue")).continueKeptMoves(deps));
   await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
   const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // The remaining steps touch different tables and don't depend on each other, so they run

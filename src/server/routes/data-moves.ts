@@ -7,11 +7,13 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
+import { HttpError } from "../lib/errors";
 import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { exportWorkspace } from "../services/privacy";
 import { exportFinished, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { WorkImportRun } from "./work-imports";
 import { importMboxBatch, MBOX_BATCH, stopMbox } from "../services/data-move/mbox"; // R40 mbox upload
+import { keepMboxPart } from "../services/data-move/kept-file"; // R43 background finish
 
 /** R40: one batch of an .mbox upload, read and split in the browser. */
 export const MboxBatch = z.object({
@@ -38,6 +40,13 @@ export function dataMoveDownloadRoutes() {
   });
 }
 
+/** R43: the keep body is JSON with one string (the part's base64 messages, one a line): a cheap parse, and the CSRF guard needs JSON. */
+async function keepBody(req: Request) {
+  const j = await req.json().catch(() => null) as { lines?: unknown } | null;
+  if (!j || typeof j.lines !== "string") throw new HttpError(422, "validation_failed", "Send the part as { lines }.");
+  return j.lines;
+}
+
 export function dataMoveRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
@@ -48,6 +57,12 @@ export function dataMoveRoutes() {
     .post("/imports/preview", async (c) => c.json(await previewMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
     .post("/imports/run", async (c) => c.json(await runMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
     .post("/mbox/batch", async (c) => c.json(await importMboxBatch(c.var.deps, c.var.auth, await parseBody(c, MboxBatch))))
+    // R43: one part of a mail archive's messages (base64, one a line), kept so the scheduled pass can finish the run.
+    .post("/mbox/:id/keep", async (c) => {
+      const q = (k: string) => c.req.query(k);
+      const starts = q("starts")?.split(",").map(Number);
+      return c.json(await keepMboxPart(c.var.deps, c.var.auth, c.req.param("id"), { part: Number(q("part")), parts: Number(q("parts")), starts, mailboxId: q("mailboxId"), folder: q("folder") }, await keepBody(c.req.raw)));
+    })
     .post("/mbox/:id/stop", async (c) => c.json(await stopMbox(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/:id/undo", async (c) => c.json(await undoMove(c.var.deps, c.var.auth, c.req.param("id"))));
 }

@@ -29,6 +29,7 @@ import { invalidateStatuses } from "../suite/read-cache";
 import { previewImport, runImport, type RunInput } from "../work-import/service";
 import { base64Bytes, pageBody, pageTitle, ZIP_PREFIX } from "../work-import/parse";
 import { MoveFileError, parseIcsEvents, readContacts, type ContactIn, type EventIn } from "./formats";
+import { dropKeptFile, keepImportInput } from "./kept-file"; // R43 imports finish after the page closes
 
 export const EXPORT_LINK_HOURS = 24;
 /** One export a workspace every 10 minutes: an export reads everything, so a loop of them would be costly. */
@@ -63,6 +64,8 @@ export function presentMove(m: typeof dataMoves.$inferSelect) {
     canUndo: m.kind === "import" && m.status !== "undone" && made > 0,
     expiresAt: m.expiresAt?.toISOString() ?? null, error: m.error, by: m.createdByEmail,
     createdAt: m.createdAt.toISOString(), finishedAt: m.finishedAt?.toISOString() ?? null, undoneAt: m.undoneAt?.toISOString() ?? null,
+    // R43: the upload is kept, so the scheduled pass finishes the run if its page closes.
+    background: Boolean(m.fileKey) && (m.status === "running" || m.status === "stopped"),
   };
 }
 
@@ -159,7 +162,10 @@ async function saveProgress(deps: Deps, m: typeof dataMoves.$inferSelect, patch:
     ...(patch.projectId !== undefined ? { projectId: patch.projectId } : {}), ...(patch.counts ? { counts: JSON.stringify(patch.counts) } : {}),
     updatedAt: now, lastStepAt: now, ...(patch.status === "done" ? { finishedAt: now } : {}),
   }).where(eq(dataMoves.id, m.id));
-  if (patch.status === "done") await notifyMoveEnded(deps, { ...m, created: JSON.stringify(patch.created), done: patch.done, total: patch.total ?? m.total, status: "done" }, "done");
+  if (patch.status === "done") {
+    await notifyMoveEnded(deps, { ...m, created: JSON.stringify(patch.created), done: patch.done, total: patch.total ?? m.total, status: "done" }, "done");
+    if (m.fileKey) await dropKeptFile(deps, m); // R43: a finished run keeps no file
+  }
   return presentMove({ ...m, created: JSON.stringify(patch.created), done: patch.done, total: patch.total ?? m.total, status: patch.status, projectId: patch.projectId ?? m.projectId, counts: patch.counts ? JSON.stringify(patch.counts) : m.counts, updatedAt: now, finishedAt: patch.status === "done" ? now : m.finishedAt });
 }
 
@@ -257,6 +263,18 @@ async function budgetStop(deps: Deps) {
  * the run's id (moveId) while status is "stopped" and stopped is "time"; the web page does this on its own.
  */
 export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput) {
+  const r = await runMoveStep(deps, actor, input);
+  // R43: a step that stopped part way keeps this request's input (once per run), so the scheduled pass can finish the
+  // run if the page closes. The step's own answer is unchanged; a failed keep only means the run waits for its page.
+  if (r.move.status === "stopped" && deps.importFiles) {
+    const row = await deps.db.select().from(dataMoves).where(eq(dataMoves.id, r.move.id)).get();
+    if (row && !row.fileKey && await keepImportInput(deps, row, input as unknown as Record<string, unknown>)) return { ...r, move: { ...r.move, background: true } };
+  }
+  return r;
+}
+
+/** One step, without keeping anything (the scheduled pass calls this with the kept input). */
+export async function runMoveStep(deps: Deps, actor: SuiteActor, input: ImportInput) {
   assertWritable(actor);
   requireImportAdmin(actor);
   const prior = await resume(deps, actor, input.moveId);
@@ -273,7 +291,10 @@ export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput)
   while (done < items.length) {
     if (await budgetStop(deps)) { stopped = "write_budget"; break; }
     if (done > m.done && Date.now() - started > STEP_MS) { stopped = "time"; break; }
-    const part = items.slice(done, done + (input.kind === "docs" ? 10 : CHUNK));
+    // R43: staging takes small steps (IMPORT_STEP_MAX_ITEMS), so a small file still exercises the background finish.
+    const cap = deps.config.importStepMaxItems;
+    if (cap && done - m.done >= cap) { stopped = "time"; break; }
+    const part = items.slice(done, done + Math.min(input.kind === "docs" ? 10 : CHUNK, cap ?? CHUNK));
     if (input.kind === "contacts") {
       const r = await insertContacts(deps, actor, part as ContactIn[]);
       created.contacts = [...(created.contacts ?? []), ...r.ids];
@@ -450,6 +471,7 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   const m = await moveRow(deps, actor.orgId, id);
   if (m.kind !== "import") throw new HttpError(422, "validation_failed", "Only an import can be undone.");
   if (m.status === "undone") return { move: presentMove(m), removed: 0 };
+  if (m.fileKey) await dropKeptFile(deps, m); // R43: the kept upload goes with the run
   const c = parseJson<Created>(m.created, {});
   let removed = 0;
   const del = async (ids: string[] | undefined, table: typeof tasks | typeof meetings | typeof contacts | typeof docs) => {
@@ -557,6 +579,8 @@ registerJob("data-move.notify", async (deps, payload) => {
   const p = payload as { moveId: string; why: "done" | "paused" };
   const m = await deps.db.select().from(dataMoves).where(eq(dataMoves.id, p.moveId)).get();
   if (!m || !m.createdByEmail) return;
+  // R43: a run undone after it finished (or paused) gets no email: the person already removed what it brought in.
+  if (m.status === "undone") { deps.log?.info("data_move.notify_skipped", { moveId: m.id, why: p.why, reason: "undone" }); return; }
   const e = moveEmail(deps, m, p.why);
   const r = await sendSystemEmail(deps, { to: m.createdByEmail, subject: e.subject, text: e.text, action: e.action, orgId: m.orgId, template: "data-move-done" });
   deps.log?.info("data_move.notified", { moveId: m.id, why: p.why, delivered: r.delivered, via: r.via });
@@ -578,6 +602,7 @@ export async function nudgeLeftBehindMoves(deps: Deps) {
   const before = new Date(deps.now().getTime() - LEFT_BEHIND_MIN * 60_000);
   const rows = await deps.db.select().from(dataMoves)
     .where(and(inArray(dataMoves.status, ["running", "stopped"]), lt(dataMoves.lastStepAt, before), isNull(dataMoves.notifiedAt), eq(dataMoves.kind, "import"),
+      isNull(dataMoves.fileKey), // R43: a kept run is finished by the scheduled pass, not paused
       or(eq(dataMoves.status, "running"), ne(dataMoves.source, "mail:mbox"))))
     .orderBy(dataMoves.lastStepAt).limit(NUDGE_LIMIT);
   let paused = 0;
