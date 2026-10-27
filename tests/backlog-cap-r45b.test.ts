@@ -44,5 +44,6 @@ describe("R45b backlog read and the list limit", () => {
     expect(TASK_LIST_LIMIT).toBe(500);
     expect(listIsCapped(499)).toBe(false);
     expect(listIsCapped(500)).toBe(true);
+    expect(listIsCapped(501)).toBe(false);
   });
 });

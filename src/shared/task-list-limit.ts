@@ -5,5 +5,6 @@
  */
 export const TASK_LIST_LIMIT = 500;
 
-/** True when a list read came back full, so there may be more tasks than the ones on screen. */
-export const listIsCapped = (count: number, limit: number = TASK_LIST_LIMIT) => count >= limit;
+/** True when a list read came back exactly full, so there may be more tasks than the ones on screen. A longer list (a
+ * paged read, R46) is complete and shows no notice. */
+export const listIsCapped = (count: number, limit: number = TASK_LIST_LIMIT) => count === limit;

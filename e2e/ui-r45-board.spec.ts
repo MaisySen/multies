@@ -260,14 +260,27 @@ test("backlog keyboard: Shift with arrows selects, Space toggles, Escape clears,
 });
 
 test("R45b: a full task read says so on the board and in the backlog", async ({ page }) => {
-  await openBoard(page);
-  await expect(page.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 tasks\. Counts cover only these/);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await demo(page);
-  await bigBacklog(page);
+  // The server sends at most 500 tasks per read: answer with exactly that many.
+  const full = (route: import("@playwright/test").Route, title: string) => (async () => {
+    const res = await route.fetch();
+    const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
+    if (!body?.tasks?.[0]) return route.fulfill({ response: res });
+    const b = body.tasks[0];
+    const tasks = Array.from({ length: 500 }, (_, i) => ({ ...b, id: `r45c_${i}`, ref: `C-${i + 1}`, number: i + 1, title: `${title} ${i + 1}`, status: "todo", position: i }));
+    await route.fulfill({ response: res, json: { ...body, tasks } });
+  })();
+  await page.route(/\/api\/tasks(\?[^/]*)?$/, (route) => route.request().method() === "GET" ? full(route, "Capped task") : route.fallback());
+  await page.goto("/app/tasks?view=board");
+  await expect(page.getByTestId("board").getByText("Capped task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 tasks\. Counts cover only these/);
+  await page.route(/\/api\/sprints\/backlog\?/, (route) => full(route, "Capped backlog"));
   await page.goto("/app/tasks?view=sprints");
   const panel = page.locator("[aria-label=Backlog]").first();
-  await expect(panel.getByText("Backlog task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(panel.getByText("Capped backlog 1", { exact: true })).toBeVisible({ timeout: 60_000 });
   await expect(panel.getByTestId("list-cap-notice")).toHaveText(/Showing the first 500 backlog tasks/);
+  await expect(panel).toContainText("500+ tasks");
   await expect(page.getByTestId("list-cap-notice")).toHaveCount(1); // the board notice is not shown on the sprints view
 });
 
