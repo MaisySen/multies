@@ -44,6 +44,13 @@ function requireAdmin(actor: SuiteActor) {
   if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can export the whole workspace.");
 }
 
+/* R40 sec: imports bring a whole file into the workspace and undo deletes everything an import made, whoever made
+ * it, so both are for owners and admins (and workspace keys, which act as admin), like the export. */
+function requireImportAdmin(actor: SuiteActor) {
+  if (actor.system) return;
+  if (actor.role !== "owner" && actor.role !== "admin") throw forbidden("Only workspace owners and admins can import or undo an import.");
+}
+
 export function presentMove(m: typeof dataMoves.$inferSelect) {
   const created = parseJson<Created>(m.created, {});
   const counts = parseJson<Record<string, number>>(m.counts, {});
@@ -195,6 +202,7 @@ export function readPages(content: string, fileName = "page.md"): { title: strin
 /** What a calendar, contacts or docs file would bring in: the count and the first 20. Writes nothing. */
 export async function previewMove(deps: Deps, actor: SuiteActor, input: ImportInput) {
   assertWritable(actor);
+  requireImportAdmin(actor);
   if (input.kind === "tasks") return { kind: "tasks" as const, ...(await previewImport(deps, actor, input)) };
   if (input.kind === "workspace") return { kind: "workspace" as const, ...summarizeWorkspace(readWorkspace(input.content)) };
   const f = input.kind === "docs" ? { pages: readPagesSafe(input.content, input.fileName), skipped: 0 } : readFile(input.kind, input.content);
@@ -225,6 +233,7 @@ async function budgetStop(deps: Deps) {
  */
 export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput) {
   assertWritable(actor);
+  requireImportAdmin(actor);
   const prior = await resume(deps, actor, input.moveId);
   if (input.kind === "tasks") return runTaskStep(deps, actor, input, prior);
   if (input.kind === "workspace") return runWorkspaceStep(deps, actor, input, prior);
@@ -412,6 +421,7 @@ async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInpu
 /** Removes exactly what one import made: its tasks (with their comments), the statuses and projects it added, and its meetings, contacts and docs. */
 export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
+  requireImportAdmin(actor);
   const m = await moveRow(deps, actor.orgId, id);
   if (m.kind !== "import") throw new HttpError(422, "validation_failed", "Only an import can be undone.");
   if (m.status === "undone") return { move: presentMove(m), removed: 0 };
