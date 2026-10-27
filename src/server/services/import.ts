@@ -110,26 +110,46 @@ export function folderFor(source: string): Folder {
 /** Stores one raw message from the runner. Duplicates (same Message-ID) are skipped. */
 export async function importMessage(deps: Deps, id: string, raw: Uint8Array, opts: { folder: string; seen?: boolean }) {
   const j = await runningJob(deps, id);
+  try {
+    const r = await storeImportedRaw(deps, { orgId: j.orgId, mailboxId: j.mailboxId, raw, folder: opts.folder, seen: opts.seen });
+    await bump(deps, id);
+    return r;
+  } catch (e) {
+    if (e instanceof HttpError && e.code === "storage_full") await finish(deps, id, { error: "The workspace's storage is full. Add a storage pack in Billing, then import again." });
+    throw e;
+  }
+}
+
+/**
+ * The shared store step for imported mail (the IMAP runner and the mbox upload in Move your data): parse, skip a
+ * duplicate Message-ID in the mailbox (read through messages_mailbox_msgid_idx), check the pooled storage, then store
+ * like any other mail so threading applies. `pooledBytes` lets a batch read the storage total once.
+ */
+export async function storeImportedRaw(deps: Deps, input: { orgId: string; mailboxId: string; raw: Uint8Array; folder: string; seen?: boolean; pooledBytes?: number; limitBytes?: number }) {
+  const { raw } = input;
   const email = await parseMime(raw);
   if (email.messageId) {
-    const dup = await deps.db.select({ id: messages.id }).from(messages).where(and(eq(messages.mailboxId, j.mailboxId), eq(messages.messageIdHeader, email.messageId))).get();
-    if (dup) { await bump(deps, id); return { stored: false, reason: "duplicate" as const }; }
+    const dup = await deps.db.select({ id: messages.id }).from(messages).where(and(eq(messages.mailboxId, input.mailboxId), eq(messages.messageIdHeader, email.messageId))).get();
+    if (dup) return { stored: false as const, reason: "duplicate" as const };
   }
-  const plan = await getPlan(deps.db, j.orgId);
-  const pooled = await deps.db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, j.orgId)).get();
-  if (Number(pooled?.n ?? 0) + raw.byteLength > plan.limits.storageMb * 1024 * 1024) {
-    await finish(deps, id, { error: "The workspace's storage is full. Add a storage pack in Billing, then import again." });
-    throw new HttpError(413, "storage_full", "The workspace's storage is full.");
-  }
-  const folder = folderFor(opts.folder);
+  const { used, limit } = input.pooledBytes !== undefined && input.limitBytes !== undefined ? { used: input.pooledBytes, limit: input.limitBytes } : await storageRoom(deps, input.orgId);
+  if (used + raw.byteLength > limit) throw new HttpError(413, "storage_full", "The workspace's storage is full. Add a storage pack in Billing, then import again.");
+  const folder = folderFor(input.folder);
+  // Essential write: the message itself.
   await storeMessage(deps.db, {
-    bodyStore: deps.bodyStore, orgId: j.orgId, mailboxId: j.mailboxId, folder, messageIdHeader: email.messageId, inReplyTo: email.inReplyTo, references: email.references,
+    bodyStore: deps.bodyStore, orgId: input.orgId, mailboxId: input.mailboxId, folder, messageIdHeader: email.messageId, inReplyTo: email.inReplyTo, references: email.references,
     from: email.from, to: email.to, cc: email.cc, replyTo: email.replyTo, subject: email.subject, text: email.text, html: email.html, date: email.date,
-    isRead: opts.seen ?? true, authResults: email.authResults, attachments: email.attachments, sizeBytes: raw.byteLength,
+    isRead: input.seen ?? true, authResults: email.authResults, attachments: email.attachments, sizeBytes: raw.byteLength,
   });
-  if (folder === "inbox" || folder === "spam") await mirrorInbound(deps, j.mailboxId, raw, { spam: folder === "spam" });
-  await bump(deps, id);
-  return { stored: true as const, folder };
+  if (folder === "inbox" || folder === "spam") await mirrorInbound(deps, input.mailboxId, raw, { spam: folder === "spam" });
+  return { stored: true as const, folder, bytes: raw.byteLength };
+}
+
+/** The workspace's pooled mail storage in use and its plan limit, in bytes (one read through mailboxes' org index). */
+export async function storageRoom(deps: Deps, orgId: string) {
+  const plan = await getPlan(deps.db, orgId);
+  const pooled = await deps.db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get();
+  return { used: Number(pooled?.n ?? 0), limit: plan.limits.storageMb * 1024 * 1024 };
 }
 
 async function bump(deps: Deps, id: string) {
