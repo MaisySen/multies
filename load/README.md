@@ -42,3 +42,8 @@ With the Worker placed next to the database (`[placement]` in `wrangler.toml`), 
 - After changing rate limits or Worker placement.
 
 Record new numbers in the table above with the release they were taken on.
+
+
+## Reads guard (R39)
+
+D1's free plan blocks every read for the whole account, production included, once 5 million rows have been read in a day (UTC). On 26 October 2026 the staging load tests and the 500 task views used it up at 23:18 UTC and production could not read until midnight. Before any load or QA script, run `node load/reads-guard.mjs <base url>`: it exits 1 at 50% or more of the daily reads (shown as `reads` on `/api/health`). `load/smoke.js` checks the same in its setup.

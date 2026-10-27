@@ -2,7 +2,7 @@ import { docsMarkdown, DOCS_MD_PATHS, llmsFullTxt, llmsTxt, MCP_TOOLS_MD_PATH, v
 import { Hono, type Context } from "hono";
 import { isD1LimitError, READ_ONLY_BODY } from "./lib/d1-limit";
 import { busyBody, d1BusyKind } from "./lib/d1-busy";
-import { healthView, noteD1LimitHit, writeBudget } from "./services/write-budget";
+import { healthView, noteD1LimitHit, readsView, writeBudget } from "./services/write-budget";
 import { deferredCounts } from "./services/write-priority";
 import { API_CSP, appCsp, docsCsp, isHttps, securityHeaders } from "./lib/security-headers";
 import { installCspReport } from "./routes/csp-report-r30";
@@ -221,7 +221,7 @@ export function createApp(deps: Deps) {
       }
       // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
       const wb = await writeBudget(deps);
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() } } : {}) });
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead) } : {}) });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }

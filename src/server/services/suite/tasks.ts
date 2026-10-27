@@ -428,8 +428,14 @@ async function pickStatus(deps: Deps, projectId: string, statusId?: string, cate
   return sts.find((x) => x.category === (category ?? "todo")) ?? sts[0];
 }
 
-async function bottomPosition(deps: Deps, statusId: string) {
-  const r = await deps.db.select({ p: sql<number>`coalesce(max(${tasks.position}), 0)` }).from(tasks).where(and(eq(tasks.statusId, statusId), isNull(tasks.deletedAt))).get();
+/**
+ * R39 (D1 rows read): scoped to the workspace and project, so the read is one seek on tasks_org_project_cover_idx
+ * (org, project, status, position). By status alone it had no index and scanned the tasks table: the top row
+ * reader on production (about 320 rows a call) and staging (about 800).
+ */
+async function bottomPosition(deps: Deps, orgId: string, projectId: string, statusId: string) {
+  const r = await deps.db.select({ p: sql<number>`coalesce(max(${tasks.position}), 0)` }).from(tasks)
+    .where(and(eq(tasks.orgId, orgId), eq(tasks.projectId, projectId), eq(tasks.statusId, statusId), isNull(tasks.deletedAt))).get();
   return Number(r?.p ?? 0) + 1024;
 }
 
@@ -487,7 +493,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
     id, orgId: actor.orgId, projectId: project.id, number, statusId: status.id, status: status.category,
     title, notes: input.notes ?? "", assigneeType: input.assignee?.type ?? null, assigneeId: input.assignee?.id ?? null,
     priority: input.priority ?? "none", startAt: parseDate(input.start), dueAt: parseDate(input.due), labels: JSON.stringify(normaliseLabels(input.labels)),
-    parentId: input.parentId ?? null, position: await bottomPosition(deps, status.id),
+    parentId: input.parentId ?? null, position: await bottomPosition(deps, actor.orgId, project.id, status.id),
     threadId: source.threadId, messageId: source.messageId, sourceFrom: source.from, sourceSubject: source.subject,
     completedAt: status.category === "done" ? now : null, repeatRule: input.repeat ? JSON.stringify(normaliseRule(input.repeat)) : null,
     type: input.type ?? "task",
@@ -601,7 +607,7 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
       fromCategory = t.status;
       set.completedAt = s.category === "done" ? (t.completedAt ?? now) : null;
       changed.status = { from: t.statusId, to: s.id, name: s.name, category: s.category };
-      if (patch.position === undefined) set.position = await bottomPosition(deps, s.id);
+      if (patch.position === undefined) set.position = await bottomPosition(deps, actor.orgId, projectId, s.id);
     }
   }
   if (patch.position !== undefined) set.position = patch.position;

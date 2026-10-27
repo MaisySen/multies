@@ -39,6 +39,12 @@ export function healthView(r: WriteBudgetReading, cfg: Pick<Deps["config"]["writ
   };
 }
 
+export function readsView(rowsRead: number | undefined) {
+  if (rowsRead === undefined) return null;
+  const pct = Math.round((rowsRead / D1_DAILY_READS) * 1000) / 10;
+  return { today: rowsRead, budget: D1_DAILY_READS, pct, level: pct >= 100 ? "limit" : pct >= READ_BUDGET_WARN_PCT ? "warn" : "ok", warnAt: READ_BUDGET_WARN_PCT, loadStopAt: READ_BUDGET_LOAD_STOP_PCT };
+}
+
 /** R32: alert and degrade from 60% (warn) and 85% (shed) of the daily budget, unless overridden by env. */
 export const WRITE_BUDGET_WARN_PCT = 60;
 export const WRITE_BUDGET_SHED_PCT = 85;
@@ -54,7 +60,15 @@ export interface WriteBudgetReading {
   byDatabase: Record<string, number>;
   /** When the count was read (ISO). */
   at: string;
+  /** R39: rows read today (UTC) across the account. The free plan blocks every read past 5 million a day. */
+  rowsRead?: number;
 }
+
+/** R39: D1's free plan daily rows read limit (account wide). Past it every query that reads a row fails until 00:00 UTC. */
+export const D1_DAILY_READS = 5_000_000;
+/** R39: /api/health warns from 60% of it; load and QA scripts refuse to run from 50% (load/reads-guard.mjs). */
+export const READ_BUDGET_WARN_PCT = 60;
+export const READ_BUDGET_LOAD_STOP_PCT = 50;
 
 const CACHE_MS = 5 * 60_000;
 let cached: { key: string; at: number; reading: WriteBudgetReading } | null = null;
@@ -86,7 +100,7 @@ export function levelFor(rowsWritten: number, cfg: Deps["config"]["writeBudget"]
 
 // The date is a dimension and an exact filter: grouped only by database with date_geq, the analytics API
 // answered 111 rows for 25 Oct while the same day grouped by date read 13,550 (checked 25 Oct 00:30 UTC).
-const QUERY = `query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:50,filter:{date:$d}){sum{rowsWritten} dimensions{databaseId date}}}}}`;
+const QUERY = `query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:50,filter:{date:$d}){sum{rowsWritten rowsRead} dimensions{databaseId date}}}}}`;
 
 async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
   const cfg = deps.config.writeBudget;
@@ -98,14 +112,15 @@ async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
     signal: AbortSignal.timeout(5_000),
   });
   if (!res.ok) throw new Error(`analytics answered ${res.status}`);
-  const json = (await res.json()) as { data?: { viewer?: { accounts?: { d1AnalyticsAdaptiveGroups?: { sum: { rowsWritten: number }; dimensions: { databaseId: string } }[] }[] } }; errors?: { message: string }[] | null };
+  const json = (await res.json()) as { data?: { viewer?: { accounts?: { d1AnalyticsAdaptiveGroups?: { sum: { rowsWritten: number; rowsRead?: number }; dimensions: { databaseId: string } }[] }[] } }; errors?: { message: string }[] | null };
   if (json.errors?.length) throw new Error(`analytics: ${json.errors[0].message}`);
   const groups = json.data?.viewer?.accounts?.[0]?.d1AnalyticsAdaptiveGroups;
   if (!groups) throw new Error("analytics: no D1 data in the answer");
   const byDatabase: Record<string, number> = {};
   for (const g of groups) byDatabase[g.dimensions.databaseId] = (byDatabase[g.dimensions.databaseId] ?? 0) + (g.sum.rowsWritten ?? 0);
   const rowsWritten = Object.values(byDatabase).reduce((a, n) => a + n, 0);
-  return { level: levelFor(rowsWritten, cfg), rowsWritten, budget: cfg.daily, byDatabase, at: now.toISOString() };
+  const rowsRead = groups.reduce((a, g) => a + (g.sum.rowsRead ?? 0), 0);
+  return { level: levelFor(rowsWritten, cfg), rowsWritten, budget: cfg.daily, byDatabase, at: now.toISOString(), rowsRead };
 }
 
 /**

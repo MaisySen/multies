@@ -4,6 +4,7 @@ import { makeTestApp, Client } from "./helpers";
 import { users, auditLogs } from "@/server/db/schema";
 import { maskInviteId, redactAuditRow } from "@/server/services/audit";
 import { memberSafeAudit } from "@/server/routes/dashboard";
+import { readsView } from "@/server/services/write-budget";
 
 /** R39 security hotfix: the prod demo, the audit log and invite acceptance. */
 const IDP = { AUTH0_DOMAIN: "multies-test.us.auth0.com", AUTH0_CLIENT_ID: "web-client", AUTH0_CLIENT_SECRET: "web-secret" };
@@ -147,5 +148,14 @@ describe("R39: accepting an invite needs a confirmed matching email", () => {
     const ok = await attacker.post(`/api/invites/${id}/accept`);
     expect(ok.status).toBe(200);
     expect(ok.body.role).toBe("admin");
+  });
+});
+
+describe("R39: D1 rows read on /api/health", () => {
+  it("shows today's reads against the free plan's 5 million and warns from 60%", () => {
+    expect(readsView(undefined)).toBeNull();
+    expect(readsView(1_000_000)).toMatchObject({ today: 1_000_000, budget: 5_000_000, pct: 20, level: "ok", loadStopAt: 50 });
+    expect(readsView(3_100_000)?.level).toBe("warn");
+    expect(readsView(5_000_000)?.level).toBe("limit");
   });
 });

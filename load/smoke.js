@@ -5,6 +5,7 @@
 // latency and errors, not maximum throughput; see load/README.md.
 import http from "k6/http";
 import { check, group, sleep } from "k6";
+import exec from "k6/execution";
 
 const BASE = __ENV.BASE_URL || "https://mymail-staging.mymail-app.workers.dev";
 const KEY = __ENV.K6_API_KEY || "";
@@ -21,6 +22,13 @@ export const options = {
     checks: ["rate>0.99"],
   },
 };
+
+// R39: D1's free plan blocks every read for the whole account (production too) past 5 million rows a day.
+// The test refuses to start once today's reads are at 50% or more (/api/health "reads").
+export function setup() {
+  const reads = http.get(`${BASE}/api/health`).json("reads");
+  if (reads && reads.pct >= 50) exec.test.abort(`D1 rows read today are at ${reads.pct}% of the daily limit. Load tests wait until 00:00 UTC.`);
+}
 
 export function browse() {
   group("landing", () => {
