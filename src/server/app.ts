@@ -279,8 +279,6 @@ export function createApp(deps: Deps) {
     }
   };
   app.get("/api/health", health);
-  // R45: production test session for the build team (404 unless the TEST_SESSION_* settings are set; see routes/test-session-r45.ts).
-  app.post("/api/_test-session", async (c) => (await import("./routes/test-session-r45")).mintTestSession(c));
   // Uptime monitors try /health and /healthz first (MB-53): same JSON answer, never the HTML 404 page.
   app.get("/health", health);
   // R32: release check for open tabs, and the public developer docs for agents.

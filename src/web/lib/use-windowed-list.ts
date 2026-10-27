@@ -19,6 +19,13 @@ export interface WindowedList {
   rowHeight: number;
   /** Brings row `index` into view (rendering it first when it is outside the window). */
   scrollToIndex: (index: number) => void;
+  /**
+   * R45: true while the list is being jump scrolled (a scrollbar drag, End, a fling): a scroll moved more than
+   * `fastPx` in one frame. Lists that opt in (`shells`) draw light rows meanwhile and the full rows once it settles.
+   */
+  fast: boolean;
+  /** R45: the height a light row should take (the row's measured height when known, else the average). */
+  sizeOf: (index: number) => number;
 }
 
 interface Options {
@@ -36,6 +43,12 @@ interface Options {
   keys?: readonly string[];
   /** R44: space between rows that offsetHeight does not include (a flex gap), added to every measured row. */
   gap?: number;
+  /**
+   * R45: report `fast` while jump scrolling (more than about one and a half screens in one frame), back to false
+   * `settleMs` after the last such scroll. Off by default. A list can turn it off for a while (a drag in progress).
+   */
+  shells?: boolean;
+  settleMs?: number;
 }
 
 const isScroller = (el: HTMLElement) => {
@@ -76,8 +89,21 @@ export function windowRangeVar(offsets: Float64Array, offset: number, viewport: 
   return [first, last];
 }
 
-export function useWindowedList({ count, estimate, listRef, scrollRef, overscan = 8, minCount = WINDOW_FROM, keys, gap = 0 }: Options): WindowedList {
+/** R45: pure rule for the jump scroll test, exported for tests: did one frame move further than `factor` screens? */
+export function isJump(prevOffset: number | null, offset: number, viewport: number, factor = 1.5): boolean {
+  return prevOffset !== null && Math.abs(offset - prevOffset) > Math.max(400, viewport * factor);
+}
+
+export function useWindowedList({ count, estimate, listRef, scrollRef, overscan = 8, minCount = WINDOW_FROM, keys, gap = 0, shells = false, settleMs = 140 }: Options): WindowedList {
   const windowed = count >= minCount;
+  // R45: jump scroll state. `fast` draws light rows; the last offset tells a jump from a normal scroll.
+  const [fast, setFast] = useState(false);
+  const fastRef = useRef(false);
+  const lastOffset = useRef<number | null>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const quietUntil = useRef(0); // scrollToIndex moves are not jumps (J and K want the real row and its ring)
+  const shellsRef = useRef(shells);
+  shellsRef.current = shells;
   const [rowHeight, setRowHeight] = useState(estimate);
   const [range, setRange] = useState<[number, number]>(() => [0, Math.min(count, 40)]);
   const hRef = useRef(rowHeight);
@@ -104,9 +130,22 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     // R44: when the list is its own scroll box (a board column), its box does not move; its scrollTop does.
     const offset = viewTop - listTop + (sc === list ? sc.scrollTop : 0);
     const o = oRef.current;
+    if (shellsRef.current && performance.now() > quietUntil.current && isJump(lastOffset.current, offset, viewH)) {
+      if (!fastRef.current) { fastRef.current = true; setFast(true); }
+      if (settle.current) clearTimeout(settle.current);
+      settle.current = setTimeout(() => { settle.current = null; fastRef.current = false; setFast(false); }, settleMs);
+    }
+    lastOffset.current = offset;
     const next = o ? windowRangeVar(o, offset, viewH, overscan) : windowRange(count, hRef.current, offset, viewH, overscan);
     setRange((r) => (r[0] === next[0] && r[1] === next[1] ? r : next));
-  }, [count, overscan, listRef, scroller]);
+  }, [count, overscan, listRef, scroller, settleMs]);
+  useEffect(() => () => { if (settle.current) clearTimeout(settle.current); }, []);
+  // A list that stops allowing shells (a drag starts) gets its full rows back at once.
+  useEffect(() => {
+    if (shells || !fastRef.current) return;
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = null; fastRef.current = false; setFast(false);
+  }, [shells]);
 
   // Follow scrolling and resizing, one update per frame.
   useEffect(() => {
@@ -135,6 +174,9 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     if (!windowed) return;
     const list = listRef.current;
     if (!list) return;
+    // R45: light rows (jump scrolling) are not measured: their height is the estimate, and reading it would force a
+    // layout every frame for nothing.
+    if (fastRef.current && shellsRef.current) return;
     const rows = list.querySelectorAll<HTMLElement>(":scope > [data-win-row]");
     let sum = 0;
     let changed = false;
@@ -164,6 +206,7 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     if (!list || index < 0 || index >= count) return;
     const el = list.querySelector<HTMLElement>(`:scope > [data-win-row="${index}"]`);
     if (el) { el.scrollIntoView({ block: "nearest" }); return; }
+    quietUntil.current = performance.now() + 250;
     const sc = scroller();
     const at = oRef.current ? oRef.current[index] : index * hRef.current;
     if (sc) {
@@ -176,16 +219,20 @@ export function useWindowedList({ count, estimate, listRef, scrollRef, overscan 
     compute();
   }, [count, listRef, scroller, compute]);
 
-  if (!windowed) return { windowed, start: 0, end: count, padTop: 0, padBottom: 0, rowHeight, scrollToIndex };
+  const sizeOf = (index: number) => {
+    const k = keys?.[index];
+    return Math.max(0, ((k && sizes.current.get(k)) || rowHeight) - gap);
+  };
+  if (!windowed) return { windowed, start: 0, end: count, padTop: 0, padBottom: 0, rowHeight, scrollToIndex, fast: false, sizeOf };
   const start = Math.min(range[0], count);
   const end = Math.min(Math.max(range[1], start), count);
   if (offsets) {
     // Spacers stand in for the rows and their gaps; the flex gap next to each spacer is taken off again.
     const padTop = Math.max(0, offsets[start] - (start ? gap : 0));
     const padBottom = Math.max(0, offsets[count] - offsets[end] - (end < count ? gap : 0));
-    return { windowed, start, end, padTop, padBottom, rowHeight, scrollToIndex };
+    return { windowed, start, end, padTop, padBottom, rowHeight, scrollToIndex, fast: fast && shells, sizeOf };
   }
-  return { windowed, start, end, padTop: start * rowHeight, padBottom: (count - end) * rowHeight, rowHeight, scrollToIndex };
+  return { windowed, start, end, padTop: start * rowHeight, padBottom: (count - end) * rowHeight, rowHeight, scrollToIndex, fast: fast && shells, sizeOf };
 }
 
 /** Asks a windowed list to bring a row into view (J and K over a long list); lists listen for it. */
