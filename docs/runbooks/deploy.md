@@ -51,6 +51,26 @@ keeps every crawler out (`Disallow: /`); the robots check expects that on a stag
 rules everywhere else. It needs no account and no demo, so it does not use up the 10-a-day demo cap.
 
 Then by hand: sign in to a demo, open mail, chat and tasks, and check Sentry for new staging issues.
+
+### Signed in GETs on staging (R42)
+
+Staging allows only 2 new demos a day (`DEMO_DAILY_LIMIT=2`), so the demo cannot sign the deploy gate in. Staging has
+its own test login instead:
+
+- A user `mymail.builder+stagingtest@mail.tab.bot` in the identity provider connection `multies-staging-test`, which
+  is enabled on the "Multies Staging" sign in client only (not on the production client). Its password, the staging
+  client secret and the realm live in `~/.multies-secrets/multies-staging-test-user.json` (mode 600, never printed).
+- The "Multies Staging" client allows the password realm grant. A post login rule on the tenant
+  (`staging-test-password-grant-only`) refuses that grant for any connection other than `multies-staging-test`, so no
+  real account can sign in that way.
+- `python3 scripts/staging-signed-gets.py 50` signs in (identity provider token, then `/api/auth/mobile/exchange` on
+  staging for the app session) and makes 50 signed in GETs over the hot routes, printing the status counts and empty
+  503s (exit 1 on any non 200). It checks prod `/api/health` reads first and refuses at 50% or more. Never point it at
+  prod. The user's workspace is "Staging's workspace" (a normal, non demo workspace, so it can send email).
+
+Sign in client login URI: since R42 the "Multies Staging" client's login URI is
+`https://preview.multies.si/login?confirmed=1`, the same pattern as production's `https://multies.si/login?confirmed=1`
+(R41), so "Back to Multies" after a staging email confirmation lands on the staging sign in page.
 A remote E2E run can hit the sign up and demo rate limits; see [../testing.md](../testing.md).
 
 ## 3. Production
