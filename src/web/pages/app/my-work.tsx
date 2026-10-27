@@ -1,5 +1,6 @@
 /** My Work (round 20), the Today home since R35: a large dated title, summary cards with depth, a Focus list and quick add. */
 import type { ReactNode } from "react";
+import { displayFirstName } from "@/shared/display-name";
 import { Link } from "react-router";
 import { IconApprovals, IconCalendarClock, IconChat, IconChevronRight, IconClipboardCheck, IconCompose, IconDocs, IconInbox, IconMail, IconMention, IconPlus, IconSnooze, IconTasks, IconToday, IconUserCheck, IconVideo, IconWarning, type IconComponent } from "@/web/components/ui/icon";
 import { ClearDayArt } from "@/web/components/illustrations";
@@ -66,7 +67,7 @@ export function MyWorkPage() {
   const q = useMyWork();
   const me = useMe();
   const counts = useCounts(true);
-  const first = me.data?.user.name.split(" ")[0];
+  const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
   const w = q.data;
   const c = counts.data;
   const nothing = w && !w.overdue.length && !w.dueToday.length && !w.mentions.length && !w.threads.length && !w.assignedThreads?.length && !w.approvals.length && !w.meetings.length && !w.snoozed?.length;

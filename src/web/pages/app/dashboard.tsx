@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { displayFirstName } from "@/shared/display-name";
 import { IconAgent, IconArrowRight, IconCheck, IconGlobe, IconInbox, IconMention, IconSend, IconTeam, IconUserRound } from "@/web/components/ui/icon";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { qk, useDashboard, useMe } from "@/web/lib/queries";
@@ -16,7 +17,7 @@ import { useProjects } from "./work/data"; // R40 (MB-214)
 export function DashboardPage() {
   const me = useMe();
   const { data, isPending, error } = useDashboard();
-  const first = me.data?.user.name.split(" ")[0];
+  const first = displayFirstName(me.data?.user.name, me.data?.user.email); // R41 (MB-224)
   return (
     <>
       <PageHeader title="Overview" description={`Good ${dayPart()}${first ? `, ${first}` : ""}. Here's how mail is flowing across your workspace.`} actions={<ButtonLink to="/app/mail" variant="secondary" size="sm"><IconInbox className="h-4 w-4" />Open mail</ButtonLink>} />

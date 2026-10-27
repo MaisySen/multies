@@ -447,9 +447,9 @@ function OutboundSection() {
       <div className={cn("flex gap-3 border-l-2 py-1 pl-4 text-sm", live ? "border-ok" : "border-warn")}>
         {live ? <IconSend className="mt-0.5 h-4 w-4 shrink-0 text-ok" /> : <IconWarning className="mt-0.5 h-4 w-4 shrink-0 text-warn" />}
         <div>
-          <div className="font-medium">{live ? "Sending through Resend" : "No email provider connected"}</div>
+          <div className="font-medium">{live ? "Sending to outside addresses is on" : "No email provider connected"}</div>
           <p className="mt-0.5 text-muted">
-            {live ? "Resend delivers to outside addresses once your domain is verified with Resend too (it gives you its own SPF and DKIM records). Until then, mail to outside addresses is saved to Sent and marked held in Activity." : "Mail between Multies addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key (RESEND_API_KEY)."}
+            {live ? "Mail to outside addresses goes out once your domain is verified for sending too (the sending service gives you its own SPF and DKIM records). Until then, mail to outside addresses is saved to Sent and marked held in Activity." : "Mail between Multies addresses is delivered instantly. Mail to outside addresses is saved to Sent and logged as queued until the server has an email provider key."}
           </p>
         </div>
       </div>

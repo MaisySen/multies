@@ -16,7 +16,7 @@ test("an admin edits sign-up emails and the preview follows", async ({ page }) =
 
   await page.getByLabel("Sender name").fill("Haajir School");
   await page.getByLabel("Product name").fill("Haajir");
-  await page.getByLabel("Supabase project URL").fill("https://abcd1234.supabase.co");
+  await page.getByLabel("Auth project URL").fill("https://abcd1234.supabase.co");
   await page.getByRole("button", { name: "Save" }).click();
   const secret = page.getByLabel("Signing secret");
   await expect(secret).toHaveValue(/^v1,whsec_/);

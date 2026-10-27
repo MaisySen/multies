@@ -87,6 +87,7 @@ import { fieldRoutes, fileRoutes, guestAdminRoutes, guestRoutes, portfolioRoutes
 import { docImageRoutes } from "./routes/doc-images-r32"; // R32: images in docs
 import { installHttpCache } from "./lib/http-cache";
 import { hostSessionCookie } from "./lib/host-cookie";
+import { authErrorPageCode, authErrorRedirectUrl, errorCodeOf, isAuthNavigation } from "./lib/auth-redirect"; // R41 MB-222
 import { adminReportsRoutes, blocksRoutes, reportsRoutes } from "./routes/reports-r35"; // R35
 
 /** Builds the HTTP API. Runtime-agnostic: Node and Workers entries both call this. */
@@ -200,6 +201,29 @@ export function createApp(deps: Deps) {
   // Rate limits (hono-rate-limiter; a Cloudflare binding when bound, else a shared counter).
   const ipKey = (c: { var: { ip: string } }) => c.var.ip;
   const oauthLimiter = rateLimit("auth", ipKey);
+  // R41 (MB-222): a browser navigating a sign in redirect route never ends on raw JSON or an error body;
+  // a refusal, a limit or a server error there becomes /login?error=... with a Try again button.
+  app.use("/api/auth/*", async (c, next) => {
+    if (!isAuthNavigation(c.req.method, c.req.path, c.req.raw.headers)) return next();
+    if (c.req.path.startsWith("/api/auth/error")) return c.redirect(authErrorRedirectUrl(c.req.path, 400, c.req.query("error")), 302);
+    try { await next(); } catch (err) { c.var.log?.warn?.("auth_nav_error", { path: c.req.path, error: String(err).slice(0, 200) }); c.res = c.redirect(authErrorRedirectUrl(c.req.path, 500), 302); return; }
+    const loc = c.res.status >= 300 && c.res.status < 400 ? c.res.headers.get("location") : null;
+    const errLoc = loc ? authErrorPageCode(loc) : undefined;
+    if (errLoc !== undefined) {
+      // Better Auth's own error page is a bare page; send the browser straight to ours, keeping the cookies it set.
+      const res = new Response(null, { status: 302, headers: c.res.headers });
+      res.headers.set("location", authErrorRedirectUrl(c.req.path, 400, errLoc));
+      res.headers.delete("content-type");
+      c.res = undefined as never;
+      c.res = res;
+    } else if (c.res.status >= 400) {
+      const status = c.res.status;
+      const code = await errorCodeOf(c.res);
+      const res = new Response(null, { status: 302, headers: { location: authErrorRedirectUrl(c.req.path, status, code), "cache-control": "no-store" } });
+      c.res = undefined as never; // Hono: clear first so the error body's headers do not carry over to the redirect
+      c.res = res;
+    }
+  });
   app.use("/api/auth/*", rateLimit("auth", ipKey));
   app.use("/api/webhooks/*", rateLimit("webhooks", ipKey));
   app.use("/api/inbound/*", rateLimit("webhooks", ipKey));

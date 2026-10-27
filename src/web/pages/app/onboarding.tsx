@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { nameLooksLikeEmail } from "@/shared/display-name";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { IconArrowRight, IconChats, IconCheckCircle, IconGlobe, IconMail, IconMention } from "@/web/components/ui/icon";
@@ -46,7 +47,7 @@ export function Onboarding({ me }: { me: Me }) {
   const workspace = !!me.onboarding?.workspace;
   const placeholderName = /'s workspace$/i.test(me.organization?.name ?? "");
   const [f, setF] = useState({
-    name: me.user.name?.includes("@") ? "" : me.user.name ?? "",
+    name: nameLooksLikeEmail(me.user.name, me.user.email) ? "" : me.user.name ?? "", // R41 (MB-224): never prefilled with the email
     company: placeholderName ? "" : me.organization?.name ?? "",
     country: guessCountry(browserLocale, own) ?? (me.organization?.country && isCountry(me.organization.country) ? me.organization.country : ""),
     timezone: me.user.timezone ?? own ?? me.organization?.timezone ?? "UTC",
@@ -89,7 +90,7 @@ export function Onboarding({ me }: { me: Me }) {
             <h1 className="text-2xl font-semibold tracking-tight">Welcome to Multies</h1>
             <p className="mt-1.5 text-sm text-muted">A few details so times, dates and your workspace look right wherever you are. We filled in what your browser told us.</p>
             <form onSubmit={submit} className="mt-6 space-y-4" noValidate>
-              <Field label="Your name" error={errors.name}>{(fp) => <Input {...fp} value={f.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" />}</Field>
+              <Field label="Your name" error={errors.name}>{(fp) => <Input {...fp} value={f.name} onChange={(e) => set("name")(e.target.value)} autoComplete="name" placeholder="Your name" />}</Field>
               {workspace && (
                 <Field label="Company or team" hint="Optional. You can change it later in Settings.">{(fp) => <Input {...fp} value={f.company} onChange={(e) => set("company")(e.target.value)} autoComplete="organization" placeholder="Acme" />}</Field>
               )}

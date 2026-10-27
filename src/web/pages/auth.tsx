@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { READ_ONLY_MESSAGE } from "@/web/lib/read-only";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +16,7 @@ import { SocialSignInButtons } from "@/web/components/social-sign-in";
 import { GitHubLogo, GoogleSignInButton, ProviderButton } from "@/web/components/google-button";
 import { browserTimeZone } from "@/web/lib/format";
 import { cleanLocale, guessCountry } from "@/shared/locale";
+import { signInDestination } from "@/web/lib/pending-invite";
 
 /** Where people land after signing in (round 21): My Work, what is waiting on them today. */
 export const HOME = "/app/my-work";
@@ -39,8 +40,7 @@ function useAuthSubmit(action: AuthAction, opts: { thanks?: boolean } = {}) {
       const res = (await action(body)) as { twoFactorRedirect?: boolean } | null;
       if (res?.twoFactorRedirect) { setNeedsSecondFactor(true); return; }
       qc.clear();
-      const next = params.get("next");
-      const dest = next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : HOME;
+      const dest = signInDestination(params.get("next"), HOME);
       // R40 (MB-218): straight into the app after sign up (no /thanks stop), with a one time welcome toast.
       navigate(dest);
       if (opts.thanks) toast.success("Welcome to Multies", { id: "welcome", description: "Your workspace is ready. We sent a link to confirm your email address.", duration: 6000 });
@@ -59,7 +59,17 @@ export function useAuthProviders() {
 }
 
 function safeNext(next: string | null) {
-  return next && (next.startsWith("/app") || next.startsWith("/invite/") || next.startsWith("/oauth/authorize?")) ? next : HOME;
+  // R41 (MB-221): with no next, a remembered invite is where sign in lands (it survives the confirmation email).
+  return signInDestination(next, HOME);
+}
+
+/** Sends the browser to the identity provider's sign in (or sign up) page; it comes back to `next` or a remembered invite. */
+export async function startIdentitySignIn(which: "signin" | "signup", opts: { next?: string | null; email?: string | null } = {}) {
+  await unwrap(authClient.signIn.social({
+    provider: "auth0", callbackURL: safeNext(opts.next ?? null), errorCallbackURL: "/login?error=oauth",
+    ...(opts.email ? { loginHint: opts.email } : {}),
+    ...(which === "signup" ? { additionalParams: { screen_hint: "signup" } } : {}),
+  }));
 }
 
 /**
@@ -71,14 +81,8 @@ function IdentityButtons({ mode, showDivider }: { mode: "signin" | "signup"; sho
   const [busy, setBusy] = useState<"signin" | "signup" | null>(null);
   const go = async (which: "signin" | "signup") => {
     setBusy(which);
-    const email = params.get("email") ?? undefined;
-    try {
-      await unwrap(authClient.signIn.social({
-        provider: "auth0", callbackURL: safeNext(params.get("next")), errorCallbackURL: "/login?error=oauth",
-        ...(email ? { loginHint: email } : {}),
-        ...(which === "signup" ? { additionalParams: { screen_hint: "signup" } } : {}),
-      }));
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Sign in failed"); setBusy(null); }
+    try { await startIdentitySignIn(which, { next: params.get("next"), email: params.get("email") }); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Sign in failed"); setBusy(null); }
   };
   const primary = mode === "signup" ? "signup" : "signin";
   const secondary = primary === "signin" ? "signup" : "signin";
@@ -206,7 +210,18 @@ export function LoginPage() {
   // The identity provider holds back a new password account until its email is confirmed, and says so in error_description.
   const errorDescription = params.get("error_description") ?? "";
   const needsVerify = /confirm your email|verify your email|email (is )?not verified/i.test(errorDescription);
-  const oauthFailed = !needsVerify && params.getAll("error").some((e) => e !== "read_only");
+  const oauthFailed = !needsVerify && params.getAll("error").some((e) => e !== "read_only" && e !== "account_not_linked");
+  // R41 (MB-223): arriving from the provider's "Email confirmed" page (its Back to Multies button opens
+  // /login?confirmed=1), sign in starts on its own, once per tab, and lands on a remembered invite.
+  const confirmed = params.get("confirmed") === "1" && idp && !oauthFailed;
+  const [autoStarted, setAutoStarted] = useState(false);
+  useEffect(() => {
+    if (!confirmed || autoStarted) return;
+    if (sessionStorage.getItem("multies.confirmedSignIn") === "1") return;
+    sessionStorage.setItem("multies.confirmedSignIn", "1");
+    setAutoStarted(true);
+    void startIdentitySignIn("signin", { next: params.get("next") }).catch(() => setAutoStarted(false));
+  }, [confirmed, autoStarted, params]);
   if (needsSecondFactor) return <SecondFactor />;
   if (needsVerify) return <VerifyEmailNotice />;
   return (
@@ -214,7 +229,9 @@ export function LoginPage() {
       <h1 className="text-[24px] font-semibold leading-tight tracking-[-0.02em]">Welcome back</h1>
       <p className="mt-1 text-sm text-muted">Sign in to your Multies workspace.</p>
       {params.get("sso") === "required" && <p className="mt-4 rounded-lg border border-line-strong bg-elevated/60 px-3 py-2 text-sm text-muted" role="status">Your workspace requires single sign on. Continue with your company account.</p>}
-      {oauthFailed && <div className="mt-4"><FormError message={params.get("error_description") || "That sign in didn't complete. Please try again."} /></div>}
+      {confirmed && !oauthFailed && <p role="status" className="mt-4 flex items-center gap-2 rounded-lg border border-ok/25 bg-ok-soft px-3 py-2 text-sm text-fg" data-testid="confirmed-signing-in"><IconCheckCircle className="h-4 w-4 shrink-0 text-ok" aria-hidden />Email confirmed. Signing you in.</p>}
+      {/* R41 (MB-222): every failed sign in lands here with a plain message and one way forward, never raw text. */}
+      {oauthFailed && <SignInFailed idp={idp} />}
       {params.get("error") === "read_only" && <div className="mt-4"><FormError message={READ_ONLY_MESSAGE} /></div>}
       {params.getAll("error").includes("account_not_linked") && <div className="mt-4" data-testid="social-not-linked"><FormError message="This email already has a Multies account, and that provider did not confirm the address. Continue with Multies and sign in with your email instead." /></div>}
       {idp && <IdentityButtons mode="signin" showDivider={password} />}
@@ -233,6 +250,27 @@ export function LoginPage() {
       )}
       <DemoLink />
       {!idp && <p className="mt-6 text-center text-sm text-muted">New to Multies? <Link to={`/signup${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`} className="font-medium text-fg hover:underline">Create an account</Link></p>}
+    </div>
+  );
+}
+
+/** R41 (MB-222): the plain "couldn't finish signing you in" notice with a Try again button. */
+function SignInFailed({ idp }: { idp: boolean }) {
+  const [params] = useSearchParams();
+  const [busy, setBusy] = useState(false);
+  const reason = params.get("error");
+  const text = reason === "verify" ? "We couldn't confirm that link. It may have expired. Sign in and we'll send a new one."
+    : reason === "server" ? "We couldn't finish signing you in because Multies was busy. Try again."
+    : "We couldn't finish signing you in. Try again.";
+  const retry = async () => {
+    setBusy(true);
+    if (!idp) { window.location.assign(`/login${params.get("next") ? `?next=${encodeURIComponent(params.get("next")!)}` : ""}`); return; }
+    try { await startIdentitySignIn("signin", { next: params.get("next"), email: params.get("email") }); } catch { setBusy(false); }
+  };
+  return (
+    <div role="alert" data-testid="signin-failed" className="mt-4 rounded-xl border border-bad/25 bg-bad-soft px-3.5 py-3 text-sm text-bad">
+      <p>{text}</p>
+      <Button size="sm" variant="secondary" className="mt-2.5" loading={busy} onClick={retry} data-testid="signin-try-again">Try again</Button>
     </div>
   );
 }

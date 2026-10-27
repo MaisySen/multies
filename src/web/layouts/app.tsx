@@ -26,6 +26,7 @@ import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
+import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
 import { clearMeCache, isSignedOut } from "@/web/lib/me-cache"; // R40 (MB-200)
 import { ReconnectingPill, ReconnectScreen } from "@/web/components/reconnecting-r40"; // R40 (MB-200)
@@ -87,6 +88,7 @@ const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ?
 
 export function AppLayout() {
   const me = useMe();
+  const [skipInvite, setSkipInvite] = useState(false); // R41: "Set up my own workspace instead"
   // R33: stored list copies are keyed by this person and workspace; set during render so lists started now see it.
   if (me.data) setOfflineScope(scopeOf(me.data));
   const config = useConfig();
@@ -138,6 +140,9 @@ export function AppLayout() {
       </div>
     );
   }
+  // R41 (MB-221, MB-202): a pending invite comes before setting up a personal workspace.
+  const firstInvite = me.data.pendingInvites?.[0];
+  if (firstInvite && me.data.onboarding?.workspace && !skipInvite) return <JoinInvitePrompt invite={firstInvite} onSkip={() => setSkipInvite(true)} />;
   if (me.data.onboarding?.needed) return <Suspense fallback={<AppSkeleton />}><Onboarding me={me.data} /></Suspense>;
   const isMail = /^\/app\/mail(\/|$)/.test(loc.pathname);
 

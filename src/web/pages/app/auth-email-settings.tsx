@@ -131,7 +131,7 @@ function AuthEmailSettingsForm() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Sender name" hint={`Shown as the From name. Empty uses ${s?.fromDisplayName ?? "the mailbox name"}.`} error={errors.senderName}>
-              {(p) => <Input {...p} value={draft.senderName} maxLength={80} placeholder="Haajir" onChange={(e) => set({ senderName: e.target.value })} />}
+              {(p) => <Input {...p} value={draft.senderName} maxLength={80} placeholder="Your app" onChange={(e) => set({ senderName: e.target.value })} />}
             </Field>
             <Field label="From address" hint="A mailbox on one of your verified domains." error={errors.from}>
               {(p) => <Select {...p} value={draft.from} onChange={(e) => set({ from: e.target.value })}>{senders.map((m) => <option key={m.address} value={m.address}>{m.address}</option>)}</Select>}
@@ -139,8 +139,8 @@ function AuthEmailSettingsForm() {
             <Field label="Product name" hint="Fills {appName} in subjects and text." error={errors.appName}>
               {(p) => <Input {...p} value={draft.appName} maxLength={80} placeholder="Your app" onChange={(e) => set({ appName: e.target.value })} />}
             </Field>
-            <Field label="Supabase project URL" hint="Where the links in the emails point." error={errors.supabaseUrl}>
-              {(p) => <Input {...p} value={draft.supabaseUrl} placeholder="https://abcd1234.supabase.co" onChange={(e) => set({ supabaseUrl: e.target.value })} />}
+            <Field label="Auth project URL" hint="Your sign in service's project address. The links in the emails point there." error={errors.supabaseUrl}>
+              {(p) => <Input {...p} value={draft.supabaseUrl} placeholder="https://your-project.example.com" onChange={(e) => set({ supabaseUrl: e.target.value })} />}
             </Field>
             <Field label="Brand colour" hint="For the button. A hex value such as #0071E3." error={errors.branding}>
               {(p) => (
@@ -195,7 +195,7 @@ function AuthEmailSettingsForm() {
       </Section>
 
       {s && (
-        <Section id="sign-up-email-hook" title="Hook endpoint" description="In Supabase, open Authentication, Hooks, Send Email Hook, choose HTTPS and paste the URL and the secret.">
+        <Section id="sign-up-email-hook" title="Hook endpoint" description="In your sign in service, open its Send Email hook, choose HTTPS and paste the URL and the secret.">
           <div className="space-y-4">
             <Field label="Endpoint URL">{(p) => <div className="flex gap-2"><Input {...p} readOnly value={s.endpointUrl} className="font-mono text-[12.5px]" /><CopyButton value={s.endpointUrl} /></div>}</Field>
             {shownSecret ? (
@@ -209,7 +209,7 @@ function AuthEmailSettingsForm() {
             )}
             {confirmRegen ? (
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-muted">The old secret stops working at once, so update Supabase right after.</span>
+                <span className="text-muted">The old secret stops working at once, so update your sign in service right after.</span>
                 <Button variant="danger" size="sm" onClick={() => regen.mutate()} loading={regen.isPending}>Make new secret</Button>
                 <Button variant="ghost" size="sm" onClick={() => setConfirmRegen(false)}>Cancel</Button>
               </div>

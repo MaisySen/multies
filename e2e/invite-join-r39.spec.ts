@@ -39,11 +39,10 @@ test("an invited teammate signs up, confirms their email and joins from the bann
 
   await confirmEmail(mate.page.request, mateEmail);
   await mate.page.goto("/app");
-  const banner = mate.page.getByTestId("pending-invite-banner");
-  await expect(banner).toContainText(`Olive Owner invited you to join Harbor ${tag}.`);
-  await banner.getByRole("link", { name: `Join Harbor ${tag}` }).click();
-  await expect(mate.page).toHaveURL(new RegExp(`/invite/${token}`));
-  await mate.page.getByRole("button", { name: "Accept and open workspace" }).click();
+  // R41 (MB-221): before setting up their own new workspace, the invite comes first as a Join screen.
+  const prompt = mate.page.getByTestId("join-invite-prompt");
+  await expect(prompt).toContainText(`Olive Owner invited you to work together.`);
+  await prompt.getByRole("button", { name: `Join Harbor ${tag}` }).click();
   await expect(mate.page).toHaveURL(/\/app\/my-work/);
   const me = await (await mate.page.request.get("/api/account/me")).json();
   expect(me.organization).toMatchObject({ name: `Harbor ${tag}`, role: "member" });

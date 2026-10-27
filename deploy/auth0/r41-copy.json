@@ -1,0 +1,84 @@
+{
+  "_note": "R41 MB-223 and MB-233: sign in pages and auth emails in the Multies voice (sentence case, no exclamation marks, no repetition). Applied by scripts/auth0-r41-copy.mjs --apply; the lead runs it, never in a loop.",
+  "prompts": {
+    "signup": {
+      "en": {
+        "signup": {
+          "title": "Create your account",
+          "description": "Sign up to join your team on Multies.",
+          "buttonText": "Continue"
+        }
+      }
+    },
+    "signup-password": {
+      "en": {
+        "signup-password": {
+          "title": "Choose a password",
+          "description": "Set a password for your Multies account.",
+          "buttonText": "Continue"
+        }
+      }
+    },
+    "login": {
+      "en": {
+        "login": {
+          "title": "Sign in",
+          "description": "Sign in to continue to Multies.",
+          "buttonText": "Continue"
+        }
+      }
+    },
+    "login-password": {
+      "en": {
+        "login-password": {
+          "title": "Enter your password",
+          "description": "Enter your password to continue to Multies.",
+          "buttonText": "Continue"
+        }
+      }
+    },
+    "reset-password": {
+      "en": {
+        "reset-password-request": {
+          "title": "Reset your password",
+          "description": "Enter your email and we'll send you a link to set a new password.",
+          "buttonText": "Send link"
+        },
+        "reset-password": {
+          "title": "Set a new password",
+          "description": "Choose a new password for your Multies account.",
+          "buttonText": "Save password"
+        },
+        "reset-password-success": {
+          "title": "Password changed",
+          "description": "Your new password is saved. Sign in with it now.",
+          "buttonText": "Back to Multies"
+        },
+        "reset-password-email": {
+          "title": "Check your email",
+          "description": "We sent a link to set a new password. It works for one hour."
+        }
+      }
+    },
+    "email-verification": {
+      "en": {
+        "email-verification-result": {
+          "verifiedTitle": "Email confirmed",
+          "verifiedDescription": "Your address is confirmed. Continue to sign in to Multies.",
+          "buttonText": "Continue to Multies"
+        }
+      }
+    }
+  },
+  "client": {
+    "initiate_login_uri": "https://multies.si/login?confirmed=1",
+    "_why": "The hosted page's Back to Multies button opens the application login URI. With confirmed=1 the sign in page starts sign in on its own, and returns to a pending invite remembered in the browser, so the person lands signed in (and joined) instead of on a second sign in page."
+  },
+  "email_templates": {
+    "names": [
+      "verify_email",
+      "reset_email"
+    ],
+    "fix": "Insert a space after a sentence's full stop when the next sentence starts straight after it, also across inline tags (\"join your team.The link\" becomes \"join your team. The link\")."
+  }
+}

@@ -1,10 +1,10 @@
 import type { MiddlewareHandler } from "hono";
 import { authHeaders } from "../lib/host-cookie";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, gt } from "drizzle-orm";
 import type { AppEnv, AuthContext, Deps } from "../context";
 import { forbidden, HttpError, unauthorized } from "../lib/errors";
 import { isLostRequestState, withAuthRequestState } from "../lib/request-state";
-import { members, organizations, sessions, users } from "../db/schema";
+import { invitations, members, organizations, sessions, users } from "../db/schema";
 import { newId } from "../lib/crypto";
 import { audit } from "../services/audit";
 import { authFor } from "./options";
@@ -45,6 +45,17 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
   found ??= await memberWithOrg(eq(members.userId, s.user.id));
   let member = found?.member;
   let requireSso = found?.requireSso ?? false;
+  // R41 (MB-221, MB-202): a brand new person whose confirmed email has a pending invitation joins that
+  // workspace on their first sign in, instead of getting a personal workspace and its setup. One indexed
+  // lookup by email, only on this first sign in path (never on a signed in read).
+  if (!member && s.user.emailVerified) {
+    const joined = await joinPendingInviteOnFirstSignIn(deps, headers, s.user, s.session.id);
+    if (joined) {
+      found = await memberWithOrg(and(eq(members.userId, s.user.id), eq(members.organizationId, joined)));
+      member = found?.member;
+      requireSso = found?.requireSso ?? false;
+    }
+  }
   if (!member) {
     const orgId = newId("org");
     // No zone is assumed: UTC until onboarding saves the person's own (from their browser). The
@@ -82,6 +93,33 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     sessionId: s.session.id, emailVerified: s.user.emailVerified, twoFactor: !!s.user.twoFactorEnabled,
     platformRole,
   };
+}
+
+/**
+ * R41: accepts the newest pending, unexpired invitation for this confirmed address through the same
+ * Better Auth call the invite page uses (seat limits, email match and confirmation all checked there).
+ * Returns the workspace id, or null when there is none or accepting fails (the person then gets a
+ * personal workspace as before, and the Join banner still offers the invite).
+ */
+export async function joinPendingInviteOnFirstSignIn(deps: Deps, headers: Headers, user: { id: string; email: string }, sessionId: string): Promise<string | null> {
+  const { db } = deps;
+  const inv = await db.select({ id: invitations.id, orgId: invitations.organizationId, title: invitations.title, bio: invitations.bio, role: invitations.role })
+    .from(invitations)
+    .where(and(eq(invitations.email, user.email.toLowerCase()), eq(invitations.status, "pending"), gt(invitations.expiresAt, deps.now())))
+    .orderBy(desc(invitations.createdAt)).limit(1).get();
+  if (!inv) return null;
+  try {
+    await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: inv.id } });
+  } catch (err) {
+    deps.log?.warn?.("invite.auto_join_failed", { error: String(err).slice(0, 200) });
+    return null;
+  }
+  if (inv.title || inv.bio) {
+    await db.update(members).set({ title: inv.title, bio: inv.bio }).where(and(eq(members.organizationId, inv.orgId), eq(members.userId, user.id)));
+  }
+  await db.update(sessions).set({ activeOrganizationId: inv.orgId }).where(eq(sessions.id, sessionId));
+  await audit(db, { orgId: inv.orgId, actorUserId: user.id, actorEmail: user.email, action: "invite.accepted", metadata: { role: inv.role ?? "member", via: "first_sign_in" } }).catch(() => undefined);
+  return inv.orgId;
 }
 
 /*
