@@ -31,8 +31,19 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => { await ctx?.close(); });
 test.afterEach(() => { expect(errors, errors.join("\n")).toEqual([]); });
 
+/**
+ * R42: wait for a real ready signal, not network idle. The mail view keeps one live mail heartbeat open (a long poll
+ * of up to 25 s, src/web/lib/live-mail.ts), so the network is never idle there and the old wait ran into the test
+ * timeout. Ready means the page has loaded, no skeleton is left and layout has had two frames to settle.
+ */
+async function ready() {
+  await page.waitForLoadState("load");
+  await expect(page.locator(".skeleton")).toHaveCount(0, { timeout: 15_000 });
+  await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+}
+
 async function noSidewaysScroll(label: string) {
-  await page.waitForLoadState("networkidle").catch(() => {});
+  await ready();
   const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, bw: document.body.scrollWidth, iw: window.innerWidth }));
   expect(m.sw, `${label}: page is ${m.sw} px wide on a ${m.iw} px screen`).toBeLessThanOrEqual(m.iw);
   expect(m.bw, `${label}: body is ${m.bw} px wide`).toBeLessThanOrEqual(m.iw);
