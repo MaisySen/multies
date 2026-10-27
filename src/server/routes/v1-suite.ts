@@ -10,7 +10,7 @@ import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
 import { changesSince, type SuiteActor } from "../services/suite/common";
 import {
-  addComment, createProject, createTask, createTaskFromThread, deleteProject, deleteTask, getProject, listProjects, listTasks, nextTaskFor, parseAssignee, taskDetail, updateProject, updateTask,
+  addComment, createProject, createTask, createTaskFromThread, deleteProject, deleteTask, getProject, listProjects, listTasksPage, nextTaskFor, parseAssignee, taskDetail, updateProject, updateTask,
 } from "../services/suite/tasks";
 import { applyTaskQuery, wantsSubtasks } from "../services/suite/task-query"; // R26 (MB-86)
 import { appendToDoc, createDoc, deleteDoc, getDoc, listDocs, updateDoc } from "../services/suite/docs";
@@ -83,23 +83,34 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   const tag = (t: string) => [t];
 
   // ---------------------------------------------------------------- tasks
+  // R47: cursor paging (each page at most limit tasks, default 500, at most 1000; next is null on the last page).
+  const PAGING = " Paging (R47): every answer carries next, an opaque cursor for the following page, or null on the last page. Send cursor=<next> with the same filters to read on; a page holds at most limit tasks (default 500, at most 1000). Without cursor the first page comes back, as before.";
+  const TaskPageQuery = TaskQuery.extend({ cursor: z.string().max(400).optional().openapi({ description: "R47: the next value from the previous page (same filters)." }) });
+  const TaskPage = z.object({ tasks: z.array(Task), next: z.string().nullable().openapi({ description: "R47: cursor for the following page; null on the last page." }) });
   api.openapi(createRoute({ method: "get", path: "/tasks", tags: tag("Tasks"), summary: "List tasks", security: secured,
-    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true. Filter on custom fields with field.<fieldId>=<value> or field.<fieldId>=<op>:<value>, where op is eq, ne, gt, gte, lt, lte, contains, empty or notempty (for example field.fld_budget=gt:1000). Sort with sort=field:<fieldId> and dir=desc. sprintId=<id> lists one sprint, sprintId=none the backlog. An unknown query parameter answers 400. R26: q takes the task query language, for example q=assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix \"free text\" (keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title). A bad query answers 400 bad_query with details.position, the character where it went wrong.",
-    request: { query: TaskQuery }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 400: err("Bad task query (R26): the message names the problem and details.position the character."), 401: errors[401] } }),
+    description: "Filter by project, status group, status, thread, assignee (me, none, member:<id>, agent:<id>), priority, label, due range or text. Subtasks are left out unless parentId or includeSubtasks=true. Filter on custom fields with field.<fieldId>=<value> or field.<fieldId>=<op>:<value>, where op is eq, ne, gt, gte, lt, lte, contains, empty or notempty (for example field.fld_budget=gt:1000). Sort with sort=field:<fieldId> and dir=desc. sprintId=<id> lists one sprint, sprintId=none the backlog. An unknown query parameter answers 400. R26: q takes the task query language, for example q=assignee:me status:doing label:bug due:<7d sprint:current -label:wontfix \"free text\" (keys: assignee, status, label, priority, due, sprint, type, project, created, updated, points, has, is, title). A bad query answers 400 bad_query with details.position, the character where it went wrong." + PAGING,
+    request: { query: TaskPageQuery }, responses: { 200: json(TaskPage, "Tasks, one page."), 400: err("Bad task query (R26): the message names the problem and details.position the character."), 401: errors[401] } }),
   async (c) => {
-    strictTaskParams(c.req.query());
-    const q = c.req.valid("query");
+    strictTaskParams(c.req.query(), Object.keys(TaskPageQuery.shape));
+    const { cursor, ...q } = c.req.valid("query");
     // ---- R26 (MB-86) task query: q is the query language (plain words still search title and notes); 400 bad_query with position.
     const r26 = q.q ? { q: undefined, queryConds: applyTaskQuery(q.q, { deps: c.var.deps, actor: actor(c) }), includeSubtasks: q.includeSubtasks === "true" || wantsSubtasks(q.q) } : {};
     // ---- end R26 (MB-86)
-    return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()), ...r26 }) });
+    const page = await listTasksPage(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()), ...r26, cursor, noChangeCursor: true });
+    return send(c, { tasks: page.tasks, next: page.next });
   });
 
   // MB-52: the nested path most REST clients try first; same filters as GET /tasks.
   api.openapi(createRoute({ method: "get", path: "/projects/{id}/tasks", tags: tag("Tasks"), summary: "List a project's tasks", security: secured,
-    description: "The same as GET /tasks?projectId={id}, with the same filters.",
-    request: { params: z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) }), query: TaskQuery.omit({ projectId: true }) }, responses: { 200: json(z.object({ tasks: z.array(Task) }), "Tasks."), 401: errors[401] } }),
-  async (c) => { strictTaskParams(c.req.query(), Object.keys(TaskQuery.omit({ projectId: true }).shape)); const q = c.req.valid("query"); await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id); return send(c, { tasks: await listTasks(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()) }) }); });
+    description: "The same as GET /tasks?projectId={id}, with the same filters and paging." + PAGING,
+    request: { params: z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) }), query: TaskPageQuery.omit({ projectId: true }) }, responses: { 200: json(TaskPage, "Tasks, one page."), 401: errors[401] } }),
+  async (c) => {
+    strictTaskParams(c.req.query(), Object.keys(TaskPageQuery.omit({ projectId: true }).shape));
+    const { cursor, ...q } = c.req.valid("query");
+    await getProject(c.var.deps, actor(c).orgId, c.req.valid("param").id);
+    const page = await listTasksPage(c.var.deps, actor(c), { ...q, sprintId: sprintFilter(q.sprintId), projectId: c.req.valid("param").id, includeSubtasks: q.includeSubtasks === "true", fieldFilters: parseFieldFilters(c.req.query()), cursor, noChangeCursor: true });
+    return send(c, { tasks: page.tasks, next: page.next });
+  });
 
   api.openapi(createRoute({ method: "post", path: "/tasks", tags: tag("Tasks"), summary: "Create a task", security: secured,
     description: "Pass source.messageId or source.threadId to link the task to an email thread: replies on the thread then show on the task. When the project uses Triage, the new task waits there (triage.state pending, source api) until someone accepts it.",

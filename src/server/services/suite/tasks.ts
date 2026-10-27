@@ -425,10 +425,10 @@ export function decodeTaskCursor(s: string | undefined): PageCursor | null {
  * read every page once, then follow the change feed (GET /changes) instead of reading the whole list again, so a project
  * of any size shows every task and counts. The first page also carries the change feed cursor as of the read.
  */
-export async function listTasksPage(deps: Deps, actor: SuiteActor, f: TaskFilters & { cursor?: string }) {
+export async function listTasksPage(deps: Deps, actor: SuiteActor, f: TaskFilters & { cursor?: string; /** R47: the public API pages without the feed position */ noChangeCursor?: boolean }) {
   const size = Math.min(f.limit ?? TASK_LIST_LIMIT, 1000);
   const cur = decodeTaskCursor(f.cursor);
-  const changeCursor = cur ? undefined : await latestChangeSeq(deps, actor.orgId);
+  const changeCursor = cur || f.noChangeCursor ? undefined : await latestChangeSeq(deps, actor.orgId);
   const conds = await listConds(deps, actor, f);
   const keyset = !f.sort;
   let order: SQL[];
