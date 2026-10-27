@@ -308,11 +308,12 @@ function validZone(tz: string | null | undefined) {
 async function zoneOf(deps: Deps, actor: SuiteActor, tz?: string | null) {
   const given = validZone(tz);
   if (given) return given;
-  const [u, o] = await Promise.all([
-    actor.userId ? deps.db.select({ tz: users.timezone }).from(users).where(eq(users.id, actor.userId)).get() : Promise.resolve(undefined),
-    deps.db.select({ tz: organizations.timezone }).from(organizations).where(eq(organizations.id, actor.orgId)).get(),
-  ]);
-  return validZone(u?.tz) ?? validZone(o?.tz) ?? "UTC";
+  // R41 (MB-199 CPU): the person's zone and the workspace's in one statement (each D1 query costs CPU).
+  const r = await deps.db.select({
+    u: actor.userId ? sql<string | null>`(select ${users.timezone} from ${users} where ${users.id} = ${actor.userId})` : sql<string | null>`null`,
+    o: sql<string | null>`(select ${organizations.timezone} from ${organizations} where ${organizations.id} = ${actor.orgId})`,
+  }).from(sql`(select 1)`).get();
+  return validZone(r?.u) ?? validZone(r?.o) ?? "UTC";
 }
 
 /**

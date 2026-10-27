@@ -3,9 +3,8 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { requireAuth } from "../middleware";
 import { deliveries, domains, invitations, mailboxes, members, organizations } from "../db/schema";
-import { getPlanCached, usage } from "../services/plans";
+import { getOrgCached, getPlanCached, usage } from "../services/plans";
 import { listAudit } from "../services/audit";
-import { sentToday } from "../services/mail/delivery";
 
 type OnboardingMeta = { onboardingDismissedAt?: string };
 const readMeta = (raw: string | null): OnboardingMeta & Record<string, unknown> => { try { return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
@@ -31,11 +30,25 @@ export function dashboardRoutes() {
     const orgId = c.var.auth.orgId;
     const since = new Date(now().getTime() - 13 * 86400_000);
     since.setUTCHours(0, 0, 0, 0);
-    const [plan, used, doms, storage, daily, recent, today] = await Promise.all([
+    const dayStart = new Date(Date.UTC(now().getUTCFullYear(), now().getUTCMonth(), now().getUTCDate()));
+    // R41 (MB-199 CPU): every count the page shows in ONE statement of scalar subqueries (it was seven queries;
+    // each D1 query costs the Worker 1 to 2 ms of its 10 ms budget). The workspace row comes from the short per
+    // isolate copy the plan already uses.
+    const statsQ = db.select({
+      storage: sql<number>`(select coalesce(sum(${mailboxes.usedBytes}), 0) from ${mailboxes} where ${mailboxes.orgId} = ${orgId})`,
+      inbound: sql<number>`(select count(*) from ${deliveries} where ${deliveries.orgId} = ${orgId} and ${deliveries.direction} = 'inbound')`,
+      outbound: sql<number>`(select count(*) from ${deliveries} where ${deliveries.orgId} = ${orgId} and ${deliveries.direction} = 'outbound')`,
+      sentToday: sql<number>`(select count(*) from ${deliveries} where ${deliveries.orgId} = ${orgId} and ${deliveries.direction} = 'outbound' and ${deliveries.status} in ('sent', 'queued', 'delivered') and ${deliveries.createdAt} >= ${dayStart.getTime()})`,
+      invites: sql<number>`(select count(*) from ${invitations} where ${invitations.organizationId} = ${orgId})`,
+      humans: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${orgId} and ${members.kind} = 'human')`,
+      agents: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${orgId} and ${members.kind} = 'agent')`,
+    }).from(sql`(select 1)`).get();
+    const [plan, org, used, doms, stats, daily, recent] = await Promise.all([
       getPlanCached(db, orgId), // R40 deploy 3: a short per isolate copy (services/plans.ts)
+      getOrgCached(db, orgId),
       usage(db, orgId),
       db.select({ id: domains.id, name: domains.name, status: domains.status, lastCheckedAt: domains.lastCheckedAt }).from(domains).where(eq(domains.orgId, orgId)),
-      db.select({ used: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),
+      statsQ,
       db.select({
         day: sql<string>`strftime('%Y-%m-%d', ${deliveries.createdAt} / 1000, 'unixepoch')`,
         direction: deliveries.direction,
@@ -44,18 +57,13 @@ export function dashboardRoutes() {
         .groupBy(sql`1`, deliveries.direction),
       // R39 security hotfix: members see the recent activity without IPs or the email addresses in it.
       listAudit(db, orgId, { limit: 8 }).then((rows) => c.var.auth.role === "member" ? rows.map(memberSafeAudit) : rows),
-      sentToday(db, orgId, now()),
     ]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle returns sync or async results depending on the driver
-    const count = async (q: any) => Number(((await q) as { n: number } | undefined)?.n ?? 0);
-    const [inboundCount, outboundCount, byKind, inviteCount, org] = await Promise.all([
-      count(db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "inbound"))).get()),
-      count(db.select({ n: sql<number>`count(*)` }).from(deliveries).where(and(eq(deliveries.orgId, orgId), eq(deliveries.direction, "outbound"))).get()),
-      // People and AI agent members in one query; agents take no seat and are shown apart.
-      db.select({ kind: members.kind, n: sql<number>`count(*)` }).from(members).where(eq(members.organizationId, orgId)).groupBy(members.kind) as Promise<{ kind: string; n: number }[]>,
-      count(db.select({ n: sql<number>`count(*)` }).from(invitations).where(eq(invitations.organizationId, orgId)).get()),
-      db.select({ metadata: organizations.metadata }).from(organizations).where(eq(organizations.id, orgId)).get(),
-    ]);
+    const storage = { used: Number(stats?.storage ?? 0) };
+    const today = Number(stats?.sentToday ?? 0);
+    const inboundCount = Number(stats?.inbound ?? 0);
+    const outboundCount = Number(stats?.outbound ?? 0);
+    const inviteCount = Number(stats?.invites ?? 0);
+    const byKind = [{ kind: "human", n: Number(stats?.humans ?? 0) }, { kind: "agent", n: Number(stats?.agents ?? 0) }];
     const team = {
       members: Number(byKind.find((r) => r.kind === "human")?.n ?? 0),
       agents: Number(byKind.find((r) => r.kind === "agent")?.n ?? 0),
