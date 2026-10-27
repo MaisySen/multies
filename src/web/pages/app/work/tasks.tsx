@@ -8,7 +8,7 @@ import { PHONE_QUERY } from "@/web/lib/phone";
 import { PhoneTaskList } from "./tasks-phone-r41";
 import { ListCapNotice } from "@/web/components/list-cap-notice"; // R45b
 import { listIsCapped } from "@/shared/task-list-limit";
-import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
+import { IconAssign, IconBoard, IconMore, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 import { emptyTasksCopy, hasTaskFilters } from "@/web/lib/empty-states";
@@ -198,19 +198,29 @@ export function TasksPage() {
   return (
     <div className="flex min-h-[calc(100dvh-7rem)] flex-col">
       {dialogs}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <h1 className="mr-2 large-title">Tasks</h1>
-        <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px]">
+      {/* R46: on a phone, title with View and New task on one row, then the project picker with one More menu (no wrapping icon row). */}
+      <div className="mb-4 flex flex-wrap items-center gap-2" data-testid="tasks-header">
+        <h1 className="mr-2 large-title max-sm:order-1 max-sm:mr-0 max-sm:min-w-0 max-sm:flex-1 max-sm:truncate">Tasks</h1>
+        <Select aria-label="Project" value={projectId} onChange={(e) => set({ project: e.target.value || null })} className="h-9 w-auto! min-w-[160px] text-[13px] max-sm:order-3 max-sm:h-11 max-sm:min-w-0 max-sm:flex-1 max-sm:text-[15px]">
           {view !== "board" && view !== "sprints" && <option value="">All projects</option>}
           {list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Select>
-        {project && <Button variant="ghost" size="icon" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><IconSettings2 className="h-4 w-4" /></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setFieldsOpen(true)}><IconSliders className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setGuestsOpen(true)}><IconAssign className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
-        {project && <Button variant="ghost" size="sm" onClick={() => setEpicsOpen(true)}><IconMountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
-        {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
-        <Button variant="ghost" size="sm" onClick={() => setEditing("new")} aria-label="New project"><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">New project</span></Button>
-        <div className="ml-auto flex items-center gap-2">
+        {project && <Button variant="ghost" size="icon" className="max-sm:hidden" aria-label="Project settings" title="Statuses and project settings" onClick={() => setEditing(project)}><IconSettings2 className="h-4 w-4" /></Button>}
+        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setFieldsOpen(true)}><IconSliders className="h-4 w-4" /><span className="max-sm:sr-only">Fields</span></Button>}
+        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setGuestsOpen(true)}><IconAssign className="h-4 w-4" /><span className="max-sm:sr-only">Guests</span></Button>}
+        {project && <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setEpicsOpen(true)}><IconMountain className="h-4 w-4" /><span className="max-sm:sr-only">Epics</span></Button>}
+        {project && view === "board" && <span className="max-sm:order-3"><ShareButton kind="project_board" targetId={project.id} /></span>}
+        <Button variant="ghost" size="sm" className="max-sm:hidden" onClick={() => setEditing("new")} aria-label="New project"><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">New project</span></Button>
+        <div className="sm:hidden max-sm:order-3">
+          <Menu label="Project actions" trigger={<Button variant="ghost" size="icon" aria-label="Project actions" title="Project actions"><IconMore className="h-5 w-5" /></Button>}>
+            {project && <MenuItem icon={<IconSettings2 />} onSelect={() => setEditing(project)}>Project settings</MenuItem>}
+            {project && <MenuItem icon={<IconSliders />} onSelect={() => setFieldsOpen(true)}>Fields</MenuItem>}
+            {project && <MenuItem icon={<IconAssign />} onSelect={() => setGuestsOpen(true)}>Guests</MenuItem>}
+            {project && <MenuItem icon={<IconMountain />} onSelect={() => setEpicsOpen(true)}>Epics</MenuItem>}
+            <MenuItem icon={<IconPlus />} onSelect={() => setEditing("new")}>New project</MenuItem>
+          </Menu>
+        </div>
+        <div className="ml-auto flex items-center gap-2 max-sm:order-2">
           {/* R41 (MB-226): on phones the six views fold into one View picker (a bottom sheet). */}
           <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-10! w-auto! min-w-[112px] text-[14px] sm:hidden">
             {VIEWS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
@@ -225,6 +235,7 @@ export function TasksPage() {
           </div>
           <Button onClick={() => setNewTask({})} aria-label="New task" className="min-h-10 min-w-10 sm:min-h-0 sm:min-w-0"><IconPlus className="h-4 w-4" /><span className="hidden min-[400px]:inline">New task</span></Button>
         </div>
+        <div aria-hidden className="hidden basis-full max-sm:order-2 max-sm:block" />
       </div>
 
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}

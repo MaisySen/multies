@@ -155,6 +155,23 @@ test("desktop: header overflow holds Edit and Plan sprint, selection bar stays i
   await expect(bar).toHaveCount(0);
 });
 
+for (const width of [390, 360] as const) {
+  test(`phone ${width}: the board header is two tidy rows and the project actions sit in one More menu`, async ({ page }) => {
+    test.skip(!!SHOTS, "behaviour, not shots");
+    await page.setViewportSize({ width, height: 844 });
+    await demo(page);
+    await page.goto("/app/tasks?view=board");
+    await expect(page.getByTestId("board")).toBeVisible({ timeout: 30_000 });
+    const header = page.getByTestId("tasks-header");
+    expect((await header.boundingBox())!.height).toBeLessThanOrEqual(110);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width + 1);
+    await page.getByRole("button", { name: "Project actions" }).click();
+    for (const name of ["Project settings", "Fields", "Guests", "Epics", "New project"]) await expect(page.getByRole("menuitem", { name })).toBeVisible();
+    await page.getByRole("menuitem", { name: "Fields" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
+}
+
 for (const scheme of ["light", "dark"] as const) {
   test(`shots: sprint header and backlog with 3 selected, desktop and phone (${scheme})`, async ({ page }) => {
     test.skip(!SHOTS, "screenshots only");
@@ -172,6 +189,14 @@ for (const scheme of ["light", "dark"] as const) {
       await page.evaluate(() => (document.querySelector("[aria-label=Backlog]") as HTMLElement).scrollIntoView({ block: "start" }));
       await page.waitForTimeout(300);
       await page.screenshot({ path: `${DIR}/backlog-${SHOTS}-select3-${kind}-${scheme}.png` });
+    }
+    // The board header, desktop and phone.
+    for (const [w, h, kind] of [[1280, 800, "desktop"], [390, 844, "phone"]] as const) {
+      await page.setViewportSize({ width: w, height: h });
+      await page.goto("/app/tasks?view=board");
+      await expect(page.getByTestId("board")).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(400);
+      await page.screenshot({ path: `${DIR}/board-${SHOTS}-header-${kind}-${scheme}.png` });
     }
     // The empty Important tab with old Inbox mail, phone width.
     await page.setViewportSize({ width: 390, height: 844 });
