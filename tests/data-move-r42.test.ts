@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import { toBase64, splitMbox } from "../src/web/lib/mbox-r40";
 import { dataMoves, jobs, meetings } from "../src/server/db/schema";
 import { moveEmail, nudgeLeftBehindMoves } from "../src/server/services/data-move/service";
+import { runDueJobs } from "../src/server/services/jobs";
+import { runMaintenance } from "../src/server/services/maintenance";
 import { makeTestApp, Client } from "./helpers";
 
 /* R42 move: what really happens when an import's page closes. The file never reaches the server whole, so nothing
@@ -95,5 +97,17 @@ describe("R42 the scheduled pass and the paused email", () => {
     expect(e.text).toContain("stopped part way, most likely because its page was closed");
     expect(e.text).toContain("Messages already in the mailbox are skipped, so nothing is doubled.");
     expect(e.text).toContain("3 messages brought in.");
+  });
+
+  it("one maintenance pass both finds the paused run and sends its email (the pass runs before the jobs step)", async () => {
+    const { ctx, c } = await setup();
+    const run = await c.post("/api/data-moves/imports/run", { kind: "calendar", fileName: "team.ics", content: ics });
+    await runDueJobs(ctx.deps, 10, { types: ["data-move.notify"] }); // the "finished" email of the first run
+    await pauseAfterFirst(ctx, run.body.move.id, true);
+    const sentBefore = ctx.outbound.sent.length;
+    await runMaintenance(ctx.deps);
+    const paused = ctx.outbound.sent.slice(sentBefore).filter((m) => m.subject === "Your import is paused");
+    expect(paused).toHaveLength(1);
+    expect(paused[0].to).toEqual(["owner@acme.io"]);
   });
 });
