@@ -91,7 +91,7 @@ describe("reading work tool exports", () => {
     </sheetData></worksheet>`;
     const zip = zipSync({ "xl/sharedStrings.xml": strToU8(sst), "xl/worksheets/sheet1.xml": strToU8(sheet) });
     const t = readTable(`xlsx-base64:${Buffer.from(zip).toString("base64")}`, "board.xlsx");
-    expect(t).toMatchObject({ source: "monday", name: "Client onboarding", headers: ["Name", "Person", "Status", "Date"] });
+    expect(t).toMatchObject({ source: "monday", name: "Client onboarding", headers: ["Name", "Person", "Status", "Date", "Group"] }); // R49: the group a row sits under becomes a column
     const { rows } = mapRows(t, defaultMapping(t));
     expect(rows.map((r) => [r.title, r.status, r.category])).toEqual([["Welcome call", "Working on it", "doing"], ["Tom & Jerry", "Done", "done"]]);
     expect(rows[0].due?.toISOString().slice(0, 10)).toBe("2026-11-04");

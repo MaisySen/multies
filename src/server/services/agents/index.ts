@@ -14,7 +14,7 @@ import {
 
 /** Agent thread reads are audited once per agent, thread and hour. */
 export const READ_AUDIT_ROLLUP_MS = 60 * 60_000;
-import { fromB64Or, newId, randomToken } from "../../lib/crypto";
+import { fromB64, newId, randomToken } from "../../lib/crypto";
 import { HttpError, badRequest, conflict, forbidden, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
 import { addonHint, assertCanCreate, bumpCounter, getPlan, readCounter } from "../plans";
@@ -428,7 +428,7 @@ const asAgent = (orgId: string, a: Agent, mb: Mailbox): AuthContext => ({
 async function deliverAsAgent(deps: Deps, orgId: string, a: Agent, mb: Mailbox, from: Mailbox, input: AgentSendInput, approvedBy?: Actor) {
   const res = await sendMessage(deps, approvedBy ? { ...asAgent(orgId, a, mb), userId: approvedBy.userId } : asAgent(orgId, a, mb), {
     mailboxId: from.id, to: input.to, cc: input.cc, bcc: input.bcc, subject: input.subject, text: input.text, html: input.html, inReplyToId: input.inReplyToId,
-  }, { agentId: a.id, attachments: input.attachments?.map((x) => ({ filename: x.filename, contentType: x.contentType, content: fromB64Or(x.contentBase64, () => new HttpError(422, "validation_failed", "Each attachment needs contentBase64 in base64.")) })) });
+  }, { agentId: a.id, attachments: input.attachments?.map((x) => ({ filename: x.filename, contentType: x.contentType, content: fromB64(x.contentBase64) })) });
   await bumpCounter(deps.db, orgId, "agent_messages", deps.now());
   return res;
 }

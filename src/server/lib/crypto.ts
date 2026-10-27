@@ -20,25 +20,6 @@ export function fromB64(b64: string): Uint8Array<ArrayBuffer> {
   return out;
 }
 
-/**
- * R49 (MYMAIL-API-15): decode base64 that came from outside (request bodies, headers, query, tokens, mail parts).
- * Takes plain base64 or base64url, with or without padding, and ignores whitespace and line breaks.
- * Anything that is not base64 answers null instead of throwing, so a route can answer a clear 4xx and never a 500.
- */
-export function tryFromB64(input: unknown): Uint8Array<ArrayBuffer> | null {
-  if (typeof input !== "string") return null;
-  const norm = input.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "");
-  if (norm.length % 4 === 1 || !/^[A-Za-z0-9+/]*$/.test(norm)) return null;
-  try { return fromB64(norm + "=".repeat((4 - (norm.length % 4)) % 4)); } catch { return null; }
-}
-
-/** R49: tryFromB64, or throws the error you give (a 4xx HttpError) when the input is not base64. */
-export function fromB64Or(input: unknown, error: () => Error): Uint8Array<ArrayBuffer> {
-  const out = tryFromB64(input);
-  if (!out) throw error();
-  return out;
-}
-
 function toB64Url(buf: Uint8Array): string {
   return toB64(buf).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
