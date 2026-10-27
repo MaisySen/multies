@@ -51,26 +51,6 @@ keeps every crawler out (`Disallow: /`); the robots check expects that on a stag
 rules everywhere else. It needs no account and no demo, so it does not use up the 10-a-day demo cap.
 
 Then by hand: sign in to a demo, open mail, chat and tasks, and check Sentry for new staging issues.
-
-### Signed in GETs on staging (R42)
-
-Staging allows only 2 new demos a day (`DEMO_DAILY_LIMIT=2`), so the demo cannot sign the deploy gate in. Staging has
-a seeded test session instead, made on the app side only (nothing at the identity provider, which is one tenant
-shared with production, and no app code change, so production is untouched):
-
-- `node scripts/creds.mjs run APP_SECRET_STAGING,CLOUDFLARE_API_TOKEN,CLOUDFLARE_ACCOUNT_ID -- node scripts/staging-session.mjs`
-  writes one session row to the staging D1 (`mymail-staging` only; it refuses anything else) for the staging test
-  user `usr_g946j7sotvkn4vvo` in "Staging's workspace" (a normal, non demo workspace, so it can send email), signs the
-  cookie with the staging app secret the way the app does, and saves it to `~/.multies-secrets/staging-test-session.json`
-  (mode 600, never printed; the SQL goes through a mode 600 temp file). Older seeded sessions of that user are removed
-  first. The session lasts 30 days and rolls forward daily while used; run it again if the GETs script says so.
-- `python3 scripts/staging-signed-gets.py 50` makes 50 signed in GETs over the hot routes with that session and prints
-  the status counts and empty 503s (exit 1 on any non 200, 2 when the session needs reseeding). It checks prod
-  `/api/health` reads first and refuses at 50% or more. Never point it at prod.
-
-Sign in client login URI: since R42 the "Multies Staging" client's login URI is
-`https://preview.multies.si/login?confirmed=1`, the same pattern as production's `https://multies.si/login?confirmed=1`
-(R41), so "Back to Multies" after a staging email confirmation lands on the staging sign in page.
 A remote E2E run can hit the sign up and demo rate limits; see [../testing.md](../testing.md).
 
 ## 3. Production

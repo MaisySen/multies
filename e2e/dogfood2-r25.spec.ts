@@ -1,30 +1,42 @@
 import { test, expect, type Page, type BrowserContext } from "@playwright/test";
 
 /**
- * R25 wave 3 dogfood (DF-4): an invitation carries a title, shown on the pending row and
- * read back from /api/team.
+ * R25 wave 3 dogfood (DF-4): an invitation carries a title, shown on the pending row and read back from /api/team.
+ * R42: demos turned invites off (R40 MB-220, R41 UI; the demo case is covered by phone-r41 and tests/phone-r41), so
+ * this now invites from a real local workspace: the owner signs up, opens Team, sends an invite with a title through
+ * the dialog, sees it on the pending row and in /api/team. Joining is covered by join-r41 and invite-join-r39.
  */
+test.skip(!!process.env.E2E_BASE_URL, "signs up a fresh local owner");
 test.describe.configure({ mode: "serial" });
 let ctx: BrowserContext;
 let page: Page;
+const tag = Math.random().toString(36).slice(2, 8);
 test.beforeAll(async ({ browser }) => {
-  ctx = await browser.newContext({ baseURL: test.info().project.use.baseURL });
-  if (!process.env.E2E_BASE_URL) await ctx.setExtraHTTPHeaders({ "x-forwarded-for": `10.96.${test.info().workerIndex % 200}.1` });
+  const base = test.info().project.use.baseURL!;
+  ctx = await browser.newContext({ baseURL: base, extraHTTPHeaders: { "x-forwarded-for": `10.96.${test.info().workerIndex % 200}.1` } });
   page = await ctx.newPage();
-  await page.goto("/login");
-  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
-  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
+  const headers = { origin: new URL(base).origin };
+  expect((await page.request.post("/api/auth/sign-up/email", { data: { name: "Dana Owner", email: `dana-${tag}@example.com`, password: "a-strong-password" }, headers })).status()).toBe(200);
+  expect((await page.request.patch("/api/account/preferences", { data: { timezone: "UTC", locale: "en" }, headers })).status()).toBe(200);
+  expect((await page.request.patch("/api/org", { data: { name: `Dogfood ${tag}` }, headers })).status()).toBe(200);
 });
 test.afterAll(async () => { await ctx?.close(); });
 
-test("team: in the demo, Invite is off with the reason shown, and the server refuses invites (R41; titles are covered by unit tests)", async () => {
-  // R40 deploy 3 (MB-220) turned demo invites off on the server; R41 shows that in the UI.
+test("team: an invitation from a real workspace carries a title, shown on the pending row and in /api/team", async () => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/app/settings/team");
   const invite = page.getByRole("button", { name: "Invite", exact: true });
-  await expect(invite).toBeVisible();
-  await expect(invite).toBeDisabled();
-  await expect(page.getByText("Invites are off in the demo.").first()).toBeVisible();
-  const status = await page.evaluate(async () => (await fetch("/api/team/invites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: "chair@example.com", role: "member", title: "Board chair" }) })).status);
-  expect(status).toBe(403);
+  await expect(invite).toBeEnabled({ timeout: 15_000 });
+  await invite.click();
+  const dialog = page.getByRole("dialog", { name: "Invite a teammate" });
+  await expect(dialog).toBeVisible();
+  const email = `chair-${tag}@example.com`;
+  await dialog.getByLabel("Email").fill(email);
+  await dialog.getByLabel("Title").fill("Board chair");
+  await dialog.getByRole("button", { name: "Create invitation" }).click();
+  await expect(page.getByText(`${email} · Board chair`).or(page.getByText(email)).first()).toBeVisible({ timeout: 15_000 });
+  const team = await (await page.request.get("/api/team")).json();
+  const inv = (team.invites ?? team.pendingInvites ?? []).find((i: { email: string }) => i.email === email);
+  expect(inv, JSON.stringify(Object.keys(team))).toBeTruthy();
+  expect(inv.title).toBe("Board chair");
 });

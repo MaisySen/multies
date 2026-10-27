@@ -131,7 +131,6 @@ export function MboxImport({ onClose, ring }: { onClose: () => void; ring: (valu
               {phase === "done" ? `Done: ${counts.stored} ${counts.stored === 1 ? "message" : "messages"} brought in` : phase === "stopped" ? `Stopped at ${done} of ${total}` : `${done} of ${total} messages`}
             </p>
             <p className="truncate text-[13px] text-muted">{fileName} into {box?.address ?? "your mailbox"}</p>
-            {(phase === "running" || (phase === "paused" && started)) && <p className="text-[13px] text-muted" data-testid="mbox-keep-open">Keep this page open until it finishes. If it closes, choose the same file again: messages already here are skipped.</p>}
             {(counts.duplicates > 0 || counts.unreadable > 0) && (
               <p className="text-[13px] text-muted" data-testid="mbox-skipped">
                 {counts.duplicates > 0 && `${counts.duplicates} already here`}{counts.duplicates > 0 && counts.unreadable > 0 && ", "}{counts.unreadable > 0 && `${counts.unreadable} could not be read`}
