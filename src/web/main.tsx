@@ -21,6 +21,9 @@ import { PUSH_ON_PAGE_EVENT, registerServiceWorker } from "./lib/sw-client";
 // and warm a page's code when a link to it is hovered, touched or focused.
 prefetchRoute(window.location.pathname);
 prefetchOnIntent();
+// R40 (MB-203): an /app page also needs the app frame's code; start it now beside the page's own, instead of
+// after the router has run (one less round trip in a row on a slow phone network). Same module as the router's.
+if (window.location.pathname.startsWith("/app")) void import("./layouts/app").catch(() => undefined);
 
 // R34: after the page has loaded and gone idle, so error tracking never delays it; earlier errors are queued.
 scheduleSentry();
