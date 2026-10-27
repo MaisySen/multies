@@ -10,6 +10,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 ### Round 50 (27 Oct 2026)
 
 - My Work (the Home tab on phones) asks the database far less: one check finds which sections have anything, so an empty section costs nothing. Fewer statements per load keeps each request inside the free plan's CPU limit under busy traffic.
+- Mail to task on a phone: the reply bar at the foot of a thread has a task button. One tap makes a task from the email; if the thread already has one, the same tap opens it. Task chips on the thread show the task's title and are easy to tap. Back from the task returns to the thread.
 - The 15 minute background pass spreads its hourly housekeeping across the four passes of each hour, so each pass does less work. Jobs, mail, imports, reminders and webhook retries still run every pass.
 
 ### Round 46 (27 Oct 2026)
