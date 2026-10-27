@@ -23,7 +23,7 @@ import { Field, Input, Select } from "@/web/components/ui/input";
 import { EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
 import { cn } from "@/web/lib/cn";
-import { Board, ColumnComposer, NO_VALUE } from "./board";
+import { Board, NO_VALUE } from "./board";
 import { describeFilter, FieldFilterPicker, FieldsDialog } from "./fields";
 import { isComputed, ProjectRollups, taskFields } from "./computed-fields";
 import { GuestsDialog } from "./guests";
@@ -308,13 +308,8 @@ export function TasksPage() {
         ) : view === "sprints" && project ? (
           <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
-          <>
-            {phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} /> /* R41 (MB-226) */
-              : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />}
-            {/* R42: the board's rapid add at the foot of the list; into the picked project, else the first one. */}
-            {(project ?? list[0]) && <ColumnComposer variant="list" title={(project ?? list[0])!.name}
-              onQuickAdd={async (title) => { await create.mutateAsync({ title, projectId: (project ?? list[0])!.id }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }} />}
-          </>
+          phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} /> /* R41 (MB-226) */
+            : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
         ) : (
           <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
             {view === "calendar"

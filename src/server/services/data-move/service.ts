@@ -11,7 +11,7 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
-import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
 import { contacts, dataMoves, docs, mailboxes, meetings, messages, projectStatuses, projects, tasks } from "../../db/schema";
@@ -171,6 +171,28 @@ async function resume(deps: Deps, actor: SuiteActor, moveId: string | null | und
   return m;
 }
 
+/**
+ * R42: "choose the same file again" carries on. When a new run starts without a run id, the newest paused run of the
+ * same kind with the same file name and the same number of items is continued from where it stopped, instead of a
+ * second run that would add the same events or pages again (calendar and docs have no duplicate check; tasks and
+ * contacts do). One read on data_moves_org_idx, only when an import starts (not a hot route). A paused run that already
+ * had its "paused" email gets its claim cleared, so the run can still send its one "finished" email.
+ */
+async function findPaused(deps: Deps, orgId: string, kind: MoveKind, fileName: string | undefined | null, total: number) {
+  if (!fileName) return null;
+  const rows = await deps.db.select().from(dataMoves)
+    .where(and(eq(dataMoves.orgId, orgId), eq(dataMoves.kind, "import"), eq(dataMoves.status, "stopped"), like(dataMoves.source, `${kind}:%`), eq(dataMoves.fileName, fileName.slice(0, 255)), eq(dataMoves.total, total)))
+    .orderBy(desc(dataMoves.createdAt)).limit(1);
+  const m = rows[0];
+  if (!m || m.done >= m.total) return null;
+  if (m.notifiedAt) {
+    // Essential write: clears the email claim so the continued run can send its "finished" email.
+    await deps.db.update(dataMoves).set({ notifiedAt: null }).where(eq(dataMoves.id, m.id));
+    return { ...m, notifiedAt: null };
+  }
+  return m;
+}
+
 const fail = (e: unknown) => {
   if (e instanceof MoveFileError) throw new HttpError(422, "unreadable_file", e.message);
   throw e;
@@ -243,7 +265,7 @@ export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput)
   const started = Date.now();
   const f = input.kind === "docs" ? { pages: readPagesSafe(input.content, input.fileName), skipped: 0 } : readFile(input.kind, input.content);
   const items = (f.contacts ?? f.events ?? f.pages ?? []) as unknown[];
-  const m = prior ?? await startRow(deps, actor, input.kind, input.kind === "calendar" ? "ics" : input.kind === "contacts" ? "vcard" : "markdown", input.fileName, items.length);
+  const m = prior ?? await findPaused(deps, actor.orgId, input.kind, input.fileName, items.length) ?? await startRow(deps, actor, input.kind, input.kind === "calendar" ? "ics" : input.kind === "contacts" ? "vcard" : "markdown", input.fileName, items.length);
   const created = parseJson<Created>(m.created, {});
   let done = m.done;
   let stopped: "time" | "write_budget" | null = null;
@@ -378,7 +400,7 @@ function summarizeWorkspace(w: WorkspaceFile) {
 async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInput, prior: typeof dataMoves.$inferSelect | null) {
   const w = readWorkspace(input.content);
   const sum = summarizeWorkspace(w);
-  const m = prior ?? await startRow(deps, actor, "workspace", "multies", input.fileName, sum.total);
+  const m = prior ?? await findPaused(deps, actor.orgId, "workspace", input.fileName, sum.total) ?? await startRow(deps, actor, "workspace", "multies", input.fileName, sum.total);
   const created = parseJson<Created>(m.created, {});
   const counts = parseJson<Record<string, number>>(m.counts, {});
   const started = Date.now();
@@ -520,9 +542,13 @@ export function moveEmail(deps: Deps, m: typeof dataMoves.$inferSelect, why: "do
     if (c.skipped) lines.push(`${c.skipped} couldn't be read.`);
   }
   const subject = why === "done" ? "Your import finished" : "Your import is paused";
+  // R42: the words say what really happens. An import runs only while its page is open (the file stays on the
+  // person's device), so nothing more comes in on its own; choosing the same file again carries on.
   const intro = why === "done"
     ? `Your ${label} import${file} has finished.`
-    : `Your ${label} import${file} stopped when its page was closed. To carry on, open Import and export and choose the same file again: anything already brought in is skipped, so nothing is doubled.`;
+    : label === "mail"
+      ? `Your mail import${file} stopped part way, most likely because its page was closed. Imports run only while their page is open, so nothing more will come in on its own. To bring in the rest, open Import and export and choose the same file again. Messages already in the mailbox are skipped, so nothing is doubled.`
+      : `Your ${label} import${file} is paused. Imports run only while their page is open, so nothing more will come in on its own. To bring in the rest, open Import and export and choose the same file again: it carries on from where it stopped, so nothing is doubled.`;
   const text = [intro, "", ...lines, "", "You can see it, or undo it, in your import history."].join("\n");
   return { subject, text, action: { label: "Open import history", url: `${deps.config.appUrl}/app/settings/import` } };
 }
@@ -537,25 +563,33 @@ registerJob("data-move.notify", async (deps, payload) => {
 });
 
 /**
- * The scheduled pass (every cron tick): at most NUDGE_LIMIT running imports whose last step is older than
- * LEFT_BEHIND_MIN minutes, read through data_moves_status_step_idx. The file of an import lives in the person's
- * browser and is never stored on the server (each step sends its part), so the pass cannot run a step for them:
- * it ends the run as stopped, which the history shows with what got in, and sends the one "paused" email with the
- * counts and the way to carry on. Idle cost: one indexed read that returns nothing.
+ * The scheduled pass (every cron tick): at most NUDGE_LIMIT imports left behind, read through
+ * data_moves_status_step_idx. The file of an import lives in the person's browser and is never stored on the server
+ * (each step sends its part), so the pass cannot run a step for them. Two shapes are left behind:
+ *  - a mail archive import stays "running" between batches; after LEFT_BEHIND_MIN minutes with no batch the pass ends
+ *    it as stopped (paused);
+ *  - every other import (tasks, calendar, contacts, docs, workspace) is saved as "stopped" after each step, so a page
+ *    closed between steps leaves a paused run. R42: the pass now finds those too (before, it looked only at running
+ *    runs, so these never got their email).
+ * Each gets the one "paused" email with the counts and the way to carry on (notified_at keeps it to one). A mail
+ * import the person cancelled is stopped on purpose and gets no email. Idle cost: one indexed read that returns nothing.
  */
 export async function nudgeLeftBehindMoves(deps: Deps) {
   const before = new Date(deps.now().getTime() - LEFT_BEHIND_MIN * 60_000);
   const rows = await deps.db.select().from(dataMoves)
-    .where(and(eq(dataMoves.status, "running"), lt(dataMoves.lastStepAt, before))).orderBy(dataMoves.lastStepAt).limit(NUDGE_LIMIT);
+    .where(and(inArray(dataMoves.status, ["running", "stopped"]), lt(dataMoves.lastStepAt, before), isNull(dataMoves.notifiedAt), eq(dataMoves.kind, "import"),
+      or(eq(dataMoves.status, "running"), ne(dataMoves.source, "mail:mbox"))))
+    .orderBy(dataMoves.lastStepAt).limit(NUDGE_LIMIT);
   let paused = 0;
   for (const m of rows) {
     const now = deps.now();
-    // Essential write: the run ends as stopped (only if no step ran since the read).
-    const r = await deps.db.update(dataMoves).set({ status: "stopped", updatedAt: now, finishedAt: now })
-      .where(and(eq(dataMoves.id, m.id), eq(dataMoves.status, "running"), lt(dataMoves.lastStepAt, before))).returning({ id: dataMoves.id });
-    if (!r.length) continue;
-    paused++;
-    await notifyMoveEnded(deps, { ...m, status: "stopped" }, "paused");
+    if (m.status === "running") {
+      // Essential write: the run ends as stopped (only if no step ran since the read).
+      const r = await deps.db.update(dataMoves).set({ status: "stopped", updatedAt: now, finishedAt: now })
+        .where(and(eq(dataMoves.id, m.id), eq(dataMoves.status, "running"), lt(dataMoves.lastStepAt, before))).returning({ id: dataMoves.id });
+      if (!r.length) continue;
+    }
+    if (await notifyMoveEnded(deps, { ...m, status: "stopped" }, "paused")) paused++;
   }
   return { checked: rows.length, paused };
 }
