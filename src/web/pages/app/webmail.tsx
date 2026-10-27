@@ -25,7 +25,7 @@ import { useLiveMail } from "@/web/lib/live-mail";
 import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provider-folders";
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
-import { MakeTask } from "./work/make-task";
+import { MakeTask, MakeTaskBarButton } from "./work/make-task";
 import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
 import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
@@ -653,6 +653,8 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
         <button type="button" onClick={() => reply(false)} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0071E3] text-[15px] font-medium text-white transition-colors duration-150 active:bg-[#0062c4]"><IconReply className="h-[18px] w-[18px]" aria-hidden />Reply</button>
         {(last.to.length + last.cc.length > 1) && <button type="button" onClick={() => reply(true)} className="flex h-11 items-center justify-center rounded-full border border-line-strong px-4 text-[15px] font-medium text-fg transition-colors duration-150 active:bg-hover">Reply all</button>}
         <button type="button" onClick={forward} aria-label="Forward" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line-strong text-fg transition-colors duration-150 active:bg-hover"><IconForward className="h-[18px] w-[18px]" aria-hidden /></button>
+        {/* R50 (MB-238): make a task, or open the thread's task, without scrolling back up. */}
+        <MakeTaskBarButton messageId={last.id} threadId={last.threadId} />
       </div>
     </div>
   );
