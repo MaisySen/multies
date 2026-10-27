@@ -39,6 +39,10 @@ export async function runMaintenance(deps: Deps) {
   // The demo seed makes hundreds of queries, enough with the other steps to pass the Workers
   // limit on calls per invocation, so it runs in its own request (POST /api/account/demo/seed).
   // Each run takes at most 20 jobs and about 10 seconds of them; the rest wait five minutes.
+  // R41: imports left behind (page closed for 10 minutes): at most 5 a pass get their one "paused" email. One indexed
+  // read when none. R42: it runs before the jobs step, so the email it queues goes out in this same pass (staging's
+  // cron is hourly, so after the jobs step the email waited a whole extra hour).
+  await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
   const jobsRun = await step("jobs", () => runDueJobs(deps, 20, { excludeTypes: ["demo.seed_suite"], budgetMs: 10_000 }));
   // The remaining steps touch different tables and don't depend on each other, so they run
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
@@ -62,8 +66,6 @@ export async function runMaintenance(deps: Deps) {
   const agentTriggers = await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
   await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
-  // R41: imports left behind (page closed for 10 minutes): at most 5 a pass are ended as paused with one email each. One indexed read when none.
-  await step("data_move_nudge", async () => (await import("./data-move/service")).nudgeLeftBehindMoves(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   await step("prune", async () => {
     await Promise.all([
