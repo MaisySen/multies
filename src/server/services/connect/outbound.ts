@@ -29,6 +29,8 @@ export function connectionOutbound(deps: Deps, c: Connection): OutboundProvider 
   return {
     name: "own-smtp",
     async send(msg: OutboundMessage): Promise<OutboundResult> {
+      // R40: the demo's sample connected mailbox never opens a connection to a provider.
+      if ((await import("../demo")).isSampleConnection(c)) throw new OutboundError("This is a sample connected mailbox in the demo, so nothing is sent from it.", false);
       const secret = await connectionSecret(deps, c);
       const access = c.authKind === "oauth" ? await (await import("./oauth")).accessTokenFor(deps, c, secret) : secret;
       const raw = await composeRaw(msg);

@@ -7,8 +7,24 @@
 export type MailboxKind = "personal" | "shared" | "agent";
 export const MAILBOX_KIND_LABELS: Record<MailboxKind, string> = { personal: "Personal", shared: "Shared", agent: "Agent" };
 
-/** Role addresses read as shared even before anyone else is given access. */
-const ROLE_LOCAL_PARTS = new Set(["admin", "billing", "contact", "hello", "help", "hi", "info", "jobs", "office", "press", "sales", "support", "team", "accounts", "careers", "orders"]);
+/**
+ * Role addresses read as shared even before anyone else is given access. This is the one list of shared role
+ * names in the web app: add new names here (tests/premium5-r39.test.ts checks it). Matching ignores case and
+ * a trailing plus tag or dot suffix, so Founders, sales+eu and info.nz all read as shared.
+ */
+export const ROLE_LOCAL_PARTS: ReadonlySet<string> = new Set([
+  "accounts", "accounting", "admin", "billing", "bookings", "careers", "community", "contact", "crew", "design",
+  "dev", "enquiries", "events", "finance", "founders", "hello", "help", "hi", "hr", "info", "inquiries", "invoices",
+  "jobs", "legal", "marketing", "media", "news", "newsletter", "office", "ops", "orders", "partners", "payments",
+  "people", "press", "privacy", "reception", "recruiting", "sales", "security", "service", "shop", "social",
+  "staff", "studio", "success", "support", "team", "welcome",
+]);
+
+/** True when a mailbox local part is a common shared role address (sales@, founders@, info@). */
+export function isRoleLocalPart(localPart: string): boolean {
+  const base = localPart.toLowerCase().trim().split("+")[0]!.split(".")[0]!;
+  return ROLE_LOCAL_PARTS.has(base);
+}
 
 /**
  * What kind of mailbox this is, from who can open it: an agent member has it in their list, so Agent; two or more
@@ -18,7 +34,7 @@ const ROLE_LOCAL_PARTS = new Set(["admin", "billing", "contact", "hello", "help"
 export function mailboxKind(mailbox: { id: string; localPart: string }, members: { kind: "human" | "agent"; mailboxIds: string[] | null }[]): MailboxKind {
   if (members.some((m) => m.kind === "agent" && m.mailboxIds?.includes(mailbox.id))) return "agent";
   const people = members.filter((m) => m.kind === "human" && m.mailboxIds?.includes(mailbox.id)).length;
-  if (people >= 2 || ROLE_LOCAL_PARTS.has(mailbox.localPart.toLowerCase())) return "shared";
+  if (people >= 2 || isRoleLocalPart(mailbox.localPart)) return "shared";
   return "personal";
 }
 

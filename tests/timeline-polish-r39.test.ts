@@ -29,8 +29,8 @@ describe("lead and lag on the chart", () => {
   it("shows the wait the task should have had when a clash leaves no room", () => {
     expect(gapGeometry(2, 300, { left: 250, top: 8, height: 24 }, 36)).toEqual({ kind: "lag", left: 300, width: 72, top: 8, height: 24 });
   });
-  it("draws a lead as a slim bracket over the overlap, above the bar", () => {
-    expect(gapGeometry(-1, 200, { left: 164, top: 48, height: 24 }, 36)).toEqual({ kind: "lead", left: 164, width: 36, top: 41, height: 5 });
+  it("draws a lead as a slim bracket over the overlap, on the bar's top edge (R40: inside its own row)", () => {
+    expect(gapGeometry(-1, 200, { left: 164, top: 48, height: 24 }, 36)).toEqual({ kind: "lead", left: 164, width: 36, top: 44, height: 4, barH: 24 });
   });
   it("draws nothing for no gap", () => {
     expect(gapGeometry(0, 200, { left: 200, top: 8, height: 24 }, 36)).toBeNull();
