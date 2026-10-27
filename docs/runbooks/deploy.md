@@ -73,6 +73,25 @@ Sign in client login URI: since R42 the "Multies Staging" client's login URI is
 (R41), so "Back to Multies" after a staging email confirmation lands on the staging sign in page.
 A remote E2E run can hit the sign up and demo rate limits; see [../testing.md](../testing.md).
 
+### Signed in UI checks on production (R45)
+
+The public demo can be paused, and production has no seeded cookie the way staging does (the production app secret
+lives only in the worker). R45 added a test session the worker mints itself, for one test user in one test workspace:
+
+- `POST /api/_test-session` with header `x-test-session` equal to the `TEST_SESSION_TOKEN` secret makes a 24 hour
+  session for `TEST_SESSION_USER_ID` and answers the cookie (src/server/routes/test-session-r45.ts). Without the three
+  `TEST_SESSION_*` secrets, or with a wrong header, it is a plain 404. It refuses (409) unless the user belongs to exactly
+  one workspace, the one named by `TEST_SESSION_ORG_ID`, and that workspace is not a demo. Each mint replaces the last
+  test session and writes an audit line (`session.test_minted`).
+- The test user is "Prod QA" (the build team's prodqa plus address) in "Multies QA (test)": a normal workspace with no
+  domain and no mailbox. It holds a "Windowing check" project (90 tasks, one sprint) for board and backlog checks.
+- `node scripts/creds.mjs run CLOUDFLARE_API_TOKEN,CLOUDFLARE_ACCOUNT_ID -- node scripts/prod-session.mjs --setup` once
+  (rows, a new random token in `~/.multies-secrets/prod-test-session-token.json`, the worker secrets through
+  `wrangler secret bulk` from a mode 600 file). Then `node scripts/prod-session.mjs` mints a session into
+  `~/.multies-secrets/prod-test-session.json` (never printed); `--seed` also creates the project once.
+- Turn it off: `... prod-session.mjs --off` deletes the token secret.
+- Use it for clicking through UI on live only: no load, no mail, nothing outside the test workspace.
+
 ## 3. Production
 
 ```bash

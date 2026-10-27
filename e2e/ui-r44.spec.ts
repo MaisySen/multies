@@ -31,8 +31,7 @@ async function manyTasks(page: Page) {
   await page.route(/\/api\/tasks(\?[^/]*)?$/, async (route) => {
     if (route.request().method() !== "GET") return route.fallback();
     const res = await route.fetch();
-    const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
-    if (!body) return route.fallback().catch(() => {}); // the page moved on and the response went with it
+    const body = await res.json() as { tasks: Record<string, unknown>[] };
     const base = body.tasks[0];
     if (!base) return route.fulfill({ response: res });
     const key = String(base.ref ?? "T-1").split("-")[0];
@@ -47,8 +46,7 @@ async function bigBacklog(page: Page) {
   let base: Record<string, unknown> | null = null;
   await page.route(/\/api\/tasks(\?[^/]*)?$/, async (route) => {
     const res = await route.fetch();
-    const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
-    if (!body) return route.fallback().catch(() => {}); // the page moved on and the response went with it
+    const body = await res.json() as { tasks: Record<string, unknown>[] };
     base = body.tasks[0] ?? null;
     await route.fulfill({ response: res });
   });
@@ -62,8 +60,7 @@ async function bigBacklog(page: Page) {
   });
   await page.route(/\/api\/sprints\/backlog\?/, async (route) => {
     const res = await route.fetch();
-    const body = await res.json().catch(() => null) as { tasks: Record<string, unknown>[] } | null;
-    if (!body) return route.fallback().catch(() => {}); // the page moved on and the response went with it
+    const body = await res.json() as { tasks: Record<string, unknown>[] };
     const b = body.tasks[0] ?? base ?? { status: "todo", statusName: "To do", type: "task" };
     const tasks = Array.from({ length: N }, (_, i) => ({ ...b, id: `r44b_${i}`, ref: `B-${i + 1}`, number: i + 1, title: `Backlog task ${i + 1}`, points: pts(i), status: "todo", position: i }));
     await route.fulfill({ response: res, json: { ...body, tasks } });

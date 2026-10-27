@@ -60,6 +60,16 @@ try {
   const routes = routeChunkMap(manifest, ROUTE_MODULES);
   writeFileSync(path.join(out, "route-chunks.json"), JSON.stringify(routes));
   console.log(`route chunks → dist/web/route-chunks.json (${Object.keys(routes).length} pages)`);
+  // R45 (MB-203): public/boot.js starts the app frame's code and My Work's code from the page itself, beside the entry,
+  // instead of after the entry and React have downloaded and run (one whole step less in a row on a slow link).
+  const frame = routeChunkMap(manifest, { frame: "src/web/layouts/app.tsx" }).frame ?? [];
+  const bootPath = path.join(out, "boot.js");
+  if (existsSync(bootPath)) {
+    const boot = readFileSync(bootPath, "utf8");
+    const map = { frame, "/app/my-work": routes["/app/my-work"] ?? [] };
+    writeFileSync(bootPath, boot.replace("/*R45_CHUNKS*/null", JSON.stringify(map)));
+    console.log(`boot preloads → dist/web/boot.js (frame ${frame.length} files, My Work ${map["/app/my-work"].length})`);
+  }
 } catch (err) {
   rmSync(path.join(out, "auth.html"), { force: true });
   console.warn("[prerender] auth shell skipped, the plain shell serves sign in:", (err as Error).message);

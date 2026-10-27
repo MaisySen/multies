@@ -9,7 +9,7 @@ import { metaFor, SITE_URL } from "../web/components/seo-meta";
 import { env as startupEnv } from "cloudflare:workers";
 import { configureReporting, flushReporting, reportException, reportingClientExists, type ReportingEnv } from "./reporting";
 import { drizzle } from "drizzle-orm/d1";
-import { createApp } from "../server/app";
+import { appPrebuild, createApp } from "../server/app";
 import { loadConfig } from "../server/config";
 import { applyMigrations, migrationDriver, schema, type DB } from "../server/db";
 import { DohResolver } from "../server/services/dns/resolver";
@@ -47,6 +47,7 @@ import warmFixtureJson from "./warm-fixture.json";
 import { DocRoom as DocRoomClass } from "../server/collab/durable-object";
 import { ThreadPresence as ThreadPresenceClass } from "../server/collab/thread-presence";
 import { ChatHub as ChatHubClass } from "../server/realtime/chat-hub-do";
+import { bindTestSessionEnv } from "../server/test-session-env-r45";
 
 interface D1Database { prepare(query: string): unknown }
 interface Fetcher { fetch(input: Request | string, init?: RequestInit): Promise<Response> }
@@ -106,6 +107,7 @@ function envVars(env: WorkerEnv): Record<string, string | undefined> {
 /** Synchronous part of boot: no I/O, so it can also run at isolate startup (R40, MB-199). */
 function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefined>) {
   const config = loadConfig(vars);
+  bindTestSessionEnv(vars); // R45: the app gets no env from app.fetch here, so the test session reads its settings from this.
   const outbound = config.outbound.driver === "resend" ? new ResilientOutbound(new ResendOutbound(config.outbound.resendApiKey!)) : new LogOutbound();
   const deps: Deps = {
     db, config, dns: new DohResolver(), outbound, now: () => new Date(), fetch: peerAwareFetch(env),
@@ -277,6 +279,9 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
     }
     // The sign in library's instance too (about 20 ms of setup otherwise paid by the first signed in request).
     try { authFor(built.deps); } catch { /* built on first use instead */ }
+    // R45 (MB-199): and the public API (about 150 OpenAPI routes, 12 to 34 ms locally), which the first /api/v1 request
+    // of every new isolate used to build. STARTUP_V1=off moves it back to the first request.
+    if (vars.STARTUP_V1 !== "off") { try { appPrebuild.get(built.app)?.(); v1BuiltAtStartup = true; } catch { /* built on first use instead */ } }
     ready = Promise.resolve(built);
     if (vars.STARTUP_BOOT_LOG === "1") console.log("[startup] app built before the first request");
     if (vars.STARTUP_WARM !== "off") startupWarm(env, vars);
@@ -293,6 +298,8 @@ export function startupBoot(env: WorkerEnv | undefined): boolean {
  * The copy shares no config, database, bindings or caches with the real app. STARTUP_WARM=off turns it off.
  */
 export let lastWarmReport: WarmReport | null = null;
+/** R45 (MB-199): whether the public API was built at isolate startup (shown on the first request log line). */
+let v1BuiltAtStartup = false;
 function startupWarm(_env: WorkerEnv, vars: Record<string, string | undefined>) {
   try {
     const fixture = warmFixtureJson as unknown as WarmFixture;
@@ -539,7 +546,7 @@ let firstRequestSeen = false;
 function noteFirstRequest(request: Request) {
   if (firstRequestSeen) return;
   firstRequestSeen = true;
-  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport, reportingClientBefore: reportingClientExists() || Boolean((globalThis as Record<string, unknown>).__SENTRY_CLOUDFLARE_CLIENT__), reporting: "lazy" })); } catch { /* never in the way */ }
+  try { console.log("[isolate] first request", JSON.stringify({ path: new URL(request.url).pathname, warm: lastWarmReport, reportingClientBefore: reportingClientExists() || Boolean((globalThis as Record<string, unknown>).__SENTRY_CLOUDFLARE_CLIENT__), reporting: "lazy", v1: v1BuiltAtStartup ? "startup" : "lazy" })); } catch { /* never in the way */ }
 }
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
