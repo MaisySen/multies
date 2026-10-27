@@ -32,7 +32,7 @@ export function DomainsPage() {
       ) : (
         <>
           {/* R39 premium pass 4: three headline numbers above the list. */}
-          <div className="mb-4 grid grid-cols-3 gap-3" data-testid="domain-stats">
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2" data-testid="domain-stats">
             <StatTile label="Domains" value={data?.length ?? 0} icon={<IconGlobe />} tone="brand" />
             <StatTile label="Verified" value={data?.filter((d) => d.status === "verified").length ?? 0} icon={<IconCheckCircle />} tone="ok" />
             <StatTile label="Mailboxes" value={(data ?? []).reduce((s, d) => s + (d.counts?.mailboxes ?? 0), 0)} icon={<IconMails />} />

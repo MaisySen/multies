@@ -3,6 +3,9 @@ import { toast } from "sonner";
 import { PhoneFilters } from "@/web/components/phone-filters-r40"; // R40 (MB-209)
 import { useSearchParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMediaQuery } from "@/web/lib/use-compact";
+import { PHONE_QUERY } from "@/web/lib/phone";
+import { PhoneTaskList } from "./tasks-phone-r41";
 import { IconAssign, IconBoard, IconBookmark, IconCalendarDays, IconChevronDown, IconChevronUp, IconClose, IconList, IconMountain, IconPlus, IconSettings2, IconSliders, IconSprint, IconTeam, IconTimeline, IconTrash, type IconComponent } from "@/web/components/ui/icon";
 
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
@@ -59,6 +62,7 @@ export function TasksPage() {
   const projects = useProjects();
   const people = useAssignees();
   const views = useViews();
+  const phone = useMediaQuery(PHONE_QUERY);
   const qc = useQueryClient();
   const { update, create } = useTaskMutations();
   // Phones open the list: a board's second column runs off a narrow screen (dogfood finding).
@@ -205,7 +209,11 @@ export function TasksPage() {
         {project && view === "board" && <ShareButton kind="project_board" targetId={project.id} />}
         <Button variant="ghost" size="sm" onClick={() => setEditing("new")} aria-label="New project"><IconPlus className="h-4 w-4" /><span className="max-sm:sr-only">New project</span></Button>
         <div className="ml-auto flex items-center gap-2">
-          <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5">
+          {/* R41 (MB-226): on phones the six views fold into one View picker (a bottom sheet). */}
+          <Select aria-label="View" data-testid="phone-view-select" value={view} onChange={(e) => { const v = e.target.value as ViewKind; storeTaskView(v); set({ view: v }); }} className="h-10! w-auto! min-w-[112px] text-[14px] sm:hidden">
+            {VIEWS.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+          </Select>
+          <div role="tablist" aria-label="View" className="flex rounded-lg bg-fill p-0.5 max-sm:hidden">
             {VIEWS.map((v) => (
               <button key={v.id} role="tab" aria-selected={view === v.id} aria-label={v.label} onClick={() => { storeTaskView(v.id); set({ view: v.id }); }}
                 className={cn("inline-flex min-h-10 min-w-10 items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12.5px] sm:min-h-0 sm:min-w-0", view === v.id ? "bg-surface font-medium text-fg shadow-card" : "text-muted hover:text-fg")}>
@@ -289,6 +297,7 @@ export function TasksPage() {
             onMove={(id, to, position) => void moveInLane(id, to, position)} />
         ) : view === "board" && project ? (
           <Board project={project} limits={board.settings.limits} onSetLimit={setLimit} tasks={tasks.data ?? []} onOpen={open} groupBy={groupField} byEpic={groupEpic} onAdd={(col) => setNewTask(groupField || groupEpic ? {} : { statusId: col })}
+            onQuickAdd={async (col, title) => { await create.mutateAsync({ title, projectId: project.id, statusId: col }); await qc.invalidateQueries({ queryKey: ["tasks"] }); }}
             onMove={(id, col, position) => groupEpic
               ? void moveToEpic(id, col, position)
               : groupField
@@ -299,7 +308,8 @@ export function TasksPage() {
         ) : view === "sprints" && project ? (
           <Suspense fallback={<PanelListSkeleton label="Loading sprints" />}><SprintsView project={project} onOpen={open} /></Suspense>
         ) : view === "list" || ((view === "board" || view === "sprints") && !project) ? (
-          <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
+          phone ? <PhoneTaskList tasks={tasks.data ?? []} projects={list} onOpen={open} /> /* R41 (MB-226) */
+            : <TaskTable tasks={tasks.data ?? []} projects={list} onOpen={open} fields={project ? fields : []} people={people.data ?? []} projectId={projectId || undefined} />
         ) : (
           <Suspense fallback={view === "calendar" ? <CalendarSkeleton label="Loading the task calendar" /> : <TimelineSkeleton />}>
             {view === "calendar"

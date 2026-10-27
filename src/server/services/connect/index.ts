@@ -111,6 +111,8 @@ export function present(c: Connection, mb: { address: string; displayName: strin
     providerLabel: CONNECT_PRESETS[c.provider as ConnectPresetId]?.label ?? "Other server", authKind: c.authKind, status: c.status,
     lastError: c.lastError, lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null, initialDone: c.initialDone,
     messagesSynced: c.messagesSynced, imapHost: c.imapHost, smtpHost: c.smtpHost, createdAt: c.createdAt.toISOString(),
+    // R41: the demo's sample connection (a .example host); the app offers a one tap Reconnect for it.
+    ...(c.imapHost.endsWith(".example") ? { sample: true } : {}),
   };
 }
 
@@ -165,6 +167,13 @@ export async function reconnect(deps: Deps, auth: AuthContext, id: string, input
   assertEnabled(deps);
   const c = await getConnection(deps, auth, id);
   assertCanManage(auth, c);
+  // R41: the demo's sample connected mailbox has no provider to check, so Reconnect puts it back to its healthy sample
+  // state (one small row update, essential to the demo; nothing is fetched and no password is stored).
+  if ((await import("../demo")).isSampleConnection(c)) {
+    await deps.db.update(mailConnections).set({ status: "active", lastError: null, initialDone: true, lastSyncAt: deps.now() }).where(eq(mailConnections.id, c.id));
+    const smb = (await deps.db.select().from(mailboxes).where(eq(mailboxes.id, c.mailboxId)).get())!;
+    return present((await deps.db.select().from(mailConnections).where(eq(mailConnections.id, c.id)).get())!, smb);
+  }
   const s = resolveSettings(deps, {
     email: c.email, password: input.password, preset: c.provider as ConnectPresetId, username: input.username ?? c.username,
     imap: { host: c.imapHost, port: c.imapPort, security: c.imapSecurity, ...input.imap },

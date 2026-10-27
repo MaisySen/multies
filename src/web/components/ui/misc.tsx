@@ -114,7 +114,7 @@ export function StatTile({ label, value, hint, icon, tone = "neutral", className
   return (
     <Card className={cn("flex min-w-0 flex-col gap-3 p-4", className)}>
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-[12.5px] font-medium text-muted">{label}</span>
+        <span className="min-w-0 text-[12.5px] font-medium leading-tight text-muted [overflow-wrap:anywhere]">{label}</span>
         {icon && <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg [&_svg]:h-3.5 [&_svg]:w-3.5", chip[tone])} aria-hidden>{icon}</span>}
       </div>
       <div className="text-[26px] font-semibold leading-none tracking-tight tabular-nums">{value}</div>

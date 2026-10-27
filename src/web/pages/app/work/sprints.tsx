@@ -121,7 +121,7 @@ export function SprintsView({ project, onOpen }: { project: Project; onOpen: (id
             </div>
           </div>
           {sprint.goal && <p className="mt-3 flex items-start gap-2 text-[13.5px] text-fg/90"><IconTarget className="mt-0.5 h-4 w-4 shrink-0 text-brand" />{sprint.goal}</p>}
-          <div className="mt-4 grid grid-cols-3 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2">
             <Stat label="Tasks" value={d ? `${d.tasks.filter((t) => t.status === "done").length} of ${d.tasks.length} done` : "..."} />
             <Stat label={unit === "hours" ? "Hours" : "Points"} value={d ? `${fmtNum(donePts)} of ${fmtNum(total)} done` : "..."} />
             <Stat label={sprint.status === "completed" ? "Carried over" : "Left"} value={sprint.status === "completed" ? String(sprint.carriedOver) : d ? fmtNum(d.burndown.remaining) : "..."} />

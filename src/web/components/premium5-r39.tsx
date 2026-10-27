@@ -67,7 +67,7 @@ export function HeadlineTile({ icon, value, label, tone = "brand", testId }: { i
       <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-[10px] [&_svg]:h-[18px] [&_svg]:w-[18px]", chip)} aria-hidden>{icon}</span>
       <div className="min-w-0">
         <div className="text-[20px] font-semibold leading-none tabular-nums">{value}</div>
-        <div className="mt-1 truncate text-[12px] text-muted">{label}</div>
+        <div className="mt-1 text-[12px] leading-tight text-muted [overflow-wrap:anywhere]">{label}</div>
       </div>
     </div>
   );

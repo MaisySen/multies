@@ -36,9 +36,10 @@ for (const size of [{ name: "desktop", width: 1280, height: 800 }, { name: "phon
       }],
       ["/app/settings/team", async () => {
         await expect(page.getByTestId("team-headline")).toBeVisible();
-        await page.getByRole("button", { name: "Invite", exact: true }).click();
-        await expect(page.getByTestId("invite-role")).toBeVisible();
-        await page.keyboard.press("Escape");
+        // R41: the demo can't send invites, so Invite is disabled with the reason beside it (the role cards are
+        // covered for real workspaces in e2e/premium4-r39 and the invite specs).
+        await expect(page.getByRole("button", { name: "Invite", exact: true })).toBeDisabled();
+        await expect(page.getByTestId("demo-invites-off")).toBeVisible();
       }],
       ["/app/deliverability", async () => {
         await expect(page.getByRole("heading", { name: "Deliverability", level: 1 })).toBeVisible();

@@ -8,7 +8,7 @@ import { showError } from "@/web/lib/show-error";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { useDialogs } from "@/web/components/ui/confirm";
-import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
+import { Field, Input, Select, Textarea, TimeInput } from "@/web/components/ui/input";
 import { Badge, Card, CopyButton, EmptyState, PageHeader, Skeleton, Switch } from "@/web/components/ui/misc";
 
 type Day = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -97,9 +97,9 @@ export function SchedulingPage() {
                   <span className="w-24 text-sm">{label}</span>
                   {r ? (
                     <div className="flex items-center gap-2 text-sm">
-                      <Input type="time" aria-label={`${label} from`} className="w-32" value={r[0]} onChange={(e) => setTime(d, 0, e.target.value)} step={900} />
+                      <TimeInput aria-label={`${label} from`} className="w-32" value={r[0]} onChange={(e) => setTime(d, 0, e.target.value)} step={900} />
                       <span className="text-muted">to</span>
-                      <Input type="time" aria-label={`${label} until`} className="w-32" value={r[1]} onChange={(e) => setTime(d, 1, e.target.value)} step={900} />
+                      <TimeInput aria-label={`${label} until`} className="w-32" value={r[1]} onChange={(e) => setTime(d, 1, e.target.value)} step={900} />
                     </div>
                   ) : <span className="text-sm text-subtle">Unavailable</span>}
                 </div>

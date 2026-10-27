@@ -16,7 +16,9 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // R41: only this dialog's own close counts; React passes a nested dialog's close (a picker sheet over a form) up
+      // the tree, which used to close the form too.
+      onClose={(e) => { if (e.target === e.currentTarget) onClose(); }}
       onClick={(e) => { if (e.target === ref.current) onClose(); }}
       aria-labelledby="dialog-title"
       className={cn(

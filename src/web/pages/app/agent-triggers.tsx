@@ -14,7 +14,7 @@ import { timeAgo, zonedDateTime } from "@/web/lib/format";
 import { Badge, CopyButton, EmptyState, Switch } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
-import { Field, Input, Select, Textarea } from "@/web/components/ui/input";
+import { Field, Input, Select, Textarea, TimeInput } from "@/web/components/ui/input";
 import { TriggerHistory } from "./agent-trigger-history";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows"; // R30
 
@@ -187,7 +187,7 @@ function TriggerForm({ agentUserId, initial, onCancel, onSaved }: { agentUserId:
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Repeat">{(p) => <Select {...p} value={f.mode} onChange={(e) => set("mode", e.target.value as "daily" | "every")}><option value="daily">Daily at a time</option><option value="every">Every few hours</option></Select>}</Field>
           {f.mode === "daily" ? (
-            <Field label="Time">{(p) => <Input {...p} type="time" value={f.dailyAt} onChange={(e) => set("dailyAt", e.target.value)} />}</Field>
+            <Field label="Time">{(p) => <TimeInput {...p} value={f.dailyAt} onChange={(e) => set("dailyAt", e.target.value)} />}</Field>
           ) : (
             <Field label="Every (hours)" hint="At least 1 hour.">{(p) => <Input {...p} type="number" min={1} max={744} value={f.everyHours} onChange={(e) => set("everyHours", Math.max(1, Number(e.target.value) || 1))} />}</Field>
           )}

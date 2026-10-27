@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
@@ -60,7 +60,47 @@ export function SortableCard({ t, onOpen, project }: { t: Task; onOpen: () => vo
   );
 }
 
-function Column({ id, title, color, count, children, onAdd, limit, onSetLimit }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+/**
+ * R41 (MB-208): rapid entry at the foot of a column. Enter adds the task and keeps the field open and focused for the
+ * next one; the new row shows at once (faded until the server answers). Escape, or leaving the field empty, closes it.
+ * Creates go through the idempotent api.create, so a retried add is never doubled.
+ */
+export function ColumnComposer({ title, onQuickAdd }: { title: string; onQuickAdd: (title: string) => Promise<unknown> }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [pending, setPending] = useState<{ key: number; title: string }[]>([]);
+  const ref = useRef<HTMLInputElement>(null);
+  const seq = useRef(0);
+  const add = () => {
+    const t = text.trim();
+    if (!t) return;
+    const key = ++seq.current;
+    setPending((p) => [...p, { key, title: t }]);
+    setText("");
+    requestAnimationFrame(() => ref.current?.focus());
+    void onQuickAdd(t).catch(() => { setText((cur) => cur || t); }).finally(() => setPending((p) => p.filter((x) => x.key !== key)));
+  };
+  return (
+    <div className="px-2 pb-2" data-testid={`composer-${title}`}>
+      {pending.map((p) => (
+        <div key={p.key} className="mb-2 rounded-lg border border-line bg-elevated px-3 py-2.5 text-[13.5px] opacity-60 elev-1" data-testid="pending-card" aria-busy="true">{p.title}</div>
+      ))}
+      {open ? (
+        <input ref={ref} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Task name, then Enter" aria-label={`New task in ${title}`} maxLength={500}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); add(); } else if (e.key === "Escape") { e.preventDefault(); setText(""); setOpen(false); } }}
+          onBlur={() => { if (!text.trim()) setOpen(false); }}
+          className="h-11 w-full rounded-lg border border-brand bg-surface px-3 text-[14px] text-fg outline-none ring-4 ring-brand/15 placeholder:text-subtle max-sm:text-base sm:h-10" />
+      ) : (
+        <button type="button" onClick={() => setOpen(true)} className="flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] text-muted transition-colors duration-150 hover:bg-elevated hover:text-fg motion-reduce:transition-none sm:min-h-9">
+          <IconPlus className="h-3.5 w-3.5" aria-hidden />Add task
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, onQuickAdd }: { id: string; title: string; color: string; count: number; children: React.ReactNode; onAdd: () => void;
+  onQuickAdd?: (title: string) => Promise<unknown>;
   /** R34 (MB-186): this column's WIP limit, and the header menu to change it. */
   limit?: ColumnLimit; onSetLimit?: (v: { max?: number | null; min?: number | null }) => void }) {
   const { setNodeRef, isOver } = useDroppable({ id: `col:${id}`, data: { statusId: id } });
@@ -75,7 +115,8 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit }:
         {onSetLimit && <span className="ml-auto"><LimitMenu title={title} limit={limit} onSet={onSetLimit} /></span>}
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-10 w-10 items-center justify-center rounded text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5" /></button>
       </header>
-      <ul ref={setNodeRef} className="flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2 pb-3">{children}</ul>
+      <ul ref={setNodeRef} className={cn("flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto px-2", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
+      {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}
     </section>
   );
 }
@@ -100,7 +141,9 @@ export function epicKey(t: Pick<Task, "parentId">, cols: { id: string }[]) {
  * Kanban: columns are the project's statuses, or the options of a single select field when
  * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
  */
-export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy, byEpic, limits, onSetLimit }: {
+export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuickAdd, groupBy, byEpic, limits, onSetLimit }: {
+  /** R41 (MB-208): inline rapid add at the foot of each status column (not offered when grouped by a field or epic). */
+  onQuickAdd?: (columnId: string, title: string) => Promise<unknown>;
   project: Project; tasks: Task[]; onOpen: (id: string) => void;
   /** R34 (MB-186): WIP limits per column id, and the header menu that changes them. */
   limits?: BoardLimits; onSetLimit?: (columnId: string, v: { max?: number | null; min?: number | null }) => void;
@@ -177,6 +220,7 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, groupBy
       <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-4 sm:snap-none" data-testid="board">
         {cols.map((s) => (
           <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}
+            onQuickAdd={onQuickAdd && !groupBy && !byEpic ? (title) => onQuickAdd(s.id, title) : undefined}
             limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}>
             <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} />)}

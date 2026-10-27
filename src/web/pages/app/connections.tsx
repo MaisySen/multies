@@ -80,6 +80,12 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
     onSuccess: (r) => { refresh(); if (r.result.error) toast.error(r.result.error); else toast.success(r.result.stored ? `${r.result.stored} new message${r.result.stored === 1 ? "" : "s"}` : "Up to date"); },
     onError: showError,
   });
+  // R41: the demo's sample mailbox has nothing to sign in to; Reconnect resets it to the healthy sample in one tap.
+  const resetSample = useMutation({
+    mutationFn: () => api.put(`/connections/${c.id}`, { password: "sample" }),
+    onSuccess: () => { refresh(); toast.success("The sample mailbox is connected again"); },
+    onError: showError,
+  });
   const reconnect = useMutation({
     mutationFn: () => api.put(`/connections/${c.id}`, { password }),
     onSuccess: () => { refresh(); setReconnecting(false); setPassword(""); toast.success(`${c.email} is reconnected`); },
@@ -110,7 +116,9 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           <div className="mt-3 flex flex-wrap gap-2">
           <ButtonLink size="sm" variant="secondary" to={`/app/mail?mailbox=${c.mailboxId}`}>Open inbox <IconArrowRight className="h-4 w-4" /></ButtonLink>
           <Button size="sm" variant="secondary" loading={sync.isPending} onClick={() => sync.mutate()} aria-label={`Sync ${c.email} now`}><IconRefresh className="h-4 w-4" />Sync now</Button>
-          <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>
+          {c.sample
+            ? <Button size="sm" variant={c.status === "active" ? "secondary" : "primary"} loading={resetSample.isPending} onClick={() => resetSample.mutate()} data-testid="sample-reconnect"><IconRefresh className="h-4 w-4" />Reconnect</Button>
+            : <Button size="sm" variant={c.status === "auth_failed" ? "primary" : "secondary"} onClick={() => { setError(null); setReconnecting(true); }}><IconKey className="h-4 w-4" />Reconnect</Button>}
           <Button size="sm" variant="ghost" onClick={() => setRemoving(true)} aria-label={`Remove ${c.email}`}><IconTrash className="h-4 w-4" />Remove</Button>
           </div>
         </div>

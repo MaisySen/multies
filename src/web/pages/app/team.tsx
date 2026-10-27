@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAgent, IconAssign, IconClock, IconTeam, IconUserCheck, IconCrown, IconEdit, IconKey, IconLink, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
+import { IconAgent, IconAssign, IconClock, IconTeam, IconUserCheck, IconCrown, IconEdit, IconKey, IconLink, IconLock, IconMail, IconMore, IconPause, IconPlay, IconPlus, IconRefresh, IconShield, IconTrash, IconUserMinus, IconZap } from "@/web/components/ui/icon";
 import { AgentTriggersDialog } from "./agent-triggers"; // R28 (DF-3 slice 3)
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
@@ -58,6 +58,8 @@ export function TeamSettings() {
   const [created, setCreated] = useState<(InviteCreated & { email: string }) | null>(null);
   const myRole = me.data?.organization?.role ?? "member";
   const canManage = myRole !== "member";
+  // R41 (MB-220 follow up): the demo can't send invites (the server answers demo_invites_off); say so before anyone tries.
+  const isDemo = !!me.data?.organization?.isDemo;
 
   if (team.isPending) return <Card className="p-6"><Skeleton className="h-5 w-40" /><Skeleton className="mt-4 h-12" /><Skeleton className="mt-2 h-12" /></Card>;
   if (team.error) return <Card className="p-6 text-sm text-bad">{team.error.message}</Card>;
@@ -70,7 +72,7 @@ export function TeamSettings() {
   return (
     <div className="space-y-6">
       {/* R39 premium pass 5: three headline numbers before the lists. */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3" data-testid="team-headline">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 max-sm:[&>*:last-child:nth-child(odd)]:col-span-2" data-testid="team-headline">
         <HeadlineTile icon={<IconTeam />} value={head.people} label={head.people === 1 ? "Person" : "People"} />
         <HeadlineTile icon={<IconClock />} value={head.pending} label="Invites pending" tone={head.pending ? "warn" : "neutral"} />
         <HeadlineTile icon={<IconUserCheck />} value={head.seatsLeft} label="Seats left" tone={head.seatsLeft ? "ok" : "warn"} />
@@ -80,6 +82,7 @@ export function TeamSettings() {
           <div>
             <h2 className="text-[15px] font-semibold">Members</h2>
             <p className="mt-1 text-sm text-muted">People who can sign in to this workspace. Members only see the mailboxes you give them.</p>
+            {isDemo && canManage && <p id="demo-invites-off" className="mt-2 inline-flex items-start gap-1.5 rounded-lg bg-fill px-2.5 py-1.5 text-[12.5px] text-muted" data-testid="demo-invites-off"><IconLock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{DEMO_INVITES_OFF_COPY}</p>}
           </div>
           <div className="flex items-center gap-4">
             <div className="w-36">
@@ -87,7 +90,7 @@ export function TeamSettings() {
               <Meter value={used} max={seats.limit} />
               <div className="mt-1.5 text-xs text-subtle tabular-nums" data-testid="agent-seats">{agentMembers.length} agent{agentMembers.length === 1 ? "" : "s"}, no seat needed</div>
             </div>
-            {canManage && <Button onClick={() => setInviting(true)} disabled={used >= seats.limit} title={used >= seats.limit ? "All seats are in use" : undefined}><IconAssign className="h-4 w-4" />Invite</Button>}
+            {canManage && <Button onClick={() => setInviting(true)} disabled={isDemo || used >= seats.limit} aria-describedby={isDemo ? "demo-invites-off" : undefined} title={isDemo ? DEMO_INVITES_OFF_COPY : used >= seats.limit ? "All seats are in use" : undefined} data-testid="team-invite-button"><IconAssign className="h-4 w-4" />Invite</Button>}
           </div>
         </div>
         <ul className="divide-y divide-line" aria-label="Members">
@@ -115,7 +118,7 @@ export function TeamSettings() {
 
       {myRole === "owner" && <SsoEnforcement required={!!me.data?.organization?.requireSso} />}
 
-      <InviteDialog open={inviting} onClose={() => setInviting(false)} myRole={myRole} mailboxes={mailboxes.data ?? []}
+      <InviteDialog open={inviting} demo={isDemo} onClose={() => setInviting(false)} myRole={myRole} mailboxes={mailboxes.data ?? []}
         onCreated={(r) => { setInviting(false); setCreated(r); }} />
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Invitation ready"
         description={created?.emailed ? `We emailed ${created.email}. You can also share the link yourself.` : `Email delivery isn't connected yet, so share this link with ${created?.email} yourself.`}
@@ -209,7 +212,25 @@ function MailboxPicker({ mailboxes, value, onChange }: { mailboxes: Mailbox[]; v
   );
 }
 
-function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: boolean; onClose: () => void; myRole: Role; mailboxes: Mailbox[]; onCreated: (r: InviteCreated & { email: string }) => void }) {
+/** R41: shown on the disabled Invite button and inside the invite dialog in a demo workspace. */
+export const DEMO_INVITES_OFF_COPY = "Invites are off in the demo. Create your own workspace to invite your team.";
+
+/** R41: the invite dialog's body in a demo workspace: the reason and the way out, instead of a form that would fail. */
+function DemoInvitesOff({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-2 text-center" data-testid="invite-demo-off">
+      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-soft text-brand-hover" aria-hidden><IconLock className="h-5 w-5" /></span>
+      <p className="max-w-xs text-[15px] font-medium leading-snug">{DEMO_INVITES_OFF_COPY}</p>
+      <p className="max-w-xs text-sm text-muted">Everything else in the demo works, so look around first. Your own workspace keeps your team, mail and tasks.</p>
+      <div className="mt-1 flex gap-2">
+        <Button variant="secondary" onClick={onClose}>Keep exploring</Button>
+        <a href="/signup" className="inline-flex h-10 items-center rounded-lg bg-brand px-4 text-sm font-medium text-white transition-colors duration-150 hover:bg-brand-hover max-sm:h-11">Create your workspace</a>
+      </div>
+    </div>
+  );
+}
+
+function InviteDialog({ open, onClose, myRole, mailboxes, onCreated, demo }: { open: boolean; onClose: () => void; demo?: boolean; myRole: Role; mailboxes: Mailbox[]; onCreated: (r: InviteCreated & { email: string }) => void }) {
   const qc = useQueryClient();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"admin" | "member">("member");
@@ -221,6 +242,7 @@ function InviteDialog({ open, onClose, myRole, mailboxes, onCreated }: { open: b
     onSuccess: (r) => { qc.invalidateQueries({ queryKey: qk.team }); onCreated({ ...r, email: email.toLowerCase() }); setEmail(""); setIds([]); setRole("member"); setTitle(""); setBio(""); },
   });
   const err = invite.error instanceof ApiError ? invite.error : null;
+  if (demo || err?.code === "demo_invites_off") return <Dialog open={open} onClose={onClose} title="Invite a teammate"><DemoInvitesOff onClose={onClose} /></Dialog>;
   return (
     <Dialog open={open} onClose={onClose} title="Invite a teammate" description="They'll get a link to join this workspace."
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button loading={invite.isPending} disabled={!email} onClick={() => invite.mutate()}>Create invitation</Button></>}>

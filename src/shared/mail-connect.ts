@@ -131,6 +131,8 @@ export interface ConnectionView {
   imapHost: string;
   smtpHost: string;
   createdAt: string;
+  /** R41: true for the demo's sample connected mailbox. */
+  sample?: boolean;
 }
 
 /** A failed connection test, in words a person can act on. */
