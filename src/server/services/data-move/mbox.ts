@@ -21,8 +21,8 @@ import { assertWritable, type SuiteActor } from "../suite/common";
 import { base64Bytes } from "../work-import/parse";
 import { presentMove } from "./service";
 
-export const MBOX_BATCH = 10;
-export const MBOX_BATCH_BYTES = 512 * 1024;
+export const MBOX_BATCH = 3; // R40 lead: 3, not 10, after prod hit the free plan CPU limit (parsing is server CPU)
+export const MBOX_BATCH_BYTES = 192 * 1024;
 /** The largest .mbox file the page reads, stated in the page too. */
 export const MBOX_MAX_FILE_MB = 200;
 

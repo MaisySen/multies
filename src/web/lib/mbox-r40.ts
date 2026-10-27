@@ -77,7 +77,7 @@ export function toBase64(b: Uint8Array): string {
 }
 
 /** Groups messages into batches of at most `max` messages and about `maxBytes` of mail (a single big message gets its own batch). */
-export function mboxBatches(msgs: Uint8Array[], max = 10, maxBytes = 512 * 1024): Uint8Array[][] {
+export function mboxBatches(msgs: Uint8Array[], max = 3, maxBytes = 192 * 1024): Uint8Array[][] {
   const out: Uint8Array[][] = [];
   let cur: Uint8Array[] = [];
   let bytes = 0;
