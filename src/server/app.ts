@@ -19,6 +19,7 @@ import { adminAppConfigRoutes, appConfigRoutes } from "./routes/app-config-r29b"
 import { authFor } from "./auth";
 import { clearAuthCache, forgetCachedAuth } from "./auth/guards";
 import { forgetProjectCounts } from "./services/suite/tasks";
+import { forgetOrgCache } from "./services/plans";
 import { APIError } from "better-auth/api";
 import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
@@ -146,7 +147,12 @@ export function createApp(deps: Deps) {
     if (write && ACCESS_WRITE.test(c.req.path)) clearAuthCache();
     await next();
     // R40 D1 reads: a write to the workspace drops its cached project counts (services/suite/tasks.ts).
-    if (write) forgetProjectCounts(c.var.auth?.orgId);
+    if (write) {
+      forgetProjectCounts(c.var.auth?.orgId);
+      // R40 deploy 3: and its cached workspace row and plan. A write with no session (a billing webhook, an
+      // operator call) drops every workspace's copy in this isolate.
+      forgetOrgCache(c.var.auth?.orgId);
+    }
   });
   const rootLog = deps.log ?? jsonLogger({ service: "mymail-api", release: deps.config.release, env: deps.config.sentry.environment });
   app.use("*", async (c, next) => {
@@ -163,7 +169,10 @@ export function createApp(deps: Deps) {
     if (c.req.path.startsWith("/api/") && c.req.path !== "/api/health") {
       const status = c.res.status;
       const fields = { method: c.req.method, path: c.req.routePath && c.req.routePath !== "/*" ? c.req.routePath : c.req.path, status, ms: Date.now() - started, user: c.var.auth?.userId, org: c.var.auth?.orgId };
-      if (status >= 500) log.error("request", fields); else if (status >= 400) log.warn("request", fields); else log.info("request", fields);
+      // R40 deploy 3 (free plan CPU): a successful read writes no access line in production; the platform's own
+      // request log already has it, and building and printing the JSON line cost CPU on every page load.
+      const quietRead = status < 400 && (c.req.method === "GET" || c.req.method === "HEAD") && deps.config.mode === "production";
+      if (status >= 500) log.error("request", fields); else if (status >= 400) log.warn("request", fields); else if (!quietRead) log.info("request", fields);
     }
   });
   const hsts = isHttps(deps.config.appUrl);

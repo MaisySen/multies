@@ -3,7 +3,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import type { AppEnv } from "../context";
 import { requireAuth } from "../middleware";
 import { deliveries, domains, invitations, mailboxes, members, organizations } from "../db/schema";
-import { getPlan, usage } from "../services/plans";
+import { getPlanCached, usage } from "../services/plans";
 import { listAudit } from "../services/audit";
 import { sentToday } from "../services/mail/delivery";
 
@@ -32,7 +32,7 @@ export function dashboardRoutes() {
     const since = new Date(now().getTime() - 13 * 86400_000);
     since.setUTCHours(0, 0, 0, 0);
     const [plan, used, doms, storage, daily, recent, today] = await Promise.all([
-      getPlan(db, orgId),
+      getPlanCached(db, orgId), // R40 deploy 3: a short per isolate copy (services/plans.ts)
       usage(db, orgId),
       db.select({ id: domains.id, name: domains.name, status: domains.status, lastCheckedAt: domains.lastCheckedAt }).from(domains).where(eq(domains.orgId, orgId)),
       db.select({ used: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),

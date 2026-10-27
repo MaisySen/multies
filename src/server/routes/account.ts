@@ -4,6 +4,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { and, count, eq, gt, ne } from "drizzle-orm";
 import type { AppEnv } from "../context";
+import type { DB } from "../db";
 import { parseBody, requireAuth } from "../middleware";
 import { accounts, invitations, members, organizations, sessions, users } from "../db/schema";
 import { deleteAuth0User, resendAuth0Verification, sendAuth0PasswordReset } from "../services/auth0-management";
@@ -11,8 +12,9 @@ import { beforeUserDelete } from "../services/privacy";
 import { HttpError, notFound, tooMany } from "../lib/errors";
 import { authFor, providersAnswer } from "../auth";
 import { verifyPassword } from "../lib/crypto";
-import { RateLimiter } from "../lib/rate-limit";
+import { DbRateLimitStore, RateLimiter } from "../lib/rate-limit";
 import { audit } from "../services/audit";
+import { peekOrgCached } from "../services/plans";
 import { createDemoWorkspace } from "../services/demo";
 import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
@@ -73,6 +75,12 @@ export function accountRoutes() {
   const resendLimiter = new RateLimiter(3, 10 * 60_000);
   const resetLinkLimiter = new RateLimiter(3, 10 * 60_000);
   const demoLimiter = new RateLimiter(5, 60 * 60_000);
+  // R40 deploy 3 (MB-220): a per IP daily cap on new demos, counted in the database so every isolate shares it
+  // (the limiter above is per isolate). An address the server cannot see (local tools) is not capped.
+  let demoDb: () => DB = () => { throw new Error("no database yet"); };
+  const demoDayStore = new DbRateLimitStore(() => demoDb());
+  demoDayStore.init({ windowMs: 24 * 3600_000 });
+  demoDayStore.prefix = "rl:demo-day:";
   return new Hono<AppEnv>()
     .get("/providers", (c) => {
       // idp: the one sign in and sign up page (Universal Login). password: the app's own form.
@@ -94,6 +102,16 @@ export function accountRoutes() {
         const made = await c.var.deps.db.select({ n: count() }).from(organizations).where(and(eq(organizations.isDemo, true), gt(organizations.createdAt, since))).get();
         if ((made?.n ?? 0) >= cap) {
           return c.json({ error: { code: "demo_paused", message: "The demo is resting for today. Create a free account instead, or try the demo again tomorrow." } }, 503);
+        }
+      }
+      const ip = c.var.ip;
+      const perIp = c.var.deps.config.demoPerIpDaily;
+      if (perIp > 0 && ip && !ip.startsWith("unknown")) {
+        const db = c.var.deps.db;
+        demoDb = () => db;
+        const { totalHits } = await demoDayStore.increment(ip);
+        if (totalHits > perIp) {
+          return c.json({ error: { code: "demo_limit", message: "You've opened the demo a few times today. Create a free account to keep going, or try the demo again tomorrow." } }, 429);
         }
       }
       const { headers } = await createDemoWorkspace(c.var.deps);
@@ -150,8 +168,12 @@ export function accountRoutes() {
     .use("*", requireAuth)
     .get("/me", async (c) => {
       const { auth } = c.var;
+      // R40 deploy 3: a workspace that is already onboarded (that never goes back) is read from the short per
+      // isolate copy (services/plans.ts); one that is not yet onboarded is always read fresh, so finishing
+      // onboarding in another isolate can never show the onboarding again.
+      const cachedOrg = peekOrgCached(auth.orgId);
       const [org, prefs] = await Promise.all([
-        c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
+        cachedOrg && readOrgMeta(cachedOrg.metadata).onboardedAt ? cachedOrg : c.var.deps.db.select().from(organizations).where(eq(organizations.id, auth.orgId)).get(),
         c.var.deps.db.select({ timezone: users.timezone, locale: users.locale, createdAt: users.createdAt }).from(users).where(eq(users.id, auth.userId)).get(),
       ]);
       const onboardedAt = readOrgMeta(org?.metadata).onboardedAt;

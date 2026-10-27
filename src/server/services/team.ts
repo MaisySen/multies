@@ -18,6 +18,9 @@ import { DEFAULT_TIMEZONE } from "@/shared/locale";
 import { sendInviteEmail } from "./invite-email";
 import { inIds } from "../lib/sql-chunks";
 
+/** MB-220: shown when someone in the demo tries to invite a person. */
+export const DEMO_INVITES_OFF = "Invites are off in the demo. Sign up to invite your team.";
+
 export type Role = "owner" | "admin" | "member";
 
 /**
@@ -142,6 +145,10 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
     inviterRole = creator.role;
   }
   if (input.role === "admin" && inviterRole !== "owner") throw forbidden("Only the workspace owner can invite admins.");
+  // R40 deploy 3 (MB-220): an anonymous demo workspace sends no real mail, so it cannot mail invitations to
+  // any address from our domain.
+  const inOrg = await db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, auth.orgId)).get();
+  if (inOrg?.isDemo) throw new HttpError(403, "demo_invites_off", DEMO_INVITES_OFF);
   const existing = await db.select({ id: users.id }).from(members).innerJoin(users, eq(users.id, members.userId))
     .where(and(eq(members.organizationId, auth.orgId), eq(users.email, email))).get();
   if (existing) throw conflict(`${email} is already in this workspace.`);

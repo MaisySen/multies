@@ -85,6 +85,8 @@ export interface AppConfig {
   keepDemoOrgIds: string[];
   /** New demo workspaces allowed per rolling 24 hours, platform wide (DEMO_DAILY_LIMIT); 0 means no cap. */
   demoDailyLimit: number;
+  /** New demo workspaces one IP address may open per 24 hours (DEMO_PER_IP_DAILY, default 10); 0 means no cap. */
+  demoPerIpDaily: number;
   /**
    * The account wide D1 daily write budget (services/write-budget.ts). Read from Cloudflare analytics
    * with CF_ANALYTICS_TOKEN (read only) and CF_ACCOUNT_ID; without both the guard is off.
@@ -226,6 +228,7 @@ const EnvSchema = z.object({
   PLATFORM_ADMIN_EMAILS: z.string().optional(),
   KEEP_DEMO_ORG_IDS: z.string().optional(),
   DEMO_DAILY_LIMIT: z.string().optional(),
+  DEMO_PER_IP_DAILY: z.string().optional(),
   CF_ANALYTICS_TOKEN: z.string().optional(),
   CF_ACCOUNT_ID: z.string().optional(),
   D1_DAILY_WRITE_BUDGET: z.string().optional(),
@@ -412,6 +415,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     platformAdmins: csv(env.PLATFORM_ADMIN_EMAILS).map((e) => e.toLowerCase()),
     keepDemoOrgIds: csv(env.KEEP_DEMO_ORG_IDS),
     demoDailyLimit: Math.max(0, Number.parseInt(env.DEMO_DAILY_LIMIT ?? "0", 10) || 0),
+    demoPerIpDaily: Math.max(0, Number.parseInt(env.DEMO_PER_IP_DAILY ?? "10", 10) || 0),
     writeBudget: {
       token: env.CF_ANALYTICS_TOKEN?.trim() || undefined,
       accountId: env.CF_ACCOUNT_ID?.trim() || undefined,

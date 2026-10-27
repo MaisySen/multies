@@ -4,7 +4,7 @@ import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
 import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 import { audit } from "../services/audit";
-import { getPlan } from "../services/plans";
+import { getPlanCached } from "../services/plans";
 import {
   acceptInvite, createInvite, describeInvite, getInvite, listInvites, listMembers, removeMember, revokeInvite, seatsUsed,
   transferOwnership, updateMember,
@@ -58,7 +58,7 @@ export function teamRoutes() {
       const { db, now } = c.var.deps;
       const { orgId } = c.var.auth;
       const [members, invites, plan, seats, agentMembers] = await Promise.all([
-        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlan(db, orgId), seatsUsed(db, orgId, now()), agentMemberCount(c.var.deps, orgId),
+        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlanCached(db, orgId), seatsUsed(db, orgId, now()), agentMemberCount(c.var.deps, orgId),
       ]);
       return c.json({ members, invites, seats: { ...seats, limit: plan.limits.seats }, agentMembers: { used: agentMembers, limit: plan.limits.agentMembers } });
     })

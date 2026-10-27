@@ -5,6 +5,13 @@ import { newId } from "../lib/crypto";
 import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
 import { OutboundError } from "./mail/outbound";
 import { enqueue, PermanentJobError, registerJob } from "./jobs";
+import { eq } from "drizzle-orm";
+import { organizations } from "../db/schema";
+
+async function isDemoOrg(deps: Deps, orgId: string) {
+  const row = await deps.db.select({ isDemo: organizations.isDemo }).from(organizations).where(eq(organizations.id, orgId)).get();
+  return !!row?.isDemo;
+}
 
 export interface SystemEmail {
   to: string;
@@ -66,6 +73,12 @@ export async function sendSystemEmail(deps: Deps, e: SystemEmail): Promise<Syste
     return { delivered: r.accepted, via: "internal", detail: r.reason };
   }
 
+  // R40 deploy 3 (MB-220): an anonymous demo workspace never mails anyone outside Multies (its sample people
+  // are not real), so it cannot be used to send mail from our domain to any address.
+  if (e.orgId && (await isDemoOrg(deps, e.orgId))) {
+    deps.log?.info("system_mail.demo_skipped", { template: e.template ?? "notice" });
+    return { delivered: false, via: "none", detail: "Demo workspaces send no email." };
+  }
   if (deps.outbound.name === "log") {
     // Recorded by the log transport (development and tests); nothing leaves the platform.
     await deps.outbound.send({ from: config.systemFrom, to: [to], subject: e.subject, text, html, messageId }).catch(() => undefined);

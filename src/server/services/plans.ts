@@ -31,6 +31,41 @@ export async function getPlan(db: DB, orgId: string): Promise<Plan & { addons: A
   return { ...base, limits: effectiveLimits(base, addons), addons };
 }
 
+/*
+ * R40 deploy 3 (MB-199 CPU): the workspace row and its add-ons are read on most page loads (/api/org, /api/team,
+ * the dashboard). Each D1 query costs the Worker about 1.5 to 2 ms of CPU on the free plan's 10 ms budget, so
+ * signed in READ routes take them from a short per isolate copy. Any write through the API drops the workspace's
+ * copy in this isolate (app.ts), so the person who changed it sees it at once and others within ORG_CACHE_MS.
+ * Write paths and limit checks keep calling getOrg and getPlan, which always read the database. Memory only.
+ */
+export const ORG_CACHE_MS = 15_000;
+type OrgRow = Awaited<ReturnType<typeof getOrg>>;
+const orgCache = new Map<string, { until: number; org: OrgRow; addons: AddonQuantities }>();
+export function forgetOrgCache(orgId?: string) { if (orgId) orgCache.delete(orgId); else orgCache.clear(); }
+async function orgEntry(db: DB, orgId: string) {
+  const now = Date.now();
+  const hit = orgCache.get(orgId);
+  if (hit && hit.until > now) return hit;
+  const [org, addons] = await Promise.all([getOrg(db, orgId), getAddons(db, orgId)]);
+  if (orgCache.size >= 2_000) orgCache.delete(orgCache.keys().next().value as string);
+  const entry = { until: now + ORG_CACHE_MS, org, addons };
+  orgCache.set(orgId, entry);
+  return entry;
+}
+/** The cached workspace row if this isolate holds a fresh one, without reading the database. */
+export function peekOrgCached(orgId: string): OrgRow | undefined {
+  const hit = orgCache.get(orgId);
+  return hit && hit.until > Date.now() ? hit.org : undefined;
+}
+/** The workspace row for a read route (a copy up to ORG_CACHE_MS old). */
+export async function getOrgCached(db: DB, orgId: string): Promise<OrgRow> { return (await orgEntry(db, orgId)).org; }
+/** getPlan for a read route (a copy up to ORG_CACHE_MS old). Never use it to enforce a limit. */
+export async function getPlanCached(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
+  const { org, addons } = await orgEntry(db, orgId);
+  const base = PLANS[org.plan];
+  return { ...base, limits: effectiveLimits(base, addons), addons };
+}
+
 /** "2026-10": metered allowances reset on the first of each month (UTC). */
 export const periodOf = (now: Date) => now.toISOString().slice(0, 7);
 

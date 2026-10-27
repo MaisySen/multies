@@ -6,7 +6,7 @@ import type { AppEnv } from "../context";
 import { pageQuery, parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware";
 import { organizations } from "../db/schema";
 import { audit, listAudit } from "../services/audit";
-import { getAddons, getOrg, getPlan, overLimits, usage } from "../services/plans";
+import { getAddons, getOrg, getOrgCached, getPlanCached, overLimits, usage } from "../services/plans";
 import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, forbidden, HttpError } from "../lib/errors";
 import { isCountry, isTimeZone } from "@/shared/locale";
@@ -16,9 +16,11 @@ export function orgRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => {
       const { db } = c.var.deps;
-      const org = await getOrg(db, c.var.auth.orgId);
-      const plan = await getPlan(db, org.id);
-      return c.json({ organization: { ...org, role: c.var.auth.role }, plan, usage: await usage(db, org.id, c.var.deps.now()) });
+      // R40 deploy 3: the workspace row and plan come from the short per isolate copy (services/plans.ts), and the
+      // usage read runs beside them: one D1 query on a warm isolate instead of four in a row.
+      const orgId = c.var.auth.orgId;
+      const [org, plan, used] = await Promise.all([getOrgCached(db, orgId), getPlanCached(db, orgId), usage(db, orgId, c.var.deps.now())]);
+      return c.json({ organization: { ...org, role: c.var.auth.role }, plan, usage: used });
     })
     .patch("/", requireAdmin, async (c) => {
       const input = await parseBody(c, z.object({

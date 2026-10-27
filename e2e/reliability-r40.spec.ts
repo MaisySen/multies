@@ -84,7 +84,8 @@ test("(b) a create retried after a lost answer makes one project", async ({ page
     if (first) { first = false; await route.fetch(); await route.fulfill(empty503); return; } // committed, answer lost
     await route.continue();
   });
-  await page.getByRole("button", { name: "Project", exact: true }).first().click();
+  // The tasks page opens on all tasks ("Project") or on the last project ("New project"); both open the same form.
+  await page.getByRole("button", { name: /^(New project|Project)$/ }).first().click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill(name);
   await page.getByRole("button", { name: "Create project" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 15_000 });

@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 40, deploy 3: lighter page loads, demo sends no mail (27 Oct 2026)
+
+- The demo can't send email: invitations from a demo workspace are refused with "Invites are off in the demo. Sign up to invite your team.", and no other email tied to a demo workspace leaves Multies. One address can open at most 10 new demos a day (DEMO_PER_IP_DAILY).
+- Workspace, Team and Dashboard reads reuse the workspace and plan for up to 15 seconds on the same server (any change made through the app is seen at once), and a successful read no longer writes its own log line, so these pages spend less server time per request.
+
 ### Round 40, deploy 2: steadier under load, reliability fixes from the QA pass, mail archive import (27 Oct 2026)
 
 - Fewer empty "503" errors: the free plan's per request CPU limit started being enforced on 27 Oct around 01:05 UTC, so a hotfix went out at 01:19 (request tracing off, errors still reported; the API description is built once instead of on every request; workspace usage, seats and badge counts use fewer database queries).
