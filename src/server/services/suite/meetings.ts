@@ -5,7 +5,7 @@
  * No recording, notes or transcripts: Multies never pays for AI. With no LiveKit keys set,
  * meetings can still be scheduled and invited, and joining says video is not switched on.
  */
-import { and, desc, eq, gte, isNotNull, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
 import { contacts, mailboxes, meetings, messages, organizations, tasks } from "../../db/schema";
 import { randomToken, toB64 } from "../../lib/crypto";
@@ -78,17 +78,19 @@ export function occurrencesOf(m: Meeting, from: Date, to: Date, now: Date, limit
   }));
 }
 
-export async function listMeetings(deps: Deps, actor: SuiteActor, q: { upcoming?: boolean; sourceType?: string; sourceId?: string; limit?: number } = {}) {
+export async function listMeetings(deps: Deps, actor: SuiteActor, q: { upcoming?: boolean; sourceType?: string; sourceId?: string; limit?: number; to?: Date } = {}) {
   const cutoff = new Date(deps.now().getTime() - 3 * 3600_000);
   const rows = await deps.db.select().from(meetings).where(and(
     eq(meetings.orgId, actor.orgId), isNull(meetings.deletedAt),
     // A series whose first meeting is past still has upcoming occurrences.
     q.upcoming ? or(gte(meetings.startsAt, cutoff), isNotNull(meetings.recurrence)) : undefined,
     q.sourceType ? eq(meetings.sourceType, q.sourceType as "thread") : undefined, q.sourceId ? eq(meetings.sourceId, q.sourceId) : undefined,
+    // R41 (MB-199 CPU): My Work only needs today, so it reads and expands meetings up to a near horizon.
+    q.to ? or(lt(meetings.startsAt, q.to), isNotNull(meetings.recurrence)) : undefined,
   )).orderBy(desc(meetings.startsAt)).limit(Math.min(q.limit ?? 100, 500));
   const list = rows.map((m) => out(deps, m));
   if (!q.upcoming) return list;
-  const to = new Date(deps.now().getTime() + SERIES_WINDOW_DAYS * 86_400_000);
+  const to = q.to ?? new Date(deps.now().getTime() + SERIES_WINDOW_DAYS * 86_400_000);
   return list
     .flatMap((m) => (m.recurrence ? occurrencesOf(m, cutoff, to, deps.now()) : [m]))
     .sort((a, b) => b.startsAt.localeCompare(a.startsAt));

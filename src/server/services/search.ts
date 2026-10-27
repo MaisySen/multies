@@ -389,7 +389,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
 
   const meetingsToday = async (): Promise<MyWorkItem[]> => {
     const { listMeetings } = await import("./suite/meetings");
-    const list = await listMeetings(deps, actor, { upcoming: true, limit: 200 });
+    const list = await listMeetings(deps, actor, { upcoming: true, limit: 200, to: horizon });
     return list.filter((m) => m.status !== "cancelled" && dayIn(new Date(m.startsAt), timeZone) === today)
       .sort((x, y) => x.startsAt.localeCompare(y.startsAt))
       .slice(0, 20)
