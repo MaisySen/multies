@@ -11,6 +11,8 @@ coverage/
 .wrangler/
 *.tsbuildinfo
 test-results/
+# R44: per helper Playwright output dirs (--output=test-results-<name>) hold traces; never commit them.
+test-results-*/
 playwright-report/
 coverage/
 .lighthouseci/
