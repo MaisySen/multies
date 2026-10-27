@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectionStatus, factorStatus, mailboxKind, PLAIN_STATUS_LABELS, teamHeadline } from "@/web/lib/premium5-r39";
+import { connectionStatus, factorStatus, isRoleLocalPart, mailboxKind, ROLE_LOCAL_PARTS, PLAIN_STATUS_LABELS, teamHeadline } from "@/web/lib/premium5-r39";
 
 describe("R39 premium pass 5 rules", () => {
   const box = { id: "b1", localPart: "ana" };
@@ -14,6 +14,23 @@ describe("R39 premium pass 5 rules", () => {
   it("treats role addresses as shared", () => {
     expect(mailboxKind({ id: "x", localPart: "Support" }, [])).toBe("shared");
     expect(mailboxKind({ id: "x", localPart: "sales" }, [])).toBe("shared");
+  });
+  it("R40: founders@ and the other common shared names read as Shared, from one list", () => {
+    for (const name of ["founders", "team", "info", "contact", "sales", "office", "accounts", "finance", "careers", "jobs", "press", "media", "partners", "marketing", "orders"]) {
+      expect(ROLE_LOCAL_PARTS.has(name)).toBe(true);
+      expect(mailboxKind({ id: "x", localPart: name }, [{ kind: "human", mailboxIds: ["x"] }])).toBe("shared");
+    }
+    expect(mailboxKind({ id: "x", localPart: "Founders" }, [])).toBe("shared");
+    expect(isRoleLocalPart("sales+eu")).toBe(true);
+    expect(isRoleLocalPart("info.nz")).toBe(true);
+    expect(isRoleLocalPart("ana")).toBe(false);
+    expect(isRoleLocalPart("alex.rivera")).toBe(false);
+    // personal still wins for a named person with one opener, and agents still win over role names
+    expect(mailboxKind({ id: "x", localPart: "ana" }, [{ kind: "human", mailboxIds: ["x"] }])).toBe("personal");
+    expect(mailboxKind({ id: "x", localPart: "support" }, [{ kind: "agent", mailboxIds: ["x"] }])).toBe("agent");
+    // the list stays lower case with no duplicates
+    const all = [...ROLE_LOCAL_PARTS];
+    expect(all.every((n) => n === n.toLowerCase())).toBe(true);
   });
   it("puts factors in plain words", () => {
     expect(factorStatus("good")).toBe("good");
