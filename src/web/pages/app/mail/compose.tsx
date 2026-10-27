@@ -195,7 +195,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />
                 <Select bare value={undoSeconds} onChange={(e) => setUndoSeconds(parseUndoSeconds(e.target.value))} className="cursor-pointer bg-transparent outline-none" aria-label="Undo send window"
-                  phoneClassName="inline-flex min-h-11 items-center whitespace-nowrap bg-transparent text-left text-[13px]">
+                  phoneClassName="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap bg-transparent text-left text-[13px]">
                   {UNDO_SEND_CHOICES.map((n) => <option key={n} value={n}>{n} s</option>)}
                 </Select>
               </label>
