@@ -132,7 +132,7 @@ APP_URL = "https://multies.si"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "production"
 # R40 (MB-199): every traced request spends extra CPU against the free plan's 10 ms; trace 2% here.
-SENTRY_TRACES_SAMPLE_RATE = "0.02"
+SENTRY_TRACES_SAMPLE_RATE = "0" # R40: tracing off on the free plan (CPU); errors still reported
 SECURITY_CONTACT = "mailto:security@multies.si"
 # Support address on /support and in the store listings (Cloudflare Email Routing on multies.si).
 SUPPORT_EMAIL = "support@multies.si"

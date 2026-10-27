@@ -467,6 +467,11 @@ const handler = {
 
 const buildEnv = (typeof __MYMAIL_BUILD_ENV__ === "object" ? __MYMAIL_BUILD_ENV__ : {}) as Record<string, string | undefined>;
 
+function tracesRate(env: WorkerEnv): number | undefined {
+  const rate = Number((typeof env.SENTRY_TRACES_SAMPLE_RATE === "string" ? env.SENTRY_TRACES_SAMPLE_RATE : undefined) ?? buildEnv.SENTRY_TRACES_SAMPLE_RATE ?? 0.1);
+  return rate > 0 ? rate : undefined;
+}
+
 /** Sentry wraps the handler when SENTRY_DSN_API is set; without it the SDK stays off. */
 export default Sentry.withSentry((rawEnv: unknown) => {
   const env = rawEnv as WorkerEnv;
@@ -476,7 +481,9 @@ export default Sentry.withSentry((rawEnv: unknown) => {
     dsn,
     environment: (typeof env.SENTRY_ENVIRONMENT === "string" ? env.SENTRY_ENVIRONMENT : undefined) ?? buildEnv.SENTRY_ENVIRONMENT ?? "production",
     release: (typeof env.RELEASE === "string" ? env.RELEASE : undefined) ?? buildEnv.RELEASE,
-    tracesSampleRate: Number((typeof env.SENTRY_TRACES_SAMPLE_RATE === "string" ? env.SENTRY_TRACES_SAMPLE_RATE : undefined) ?? buildEnv.SENTRY_TRACES_SAMPLE_RATE ?? 0.1),
+    // R40 (MB-199): a rate of 0 turns tracing off completely (no spans are made at all), which saves CPU on every
+    // request under the free plan's 10 ms limit. Errors are still reported.
+    tracesSampleRate: tracesRate(env),
     // sendDefaultPii stays at its default (off); the scrubber runs on every event.
     beforeSend: sentryPrivacy.beforeSend,
     beforeSendTransaction: sentryPrivacy.beforeSendTransaction,
