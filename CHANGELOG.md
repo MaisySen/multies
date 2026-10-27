@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 46 (27 Oct 2026)
+
+- Big projects: board, list and backlog now load every task, page by page, so column counts, point totals and the backlog cover all of a project however large it is. The "Showing the first 500" notice is gone.
+- Open boards and backlogs refresh from the list of recent changes every 20 seconds and fetch only the tasks that changed, instead of reading the whole list again, which cuts database reads for anyone with a board open. Moving tasks between sprints now shows up on other people's open backlogs too.
+- The API description at /api/v1/openapi.json is prepared when we build the app, so the first request for it no longer does heavy work on the server.
+
 ### Round 45 (27 Oct 2026)
 
 - Boards scroll smoothly even when you fling a long column from top to bottom: while a column moves faster than a screen per frame, cards are drawn as light outlines with their title and the full cards return as soon as it slows.

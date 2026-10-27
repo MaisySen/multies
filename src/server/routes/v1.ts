@@ -217,6 +217,22 @@ const iso = (d: Date | null | undefined) => (d ? new Date(d).toISOString() : nul
 /** Context the parent app set for a request it hands to the lazily built v1 app (see app.ts). */
 export const v1ParentVars = new WeakMap<Request, { deps: AppEnv["Variables"]["deps"]; ip: string; requestId: string; log: AppEnv["Variables"]["log"] }>();
 
+const OPENAPI_DESCRIPTION = "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.";
+/** R46: the placeholder the built spec file carries where the server origin goes. */
+export const OPENAPI_ORIGIN_PLACEHOLDER = "https://origin.invalid";
+/** The v1 OpenAPI 3.1 document as JSON text for one origin (the route and the Worker build both use this). */
+export function buildOpenApiText(api: { getOpenAPI31Document: (c: never) => unknown }, origin: string) {
+  return JSON.stringify(api.getOpenAPI31Document({
+    openapi: "3.1.0",
+    info: {
+      title: "Multies API",
+      version: "1.0.0",
+      description: OPENAPI_DESCRIPTION,
+    },
+    servers: [{ url: `${origin}/api/v1` }],
+  } as never));
+}
+
 export function v1Routes() {
   const api = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
@@ -240,20 +256,14 @@ export function v1Routes() {
 
   // R40 (MB-199): the document is built once per isolate and origin and kept as text. Building it walks every
   // route schema (300 to 450 ms of CPU on production per request), far past the free plan's per request limit.
+  // R46: the Worker build writes the same document as a static file (_spec/openapi-v1.json) and the Worker entry
+  // serves that with the origin filled in, so production never builds it; this route is the fallback (local, tests).
   const openApiText = new Map<string, string>();
   api.get("/openapi.json", (c) => {
     const origin = new URL(c.req.url).origin;
     let text = openApiText.get(origin);
     if (!text) {
-      text = JSON.stringify(api.getOpenAPI31Document({
-        openapi: "3.1.0",
-        info: {
-          title: "Multies API",
-          version: "1.0.0",
-          description: "Manage domains, mailboxes and aliases, read mail and send it, give AI agents their own inboxes, and work with tasks, projects, docs, contacts and deals. Agent keys (created with an agent) act only as that agent: they read its threads as JSON and send within its caps and approval rules. Workspace keys can be limited to areas with scopes (mail:read, mail:send, tasks:read, tasks:write, chat, docs, calendar, contacts and admin, each read or write); a call outside them answers 403 insufficient_scope with the scope it needs in `required`. The MCP server is at /api/v1/mcp, and every tool with its scope is listed at /developers/mcp. Webhooks are signed with the Standard Webhooks spec: verify with any Standard Webhooks library and your endpoint's whsec_ secret.",
-        },
-        servers: [{ url: `${origin}/api/v1` }],
-      }));
+      text = buildOpenApiText(api, origin);
       if (openApiText.size >= 8) openApiText.clear();
       openApiText.set(origin, text);
     }

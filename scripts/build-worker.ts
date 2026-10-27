@@ -65,6 +65,13 @@ if (!existsSync(path.join(root, "dist/web/index.html"))) throw new Error("Run `n
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 cpSync(path.join(root, "dist/web"), out, { recursive: true });
+// R46: the v1 OpenAPI document, built here once instead of in a cold isolate (266 to 413 ms of CPU on production).
+// The Worker serves it with the request's origin in place of the placeholder (src/entry/worker.ts).
+{
+  const { v1Routes, buildOpenApiText, OPENAPI_ORIGIN_PLACEHOLDER } = await import("../src/server/routes/v1");
+  mkdirSync(path.join(out, "_spec"), { recursive: true });
+  writeFileSync(path.join(out, "_spec/openapi-v1.json"), buildOpenApiText(v1Routes(), OPENAPI_ORIGIN_PLACEHOLDER));
+}
 // The app shell is served by the Worker (with its security headers), not as a static
 // file: hosts that serve static files before the Worker would skip the headers.
 const shellHtml = readFileSync(path.join(out, "index.html"), "utf8");
