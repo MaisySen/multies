@@ -93,3 +93,15 @@ not the `/api/v1` key routes, so a new isolate still pays about 40 ms on its fir
 next few different `/api/v1` routes. A public route that does no auth costs 2 ms. Warming the key path (a fixture
 for the key lookup) is the next lever.
 
+R44 result (honest): a key path warm up was tried. The fixture also recorded four `/api/v1` GETs with a placeholder key
+and the startup warm up ran them (the first request log on production read `warm: ran 14, ok 14`). Measured with the
+method above on the new build at 0% before it took traffic, 27 Oct 08:44 UTC, 4 samples:
+
+| | before (10 warm routes) | with the key routes warmed (14) |
+|---|---|---|
+| first request CPU, ms | 106, 46, 42, 46 (median 46) | 36, 52, 55, 62 (median 52) |
+| requests 2 to 6, ms | median 11, p95 109 | median 12, p95 104 |
+
+No gain, so it was reverted (more startup work for nothing). On production the first `/api/v1` request's cost is not
+the compile the local profile showed; next to look at: what the first real request builds per isolate (the lazily
+made error reporting client, the per isolate caches the warm up drops on purpose, the first D1 call). R45.
