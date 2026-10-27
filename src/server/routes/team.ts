@@ -11,7 +11,7 @@ import {
 } from "../services/team";
 import { RateLimiter } from "../lib/rate-limit";
 import { tooMany } from "../lib/errors";
-import { agentMemberCount, createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
+import { createAgentMemberKey, listAgentMemberKeys, listPeople, revokeAgentMemberKey, updateProfile } from "../services/people";
 import { createAgentMemberR26, listAgentMembers, updateAgentMember } from "../services/suite/agent-members-r26";
 
 export const InviteBody = z.object({
@@ -57,9 +57,11 @@ export function teamRoutes() {
     .get("/", async (c) => {
       const { db, now } = c.var.deps;
       const { orgId } = c.var.auth;
-      const [members, invites, plan, seats, agentMembers] = await Promise.all([
-        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlanCached(db, orgId), seatsUsed(db, orgId, now()), agentMemberCount(c.var.deps, orgId),
+      // R41 (MB-199 CPU): the AI member count comes from the member list already read, not a query of its own.
+      const [members, invites, plan, seats] = await Promise.all([
+        listMembers(db, orgId), c.var.auth.role === "member" ? [] : listInvites(db, orgId, now()), getPlanCached(db, orgId), seatsUsed(db, orgId, now()),
       ]);
+      const agentMembers = members.filter((m) => m.kind === "agent").length;
       return c.json({ members, invites, seats: { ...seats, limit: plan.limits.seats }, agentMembers: { used: agentMembers, limit: plan.limits.agentMembers } });
     })
     .get("/people", async (c) => c.json({ people: await listPeople(c.var.deps, c.var.auth.orgId) }))
