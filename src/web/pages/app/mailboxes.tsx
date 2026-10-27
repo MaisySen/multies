@@ -108,8 +108,7 @@ function MailboxList({ domains, onCreate, freeDomain }: { domains: Domain[]; onC
                 </div>
                 <div className="mt-0.5 truncate text-[13px] text-muted">{m.displayName}{m.replyTo ? ` · replies to ${m.replyTo}` : ""}</div>
               </div>
-              {/* R40: the ring shows on phones too, compact (the figures are in its label and on the mailbox page). */}
-              <div className="shrink-0 max-sm:[&_[data-ring-text]]:hidden"><StorageRing used={m.usedBytes} max={m.quotaMb * 1024 * 1024} label={`Storage for ${m.address}`} show={formatBytes} /></div>
+              <div className="hidden sm:block"><StorageRing used={m.usedBytes} max={m.quotaMb * 1024 * 1024} label={`Storage for ${m.address}`} show={formatBytes} /></div>
               <Link to={`/app/mail?mailbox=${m.id}`} className="hidden rounded-full p-2 text-muted transition-colors hover:bg-hover hover:text-fg sm:block" aria-label={`Open ${m.address} in mail`}><IconInbox className="h-4 w-4" /></Link>
               <Menu label={`Actions for ${m.address}`} trigger={<button className="grid h-11 w-11 place-items-center rounded-full text-muted transition-colors hover:bg-hover hover:text-fg sm:h-9 sm:w-9" aria-label={`Actions for ${m.address}`}><IconMore className="h-4 w-4" /></button>}>
                 <MenuItem icon={<IconInbox />} onSelect={() => navigate(`/app/mail?mailbox=${m.id}`)}>Open in mail</MenuItem>
