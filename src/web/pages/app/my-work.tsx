@@ -162,6 +162,7 @@ export function MyWorkPage() {
             </section>
           )}
 
+          {!allQuiet && (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {w.overdue.length > 0 && <Section testId="mywork-overdue" title="Overdue" tone="danger" icon={<IconSnooze />} items={w.overdue} empty="" />}
             <Section testId="mywork-due" title="Due today" icon={<IconTasks />} items={w.dueToday} empty="No tasks due today." />
@@ -172,6 +173,7 @@ export function MyWorkPage() {
             <Section testId="mywork-threads" title="Mail on my tasks" icon={<IconInbox />} items={w.threads} empty="No open tasks came from mail." />
             {w.snoozed && w.snoozed.length > 0 && <Section testId="mywork-snoozed" title="Snoozed mail coming back" icon={<IconCalendarClock />} items={w.snoozed} empty="" />}
           </div>
+          )}
         </>
       )}
     </div>

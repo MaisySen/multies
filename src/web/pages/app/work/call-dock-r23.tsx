@@ -73,7 +73,7 @@ export function CallDock() {
     setSize({ w: Math.min(Math.max(320, d.w + d.x - e.clientX), window.innerWidth - 32), h: Math.min(Math.max(220, d.h + d.y - e.clientY), window.innerHeight - 32) });
   };
   return (
-    <section aria-label={`Call: ${call.title}`} className="fixed bottom-4 right-4 z-40 flex flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-pop" style={{ width: size.w, height: size.h }} data-testid="call-dock">
+    <section aria-label={`Call: ${call.title}`} className="fixed bottom-[calc(1rem+var(--tabbar-h,0px))] right-4 z-40 flex flex-col overflow-hidden rounded-2xl border border-line bg-elevated shadow-pop" style={{ width: size.w, height: size.h }} data-testid="call-dock">
       <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => { drag.current = null; }} className="absolute left-0 top-0 z-10 h-4 w-4 cursor-nwse-resize" aria-hidden title="Resize" />
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="h-2 w-2 shrink-0 rounded-full bg-ok" aria-hidden />

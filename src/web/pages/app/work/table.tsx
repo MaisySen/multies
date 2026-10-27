@@ -482,7 +482,7 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
   return (
     <>
       <div ref={barRef} role="toolbar" aria-label="Bulk actions" data-testid="bulk-bar"
-        className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 animate-pop-in items-center gap-1 rounded-2xl border border-line bg-elevated/95 p-1.5 pl-3.5 shadow-pop backdrop-blur-xl">
+        className="fixed bottom-[calc(1.5rem+var(--tabbar-h,0px))] left-1/2 z-40 flex -translate-x-1/2 animate-pop-in items-center gap-1 rounded-2xl border border-line bg-elevated/95 p-1.5 pl-3.5 shadow-pop backdrop-blur-xl">
         <span className="mr-1 whitespace-nowrap text-[13px] font-medium tabular-nums" aria-live="polite">{tasks.length} selected</span>
         <span className="mx-1 h-5 w-px bg-line" />
         <div className="relative">
