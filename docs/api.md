@@ -1202,6 +1202,7 @@ When the database is briefly unavailable (an export in progress, overloaded, a l
 ## R33: project keys and the timeline
 
 - `PATCH /api/projects/{id}` and `PATCH /api/v1/projects/{id}` take `key` (letters and digits, up to 6, stored in capitals). A key another project in the workspace uses, compared without case, or one another project used before its own key edit, answers 409 `key_taken` with a plain message; nothing changes. MCP: `update_project` (name, description, color, key) answers the same refusal.
+- `DELETE /api/v1/projects/{id}` (R44) deletes a project and its tasks, as Delete project does in the app. Only a workspace key with write access can do it: a read only key answers 403 `insufficient_scope` and an agent member's key 403 `admin_only`. Answers `{ ok: true }`.
 - After a key edit the old key keeps resolving: `GET /api/v1/tasks/OPS-12` still opens the task after OPS became OPR (the task's `ref` reads OPR-12).
 - The task and contact timeline (`activity` in task detail) reads one change row per write since migration 0073; entries written after it have ids starting `chg_`. Shapes are unchanged.
 
