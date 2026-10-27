@@ -56,7 +56,7 @@ async function main() {
   const api = async (method, p, body) => {
     const r = await fetch(`https://${domain}/api/v2${p}`, { method, headers: { authorization: `Bearer ${tok}`, "content-type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
     const text = await r.text();
-    if (!r.ok) throw new Error(`${method} ${p.split("?")[0]} ${r.status}`);
+    if (!r.ok) throw new Error(`${method} ${p.split("?")[0]} ${r.status}: ${text.slice(0, 300)}`); // the provider error text names the bad key; it carries no secret
     return text ? JSON.parse(text) : null;
   };
   for (const [prompt, byLang] of Object.entries(copy.prompts)) {
@@ -65,7 +65,14 @@ async function main() {
       if (apply) await api("PUT", `/prompts/${prompt}/custom-text/${lang}`, screens);
     }
   }
-  const clientId = process.env.AUTH0_CLIENT_ID || s.web_client_id;
+  let clientId = process.env.AUTH0_CLIENT_ID || s.web_client_id;
+  if (!clientId) {
+    // The web client id is not a secret: find the one regular web app (ids and names only).
+    const webs = ((await api("GET", "/clients?fields=client_id,name,app_type&include_fields=true")) ?? []).filter((c) => c.app_type === "regular_web");
+    const prod = webs.length === 1 ? webs[0] : webs.find((c) => c.name === "Multies"); // the production app; staging keeps its own
+    if (prod) clientId = prod.client_id;
+    else console.log(`web clients found: ${webs.map((c) => c.name).join(", ") || "none"}`);
+  }
   if (clientId) {
     console.log(`${apply ? "set" : "would set"} the web client's login URI to ${copy.client.initiate_login_uri}`);
     if (apply) await api("PATCH", `/clients/${clientId}`, { initiate_login_uri: copy.client.initiate_login_uri });

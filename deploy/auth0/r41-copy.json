@@ -41,8 +41,8 @@
       "en": {
         "reset-password-request": {
           "title": "Reset your password",
-          "description": "Enter your email and we'll send you a link to set a new password.",
-          "buttonText": "Send link"
+          "buttonText": "Send link",
+          "descriptionEmail": "Enter your email and we'll send you a link to set a new password."
         },
         "reset-password": {
           "title": "Set a new password",
@@ -50,13 +50,11 @@
           "buttonText": "Save password"
         },
         "reset-password-success": {
-          "title": "Password changed",
           "description": "Your new password is saved. Sign in with it now.",
           "buttonText": "Back to Multies"
         },
         "reset-password-email": {
-          "title": "Check your email",
-          "description": "We sent a link to set a new password. It works for one hour."
+          "title": "Check your email"
         }
       }
     },
