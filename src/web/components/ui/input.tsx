@@ -13,7 +13,16 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
   return <textarea ref={ref} className={cn(field, "py-2.5 leading-relaxed", className)} {...rest} />;
 });
 
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select({ className, children, ...rest }, ref) {
+/**
+ * `bare` (R42): keep the caller's own classes on desktop (compact chips, icon overlays, segmented controls) instead of
+ * the form field look; on phones the select still hands off to the bottom sheet, drawn with `phoneClassName`.
+ */
+/** R42: a bordered phone picker button for compact `bare` selects (size and width come from the caller). */
+export const PHONE_PICK = "flex min-w-0 items-center rounded-lg border border-line-strong bg-surface pr-8 text-left text-base text-fg bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238e8e93' stroke-width='1.6'><path d='M3 4.5 6 7.5 9 4.5'/></svg>\")] bg-[right_10px_center] bg-no-repeat";
+
+type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { bare?: boolean; phoneClassName?: string };
+
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select({ className, children, bare, phoneClassName, ...rest }, ref) {
   const inner = useRef<HTMLSelectElement | null>(null);
   const setRefs = (el: HTMLSelectElement | null) => {
     inner.current = el;
@@ -21,12 +30,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
   };
   // R41 (MB-209): on phones a single choice select opens the app's bottom sheet; the real select stays for forms and desktop.
   const phone = !rest.multiple && !rest.size;
+  const look = bare ? className : cn(field, "h-10 max-sm:h-11 appearance-none bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238e8e93' stroke-width='1.6'><path d='M3 4.5 6 7.5 9 4.5'/></svg>\")] bg-[right_12px_center] bg-no-repeat pr-9", className);
   return (
     <>
-      <select ref={setRefs} className={cn(field, "h-10 max-sm:h-11 appearance-none bg-[url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%238e8e93' stroke-width='1.6'><path d='M3 4.5 6 7.5 9 4.5'/></svg>\")] bg-[right_12px_center] bg-no-repeat pr-9", className, phone && "max-sm:sr-only")} {...rest}>
+      <select ref={setRefs} className={cn(look, phone && "max-sm:sr-only")} {...rest}>
         {children}
       </select>
-      {phone && <PhoneSelectButton selectRef={inner} className={className} disabled={rest.disabled} />}
+      {phone && <PhoneSelectButton selectRef={inner} className={bare ? phoneClassName : className} bare={bare} disabled={rest.disabled} />}
     </>
   );
 });
