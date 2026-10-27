@@ -48,3 +48,11 @@ span), and about 0.8 ms on every warm request, with tracing already off. R43 rem
   secret (the normal state) the path is a plain 404. Set it with `wrangler secret put REPORT_TEST_TOKEN` (value on
   stdin, never in argv), run the check once, then `wrangler secret delete REPORT_TEST_TOKEN`.
 - Admins can still send a handled test event from Operations (`POST /api/admin/sentry-test`).
+- Measured on 27 Oct 2026 (wrangler tail, 60 signed GETs per reading, 0 empty 503s in every reading):
+  production before (release a8bcd4b1f6b3, warm): median 10 ms, p95 33 ms, max 53 ms;
+  production after (509b801dfa1c, 15 minutes after the deploy, warm): median 7 ms, p95 28 ms, max 35 ms;
+  first request of a new isolate after the change: 48 to 54 ms on production (includes the 10 request warm up),
+  14 to 16 ms on staging, `reportingClientBefore` false every time. Readings taken in the first minutes after a
+  deploy show a few 100 to 200 ms requests from brand new isolates; judge p95 on a warm reading.
+- Proof: a thrown test error reached the error tracker from staging and once from production (environment and
+  release on the event), and the `REPORT_TEST_TOKEN` secret was deleted again on both.
