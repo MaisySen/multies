@@ -14,7 +14,7 @@
 import { and, desc, eq, inArray, isNull, like, lt, ne, or, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
-import { contacts, dataMoves, docs, mailboxes, meetings, messages, projectStatuses, projects, tasks } from "../../db/schema";
+import { contacts, dataMoves, docs, mailboxes, meetings, messages, projectStatuses, projects, tasks, users } from "../../db/schema";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { inIds } from "../../lib/sql-chunks";
@@ -535,7 +535,7 @@ const moveLabel = (source: string) => {
  * and a failed send is retried there and logged; the history shows the result either way.
  */
 export async function notifyMoveEnded(deps: Deps, m: typeof dataMoves.$inferSelect, why: "done" | "paused") {
-  if (m.kind !== "import" || !m.createdByEmail || m.notifiedAt) return false;
+  if (m.kind !== "import" || (!m.createdByEmail && !m.createdByUserId) || m.notifiedAt) return false;
   try {
     // Essential write: the claim, so two finishing calls never send two emails.
     const claimed = await deps.db.update(dataMoves).set({ notifiedAt: deps.now() }).where(and(eq(dataMoves.id, m.id), isNull(dataMoves.notifiedAt))).returning({ id: dataMoves.id });
@@ -576,14 +576,28 @@ export function moveEmail(deps: Deps, m: typeof dataMoves.$inferSelect, why: "do
   return { subject, text, action: { label: "Open import history", url: `${deps.config.appUrl}/app/settings/import` } };
 }
 
+/**
+ * Who the run's email goes to. R43b (found by the production proof): a run started with an API key records the key's
+ * label ("api-key:mm_live_...") as created_by_email, so the done email went to a label, not a person. A value that is
+ * not an email address falls back to the account email of the user who started the run (the key's owner).
+ */
+export async function moveRecipient(deps: Deps, m: typeof dataMoves.$inferSelect): Promise<string | null> {
+  if (m.createdByEmail && /^[^\s@:]+@[^\s@]+\.[^\s@]+$/.test(m.createdByEmail)) return m.createdByEmail;
+  if (!m.createdByUserId) return null;
+  const u = await deps.db.select({ email: users.email }).from(users).where(eq(users.id, m.createdByUserId)).get();
+  return u?.email ?? null;
+}
+
 registerJob("data-move.notify", async (deps, payload) => {
   const p = payload as { moveId: string; why: "done" | "paused" };
   const m = await deps.db.select().from(dataMoves).where(eq(dataMoves.id, p.moveId)).get();
-  if (!m || !m.createdByEmail) return;
+  if (!m) return;
+  const to = await moveRecipient(deps, m);
+  if (!to) { deps.log?.info("data_move.notify_skipped", { moveId: m.id, why: p.why, reason: "no_recipient" }); return; }
   // R43: a run undone after it finished (or paused) gets no email: the person already removed what it brought in.
   if (m.status === "undone") { deps.log?.info("data_move.notify_skipped", { moveId: m.id, why: p.why, reason: "undone" }); return; }
   const e = moveEmail(deps, m, p.why);
-  const r = await sendSystemEmail(deps, { to: m.createdByEmail, subject: e.subject, text: e.text, action: e.action, orgId: m.orgId, template: "data-move-done" });
+  const r = await sendSystemEmail(deps, { to, subject: e.subject, text: e.text, action: e.action, orgId: m.orgId, template: "data-move-done" });
   deps.log?.info("data_move.notified", { moveId: m.id, why: p.why, delivered: r.delivered, via: r.via });
 });
 

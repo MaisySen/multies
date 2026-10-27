@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { toBase64, splitMbox } from "../src/web/lib/mbox-r40";
-import { dataMoves, jobs, meetings, messages } from "../src/server/db/schema";
+import { dataMoves, jobs, meetings, messages, users } from "../src/server/db/schema";
 import { continueKeptMoves } from "../src/server/services/data-move/continue";
 import { MemoryImportFileStore } from "../src/server/services/data-move/kept-file";
-import { nudgeLeftBehindMoves } from "../src/server/services/data-move/service";
+import { moveRecipient, nudgeLeftBehindMoves } from "../src/server/services/data-move/service";
 import { runDueJobs } from "../src/server/services/jobs";
 import { makeTestApp, Client } from "./helpers";
 
@@ -181,5 +181,17 @@ describe("R43 IMPORT_STEP_CAP_ORGS (a live check on production)", () => {
     await quiet(ctx, capped.body.move.id as string);
     expect(await continueKeptMoves(ctx.deps)).toMatchObject({ continued: 1, finished: 1 });
     expect(store.data.size).toBe(0);
+  });
+});
+
+describe("R43b the run's email goes to a person", () => {
+  it("a run started with an API key mails the key owner's account email, not the key label", async () => {
+    const { ctx } = await setup();
+    const owner = (await ctx.db.select().from(users).where(eq(users.email, "owner@acme.io")).get())!;
+    const base = { createdByUserId: owner.id } as typeof dataMoves.$inferSelect;
+    expect(await moveRecipient(ctx.deps, { ...base, createdByEmail: "api-key:mm_live_Hql2" })).toBe("owner@acme.io");
+    expect(await moveRecipient(ctx.deps, { ...base, createdByEmail: "someone@acme.io" })).toBe("someone@acme.io");
+    expect(await moveRecipient(ctx.deps, { ...base, createdByEmail: null })).toBe("owner@acme.io");
+    expect(await moveRecipient(ctx.deps, { ...base, createdByUserId: null, createdByEmail: "api-key:x" })).toBeNull();
   });
 });
