@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
@@ -70,7 +70,7 @@ export function SortableCard({ t, onOpen, project, win }: { t: Task; onOpen: () 
  * list still holds every id, so drops land in the right place, the dragged card's column follows the pointer, and
  * J and K bring a card outside the window into view with its ring.
  */
-function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[]; project: Project; onOpen: (id: string) => void;
+export function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[]; project?: Project; onOpen: (id: string) => void;
   listRef: React.RefObject<HTMLUListElement | null>; activeId: string | null }) {
   const ids = useMemo(() => list.map((t) => t.id), [list]);
   const win = useWindowedList({ count: list.length, estimate: 96, listRef, keys: ids, gap: 8, overscan: 6 });
@@ -84,12 +84,18 @@ function ColumnCards({ list, project, onOpen, listRef, activeId }: { list: Task[
     <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       {win.start > 0 && <li aria-hidden className="shrink-0" style={{ height: win.padTop }} />}
       {keepActive && activeAt < win.start && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
-      {rows.map(({ t, i }) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} win={win.windowed ? { index: i, size: list.length } : undefined} />)}
+      {rows.map(({ t, i }) => <WinCard key={t.id} t={t} project={project} onOpen={onOpen} index={i} size={win.windowed ? list.length : 0} />)}
       {keepActive && activeAt >= win.end && <SortableCard key={activeId} t={list[activeAt]} project={project} onOpen={() => onOpen(activeId!)} />}
       {win.end < list.length && <li aria-hidden className="shrink-0" style={{ height: win.padBottom }} />}
     </SortableContext>
   );
 }
+
+/** R44: a card that re-renders only when its task, position or column size changes (scrolling mounts a few per frame). */
+const WinCard = memo(function WinCard({ t, project, onOpen, index, size }: { t: Task; project?: Project; onOpen: (id: string) => void; index: number; size: number }) {
+  const open = useCallback(() => onOpen(t.id), [onOpen, t.id]);
+  return <SortableCard t={t} project={project} onOpen={open} win={size ? { index, size } : undefined} />;
+});
 
 function BoardColumn({ list, project, onOpen, activeId, ...col }: Omit<React.ComponentProps<typeof Column>, "children" | "listRef" | "count"> & {
   list: Task[]; project: Project; onOpen: (id: string) => void; activeId: string | null }) {

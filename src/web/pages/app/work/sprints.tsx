@@ -263,10 +263,11 @@ function BacklogPanel({ tasks, sprints, unit, onOpen, onMove, className, target 
   const ids = useMemo(() => tasks.map((t) => t.id), [tasks]);
   useEffect(() => { setPicked((p) => { if (!p.size) return p; const live = new Set(ids); const n = new Set([...p].filter((id) => live.has(id))); return n.size === p.size ? p : n; }); }, [ids]);
   const toggle = (i: number, shift: boolean) => {
+    const from = anchor.current; // read now: the state update below runs later
     setPicked((p) => {
       const n = new Set(p);
-      if (shift && anchor.current != null) {
-        const [a, b] = anchor.current < i ? [anchor.current, i] : [i, anchor.current];
+      if (shift && from != null) {
+        const [a, b] = from < i ? [from, i] : [i, from];
         for (let k = a; k <= b; k++) n.add(ids[k]);
       } else if (n.has(ids[i])) n.delete(ids[i]); else n.add(ids[i]);
       return n;

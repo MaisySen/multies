@@ -206,8 +206,10 @@ test("5,000 task board: a column renders a window of cards (R44: windowed, no Sh
   expect(cards).toBeLessThan(80);
   expect(domNodes).toBeLessThan(12000);
   await expect(board.getByTestId("board-show-more")).toHaveCount(0);
-  await board.getByTestId("board-column-cards").first().evaluate((el) => { el.scrollTop = el.scrollHeight; });
-  await expect(board.getByText(`Long list task ${N}`, { exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    await board.getByTestId("board-column-cards").first().evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    return board.getByText(`Long list task ${N}`, { exact: true }).isVisible();
+  }, { timeout: 15_000 }).toBe(true);
 });
 
 for (const scheme of ["light", "dark"] as const) {

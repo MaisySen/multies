@@ -6,12 +6,12 @@
  *   between columns and lanes; dropping in another lane sets that field. Collapsed lanes are remembered on this
  *   device only (no server write). Buckets are memoized lane x column so a 200 card board drags smoothly.
  */
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent,
 } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { IconAgent, IconBoardFolder, IconChevronRight, IconFlag, IconGauge, IconMountain, IconUserRound } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -26,7 +26,7 @@ import {
   type BoardSettings, type ColumnLimit, type Lane, type Swimlanes,
 } from "@/shared/board-lanes";
 import { PRIORITY_LABEL, positionBetween, type AssigneeOption, type Project, type Task, isAgentLike } from "./data";
-import { SortableCard, TaskCard } from "./board";
+import { ColumnCards, TaskCard } from "./board";
 
 export const SWIMLANE_LABEL: Record<Swimlanes, string> = { none: "None", assignee: "Assignee", epic: "Epic", priority: "Priority", project: "Project" };
 
@@ -186,13 +186,13 @@ function LaneIcon({ mode, lane }: { mode: Swimlanes; lane: LaneRow }) {
 
 const Cell = memo(function Cell({ lane, col, cards, onOpen, over }: { lane: string; col: string; cards: Task[]; onOpen: (id: string) => void; over: boolean }) {
   const { setNodeRef, isOver } = useDroppable({ id: cellId(lane, col) });
+  const listRef = useRef<HTMLUListElement | null>(null);
   return (
-    <ul ref={setNodeRef} data-testid="lane-cell" data-lane={lane} data-col={col}
+    <ul ref={(el) => { setNodeRef(el); listRef.current = el; }} data-testid="lane-cell" data-lane={lane} data-col={col}
       className={cn("flex min-h-[64px] w-[min(280px,80vw)] shrink-0 flex-col gap-2 rounded-xl border border-transparent bg-surface/60 p-2 transition-colors duration-150 motion-reduce:transition-none",
         isOver && "border-brand/40 bg-brand-soft/30", over && "border-t-[#D70015]/60")}>
-      <SortableContext items={cards.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        {cards.map((t) => <SortableCard key={t.id} t={t} onOpen={() => onOpen(t.id)} />)}
-      </SortableContext>
+      {/* R44: a cell with many cards windows them like a board column (the page scrolls a lane board). */}
+      <ColumnCards list={cards} onOpen={onOpen} listRef={listRef} activeId={null} />
     </ul>
   );
 });

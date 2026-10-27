@@ -86,6 +86,25 @@ async function frames(page: Page, el: Locator | null) {
   if (el) return el.evaluate(run);
   return page.evaluate(run, null);
 }
+/** A person scrolling: 120 frames of 100 px each from the top (a trackpad flick), frame times. */
+async function stepFrames(page: Page, el: Locator | null) {
+  const run = async (boxEl: Element | null) => {
+    const box = boxEl as HTMLElement | null;
+    if (box) box.scrollTop = 0; else window.scrollTo(0, 0);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))));
+    const d: number[] = [];
+    let last = performance.now();
+    for (let i = 1; i <= 120; i++) {
+      if (box) box.scrollTop = i * 100; else window.scrollTo(0, i * 100);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const now = performance.now(); d.push(now - last); last = now;
+    }
+    d.sort((a, b) => a - b);
+    return { frames: 120, stepPx: 100, meanMs: +(d.reduce((a, b) => a + b, 0) / 120).toFixed(1), p95Ms: +d[113].toFixed(1), maxMs: +d[119].toFixed(1) };
+  };
+  if (el) return el.evaluate(run);
+  return page.evaluate(run, null);
+}
 /** The nearest box that scrolls vertically, the way the windowing hook finds it. */
 async function scroller(page: Page, sel: string) {
   await page.evaluate((s) => {
@@ -114,20 +133,24 @@ test("5,000 card board column: small DOM, the last card, keyboard, drag between 
   const boardVisibleMs = Date.now() - t0;
   const cards = await board.getByText(/^Long list task \d+$/).count();
   const domNodes = await nodes(page);
-  const first = board.getByTestId("board-card").first();
   const box = await scroller(page, "[data-testid=board-card]");
   const scroll = await frames(page, box);
-  save("board", { tasks: N, renderedCards: cards, domNodes, boardVisibleMs, scroll });
+  const steps = await stepFrames(page, box);
+  save("board", { tasks: N, renderedCards: cards, domNodes, boardVisibleMs, scrollJumps: scroll, scrollSteps: steps });
   if (process.env.SHOTS) await page.screenshot({ path: `${DIR}/board-${LABEL}-5000-desktop-light.png` });
   if (!AFTER) return;
 
   expect(cards).toBeLessThan(80);
   expect(domNodes).toBeLessThan(4000);
-  const col = board.locator("section", { has: first });
-  await expect(col.locator("header")).toContainText("5,000");
+  const col = board.locator("section").filter({ has: page.getByTestId("board-card") }).first();
+  await expect(col.getByTestId("column-count")).toHaveText(/^5,?000/);
   await expect(board.getByTestId("board-show-more")).toHaveCount(0);
   // Scrolled to the end: the last card is there, and so is the composer at the foot of the column.
-  await expect(col.getByText(`Long list task ${N}`, { exact: true })).toBeVisible();
+  // Measured card heights can grow the column while it scrolls, so keep going to the end the way a person would.
+  await expect.poll(async () => {
+    if (box) await box.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+    return col.getByText(`Long list task ${N}`, { exact: true }).isVisible();
+  }, { timeout: 15_000 }).toBe(true);
   await expect(col.getByRole("button", { name: /add task/i }).last()).toBeVisible();
   // J walks the full list: past the rendered window the focused card is brought in with its ring.
   if (box) await box.evaluate((el) => { el.scrollTop = 0; });
@@ -169,20 +192,24 @@ test("5,000 row backlog: windowed rows, full points total, drag into the sprint"
   const domNodes = await nodes(page);
   const box = await scroller(page, "[aria-label='Backlog tasks']");
   const scroll = await frames(page, box);
-  save("backlog", { tasks: N, renderedRows: rows, domNodes, backlogVisibleMs, scroll });
+  const steps = await stepFrames(page, box);
+  save("backlog", { tasks: N, renderedRows: rows, domNodes, backlogVisibleMs, scrollJumps: scroll, scrollSteps: steps });
   if (process.env.SHOTS) await page.screenshot({ path: `${DIR}/backlog-${LABEL}-5000-desktop-light.png` });
   if (!AFTER) return;
 
   expect(rows).toBeLessThan(120);
   expect(domNodes).toBeLessThan(4000);
   await expect(panel).toContainText(`5000 tasks, ${FULL_POINTS} pt`);
-  await expect(panel.getByText(`Backlog task ${N}`, { exact: true })).toBeVisible();
+  await expect.poll(async () => {
+    if (box) await box.evaluate((el) => { el.scrollTop = el.scrollHeight; }); else await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    return panel.getByText(`Backlog task ${N}`, { exact: true }).isVisible();
+  }, { timeout: 15_000 }).toBe(true);
   await expect(panel.locator("li[data-win-row]").last()).toHaveAttribute("aria-setsize", String(N));
   // Drag a backlog row onto the sprint list: it is moved into the sprint.
   if (box) await box.evaluate((el) => { el.scrollTop = 0; }); else await page.evaluate(() => window.scrollTo(0, 0));
   const row = panel.getByTestId("backlog-row").first();
   const drop = page.getByTestId("sprint-drop");
-  await row.scrollIntoViewIfNeeded();
+  await expect(row).toContainText("Backlog task 1");
   await row.dragTo(drop);
   await expect.poll(() => moved.flat()).toContain("r44b_0");
   // Select three rows with Shift, then move them together.
