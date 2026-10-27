@@ -26,12 +26,11 @@ The Cloudflare token for these commands is in "CREDENTIALS (owner email v7)", Cl
 `wrangler d1 export` blocks every other query on that database for as long as it runs (Cloudflare's
 documented behaviour). At 02:20 UTC on 26 Oct 2026 a manual export of production made three writes
 fail within seconds (since R28 the API answers such failures with 503, `Retry-After` and the code
-`busy` instead of 500, and reads retry once). Owner rule (27 Oct 2026): a manual export of production is allowed ONLY between 21:00 and 07:00 UTC;
-outside that window take a Time Travel bookmark only. Before every deploy, at any hour, record the bookmark
+`busy` instead of 500, and reads retry once). Owner rule (27 Oct 2026): prefer a Time Travel bookmark at any hour
 (`npx wrangler d1 time-travel info mymail-au` prints the current one; note it in the deploy log), which
-costs nothing, blocks nothing and restores to any minute of the last 30 days, so an export is never
-required. Note that the allowed window is Sydney business hours (the 26 Oct incident above fell in it),
-so even inside it prefer the bookmark. The nightly dump is
+costs nothing, blocks nothing and restores to any minute of the last 30 days. If a full export of
+production is truly needed, run it only between 07:00 and 21:00 UTC (outside Sydney business hours),
+never between 21:00 and 07:00 UTC. The nightly dump is
 scheduled for 15:30 UTC (02:30 in Sydney) for the same reason.
 
 R2 needs a payment method on the Cloudflare account even for the free tier, so it is off until the owner enables it. To turn it on: enable R2 in the dashboard, create a bucket (for example `mymail-backups`) with a 90 day lifecycle rule, give the CI token "Workers R2 Storage: Edit", and set the repository variable `R2_BUCKET=mymail-backups`.
