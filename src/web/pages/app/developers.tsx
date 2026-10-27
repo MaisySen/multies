@@ -4,7 +4,7 @@ import { IconAgent, IconBook, IconCheck, IconKey, IconPlus, IconSend, IconTrash,
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
-import { CopyButton, Skeleton, Switch } from "@/web/components/ui/misc";
+import { CopyButton, EmptyState, Skeleton, Switch } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input } from "@/web/components/ui/input";
@@ -158,22 +158,34 @@ function ApiKeys() {
   return (
     <Section title="API keys" description="Give each app or script its own key with only the access it needs, so you can change or delete one without breaking the rest.">
       <div>
-        {keys.isPending ? <Skeleton className="h-12" /> : keys.data?.length ? keys.data.map((k) => (
-          <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line py-2.5 last:border-b-0" data-testid="api-key-row">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <IconKey className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
-              <span className="truncate text-sm font-medium">{k.name}</span>
-              <code className="font-mono text-[12px] text-subtle">{k.prefix}...</code>
-              <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
-              {k.showOnlyUsableTools ? <span data-testid="tool-list-chip" className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted">Shows only its tools</span> : null}
-            </div>
-            <div className="flex items-center gap-2 text-xs text-subtle">
-              <span>{k.lastUsedAt ? `used ${timeAgo(k.lastUsedAt)}` : "never used"}</span>
-              {!k.agentId ? <button onClick={() => startEdit(k)} className="rounded px-2 py-1 font-medium text-brand-hover hover:bg-hover max-sm:min-h-11" aria-label={`Edit scopes of ${k.name}`}>Edit scopes</button> : null}
-              <button onClick={() => del.mutate(k.id)} className="rounded p-1 hover:bg-hover hover:text-bad max-sm:min-h-11 max-sm:px-3" aria-label={`Delete key ${k.name}`}><IconTrash className="h-3.5 w-3.5" /></button>
-            </div>
-          </div>
-        )) : <p className="text-sm text-muted">No API keys yet.</p>}
+        {/* R40: keys as a card list with an icon tile per key, a masked value, and a drawn empty state. */}
+        {keys.isPending ? <Skeleton className="h-24 rounded-2xl" /> : keys.data?.length ? (
+          <ul className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface shadow-[var(--shadow-1,0_1px_2px_rgb(0_0_0/0.06))]" data-testid="api-key-list">
+            {keys.data.map((k) => (
+              <li key={k.id} className="flex flex-col gap-2 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3" data-testid="api-key-row">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand" aria-hidden>{k.agentId ? <IconAgent className="h-[18px] w-[18px]" /> : <IconKey className="h-[18px] w-[18px]" />}</span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">{k.name}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                      <code className="rounded-md bg-fill px-1.5 py-0.5 font-mono text-[11.5px] text-muted" aria-label={`Key starts ${k.prefix}`}>{k.prefix}{"\u2022".repeat(6)}</code>
+                      <ScopeChips chips={k.scopeChips ?? (k.scope === "read" ? ["Read only"] : ["Full access"])} />
+                      {k.showOnlyUsableTools ? <span data-testid="tool-list-chip" className="rounded-full bg-hover px-2 py-0.5 text-[11px] text-muted">Shows only its tools</span> : null}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 pl-12 text-xs text-subtle sm:pl-0">
+                  <span className="mr-auto whitespace-nowrap sm:mr-1">{k.lastUsedAt ? `Used ${timeAgo(k.lastUsedAt)}` : "Never used"}</span>
+                  {!k.agentId ? <button onClick={() => startEdit(k)} className="rounded-lg px-2.5 py-1.5 font-medium text-brand-hover transition-colors duration-150 hover:bg-hover motion-reduce:transition-none max-sm:min-h-11" aria-label={`Edit scopes of ${k.name}`}>Edit scopes</button> : null}
+                  <button onClick={() => del.mutate(k.id)} className="grid place-items-center rounded-lg p-2 transition-colors duration-150 hover:bg-hover hover:text-bad motion-reduce:transition-none max-sm:min-h-11 max-sm:min-w-11" aria-label={`Delete key ${k.name}`}><IconTrash className="h-4 w-4" /></button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState className="rounded-2xl border border-dashed border-line py-10" icon={<IconKey />} title="No API keys yet"
+            body="Make one key per app or script, with only the access it needs. You see the full key once, then only its first characters." />
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <Button size="sm" variant="secondary" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Create API key</Button>
           <a href="/developers/mcp" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline"><IconBook className="h-4 w-4" />MCP tools and the scope each needs</a>
@@ -224,7 +236,12 @@ function Webhooks() {
   return (
     <Section title="Webhooks" description="We POST events to your URL, signed with the Standard Webhooks spec. Failed deliveries retry for about nine hours, then wait in the log for you to replay them.">
       <div>
-        {endpoints.isPending ? <Skeleton className="h-12" /> : endpoints.data?.length ? endpoints.data.map((e) => <EndpointRow key={e.id} e={e} />) : <p className="text-sm text-muted">No endpoints yet.</p>}
+        {endpoints.isPending ? <Skeleton className="h-24 rounded-2xl" /> : endpoints.data?.length ? (
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface px-3.5 shadow-[var(--shadow-1,0_1px_2px_rgb(0_0_0/0.06))]" data-testid="webhook-list">{endpoints.data.map((e) => <EndpointRow key={e.id} e={e} />)}</div>
+        ) : (
+          <EmptyState className="rounded-2xl border border-dashed border-line py-10" icon={<IconWebhook />} title="No endpoints yet"
+            body="Add a URL and we send it signed events as they happen, like new mail or a finished task, so your own systems stay in step." />
+        )}
         <Button size="sm" variant="secondary" className="mt-3" onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Add endpoint</Button>
       </div>
       <Dialog open={open} onClose={() => setOpen(false)} title="New webhook endpoint"
@@ -272,13 +289,17 @@ function EndpointRow({ e }: { e: Endpoint }) {
   const failedCount = deliveries.data?.filter((d) => d.status === "failed").length ?? 0;
   return (
     <div className="border-b border-line last:border-b-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 py-2">
-        <button className="flex min-w-0 items-center gap-2.5 text-left" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
-          <IconWebhook className="h-4 w-4 shrink-0 text-subtle" aria-hidden />
-          <span className="truncate font-mono text-[12.5px]">{e.url}</span>
-          {!e.enabled && <span className="rounded border border-line px-1.5 py-0.5 text-[11px] text-muted">paused</span>}
+      <div className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <button className="flex min-w-0 items-center gap-3 text-left" onClick={() => setExpanded((x) => !x)} aria-expanded={expanded}>
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand" aria-hidden><IconWebhook className="h-[18px] w-[18px]" /></span>
+          <span className="min-w-0">
+            <span className="block truncate font-mono text-[12.5px]">{e.url}</span>
+            <span className={cn("mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium", e.enabled ? "bg-ok-soft text-ok" : "bg-fill text-muted")} data-testid="webhook-state">
+              <span className={cn("h-1.5 w-1.5 rounded-full", e.enabled ? "bg-ok" : "bg-subtle")} aria-hidden />{e.enabled ? "Active" : "Paused"}
+            </span>
+          </span>
         </button>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 pl-12 sm:pl-0">
           <Button size="sm" variant="ghost" loading={test.isPending} onClick={() => test.mutate()}><IconSend className="h-3.5 w-3.5" />Send test</Button>
           <Button size="sm" variant="ghost" onClick={() => toggle.mutate()}>{e.enabled ? "Pause" : "Resume"}</Button>
           <button onClick={() => del.mutate()} className="rounded p-1.5 text-subtle hover:bg-hover hover:text-bad" aria-label={`Delete endpoint ${e.url}`}><IconTrash className="h-3.5 w-3.5" /></button>

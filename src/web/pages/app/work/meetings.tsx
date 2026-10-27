@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { LiveKitRoom, VideoConference } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { IconCalendarClock, IconDownload, IconEdit, IconMail, IconPlus, IconRepeat, IconVideo, IconVideoOff } from "@/web/components/ui/icon";
+import { IconCalendarClock, IconDownload, IconEdit, IconMail, IconRepeat, IconVideo, IconVideoOff } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
 import { isoToZonedInput, tz, zonedDateTime, zonedInputToIso } from "@/web/lib/format";
@@ -24,6 +24,7 @@ import { loadPrefs, roomMedia } from "@/web/lib/prejoin-prefs";
 import { useMe } from "@/web/lib/queries";
 import { CallMinutesBanner, CallMinutesUsage } from "./call-minutes-r34"; // R34 (MB-171)
 import { NoMeetingsArt } from "@/web/components/illustrations"; // R36
+import { startMeetingNow } from "./meeting-start"; // R40 (MB-207)
 
 export interface Meeting {
   id: string; title: string; room: string; startsAt: string; durationMin: number; endsAt: string; status: "scheduled" | "ended" | "cancelled";
@@ -141,6 +142,7 @@ export function MeetingsPage() {
   // Weekly series come back as one entry per upcoming occurrence (worked out on the server, nothing stored).
   const soon = useQuery({ queryKey: ["meetings", "upcoming"], queryFn: () => api.get<{ meetings: Meeting[] }>("/meetings?upcoming=1") });
   const [open, setOpen] = useState(false);
+  const [starting, setStarting] = useState(false);
   const navigate = useNavigate();
   const now = Date.now();
   const upcoming = (soon.data?.meetings ?? q.data?.meetings ?? []).filter((m) => m.status === "scheduled" && new Date(m.endsAt).getTime() > now - 3600_000).sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -148,11 +150,11 @@ export function MeetingsPage() {
   const past = q.data?.meetings.filter((m) => !upcomingIds.has(m.id) && !(m.recurrence && m.status === "scheduled")) ?? [];
   return (
     <div>
-      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<Button onClick={() => setOpen(true)}><IconPlus className="h-4 w-4" />Schedule</Button>} />
+      <PageHeader title="Meetings" description="Video meetings in the browser, started from a thread, task or contact. Guests join with a link, no account needed. Record a call to get a transcript and summary; everyone in the call sees when it is on." actions={<div className="flex items-center gap-2"><Button variant="secondary" onClick={() => setOpen(true)}><IconCalendarClock className="h-4 w-4" />Schedule</Button><Button onClick={() => { setStarting(true); void startMeetingNow(navigate).finally(() => setStarting(false)); }} loading={starting} data-testid="meeting-start-now"><IconVideo className="h-4 w-4" />Start now</Button></div>} />
       <CallMinutesUsage className="-mt-3 mb-4" />
       {q.data && !q.data.videoEnabled && <Card className="mb-4 flex items-start gap-3 p-4 text-[13px] text-muted" data-testid="meetings-off"><IconVideoOff className="mt-0.5 h-4 w-4 shrink-0" />{VIDEO_OFF}</Card>}
       {q.isPending ? <Skeleton className="h-40" /> : !q.data!.meetings.length ? (
-        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title="No meetings yet" body="Schedule one here, or use Start a meeting on any email thread, task or contact." /></Card>
+        <Card><EmptyState icon={<IconVideo />} art={<NoMeetingsArt />} title="No meetings yet" body="Start one now and share the guest link, schedule one for later, or start a meeting from any email thread, task or contact." /></Card>
       ) : (
         <div className="space-y-6">
           {[["Upcoming", upcoming], ["Earlier", past]].map(([label, list]) => (list as Meeting[]).length ? (
@@ -216,7 +218,8 @@ export function MeetingPage() {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
   // Round 31: Join now opens the pre-join screen; its choices carry into the call.
-  const [prejoin, setPrejoin] = useState(false);
+  // R40 (MB-207): Start now opens the meeting with ?join=1, straight to the camera and name check.
+  const [prejoin, setPrejoin] = useState(() => new URLSearchParams(window.location.search).get("join") === "1");
   const [prefs, setPrefs] = useState<JoinPrefs | undefined>();
   const me = useMe();
   const m = q.data;

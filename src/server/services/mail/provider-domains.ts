@@ -64,7 +64,11 @@ function stateFrom(json: Record<string, unknown>): ProviderDomainState {
   };
 }
 
-const failed = (why: string): ProviderDomainState => ({ providerDomainId: null, providerRecords: null, providerStatus: `error: ${why.slice(0, 300)}` });
+// R40 (MB-206): the provider's own words stay on the server (this log and the stored status); the app shows our copy.
+const failed = (why: string): ProviderDomainState => {
+  console.warn("provider domain refused:", why.slice(0, 300));
+  return { providerDomainId: null, providerRecords: null, providerStatus: `error: ${why.slice(0, 300)}` };
+};
 
 /** Status prefix for a domain waiting for one of the provider's domain slots. */
 export const QUEUED_PREFIX = "queued:";
@@ -114,6 +118,7 @@ export async function refreshProviderDomain(deps: Deps, d: { name: string; provi
     await call(deps, "POST", `/domains/${d.providerDomainId}/verify`);
     const one = await call(deps, "GET", `/domains/${d.providerDomainId}`);
     if (one.ok) return stateFrom(one.json);
+    console.warn("provider domain read failed:", String(one.json.message ?? one.status).slice(0, 300));
     return { providerDomainId: d.providerDomainId, providerRecords: null, providerStatus: `error: ${String(one.json.message ?? one.status)}` };
   } catch {
     return null;
