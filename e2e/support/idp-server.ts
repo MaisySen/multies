@@ -44,6 +44,8 @@ Object.assign(process.env, {
   FREE_MAIL_DOMAIN: process.env.FREE_MAIL_DOMAIN ?? "free.multies.test",
   // Round 25: the Google and Microsoft buttons (e2e/social-login-r25.spec.ts).
   AUTH0_SOCIAL_CONNECTIONS: process.env.AUTH0_SOCIAL_CONNECTIONS ?? "google-oauth2,windowslive",
+  // R39: the live demo with password sign up off, as in production (e2e/demo-prod-r39.spec.ts).
+  DEMO_MODE: process.env.DEMO_MODE ?? "true",
 });
 await import("../../src/entry/node");
 

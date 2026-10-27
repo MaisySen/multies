@@ -13,7 +13,7 @@ import {
   members, messages, organizations, sessions, suppressions, twoFactors, users, webhookEndpoints,
 } from "../db/schema";
 import { HttpError, forbidden } from "../lib/errors";
-import { audit } from "./audit";
+import { audit, redactAuditRow } from "./audit";
 import { cancelForDeletion } from "./billing";
 import { inIds } from "../lib/sql-chunks";
 import { EXPORT_README, writeWorkData, type ZipSink } from "./data-move/export";
@@ -54,7 +54,7 @@ export async function auditRows(deps: Deps, orgId: string, from?: Date, to?: Dat
   const rows = await deps.db.select().from(auditLogs).where(eq(auditLogs.orgId, orgId)).orderBy(asc(auditLogs.createdAt)).limit(50_000);
   return rows
     .filter((r) => (!from || r.createdAt >= from) && (!to || r.createdAt <= to))
-    .map((r) => ({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "" }));
+    .map((r) => redactAuditRow({ at: iso(r.createdAt), action: r.action, actor: r.actorEmail ?? "", actorUserId: r.actorUserId ?? "", targetType: r.targetType ?? "", targetId: r.targetId ?? "", ip: r.ip ?? "", metadata: r.metadata ?? "" }));
 }
 
 export const toCsv = (rows: Record<string, unknown>[]) => Papa.unparse(rows, { quotes: false, newline: "\r\n" });

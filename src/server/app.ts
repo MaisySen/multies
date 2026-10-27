@@ -317,6 +317,10 @@ export function createApp(deps: Deps) {
   app.route("/api/admin/reports", adminReportsRoutes()); // R35: moderation queue (Apple 1.2)
   app.route("/api/admin", adminRoutes());
   // Better Auth: sign-up/in, sessions, 2FA, password reset, verification, organizations, OAuth.
+  // R39 security hotfix: Better Auth's own organization endpoints (list, read and accept invitations, members,
+  // roles) are not used by any client; the app's /api/team and /api/invites routes carry the checks. Closed over HTTP;
+  // the server still calls them in process through auth.api.
+  app.all("/api/auth/organization/*", (c) => c.json({ error: { code: "not_found", message: "Not found." } }, 404));
   app.on(["GET", "POST"], "/api/auth/*", (c) => authFor(deps).handler(c.req.raw));
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());

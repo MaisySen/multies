@@ -59,8 +59,9 @@ export async function createDemoWorkspace(deps: Deps) {
   const suffix = randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x").slice(0, 5);
   const domainName = `northwind-${suffix}.test`;
   const email = `alex@${domainName}`;
-  // A real Better Auth account and session, so the sandbox behaves exactly like a signup.
-  const signup = await authFor(deps).api.signUpEmail({ body: { name: "Alex Rivera", email, password: randomToken(24) }, returnHeaders: true });
+  // A real Better Auth account and session, made server side (R39 hotfix): public email and password
+  // sign up stays off in production, and the demo no longer depends on it.
+  const signup = await authFor(deps).api.demoSession({ body: { name: "Alex Rivera", email }, returnHeaders: true });
   const userId = signup.response.user.id;
   const orgId = newId("org");
   await deps.db.insert(organizations).values({ id: orgId, name: "Northwind Labs", slug: orgId, isDemo: true, plan: "starter" });

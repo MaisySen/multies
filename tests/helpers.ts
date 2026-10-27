@@ -6,6 +6,15 @@ import { StaticResolver } from "@/server/services/dns/resolver";
 import { LogOutbound } from "@/server/services/mail/outbound";
 import type { Deps } from "@/server/context";
 import { nullLogger } from "@/server/lib/logger";
+import { users } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+
+/**
+ * R39: the test database behind each app, so a Client can confirm its own address before it accepts an
+ * invite. In production every account signs in through the identity provider with a confirmed address,
+ * and accepting an invite now needs one. Set client.autoVerify = false to test an unconfirmed account.
+ */
+const appDbs = new WeakMap<object, Deps["db"]>();
 
 /**
  * D1 refuses a statement with more than 100 bound variables ("too many SQL variables"); SQLite in tests takes
@@ -34,6 +43,7 @@ export async function makeTestApp(env: Record<string, string> = {}, opts: { fetc
   const fetchImpl = opts.fetch ?? (async () => { throw new Error("network disabled in tests"); });
   const deps: Deps = { db, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
   const app = createApp(deps);
+  appDbs.set(app, db);
   return { app, deps, db, dns, outbound };
 }
 
@@ -42,9 +52,20 @@ export class Client {
   jar = new Map<string, string>();
   get cookie() { return [...this.jar].map(([k, v]) => `${k}=${v}`).join("; "); }
   set cookie(v: string) { this.jar.clear(); for (const part of v.split(/;\s*/).filter(Boolean)) { const i = part.indexOf("="); this.jar.set(part.slice(0, i), part.slice(i + 1)); } }
+  /** The address this client signed up or signed in with. */
+  email: string | null = null;
+  /** Confirm the address just before accepting an invite (see appDbs above). */
+  autoVerify = true;
   constructor(private app: { request: (path: string, init?: RequestInit) => Response | Promise<Response> }) {}
 
   async call(method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+    if (method === "POST" && /^\/api\/auth\/sign-(up|in)\/email$/.test(path) && body && typeof (body as { email?: unknown }).email === "string") {
+      this.email = ((body as { email: string }).email).toLowerCase();
+    }
+    if (this.autoVerify && this.email && method === "POST" && /^\/api\/invites\/[^/]+\/accept$/.test(path)) {
+      const db = appDbs.get(this.app);
+      if (db) await db.update(users).set({ emailVerified: true }).where(eq(users.email, this.email));
+    }
     const res = await this.app.request(path, {
       method,
       headers: {

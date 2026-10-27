@@ -35,6 +35,36 @@ export async function audit(db: DB, e: AuditEntry): Promise<void> {
   });
 }
 
+/**
+ * R39 security hotfix: an invitation's id is its invite link, so audit output never carries one in
+ * full, not even for admins. Only a short masked form (the last 4 characters) is shown.
+ */
+export function maskInviteId(id: string): string {
+  return id.length <= 4 ? "****" : `****${id.slice(-4)}`;
+}
+const INVITE_KEY = /invit|token/i;
+const INVITE_LINK = /(\/invites?\/)([A-Za-z0-9_-]{8,})/g;
+function maskValue(v: unknown, key: string): unknown {
+  if (typeof v === "string") {
+    const linked = v.replace(INVITE_LINK, (_m, p: string, id: string) => `${p}${maskInviteId(id)}`);
+    return INVITE_KEY.test(key) && linked === v ? maskInviteId(v) : linked;
+  }
+  if (Array.isArray(v)) return v.map((x) => maskValue(x, key));
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, maskValue(x, k)]));
+  return v;
+}
+/** Masks invitation ids in an audit row's target and metadata (parsed object or raw JSON text). */
+export function redactAuditRow<T extends { targetType?: string | null; targetId?: string | null; metadata?: unknown }>(row: T): T {
+  const out = { ...row };
+  if (out.targetId && /invit/i.test(out.targetType ?? "")) out.targetId = maskInviteId(out.targetId);
+  if (typeof out.metadata === "string" && out.metadata) {
+    try { out.metadata = JSON.stringify(maskValue(JSON.parse(out.metadata), "")); } catch { out.metadata = maskValue(out.metadata, ""); }
+  } else if (out.metadata && typeof out.metadata === "object") {
+    out.metadata = maskValue(out.metadata, "");
+  }
+  return out;
+}
+
 export async function listAudit(db: DB, orgId: string, opts: { limit?: number; before?: Date; agentId?: string } = {}) {
   const limit = Math.min(opts.limit ?? 50, 200);
   const rows = await db
@@ -43,5 +73,5 @@ export async function listAudit(db: DB, orgId: string, opts: { limit?: number; b
     .where(and(eq(auditLogs.orgId, orgId), opts.before ? lt(auditLogs.createdAt, opts.before) : undefined, opts.agentId ? eq(auditLogs.agentId, opts.agentId) : undefined))
     .orderBy(desc(auditLogs.createdAt))
     .limit(limit);
-  return rows.map((r) => ({ ...r, metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null }));
+  return rows.map((r) => redactAuditRow({ ...r, metadata: r.metadata ? (JSON.parse(r.metadata) as Record<string, unknown>) : null }));
 }

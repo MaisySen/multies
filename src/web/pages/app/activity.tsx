@@ -17,16 +17,17 @@ const statusTone: Record<Delivery["status"], "ok" | "warn" | "bad" | "brand" | "
 
 export function ActivityPage() {
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "audit" ? "audit" : "deliveries";
   const direction = params.get("direction") ?? "";
   const role = useMe().data?.organization?.role;
   const canExport = role === "owner" || role === "admin";
+  // R39: the audit log is for owners and admins only (the server answers 403 to members).
+  const tab = params.get("tab") === "audit" && canExport ? "audit" : "deliveries";
   return (
     <>
       <PageHeader title="Activity" description="Every message that moved through your domains, and every change anyone made." />
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <div role="tablist" aria-label="Activity type" className="inline-flex rounded-lg bg-fill p-0.5">
-          {([["deliveries", "Delivery log"], ["audit", "Audit log"]] as const).map(([t, l]) => (
+          {([["deliveries", "Delivery log"], ["audit", "Audit log"]] as const).filter(([t]) => t !== "audit" || canExport).map(([t, l]) => (
             <button key={t} role="tab" aria-selected={tab === t} onClick={() => setParams(t === "audit" ? { tab: t } : {})}
               className={cn("rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors", tab === t ? "bg-surface text-fg shadow-card" : "text-muted hover:text-fg")}>{l}</button>
           ))}

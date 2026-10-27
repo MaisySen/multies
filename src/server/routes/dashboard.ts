@@ -10,6 +10,13 @@ import { sentToday } from "../services/mail/delivery";
 type OnboardingMeta = { onboardingDismissedAt?: string };
 const readMeta = (raw: string | null): OnboardingMeta & Record<string, unknown> => { try { return raw ? JSON.parse(raw) : {}; } catch { return {}; } };
 
+const PRIVATE_KEYS = /email|^ip$|ipAddress|userAgent|invit|token/i;
+/** What a plain member may see of an audit row: no IP, no addresses or invite details in its metadata. */
+export function memberSafeAudit<T extends { ip?: string | null; actorEmail?: string | null; metadata?: Record<string, unknown> | null }>(row: T): T {
+  const metadata = row.metadata ? Object.fromEntries(Object.entries(row.metadata).filter(([k]) => !PRIVATE_KEYS.test(k))) : row.metadata;
+  return { ...row, ip: null, metadata };
+}
+
 export function dashboardRoutes() {
   return new Hono<AppEnv>().use("*", requireAuth)
   .post("/onboarding/dismiss", async (c) => {
@@ -35,7 +42,8 @@ export function dashboardRoutes() {
         n: sql<number>`count(*)`,
       }).from(deliveries).where(and(eq(deliveries.orgId, orgId), gte(deliveries.createdAt, since)))
         .groupBy(sql`1`, deliveries.direction),
-      listAudit(db, orgId, { limit: 8 }),
+      // R39 security hotfix: members see the recent activity without IPs or the email addresses in it.
+      listAudit(db, orgId, { limit: 8 }).then((rows) => c.var.auth.role === "member" ? rows.map(memberSafeAudit) : rows),
       sentToday(db, orgId, now()),
     ]);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- drizzle returns sync or async results depending on the driver

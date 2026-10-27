@@ -20,6 +20,10 @@ import { idpIssuer } from "./config";
  *
  * GET /api/auth/logout/idp: ends the provider's own session after the app session is gone,
  * through its /v2/logout endpoint with returnTo set to this deployment's sign in page.
+ *
+ * demoSession (server only, never routed over HTTP): makes the throwaway demo person and a
+ * normal session cookie for them. The demo used to go through email and password sign up,
+ * which is off in production, so "Try live demo" failed there (R39 security hotfix).
  */
 export function multiesAuthPlugin(deps: Deps) {
   return {
@@ -58,6 +62,20 @@ export function multiesAuthPlugin(deps: Deps) {
         }
         await setSessionCookie(ctx, { session: result.data.session, user: result.data.user });
         return ctx.json({ ok: true, user: { id: result.data.user.id, email: result.data.user.email, name: result.data.user.name } });
+      }),
+      demoSession: createAuthEndpoint("/multies/demo-session", {
+        method: "POST",
+        body: z.object({ name: z.string().min(1).max(100), email: z.string().email().max(254) }),
+        // SERVER_ONLY keeps it out of the HTTP router: only createDemoWorkspace can call it, in process.
+        metadata: { SERVER_ONLY: true },
+      }, async (ctx) => {
+        // Essential write: the demo person and their session (the demo can't open without them).
+        // Made unverified so the welcome email hook skips this fake address; createDemoWorkspace marks it verified.
+        const user = await ctx.context.internalAdapter.createUser({ name: ctx.body.name, email: ctx.body.email.toLowerCase(), emailVerified: false }, { method: "admin" });
+        const session = await ctx.context.internalAdapter.createSession(user.id, false);
+        if (!session) throw new APIError("INTERNAL_SERVER_ERROR", { message: "We couldn't open the demo just now. Try again in a minute." });
+        await setSessionCookie(ctx, { session, user });
+        return ctx.json({ user: { id: user.id, email: user.email } });
       }),
       idpLogout: createAuthEndpoint("/logout/idp", { method: "GET" }, async (ctx) => {
         const url = idpLogoutUrl(deps.config) ?? `${deps.config.appUrl.replace(/\/$/, "")}/login`;

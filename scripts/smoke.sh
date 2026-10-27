@@ -42,4 +42,21 @@ code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/api/account/me")
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'origin: https://evil.example' -H 'content-type: application/json' -d '{}' "$BASE/api/domains")
 [ "$code" = "403" ] || fail "cross-site POST should be 403, got $code"
 
+# 5. R39: "Try the live demo" opens a demo workspace (production has password sign up off, which once broke it).
+# One demo a run (it purges itself after a day). SMOKE_DEMO=0 skips it; a "resting for today" answer (503,
+# the daily demo cap or the D1 write budget) is a warning, any other answer is a failure.
+if [ "${SMOKE_DEMO:-1}" != "0" ]; then
+  JAR=$(mktemp); trap 'rm -f "$JAR"' EXIT
+  code=$(curl -s -o "$JAR.body" -w '%{http_code}' -c "$JAR" -X POST -H "origin: $BASE" -H 'content-type: application/json' -d '{}' "$BASE/api/account/demo")
+  if [ "$code" = "503" ] && grep -q demo_paused "$JAR.body"; then
+    echo "smoke warning: the demo is resting for today (503 demo_paused)"
+  else
+    [ "$code" = "201" ] || [ "$code" = "200" ] || fail "demo should open (201), got $code: $(head -c 200 "$JAR.body")"
+    ME=$(curl -fsS -b "$JAR" "$BASE/api/account/me") || fail "demo session did not sign in"
+    echo "$ME" | grep -q '"isDemo":true' || fail "demo did not land in the demo workspace"
+    echo "demo: opened ($code) and landed in the demo workspace"
+  fi
+  rm -f "$JAR.body"
+fi
+
 echo "smoke ok: $BASE"

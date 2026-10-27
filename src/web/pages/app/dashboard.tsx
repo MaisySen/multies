@@ -62,7 +62,7 @@ export function DashboardPage() {
             </Card>
           </div>
           <Card className="p-5">
-            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2><Link to="/app/activity" className="text-xs text-muted hover:text-fg">Audit log</Link></div>
+            <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Recent activity</h2>{me.data?.organization?.role !== "member" && <Link to="/app/activity?tab=audit" className="text-xs text-muted hover:text-fg">Audit log</Link>}</div>
             <ul className="mt-3 divide-y divide-line">
               {data.recent.map((e) => {
                 const { verb, object, subject } = describeAudit(e);

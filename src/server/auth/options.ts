@@ -277,9 +277,10 @@ export function authOptions(deps: Deps) {
         organizationLimit: 10,
         invitationExpiresIn: 7 * 24 * 60 * 60,
         cancelPendingInvitationsOnReInvite: true,
-        // The invite link is the secret and acceptance requires signing in as the
-        // invited address; email delivery may not be connected yet.
-        requireEmailVerificationOnInvitation: false,
+        // R39 security hotfix: accepting (or reading) an invitation needs a confirmed email that matches
+        // the invite. The link alone is not enough: an account made with the invited address but never
+        // confirmed could otherwise take the seat and its role.
+        requireEmailVerificationOnInvitation: true,
         // Better Auth counts every member row; AI agent members take no seat, so they are added on top.
         membershipLimit: async (_user, org) => {
           const [plan, agentsIn] = await Promise.all([getPlan(db, org.id), db.select({ n: count() }).from(schema.members).where(and(eq(schema.members.organizationId, org.id), eq(schema.members.kind, "agent"))).get()]);

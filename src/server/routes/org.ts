@@ -83,7 +83,8 @@ export function orgRoutes() {
         },
       });
     })
-    .get("/audit", async (c) => {
+    // R39 security hotfix: the audit log carries IPs, emails and invitation activity, so it is for owners and admins only.
+    .get("/audit", requireAdmin, async (c) => {
       const { limit, before } = parseQuery(c, pageQuery);
       const entries = await listAudit(c.var.deps.db, c.var.auth.orgId, { limit, before });
       return c.json({ entries });

@@ -240,6 +240,11 @@ export async function acceptInvite(deps: Deps, auth: AuthContext, headers: Heade
   if (inv.status === "accepted") throw new HttpError(410, "invite_used", "This invitation has already been used.");
   if (inv.expiresAt <= deps.now()) throw new HttpError(410, "invite_expired", "This invitation has expired. Ask for a new one.");
   if (inv.email !== auth.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
+  // R39 security hotfix: the invite id alone is not proof. The account must own the invited address,
+  // so an account made with someone else's address but never confirmed can't take their seat or role.
+  const me = await db.select({ email: users.email, emailVerified: users.emailVerified }).from(users).where(eq(users.id, auth.userId)).get();
+  if (!me || me.email.toLowerCase() !== inv.email.toLowerCase()) throw forbidden(`This invitation is for ${inv.email}. Sign in with that address to accept it.`);
+  if (!me.emailVerified) throw new HttpError(403, "email_not_verified", `Confirm your email address ${inv.email} first (look for the confirmation email in that inbox), then open the invite link again.`);
   await authFor(deps).api.acceptInvitation({ headers, body: { invitationId: id } });
   // R25 (DF-4): the title and bio the invitation carried start the new member's profile.
   if (inv.title || inv.bio) {
