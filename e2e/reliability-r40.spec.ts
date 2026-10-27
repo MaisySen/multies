@@ -38,6 +38,10 @@ async function shot(page: Page, name: string) {
 const empty503 = { status: 503, body: "" };
 
 test("(a) a failed account check keeps the app on screen", async ({ page }) => {
+  // R41: four page loads plus two full retry cycles (the client waits 0.4 + 1.2 + 3 s on purpose before the pill)
+  // took 26 s a run here (5 of 5, 2.2 min) against the 30 s default, so under load the run hit the test timeout at
+  // whichever step it was on, usually the Retry click. The waits are the behaviour under test, so the budget grows.
+  test.setTimeout(90_000);
   await demo(page);
   await page.goto("/app/my-work");
   await expect(page.getByRole("link", { name: "Tasks" }).first()).toBeVisible({ timeout: 20_000 });

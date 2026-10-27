@@ -481,7 +481,7 @@ function ExportCard() {
 
 // ------------------------------------------------------------------ history
 
-const KIND_LABEL: Record<string, string> = { tasks: "Tasks", calendar: "Calendar", contacts: "Contacts", docs: "Docs", workspace: "Workspace" };
+const KIND_LABEL: Record<string, string> = { tasks: "Tasks", calendar: "Calendar", contacts: "Contacts", docs: "Docs", workspace: "Workspace", mail: "Mail" };
 const STATUS: Record<Move["status"], { label: string; tone: "neutral" | "brand" | "ok" | "bad" }> = {
   running: { label: "Running", tone: "brand" }, stopped: { label: "Paused", tone: "neutral" }, done: { label: "Done", tone: "ok" }, undone: { label: "Undone", tone: "neutral" },
   failed: { label: "Failed", tone: "bad" }, ready: { label: "Link ready", tone: "ok" }, expired: { label: "Link expired", tone: "neutral" },
@@ -491,19 +491,20 @@ function HistoryRow({ m }: { m: Move }) {
   const [confirm, setConfirm] = useState(false);
   const undo = useUndo(m.id, () => setConfirm(false));
   const [kind, src] = m.source.split(":");
-  const label = m.kind === "export" ? "Workspace export" : `${KIND_LABEL[kind] ?? "Import"}${src && src !== kind ? ` from ${SOURCES.find((s) => s.id === src)?.label ?? (src === "multies" ? "an export" : src.toUpperCase())}` : ""}`;
+  const label = m.kind === "export" ? "Workspace export" : kind === "mail" ? "Mail archive import" : `${KIND_LABEL[kind] ?? "Import"}${src && src !== kind ? ` from ${SOURCES.find((s) => s.id === src)?.label ?? (src === "multies" ? "an export" : src.toUpperCase())}` : ""}`;
   const st = STATUS[m.status];
+  const noun = kind === "mail" ? "message" : "item"; // R41: a mail archive import counts messages
   return (
     <li className="flex flex-wrap items-center gap-3 px-3 py-2.5" data-testid="move-history-row">
       <span className={"grid h-8 w-8 shrink-0 place-items-center rounded-[9px] [&_svg]:h-4 [&_svg]:w-4 " + (m.kind === "export" ? "bg-brand-soft text-brand" : "bg-fill text-muted")} aria-hidden>{m.kind === "export" ? <IconDownload /> : <IconUpload />}</span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13.5px] font-medium">{label}{m.fileName ? <span className="font-normal text-muted"> · {m.fileName}</span> : null}</p>
-        <p className="text-[12px] text-muted">{timeAgo(m.createdAt)}{m.by ? ` by ${m.by}` : ""}{m.kind === "import" ? ` · ${plural(m.created, "item")} made${m.total && m.done < m.total ? `, ${m.done} of ${m.total} read` : ""}` : ` · ${plural(m.total, "item")}`}</p>
+        <p className="text-[12px] text-muted">{timeAgo(m.createdAt)}{m.by ? ` by ${m.by}` : ""}{m.kind === "import" ? ` · ${plural(m.created, noun)} ${noun === "message" ? "brought in" : "made"}${m.total && m.done < m.total ? `, ${m.done} of ${m.total} read` : ""}` : ` · ${plural(m.total, "item")}`}</p>
       </div>
       <Badge tone={st.tone}>{st.label}</Badge>
       {m.canUndo && <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} aria-label={`Undo ${label}`}><IconUndo className="h-4 w-4" aria-hidden />Undo</Button>}
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={() => undo.mutate()} busy={undo.isPending} title="Undo this import?"
-        description={`This removes the ${m.created} items it made, including any changes made to them since. Nothing else is touched.`} confirmLabel="Undo import" />
+        description={noun === "message" ? `This deletes the ${plural(m.created, "message")} it brought in, and frees the space they used. Other mail is not touched.` : `This removes the ${m.created} items it made, including any changes made to them since. Nothing else is touched.`} confirmLabel="Undo import" />
     </li>
   );
 }

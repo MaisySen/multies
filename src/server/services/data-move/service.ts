@@ -11,15 +11,17 @@
  * A big import stops near 15 seconds, at the day's cap or at the write budget's warn level, and the same call with the
  * run id carries on from where it stopped.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, sql } from "drizzle-orm";
 import { strFromU8, unzipSync } from "fflate";
 import type { AuthContext, Deps } from "../../context";
-import { contacts, dataMoves, docs, meetings, projectStatuses, projects, tasks } from "../../db/schema";
+import { contacts, dataMoves, docs, mailboxes, meetings, messages, projectStatuses, projects, tasks } from "../../db/schema";
 import { HttpError, forbidden, notFound } from "../../lib/errors";
 import { newId, randomToken, sha256Hex } from "../../lib/crypto";
 import { inIds } from "../../lib/sql-chunks";
 import { audit } from "../audit";
 import { writeBudget } from "../write-budget";
+import { enqueue, registerJob } from "../jobs";
+import { sendSystemEmail } from "../system-mail";
 import { assertWritable, createdBy, sortableId, type SuiteActor } from "../suite/common";
 import { createDoc } from "../suite/docs";
 import { markdownToDoc } from "../suite/markdown-doc";
@@ -36,7 +38,7 @@ export const MAX_ITEMS = 5_000;
 const STEP_MS = 15_000;
 
 export type MoveKind = "tasks" | "calendar" | "contacts" | "docs" | "workspace";
-type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; projectCreated?: boolean; meetings?: string[]; contacts?: string[]; docs?: string[] };
+type Created = { tasks?: string[]; statuses?: string[]; projects?: string[]; projectCreated?: boolean; meetings?: string[]; contacts?: string[]; docs?: string[]; messages?: string[]; mailboxId?: string };
 
 const parseJson = <T>(s: string | null | undefined, fallback: T): T => { try { return s ? JSON.parse(s) as T : fallback; } catch { return fallback; } };
 
@@ -54,7 +56,7 @@ function requireImportAdmin(actor: SuiteActor) {
 export function presentMove(m: typeof dataMoves.$inferSelect) {
   const created = parseJson<Created>(m.created, {});
   const counts = parseJson<Record<string, number>>(m.counts, {});
-  const made = (created.tasks?.length ?? 0) + (created.meetings?.length ?? 0) + (created.contacts?.length ?? 0) + (created.docs?.length ?? 0);
+  const made = (created.tasks?.length ?? 0) + (created.meetings?.length ?? 0) + (created.contacts?.length ?? 0) + (created.docs?.length ?? 0) + (created.messages?.length ?? 0);
   return {
     id: m.id, kind: m.kind, source: m.source, fileName: m.fileName, status: m.status, projectId: m.projectId,
     total: m.total, done: m.done, counts, created: made,
@@ -155,8 +157,9 @@ async function saveProgress(deps: Deps, m: typeof dataMoves.$inferSelect, patch:
   await deps.db.update(dataMoves).set({
     created: JSON.stringify(patch.created), done: patch.done, ...(patch.total !== undefined ? { total: patch.total } : {}), status: patch.status,
     ...(patch.projectId !== undefined ? { projectId: patch.projectId } : {}), ...(patch.counts ? { counts: JSON.stringify(patch.counts) } : {}),
-    updatedAt: now, ...(patch.status === "done" ? { finishedAt: now } : {}),
+    updatedAt: now, lastStepAt: now, ...(patch.status === "done" ? { finishedAt: now } : {}),
   }).where(eq(dataMoves.id, m.id));
+  if (patch.status === "done") await notifyMoveEnded(deps, { ...m, created: JSON.stringify(patch.created), done: patch.done, total: patch.total ?? m.total, status: "done" }, "done");
   return presentMove({ ...m, created: JSON.stringify(patch.created), done: patch.done, total: patch.total ?? m.total, status: patch.status, projectId: patch.projectId ?? m.projectId, counts: patch.counts ? JSON.stringify(patch.counts) : m.counts, updatedAt: now, finishedAt: patch.status === "done" ? now : m.finishedAt });
 }
 
@@ -440,6 +443,17 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   await del(c.meetings, meetings);
   await del(c.contacts, contacts);
   await del(c.docs, docs);
+  // R41: the messages a mail archive (.mbox) import stored, and the mailbox space they used.
+  const freed = new Map<string, number>();
+  for (let i = 0; i < (c.messages ?? []).length; i += 90) {
+    const part = c.messages!.slice(i, i + 90);
+    // Essential writes: one delete per message; attachments and search rows go with it by foreign key.
+    const gone = await deps.db.delete(messages).where(and(eq(messages.orgId, actor.orgId), inIds(messages.id, part))).returning({ id: messages.id, mailboxId: messages.mailboxId, sizeBytes: messages.sizeBytes });
+    removed += gone.length;
+    for (const g of gone) freed.set(g.mailboxId, (freed.get(g.mailboxId) ?? 0) + (g.sizeBytes ?? 0));
+  }
+  // Essential write: one update per mailbox touched, so the storage meter drops by what was removed.
+  for (const [mailboxId, bytes] of freed) if (bytes > 0) await deps.db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${bytes})` }).where(and(eq(mailboxes.id, mailboxId), eq(mailboxes.orgId, actor.orgId)));
   // Statuses and projects it added, when nothing else now uses them.
   for (const sid of c.statuses ?? []) {
     const used = await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.statusId, sid))).limit(1).get();
@@ -456,3 +470,92 @@ export async function undoMove(deps: Deps, actor: SuiteActor, id: string) {
   return { move: presentMove({ ...m, status: "undone", undoneAt: now }), removed };
 }
 
+
+// ------------------------------------------------------------------ R41: the done email and runs left behind
+
+/** Minutes without a step before the scheduled pass treats a running import as left behind (the page closed). */
+export const LEFT_BEHIND_MIN = 10;
+/** At most this many runs per scheduled pass, so one pass stays small. */
+export const NUDGE_LIMIT = 5;
+
+const moveLabel = (source: string) => {
+  const kind = source.split(":")[0];
+  return kind === "mail" ? "mail" : kind === "tasks" ? "tasks" : kind === "calendar" ? "calendar" : kind === "contacts" ? "contacts" : kind === "docs" ? "docs" : "workspace";
+};
+
+/**
+ * Sends the one email a run gets when it ends: "finished" when every item is in, "paused" when the scheduled pass
+ * finds it left behind. The claim (notified_at set only where it is still empty) makes it once per run whoever calls.
+ * The send itself goes through the job queue, so the request that finished the import does no mail work (free plan CPU)
+ * and a failed send is retried there and logged; the history shows the result either way.
+ */
+export async function notifyMoveEnded(deps: Deps, m: typeof dataMoves.$inferSelect, why: "done" | "paused") {
+  if (m.kind !== "import" || !m.createdByEmail || m.notifiedAt) return false;
+  try {
+    // Essential write: the claim, so two finishing calls never send two emails.
+    const claimed = await deps.db.update(dataMoves).set({ notifiedAt: deps.now() }).where(and(eq(dataMoves.id, m.id), isNull(dataMoves.notifiedAt))).returning({ id: dataMoves.id });
+    if (!claimed.length) return false;
+    await enqueue(deps, "data-move.notify", { moveId: m.id, why }, { orgId: m.orgId, maxAttempts: 3 });
+    return true;
+  } catch (err) {
+    deps.log?.warn("data_move.notify_failed", { moveId: m.id, error: err });
+    return false;
+  }
+}
+
+/** The email's words, from the run row (plain text; the system template adds the button). */
+export function moveEmail(deps: Deps, m: typeof dataMoves.$inferSelect, why: "done" | "paused") {
+  const p = presentMove(m);
+  const label = moveLabel(m.source);
+  const file = m.fileName ? ` from ${m.fileName}` : "";
+  const c = p.counts as Record<string, number>;
+  const lines: string[] = [];
+  if (label === "mail") {
+    lines.push(`${c.stored ?? 0} message${(c.stored ?? 0) === 1 ? "" : "s"} brought in.`);
+    if (c.duplicates) lines.push(`${c.duplicates} were already in the mailbox, so they were skipped.`);
+    if (c.unreadable) lines.push(`${c.unreadable} couldn't be read.`);
+  } else {
+    lines.push(`${p.created} item${p.created === 1 ? "" : "s"} brought in, ${p.done} of ${p.total} done.`);
+    if (c.alreadyThere) lines.push(`${c.alreadyThere} were already there, so they were skipped.`);
+    if (c.skipped) lines.push(`${c.skipped} couldn't be read.`);
+  }
+  const subject = why === "done" ? "Your import finished" : "Your import is paused";
+  const intro = why === "done"
+    ? `Your ${label} import${file} has finished.`
+    : `Your ${label} import${file} stopped when its page was closed. To carry on, open Import and export and choose the same file again: anything already brought in is skipped, so nothing is doubled.`;
+  const text = [intro, "", ...lines, "", "You can see it, or undo it, in your import history."].join("\n");
+  return { subject, text, action: { label: "Open import history", url: `${deps.config.appUrl}/app/settings/import` } };
+}
+
+registerJob("data-move.notify", async (deps, payload) => {
+  const p = payload as { moveId: string; why: "done" | "paused" };
+  const m = await deps.db.select().from(dataMoves).where(eq(dataMoves.id, p.moveId)).get();
+  if (!m || !m.createdByEmail) return;
+  const e = moveEmail(deps, m, p.why);
+  const r = await sendSystemEmail(deps, { to: m.createdByEmail, subject: e.subject, text: e.text, action: e.action, orgId: m.orgId, template: "data-move-done" });
+  deps.log?.info("data_move.notified", { moveId: m.id, why: p.why, delivered: r.delivered, via: r.via });
+});
+
+/**
+ * The scheduled pass (every cron tick): at most NUDGE_LIMIT running imports whose last step is older than
+ * LEFT_BEHIND_MIN minutes, read through data_moves_status_step_idx. The file of an import lives in the person's
+ * browser and is never stored on the server (each step sends its part), so the pass cannot run a step for them:
+ * it ends the run as stopped, which the history shows with what got in, and sends the one "paused" email with the
+ * counts and the way to carry on. Idle cost: one indexed read that returns nothing.
+ */
+export async function nudgeLeftBehindMoves(deps: Deps) {
+  const before = new Date(deps.now().getTime() - LEFT_BEHIND_MIN * 60_000);
+  const rows = await deps.db.select().from(dataMoves)
+    .where(and(eq(dataMoves.status, "running"), lt(dataMoves.lastStepAt, before))).orderBy(dataMoves.lastStepAt).limit(NUDGE_LIMIT);
+  let paused = 0;
+  for (const m of rows) {
+    const now = deps.now();
+    // Essential write: the run ends as stopped (only if no step ran since the read).
+    const r = await deps.db.update(dataMoves).set({ status: "stopped", updatedAt: now, finishedAt: now })
+      .where(and(eq(dataMoves.id, m.id), eq(dataMoves.status, "running"), lt(dataMoves.lastStepAt, before))).returning({ id: dataMoves.id });
+    if (!r.length) continue;
+    paused++;
+    await notifyMoveEnded(deps, { ...m, status: "stopped" }, "paused");
+  }
+  return { checked: rows.length, paused };
+}

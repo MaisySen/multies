@@ -174,7 +174,15 @@ describe("guests", () => {
     expect((await g.get("/api/guest/me")).status).toBe(401);
     expect((await g.post("/api/guest/accept", { token: "x".repeat(30) })).status).toBe(404);
     expect((await g.post("/api/guest/accept", { token })).status).toBe(200);
-    expect((await g.post("/api/guest/accept", { token })).status).toBe(404);
+    // R41 (MB-227): the same link opens on a second device too, with its own session; the first stays signed in.
+    const g2 = new Client(ctx.app);
+    expect((await g2.post("/api/guest/accept", { token })).status).toBe(200);
+    expect(g2.cookie).not.toBe(g.cookie);
+    expect((await g2.get("/api/guest/me")).status).toBe(200);
+    // A forged device session is refused.
+    const forged = new Client(ctx.app);
+    forged.jar.set(g2.cookie.split("=")[0], `${inv.body.guest.id}.abcdefabcdefabcdefabcdef.${"0".repeat(64)}`);
+    expect((await forged.get("/api/guest/me")).status).toBe(401);
     const home = (await g.get("/api/guest/me")).body;
     expect(home.project.id).toBe(p.id);
     expect(home.tasks.map((x: { title: string }) => x.title)).toEqual(["Homepage copy"]);
@@ -202,6 +210,8 @@ describe("guests", () => {
     // Removing the guest ends the session.
     expect((await c.del(`/api/guests/${inv.body.guest.id}`)).status).toBe(200);
     expect((await g.get("/api/guest/me")).status).toBe(401);
+    expect((await g2.get("/api/guest/me")).status).toBe(401);
+    expect((await g2.post("/api/guest/accept", { token })).status).toBe(404);
   });
 
   it("sends an agent's invite through the approval queue", async () => {

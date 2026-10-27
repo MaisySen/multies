@@ -19,7 +19,7 @@ import { storageRoom, storeImportedRaw } from "../import";
 import { assertMailboxAccess } from "../team";
 import { assertWritable, type SuiteActor } from "../suite/common";
 import { base64Bytes } from "../work-import/parse";
-import { presentMove } from "./service";
+import { notifyMoveEnded, presentMove } from "./service";
 
 export const MBOX_BATCH = 3; // R40 lead: 3, not 10, after prod hit the free plan CPU limit (parsing is server CPU)
 export const MBOX_BATCH_BYTES = 192 * 1024;
@@ -65,6 +65,9 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
   }
 
   const counts: Counts = { stored: 0, duplicates: 0, unreadable: 0, ...(safeJson(m.counts) as Partial<Counts>) };
+  // R41: what this run stored, so Undo removes exactly those messages and nothing else.
+  const created = safeJson(m.created) as { messages?: string[] };
+  const made: string[] = [];
   const room = await storageRoom(deps, actor.orgId);
   let used = room.used;
   let error: string | null = null;
@@ -72,19 +75,22 @@ export async function importMboxBatch(deps: Deps, actor: SuiteActor, input: Mbox
     if (!raw.byteLength || raw.byteLength > deps.config.maxMessageBytes * 3) { counts.unreadable++; continue; }
     try {
       const r = await storeImportedRaw(deps, { orgId: actor.orgId, mailboxId: input.mailboxId, raw, folder: input.folder ?? "INBOX", seen: true, pooledBytes: used, limitBytes: room.limit });
-      if (r.stored) { counts.stored++; used += r.bytes; } else counts.duplicates++;
+      if (r.stored) { counts.stored++; used += r.bytes; made.push(r.id); } else counts.duplicates++;
     } catch (e) {
       if (e instanceof HttpError && e.code === "storage_full") { error = e.message; break; }
       counts.unreadable++;
     }
   }
   const done = counts.stored + counts.duplicates + counts.unreadable;
-  const status = error ? "failed" : input.last ? "done" : "running";
-  // Essential write: one update of the run row per batch.
-  await deps.db.update(dataMoves).set({ done, counts: JSON.stringify(counts), status, error, updatedAt: deps.now(), ...(status !== "running" ? { finishedAt: deps.now() } : {}) }).where(eq(dataMoves.id, m.id));
+  const status: "failed" | "done" | "running" = error ? "failed" : input.last ? "done" : "running";
+  const createdJson = JSON.stringify({ ...created, mailboxId: input.mailboxId, messages: [...(created.messages ?? []), ...made] });
+  // Essential write: one update of the run row per batch (last_step_at lets the scheduled pass find a run left behind).
+  await deps.db.update(dataMoves).set({ done, counts: JSON.stringify(counts), created: createdJson, status, error, updatedAt: deps.now(), lastStepAt: deps.now(), ...(status !== "running" ? { finishedAt: deps.now() } : {}) }).where(eq(dataMoves.id, m.id));
   if (status !== "running") await audit(deps.db, { orgId: actor.orgId, actorUserId: actor.userId || null, actorEmail: actor.email || null, action: error ? "data.import_failed" : "data.import_finished", targetType: "data_move", targetId: m.id, metadata: counts });
+  const after = { ...m, done, counts: JSON.stringify(counts), created: createdJson, status, error, updatedAt: deps.now() };
+  if (status === "done") await notifyMoveEnded(deps, after, "done");
   if (error) throw new HttpError(413, "storage_full", error, { moveId: m.id, counts });
-  return { move: presentMove({ ...m, done, counts: JSON.stringify(counts), status, error, updatedAt: deps.now() }), counts };
+  return { move: presentMove(after), counts };
 }
 
 /** Stops a mail import part way (the page's Cancel). What was stored stays. */

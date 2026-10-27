@@ -15,7 +15,7 @@ import { addonHint, getPlan } from "./plans";
 import { isHosted } from "./mail/delivery";
 import { removeAgentMember } from "./people";
 import { DEFAULT_TIMEZONE } from "@/shared/locale";
-import { sendInviteEmail } from "./invite-email";
+import { sendInviteEmail, takeInviteSend } from "./invite-email";
 import { inIds } from "../lib/sql-chunks";
 
 /** MB-220: shown when someone in the demo tries to invite a person. */
@@ -181,8 +181,12 @@ export async function createInvite(deps: Deps, auth: AuthContext, headers: Heade
     if (bio !== undefined && bio !== (reinvite?.bio ?? null)) want.bio = bio;
     if (Object.keys(want).length) await db.update(invitations).set(want).where(eq(invitations.id, id));
   }
-  const emailed = deps.outbound.name !== "log" || (await isHosted(db, email));
-  return { id, link: inviteLink(deps, id), emailed, emailDetail: emailed ? undefined : "Email delivery isn't connected on this deployment." };
+  // R41 (MB-228): emailed is what the send answered (a provider that holds or refuses mail to outside addresses
+  // means emailed:false with the reason), not a guess from the deployment.
+  const sent = takeInviteSend(id);
+  const emailed = sent ? sent.delivered : deps.outbound.name !== "log" || (await isHosted(db, email));
+  const emailDetail = emailed ? undefined : inviteNotSentReason(sent?.detail);
+  return { id, link: inviteLink(deps, id), emailed, ...(emailDetail ? { emailDetail } : {}) };
 }
 
 /** The API key path of createInvite: what Better Auth's createInvitation does, written directly. */
@@ -369,4 +373,14 @@ export async function deleteWorkspace(deps: Deps, auth: AuthContext, headers: He
   await deps.db.delete(organizations).where(eq(organizations.id, auth.orgId));
   const left = await deps.db.select().from(members).where(and(eq(members.userId, auth.userId), ne(members.organizationId, auth.orgId))).get();
   return { remaining: !!left };
+}
+
+/** R41 (MB-228): a plain reason an invite was not emailed, for the dialog and the API answer. */
+export function inviteNotSentReason(detail: string | undefined) {
+  if (!detail) return "Email delivery isn't connected on this deployment.";
+  if (/^Delayed/i.test(detail)) return "The email provider is unavailable right now. We'll keep trying, but share the link to be sure.";
+  if (/^Held/i.test(detail)) return "This deployment can't email addresses outside Multies yet.";
+  if (/demo/i.test(detail)) return "Demo workspaces send no email.";
+  if (/isn't connected/i.test(detail)) return "Email delivery isn't connected on this deployment.";
+  return "The email provider didn't accept this invite.";
 }

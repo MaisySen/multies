@@ -136,13 +136,13 @@ export async function storeImportedRaw(deps: Deps, input: { orgId: string; mailb
   if (used + raw.byteLength > limit) throw new HttpError(413, "storage_full", "The workspace's storage is full. Add a storage pack in Billing, then import again.");
   const folder = folderFor(input.folder);
   // Essential write: the message itself.
-  await storeMessage(deps.db, {
+  const id = await storeMessage(deps.db, {
     bodyStore: deps.bodyStore, orgId: input.orgId, mailboxId: input.mailboxId, folder, messageIdHeader: email.messageId, inReplyTo: email.inReplyTo, references: email.references,
     from: email.from, to: email.to, cc: email.cc, replyTo: email.replyTo, subject: email.subject, text: email.text, html: email.html, date: email.date,
     isRead: input.seen ?? true, authResults: email.authResults, attachments: email.attachments, sizeBytes: raw.byteLength,
   });
   if (folder === "inbox" || folder === "spam") await mirrorInbound(deps, input.mailboxId, raw, { spam: folder === "spam" });
-  return { stored: true as const, folder, bytes: raw.byteLength };
+  return { stored: true as const, folder, bytes: raw.byteLength, id };
 }
 
 /** The workspace's pooled mail storage in use and its plan limit, in bytes (one read through mailboxes' org index). */

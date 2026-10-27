@@ -818,5 +818,13 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- R40 D1 reads: task lists in their default order (position, newest first) walk an index and stop at the page size,\n-- instead of reading and sorting every live task of the workspace or project. Measured on production (HQ, 489 tasks):\n-- a page of 50 read 927 rows, a project page of 50 read 897.\nCREATE INDEX IF NOT EXISTS `tasks_org_live_pos_idx` ON `tasks` (`org_id`,`position`,`created_at` desc) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;",
       "CREATE INDEX IF NOT EXISTS `tasks_org_project_live_pos_idx` ON `tasks` (`org_id`,`project_id`,`position`,`created_at` desc) WHERE \"tasks\".\"deleted_at\" IS NULL AND \"tasks\".\"triage_state\" IS NULL;"
     ]
+  },
+  {
+    "name": "0085_r41_data_move_steps",
+    "statements": [
+      "-- R41 move your data: each step of an import writes last_step_at, so a scheduled pass can find runs left behind (the page\n-- closed part way) through one small index instead of scanning data_moves. notified_at records the one email a run\n-- sends when it finishes or is paused by that pass, so it is never sent twice.\nALTER TABLE `data_moves` ADD `last_step_at` integer;",
+      "ALTER TABLE `data_moves` ADD `notified_at` integer;",
+      "CREATE INDEX IF NOT EXISTS `data_moves_status_step_idx` ON `data_moves` (`status`,`last_step_at`);"
+    ]
   }
 ];

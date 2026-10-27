@@ -121,7 +121,7 @@ export function TeamSettings() {
       <InviteDialog open={inviting} demo={isDemo} onClose={() => setInviting(false)} myRole={myRole} mailboxes={mailboxes.data ?? []}
         onCreated={(r) => { setInviting(false); setCreated(r); }} />
       <Dialog open={!!created} onClose={() => setCreated(null)} title="Invitation ready"
-        description={created?.emailed ? `We emailed ${created.email}. You can also share the link yourself.` : `Email delivery isn't connected yet, so share this link with ${created?.email} yourself.`}
+        description={created?.emailed ? `We emailed ${created.email}. You can also share the link yourself.` : `We couldn't email this invite. Copy the link instead and send it to ${created?.email} yourself.`}
         footer={<Button onClick={() => setCreated(null)}>Done</Button>}>
         {created && (
           <div className="flex items-center gap-2 rounded-lg border border-line bg-surface p-2 pl-3">
@@ -130,6 +130,7 @@ export function TeamSettings() {
             <CopyButton value={created.link} label="Copy link" />
           </div>
         )}
+        {created && !created.emailed && created.emailDetail && <p className="mt-2 text-xs text-muted" data-testid="invite-not-emailed">{created.emailDetail}</p>}
         <p className="mt-3 text-xs text-subtle">For your security this link is shown once. Resend the invitation to get a fresh one.</p>
       </Dialog>
     </div>

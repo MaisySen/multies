@@ -12,7 +12,7 @@ import { isMimeType, isSafeToken, looksLikeEmail } from "../../lib/input-checks"
 import type { AuthContext, Deps } from "../../context";
 import { docs, organizations, projectGuests, sendApprovals, taskFiles, tasks } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
-import { randomToken, sha256Hex } from "../../lib/crypto";
+import { hmacSha256Hex, randomToken, safeEqual, sha256Hex } from "../../lib/crypto";
 import { assertWritable, createdBy, iso, recordWrite, sortableId, type SuiteActor } from "./common";
 import { addComment, getProject, listComments, listTasks, resolveTaskId, type Task } from "./tasks";
 import { listFields } from "./fields";
@@ -45,7 +45,7 @@ export async function listGuests(deps: Deps, orgId: string, projectId: string) {
 }
 
 function inviteText(inviter: string, org: string, project: string) {
-  return `${inviter} at ${org} invited you to the project "${project}" on Multies.\n\nYou can see its tasks, comments and docs, add comments and upload files. You don't need an account and it's free.\n\nThe link works for ${INVITE_DAYS} days and only for you, so please don't forward it.`;
+  return `${inviter} at ${org} invited you to the project "${project}" on Multies.\n\nYou can see its tasks, comments and docs, add comments and upload files. You don't need an account and it's free.\n\nThe link works for ${INVITE_DAYS} days on any of your devices and only for you, so please don't forward it.`;
 }
 
 /**
@@ -125,8 +125,18 @@ export async function acceptInvite(deps: Deps, token: string) {
     const a = await deps.db.select({ status: sendApprovals.status }).from(sendApprovals).where(eq(sendApprovals.id, g.approvalId)).get();
     if (a?.status !== "sent") throw new HttpError(404, "invite_not_found", "This invite link is not valid. Ask for a new one.");
   }
+  /* R41 (MB-227): the link opens on every device of the guest until it expires (a phone and a laptop), instead of only
+   * the first. The first device gets the stored session; each later device gets its own session, signed with the app
+   * secret and bound to that stored session, so opening the link again never signs out a device that already has it,
+   * and removing the guest (which clears the stored session) ends every device at once. */
+  if (g.status === "active" && g.sessionHash) {
+    const nonce = randomToken(18).replace(/[^A-Za-z0-9]/g, "");
+    await deferrableWrite(deps, "last_seen", `guest:${g.id}`, () => deps.db.update(projectGuests).set({ lastSeenAt: now }).where(eq(projectGuests.id, g.id)));
+    return { cookie: `${g.id}.${nonce}.${await deviceSig(deps, g.id, nonce, g.sessionHash)}`, guestId: g.id };
+  }
   const secret = randomToken(32);
-  await deps.db.update(projectGuests).set({ status: "active", sessionHash: await sha256Hex(secret), inviteHash: null, inviteExpiresAt: null, lastSeenAt: now, updatedAt: now }).where(eq(projectGuests.id, g.id));
+  // Essential write: the guest becomes active with its first session. The invite stays usable until it expires.
+  await deps.db.update(projectGuests).set({ status: "active", sessionHash: await sha256Hex(secret), lastSeenAt: now, updatedAt: now }).where(eq(projectGuests.id, g.id));
   if (g.status === "pending") {
     const actor: SuiteActor = { orgId: g.orgId, userId: "", email: g.email, name: g.name || g.email, system: true };
     await recordWrite(deps, actor, { entityType: "project", entityId: g.projectId, op: "update", verb: "guest_joined", data: { guestId: g.id, email: g.email }, event: "guest.joined", eventData: { guest: presentGuest({ ...g, status: "active" }) } });
@@ -139,10 +149,12 @@ export interface GuestContext { guest: GuestRow; actor: SuiteActor }
 /** The guest behind a session cookie, or null. */
 export async function resolveGuest(deps: Deps, cookie: string | undefined): Promise<GuestContext | null> {
   if (!cookie) return null;
-  const [id, secret] = cookie.split(".");
+  const [id, secret, sig] = cookie.split(".");
   if (!id || !secret || !isSafeToken(id)) return null;
   const g = await deps.db.select().from(projectGuests).where(eq(projectGuests.id, id)).get();
-  if (!g || g.status !== "active" || !g.sessionHash || g.sessionHash !== await sha256Hex(secret)) return null;
+  if (!g || g.status !== "active" || !g.sessionHash) return null;
+  // R41: a later device's session (id.nonce.signature) or the first device's stored one (id.secret).
+  if (sig ? !safeEqual(sig, await deviceSig(deps, g.id, secret, g.sessionHash)) : g.sessionHash !== await sha256Hex(secret)) return null;
   const now = deps.now();
   if (!g.lastSeenAt || now.getTime() - g.lastSeenAt.getTime() > 3_600_000) await deferrableWrite(deps, "last_seen", `guest:${g.id}`, () => deps.db.update(projectGuests).set({ lastSeenAt: now }).where(eq(projectGuests.id, g.id))); // R32: deferrable
   return { guest: g, actor: { orgId: g.orgId, userId: "", email: g.email, name: `${g.name || g.email} (guest)`, role: "member" } };
@@ -263,4 +275,9 @@ export async function guestCounts(deps: Deps, orgId: string) {
   const m = new Map<string, number>();
   for (const r of rows) if (r.status !== "revoked") m.set(r.projectId, (m.get(r.projectId) ?? 0) + 1);
   return m;
+}
+
+/** R41 (MB-227): the signature of a later device's guest session, bound to the guest's stored session. */
+async function deviceSig(deps: Deps, guestId: string, nonce: string, sessionHash: string) {
+  return hmacSha256Hex(deps.config.appSecret, `guest-device:${guestId}:${nonce}:${sessionHash}`);
 }

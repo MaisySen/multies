@@ -6,7 +6,17 @@
 import { createElement } from "react";
 import type { Deps } from "../context";
 import { Invite as InviteEmail } from "../emails";
-import { emailBrand, sendSystemEmail } from "./system-mail";
+import { emailBrand, sendSystemEmail, type SystemEmailResult } from "./system-mail";
+
+/* R41 (MB-228): what the last send of each invitation answered, so POST /api/team/invites can say the truth
+ * (emailed only when the email really went out) instead of guessing from the deployment. Kept per isolate for
+ * a minute; the request that created the invite reads it straight after. */
+const lastSend = new Map<string, { r: SystemEmailResult; at: number }>();
+export function takeInviteSend(id: string) {
+  const v = lastSend.get(id);
+  lastSend.delete(id);
+  return v && Date.now() - v.at < 60_000 ? v.r : undefined;
+}
 
 export interface InviteEmailData {
   id: string;
@@ -19,7 +29,7 @@ export interface InviteEmailData {
 export async function sendInviteEmail(deps: Deps, data: InviteEmailData) {
   const { config } = deps;
   const url = `${config.appUrl}/invite/${data.id}`;
-  await sendSystemEmail(deps, {
+  const r = await sendSystemEmail(deps, {
     to: data.email, orgId: data.organization.id,
     subject: `${data.inviter.name} invited you to ${data.organization.name} on ${config.appName}`,
     template: "invite", element: createElement(InviteEmail, {
@@ -29,4 +39,7 @@ export async function sendInviteEmail(deps: Deps, data: InviteEmailData) {
     text: `${data.inviter.name} (${data.inviter.email}) invited you to join the ${data.organization.name} workspace on ${config.appName} as ${data.role === "admin" ? "an admin" : "a member"}.\n\nThis invitation expires in 7 days.`,
     action: { label: "Accept invitation", url },
   });
+  if (lastSend.size > 200) lastSend.clear();
+  lastSend.set(data.id, { r, at: Date.now() });
+  return r;
 }

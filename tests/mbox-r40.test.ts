@@ -73,7 +73,7 @@ describe("R40 mbox upload (server batches)", () => {
     const first = await c.call("POST", "/api/data-moves/mbox/batch", body, { "idempotency-key": "mbox_batch_0001aa" });
     expect(first.status).toBe(200);
     expect(first.body.counts).toEqual({ stored: 2, duplicates: 0, unreadable: 0 });
-    expect(first.body.move).toMatchObject({ status: "done", source: "mail:mbox", done: 2, total: 2, canUndo: false });
+    expect(first.body.move).toMatchObject({ status: "done", source: "mail:mbox", done: 2, total: 2, canUndo: true });
     // The same key answers the same result without storing again.
     const retry = await c.call("POST", "/api/data-moves/mbox/batch", body, { "idempotency-key": "mbox_batch_0001aa" });
     expect(retry.body.counts).toEqual(first.body.counts);

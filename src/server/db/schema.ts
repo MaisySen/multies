@@ -2022,4 +2022,8 @@ export const dataMoves = sqliteTable("data_moves", {
   updatedAt: ts("updated_at").notNull(),
   finishedAt: ts("finished_at"),
   undoneAt: ts("undone_at"),
-}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt)]);
+  /** R41: when the last step of an import ran (page or scheduled pass); finds runs left behind. */
+  lastStepAt: ts("last_step_at"),
+  /** R41: when the one "finished" or "paused" email for this run was sent (never twice). */
+  notifiedAt: ts("notified_at"),
+}, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt), index("data_moves_status_step_idx").on(t.status, t.lastStepAt)]);
