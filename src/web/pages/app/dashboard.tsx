@@ -11,6 +11,7 @@ import { cn } from "@/web/lib/cn";
 import type { Dashboard } from "@/web/lib/types";
 import { LOCALE } from "@/shared/locale";
 import { FreeAddressCard } from "@/web/components/free-address";
+import { useProjects } from "./work/data"; // R40 (MB-214)
 
 export function DashboardPage() {
   const me = useMe();
@@ -121,13 +122,16 @@ function GettingStarted({ data }: { data: Dashboard }) {
   const qc = useQueryClient();
   const st = data.onboarding.steps;
   const firstDomain = data.domains[0];
+  // R40 (MB-214): lead with the jobs people come for (a project, the team, an address); domain and DNS come later.
+  // Every workspace starts with the "Tasks" project, so a second one means they made their own.
+  const projects = useProjects();
   const steps = [
-    { done: st.domainAdded, title: "Add your domain", body: "We generate its DKIM key and DNS records.", to: "/app/domains" },
-    { done: st.domainVerified, title: "Publish DNS records", body: "Each record turns green as it propagates.", to: firstDomain ? `/app/domains/${firstDomain.id}` : "/app/domains" },
-    { done: st.mailboxCreated, title: "Create a mailbox", body: "An inbox for you or someone on your team.", to: "/app/mailboxes" },
-    { done: st.inboundConnected, title: "Receive your first email", body: "Route MX through Cloudflare, then send yourself a test.", to: "/app/settings/mail#inbound" },
-    { done: st.firstSend, title: "Send an email", body: "Write from your new address in Mail.", to: "/app/mail?compose=1" },
+    { done: (projects.data?.length ?? 0) > 1, title: "Make a project", body: "Lists, a board and a timeline for your work.", to: "/app/tasks" },
     { done: st.teamInvited, title: "Invite your team", body: "Give people their own login and mailboxes.", to: "/app/settings/team" },
+    { done: st.mailboxCreated, title: "Get an address", body: "A free address to send and receive from, or one on your own domain.", to: "/app/mailboxes" },
+    { done: st.firstSend, title: "Send an email", body: "Write from your new address in Mail.", to: "/app/mail?compose=1" },
+    { done: st.domainAdded, title: "Add your domain", body: "Later, when you want mail on your own name. We make the records for you.", to: "/app/domains" },
+    { done: st.domainVerified, title: "Publish DNS records", body: "Each record turns green as it propagates.", to: firstDomain ? `/app/domains/${firstDomain.id}` : "/app/domains" },
   ];
   const doneCount = steps.filter((s) => s.done).length;
   const next = steps.findIndex((s) => !s.done);

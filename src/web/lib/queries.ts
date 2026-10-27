@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "./api";
-import { clearMeCache, isSignedOut, meRetry, meRetryDelay, readMeCache, writeMeCache } from "./me-cache";
 import type { Alias, Dashboard, Domain, Mailbox, Me, OrgInfo, PublicConfig, TeamInfo, Workspace } from "./types";
 
 export const qk = {
@@ -34,30 +33,7 @@ export const useSignedIn = () => {
   return !!q.data?.user;
 };
 
-/**
- * R40 (MB-200): the account check retries with backoff on a dropped request or an empty 5xx, starts from the
- * last good copy (so the shell paints at once and refreshes behind it), and keeps polling calmly while
- * Multies is unreachable. Only a 401 means signed out; it also drops the saved copy.
- */
-export const useMe = () => useQuery({
-  queryKey: qk.me,
-  queryFn: async () => {
-    try {
-      const me = await api.get<Me>("/account/me");
-      writeMeCache(me);
-      return me;
-    } catch (err) {
-      if (isSignedOut(err)) clearMeCache();
-      throw err;
-    }
-  },
-  initialData: readMeCache,
-  initialDataUpdatedAt: 0,
-  retry: meRetry,
-  retryDelay: meRetryDelay,
-  staleTime: 60_000,
-  refetchInterval: (query) => (query.state.status === "error" && !isSignedOut(query.state.error) ? 15_000 : false),
-});
+export const useMe = () => useQuery({ queryKey: qk.me, queryFn: () => api.get<Me>("/account/me"), retry: false, staleTime: 60_000 });
 export const useConfig = () => useQuery({ queryKey: qk.config, queryFn: () => api.get<PublicConfig>("/config"), staleTime: Infinity });
 export const useDashboard = () => useQuery({ queryKey: qk.dashboard, queryFn: () => api.get<Dashboard>("/dashboard") });
 export const useDomains = () => useQuery({ queryKey: qk.domains, queryFn: async () => (await api.get<{ domains: Domain[] }>("/domains")).domains });
