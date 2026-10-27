@@ -386,8 +386,9 @@ test("timeline key: Shift+D opens the date clashes sheet", async ({ page }) => {
 /** R45: inserts `count` unread notifications for the signed in person, each pointing at one of their workspace's tasks. */
 async function seedNotifications(page: Page, count: number) {
   const me = (await (await page.request.get("/api/account/me")).json()) as { user: { id: string }; organization: { id: string } };
-  const tasks = ((await (await page.request.get("/api/tasks?limit=5")).json()) as { tasks?: { id: string; title: string }[] }).tasks ?? [];
-  expect(tasks.length, "the demo workspace has tasks to point at").toBeGreaterThan(0);
+  const res = await page.request.get("/api/tasks");
+  const tasks = (((await res.json()) as { tasks?: { id: string; title: string }[] }).tasks ?? []).slice(0, 5);
+  expect(tasks.length, `the demo workspace has tasks to point at (GET /api/tasks ${res.status()})`).toBeGreaterThan(0);
   const db = new Database(path.resolve(".data/e2e.db"), { fileMustExist: true, timeout: 10_000 });
   try {
     const insert = db.prepare("insert into notifications (id, org_id, user_id, type, entity_type, entity_id, title, actor_name, created_at) values (?, ?, ?, 'task.mentioned', 'task', ?, ?, 'Test seed', ?)");
