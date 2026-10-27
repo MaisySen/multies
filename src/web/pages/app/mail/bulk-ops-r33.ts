@@ -15,7 +15,7 @@ import { startToast, toastReduce, toastView, UNDONE_MS, type ToastEvent, type To
 
 export interface JobBody {
   client_job_id: string; action: "read" | "unread" | "star" | "unstar" | "archive" | "inbox" | "spam" | "trash" | "snooze" | "move";
-  scope: { mailboxId: string; folder?: string; remote?: string; q?: string; split?: string };
+  scope: { mailboxId: string; folder?: string; remote?: string; q?: string; split?: string; /** R45: mail dated before this time only. */ before?: string };
   exclude_ids: string[]; max_received_at: string;
   /** R34: move destination; snooze time. */
   to?: string; when?: { preset?: "later_today" | "tomorrow" | "next_week"; at?: string; local?: string };

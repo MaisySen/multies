@@ -17,7 +17,7 @@ export type SwStrategy = "shell" | "static" | "api-offline" | "network";
 export const API_SWR_PATHS = ["/api/config", "/api/account/providers", "/api/account/me"] as const;
 
 /** Unhashed files that still belong to the shell. */
-export const STATIC_PATHS = ["/favicon.svg", "/favicon.ico", "/favicon-32.png", "/favicon-16.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/site.webmanifest", "/offline.html", "/legacy.js"] as const;
+export const STATIC_PATHS = ["/favicon.svg", "/favicon.ico", "/favicon-32.png", "/favicon-16.png", "/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/site.webmanifest", "/offline.html", "/legacy.js", "/boot.js"] as const;
 
 export const SHELL_KEY = "/app";
 export const OFFLINE_PATH = "/offline.html";

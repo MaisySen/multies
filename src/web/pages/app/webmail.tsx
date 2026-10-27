@@ -35,6 +35,7 @@ import { BulkBar, RowCheck } from "./mail/bulk-bar"; // R32
 import { Dialog } from "@/web/components/ui/dialog";
 import { jobActionFor, jobConfirmWords, needsConfirm, type JobAction } from "@/web/lib/bulk-confirm-r34"; // R34
 import { newJobId, useBulkOps, type JobBody } from "./mail/bulk-ops-r33"; // R33
+import { ArchiveOlderSheet } from "./mail/archive-older-r45"; // R45 (MB-137)
 import { withOfflineCopy } from "@/web/lib/offline-lists"; // R33 offline
 import { SNOOZE_WORDS, emptySelection, prune, selectAll, selectRange, setSelectionCount, toggleOne, undoPlan, UNDO_MS, type BulkCall, type Selection } from "@/web/lib/mail-selection"; // R32
 
@@ -202,6 +203,16 @@ export function WebmailPage() {
     setEverything(null);
     if (selected && loaded.includes(selected) && action !== folder && !["read", "unread", "star", "unstar"].includes(action)) open(null);
     ops.run({ kind: "job", body, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, onSettled: () => { void refresh(); } }, { action, count: total !== null ? Math.max(0, total - exclude.length) : loaded.length, folderLabel: label });
+  };
+  // R45 (MB-137): "Archive older mail", one server job over the whole Inbox for mail dated before the cut.
+  const [olderOpen, setOlderOpen] = useState(false);
+  const listAsOf = (): string => list.data?.pages[0]?.asOf ?? items.reduce((m, i) => (i.receivedAt && i.receivedAt > m ? i.receivedAt : m), "");
+  const runArchiveOlder = (before: string, count: number) => {
+    const body: JobBody = { client_job_id: newJobId(), action: "archive", scope: { mailboxId, folder: "inbox", before }, exclude_ids: [], max_received_at: listAsOf() || new Date().toISOString() };
+    const loaded = items.filter((i) => i.date < before).map((i) => i.id);
+    qc.setQueryData<MailListData>(listKey, (d) => applyMailAction(d, loaded, "archive", folder, false));
+    if (selected && loaded.includes(selected)) open(null);
+    ops.run({ kind: "job", body, count, onSettled: () => { void refresh(); } }, { action: "archive", count, folderLabel: "Archive" });
   };
   confirmRef.current = () => { const c = confirmJob; setConfirmJob(null); if (c) runJob(c.action, c.extra, c.label, true); };
   const runBulk = (partial: Omit<BulkCall, "ids">, folderLabel?: string, confirmed = false) => {
@@ -458,6 +469,9 @@ export function WebmailPage() {
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>
           {folder === "trash" && !q && items.length > 0 && <button className="text-muted hover:text-bad" onClick={() => act.mutate({ ids: items.map((i) => i.id), action: "delete" })}>Empty trash</button>}
+          {folder === "inbox" && !q && items.length > 0 && <button type="button" data-testid="archive-older" onClick={() => setOlderOpen(true)} aria-haspopup="dialog"
+            className="-my-1.5 -mr-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 font-medium text-muted transition-colors duration-150 hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-sm:min-h-10">
+            <IconArchive className="h-3.5 w-3.5" />Archive older</button>}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto" data-mail-list>
           {hasSel && !(isScheduleView(folder) && !q) && <BulkBar count={everything ? rowIds.length - everything.length : sel.ids.length} total={items.length} folder={q ? "" : folder} connectionId={mb.connectionId}
@@ -486,6 +500,7 @@ export function WebmailPage() {
         </div>
       </section>
 
+      <ArchiveOlderSheet open={olderOpen} onClose={() => setOlderOpen(false)} mailboxId={mailboxId} asOf={olderOpen ? listAsOf() || new Date().toISOString() : ""} onRun={runArchiveOlder} />
       {/* Reader */}
       <section className={cn("min-w-0 flex-1", selected ? "flex" : "hidden md:flex")} aria-label="Message">
         {current || selected ? (
