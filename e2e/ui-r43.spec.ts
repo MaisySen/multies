@@ -134,3 +134,70 @@ test("5,000 task phone list: card rows are windowed and the end is reachable", a
   await expect(list.getByTestId("phone-task-row").last()).toContainText(`Long list task ${N}`);
   await expect(list.locator("li[data-win-row]").last()).toHaveAttribute("aria-setsize", String(N));
 });
+
+test("3,000 message mail list: rows are windowed and the end is reachable", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await demo(page);
+  const M = 3000;
+  await page.route(/\/api\/mail\/messages\?/, async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET" || url.searchParams.get("cursor") || url.searchParams.get("q")) return route.fallback();
+    const res = await route.fetch();
+    const body = await res.json() as { messages: Record<string, unknown>[]; nextCursor: string | null };
+    const base = body.messages[0];
+    if (!base) return route.fulfill({ response: res });
+    const messages = Array.from({ length: M }, (_, i) => ({ ...base, id: `r43m_${i}`, threadId: `r43t_${i}`, subject: `Long list mail ${i + 1}` }));
+    await route.fulfill({ response: res, json: { ...body, messages, nextCursor: null } });
+  });
+  await page.goto("/app/mail");
+  const rowsL = page.getByTestId("mail-row");
+  await expect(rowsL.first()).toBeVisible({ timeout: 60_000 });
+  const rows = await rowsL.count();
+  const domNodes = await nodes(page);
+  const frames = await page.evaluate(async () => {
+    const el = document.querySelector<HTMLElement>("[data-mail-list]")!;
+    const max = el.scrollHeight - el.clientHeight;
+    const deltas: number[] = [];
+    let last = performance.now();
+    for (let i = 1; i <= 90; i++) {
+      el.scrollTop = Math.round((max * i) / 90);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      const now = performance.now(); deltas.push(now - last); last = now;
+    }
+    deltas.sort((a, b) => a - b);
+    return { frames: 90, meanMs: +(deltas.reduce((a, b) => a + b, 0) / 90).toFixed(1), p95Ms: +deltas[85].toFixed(1), maxMs: +deltas[89].toFixed(1) };
+  });
+  save("mail-list", { messages: M, renderedRows: rows, domNodes, scroll: frames });
+  if (process.env.SHOTS) await page.screenshot({ path: `${DIR}/mb210-${LABEL}-mail-list-3000-desktop-light.png` });
+  if (!AFTER) return;
+
+  expect(rows).toBeLessThan(80);
+  await expect(rowsL.last()).toContainText(`Long list mail ${M}`);
+  await expect(rowsL.last()).toHaveAttribute("aria-setsize", String(M));
+});
+
+test("5,000 task board: a column renders 100 cards and Show more adds the next 100", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await demo(page);
+  await manyTasks(page);
+  const t0 = Date.now();
+  await page.goto("/app/tasks?view=board");
+  const board = page.getByTestId("board");
+  await expect(board).toBeVisible({ timeout: 60_000 });
+  await expect(board.getByText("Long list task 1", { exact: true })).toBeVisible({ timeout: 60_000 });
+  const boardVisibleMs = Date.now() - t0;
+  const cards = await board.getByText(/^Long list task \d+$/).count();
+  const domNodes = await nodes(page);
+  save("board", { tasks: N, renderedCards: cards, domNodes, boardVisibleMs });
+  if (process.env.SHOTS) await page.screenshot({ path: `${DIR}/mb210-${LABEL}-board-5000-desktop-light.png` });
+  if (!AFTER) return;
+
+  expect(cards).toBe(100);
+  expect(domNodes).toBeLessThan(12000);
+  const more = board.getByTestId("board-show-more");
+  await expect(more).toContainText("Show 100 more");
+  await expect(more).toContainText("4,900 left");
+  await more.click();
+  await expect(board.getByText(/^Long list task \d+$/)).toHaveCount(200);
+  await expect(board.getByText("Long list task 200", { exact: true })).toBeAttached();
+});

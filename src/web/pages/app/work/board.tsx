@@ -4,7 +4,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { IconAgent, IconChat, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
+import { IconAgent, IconChat, IconChevronDown, IconFlag, IconGrip, IconMail, IconPlus, IconTasks } from "@/web/components/ui/icon";
 import { Avatar } from "@/web/components/ui/misc";
 import { initials } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
@@ -157,6 +157,8 @@ export function epicKey(t: Pick<Task, "parentId">, cols: { id: string }[]) {
  * Kanban: columns are the project's statuses, or the options of a single select field when
  * `groupBy` is set (plus a column for tasks with no value). Drag a card to move or reorder it.
  */
+const BOARD_PAGE = 100;
+
 export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuickAdd, groupBy, byEpic, limits, onSetLimit }: {
   /** R41 (MB-208): inline rapid add at the foot of each status column (not offered when grouped by a field or epic). */
   onQuickAdd?: (columnId: string, title: string) => Promise<unknown>;
@@ -198,6 +200,9 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
     return t ? overrides[t.id] ?? keyOf(t) : undefined;
   };
   const active = tasks.find((t) => t.id === activeId);
+  // R43 (MB-210): a column renders its first 100 cards, then "Show 100 more", so a 5,000 task board stays light.
+  // Drag and drop works on the rendered cards; a drop on the column itself still lands at its end.
+  const [shown, setShown] = useState<Record<string, number>>({});
 
   const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
   const onDragOver = (e: DragOverEvent) => {
@@ -238,9 +243,23 @@ export function Board({ project, tasks: allTasks, onOpen, onMove, onAdd, onQuick
           <Column key={s.id} id={s.id} title={s.name} color={s.color} count={columns[s.id]?.length ?? 0} onAdd={() => onAdd(s.id)}
             onQuickAdd={onQuickAdd && !groupBy && !byEpic ? (title) => onQuickAdd(s.id, title) : undefined}
             limit={limits?.[s.id]} onSetLimit={onSetLimit ? (v) => onSetLimit(s.id, v) : undefined}>
-            <SortableContext items={(columns[s.id] ?? []).map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {(columns[s.id] ?? []).map((t) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} />)}
-            </SortableContext>
+            {(() => {
+              const list = columns[s.id] ?? [];
+              const n = shown[s.id] ?? BOARD_PAGE;
+              const vis = list.length > n ? list.slice(0, n) : list;
+              const left = list.length - vis.length;
+              return <>
+                <SortableContext items={vis.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                  {vis.map((t) => <SortableCard key={t.id} t={t} project={project} onOpen={() => onOpen(t.id)} />)}
+                </SortableContext>
+                {left > 0 && (
+                  <button type="button" data-testid="board-show-more" onClick={() => setShown((m) => ({ ...m, [s.id]: n + BOARD_PAGE }))}
+                    className="flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-[13px] font-medium text-brand-hover shadow-[var(--shadow-e1)] transition-colors duration-150 hover:bg-hover motion-reduce:transition-none">
+                    <IconChevronDown className="h-4 w-4" aria-hidden />Show {Math.min(BOARD_PAGE, left)} more<span className="font-normal text-subtle">{left.toLocaleString()} left</span>
+                  </button>
+                )}
+              </>;
+            })()}
           </Column>
         ))}
       </div>
