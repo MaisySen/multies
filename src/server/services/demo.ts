@@ -1,6 +1,6 @@
 import { and, eq, lt, notInArray } from "drizzle-orm";
 import type { Deps } from "../context";
-import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, mailConnections, members, messages, organizations, users } from "../db/schema";
+import { aliases, appSettings, auditLogs, deliveries, domains, mailboxes, members, messages, organizations, users } from "../db/schema";
 import { runBatch } from "../db";
 import { decryptSecret, encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
 import { sql } from "drizzle-orm";
@@ -54,36 +54,6 @@ const SAMPLE_INBOUND: { from: { address: string; name: string }; to: string; sub
   },
 ];
 
-/** The host every sample connection points at. .example never resolves (RFC 2606), and sync skips it before any network call. */
-export const SAMPLE_CONNECTION_HOST = "imap.sample.example";
-/** Stored in place of an encrypted password on a sample connection: not a secret, and it never decrypts. */
-export const SAMPLE_CONNECTION_SECRET = "sample:none";
-
-/** True for the demo workspace's sample connected mailbox, which must never reach out to a provider. */
-export function isSampleConnection(c: { imapHost: string; secretEnc: string }) {
-  return c.secretEnc === SAMPLE_CONNECTION_SECRET || c.imapHost.endsWith(".example");
-}
-
-/**
- * R40: one connected mailbox in the demo so Settings, Connections shows a healthy connection. Clearly sample:
- * a .example address and host, no password or token stored, and a next sync far in the future. Two small writes,
- * both essential to the demo (written once per demo, deleted with the workspace).
- */
-async function seedSampleConnection(deps: Deps, orgId: string, domainId: string, userId: string, suffix: string, quotaMb: number) {
-  // The mailbox hangs off the sample domain (a connected mailbox's address never matches its domain row anyway), so
-  // the demo makes no shared platform domain and no new DKIM key.
-  const address = `alex.rivera.${suffix}@personal.example`;
-  const mailboxId = newId("mbx");
-  const now = deps.now().getTime();
-  await deps.db.insert(mailboxes).values({ id: mailboxId, orgId, domainId, localPart: address.split("@")[0]!, address, displayName: "Alex Rivera (sample connected mail)", quotaMb });
-  await deps.db.insert(mailConnections).values({
-    id: newId("mcn"), orgId, mailboxId, provider: "custom", email: address, username: address,
-    imapHost: SAMPLE_CONNECTION_HOST, imapPort: 993, imapSecurity: "tls", smtpHost: "smtp.sample.example", smtpPort: 465, smtpSecurity: "tls",
-    authKind: "password", secretEnc: SAMPLE_CONNECTION_SECRET, status: "active", initialDone: true,
-    messagesSynced: 1248, lastSyncAt: new Date(now - 4 * 60_000), nextSyncAt: new Date(Date.UTC(2100, 0, 1)), createdByUserId: userId,
-  });
-}
-
 /** Creates a throwaway workspace full of realistic sample data. Only reachable when DEMO_MODE is on. */
 export async function createDemoWorkspace(deps: Deps) {
   const suffix = randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, "x").slice(0, 5);
@@ -129,7 +99,6 @@ export async function createDemoWorkspace(deps: Deps) {
   const boxFor = (localPart: string) => boxes.find((b) => b.localPart === localPart)!;
   const alias = (localPart: string, destinations: string[]) => ({ id: newId("als"), orgId, domainId: domain.id, localPart, address: `${localPart}@${domain.name}`, destinations: JSON.stringify(destinations) });
   await deps.db.insert(aliases).values([alias("sales", [founders.address, "alex.rivera@gmail.example"]), alias("team", [founders.address, `support@${domain.name}`])]);
-  await seedSampleConnection(deps, orgId, domain.id, userId, suffix, plan.limits.storagePerMailboxMb);
 
   const now = deps.now().getTime();
   // Sample mail is written straight into the mailboxes in one batch rather than through

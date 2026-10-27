@@ -1,10 +1,10 @@
-import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Gantt, Willow, WillowDark } from "@svar-ui/react-gantt";
 import { useAppearance } from "@/web/components/theme";
 import "@svar-ui/react-gantt/style.css";
 import type { Task } from "./data";
 import { TodayLine } from "./schedule-r38"; // R38: Today line
-import { barSel, LagGaps, LEAD_PILL_ROOM, type GapLink } from "./timeline-gaps-r39"; // R39: lead and lag drawn on the chart
+import { LagGaps, type GapLink } from "./timeline-gaps-r39"; // R39: lead and lag drawn on the chart
 
 const DAY = 86_400_000;
 const fmtMonth = (d: Date) => d.toLocaleDateString("en-AU", { month: "long", year: "numeric" });
@@ -29,42 +29,13 @@ export function barLabelMode(barWidth: number, fullWidth: number, keyWidth: numb
 /** R39: which side of its bar an outside label goes. Right when the whole name fits before the chart's right edge, else
  * left when it fits after the chart's left edge. When neither side holds it on one line, the roomier side, wrapping to
  * that room (`max`), so it never runs past either edge and never gets an ellipsis. Pixels are chart content pixels. */
-export function barOutsideSide(barLeft: number, barRight: number, labelWidth: number, chartWidth: number, gap = 10, edge = 8, leftLimit?: number): { side: "right" | "left"; max?: number; shift?: number } {
+export function barOutsideSide(barLeft: number, barRight: number, labelWidth: number, chartWidth: number, gap = 10, edge = 8): { side: "right" | "left"; max?: number } {
   const rightRoom = chartWidth - edge - (barRight + gap);
-  // R40: a wait band or an "early" pill in the same row sits just left of the bar; a left label moves past it
-  // (`shift` pixels further left) and only has the room before it.
-  const shift = leftLimit != null && leftLimit < barLeft ? Math.ceil(barLeft - leftLimit) : 0;
-  const leftRoom = barLeft - shift - gap - edge;
-  const left = (max?: number) => ({ side: "left" as const, ...(max ? { max } : {}), ...(shift ? { shift } : {}) });
+  const leftRoom = barLeft - gap - edge;
   if (labelWidth <= rightRoom) return { side: "right" };
-  if (labelWidth <= leftRoom) return left();
-  return rightRoom >= leftRoom ? { side: "right", max: Math.max(80, Math.floor(rightRoom)) } : left(Math.max(80, Math.floor(leftRoom)));
+  if (labelWidth <= leftRoom) return { side: "left" };
+  return rightRoom >= leftRoom ? { side: "right", max: Math.max(80, Math.floor(rightRoom)) } : { side: "left", max: Math.max(80, Math.floor(leftRoom)) };
 }
-
-/** R40: the box an outside label takes, in chart content pixels, for the collision checks. */
-export function outsideLabelBox(barLeft: number, barRight: number, labelWidth: number, place: { side: "right" | "left"; max?: number; shift?: number }, gap = 10) {
-  // The label has 6 px of padding each side, pulled out by a 6 px negative margin, so its ink starts `gap` from the bar.
-  const w = place.max ? Math.min(labelWidth, place.max) : labelWidth;
-  const end = barLeft - (place.shift ?? 0) - gap + 6;
-  return place.side === "right" ? { left: barRight + gap - 6, right: barRight + gap - 6 + w + 12 } : { left: end - w - 12, right: end };
-}
-
-/**
- * R40: the left edge of whatever the chart draws just left of a bar in its own row: a wait band starts where its
- * blocker ends, and an "early" pill takes LEAD_PILL_ROOM pixels before the bar. Undefined when nothing is there.
- */
-export function rowLeftLimit(barLeft: number, incoming: { lag: number; srcRight: number | null }[], cellWidth = 36): number | undefined {
-  let limit: number | undefined;
-  for (const l of incoming) {
-    // A wait band runs from the blocker's end to the bar; with the blocker off screen it is lag days wide.
-    const x = l.lag > 0 ? (l.srcRight != null && l.srcRight < barLeft ? l.srcRight : barLeft - l.lag * cellWidth) : barLeft - LEAD_PILL_ROOM;
-    if (x < barLeft) limit = limit == null ? x : Math.min(limit, x);
-  }
-  return limit;
-}
-
-/** Incoming lead or lag links per waiting task, so a bar's label can keep clear of what is drawn in its row. */
-const IncomingGaps = createContext<Map<string, { from: string; lag: number }[]>>(new Map());
 
 type BarRow = { id: string | number; ref?: string; title?: string; text?: string; $w?: number; $x?: number };
 /** Bar content: what fits goes inside, the rest of the name sits beside the bar in normal text colour: on the right,
@@ -79,8 +50,7 @@ function BarLabel({ data }: { data: BarRow }) {
   const name = ref ? `${ref} ${title}` : title;
   const w = data.$w ?? 0;
   const [mode, setMode] = useState<"full" | "key" | "none">("none");
-  const [place, setPlace] = useState<{ side: "right" | "left"; max?: number; shift?: number }>({ side: "right" });
-  const incoming = useContext(IncomingGaps).get(String(data.id).replace(/^:/, ""));
+  const [place, setPlace] = useState<{ side: "right" | "left"; max?: number }>({ side: "right" });
   useLayoutEffect(() => {
     setMode(barLabelMode(w, full.current?.offsetWidth ?? Infinity, ref ? key.current?.offsetWidth ?? Infinity : Infinity));
   }, [w, name, ref]);
@@ -90,16 +60,13 @@ function BarLabel({ data }: { data: BarRow }) {
     const bar = el?.closest<HTMLElement>(".wx-bar");
     const area = el?.closest<HTMLElement>(".wx-area");
     if (!outside || !bar || !area || !outMeasure.current) return;
-    const srcRight = (id: string) => { const b = area.querySelector<HTMLElement>(barSel(id)); return b ? b.offsetLeft + b.offsetWidth : null; };
-    const limit = incoming?.length ? rowLeftLimit(bar.offsetLeft, incoming.map((l) => ({ lag: l.lag, srcRight: srcRight(l.from) }))) : undefined;
-    const next = barOutsideSide(bar.offsetLeft, bar.offsetLeft + bar.offsetWidth, outMeasure.current.offsetWidth, area.scrollWidth || area.offsetWidth, 10, 8, limit);
-    setPlace((p) => (p.side === next.side && p.max === next.max && p.shift === next.shift ? p : next));
-  }, [outside, w, data.$x, incoming]);
+    const next = barOutsideSide(bar.offsetLeft, bar.offsetLeft + bar.offsetWidth, outMeasure.current.offsetWidth, area.scrollWidth || area.offsetWidth);
+    setPlace((p) => (p.side === next.side && p.max === next.max ? p : next));
+  }, [outside, w, data.$x]);
   return (
     <div ref={root} className="mm-bar-label" data-testid="timeline-bar-label" data-mode={mode} data-name={name} data-side={outside ? place.side : undefined}>
       {mode !== "none" && <span className="mm-bar-in">{mode === "full" ? name : ref}</span>}
-      {outside && <span className="mm-bar-out" data-testid="timeline-bar-out" data-wrap={place.max ? "" : undefined} data-shift={place.shift || undefined}
-        style={place.max || place.shift ? { ...(place.max ? { maxWidth: place.max, width: "max-content" } : {}), ...(place.shift && place.side === "left" ? { right: `calc(100% + ${10 + place.shift}px)` } : {}) } : undefined}>{outside}</span>}
+      {outside && <span className="mm-bar-out" data-testid="timeline-bar-out" data-wrap={place.max ? "" : undefined} style={place.max ? { maxWidth: place.max, width: "max-content" } : undefined}>{outside}</span>}
       <span aria-hidden className="mm-bar-in mm-bar-measure" ref={full}>{name}</span>
       <span aria-hidden className="mm-bar-in mm-bar-measure" ref={key}>{ref}</span>
       {outside && <span aria-hidden className="mm-bar-out mm-bar-measure" ref={outMeasure}>{outside}</span>}
@@ -155,11 +122,6 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, onOpen, onDates
   const refs = useMemo(() => new Map(dated.map((t) => [t.id, t.ref])), [dated]);
   // R39: days off shaded (the chart core's own weekend cell class, so the colours follow the theme).
   const offKey = (daysOff ?? []).join(",");
-  const incoming = useMemo(() => {
-    const m = new Map<string, { from: string; lag: number }[]>();
-    for (const l of links) if (l.lag) m.set(l.to, [...(m.get(l.to) ?? []), { from: l.from, lag: l.lag }]);
-    return m;
-  }, [links]);
   const highlight = useCallback((d: Date, unit: "day" | "hour") => (unit === "day" && daysOff?.includes(d.getDay()) ? "wx-weekend" : ""), [offKey]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!rows.length) return <p className="rounded-xl border border-line bg-surface p-6 text-[13px] text-muted" data-testid="task-timeline">No tasks have dates yet. Give a task a start or due date and it shows on the timeline.</p>;
   return (
@@ -167,7 +129,6 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, onOpen, onDates
       <TodayLine root={box} anchor={rows[0] ? { id: rows[0].id, start: rows[0].start } : undefined} cellWidth={36} version={todayKey} />
       <LagGaps root={box} links={links} refs={refs} cellWidth={36} version={todayKey + offKey} workingDays={!!daysOff} />
       {lateCss && <style data-testid="timeline-late-style">{lateCss}</style>}
-      <IncomingGaps.Provider value={incoming}>
       <Theme fonts={false}>
         <Gantt
           tasks={rows} links={arrows as never} start={min} end={max} cellWidth={36} cellHeight={40} scaleHeight={30}
@@ -190,7 +151,6 @@ export function TaskTimeline({ tasks, links = [], late, daysOff, onOpen, onDates
           }}
         />
       </Theme>
-      </IncomingGaps.Provider>
     </div>
   );
 }

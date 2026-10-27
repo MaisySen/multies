@@ -49,19 +49,23 @@ export async function bumpCounter(db: DB, orgId: string, metric: string, now: Da
 }
 
 export async function usage(db: DB, orgId: string, now = new Date()) {
-  const [d, m, ag, a, s, st, am] = await Promise.all([
-    db.select({ n: count() }).from(domains).where(eq(domains.orgId, orgId)).get(),
-    db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "person"))).get(),
-    db.select({ n: count() }).from(mailboxes).where(and(eq(mailboxes.orgId, orgId), eq(mailboxes.kind, "agent"))).get(),
-    db.select({ n: count() }).from(aliases).where(eq(aliases.orgId, orgId)).get(),
+  // R40 (MB-199): one statement with scalar subqueries instead of seven queries. Each query costs the Worker
+  // a round of statement building, binding and result mapping, and this runs on every /api/org and billing read.
+  // The rows read are the same (each subquery uses the same org index as before).
+  const period = periodOf(now);
+  const row = await db.select({
+    d: sql<number>`(select count(*) from ${domains} where ${domains.orgId} = ${orgId})`,
+    m: sql<number>`(select count(*) from ${mailboxes} where ${mailboxes.orgId} = ${orgId} and ${mailboxes.kind} = 'person')`,
+    ag: sql<number>`(select count(*) from ${mailboxes} where ${mailboxes.orgId} = ${orgId} and ${mailboxes.kind} = 'agent')`,
+    a: sql<number>`(select count(*) from ${aliases} where ${aliases.orgId} = ${orgId})`,
     // AI agent members take no seat (they have their own limit, agentMembers).
-    db.select({ n: count() }).from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human"))).get(),
-    db.select({ n: sql<number>`coalesce(sum(${mailboxes.usedBytes}), 0)` }).from(mailboxes).where(eq(mailboxes.orgId, orgId)).get(),
-    readCounter(db, orgId, "agent_messages", now),
-  ]);
+    s: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${orgId} and ${members.kind} = 'human')`,
+    st: sql<number>`(select coalesce(sum(${mailboxes.usedBytes}), 0) from ${mailboxes} where ${mailboxes.orgId} = ${orgId})`,
+    am: sql<number>`(select ${usageCounters.count} from ${usageCounters} where ${usageCounters.orgId} = ${orgId} and ${usageCounters.period} = ${period} and ${usageCounters.metric} = 'agent_messages')`,
+  }).from(sql`(select 1)`).get();
   return {
-    domains: d?.n ?? 0, mailboxes: m?.n ?? 0, agentInboxes: ag?.n ?? 0, aliases: a?.n ?? 0, seats: s?.n ?? 0,
-    storageMb: Math.ceil(Number(st?.n ?? 0) / (1024 * 1024)), agentMessages: am,
+    domains: Number(row?.d ?? 0), mailboxes: Number(row?.m ?? 0), agentInboxes: Number(row?.ag ?? 0), aliases: Number(row?.a ?? 0), seats: Number(row?.s ?? 0),
+    storageMb: Math.ceil(Number(row?.st ?? 0) / (1024 * 1024)), agentMessages: Number(row?.am ?? 0),
   };
 }
 

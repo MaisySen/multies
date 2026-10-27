@@ -115,35 +115,41 @@ export function forgetCachedAuth(headers: Headers) {
 export function clearAuthCache() { authCache.clear(); }
 
 export async function resolveAuthCached(deps: Deps, headers: Headers, method: string, path = ""): Promise<AuthContext | null> {
+  return (await resolveAuthCachedInfo(deps, headers, method, path)).auth;
+}
+
+/** The same, saying whether the answer came from the cache (shown as Server-Timing so production can be measured). */
+export async function resolveAuthCachedInfo(deps: Deps, headers: Headers, method: string, path = ""): Promise<{ auth: AuthContext | null; hit: boolean }> {
   const key = sessionCookieKey(headers);
   // Account routes (the app shell's /me, security, sessions) and the operator console always read the session
   // afresh, so a confirmed address, a new workspace, a revoked session or an operator role change shows at once.
   const read = (method === "GET" || method === "HEAD") && !path.startsWith("/api/account") && !path.startsWith("/api/admin");
-  if (!key) return resolveAuth(deps, headers);
+  if (!key) return { auth: await resolveAuth(deps, headers), hit: false };
   const now = Date.now();
   if (read) {
     const hit = authCache.get(key);
-    if (hit && hit.until > now) return hit.auth;
+    if (hit && hit.until > now) return { auth: hit.auth, hit: true };
   } else {
     authCache.delete(key);
   }
   const auth = await resolveAuth(deps, headers);
   // A write can change what the session points at (accepting an invite, switching workspace), so only reads
   // fill the cache.
-  if (!read) return auth;
+  if (!read) return { auth, hit: false };
   if (auth) {
     if (authCache.size >= AUTH_CACHE_MAX) authCache.delete(authCache.keys().next().value as string);
     authCache.set(key, { auth, until: now + AUTH_CACHE_MS });
   } else {
     authCache.delete(key);
   }
-  return auth;
+  return { auth, hit: false };
 }
 
 /** Requires a valid session; populates `c.var.auth`. */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const auth = await resolveAuthCached(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
+  const { auth, hit } = await resolveAuthCachedInfo(c.var.deps, c.req.raw.headers, c.req.method, c.req.path);
   if (!auth) throw unauthorized();
+  c.header("server-timing", hit ? "auth;desc=cache" : "auth;desc=fresh", { append: true });
   // A workspace that requires SSO only lets password sessions reach account level routes
   // (profile, export, switching workspaces), so the person can still move or leave.
   if (auth.ssoBlocked && !c.req.path.startsWith("/api/account")) {

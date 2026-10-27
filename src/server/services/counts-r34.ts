@@ -8,7 +8,7 @@
  *   { mail: { inbox, important, other }, chat: { unread, mentions }, notifications: { unread }, triage,
  *     tasks: { dueToday, overdue }, at }
  */
-import { and, count, eq, gte, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, count, eq, isNull, lt, ne, sql } from "drizzle-orm";
 import type { Deps } from "../context";
 import { messages, notifications, tasks } from "../db/schema";
 import { inIds } from "../lib/sql-chunks";
@@ -34,15 +34,28 @@ export const EMPTY_COUNTS = (at: Date): Counts => ({
   tasks: { dueToday: 0, overdue: 0 }, at: at.toISOString(),
 });
 
+// R40 (MB-199): an Intl.DateTimeFormat costs real CPU to build, and counts are polled every 15 s, so each zone's
+// formatter is built once per isolate (a zone that fails to build is remembered as invalid).
+const dayFormats = new Map<string, Intl.DateTimeFormat | null>();
+function dayFormat(tz: string): Intl.DateTimeFormat | null {
+  let f = dayFormats.get(tz);
+  if (f === undefined) {
+    try { f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }); } catch { f = null; }
+    if (dayFormats.size >= 500) dayFormats.clear();
+    dayFormats.set(tz, f);
+  }
+  return f;
+}
+
 /** A valid IANA zone, or the default (UTC+10). */
 export function zoneOr(tz: string | undefined | null): string {
   if (!tz) return DEFAULT_SNOOZE_ZONE;
-  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return DEFAULT_SNOOZE_ZONE; }
+  return dayFormat(tz) ? tz : DEFAULT_SNOOZE_ZONE;
 }
 
 /** The instant the person's local day (in `tz`) started and the instant it ends. */
 export function localDay(now: Date, tz: string): { start: Date; end: Date } {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const parts = Object.fromEntries((dayFormat(tz) ?? (dayFormat(DEFAULT_SNOOZE_ZONE) as Intl.DateTimeFormat))
     .formatToParts(now).filter((p) => p.type !== "literal").map((p) => [p.type, Number(p.value)]));
   const asUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour % 24, parts.minute, parts.second);
   const offset = asUtc - Math.floor(now.getTime() / 1000) * 1000; // local minus UTC
@@ -59,12 +72,15 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const mine = a.agentId ? and(eq(tasks.assigneeType, "agent"), eq(tasks.assigneeId, a.agentId)) : and(eq(tasks.assigneeType, "member"), eq(tasks.assigneeId, a.userId));
   const open = and(eq(tasks.orgId, a.orgId), mine, isNull(tasks.deletedAt), ne(tasks.status, "done"), isNull(tasks.triageState));
 
-  const [dueToday, overdue, triage] = await Promise.all([
-    deps.db.select({ n: count() }).from(tasks).where(and(open, gte(tasks.dueAt, now), lt(tasks.dueAt, day.end))).get(),
-    deps.db.select({ n: count() }).from(tasks).where(and(open, lt(tasks.dueAt, now))).get(),
+  // R40 (MB-199): due today and overdue in one statement (the same index range, split by a CASE).
+  const [due, triage] = await Promise.all([
+    deps.db.select({
+      dueToday: sql<number>`coalesce(sum(case when ${tasks.dueAt} >= ${sql.param(now, tasks.dueAt)} then 1 else 0 end), 0)`,
+      overdue: sql<number>`coalesce(sum(case when ${tasks.dueAt} < ${sql.param(now, tasks.dueAt)} then 1 else 0 end), 0)`,
+    }).from(tasks).where(and(open, lt(tasks.dueAt, day.end))).get(),
     triageCount(deps, a),
   ]);
-  out.tasks = { dueToday: Number(dueToday?.n ?? 0), overdue: Number(overdue?.n ?? 0) };
+  out.tasks = { dueToday: Number(due?.dueToday ?? 0), overdue: Number(due?.overdue ?? 0) };
   out.triage = triage;
   if (!person) return out;
 
