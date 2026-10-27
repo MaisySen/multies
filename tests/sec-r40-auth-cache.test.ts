@@ -38,4 +38,24 @@ describe("session cache key (R40 sec)", () => {
     expect(effectiveSessionKey(new Headers({ cookie: "mymail.session_token=a", authorization: "Bearer z" }), false)).toBeNull();
     expect(effectiveSessionKey(new Headers({ cookie: "mymail.session_token=a" }), false)).toBe("a");
   });
+
+  it("a write that can change someone else's access empties the whole isolate copy, other writes do not", async () => {
+    const { app, deps } = await makeTestApp();
+    const a = new Client(app);
+    await a.signup();
+    const b = new Client(app);
+    await b.signup();
+    const aHeaders = new Headers({ cookie: a.cookie, host: "localhost" });
+    const first = await resolveAuthCached(deps, aHeaders, "GET", "/api/tasks");
+    expect(first).not.toBeNull();
+    expect(await resolveAuthCached(deps, aHeaders, "GET", "/api/tasks")).toBe(first);
+    // An ordinary write by someone else leaves A's copy alone.
+    await b.call("POST", "/api/tasks", { title: "x" });
+    expect(await resolveAuthCached(deps, aHeaders, "GET", "/api/tasks")).toBe(first);
+    // Removing a member (even one that does not exist) drops every copy, so A's next read is fresh.
+    await b.call("DELETE", "/api/team/members/usr_nobody");
+    const after = await resolveAuthCached(deps, aHeaders, "GET", "/api/tasks");
+    expect(after).not.toBeNull();
+    expect(after).not.toBe(first);
+  });
 });
