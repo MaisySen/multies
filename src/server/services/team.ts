@@ -4,7 +4,7 @@
  * Multies' stricter role policy, plan seats and per-mailbox access for members.
  */
 import { cancelForDeletion } from "./billing";
-import { and, count, desc, eq, max, ne } from "drizzle-orm";
+import { and, count, desc, eq, max, ne, sql } from "drizzle-orm";
 import type { AuthContext, Deps } from "../context";
 import type { DB } from "../db";
 import { accounts, invitations, mailboxAccess, mailboxes, members, organizations, sessions, users } from "../db/schema";
@@ -68,11 +68,13 @@ export async function confirmPassword(deps: Deps, auth: AuthContext, password: s
 }
 
 export async function seatsUsed(db: DB, orgId: string, now: Date) {
-  const pending = await db.select({ expiresAt: invitations.expiresAt }).from(invitations)
-    .where(and(eq(invitations.organizationId, orgId), eq(invitations.status, "pending")));
-  // AI agent members take no seat.
-  const m = await db.select({ n: count() }).from(members).where(and(eq(members.organizationId, orgId), eq(members.kind, "human"))).get();
-  return { members: m?.n ?? 0, pendingInvites: pending.filter((p) => p.expiresAt > now).length };
+  // R40 (MB-199): one statement instead of two (each D1 query costs the Worker CPU to build and map).
+  // AI agent members take no seat; a pending invite counts until it expires.
+  const row = await db.select({
+    members: sql<number>`(select count(*) from ${members} where ${members.organizationId} = ${orgId} and ${members.kind} = 'human')`,
+    pending: sql<number>`(select count(*) from ${invitations} where ${invitations.organizationId} = ${orgId} and ${invitations.status} = 'pending' and ${invitations.expiresAt} > ${sql.param(now, invitations.expiresAt)})`,
+  }).from(sql`(select 1)`).get();
+  return { members: Number(row?.members ?? 0), pendingInvites: Number(row?.pending ?? 0) };
 }
 
 export async function listMembers(db: DB, orgId: string) {
