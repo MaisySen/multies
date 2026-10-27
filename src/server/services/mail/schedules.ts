@@ -426,4 +426,4 @@ export async function snoozedComingBack(deps: Deps, actor: ScheduleActor, window
     return [{ id: r.id, title: m.subject || "(no subject)", subtitle: m.fromName || m.fromAddress || "", url: `/app/mail?mailbox=${m.mailboxId}&folder=inbox&m=${m.id}`, at: r.dueAt.toISOString() }];
   });
 }
-setSnoozedProvider((deps, actor, window) => snoozedComingBack(deps, { orgId: actor.orgId, userId: actor.userId, role: actor.role ?? "member", agentId: actor.agentId, apiKeyId: actor.apiKeyId, scope: actor.scope }, window));
+setSnoozedProvider((deps, actor, window) => snoozedComingBack(deps, { orgId: actor.orgId, userId: actor.userId, role: actor.role ?? "member", agentId: actor.agentId, apiKeyId: actor.apiKeyId, scope: actor.scope }, window), { probeable: true });

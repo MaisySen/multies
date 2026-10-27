@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 50 (27 Oct 2026)
+
+- My Work (the Home tab on phones) asks the database far less: one check finds which sections have anything, so an empty section costs nothing. Fewer statements per load keeps each request inside the free plan's CPU limit under busy traffic.
+- The 15 minute background pass spreads its hourly housekeeping across the four passes of each hour, so each pass does less work. Jobs, mail, imports, reminders and webhook retries still run every pass.
+
 ### Round 46 (27 Oct 2026)
 
 - Big projects: board, list and backlog now load every task, page by page, so column counts, point totals and the backlog cover all of a project however large it is. The "Showing the first 500" notice is gone.

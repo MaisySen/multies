@@ -526,7 +526,8 @@ const handler = {
   async scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext) {
     const { deps } = await getReady(env);
     // R43: what the maintenance run reports is sent before the run ends.
-    ctx.waitUntil(runMaintenanceIfMigrated(deps).finally(() => flushReporting()));
+    // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
+    ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));
   },
 };
 

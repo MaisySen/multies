@@ -16,10 +16,11 @@
  * - tasks, docs, contacts, deals: the caller's workspace, as in the suite API;
  * - a project guest: that project's tasks and docs, and its guest channels. Nothing else.
  */
-import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lt, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, exists, gt, gte, inArray, isNotNull, isNull, lt, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import type { Deps } from "../context";
 import {
   chatChannels, chatMembers, chatMessages, contacts, deals, docs, messages, notifications, projects, sendApprovals, agents as agentsTable, tasks, users, organizations,
+  mailSchedules, mailThreadState, meetings,
 } from "../db/schema";
 import { HttpError } from "../lib/errors";
 import { scopeOf, type SuiteActor } from "./suite/common";
@@ -285,7 +286,9 @@ export interface MyWork {
  */
 export type SnoozedProvider = (deps: Deps, actor: SuiteActor, window: { from: Date; to: Date }) => Promise<MyWorkItem[]>;
 let snoozedProvider: SnoozedProvider | null = null;
-export function setSnoozedProvider(p: SnoozedProvider | null) { snoozedProvider = p; }
+/** R50: true when the provider is the built in snooze table, which My Work's probe can check in its one statement. */
+let snoozedProbeable = false;
+export function setSnoozedProvider(p: SnoozedProvider | null, opts: { probeable?: boolean } = {}) { snoozedProvider = p; snoozedProbeable = Boolean(p && opts.probeable); }
 
 /** True when the database has this table (D1 and SQLite both keep sqlite_master). */
 export async function tableExists(deps: Deps, name: string) {
@@ -305,15 +308,35 @@ function validZone(tz: string | null | undefined) {
   try { dateFormat("en", { timeZone: tz }); return tz; } catch { return null; }
 }
 
-async function zoneOf(deps: Deps, actor: SuiteActor, tz?: string | null) {
+/**
+ * R50 (CPU limit): the zone and one flag per My Work section, in one statement. A flag is true when the section's
+ * own query could return a row (same table and filters, without the mailbox scope, limits or the exact day), so a
+ * false flag means the section is empty and its statements are skipped. snoozed is null when it was not probed
+ * (a provider other than the built in one decides for itself).
+ */
+async function myWorkProbe(deps: Deps, actor: SuiteActor, me: { type: "agent" | "member"; id: string } | null, now: Date, horizon: Date, tz: string | null | undefined, probeSnoozed: boolean) {
+  const yes = sql<number>`1`;
+  const no = sql<number>`0`;
+  const viewer = actor.agentId ? null : actor.userId || null;
+  const cutoff = new Date(now.getTime() - 3 * 3600_000);
   const given = validZone(tz);
-  if (given) return given;
-  // R41 (MB-199 CPU): the person's zone and the workspace's in one statement (each D1 query costs CPU).
   const r = await deps.db.select({
-    u: actor.userId ? sql<string | null>`(select ${users.timezone} from ${users} where ${users.id} = ${actor.userId})` : sql<string | null>`null`,
-    o: sql<string | null>`(select ${organizations.timezone} from ${organizations} where ${organizations.id} = ${actor.orgId})`,
+    u: !given && actor.userId ? sql<string | null>`(select ${users.timezone} from ${users} where ${users.id} = ${actor.userId})` : sql<string | null>`null`,
+    o: given ? sql<string | null>`null` : sql<string | null>`(select ${organizations.timezone} from ${organizations} where ${organizations.id} = ${actor.orgId})`,
+    threads: me ? sql<number>`${exists(deps.db.select({ x: yes }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.threadId), ne(tasks.status, "done"), isNull(tasks.deletedAt), isNull(tasks.triageState), eq(tasks.assigneeType, me.type), eq(tasks.assigneeId, me.id))))}` : no,
+    mentions: actor.userId && !isKey(actor) ? sql<number>`${exists(deps.db.select({ x: yes }).from(notifications).where(and(eq(notifications.userId, actor.userId), eq(notifications.orgId, actor.orgId), inArray(notifications.type, ["chat.mention", "task.mentioned"]), gte(notifications.createdAt, new Date(now.getTime() - 14 * 86_400_000)))))}` : no,
+    approvals: sql<number>`${exists(deps.db.select({ x: yes }).from(sendApprovals).where(and(eq(sendApprovals.orgId, actor.orgId), eq(sendApprovals.status, "pending"), gt(sendApprovals.expiresAt, now))))}`,
+    meetings: sql<number>`${exists(deps.db.select({ x: yes }).from(meetings).where(and(eq(meetings.orgId, actor.orgId), isNull(meetings.deletedAt),
+      or(gte(meetings.startsAt, cutoff), isNotNull(meetings.recurrence)), or(lt(meetings.startsAt, horizon), isNotNull(meetings.recurrence)))))}`,
+    assigned: viewer ? sql<number>`${exists(deps.db.select({ x: yes }).from(mailThreadState).where(and(eq(mailThreadState.orgId, actor.orgId), eq(mailThreadState.assigneeUserId, viewer), eq(mailThreadState.status, "open"))))}` : no,
+    snoozed: probeSnoozed && actor.userId ? sql<number>`${exists(deps.db.select({ x: yes }).from(mailSchedules).where(and(eq(mailSchedules.status, "pending"), gt(mailSchedules.dueAt, new Date(now.getTime() - 86_400_000)), lte(mailSchedules.dueAt, horizon), eq(mailSchedules.orgId, actor.orgId), eq(mailSchedules.kind, "snooze"), eq(mailSchedules.userId, actor.userId))))}` : probeSnoozed ? no : sql<number | null>`null`,
   }).from(sql`(select 1)`).get();
-  return validZone(r?.u) ?? validZone(r?.o) ?? "UTC";
+  const flag = (v: unknown) => Number(v ?? 0) > 0;
+  return {
+    timeZone: given ?? validZone(r?.u) ?? validZone(r?.o) ?? "UTC",
+    threads: flag(r?.threads), mentions: flag(r?.mentions), approvals: flag(r?.approvals), meetings: flag(r?.meetings), assigned: flag(r?.assigned),
+    snoozed: r?.snoozed === null || r?.snoozed === undefined ? null : flag(r.snoozed),
+  };
 }
 
 /**
@@ -323,11 +346,16 @@ async function zoneOf(deps: Deps, actor: SuiteActor, tz?: string | null) {
 export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: string | null; snoozed?: SnoozedProvider | null } = {}): Promise<MyWork> {
   const started = Date.now();
   const now = deps.now();
-  const timeZone = await zoneOf(deps, actor, opts.timeZone);
-  const today = dayIn(now, timeZone);
   const me = actor.agentId ? { type: "agent" as const, id: actor.agentId } : actor.userId ? { type: "member" as const, id: actor.userId } : null;
   // Wide enough to hold the end of today in any zone; the exact day is checked per task below.
   const horizon = new Date(now.getTime() + 2 * 86_400_000);
+  const provider = opts.snoozed === undefined ? snoozedProvider : opts.snoozed;
+  // R50 (CPU limit): one probe statement answers the zone and which sections have anything at all, so an empty
+  // section costs no statement of its own (each D1 statement costs the Worker CPU; My Work is the phone Home tab).
+  // Every flag is a superset of its section's own query, so a section with data is never skipped.
+  const probe = await myWorkProbe(deps, actor, me, now, horizon, opts.timeZone, provider !== null && provider === snoozedProvider && snoozedProbeable);
+  const timeZone = probe.timeZone;
+  const today = dayIn(now, timeZone);
 
   const dueTasks = async () => {
     if (!me) return [];
@@ -339,7 +367,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
   };
 
   const threadTasks = async () => {
-    if (!me) return [];
+    if (!me || !probe.threads) return [];
     const scope = await scopeOf(deps, actor);
     const rows = await deps.db.select({ id: tasks.id, title: tasks.title, threadId: tasks.threadId, messageId: tasks.messageId, sourceFrom: tasks.sourceFrom, sourceSubject: tasks.sourceSubject, updatedAt: tasks.updatedAt })
       .from(tasks).where(and(eq(tasks.orgId, actor.orgId), isNotNull(tasks.threadId), ne(tasks.status, "done"), isNull(tasks.deletedAt), isNull(tasks.triageState), eq(tasks.assigneeType, me.type), eq(tasks.assigneeId, me.id)))
@@ -358,7 +386,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
   };
 
   const mentions = async (): Promise<MyWorkItem[]> => {
-    if (!actor.userId || isKey(actor)) return [];
+    if (!actor.userId || isKey(actor) || !probe.mentions) return [];
     const since = new Date(now.getTime() - 14 * 86_400_000);
     const rows = await deps.db.select().from(notifications)
       .where(and(eq(notifications.userId, actor.userId), eq(notifications.orgId, actor.orgId), inArray(notifications.type, ["chat.mention", "task.mentioned"]), gte(notifications.createdAt, since)))
@@ -373,6 +401,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
   };
 
   const approvals = async (): Promise<MyWorkItem[]> => {
+    if (!probe.approvals) return [];
     const scope = await scopeOf(deps, actor);
     if (scope && !scope.length && !actor.agentId) return [];
     const rows = await deps.db.select({ a: sendApprovals, agentName: agentsTable.name }).from(sendApprovals).leftJoin(agentsTable, eq(agentsTable.id, sendApprovals.agentId))
@@ -388,6 +417,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
   };
 
   const meetingsToday = async (): Promise<MyWorkItem[]> => {
+    if (!probe.meetings) return [];
     const { listMeetings } = await import("./suite/meetings");
     const list = await listMeetings(deps, actor, { upcoming: true, limit: 200, to: horizon });
     return list.filter((m) => m.status !== "cancelled" && dayIn(new Date(m.startsAt), timeZone) === today)
@@ -400,8 +430,8 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
   };
 
   const snoozed = async (): Promise<MyWorkItem[] | null> => {
-    const provider = opts.snoozed === undefined ? snoozedProvider : opts.snoozed;
     if (!provider) return null;
+    if (probe.snoozed === false) return [];
     const from = new Date(now.getTime() - 86_400_000);
     try { return await provider(deps, actor, { from, to: horizon }); } catch (err) {
       deps.reportError?.(err, { where: "my_work.snoozed" });
@@ -409,7 +439,7 @@ export async function myWork(deps: Deps, actor: SuiteActor, opts: { timeZone?: s
     }
   };
 
-  const assignedP = import("./mail/thread-state").then((m) => m.myAssignedThreads(deps, actor));
+  const assignedP = probe.assigned ? import("./mail/thread-state").then((m) => m.myAssignedThreads(deps, actor)) : Promise.resolve([]);
   const [due, threads, ment, appr, meets, snz] = await Promise.all([dueTasks(), threadTasks(), mentions(), approvals(), meetingsToday(), snoozed()]);
   const assignedThreads = await assignedP;
   const asItem = (t: (typeof due)[number]): MyWorkItem => ({

@@ -28,7 +28,13 @@ import "./suite/push";
  * DNS, expire sessions, purge old sandboxes, apply billing grace periods and prune
  * short-lived tables. Each step is isolated so one failure cannot stop the others.
  */
-export async function runMaintenance(deps: Deps) {
+export async function runMaintenance(deps: Deps, opts: { rotate?: boolean } = {}) {
+  // R50 (CPU limit): the 15 minute cron pass cost the Worker 50 to 60 ms of CPU, about 27 statements each time. With
+  // rotate (the cron sets it) housekeeping that can wait an hour runs in one of the four passes of each hour, a
+  // different group each quarter, so a pass carries about 10 fewer statements. Work people wait on (jobs, mail,
+  // imports, reminders, triggers, webhook retries, approvals) still runs every pass. Without rotate everything runs.
+  const slot = opts.rotate ? Math.floor(deps.now().getUTCMinutes() / 15) : -1;
+  const inSlot = (k: number) => slot < 0 || slot === k;
   const step = async <T>(name: string, fn: () => Promise<T>): Promise<T | undefined> => {
     try { return await fn(); } catch (err) {
       // A busy or briefly unavailable database is not a bug: the step runs again on the next pass.
@@ -51,9 +57,9 @@ export async function runMaintenance(deps: Deps) {
   // together: one after another they were a chain of round trips (Sentry MYMAIL-API-4).
   const [uptime, crossChecks, legacy, dunning, approvalsExpired, reminders, , writes] = await Promise.all([
     step("uptime", () => recordUptimeCheck(deps)),
-    step("cross_check", () => crossCheck(deps)),
-    step("legacy", () => legacyMaintenance(deps)),
-    step("dunning", () => enforceGracePeriods(deps)),
+    inSlot(2) ? step("cross_check", () => crossCheck(deps)) : Promise.resolve(undefined),
+    step("legacy", () => legacyMaintenance(deps, inSlot(0))),
+    inSlot(2) ? step("dunning", () => enforceGracePeriods(deps)) : Promise.resolve(undefined),
     step("approvals", () => expireApprovals(deps)),
     step("due_reminders", async () => (await import("./suite/automations")).runDueReminders(deps)),
     // R24.4: due_passed rules (reads only when there are none; pauses at a warn or shed write budget).
@@ -68,7 +74,7 @@ export async function runMaintenance(deps: Deps) {
   // R28 (DF-3 slice 3): schedule triggers that are due queue agent runs. One read on a partial index; idle writes nothing.
   const agentTriggers = await step("agent_triggers", async () => (await import("./suite/agent-triggers")).runDueTriggers(deps));
   // R35 (Apple 1.2): mails the operator about open reports at most once per 15 minutes. One read when none are open.
-  await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
+  if (inSlot(3)) await step("ugc_reports_mail", async () => (await import("./suite/reports-r35")).mailOperator(deps));
   // Independent deletes on different tables, sent together rather than one after another.
   // R48 (MB-235): write out this isolate's per workspace write tallies, and drop daily counters older than a week.
   await step("workspace_budget", async () => {
@@ -76,7 +82,7 @@ export async function runMaintenance(deps: Deps) {
     await wb.flushAllWorkspaces(deps);
     if (deps.now().getUTCHours() === 1 && deps.now().getUTCMinutes() < 15) await wb.pruneWorkspaceCounters(deps);
   });
-  await step("prune", async () => {
+  if (inSlot(1)) await step("prune", async () => {
     await Promise.all([
       pruneRateLimits(deps.db, deps.now().getTime()), pruneIdempotencyKeys(deps.db, deps.now()), pruneLockouts(deps.db, deps.now()),
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
@@ -110,7 +116,7 @@ let migratedInIsolate = false;
  * `agent_events` and `send_approvals` queried seconds before migration 0013 ran. Once the
  * database is fully migrated the answer is cached, so the check costs one query per isolate.
  */
-export async function runMaintenanceIfMigrated(deps: Deps) {
+export async function runMaintenanceIfMigrated(deps: Deps, opts: { rotate?: boolean } = {}) {
   const client = (deps.db as unknown as { $client: object }).$client;
   if (!migratedInIsolate && !migratedClients.has(client)) {
     const pending = await pendingMigrations(migrationDriver(client));
@@ -121,17 +127,18 @@ export async function runMaintenanceIfMigrated(deps: Deps) {
     migratedClients.add(client);
     migratedInIsolate = true;
   }
-  return runMaintenance(deps);
+  return runMaintenance(deps, opts);
 }
 
-async function legacyMaintenance(deps: Deps) {
+async function legacyMaintenance(deps: Deps, housekeeping = true) {
+  const skip = Promise.resolve(undefined);
   const [rechecked, , , purged, webhooksRetried] = await Promise.all([
-    recheckStaleDomains(deps),
-    deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now())),
-    deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now())),
-    deps.config.demoEnabled ? purgeDemoWorkspaces(deps) : Promise.resolve(0),
+    housekeeping ? recheckStaleDomains(deps) : Promise.resolve([]),
+    housekeeping ? deps.db.delete(sessions).where(lt(sessions.expiresAt, deps.now())) : skip,
+    housekeeping ? deps.db.delete(verifications).where(lt(verifications.expiresAt, deps.now())) : skip,
+    housekeeping && deps.config.demoEnabled ? purgeDemoWorkspaces(deps) : Promise.resolve(0),
     retryDueDeliveries(deps),
-    pruneDeliveries(deps),
+    housekeeping ? pruneDeliveries(deps) : skip,
   ]);
   return { rechecked: rechecked.length, purged, webhooksRetried };
 }

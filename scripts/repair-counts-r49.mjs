@@ -26,6 +26,10 @@ export const CHECK = [
   `SELECT 'buckets_off' AS what, count(*) AS n FROM (
      SELECT project_id, status, count(*) AS n FROM tasks WHERE org_id = ${O} AND ${live} GROUP BY project_id, status
      EXCEPT SELECT project_id, status, n FROM project_status_counts WHERE org_id = ${O} AND n > 0)`,
+  // R50: the other direction too, a stored bucket that no longer matches any live task.
+  `SELECT 'buckets_extra' AS what, count(*) AS n FROM (
+     SELECT project_id, status, n FROM project_status_counts WHERE org_id = ${O} AND n > 0
+     EXCEPT SELECT project_id, status, count(*) FROM tasks WHERE org_id = ${O} AND ${live} GROUP BY project_id, status)`,
 ];
 export const REPAIR = [
   `UPDATE tasks SET
