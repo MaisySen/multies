@@ -19,11 +19,11 @@
  */
 import { and, asc, eq, gte, inArray, isNull, like, ne, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { activity, activityFeed, organizations, projects, sprints, tasks, users } from "../../db/schema";
+import { activity, activityFeed, changes, organizations, projects, sprints, tasks, users } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, sortableId, actorOf, type SuiteActor } from "./common";
 import { endOfDayIn, sprintDate, sprintDateAliases, startOfDayIn, todayIn } from "./sprint-dates";
-import { listTasks, resolveTaskId, type Task } from "./tasks";
+import { listTasks, listTasksPage, resolveTaskId, type Task } from "./tasks";
 import { dateFormat, dayInZone } from "../../lib/intl-cache";
 import { inIds } from "../../lib/sql-chunks";
 import { TASK_LIST_LIMIT } from "../../../shared/task-list-limit";
@@ -254,6 +254,7 @@ export async function completeSprint(deps: Deps, actor: SuiteActor, id: string, 
   await runBatch(deps.db, [
     deps.db.update(sprints).set(set).where(and(eq(sprints.id, s.id), eq(sprints.orgId, actor.orgId))),
     ...chunk(open, 90).map((ids) => deps.db.update(tasks).set({ sprintId: next?.id ?? null, updatedAt: now, version: sql`${tasks.version} + 1` }).where(and(eq(tasks.orgId, actor.orgId), inArray(tasks.id, ids)))),
+    ...feedRows(deps, actor.orgId, open, now), // R46 (MB-234)
   ]);
   return { sprint: presentSprint({ ...s, ...set }), carriedOver: open.length, carriedTo: next ? { type: "sprint" as const, sprint: next } : { type: "backlog" as const } };
 }
@@ -296,6 +297,8 @@ async function moveTasks(deps: Deps, actor: SuiteActor, s: SprintRow | null, pro
       }));
     }
   }
+  // R46 (MB-234): one feed row per moved task, so open boards and backlogs that follow the change feed see the move.
+  statements.push(...feedRows(deps, actor.orgId, moving.map((t) => t.id), now));
   await runBatch(deps.db, statements);
   return { moved: moving.length };
 }
@@ -454,3 +457,16 @@ export async function backlog(deps: Deps, actor: SuiteActor, projectId: string):
   return list.filter((t) => t.status !== "done");
 }
 
+/** R46 (MB-234): the backlog page by page (and the few tasks the change feed names), so a project of any size shows all of it. */
+export async function backlogPage(deps: Deps, actor: SuiteActor, projectId: string, opts: { cursor?: string; ids?: string[] }) {
+  await projectOf(deps, actor.orgId, projectId);
+  return listTasksPage(deps, actor, { projectId, sprintId: null, queryConds: [ne(tasks.status, "done")], cursor: opts.cursor, ids: opts.ids });
+}
+
+
+/** R46 (MB-234): feed only change rows (no activity fields) for tasks a sprint move or carry over touched. */
+function feedRows(deps: Deps, orgId: string, ids: string[], now: Date) {
+  const out: PromiseLike<unknown>[] = [];
+  for (let i = 0; i < ids.length; i += 14) out.push(deps.db.insert(changes).values(ids.slice(i, i + 14).map((id) => ({ orgId, entityType: "task", entityId: id, op: "update" as const, version: 1, createdAt: now }))));
+  return out;
+}

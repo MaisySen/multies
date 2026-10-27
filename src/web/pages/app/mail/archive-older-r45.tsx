@@ -10,7 +10,6 @@ import { Spinner } from "@/web/components/ui/spinner";
 import { IconArchive } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { cn } from "@/web/lib/cn";
-import { olderCountWords } from "./archive-older-offer"; // R46
 
 export type OlderPreset = "week" | "month" | "quarter" | "year";
 export const OLDER_PRESETS: { id: OlderPreset; label: string; hint: string }[] = [
@@ -30,10 +29,8 @@ export function olderCut(preset: OlderPreset, now: Date = new Date()): string {
   return d.toISOString();
 }
 
-export function ArchiveOlderSheet({ open, onClose, mailboxId, asOf, onRun, everyTab = false }: {
+export function ArchiveOlderSheet({ open, onClose, mailboxId, asOf, onRun }: {
   open: boolean; onClose: () => void; mailboxId: string; asOf: string;
-  /** R46: split tabs are on; the job and the count cover every tab, and the words say so. */
-  everyTab?: boolean;
   onRun: (before: string, count: number) => void;
 }) {
   const [preset, setPreset] = useState<OlderPreset>("month");
@@ -56,10 +53,12 @@ export function ArchiveOlderSheet({ open, onClose, mailboxId, asOf, onRun, every
   const n = ready ? Math.min(ready.total, ready.max) : 0;
   const words = failed ? "Couldn't count that mail. Try again in a moment."
     : !ready ? "Counting…"
-      : olderCountWords(ready.total, ready.max, everyTab);
+      : ready.total === 0 ? "Nothing in your Inbox is that old."
+        : ready.total > ready.max ? `${ready.total.toLocaleString()} emails. The oldest ${ready.max.toLocaleString()} move now; run it again for the rest.`
+          : `${ready.total.toLocaleString()} ${ready.total === 1 ? "email moves" : "emails move"} to Archive.`;
   return (
     <Dialog open={open} onClose={onClose} title="Archive older mail"
-      description={everyTab ? "Inbox mail dated before the cut moves to Archive, from every Inbox tab, not only this one. New mail stays where it is, and you can undo it." : "Inbox mail dated before the cut moves to Archive. New mail stays where it is, and you can undo it."}
+      description="Inbox mail dated before the cut moves to Archive. New mail stays where it is, and you can undo it."
       footer={<>
         <Button variant="secondary" onClick={onClose}>Cancel</Button>
         <Button data-testid="archive-older-run" disabled={!ready || n === 0} onClick={() => { onRun(before, n); onClose(); }}>
