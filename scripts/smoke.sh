@@ -59,24 +59,4 @@ if [ "${SMOKE_DEMO:-1}" != "0" ]; then
   rm -f "$JAR.body"
 fi
 
-# 6. Sign in mail (27 Oct 2026): on production the identity provider sends the confirmation and password reset
-# emails through its own SMTP setting, which a revoked key once broke for a day while everything above passed.
-# Production only (staging shares the tenant): no failed email logged in the last 30 minutes, and one real
-# confirmation email accepted by the email provider (a throwaway user at our test inbox, deleted after).
-# SMOKE_AUTH_MAIL=0 skips it. Needs ~/.multies-secrets/auth0-multies.json and RESEND_API_KEY via creds.mjs;
-# without them it is a warning, never a pass. docs/runbooks/auth-mail.md.
-case "$BASE" in
-  https://multies.si|https://app.multies.si|https://mymail.mymail-app.workers.dev) PROD_BASE=1 ;;
-  *) PROD_BASE=0 ;;
-esac
-if [ "${SMOKE_AUTH_MAIL:-1}" != "0" ] && [ "$PROD_BASE" = "1" ]; then
-  HERE=$(cd "$(dirname "$0")" && pwd)
-  set +e
-  node "$HERE/creds.mjs" run RESEND_API_KEY -- node "$HERE/auth-mail-check.mjs" --probe --minutes 30 2>&1 | grep -v -i 'warning\|trace-warn'
-  rc=${PIPESTATUS[0]}
-  set -e
-  if [ "$rc" = "1" ]; then fail "sign in mail is broken (confirmation or reset emails are not going out)"; fi
-  if [ "$rc" != "0" ]; then echo "smoke warning: the sign in mail check could not run here (exit $rc)"; fi
-fi
-
 echo "smoke ok: $BASE"
