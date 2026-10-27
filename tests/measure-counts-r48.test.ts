@@ -39,7 +39,7 @@ describe.skipIf(!OUT)("measure D1 rows per task list call (R48)", () => {
     // dump: schema (tables first, then indexes and triggers after the data) and every row
     const master = raw.prepare("select type, name, sql from sqlite_master where sql is not null and name not like 'sqlite_%'").all() as { type: string; name: string; sql: string }[];
     const tables = master.filter((m) => m.type === "table" && !/^_cf_|^d1_/.test(m.name));
-    const rows: Record<string, unknown[]> = {};
+    const rows: Record<string, unknown> = {};
     for (const t of tables) rows[t.name] = raw.prepare(`select * from "${t.name}"`).all();
     const dump = { tables: tables.map((t) => ({ name: t.name, sql: t.sql })), after: master.filter((m) => m.type === "index" || m.type === "trigger").map((m) => m.sql), rows };
 
@@ -60,7 +60,7 @@ describe.skipIf(!OUT)("measure D1 rows per task list call (R48)", () => {
       void wrap;
       return proxy;
     };
-    const v1 = async (path: string) => app.request(`/api/v1${path}`, { headers: { authorization: `Bearer ${key}`, host: "localhost" } }).then((r) => r.json());
+    const v1 = async (path: string) => (await app.request(`/api/v1${path}`, { headers: { authorization: `Bearer ${key}`, host: "localhost" } })).json();
     const forget = async () => { try { (await import("@/server/services/suite/tasks")).forgetProjectCounts(); } catch { /* older builds */ } };
 
     phase = "list50"; await c.get(`/api/tasks?projectId=${p.id}&limit=50`);
