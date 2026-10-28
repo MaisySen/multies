@@ -22,7 +22,16 @@ export interface FetchedMessage {
   source?: Uint8Array;
   /** Headers only, for messages over the size limit. */
   envelope?: { subject?: string; messageId?: string; date?: Date; from?: { address?: string; name?: string } };
+  /**
+   * R53: set by the sync when the body was not downloaded because the message is already known: `known` is the stored
+   * copy's Message-ID (same mailbox), `dup` means an earlier folder in the same pass already brought the same message.
+   */
+  known?: string;
+  dup?: boolean;
 }
+
+/** R53: which of the fetched headers still need their body (the rest are already stored or already in this pass). */
+export type NeedSource = (heads: FetchedMessage[]) => Promise<Set<number>> | Set<number>;
 
 export interface ImapSession {
   folders(): Promise<FolderPaths>;
@@ -35,9 +44,12 @@ export interface ImapSession {
   searchSince(since: Date): Promise<number[]>;
   /** UIDs above `uid` in the open folder. */
   uidsAfter(uid: number): Promise<number[]>;
-  fetch(uids: number[], maxBytes: number): Promise<FetchedMessage[]>;
-  /** Flags of every message with a UID in [lo, hi]. */
-  flags(lo: number, hi: number): Promise<Map<number, Set<string>>>;
+  fetch(uids: number[], maxBytes: number, needSource?: NeedSource): Promise<FetchedMessage[]>;
+  /**
+   * Flags of every message with a UID in [lo, hi]. R53: with `changedSince` (a CONDSTORE mod-sequence) only the
+   * messages whose flags changed after it (servers without CONDSTORE answer every message, which is still correct).
+   */
+  flags(lo: number, hi: number, opts?: { changedSince?: string }): Promise<Map<number, Set<string>>>;
   addFlags(uids: number[], flags: string[]): Promise<void>;
   removeFlags(uids: number[], flags: string[]): Promise<void>;
   /** Moves mail; answers old UID to new UID in `dest` when the server says (UIDPLUS), else null. */
@@ -97,7 +109,7 @@ class FlowSession implements ImapSession {
     return (r || []).map(Number).filter((u) => u > uid).sort((a, b) => a - b);
   }
 
-  async fetch(uids: number[], maxBytes: number) {
+  async fetch(uids: number[], maxBytes: number, needSource?: NeedSource) {
     if (!uids.length) return [];
     const heads: FetchedMessage[] = [];
     for await (const m of this.c.fetch(range(uids), { uid: true, flags: true, size: true, envelope: true }, { uid: true })) {
@@ -107,7 +119,9 @@ class FlowSession implements ImapSession {
         envelope: e ? { subject: e.subject, messageId: e.messageId, date: e.date ? new Date(e.date) : undefined, from: e.from?.[0] ? { address: e.from[0].address, name: e.from[0].name } : undefined } : undefined,
       });
     }
-    const small = heads.filter((h) => h.size <= maxBytes).map((h) => h.uid);
+    // R53: no body download (and no MIME parse later) for mail the sync already holds.
+    const want = needSource ? await needSource(heads) : undefined;
+    const small = heads.filter((h) => h.size <= maxBytes && (!want || want.has(h.uid))).map((h) => h.uid);
     if (small.length) {
       const byUid = new Map(heads.map((h) => [h.uid, h]));
       for await (const m of this.c.fetch(range(small), { uid: true, source: true }, { uid: true })) {
@@ -118,10 +132,11 @@ class FlowSession implements ImapSession {
     return heads.sort((a, b) => a.uid - b.uid);
   }
 
-  async flags(lo: number, hi: number) {
+  async flags(lo: number, hi: number, opts: { changedSince?: string } = {}) {
     const out = new Map<number, Set<string>>();
     if (hi < lo) return out;
-    for await (const m of this.c.fetch(`${lo}:${hi}`, { uid: true, flags: true }, { uid: true })) out.set(Number(m.uid), new Set(m.flags ?? []));
+    const since = opts.changedSince && /^\d+$/.test(opts.changedSince) ? { changedSince: BigInt(opts.changedSince) } : {};
+    for await (const m of this.c.fetch(`${lo}:${hi}`, { uid: true, flags: true }, { uid: true, ...since })) out.set(Number(m.uid), new Set(m.flags ?? []));
     return out;
   }
 

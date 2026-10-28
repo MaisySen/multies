@@ -9,7 +9,6 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addChecklistItems, checklistItemToSubtask, CHECKLIST_TITLE_MAX, deleteChecklistItem, listChecklist, reorderChecklist, updateChecklistItem } from "../services/suite/checklists";
 import type { Scoped } from "./mcp-server";
-import { mcpIds } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -33,7 +32,7 @@ export function registerChecklistTools(server: McpServer, deps: Deps, actor: Sco
     },
   }, tool(async (x: { taskId: string; items: { title: string; done?: boolean; assignee?: string | null; due?: string | null }[] }) => {
     writable();
-    return { items: await addChecklistItems(deps, a, x.taskId, x.items, await mcpIds("chk", Math.min(Array.isArray(x.items) ? x.items.length : 1, 200))) };
+    return { items: await addChecklistItems(deps, a, x.taskId, x.items) };
   }) as never);
 
   server.registerTool("update_checklist_item", {

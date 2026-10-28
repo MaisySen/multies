@@ -131,17 +131,6 @@ export function idempotentRetry(req: Request): boolean {
   return seeds.get(req)?.retry === true;
 }
 
-/** R53 (MB-239): the ids an import run keeps on a retry (its run row and a new project), {} without a key. */
-export async function idempotentRunKeys(req: Request): Promise<{ moveId?: string; projectId?: string; retry?: boolean }> {
-  const run = await idempotentCreate(req, "mov");
-  return run.id ? { moveId: run.id, projectId: await idempotentId(req, "prj"), retry: run.retry } : {};
-}
-
-/** R53 (MB-239): true when this request carries an Idempotency-Key the middleware took (so creates get stable ids). */
-export function hasIdempotencySeed(req: Request): boolean {
-  return seeds.has(req);
-}
-
 /** R52 (MB-239): idempotentId() plus whether this is a retry, as one options object for a service create. */
 export async function idempotentCreate(req: Request, prefix: string): Promise<{ id?: string; retry?: boolean }> {
   const id = await idempotentId(req, prefix);

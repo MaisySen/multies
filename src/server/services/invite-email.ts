@@ -5,7 +5,7 @@
  */
 import { createElement } from "react";
 import type { Deps } from "../context";
-import { Invite as InviteEmail } from "../emails";
+// R53 (cold start): the template loads on the first invite sent, not at isolate startup.
 import { emailBrand, sendSystemEmail, type SystemEmailResult } from "./system-mail";
 
 /* R41 (MB-228): what the last send of each invitation answered, so POST /api/team/invites can say the truth
@@ -32,7 +32,7 @@ export async function sendInviteEmail(deps: Deps, data: InviteEmailData) {
   const r = await sendSystemEmail(deps, {
     to: data.email, orgId: data.organization.id,
     subject: `${data.inviter.name} invited you to ${data.organization.name} on ${config.appName}`,
-    template: "invite", element: createElement(InviteEmail, {
+    template: "invite", element: createElement((await import("../emails")).Invite, {
       brand: emailBrand(deps), inviter: data.inviter.name, inviterEmail: data.inviter.email,
       workspace: data.organization.name, role: data.role, url,
     }),

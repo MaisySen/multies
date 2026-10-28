@@ -9,7 +9,6 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { listMoves, runMove, startExport, undoMove } from "../services/data-move/service";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -38,8 +37,7 @@ export function registerDataMoveTools(server: McpServer, deps: Deps, actor: Scop
     inputSchema: { kind: z.enum(["tasks", "calendar", "contacts", "docs", "workspace"]), content: z.string().min(1).max(8_000_000), fileName: z.string().max(255).optional(), projectId: z.string().optional(), projectName: z.string().max(120).optional(), moveId: z.string().optional() },
   }, tool(async (x: { kind: "tasks" | "calendar" | "contacts" | "docs" | "workspace"; content: string; fileName?: string; projectId?: string; projectName?: string; moveId?: string }) => {
     writable();
-    const run = await mcpCreate("mov"); // R53 (MB-239): one run, one project on a retry under the same key
-    const r = await runMove(deps, a, x, run.id ? { moveId: run.id, projectId: (await mcpCreate("prj")).id, retry: run.retry } : {});
+    const r = await runMove(deps, a, x);
     return { move: r.move, stopped: r.stopped };
   }) as never);
 

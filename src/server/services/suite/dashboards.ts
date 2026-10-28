@@ -187,10 +187,8 @@ export const STARTER: Record<"team", { name: string; widgets: WidgetInput[] }> =
   },
 };
 
-export async function createDashboard(deps: Deps, actor: SuiteActor, input: { name?: string; shared?: boolean; widgets?: WidgetInput[]; starter?: "team" }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createDashboard(deps: Deps, actor: SuiteActor, input: { name?: string; shared?: boolean; widgets?: WidgetInput[]; starter?: "team" }) {
   assertWritable(actor);
-  // R53 (MB-239): a retry under the same Idempotency-Key returns the dashboard the first attempt made (one read, only on a retry).
-  if (opts.id && opts.retry && await deps.db.select({ id: dashboards.id }).from(dashboards).where(and(eq(dashboards.orgId, actor.orgId), eq(dashboards.id, opts.id))).get()) return getDashboard(deps, actor, opts.id);
   const starter = input.starter ? STARTER[input.starter] : undefined;
   const name = (input.name ?? starter?.name ?? "").trim();
   if (!name || name.length > 80) throw new HttpError(422, "validation_failed", "Give the dashboard a name of up to 80 characters.");
@@ -198,7 +196,7 @@ export async function createDashboard(deps: Deps, actor: SuiteActor, input: { na
   if (Number(n?.n ?? 0) >= MAX_DASHBOARDS) throw new HttpError(422, "too_many_dashboards", `A workspace holds up to ${MAX_DASHBOARDS} dashboards. Remove one first.`);
   const widgets = await normalise(deps, actor, input.widgets ?? starter?.widgets ?? []);
   const now = deps.now();
-  const id = opts.id ?? sortableId("dsh", now.getTime());
+  const id = sortableId("dsh", now.getTime());
   // A dashboard made by an agent key (no person behind it) is shared, or nobody could open it.
   const shared = input.shared ?? !!starter;
   await deps.db.insert(dashboards).values({

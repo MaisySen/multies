@@ -10,7 +10,8 @@ import type { Deps } from "../../context";
 import { auditLogs, members, organizations, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { ADDONS, PLANS } from "@/shared/plans";
-import { PaymentFailed, Receipt, UsageAlert } from "../../emails";
+// R53 (cold start): templates load on the first billing mail sent, not at isolate startup.
+const tpl = () => import("../../emails");
 import { audit } from "../audit";
 import { emailBrand, sendSystemEmail } from "../system-mail";
 
@@ -58,7 +59,7 @@ export async function onPaymentFailed(deps: Deps, org: Org, inv: InvoiceLike) {
       to, orgId: org.id, template: "payment-failed", subject: `Payment for ${org.name} didn't go through`,
       text: `We couldn't charge ${amount} for ${org.name}. We'll retry automatically. Everything keeps working until ${graceEnds}; after that, sending pauses until the payment goes through. Receiving mail is never paused.`,
       action: { label: "Update payment method", url: `${deps.config.appUrl}/app/settings/billing` },
-      element: createElement(PaymentFailed, { brand: emailBrand(deps), workspace: org.name, amount, graceEnds }),
+      element: createElement((await tpl()).PaymentFailed, { brand: emailBrand(deps), workspace: org.name, amount, graceEnds }),
     }).catch(() => undefined);
   }
   return { started: true, graceEndsAt };
@@ -80,7 +81,7 @@ export async function onInvoicePaid(deps: Deps, org: Org, inv: InvoiceLike) {
       to, orgId: org.id, template: "receipt", subject: `Receipt ${number} for ${org.name}: ${total}`,
       text: `Thanks. We received ${total} for ${org.name} on ${date}.${lines.map((l) => `\n${l.description}: ${l.amount}`).join("")}`,
       action: inv.hosted_invoice_url ? { label: "View invoice", url: inv.hosted_invoice_url } : undefined,
-      element: createElement(Receipt, {
+      element: createElement((await tpl()).Receipt, {
         brand: emailBrand(deps), workspace: org.name, number, date, lines, total,
         tax: inv.tax ? money(inv.tax, inv.currency) : undefined, url: inv.hosted_invoice_url ?? undefined,
       }),
@@ -104,7 +105,7 @@ export async function enforceGracePeriods(deps: Deps) {
         to, orgId: org.id, template: "payment-failed", subject: `Sending is paused for ${org.name}`,
         text: `The grace period after a failed payment has ended, so sending from ${org.name} is paused. Receiving mail and access to existing mail continue. Updating the payment method restores sending straight away.`,
         action: { label: "Update payment method", url: `${deps.config.appUrl}/app/settings/billing` },
-        element: createElement(PaymentFailed, { brand: emailBrand(deps), workspace: org.name, amount: "", graceEnds: "", final: true }),
+        element: createElement((await tpl()).PaymentFailed, { brand: emailBrand(deps), workspace: org.name, amount: "", graceEnds: "", final: true }),
       }).catch(() => undefined);
     }
     notified++;
@@ -135,7 +136,7 @@ export async function maybeUsageAlert(deps: Deps, org: Org, used: number, limit:
       subject: crossed >= 100 ? `${org.name} reached its daily sending limit` : `${org.name} has used ${crossed}% of its daily sends`,
       text: `${org.name} has sent to ${used} of ${limit} recipients today on the ${plan.name} plan. The limit resets at midnight UTC. A send boost adds ${boost.grants.dailySends!.toLocaleString("en-AU")} a day for A$${boost.priceMonthly} a month.`,
       action: { label: "Add a send boost", url: `${deps.config.appUrl}/app/settings/billing` },
-      element: createElement(UsageAlert, { brand: emailBrand(deps), workspace: org.name, metric: "daily sends", used, limit, plan: plan.name, addon: "a send boost" }),
+      element: createElement((await tpl()).UsageAlert, { brand: emailBrand(deps), workspace: org.name, metric: "daily sends", used, limit, plan: plan.name, addon: "a send boost" }),
     }).catch(() => undefined);
   }
   return crossed;

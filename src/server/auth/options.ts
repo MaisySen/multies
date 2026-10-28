@@ -31,7 +31,7 @@ import * as schema from "../db/schema";
 import { hashPassword, newId, randomToken, verifyPassword } from "../lib/crypto";
 import { createElement } from "react";
 import { emailBrand, sendSystemEmail } from "../services/system-mail";
-import { Reset as ResetEmail, Verify as VerifyEmail, Welcome as WelcomeEmail } from "../emails";
+// R53 (cold start): mail templates load on the first mail sent, not at isolate startup (see services/system-mail.ts).
 import { sendInviteEmail } from "../services/invite-email";
 import { beforeUserDelete } from "../services/privacy";
 import { HttpError } from "../lib/errors";
@@ -63,7 +63,7 @@ async function sendWelcome(deps: Deps, user: { email: string; name: string }) {
     to: user.email, template: "welcome", subject: `Welcome to ${deps.config.appName}`,
     text: `Hi ${first}, your workspace is ready.\n\n1. Add your domain. We show the exact DNS records and check them for you.\n2. Create mailboxes, one per person or role, plus aliases like hello@.\n3. Use webmail, or add the account to Apple Mail, Outlook or your phone.\n\nReply to this email if you get stuck.`,
     action: { label: "Open your dashboard", url: `${deps.config.appUrl}/app` },
-    element: createElement(WelcomeEmail, { brand: emailBrand(deps), name: first }),
+    element: createElement((await import("../emails")).Welcome, { brand: emailBrand(deps), name: first }),
   }).catch((err) => deps.reportError?.(err, { where: "sendWelcome" }));
 }
 
@@ -123,7 +123,7 @@ export function authOptions(deps: Deps) {
         await sendSystemEmail(deps, {
           to: user.email,
           subject: `Reset your ${config.appName} password`,
-          template: "reset", element: createElement(ResetEmail, { brand: emailBrand(deps), email: user.email, url }),
+          template: "reset", element: createElement((await import("../emails")).Reset, { brand: emailBrand(deps), email: user.email, url }),
           text: `Someone (hopefully you) asked to reset the password for ${user.email}.\n\nThe link works for one hour. If you didn't ask for this, ignore this email; your password stays the same.`,
           action: { label: "Choose a new password", url },
         });
@@ -140,7 +140,7 @@ export function authOptions(deps: Deps) {
         await sendSystemEmail(deps, {
           to: user.email,
           subject: `Confirm your email for ${config.appName}`,
-          template: "verify", element: createElement(VerifyEmail, { brand: emailBrand(deps), name: user.name.split(" ")[0] ?? user.name, email: user.email, url }),
+          template: "verify", element: createElement((await import("../emails")).Verify, { brand: emailBrand(deps), name: user.name.split(" ")[0] ?? user.name, email: user.email, url }),
           text: `Hi ${user.name.split(" ")[0]}, confirm that ${user.email} is your address so we can reach you about your account.`,
           action: { label: "Confirm email", url },
         });
