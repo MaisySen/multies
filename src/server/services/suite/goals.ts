@@ -225,10 +225,8 @@ async function checkProject(deps: Deps, orgId: string, projectId: string | null 
   if (!(await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, orgId), eq(projects.id, projectId))).get())) throw new HttpError(422, "validation_failed", "That project isn't in this workspace.");
 }
 
-export async function addKeyResult(deps: Deps, a: SuiteActor, goalId: string, input: KrInput, opts: { quiet?: boolean; id?: string; retry?: boolean } = {}) {
+export async function addKeyResult(deps: Deps, a: SuiteActor, goalId: string, input: KrInput, opts: { quiet?: boolean } = {}) {
   assertWritable(a);
-  // R55 (MB-239): a retry under the same Idempotency-Key returns the key result the first attempt made (one read, only on a retry).
-  if (opts.id && opts.retry && await deps.db.select({ id: keyResults.id }).from(keyResults).where(and(eq(keyResults.orgId, a.orgId), eq(keyResults.id, opts.id))).get()) return getKeyResult(deps, a.orgId, opts.id);
   await goalRow(deps, a.orgId, goalId);
   const name = (input.name ?? "").trim();
   if (!name) throw new HttpError(422, "validation_failed", "Give the key result a name.");
@@ -236,7 +234,7 @@ export async function addKeyResult(deps: Deps, a: SuiteActor, goalId: string, in
   if (kind === "tasks" && !input.taskIds?.length && !input.projectId) throw new HttpError(422, "validation_failed", "A tasks key result needs taskIds or a projectId.");
   await checkProject(deps, a.orgId, input.projectId);
   const now = deps.now();
-  const id = opts.id ?? sortableId("kr", now.getTime());
+  const id = sortableId("kr", now.getTime());
   // A key result created with a current value and no start counts from that value, so a countdown
   // ("10 open bugs down to 0") starts at 0 percent and rises as the number falls (dogfood F5).
   const start = input.start ?? input.current ?? 0, target = input.target ?? (kind === "percent" ? 100 : 100);

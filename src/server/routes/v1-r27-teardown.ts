@@ -12,7 +12,6 @@ import type { SuiteActor } from "../services/suite/common";
 import { listWatchers, unwatchTask, watchTask } from "../services/suite/task-watchers-r27";
 import { duplicateTask } from "../services/suite/task-duplicate-r27";
 import { DuplicateBody, WatchBody } from "./task-teardown-r27";
-import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -50,5 +49,5 @@ export function registerTeardownR27Routes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await unwatchTask(c.var.deps, actor(c), c.req.param("id") ?? "", c.req.param("userId") ?? "")));
 
   api.openapi(route("post", "/tasks/{id}/duplicate", "Duplicate a task", "Copies a task with a new number into the project's first to-do status. Keeps notes, assignee, priority, dates, labels, type, estimate, sprint, repeat rule and custom field values. Body (all optional): { title (default \"<title> (copy)\"), projectId (another project; drops sprint and custom fields), subtasks (default true, up to 3 levels and 200 tasks), checklist (default true, items unticked), assignee (default true), dependencies (default false: copy \"blocked by\" links) }. Comments, time, files and history stay with the original. Returns { task, from, copied }.", { request: { params: Id, ...body(Duplicate) } }),
-    async (c) => send(c, await duplicateTask(c.var.deps, actor(c), c.req.param("id") ?? "", await jsonBody(c, DuplicateBody), await idempotentCreate(c.req.raw, "tsk")), 201));
+    async (c) => send(c, await duplicateTask(c.var.deps, actor(c), c.req.param("id") ?? "", await jsonBody(c, DuplicateBody)), 201));
 }

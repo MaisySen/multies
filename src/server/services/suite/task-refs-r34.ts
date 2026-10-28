@@ -93,3 +93,21 @@ export function refCond(orgId: string, ref: string): SQL {
   return sql`((${tasks.number} = ${p.number} and ${tasks.projectId} in (select pr.id from projects pr where pr.org_id = ${orgId} and upper(pr.key) = ${p.key} union all select ka.project_id from project_key_aliases ka where ka.org_id = ${orgId} and ka.key = ${p.key}))
     or ${tasks.id} in (select el.to_id from entity_links el where el.from_type = ${MOVED_REF} and el.from_id = ${p.ref} and el.org_id = ${orgId}))`;
 }
+
+/**
+ * R55: a task moved back to a project it left gets its old number back when nothing has taken it, so a move and its
+ * Undo leave the ref exactly as it was (MB-12 to WEB-5 and back is MB-12 again, not MB-48). Two reads, only on a
+ * move: the task's kept refs (entity_links_to_idx: org, to type, to id) and the number in the target (the unique
+ * project and number index). Null when there is no kept ref for that project or the number is in use.
+ */
+export async function keptNumberFor(deps: Deps, orgId: string, project: { id: string; key: string }, taskId: string): Promise<number | null> {
+  const prefix = `${project.key.toUpperCase()}-`;
+  const kept = (await deps.db.select({ fromId: entityLinks.fromId, at: entityLinks.createdAt }).from(entityLinks)
+    .where(and(eq(entityLinks.orgId, orgId), eq(entityLinks.toType, "task"), eq(entityLinks.toId, taskId), eq(entityLinks.fromType, MOVED_REF))))
+    .filter((r) => r.fromId.startsWith(prefix))
+    .sort((a, b) => Number(b.at ?? 0) - Number(a.at ?? 0));
+  const n = kept.length ? Number(kept[0].fromId.slice(prefix.length)) : NaN;
+  if (!Number.isInteger(n) || n < 1) return null;
+  const taken = await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, project.id), eq(tasks.number, n))).get();
+  return taken ? null : n;
+}
