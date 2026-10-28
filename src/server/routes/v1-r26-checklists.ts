@@ -3,6 +3,7 @@
  * Agent keys act as their agent. Permissions follow the task: another workspace's ids answer 404.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
+import { idempotentIds, idempotentRetry } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -32,7 +33,8 @@ export function registerChecklistRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await listChecklist(c.var.deps, actor(c), pid(c))));
 
   api.openapi(route("post", "/tasks/{id}/checklist", "Add checklist items", "Body: one item { title, done?, assignee? (member:<id> or agent:<id>), due? (YYYY-MM-DD), position? } or { items: [...] } (up to 200 per task). New items go to the end unless position is given.", { request: { params: Id, ...body(z.union([Item, z.object({ items: z.array(Item) })])) } }),
-    async (c) => send(c, { items: await addChecklistItems(c.var.deps, actor(c), pid(c), addInput(await jsonBody(c, ChecklistAddBody))) }, 201));
+    async (c) => { const input = addInput(await jsonBody(c, ChecklistAddBody)); const n = Array.isArray(input) ? input.length : 1; // R52 (MB-239): stable ids on a retry
+      return send(c, { items: await addChecklistItems(c.var.deps, actor(c), pid(c), input, { ids: await idempotentIds(c.req.raw, "chk", Math.min(n, 200)), retry: idempotentRetry(c.req.raw) }) }, 201); });
 
   api.openapi(route("post", "/tasks/{id}/checklist/reorder", "Reorder a checklist", "Body: { ids } with every item id of the task's checklist once, in the new order. Only items that move are written.", { request: { params: Id, ...body(z.object({ ids: z.array(z.string()) })) } }),
     async (c) => send(c, await reorderChecklist(c.var.deps, actor(c), pid(c), (await jsonBody(c, ChecklistReorderBody)).ids)));

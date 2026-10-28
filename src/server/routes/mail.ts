@@ -56,19 +56,6 @@ async function queueChange(c: Context<AppEnv>, rows: Parameters<typeof queueRemo
 
 const folderParam = z.enum(["inbox", "sent", "drafts", "archive", "spam", "trash", "starred"]).optional();
 
-// R52: built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
-const MessageListQuery = z.object({
-  folder: z.preprocess((v) => v || undefined, folderParam),
-  mailboxId: z.string().max(64).optional().transform((v) => v || undefined),
-  /** Round 19: one of a connected mailbox's own folders at its provider ("f:<path>"). */
-  remote: z.string().max(520).regex(/^f:/).optional().transform((v) => v || undefined),
-  q: z.string().max(200).optional().transform((v) => v || undefined),
-  cursor: z.string().max(200).optional().transform((v) => v || undefined),
-  limit: z.coerce.number().int().min(1).max(200).optional(),
-  /** R31: an Inbox tab, "important", "other" or a split id (services/mail/splits.ts). */
-  split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().transform((v) => v || undefined),
-});
-
 export function mailRoutes() {
   const sendLimiter = new RateLimiter(30, 60_000);
   return new Hono<AppEnv>()
@@ -77,7 +64,17 @@ export function mailRoutes() {
     .use("*", idempotency((c) => `user:${c.var.auth.userId}`))
     .get("/overview", async (c) => c.json({ mailboxes: await mailboxOverview(c.var.deps.db, c.var.auth.orgId, await mailboxScope(c.var.deps.db, c.var.auth)) }))
     .get("/messages", async (c) => {
-      const q = parseQuery(c, MessageListQuery);
+      const q = parseQuery(c, z.object({
+        folder: z.preprocess((v) => v || undefined, folderParam),
+        mailboxId: z.string().max(64).optional().transform((v) => v || undefined),
+        /** Round 19: one of a connected mailbox's own folders at its provider ("f:<path>"). */
+        remote: z.string().max(520).regex(/^f:/).optional().transform((v) => v || undefined),
+        q: z.string().max(200).optional().transform((v) => v || undefined),
+        cursor: z.string().max(200).optional().transform((v) => v || undefined),
+        limit: z.coerce.number().int().min(1).max(200).optional(),
+        /** R31: an Inbox tab, "important", "other" or a split id (services/mail/splits.ts). */
+        split: z.string().max(64).regex(/^[A-Za-z0-9_-]+$/).optional().transform((v) => v || undefined),
+      }));
       // R33: the moment this list was read (server clock, as messages.created_at): a select all job leaves mail that
       // arrived after it alone, whatever the mail's own Date header says.
       const asOf = new Date().toISOString();

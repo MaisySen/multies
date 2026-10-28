@@ -4,6 +4,7 @@
  * its events and its own send requests.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
+import { idempotentCreate, idempotentId } from "../lib/idempotency"; // R52 (MB-239)
 import { streamSSE } from "hono/streaming";
 import { and, eq } from "drizzle-orm";
 import type { Context } from "hono";
@@ -111,7 +112,7 @@ export function registerAgentRoutes(api: OpenAPIHono<AppEnv>) {
       201: json(z.object({ agent: Agent, apiKey: z.object({ id: z.string(), prefix: z.string(), secret: z.string().openapi({ example: "mm_live_7Yq2..." }) }).nullable() }), "The agent and, once, its key."),
       401: errors[401], 403: errors[403], 409: err("No domain yet, or the address is taken."), 422: errors[422],
     } }),
-  async (c) => c.json(ser(await createAgent(c.var.deps, actorOf(c), c.req.valid("json"))), 201));
+  async (c) => c.json(ser(await createAgent(c.var.deps, actorOf(c), c.req.valid("json"), { ...(await idempotentCreate(c.req.raw, "agt")), mailboxId: await idempotentId(c.req.raw, "mbx") })), 201));
 
   api.openapi(createRoute({ method: "get", path: "/agents", tags: ["Agents"], summary: "List agent inboxes", security: secured,
     responses: { 200: json(z.object({ data: z.array(Agent) }), "Agents. An agent key sees only its own."), 401: errors[401] } }),

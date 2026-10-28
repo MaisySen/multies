@@ -79,10 +79,14 @@ export async function listChecklist(deps: Deps, a: SuiteActor, taskIdOrRef: stri
   return { taskId: t.id, items, ...summary(items) };
 }
 
-export async function addChecklistItems(deps: Deps, a: SuiteActor, taskIdOrRef: string, input: ChecklistInput | ChecklistInput[]) {
+export async function addChecklistItems(deps: Deps, a: SuiteActor, taskIdOrRef: string, input: ChecklistInput | ChecklistInput[], opts: { ids?: string[]; retry?: boolean } = {}) {
   assertWritable(a);
   const list = Array.isArray(input) ? input : [input];
   if (!list.length) throw bad("Add at least one item.");
+  if (opts.ids?.length && opts.retry) { // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made (all items went in one call)
+    const hit = await deps.db.select().from(taskChecklistItems).where(and(eq(taskChecklistItems.orgId, a.orgId), inIds(taskChecklistItems.id, opts.ids)));
+    if (hit.length) return opts.ids.map((id) => hit.find((r) => r.id === id)).filter((r): r is Row => !!r).map(present);
+  }
   const t = await taskFor(deps, a, taskIdOrRef);
   const existing = await rows(deps, t.id);
   if (existing.length + list.length > CHECKLIST_MAX_ITEMS) throw bad(`A task holds up to ${CHECKLIST_MAX_ITEMS} checklist items.`);
@@ -90,10 +94,10 @@ export async function addChecklistItems(deps: Deps, a: SuiteActor, taskIdOrRef: 
   const now = deps.now();
   const by = actorOf(a);
   const made: Row[] = [];
-  for (const x of list) {
+  for (const [i, x] of list.entries()) {
     pos = x.position ?? pos + 1;
     made.push({
-      id: sortableId("chk"), orgId: a.orgId, taskId: t.id, title: cleanTitle(x.title), done: !!x.done, position: pos,
+      id: opts.ids?.[i] ?? sortableId("chk"), orgId: a.orgId, taskId: t.id, title: cleanTitle(x.title), done: !!x.done, position: pos,
       assignee: (await cleanAssignee(deps, a.orgId, x.assignee)) ?? null, due: cleanDue(x.due) ?? null,
       createdBy: by.id ? `${by.type}:${by.id}` : by.type, createdAt: now, updatedAt: now,
     });

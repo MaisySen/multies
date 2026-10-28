@@ -145,8 +145,9 @@ function parsePerson(v: string | undefined, actor: SuiteActor): Person {
 }
 
 /** A manual entry: minutes on a day (or from a start time), on a task or just a project. */
-export async function addEntry(deps: Deps, actor: SuiteActor, input: ManualEntryInput) {
+export async function addEntry(deps: Deps, actor: SuiteActor, input: ManualEntryInput, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry && await deps.db.select({ id: timeEntries.id }).from(timeEntries).where(and(eq(timeEntries.id, opts.id), eq(timeEntries.orgId, actor.orgId))).get()) return (await present(deps, actor.orgId, [await entryRow(deps, actor.orgId, opts.id)]))[0]; // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   if (!Number.isFinite(input.minutes) || input.minutes <= 0 || input.minutes > 24 * 60) throw new HttpError(422, "validation_failed", "Minutes must be between 1 and 1440.");
   const p = parsePerson(input.person, actor);
   let taskId: string | null = null, projectId = input.projectId ?? null;
@@ -159,7 +160,7 @@ export async function addEntry(deps: Deps, actor: SuiteActor, input: ManualEntry
   const startedAt = input.startedAt ? parseDate(input.startedAt)! : input.date ? new Date(`${input.date}T09:00:00.000Z`) : new Date(now.getTime() - input.minutes * 60_000);
   if (Number.isNaN(startedAt.getTime())) throw new HttpError(422, "validation_failed", "Not a date.");
   const seconds = Math.round(input.minutes * 60);
-  const id = sortableId("tim", now.getTime());
+  const id = opts.id ?? sortableId("tim", now.getTime());
   await deps.db.insert(timeEntries).values({
     id, orgId: actor.orgId, taskId, projectId, personType: p.type, personId: p.id, startedAt, endedAt: new Date(startedAt.getTime() + seconds * 1000), seconds,
     note: (input.note ?? "").slice(0, 500), billable: input.billable ?? true, source: "manual", ...createdBy(actor), createdAt: now, updatedAt: now,

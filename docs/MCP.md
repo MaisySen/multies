@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 198 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 199 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -46,6 +46,10 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
 - A **workspace key** sees every agent and mailbox and can create agent inboxes. Sends still go
   out as an agent (pass `agentId`), so guardrails always apply.
 - A **read only** key (or a read only OAuth connection) can call the read tools only.
+
+### Retries (R52)
+
+Send an `Idempotency-Key` header on `POST /api/v1/mcp` to make a tool call safe to retry. A second call with the same key and the same body gets the first answer back, marked `idempotent-replayed: true`, and the tool does not run again (so `create_task` makes one task). The same key with a different call is 422 `idempotency_key_reused`. The JSON-RPC request id is not a replay key: the same id without a key runs again. Calls without a key, reads included, work as before.
 
 ## Scopes and the full tool list
 
@@ -211,6 +215,7 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 | --- | --- |
 | `list_meetings` | List meetings |
 | `schedule_meeting` | Schedule a video meeting |
+| `delete_meeting` | Delete a meeting or a whole series (calendar scope, anyone who can edit it); sends `meeting.deleted` |
 | `list_bookings` | List meeting bookings |
 
 ### Integrations

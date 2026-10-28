@@ -124,8 +124,9 @@ function checkTarget(target: "task" | "contact", fields: FormField[]) {
   if (target === "contact" && !fields.some((f) => f.type === "email")) throw new HttpError(422, "validation_failed", "A form that makes contacts needs an email field.");
 }
 
-export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput) {
+export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry && await deps.db.select({ id: forms.id }).from(forms).where(and(eq(forms.id, opts.id), eq(forms.orgId, actor.orgId))).get()) return present(await formRow(deps, actor.orgId, opts.id), deps.config.appUrl); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const name = input.name.trim().slice(0, 120);
   if (!name) throw new HttpError(422, "validation_failed", "Give the form a name.");
   const target = input.target ?? "task";
@@ -136,7 +137,7 @@ export async function createForm(deps: Deps, actor: SuiteActor, input: FormInput
   if (input.projectId) await getProject(deps, actor.orgId, input.projectId);
   await validateAssignee(deps, actor.orgId, assignee);
   const now = deps.now();
-  const id = sortableId("frm", now.getTime());
+  const id = opts.id ?? sortableId("frm", now.getTime());
   await deps.db.insert(forms).values({
     id, orgId: actor.orgId, name, description: (input.description ?? "").slice(0, 2000), slug: randomToken(9).replace(/[^A-Za-z0-9]/g, "").slice(0, 12).toLowerCase(),
     target, projectId: input.projectId ?? null, assigneeType: assignee?.type ?? null, assigneeId: assignee?.id ?? null,
