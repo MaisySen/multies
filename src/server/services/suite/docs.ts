@@ -133,8 +133,9 @@ async function assertLinkTargets(deps: Deps, orgId: string, targets: LinkTarget[
   }
 }
 
-export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }, opts: { id?: string } = {}) {
+export async function createDoc(deps: Deps, actor: SuiteActor, input: { title: string; content?: unknown; text?: string; projectId?: string | null; links?: LinkTarget[]; parentId?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry && await deps.db.select({ id: docs.id }).from(docs).where(and(eq(docs.id, opts.id), eq(docs.orgId, actor.orgId))).get()) return getDoc(deps, actor.orgId, opts.id); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const body = input.content !== undefined ? validDoc(input.content) : editorShape(docFromText(input.text ?? "")); // R29: as the editor holds it
   await assertLinkTargets(deps, actor.orgId, [...(input.links ?? []), ...(input.projectId ? [{ type: "project" as const, id: input.projectId }] : [])]);
   const place = await placeNewDoc(deps, actor.orgId, input.parentId); // R24: tree position

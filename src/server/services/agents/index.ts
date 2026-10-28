@@ -154,9 +154,12 @@ export interface CreateAgentInput {
 }
 
 /** Creates the agent, its inbox and (by default) its API key, in one call. */
-export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentInput) {
+export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentInput, opts: { id?: string; mailboxId?: string; retry?: boolean } = {}) {
   assertWorkspaceActor(actor);
   const { db } = deps;
+  // R52 (MB-239): a retry under the same Idempotency-Key returns the agent the first attempt made. Its key secret
+  // was shown once, in the answer that was lost, so the retry returns apiKey null: make a new key with POST /agents/{id}/keys.
+  if (opts.id && opts.retry && await db.select({ id: agents.id }).from(agents).where(and(eq(agents.id, opts.id), eq(agents.orgId, actor.orgId))).get()) return { agent: await getAgent(deps, actor.orgId, opts.id), apiKey: null };
   await assertCanCreate(db, actor.orgId, "agentInboxes");
   const plan = await getPlan(db, actor.orgId);
   const cap = Math.min(input.sendCapDaily ?? plan.limits.agentDailySends, plan.limits.agentDailySends);
@@ -171,11 +174,11 @@ export async function createAgent(deps: Deps, actor: Actor, input: CreateAgentIn
     const ok = await db.select({ id: mailboxes.id }).from(mailboxes).where(and(eq(mailboxes.orgId, actor.orgId), inIds(mailboxes.id, extra)));
     if (ok.length !== extra.length) throw badRequest("One of those mailboxes doesn't exist in this workspace.");
   }
-  const mailboxId = newId("mbx");
+  const mailboxId = opts.mailboxId ?? newId("mbx");
   await db.insert(mailboxes).values({
     id: mailboxId, orgId: actor.orgId, domainId: domain.id, localPart: local, address, displayName: input.name, quotaMb: plan.limits.storagePerMailboxMb, kind: "agent",
   });
-  const id = newId("agt");
+  const id = opts.id ?? newId("agt");
   await db.insert(agents).values({
     id, orgId: actor.orgId, mailboxId, name: input.name, description: input.description ?? null,
     approvalMode: input.approvalMode ?? "always", sendCapDaily: cap,

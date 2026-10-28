@@ -340,8 +340,9 @@ async function dealRow(deps: Deps, orgId: string, id: string) {
   return d;
 }
 
-export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null }, opts: { id?: string } = {}) {
+export async function createDeal(deps: Deps, actor: SuiteActor, input: { title: string; stage?: DealStage; value?: number; contactId?: string | null; companyId?: string | null; expectedClose?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry && await deps.db.select({ id: deals.id }).from(deals).where(and(eq(deals.id, opts.id), eq(deals.orgId, actor.orgId))).get()) return presentDeal(await dealRow(deps, actor.orgId, opts.id)); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   let companyId = input.companyId ?? null;
   if (input.contactId) { const c = await contactRow(deps, actor.orgId, input.contactId); companyId = companyId ?? c.companyId; }
   const now = deps.now();
