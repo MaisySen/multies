@@ -26,7 +26,11 @@ export interface FetchedMessage {
 
 export interface ImapSession {
   folders(): Promise<FolderPaths>;
-  open(path: string, opts?: { write?: boolean }): Promise<{ uidValidity: string; uidNext: number }>;
+  /**
+   * Opens a folder. R52: `exists` and `modseq` (the folder's HIGHESTMODSEQ, RFC 7162 CONDSTORE) when the server says;
+   * a pass skips reading flags for a folder whose modseq, message count and next UID did not move.
+   */
+  open(path: string, opts?: { write?: boolean }): Promise<{ uidValidity: string; uidNext: number; exists?: number; modseq?: string }>;
   /** UIDs of messages received on or after `since`, in the open folder. */
   searchSince(since: Date): Promise<number[]>;
   /** UIDs above `uid` in the open folder. */
@@ -79,7 +83,8 @@ class FlowSession implements ImapSession {
 
   async open(path: string, opts: { write?: boolean } = {}) {
     const box = await this.c.mailboxOpen(path, { readOnly: !opts.write });
-    return { uidValidity: String(box.uidValidity), uidNext: Number(box.uidNext ?? 1) };
+    const modseq = box.highestModseq && !box.noModseq ? String(box.highestModseq) : undefined; // R52
+    return { uidValidity: String(box.uidValidity), uidNext: Number(box.uidNext ?? 1), exists: Number(box.exists ?? 0), ...(modseq ? { modseq } : {}) };
   }
 
   async searchSince(since: Date) {

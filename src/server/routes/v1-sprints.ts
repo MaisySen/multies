@@ -2,7 +2,6 @@
  * Round 21 (R21.1) in the public API (v1): sprints per project. Write calls need a key that can write.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import { idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -49,7 +48,7 @@ export function registerSprintRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/projects/{id}/backlog", "A project's backlog", "Unfinished tasks of the project that are in no sprint.", { request: { params: Id } }),
     async (c) => send(c, { tasks: await backlog(c.var.deps, actor(c), pid(c)) }));
   api.openapi(route("post", "/projects/{id}/sprints", "Plan a sprint", "Defaults: named Sprint N, starting the day after the last sprint ends (or today), two weeks long. Dates are ISO instants or YYYY-MM-DD.", { request: { params: Id, ...body(SprintCreateV1) } }),
-    async (c) => send(c, { sprint: await createSprint(c.var.deps, actor(c), pid(c), await jsonBody(c, SprintCreateV1), await idempotentCreate(c.req.raw, "spr")) }, 201));
+    async (c) => send(c, { sprint: await createSprint(c.var.deps, actor(c), pid(c), await jsonBody(c, SprintCreateV1)) }, 201));
   api.openapi(route("get", "/sprints/{id}", "Get a sprint with its tasks and burndown", "The burndown has one entry per day of the sprint in the person's or workspace's time zone (or timeZone): remaining points (or tasks when nothing is estimated) at the end of that day, and the ideal line.", { request: { params: Id, query: z.object({ timeZone: z.string().max(64).optional() }) } }),
     async (c) => send(c, await getSprint(c.var.deps, actor(c), pid(c), { timeZone: c.req.query("timeZone") })));
   api.openapi(route("patch", "/sprints/{id}", "Update a sprint", "Name, goal, start and end. A sprint has to end after it starts.", { request: { params: Id, ...body(SprintPatch) } }),

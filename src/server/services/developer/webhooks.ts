@@ -2,7 +2,7 @@
  * Outbound webhooks, signed with the Standard Webhooks spec (standardwebhooks.com)
  * using its reference library, so receivers can verify with any Standard Webhooks SDK.
  */
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lte } from "drizzle-orm";
 import { Webhook } from "standardwebhooks";
 import type { Deps } from "../../context";
 import { members, users, webhookDeliveries, webhookEndpoints } from "../../db/schema";
@@ -41,7 +41,6 @@ export const WEBHOOK_EVENTS = [
   "form.submitted",
   "meeting.created",
   "meeting.updated",
-  "meeting.deleted", // R52 (MB-239)
   "project.updated",
   "custom_field.created",
   "custom_field.updated",
@@ -252,50 +251,10 @@ export async function replayFailed(deps: Deps, orgId: string, endpointId: string
  * `comment.created`) to every enabled endpoint subscribed to it. One read of the endpoints either way; with no
  * endpoint subscribed it writes nothing, so an event costs no D1 write until someone listens for it.
  */
-/** R52 (MB-239): a workspace's enabled endpoints, read once so a caller can decide what to collect and pass them on. */
-export type WebhookTargets = (typeof webhookEndpoints.$inferSelect)[];
-export async function webhookTargets(deps: Deps, orgId: string): Promise<WebhookTargets> {
-  return deps.db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.orgId, orgId), eq(webhookEndpoints.enabled, true)));
-}
-/** R52: whether any of those endpoints takes this event. */
-export function wantsEvent(targets: WebhookTargets, type: WebhookEvent): boolean {
-  return targets.some((e) => { const ev = JSON.parse(e.events) as string[]; return ev.includes("*") || ev.includes(type); });
-}
-
-/** R52: past this many events in one emitMany, the rest are not sent (the caller says so in its own event). */
-export const EMIT_MANY_MAX = 1000;
-/** R52: deliveries attempted inside the request; the rest wait for the retry pass, which sends due ones in order. */
-const EMIT_MANY_INLINE = 10;
-
-/**
- * R52 (MB-239): many events of one type (one per deleted task) as ONE insert statement, whatever the count: the rows
- * travel as a single JSON parameter and SQLite (and D1) unpack them with json_each, so a project of 1,000 tasks costs
- * one write statement, not 1,000. With no endpoint taking the event it writes nothing. The first few deliveries are
- * attempted now; the rest are left pending and go out on the retry pass.
- */
-export async function emitEventMany(deps: Deps, orgId: string, type: WebhookEvent, items: Record<string, unknown>[], targets?: WebhookTargets) {
-  try {
-    const list = items.slice(0, EMIT_MANY_MAX);
-    const ends = (targets ?? await webhookTargets(deps, orgId)).filter((e) => wantsEvent([e], type));
-    if (!ends.length || !list.length) return [];
-    const now = deps.now();
-    const rows = ends.flatMap((e) => list.map((data) => ({ id: newId("msg"), endpointId: e.id, payload: JSON.stringify({ type, timestamp: now.toISOString(), data }) })));
-    // Write: one statement for every delivery row (the 100 bound parameter limit does not apply to one JSON value).
-    await deps.db.run(sql`insert into webhook_deliveries (id, org_id, endpoint_id, event_type, payload, status, attempts, next_attempt_at, created_at)
-      select json_extract(value, '$.id'), ${orgId}, json_extract(value, '$.endpointId'), ${type}, json_extract(value, '$.payload'), 'pending', 0, ${now.getTime()}, ${now.getTime()}
-      from json_each(${JSON.stringify(rows)})`);
-    await Promise.all(rows.slice(0, EMIT_MANY_INLINE).map((r) => attempt(deps, r.id)));
-    return rows.map((r) => r.id);
-  } catch (err) {
-    deps.reportError?.(err, { where: "emitEventMany", type });
-    return [];
-  }
-}
-
-export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | readonly WebhookEvent[], data: Record<string, unknown>, targets?: WebhookTargets) {
+export async function emitEvent(deps: Deps, orgId: string, type: WebhookEvent | readonly WebhookEvent[], data: Record<string, unknown>) {
   const types: readonly WebhookEvent[] = typeof type === "string" ? [type] : type;
   try {
-    const endpoints = (targets ?? await webhookTargets(deps, orgId))
+    const endpoints = (await deps.db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.orgId, orgId), eq(webhookEndpoints.enabled, true))))
       .map((e) => { const ev = JSON.parse(e.events) as string[]; return { e, want: types.filter((t) => ev.includes("*") || ev.includes(t)) }; })
       .filter((x) => x.want.length > 0);
     if (!endpoints.length) return [];

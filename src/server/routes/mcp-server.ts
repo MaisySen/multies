@@ -23,7 +23,7 @@ import { addEntry, startTimer, stopTimer, timesheet } from "../services/suite/ti
 import { addDependency, removeDependency } from "../services/suite/tasks";
 import { createForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
-import { createMeeting, deleteMeeting, listMeetings } from "../services/suite/meetings";
+import { createMeeting, listMeetings } from "../services/suite/meetings";
 import { createField, listFields, type FilterOp } from "../services/suite/fields";
 import { inviteGuest, listGuests } from "../services/suite/guests";
 import { portfolio } from "../services/suite/portfolio";
@@ -579,12 +579,6 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, recurrence: x.repeats, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined });
     return { meeting: { id: r.meeting.id, title: r.meeting.title, startsAt: r.meeting.startsAt, guestUrl: r.meeting.guestUrl, invitees: r.meeting.invitees, videoEnabled: r.meeting.videoEnabled, repeats: r.meeting.recurrence?.summary ?? null }, invites: r.invites };
   }));
-  // R52 (MB-239): delete a meeting or a whole series. Same rule as an edit: anyone who can edit can delete.
-  server.registerTool("delete_meeting", {
-    title: "Delete a meeting", annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
-    description: "Delete a meeting (a series goes as a whole). Its notes, action items and transcript go with it. Sends meeting.deleted. To keep it on record, set status cancelled with the REST PATCH instead.",
-    inputSchema: { id: z.string().max(64) },
-  }, tool(async (x: { id: string }) => { writable(); return deleteMeeting(deps, a, x.id); }));
 }
 
 

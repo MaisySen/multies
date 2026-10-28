@@ -75,12 +75,8 @@ async function fieldRow(deps: Deps, orgId: string, id: string) {
 
 export interface FieldInput { name: string; type: FieldType; options?: { id?: string; label: string; color?: string }[]; position?: number; /** R24.1: formula or rollup settings. */ config?: unknown }
 
-export async function createField(deps: Deps, actor: SuiteActor, projectId: string, input: FieldInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createField(deps: Deps, actor: SuiteActor, projectId: string, input: FieldInput) {
   assertWritable(actor);
-  if (opts.id && opts.retry) { // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
-    const hit = await deps.db.select().from(customFields).where(and(eq(customFields.id, opts.id), eq(customFields.orgId, actor.orgId))).get();
-    if (hit) return presentField(hit as FieldRow);
-  }
   await projectOf(deps, actor.orgId, projectId);
   const existing = await listFields(deps, actor.orgId, projectId);
   if (existing.length >= 50) throw new HttpError(422, "too_many_fields", "A project can have up to 50 custom fields.");
@@ -88,7 +84,7 @@ export async function createField(deps: Deps, actor: SuiteActor, projectId: stri
   const name = input.name.trim().slice(0, 60);
   const config = normalizeConfig(input.type, input.config, name, existing);
   const row = {
-    id: opts.id ?? sortableId("fld", now.getTime()), orgId: actor.orgId, projectId, name, type: input.type, config: config ? JSON.stringify(config) : null,
+    id: sortableId("fld", now.getTime()), orgId: actor.orgId, projectId, name, type: input.type, config: config ? JSON.stringify(config) : null,
     options: JSON.stringify(mergeOptions(input.type, input.options ?? (input.type === "select" || input.type === "multiselect" ? [] : undefined))),
     position: input.position ?? (existing.length ? Math.max(...existing.map((f) => f.position)) + 1 : 0),
     ...createdBy(actor), createdAt: now, updatedAt: now,

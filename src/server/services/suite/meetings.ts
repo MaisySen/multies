@@ -7,8 +7,7 @@
  */
 import { and, desc, eq, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
 import type { AuthContext, Deps } from "../../context";
-import { bookings, contacts, entityLinks, mailboxes, meetingActionItems, meetingRecordings, meetings, messages, organizations, tasks } from "../../db/schema";
-import { runBatch } from "../../db";
+import { contacts, mailboxes, meetings, messages, organizations, tasks } from "../../db/schema";
 import { randomToken, toB64 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { assertWritable, createdBy, iso, parseDate, recordWrite, scopeOf, sortableId, type SuiteActor } from "./common";
@@ -150,9 +149,8 @@ async function fromSource(deps: Deps, actor: SuiteActor, s: MeetingSource) {
 
 export interface MeetingInput { title?: string; startsAt?: string; durationMin?: number; source?: MeetingSource; invitees?: string[]; sendInvites?: boolean; mailboxId?: string; recurrence?: MeetingRecurrenceInput; /** Round 23: set by a call from chat. */ channelId?: string }
 
-export async function createMeeting(deps: Deps, actor: SuiteActor, input: MeetingInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createMeeting(deps: Deps, actor: SuiteActor, input: MeetingInput, opts: { id?: string } = {}) {
   assertWritable(actor);
-  if (opts.id && opts.retry && await deps.db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.id, opts.id), eq(meetings.orgId, actor.orgId))).get()) return { meeting: out(deps, await meetingRow(deps, actor.orgId, opts.id)), invites: null }; // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const suggested = input.source ? await fromSource(deps, actor, input.source) : { title: "Meeting", invitees: [] as string[], mailboxId: undefined, sourceId: undefined };
   const invitees = [...new Set((input.invitees ?? suggested.invitees).map((e) => e.trim().toLowerCase()).filter(Boolean))];
   const bad = invitees.filter((e) => !EMAIL.test(e));
@@ -213,28 +211,6 @@ export async function updateMeeting(deps: Deps, actor: SuiteActor, id: string, p
   // R24.4: meeting_ended rules, once when a meeting is marked ended.
   if (patch.status === "ended" && m.status !== "ended") await (await import("./automations-r24")).runMeetingEnded(deps, actor, { id, title: set.title ?? m.title });
   return out(deps, await meetingRow(deps, actor.orgId, id));
-}
-
-/**
- * R52 (MB-239): delete a meeting (or a whole series; a series is one row). Whoever can edit a meeting can delete
- * it; guests and read only keys cannot (assertWritable). The lobby goes with it (foreign key), and its action items,
- * recording transcripts and links are removed in the same batch; a booking that pointed at it keeps its slot and
- * loses the pointer. meeting.deleted fires after the delete commits, shaped like meeting.created.
- */
-export async function deleteMeeting(deps: Deps, actor: SuiteActor, id: string) {
-  assertWritable(actor);
-  const m = await meetingRow(deps, actor.orgId, id);
-  const { db } = deps;
-  await runBatch(db, [
-    db.delete(meetingActionItems).where(and(eq(meetingActionItems.orgId, actor.orgId), eq(meetingActionItems.meetingId, m.id))),
-    db.delete(meetingRecordings).where(and(eq(meetingRecordings.orgId, actor.orgId), eq(meetingRecordings.meetingId, m.id))),
-    db.delete(entityLinks).where(and(eq(entityLinks.orgId, actor.orgId), or(and(eq(entityLinks.fromType, "meeting"), eq(entityLinks.fromId, m.id)), and(eq(entityLinks.toType, "meeting"), eq(entityLinks.toId, m.id))))),
-    db.update(bookings).set({ meetingId: null }).where(and(eq(bookings.orgId, actor.orgId), eq(bookings.meetingId, m.id))),
-    db.delete(meetings).where(and(eq(meetings.id, m.id), eq(meetings.orgId, actor.orgId))),
-  ]);
-  await recordWrite(deps, actor, { entityType: "meeting", entityId: m.id, op: "delete", version: m.version + 1, verb: "meeting.deleted", data: { title: m.title },
-    event: "meeting.deleted", eventData: { id: m.id, object: "meeting", title: m.title, startsAt: m.startsAt.toISOString(), durationMin: m.durationMin, status: m.status } });
-  return { id: m.id, deleted: true };
 }
 
 // ---------------------------------------------------------------- calendar invite (RFC 5545)

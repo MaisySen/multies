@@ -10,10 +10,13 @@ import { parseBody, parseQuery, requireAdmin, requireAuth } from "../middleware"
 import { addEntry, deleteEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet, updateEntry } from "../services/suite/time";
 import { createForm, deleteForm, getForm, listForms, publicForm, submitForm, updateForm } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
-import { createMeeting, getMeeting, guestInfo, guestJoin, joinMeeting, listMeetings, meetingIcs, meetingsEnabled, sendInvites, updateMeeting, deleteMeeting } from "../services/suite/meetings";
+import { createMeeting, getMeeting, guestInfo, guestJoin, joinMeeting, listMeetings, meetingIcs, meetingsEnabled, sendInvites, updateMeeting } from "../services/suite/meetings";
 import { organizations } from "../db/schema";
 import { FieldLogicSchema, FieldRulesSchema, FormRouteSchema } from "./forms-r31";
 import { eq } from "drizzle-orm";
+
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_SUITE_R7_1 = z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() });
 
 export const TimeStart = z.object({ taskId: z.string().min(1), note: z.string().max(500).optional() });
 export const TimeStop = z.object({ entryId: z.string().optional() });
@@ -95,13 +98,12 @@ export function meetingRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() }));
+      const q = parseQuery(c, Q_SUITE_R7_1);
       return c.json({ meetings: await listMeetings(c.var.deps, c.var.auth, { upcoming: q.upcoming === "1" || q.upcoming === "true", sourceType: q.sourceType, sourceId: q.sourceId }), videoEnabled: meetingsEnabled(c.var.deps) });
     })
     .post("/", async (c) => c.json(await createMeeting(c.var.deps, c.var.auth, await parseBody(c, MeetingCreate)), 201))
     .get("/:id", async (c) => c.json({ meeting: await getMeeting(c.var.deps, c.var.auth, c.req.param("id")) }))
     .patch("/:id", async (c) => c.json({ meeting: await updateMeeting(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, MeetingPatch)) }))
-    .delete("/:id", async (c) => c.json(await deleteMeeting(c.var.deps, c.var.auth, c.req.param("id")))) // R52 (MB-239)
     .get("/:id/ics", async (c) => new Response(await meetingIcs(c.var.deps, c.var.auth, c.req.param("id")), {
       headers: { "content-type": "text/calendar; charset=utf-8", "content-disposition": "attachment; filename=\"meeting.ics\"", "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
     }))

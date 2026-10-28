@@ -156,15 +156,14 @@ async function checkParent(deps: Deps, orgId: string, id: string | null, parentI
 
 export interface GoalInput { name?: string; description?: string; ownerId?: string | null; parentId?: string | null; start?: string | null; due?: string | null; health?: Health | null; archived?: boolean }
 
-export async function createGoal(deps: Deps, a: SuiteActor, input: GoalInput & { name: string; keyResults?: KrInput[] }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createGoal(deps: Deps, a: SuiteActor, input: GoalInput & { name: string; keyResults?: KrInput[] }) {
   assertWritable(a);
-  if (opts.id && opts.retry && await deps.db.select({ id: goals.id }).from(goals).where(and(eq(goals.id, opts.id), eq(goals.orgId, a.orgId))).get()) return getGoal(deps, a.orgId, opts.id); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const name = input.name.trim();
   if (!name) throw new HttpError(422, "validation_failed", "Give the goal a name.");
   await checkOwner(deps, a.orgId, input.ownerId);
   await checkParent(deps, a.orgId, null, input.parentId);
   const now = deps.now();
-  const id = opts.id ?? sortableId("gol", now.getTime());
+  const id = sortableId("gol", now.getTime());
   await deps.db.insert(goals).values({
     id, orgId: a.orgId, name: name.slice(0, 200), description: (input.description ?? "").slice(0, 5000), ownerId: input.ownerId ?? (a.agentId ? null : a.userId || null),
     parentId: input.parentId ?? null, startAt: parseDate(input.start), dueAt: parseDate(input.due), health: input.health ?? null, createdAt: now, updatedAt: now, ...createdBy(a),

@@ -113,18 +113,14 @@ export async function getSnippet(deps: Deps, a: SuiteActor, id: string) {
   return present(r, a, await authorNames(deps, a.orgId, [r]));
 }
 
-export async function createSnippet(deps: Deps, a: SuiteActor, input: SnippetInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createSnippet(deps: Deps, a: SuiteActor, input: SnippetInput) {
   assertWritable(a);
-  if (opts.id && opts.retry) { // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
-    const hit = await deps.db.select().from(mailSnippets).where(and(eq(mailSnippets.id, opts.id), eq(mailSnippets.orgId, a.orgId))).get();
-    if (hit) return present(hit as Row, a, await authorNames(deps, a.orgId, [hit as Row]));
-  }
   const by = authorKey(a);
   if (!by) throw new HttpError(403, "forbidden", "Only a person or an agent can save a reply.");
   const v = clean(input, false);
   await assertShortcutFree(deps, a.orgId, v.shortcut);
   const now = deps.now();
-  const row: Row = { id: opts.id ?? sortableId("snp", now.getTime()), orgId: a.orgId, name: v.name!, shortcut: v.shortcut ?? null, subject: v.subject ?? null, body: v.body!, shared: v.shared ?? true, createdBy: by, createdAt: now, updatedAt: now };
+  const row: Row = { id: sortableId("snp", now.getTime()), orgId: a.orgId, name: v.name!, shortcut: v.shortcut ?? null, subject: v.subject ?? null, body: v.body!, shared: v.shared ?? true, createdBy: by, createdAt: now, updatedAt: now };
   await deps.db.insert(mailSnippets).values(row);
   return present(row, a, await authorNames(deps, a.orgId, [row]));
 }

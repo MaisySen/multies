@@ -47,10 +47,6 @@ The app finds the sign in page on its own, you sign in to Multies, pick a worksp
   out as an agent (pass `agentId`), so guardrails always apply.
 - A **read only** key (or a read only OAuth connection) can call the read tools only.
 
-### Retries (R52)
-
-Send an `Idempotency-Key` header on `POST /api/v1/mcp` to make a tool call safe to retry. A second call with the same key and the same body gets the first answer back, marked `idempotent-replayed: true`, and the tool does not run again (so `create_task` makes one task). The same key with a different call is 422 `idempotency_key_reused`. The JSON-RPC request id is not a replay key: the same id without a key runs again. Calls without a key, reads included, work as before.
-
 ## Scopes and the full tool list
 
 Every tool needs one API key scope (for example `tasks:read` for list_tasks, `mail:send` for reply). A key with per area scopes gets a tool error starting `insufficient_scope:` for a tool outside them; Full access and Read only keys work as before. The page https://multies.si/developers/mcp (Markdown: https://multies.si/developers/mcp.md) lists every tool with its scope, parameters and an example call, generated from the server.
@@ -215,7 +211,6 @@ Give a mail thread an owner, mark it done, list threads by view and read reply t
 | --- | --- |
 | `list_meetings` | List meetings |
 | `schedule_meeting` | Schedule a video meeting |
-| `delete_meeting` | Delete a meeting or a whole series (calendar scope, anyone who can edit it); sends `meeting.deleted` |
 | `list_bookings` | List meeting bookings |
 
 ### Integrations

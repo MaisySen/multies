@@ -78,7 +78,6 @@ describe("MCP server", () => {
       "delete_agent_trigger",
       "delete_chat_message",
       "delete_checklist_item",
-      "delete_meeting",
       "delete_saved_view",
       "delete_task_comment",
       "delete_thread_comment",

@@ -30,7 +30,15 @@ import type { Folder } from "@/shared/mail";
 import type { ConnectPresetId } from "@/shared/mail-connect";
 import { inIds } from "../../lib/sql-chunks";
 
-interface FolderState { path: string; v: string; last: number }
+interface FolderState {
+  path: string; v: string; last: number;
+  /**
+   * R52: the folder as last read in full for flags: "<modseq>:<exists>:<uidNext>:<last>". When the server keeps
+   * CONDSTORE mod-sequences and all four are the same at the next pass, nothing in the folder changed (a flag change
+   * moves the modseq, an expunge moves the count, new mail moves the next UID), so the pass reads no flags for it.
+   */
+  f?: string;
+}
 /**
  * Inbox and Sent cursors sit at the top level (round 18); round 19 adds the other synced folders
  * under `boxes` (Archive, Drafts, Spam, Trash, and the person's own folders as "f:<path>"), the
@@ -314,8 +322,17 @@ async function pushChanges(deps: Deps, c: Connection, session: ImapSession, stat
  * cleared, and mail that left the Inbox leaves the Multies inbox too); when it shows up in another
  * synced folder, that folder's sync picks it up again by Message-ID and files it there.
  */
+/** R52: what a folder looked like when its flags were last read in full (see FolderState.f); undefined without CONDSTORE. */
+export function folderFingerprint(opened: { uidNext: number; exists?: number; modseq?: string }, last: number): string | undefined {
+  return opened.modseq ? `${opened.modseq}:${opened.exists ?? ""}:${opened.uidNext}:${last}` : undefined;
+}
+
 async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: string, st: FolderState) {
-  await session.open(st.path);
+  const opened = await session.open(st.path);
+  // R52: an unchanged folder (same modseq, count and next UID since its last full read) has no flag changes and
+  // no removed mail: skip the FETCH FLAGS of up to FLAG_WINDOW messages and the local read of the same window.
+  const fp = folderFingerprint(opened, st.last);
+  if (fp && st.f === fp) return [];
   const lo = Math.max(1, st.last - FLAG_WINDOW + 1);
   const remote = await session.flags(lo, st.last);
   const local = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
@@ -331,6 +348,8 @@ async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: s
     const isStarred = f.has("\\Flagged");
     if (isRead !== m.isRead || isStarred !== m.isStarred) changes.push(deps.db.update(messages).set({ isRead, isStarred }).where(eq(messages.id, m.id)));
   }
+  // Saved with the rest of the state when the pass commits (a failed pass keeps the old value and reads again).
+  if (fp) st.f = fp; else delete st.f;
   return changes;
 }
 
