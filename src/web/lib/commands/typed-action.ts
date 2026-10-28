@@ -3,7 +3,6 @@
  * (src/shared/command-actions.ts), finds the task the words name (a loaded list first, else one GET by ref),
  * and works out the change. Nothing is written here: the menu applies it on Enter through the same task
  * PATCH the focused task pickers use (task-pickers.ts).
- * R55: status, labels on and off, and a move to another project ride the same one PATCH and the same Undo.
  */
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -18,7 +17,7 @@ export type TypedAction =
   | { state: "ready"; ref: string; label: string; task: Task; resolved: ResolvedCommand };
 
 /** What the server gets, what the lists show at once, and the same two to put it back (Undo). */
-export function typedActionChange(task: Task, r: ResolvedCommand, project: Project | undefined, projects: Project[] = []) {
+export function typedActionChange(task: Task, r: ResolvedCommand, project: Project | undefined) {
   const patch: Record<string, unknown> = {};
   const view: Partial<Task> = {};
   const undoPatch: Record<string, unknown> = {};
@@ -31,16 +30,8 @@ export function typedActionChange(task: Task, r: ResolvedCommand, project: Proje
     Object.assign(undoView, { assigneeId: task.assigneeId, assignee: task.assignee });
   }
   if (r.due !== undefined) { patch.due = r.due; view.due = r.due; undoPatch.due = task.due ? task.due.slice(0, 10) : null; undoView.due = task.due; }
-  // R55: a move to another project sends the project and the status it lands in, in the same one PATCH. Undo sends
-  // the old project, status and sprint back (the server gives the old number back too, so the ref is the same).
-  const home = r.project ? projects.find((p) => p.id === r.project!.id) : project;
-  if (r.project) {
-    patch.projectId = r.project.id; view.projectId = r.project.id;
-    undoPatch.projectId = task.projectId; undoView.projectId = task.projectId;
-    if (task.sprintId) { undoPatch.sprintId = task.sprintId; undoView.sprintId = task.sprintId; }
-  }
   if (r.status) {
-    const s = home?.statuses.find((x) => x.id === r.status!.id);
+    const s = project?.statuses.find((x) => x.id === r.status!.id);
     patch.statusId = r.status.id;
     Object.assign(view, { statusId: r.status.id, statusName: r.status.name, ...(s ? { statusColor: s.color, status: s.category } : {}) });
     undoPatch.statusId = task.statusId;
@@ -51,7 +42,7 @@ export function typedActionChange(task: Task, r: ResolvedCommand, project: Proje
   return { patch, view, undoPatch, undoView };
 }
 
-export function useTypedAction(search: string, o: { enabled: boolean; focusedTask: Task | null; people: AssigneeOption[] | undefined; projects: Project[] | undefined; labels?: string[] }): TypedAction | null {
+export function useTypedAction(search: string, o: { enabled: boolean; focusedTask: Task | null; people: AssigneeOption[] | undefined; projects: Project[] | undefined }): TypedAction | null {
   const qc = useQueryClient();
   const me = useMe();
   const user = me.data?.user;
@@ -96,8 +87,7 @@ export function useTypedAction(search: string, o: { enabled: boolean; focusedTas
       return { state: "missing", ref, label: `${ref} was not found, or you cannot see it` };
     }
     const project = o.projects?.find((p) => p.id === task.projectId);
-    const resolved = resolveCommand(parsed, { ref: task.ref, labels: task.labels, statusId: task.statusId, assigneeId: task.assigneeId, projectId: task.projectId, category: task.status }, project?.statuses ?? [], new Date(),
-      { projects: o.projects, knownLabels: o.labels });
+    const resolved = resolveCommand(parsed, { ref: task.ref, labels: task.labels, statusId: task.statusId, assigneeId: task.assigneeId }, project?.statuses ?? [], new Date());
     return { state: "ready", ref, label: resolved.preview, task, resolved };
-  }, [parsed, ref, local, remote.data, remote.isLoading, remote.isFetching, o.projects, o.labels]);
+  }, [parsed, ref, local, remote.data, remote.isLoading, remote.isFetching, o.projects]);
 }
