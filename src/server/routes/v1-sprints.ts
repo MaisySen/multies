@@ -19,7 +19,6 @@ const json = (description: string) => ({ description, content: { "application/js
 const body = (schema: any) => ({ body: { required: true, content: { "application/json": { schema } } } });
 const Id = z.object({ id: z.string().min(1).openapi({ param: { name: "id", in: "path" } }) });
 const actor = (c: Context<AppEnv>) => c.var.auth as unknown as SuiteActor;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const withUrl = (c: Context<AppEnv>, data: unknown): unknown => {
   // MB-62: every sprint object carries url, the page that opens that sprint.
   const app = c.var.deps.config.appUrl.replace(/\/$/, "");

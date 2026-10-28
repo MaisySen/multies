@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 52 (28 Oct 2026)
+
+- Agent API: creating a form, goal, time entry, chat channel, agent, saved reply, custom field, checklist item or sprint keeps the same id when retried after a server error, and a retry after a first attempt that did go through now returns that item instead of failing again. POST /mcp honours Idempotency-Key, now covered by tests and described in the docs.
+- Meetings can be deleted through the API, the app and MCP, which sends a meeting.deleted event. Deleting a project sends task.deleted for each of its tasks to anyone subscribed, written in one statement.
+- Task lists cost less CPU per request: the query rules and the row mapping are built once per worker instead of on every call.
+- Mail sync skips reading flags for a folder that has not changed since its last read, when the mail server reports changes (CONDSTORE), so a quiet pass costs a fraction of the CPU.
+
 ### Round 51 (27 Oct 2026)
 
 - Agent API: every write can be retried safely with an Idempotency-Key, and a retry after a server error no longer makes a second doc, deal, comment or meeting. New webhook events tell you when a project, doc or comment is deleted, and when a comment is added or edited.
