@@ -6,6 +6,7 @@
  * conditions or actions run here too. Actions: post_to_channel, assign_task (a member, the project
  * lead, or in turn), set_status, add_label, set_priority, create_subtask_checklist, plus notify and
  * create_task. Each run counts against the plan's monthly allowance like every other rule.
+ * R55 (MB-140): a rule can do several things in order: its action, then actionConfig.then (up to 4 more).
  *
  * Loops: an action's own change runs as an automation actor one level deeper; nothing runs past
  * MAX_DEPTH, and one rule acts on one task at most once a minute (kept in memory per isolate).
@@ -35,6 +36,8 @@ const CATEGORIES = ["todo", "doing", "done"] as const;
 const R24_CONDITIONS = ["priority", "type", "label", "inSprint", "unassigned", "toStatusName", "category"];
 
 export const MAX_DEPTH = 3;
+/** R55 (MB-140): a rule runs its action and then up to this many more, in order (actionConfig.then). */
+export const MAX_EXTRA_ACTIONS = 4;
 export const DUE_PASSED_BUDGET = 25;
 const DUE_PASSED_RULES = 50;
 
@@ -44,6 +47,7 @@ const has = <T extends string>(list: readonly T[], v: unknown): v is T => typeof
 /** True when a rule needs this engine (a newer trigger, action, condition or notify target). */
 export function isR24Rule(r: { trigger: string; action: string; conditions?: Record<string, unknown>; actionConfig?: Record<string, unknown> }) {
   if (has(R24_TRIGGERS, r.trigger) || has(R24_ACTIONS, r.action)) return true;
+  if (Array.isArray(r.actionConfig?.then) && r.actionConfig.then.length) return true; // R55: several actions per rule
   if (r.actionConfig?.to === "lead") return true;
   return r.trigger === "status_changed" && R24_CONDITIONS.some((k) => r.conditions?.[k] !== undefined);
 }
@@ -173,6 +177,22 @@ export async function validateR24Rule(deps: Deps, orgId: string, i: { trigger: s
       break;
     }
   }
+  // R55 (MB-140): several actions per rule. actionConfig.then holds up to MAX_EXTRA_ACTIONS more { action, actionConfig },
+  // each checked like a first action for the same trigger. No migration: they ride in the rule's action settings.
+  if (a.then !== undefined) {
+    if (!Array.isArray(a.then) || a.then.length > MAX_EXTRA_ACTIONS) throw bad(`A rule can do up to ${MAX_EXTRA_ACTIONS + 1} things: its action and ${MAX_EXTRA_ACTIONS} more.`);
+    const steps: { action: string; actionConfig: Record<string, unknown> }[] = [];
+    for (const raw of a.then as unknown[]) {
+      const st = (raw ?? {}) as { action?: unknown; actionConfig?: unknown };
+      if (typeof st.action !== "string") throw bad("Each extra action needs to say what to do.");
+      if (st.action === "assign_thread") throw bad("Assigning an email thread can only be a rule's first action.");
+      const cfg = st.actionConfig && typeof st.actionConfig === "object" && !Array.isArray(st.actionConfig) ? { ...(st.actionConfig as Record<string, unknown>) } : {};
+      if (cfg.then !== undefined) throw bad("An extra action cannot have extra actions of its own.");
+      const v = await validateR24Rule(deps, orgId, { trigger: i.trigger, action: st.action, conditions: i.conditions, actionConfig: cfg });
+      steps.push({ action: st.action, actionConfig: v.actionConfig });
+    }
+    if (steps.length) a.then = steps; else delete a.then;
+  }
   return { conditions: c, actionConfig: a };
 }
 
@@ -238,7 +258,37 @@ async function targets(deps: Deps, orgId: string, to: string, t?: Task) {
 }
 
 /** Does one rule's action. Returns a new action config to save (the round robin pointer), if any. */
+/**
+ * R55 (MB-140): the rule's action, then each extra action in order (actionConfig.then), each seeing the task as the
+ * one before left it. A failing step stops the rest and names its place ("Action 2: ..."). Returns the rule's new
+ * action settings when a step moved its own state (assign in turn), else undefined.
+ */
 async function act(deps: Deps, r: AutomationRow, ctx: RunContext, depth: number): Promise<string | undefined> {
+  const cfg = JSON.parse(r.actionConfig) as Record<string, unknown>;
+  const steps = Array.isArray(cfg.then) ? (cfg.then as { action: AutomationRow["action"]; actionConfig?: Record<string, unknown> }[]) : [];
+  const first = await actOne(deps, r, ctx, depth);
+  if (!steps.length) return first;
+  const out = (first ? JSON.parse(first) : { ...cfg }) as Record<string, unknown> & { then: typeof steps };
+  out.then = [...steps];
+  let changed = first !== undefined;
+  let here = ctx;
+  for (let k = 0; k < steps.length; k++) {
+    if (here.task) {
+      const { getTask } = await import("./tasks");
+      here = { ...here, task: await getTask(deps, ruleActor(r.orgId, r.name, depth + 1), here.task.id) };
+    }
+    let next: string | undefined;
+    try {
+      next = await actOne(deps, { ...r, action: steps[k].action, actionConfig: JSON.stringify(steps[k].actionConfig ?? {}) }, here, depth);
+    } catch (err) {
+      throw new Error(`Action ${k + 2}: ${err instanceof Error ? err.message : "failed"}`, { cause: err });
+    }
+    if (next !== undefined) { out.then[k] = { ...steps[k], actionConfig: JSON.parse(next) as Record<string, unknown> }; changed = true; }
+  }
+  return changed ? JSON.stringify(out) : undefined;
+}
+
+async function actOne(deps: Deps, r: AutomationRow, ctx: RunContext, depth: number): Promise<string | undefined> {
   const orgId = r.orgId;
   const cfg = JSON.parse(r.actionConfig) as Record<string, unknown>;
   const actor = ruleActor(orgId, r.name, depth + 1);

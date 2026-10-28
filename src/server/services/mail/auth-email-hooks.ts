@@ -44,22 +44,17 @@ export function normaliseHookSecret(raw: string): string {
   return s;
 }
 
-export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, input: AuthHookInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createAuthHook(deps: Deps, a: AuthContext & { agentId?: string | null }, input: AuthHookInput) {
   assertManager(a);
   const from = input.from.trim().toLowerCase();
   const mb = await deps.db.select().from(mailboxes).where(and(eq(mailboxes.orgId, a.orgId), eq(mailboxes.address, from))).get();
   if (!mb) throw bad(`${from} isn't a mailbox in this workspace. Create it first (no-reply@ works well).`);
-  if (opts.id && opts.retry) {
-    // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt saved the hook gets that hook back. One read, only on a retry.
-    const hit = await deps.db.select().from(authEmailHooks).where(and(eq(authEmailHooks.id, opts.id), eq(authEmailHooks.orgId, a.orgId))).get();
-    if (hit) return presentHook(deps, hit, mb.address);
-  }
   let url: URL;
   try { url = new URL(input.supabaseUrl.trim()); } catch { throw bad("supabaseUrl must be your project URL, for example https://abcd1234.supabase.co"); }
   if (url.protocol !== "https:") throw bad("supabaseUrl must start with https://");
   const secret = normaliseHookSecret(input.secret);
   const row: typeof authEmailHooks.$inferInsert = {
-    id: opts.id ?? newId("ahk"), orgId: a.orgId, mailboxId: mb.id, kind: "supabase",
+    id: newId("ahk"), orgId: a.orgId, mailboxId: mb.id, kind: "supabase",
     secretEnc: await encryptSecret(deps.config.appSecret, secret), supabaseUrl: url.origin,
     appName: (input.appName?.trim() || mb.displayName || from.split("@")[1]).slice(0, 80),
   };

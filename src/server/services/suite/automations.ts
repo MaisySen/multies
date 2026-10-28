@@ -64,6 +64,7 @@ async function checkR24(deps: Deps, orgId: string, i: { trigger: string; action:
 /** R22.5: assign_thread rules check the people and the mailbox at save time (thread-rules.ts). */
 async function validateAction(deps: Deps, orgId: string, i: { trigger: string; action: string; conditions?: Record<string, unknown>; actionConfig?: Record<string, unknown> }) {
   if (i.action !== "assign_thread") return (await checkR24(deps, orgId, i)).actionConfig;
+  if (i.actionConfig?.then !== undefined) throw new HttpError(422, "validation_failed", "A rule that assigns an email thread does one thing; make a second rule for the rest.");
   const { validateAssignRule } = await import("./thread-rules");
   return { ...(await validateAssignRule(deps, orgId, { trigger: i.trigger, conditions: i.conditions ?? {}, actionConfig: i.actionConfig ?? {} })) } as Record<string, unknown>;
 }

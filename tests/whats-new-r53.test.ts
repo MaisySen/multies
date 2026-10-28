@@ -13,10 +13,10 @@ const SLOP_RE = new RegExp(`\\b(${SLOP.map((w) => w.replace(/[-']/g, (c) => `\\$
 const words = (e: WhatsNewEntry) => `${e.title} ${e.body}`;
 
 describe("R53 whats-new list", () => {
-  // R54: a few entries land each round; prune the oldest once the list passes 20.
-  it("has 8 to 20 entries with unique ids", () => {
+  // R54: a few entries land each round. R55: pruned to what people can see and use; keep it at 14 or fewer.
+  it("has 8 to 14 entries with unique ids", () => {
     expect(WHATS_NEW.length).toBeGreaterThanOrEqual(8);
-    expect(WHATS_NEW.length).toBeLessThanOrEqual(20);
+    expect(WHATS_NEW.length).toBeLessThanOrEqual(14);
     expect(new Set(WHATS_NEW.map((e) => e.id)).size).toBe(WHATS_NEW.length);
   });
 
@@ -59,12 +59,14 @@ describe("R53 whats-new list", () => {
     }
   });
 
-  it("carries the R53 entries: What's new itself, then the mail sync change (R54 entries sit above them)", () => {
-    const i = WHATS_NEW.findIndex((e) => e.id === "2026-10-28-whats-new");
-    expect(i).toBeGreaterThanOrEqual(0);
-    expect(WHATS_NEW[i + 1].title).toMatch(/mail sync/i);
-    expect(WHATS_NEW[i + 1].body).toMatch(/not downloaded again/);
-    expect(WHATS_NEW[0].id).toBe("2026-10-28-command-menu-actions");
+  it("keeps What's new itself; R55 pruned the entries nobody can see (they stay in CHANGELOG.md)", () => {
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-28-whats-new")).toBe(true);
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-28-command-menu-actions")).toBe(true);
+    for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
+      expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
+    }
+    // Newest first.
+    expect([...WHATS_NEW].sort((a, b) => b.date.localeCompare(a.date)).map((e) => e.date)).toEqual(WHATS_NEW.map((e) => e.date));
   });
 
   it("formats a date as a calendar day without a time zone shift", () => {

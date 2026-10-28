@@ -2,6 +2,7 @@
  * R53 (MB-133): the "What's new" list, newest first. One place feeds the public /changelog page and the
  * account menu's unread dot. Plain user words: no dashes, no other product names, nothing a person cannot notice.
  * Add a new entry at the top with a new id; the dot shows for everyone whose browser has not opened the newest id.
+ * R55: the list keeps the changes people can see and use, at most 14; work behind the scenes stays in CHANGELOG.md.
  */
 export interface WhatsNewEntry {
   /** Stable and unique: the date plus a short slug. Never reuse or edit an id once shipped. */
@@ -21,12 +22,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
   },
   {
-    id: "2026-10-28-more-safe-retries",
-    date: "2026-10-28",
-    title: "More things safe to retry",
-    body: "When an app or agent retries after an error, templates, doc versions, task runs, meeting action items, dashboards, reports, incoming hooks and agent triggers are now made once, not twice.",
-  },
-  {
     id: "2026-10-28-easier-to-read-phone",
     date: "2026-10-28",
     title: "Easier to read on phones",
@@ -39,28 +34,10 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
   {
-    id: "2026-10-28-lighter-mail-sync",
-    date: "2026-10-28",
-    title: "Lighter mail sync",
-    body: "Mail you already have is not downloaded again, and only messages whose read or star state changed are checked. Connected mailboxes stay in step with less work on every pass.",
-  },
-  {
     id: "2026-10-28-delete-meetings",
     date: "2026-10-28",
     title: "Delete a meeting",
     body: "Meetings can now be deleted, from the app or through the API.",
-  },
-  {
-    id: "2026-10-28-safe-retries",
-    date: "2026-10-28",
-    title: "No doubles when an app retries",
-    body: "If an app or agent that uses your workspace retries after an error, you get one item, not two. This now covers forms, goals, time entries, chat channels, saved replies, custom fields, checklists, sprints, imports, webhook endpoints and agent tool calls.",
-  },
-  {
-    id: "2026-10-28-quicker-task-lists",
-    date: "2026-10-28",
-    title: "Quicker task lists",
-    body: "Task lists take less work to prepare on our side, so they come back sooner.",
   },
   {
     id: "2026-10-27-webhook-events",
@@ -73,12 +50,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-27",
     title: "Turn an email into a task on your phone",
     body: "An open email has a task button in the bar at the bottom. One tap makes a task, and if the thread already has one, the same tap opens it. Back from the task takes you to the email.",
-  },
-  {
-    id: "2026-10-27-steadier-my-work",
-    date: "2026-10-27",
-    title: "Steadier My Work",
-    body: "My Work, the Home tab on phones, skips empty sections in a single check, so it loads with fewer steps and holds up on busy days.",
   },
   {
     id: "2026-10-27-workspace-switching",

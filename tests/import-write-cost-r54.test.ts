@@ -74,7 +74,8 @@ describe("R54 import write cost", () => {
     console.log(`R54 import ${n} rows: ${units} write units (${(units / n).toFixed(2)} per row), ${s.all} prepared statements (${s.writes} writes) in ${runs} run(s)`);
     expect(body.stopped).toBeNull();
     // Measured 16.24 (100 rows) and 16.10 (500 rows) units per row; about 1.05 write statements per row.
-    expect(units / n).toBeLessThanOrEqual(17);
+    // R55: children first with the parent's counts on its insert: 13.04 and 12.90 (no parent count updates).
+    expect(units / n).toBeLessThanOrEqual(14);
     expect(s.writes / n).toBeLessThanOrEqual(1.2);
   }, 120_000);
 });

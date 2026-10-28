@@ -3,7 +3,7 @@
  * Agent keys act as their agent. Permissions follow the task: another workspace's ids answer 404.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import { idempotentIds, idempotentRetry, idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
+import { idempotentIds, idempotentRetry } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -46,5 +46,5 @@ export function registerChecklistRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await deleteChecklistItem(c.var.deps, actor(c), pid(c))));
 
   api.openapi(route("post", "/checklist-items/{id}/to-subtask", "Turn a checklist item into a subtask", "Creates a subtask of the item's task with the same title, assignee and due date, and removes the item.", { request: { params: Id } }),
-    async (c) => send(c, await checklistItemToSubtask(c.var.deps, actor(c), pid(c), await idempotentCreate(c.req.raw, "tsk")), 201));
+    async (c) => send(c, await checklistItemToSubtask(c.var.deps, actor(c), pid(c)), 201));
 }
