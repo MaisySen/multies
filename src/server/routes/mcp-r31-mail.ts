@@ -10,6 +10,7 @@ import { readStatusOf } from "../services/mail/read-status";
 import { mailboxScope } from "../services/team";
 import { SPLIT_FIELDS, SPLIT_NAME_MAX, SPLIT_RULES_MAX, SPLIT_VALUE_MAX } from "@/shared/mail-splits";
 import type { Scoped } from "./mcp-server";
+import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 const Rule = z.object({ field: z.enum(SPLIT_FIELDS), value: z.string().max(SPLIT_VALUE_MAX).optional() });
@@ -38,7 +39,7 @@ export function registerMailR31Tools(server: McpServer, deps: Deps, actor: Scope
     },
   }, tool(async (x: { name: string; rules: { field: (typeof SPLIT_FIELDS)[number]; value?: string }[]; match?: "all" | "any"; leavesImportant?: boolean }) => {
     writable();
-    return { split: await createSplit(deps, a, { ...x, rules: norm(x.rules) }) };
+    return { split: await createSplit(deps, a, { ...x, rules: norm(x.rules) }, await mcpCreate("spl")) };
   }) as never);
 
   server.registerTool("mail_split_update", {

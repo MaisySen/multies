@@ -672,7 +672,7 @@ export async function unreadSummary(deps: Deps, a: SuiteActor) {
 }
 
 /** Turns a chat message into a task. The task links back to the message and the message shows the task. */
-export async function messageToTask(deps: Deps, a: SuiteActor, id: string, input: { title?: string; projectId?: string; assignee?: { type: "member" | "agent"; id: string } | null; due?: string | null; triage?: boolean }) {
+export async function messageToTask(deps: Deps, a: SuiteActor, id: string, input: { title?: string; projectId?: string; assignee?: { type: "member" | "agent"; id: string } | null; due?: string | null; triage?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(a);
   const m = await messageRow(deps, a.orgId, id);
   const c = await visibleChannel(deps, a, m.channelId);
@@ -687,7 +687,7 @@ export async function messageToTask(deps: Deps, a: SuiteActor, id: string, input
     notes: `${text}\n\nFrom ${m.authorName} in ${where}.`,
     // Round 22: "Send to triage" puts the message in the Triage queue instead of making a normal task.
     ...(input.triage ? { triage: { source: "chat" as const, when: "always" as const, from: m.authorName.slice(0, 300) } } : {}),
-  });
+  }, opts); // R53 (MB-239): same id on a retry (the link and the message's task chip are already safe to repeat)
   await link(deps, a.orgId, { type: "task", id: task.id }, { type: "chat_message", id: m.id }, "from_chat");
   const next = [...links.filter((l) => !(l.type === "task" && l.id === task.id)), { type: "task" as const, id: task.id, ref: task.ref, title: task.title }];
   await deps.db.update(chatMessages).set({ links: JSON.stringify(next), updatedAt: deps.now() }).where(eq(chatMessages.id, m.id));

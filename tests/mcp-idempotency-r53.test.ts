@@ -12,7 +12,7 @@ import { idempotencyKeys } from "@/server/db/schema";
  * the first attempt's row and the table keeps exactly one. The 5xx is simulated as R40 and R52 did: the first call
  * succeeds, then its key row is set back to running with a 503. A JSON-RPC batch gives each message its own id.
  */
-type Seed = { project: string; task: string; channel: string };
+type Seed = { project: string; task: string; channel: string; message: string };
 type Case = { tool: string; table: string; args: (s: Seed) => Record<string, unknown>; pick: (j: Record<string, unknown>) => string[]; domain?: boolean };
 const startsAt = new Date(Date.now() + 86_400_000).toISOString();
 const at = (k: string) => (j: Record<string, unknown>) => [(j[k] as { id: string }).id];
@@ -33,6 +33,12 @@ const cases: Case[] = [
     pick: (j) => (j.items as { id: string }[]).map((x) => x.id) },
   { tool: "create_sprint", table: "sprints", args: (s) => ({ projectId: s.project, name: "Retry sprint" }), pick: at("sprint") },
   { tool: "post_message", table: "chat_messages", args: (s) => ({ channelId: s.channel, body: "Retry message" }), pick: at("message") },
+  { tool: "create_triage_item", table: "tasks", args: () => ({ title: "Retry triage" }), pick: at("item") },
+  { tool: "message_to_task", table: "tasks", args: (s) => ({ messageId: s.message }), pick: at("task") },
+  { tool: "duplicate_task", table: "tasks", args: (s) => ({ taskId: s.task }), pick: at("task") },
+  { tool: "create_dashboard", table: "dashboards", args: () => ({ name: "Retry board" }), pick: at("dashboard") },
+  { tool: "create_saved_view", table: "saved_views", args: () => ({ name: "Retry view", view: "list" }), pick: at("view") },
+  { tool: "mail_split_create", table: "mail_splits", args: () => ({ name: "Pitches", rules: [{ field: "subjectContains", value: "pitch" }] }), pick: at("split") },
   { tool: "import_file", table: "meetings", args: () => ({ kind: "calendar", fileName: "calendar.ics", content: ics }), pick: (j) => [(j.move as { id: string }).id] },
 ];
 
@@ -93,7 +99,8 @@ describe("MCP create tools keep the same id on a 5xx retry (R53 MB-239)", () => 
     const task = (await s0.v1("POST", "/tasks", { title: "Seed", projectId: project })).task!.id;
     const channel = (await s0.v1("POST", "/chat/channels", { name: "seed-53" })).channel!.id;
     if (k.domain) await s0.v1("POST", "/domains", { name: "retry-r53.io" });
-    const seed = { project, task, channel };
+    const message = ((await s0.call("post_message", { channelId: channel, body: "Seed message" }, undefined, 3)).message as { id: string }).id;
+    const seed = { project, task, channel, message };
     const key = `r53-mcp-${k.tool}-0001`;
     const first = await s0.call(k.tool, k.args(seed), key);
     const ids = k.pick(first);
