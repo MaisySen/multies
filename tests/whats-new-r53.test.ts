@@ -13,9 +13,10 @@ const SLOP_RE = new RegExp(`\\b(${SLOP.map((w) => w.replace(/[-']/g, (c) => `\\$
 const words = (e: WhatsNewEntry) => `${e.title} ${e.body}`;
 
 describe("R53 whats-new list", () => {
-  it("has 8 to 12 entries with unique ids", () => {
+  // R54: a few entries land each round; prune the oldest once the list passes 20.
+  it("has 8 to 20 entries with unique ids", () => {
     expect(WHATS_NEW.length).toBeGreaterThanOrEqual(8);
-    expect(WHATS_NEW.length).toBeLessThanOrEqual(12);
+    expect(WHATS_NEW.length).toBeLessThanOrEqual(20);
     expect(new Set(WHATS_NEW.map((e) => e.id)).size).toBe(WHATS_NEW.length);
   });
 
