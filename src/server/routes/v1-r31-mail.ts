@@ -10,6 +10,7 @@ import { createSplit, deleteSplit, getSplit, listSplits, previewSplit, reorderSp
 import { getMailPrefs, readStatusOf, setMailPrefs } from "../services/mail/read-status";
 import { SplitCreate, SplitPatch, SplitPreview } from "@/shared/mail-splits";
 import { MailPrefsPatch, SplitReorder } from "./mail-splits-r31";
+import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -39,7 +40,7 @@ export function registerMailR31Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/mail/splits", "List Inbox splits and tabs", `The key owner's own Inbox splits in order, and the Inbox tabs (Important, Other, then each split) with unread counts. Personal keys only. Each split: { id, name, rules, match, leavesImportant, position }.`, { request: { query: MailboxQ } }),
     async (c) => send(c, { splits: await listSplits(c.var.deps, actor(c)), tabs: await splitTabs(c.var.deps, actor(c), { mailboxId: c.req.query("mailboxId") || undefined, scope: await scopeOf(c) }) }));
   api.openapi(route("post", "/mail/splits", "Create an Inbox split", `Body: { name (up to 40), rules (1 to 10), match?, leavesImportant?, position? }. ${RULES}`, { request: body(SplitCreate) }),
-    async (c) => send(c, { split: await createSplit(c.var.deps, actor(c), await jsonBody(c, SplitCreate)) }, 201));
+    async (c) => send(c, { split: await createSplit(c.var.deps, actor(c), await jsonBody(c, SplitCreate), await idempotentCreate(c.req.raw, "spl")) }, 201));
   api.openapi(route("post", "/mail/splits/preview", "Preview a split's rules", `Body: { rules, match?, mailboxId? }. Returns { threads }: how many Inbox threads the rules match. Writes nothing; read only keys can call it. ${RULES}`, { request: body(SplitPreview) }),
     async (c) => send(c, await previewSplit(c.var.deps, actor(c), await jsonBody(c, SplitPreview), await scopeOf(c))));
   api.openapi(route("post", "/mail/splits/reorder", "Reorder Inbox splits", "Body: { ids }: every split id once, in the new order.", { request: body(SplitReorder) }),

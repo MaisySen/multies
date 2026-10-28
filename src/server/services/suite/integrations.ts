@@ -96,12 +96,12 @@ export async function listIntegrations(deps: Deps, orgId: string) {
   return { catalogue: CATALOGUE, connections: rows.filter((r) => r.connector).map(presentEndpoint) };
 }
 
-export async function connectIntegration(deps: Deps, actor: SuiteActor, input: { connector: string; url: string; events?: string[]; name?: string }) {
+export async function connectIntegration(deps: Deps, actor: SuiteActor, input: { connector: string; url: string; events?: string[]; name?: string }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
   const c = connector(input.connector);
   const events = (input.events?.length ? input.events : c.events).filter((e) => (WEBHOOK_EVENTS as readonly string[]).includes(e) || e === "*");
   if (!events.length) throw new HttpError(422, "validation_failed", "Choose at least one event.");
-  const r = await createEndpoint(deps, actor.orgId, { url: input.url, events, description: input.name?.trim() || c.name, format: c.format, connector: c.id });
+  const r = await createEndpoint(deps, actor.orgId, { url: input.url, events, description: input.name?.trim() || c.name, format: c.format, connector: c.id }, opts); // R55 (MB-239): same endpoint and secret on a retry
   // Chat apps do not verify signatures, so the secret is only worth showing for JSON targets.
   return { connection: r.endpoint, secret: c.format === "json" ? r.secret : undefined };
 }

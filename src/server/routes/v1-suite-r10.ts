@@ -54,7 +54,7 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("post", "/chat/channels/{id}/messages", "Chat", "Post a message", "Body: { body, parentId?, attachments?: [{ filename, contentType?, contentBase64 }], clientMsgId? }. clientMsgId (9 base 36 characters of send time in ms, then 8 to 40 more) makes the send safe to repeat: a repeat answers 200 with the first message, and the answer carries ack { type, reply_to, ok, message: { id, ts }, deduped }. Markup: <@member:USER_ID> mentions a person, <@agent:AGENT_ID> an agent, <!channel> everyone; <#task:ID>, <#thread:ID> and <#doc:ID> link items. An agent key posts as its agent.", { request: { params: Id, ...body(ChatPost) } }),
     async (c) => {
       const b = await jsonBody(c, ChatPost);
-      const r = await postMessageAcked(c.var.deps, actor(c), pid(c), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId });
+      const r = await postMessageAcked(c.var.deps, actor(c), pid(c), { body: b.body, parentId: b.parentId, files: decodeAttachments(b.attachments), clientMsgId: b.clientMsgId }, await idempotentCreate(c.req.raw, "chm"));
       return send(c, { message: r.message, ...(b.clientMsgId ? { ack: ackFor(b.clientMsgId, r.message, r.deduped) } : {}) }, r.deduped ? 200 : 201);
     });
   api.openapi(route("get", "/chat/messages/{id}/thread", "Chat", "Read a thread", "The top level message and its replies.", { request: { params: Id } }),
@@ -62,7 +62,7 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("post", "/chat/messages/{id}/task", "Chat", "Turn a message into a task", "Body: { title?, projectId?, assignee?: member:<id> or agent:<id>, due?, triage? }. The task links back to the message, and the message shows the task. With triage: true it waits in the Triage queue (source chat) until someone accepts it.", { request: { params: Id, ...body(MessageToTask) } }),
     async (c) => {
       const b = await jsonBody(c, MessageToTask);
-      return send(c, { task: await messageToTask(c.var.deps, actor(c), pid(c), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due, triage: b.triage }) }, 201);
+      return send(c, { task: await messageToTask(c.var.deps, actor(c), pid(c), { title: b.title, projectId: b.projectId, assignee: parseAssignee(b.assignee), due: b.due, triage: b.triage }, await idempotentCreate(c.req.raw, "tsk")) }, 201);
     });
 
   // ---------------------------------------------------------------- templates
@@ -85,7 +85,7 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("patch", "/goals/{id}", "Goals", "Update a goal", "Any of name, description, ownerId, parentId, start, due, health (on_track, at_risk, off_track or null), archived.", { request: { params: Id, ...body(GoalPatch) } }),
     async (c) => send(c, { goal: await updateGoal(c.var.deps, actor(c), pid(c), await jsonBody(c, GoalPatch)) }));
   api.openapi(route("post", "/goals/{id}/key-results", "Goals", "Add a key result", "Body: { name, kind: number | currency (AUD) | percent | tasks, start?, target?, current?, unit?, projectId?, taskIds? }. A tasks key result measures linked tasks, or every top level task in a project.", { request: { params: Id, ...body(KrCreate) } }),
-    async (c) => send(c, { keyResult: await addKeyResult(c.var.deps, actor(c), pid(c), await jsonBody(c, KrCreate)) }, 201));
+    async (c) => send(c, { keyResult: await addKeyResult(c.var.deps, actor(c), pid(c), await jsonBody(c, KrCreate), await idempotentCreate(c.req.raw, "kr")) }, 201));
   api.openapi(route("patch", "/key-results/{id}", "Goals", "Update a key result", "Set current to record progress, or change the target, the linked tasks or the project.", { request: { params: Id, ...body(KrPatch) } }),
     async (c) => send(c, { keyResult: await updateKeyResult(c.var.deps, actor(c), pid(c), await jsonBody(c, KrPatch)) }));
 }
