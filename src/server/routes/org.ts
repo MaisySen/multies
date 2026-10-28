@@ -11,9 +11,6 @@ import { PLANS, effectiveLimits, isPlanId, PLAN_ORDER } from "@/shared/plans";
 import { badRequest, forbidden, HttpError } from "../lib/errors";
 import { isCountry, isTimeZone } from "@/shared/locale";
 
-// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
-const Q_ORG_1 = z.object({ format: z.enum(["csv", "json"]).default("csv"), from: z.coerce.date().optional(), to: z.coerce.date().optional() });
-
 export function orgRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
@@ -77,7 +74,7 @@ export function orgRoutes() {
     .get("/audit/export", async (c) => {
       const { auth, deps } = c.var;
       if (auth.role !== "owner" && auth.role !== "admin") throw forbidden("Only workspace owners and admins can export the audit log.");
-      const q = parseQuery(c, Q_ORG_1);
+      const q = parseQuery(c, z.object({ format: z.enum(["csv", "json"]).default("csv"), from: z.coerce.date().optional(), to: z.coerce.date().optional() }));
       const rows = await auditRows(deps, auth.orgId, q.from, q.to);
       const day = deps.now().toISOString().slice(0, 10);
       const body = q.format === "csv" ? toCsv(rows) : JSON.stringify(rows, null, 2);

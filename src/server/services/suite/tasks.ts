@@ -18,7 +18,6 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
-import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -32,13 +31,6 @@ export const DEFAULT_STATUSES: { name: string; category: Category; color: string
 ];
 
 type TaskRow = typeof tasks.$inferSelect;
-/** R52: task lists map their rows with a mapper built once (db/fast-rows.ts). */
-const taskRows = rowMapper(tasks);
-/** R52: the list query with the select list built once (db/fast-rows.ts); the same SQL drizzle's select() writes. */
-function taskListQuery(conds: (SQL | undefined)[], order: SQL[], limit: number, offset = 0): SQL {
-  const q = sql`select ${taskRows.selectList} from ${tasks} where ${and(...conds)} order by ${sql.join(order, sql`, `)} limit ${limit}`;
-  return offset ? sql`${q} offset ${offset}` : q;
-}
 type StatusRow = typeof projectStatuses.$inferSelect;
 type ProjectRow = typeof projects.$inferSelect;
 
@@ -245,9 +237,21 @@ export async function deleteProject(deps: Deps, actor: SuiteActor, id: string) {
   assertWritable(actor);
   const p = await projectRow(deps, actor.orgId, id);
   const now = deps.now();
+  // R52 (MB-239): the endpoints are read once, here instead of inside emitEvent, so nobody subscribed costs exactly
+  // what it did before. Only when someone takes task.deleted are the task ids read (one SELECT, before the delete).
+  const wh = await import("../developer/webhooks");
+  const targets = await wh.webhookTargets(deps, actor.orgId);
+  const doomed = wh.wantsEvent(targets, "task.deleted")
+    ? await deps.db.select({ id: tasks.id, title: tasks.title }).from(tasks).where(and(eq(tasks.orgId, actor.orgId), eq(tasks.projectId, id), isNull(tasks.deletedAt))).orderBy(tasks.id).limit(wh.EMIT_MANY_MAX + 1)
+    : [];
   await deps.db.update(projects).set({ deletedAt: now, updatedAt: now, version: p.version + 1 }).where(eq(projects.id, id));
   await deps.db.update(tasks).set({ deletedAt: now, updatedAt: now }).where(and(eq(tasks.projectId, id), isNull(tasks.deletedAt)));
-  await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "delete", verb: "deleted", data: { name: p.name }, event: "project.deleted", eventData: { id, object: "project", name: p.name } }); // R51 (MB-239)
+  await recordWrite(deps, actor, { entityType: "project", entityId: id, op: "delete", verb: "deleted", data: { name: p.name } });
+  const by = actorOf(actor);
+  const who = { type: by.type, id: by.id, name: by.name };
+  const truncated = doomed.length > wh.EMIT_MANY_MAX;
+  await wh.emitEvent(deps, actor.orgId, "project.deleted", { id, object: "project", name: p.name, ...(truncated ? { taskEventsTruncated: true } : {}), actor: who }, targets); // R51 (MB-239)
+  if (doomed.length) await wh.emitEventMany(deps, actor.orgId, "task.deleted", doomed.slice(0, wh.EMIT_MANY_MAX).map((t) => ({ id: t.id, object: "task", title: t.title, projectId: id, viaProject: true, actor: who })), targets);
   return { ok: true };
 }
 
@@ -393,7 +397,7 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
 
 export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
   const conds = await listConds(deps, actor, f);
-  const rows = await selectMapped(deps.db, taskRows, taskListQuery(conds, await orderFor(deps, actor.orgId, f), Math.min(f.limit ?? TASK_LIST_LIMIT, 1000)));
+  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? TASK_LIST_LIMIT, 1000));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
 }
@@ -432,7 +436,9 @@ export async function listTasksPage(deps: Deps, actor: SuiteActor, f: TaskFilter
     }
   } else order = [...await orderFor(deps, actor.orgId, f), asc(tasks.id)];
   const offset = cur && "o" in cur ? cur.o : 0;
-  const rows = await selectMapped(deps.db, taskRows, taskListQuery(conds, order, size + 1, !keyset && offset ? offset : 0));
+  let q = deps.db.select().from(tasks).where(and(...conds)).orderBy(...order).limit(size + 1).$dynamic();
+  if (!keyset && offset) q = q.offset(offset);
+  const rows = await q;
   const more = rows.length > size;
   if (more) rows.length = size;
   const last = rows[rows.length - 1];

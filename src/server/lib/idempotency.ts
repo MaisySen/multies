@@ -17,7 +17,7 @@ const KEY = /^[A-Za-z0-9_.:-]{8,255}$/;
 export const IDEMPOTENCY_STALE_MS = 30_000;
 const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz";
 /** The idempotency row behind this request (its id and first attempt time), for idempotentId(). */
-const seeds = new WeakMap<Request, { seed: string; at: number }>();
+const seeds = new WeakMap<Request, { seed: string; at: number; retry?: boolean }>();
 
 async function sha256(text: string): Promise<string> {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
@@ -73,7 +73,7 @@ export function idempotency(scopeOf: (c: Parameters<MiddlewareHandler<AppEnv>>[0
       id = existing.id;
       // Write: essential (claims the retry so a parallel repeat sees it in flight).
       await db.update(idempotencyKeys).set({ responseStatus: null, responseBody: null }).where(eq(idempotencyKeys.id, id));
-      seeds.set(c.req.raw, { seed: id, at: new Date(existing.createdAt).getTime() });
+      seeds.set(c.req.raw, { seed: id, at: new Date(existing.createdAt).getTime(), retry: true });
     } else {
       // Write: essential (the 24 h key row; pruned by maintenance).
       if (existing) await db.delete(idempotencyKeys).where(eq(idempotencyKeys.id, existing.id));
@@ -120,6 +120,29 @@ export async function idempotentId(req: Request, prefix: string): Promise<string
   let rand = "";
   for (const b of digest.slice(0, 10)) rand += ALPHABET[b % 36];
   return `${prefix}_${s.at.toString(36).padStart(9, "0")}${rand}`;
+}
+
+/**
+ * R52 (MB-239): true when this request retries an earlier attempt under the same Idempotency-Key (the first one
+ * answered 5xx or was cut off, and may have committed). Creates use it to look for the row the first attempt
+ * made before inserting, so the check costs a read only on a retry, never on a first attempt.
+ */
+export function idempotentRetry(req: Request): boolean {
+  return seeds.get(req)?.retry === true;
+}
+
+/** R52 (MB-239): idempotentId() plus whether this is a retry, as one options object for a service create. */
+export async function idempotentCreate(req: Request, prefix: string): Promise<{ id?: string; retry?: boolean }> {
+  const id = await idempotentId(req, prefix);
+  return id ? { id, retry: idempotentRetry(req) } : {};
+}
+
+/** R52 (MB-239): n stable ids for a create that makes several rows in one call (checklist items). */
+export async function idempotentIds(req: Request, prefix: string, n: number): Promise<string[] | undefined> {
+  if (!seeds.get(req)) return undefined;
+  const out: string[] = [];
+  for (let i = 0; i < n; i++) out.push((await idempotentId(req, i === 0 ? prefix : `${prefix}:${i}`))!.replace(`${prefix}:${i}_`, `${prefix}_`));
+  return out;
 }
 
 export async function pruneIdempotencyKeys(db: DB, now: Date) {

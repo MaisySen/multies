@@ -147,8 +147,12 @@ export async function listSprints(deps: Deps, actor: SuiteActor, projectId: stri
 
 export interface SprintInput { name?: string; goal?: string; startAt?: string; endAt?: string; startDate?: string; endDate?: string }
 
-export async function createSprint(deps: Deps, actor: SuiteActor, projectId: string, given: SprintInput) {
+export async function createSprint(deps: Deps, actor: SuiteActor, projectId: string, given: SprintInput, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry) { // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
+    const hit = await deps.db.select().from(sprints).where(and(eq(sprints.id, opts.id), eq(sprints.orgId, actor.orgId))).get();
+    if (hit) return presentSprint(hit as SprintRow);
+  }
   const input = sprintDateAliases(given);
   const p = await projectOf(deps, actor.orgId, projectId);
   const existing = await deps.db.select({ name: sprints.name, endAt: sprints.endAt }).from(sprints)
@@ -166,7 +170,7 @@ export async function createSprint(deps: Deps, actor: SuiteActor, projectId: str
   const name = (input.name ?? "").trim().slice(0, 80) || `Sprint ${n}`;
   const now = deps.now();
   const row: typeof sprints.$inferInsert = {
-    id: sortableId("spr", now.getTime()), orgId: actor.orgId, projectId: p.id, name, goal: (input.goal ?? "").slice(0, 2000),
+    id: opts.id ?? sortableId("spr", now.getTime()), orgId: actor.orgId, projectId: p.id, name, goal: (input.goal ?? "").slice(0, 2000),
     startAt, endAt, status: "planned", snapshot: "{}", ...createdBy(actor), createdAt: now, updatedAt: now,
   };
   await deps.db.insert(sprints).values(row);

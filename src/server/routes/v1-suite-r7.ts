@@ -15,8 +15,8 @@ import { getScheduleSettings, setScheduleSettings } from "../services/suite/sche
 import { addEntry, listEntries, runningTimer, startTimer, stopTimer, timesheet } from "../services/suite/time";
 import { createForm, getForm, listForms } from "../services/suite/forms";
 import { dashboard } from "../services/suite/reports";
-import { idempotentId } from "../lib/idempotency"; // R51 (MB-239)
-import { createMeeting, getMeeting, joinMeeting, listMeetings, sendInvites } from "../services/suite/meetings";
+import { idempotentCreate } from "../lib/idempotency"; // R51, R52 (MB-239)
+import { createMeeting, deleteMeeting, getMeeting, joinMeeting, listMeetings, sendInvites } from "../services/suite/meetings";
 import { getAgent } from "../services/agents";
 import { FormCreate, MeetingCreate, ReportQuery, TimeEntryCreate, TimeQuery, TimeStart, TimeStop } from "./suite-r7";
 
@@ -78,7 +78,7 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/time", tags: ["Time"], summary: "Log time by hand", security: secured,
     description: "Minutes on a task (or a project) on a date. Workspace keys pass person (member:<id> or agent:<id>).",
     request: body(TimeEntryCreate), responses: { 201: json(z.object({ entry: TimeEntry }), "The entry."), 401: errors[401], 403: errors[403], 422: errors[422] } }),
-  async (c) => send(c, { entry: await addEntry(c.var.deps, actor(c), c.req.valid("json")) }, 201));
+  async (c) => send(c, { entry: await addEntry(c.var.deps, actor(c), c.req.valid("json"), await idempotentCreate(c.req.raw, "tim")) }, 201));
 
   // ---------------------------------------------------------------- dependencies
   api.openapi(createRoute({ method: "get", path: "/tasks/{id}/dependencies", tags: ["Tasks"], summary: "What blocks a task, and what it blocks", security: secured,
@@ -129,7 +129,7 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/forms", tags: ["Forms"], summary: "Create a public form", security: secured,
     description: "Each submission makes a task (target task) or a contact (target contact, needs an email field). The response has the public URL.",
     request: body(FormCreate), responses: { 201: json(z.object({ form: Any }), "The form."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { form: await createForm(c.var.deps, actor(c), c.req.valid("json")) }, 201));
+  async (c) => send(c, { form: await createForm(c.var.deps, actor(c), c.req.valid("json"), await idempotentCreate(c.req.raw, "frm")) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/forms/{id}", tags: ["Forms"], summary: "A form and its recent submissions", security: secured,
     request: { params: Id }, responses: { 200: json(Any, "{ form, submissions }"), 401: errors[401], 404: errors[404] } }),
@@ -152,12 +152,18 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   async (c) => {
     const b = c.req.valid("json");
     const a = b.sendInvites ? await asAgent(c, b.agentId) : actor(c);
-    return send(c, await createMeeting(c.var.deps, a, b, { id: await idempotentId(c.req.raw, "mtg") }), 201); // R51 (MB-239)
+    return send(c, await createMeeting(c.var.deps, a, b, await idempotentCreate(c.req.raw, "mtg")), 201); // R51 (MB-239)
   });
 
   api.openapi(createRoute({ method: "get", path: "/meetings/{id}", tags: ["Meetings"], summary: "Get a meeting", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ meeting: Any }), "The meeting with its guest link."), 401: errors[401], 404: errors[404] } }),
   async (c) => send(c, { meeting: await getMeeting(c.var.deps, actor(c), c.req.valid("param").id) }));
+
+  // R52 (MB-239): delete a meeting or a whole series (who can edit can delete; sends meeting.deleted).
+  api.openapi(createRoute({ method: "delete", path: "/meetings/{id}", tags: ["Meetings"], summary: "Delete a meeting", security: secured,
+    description: "Deletes the meeting (a series as a whole) with its notes, action items and transcript, and sends meeting.deleted. To keep it on record, PATCH status cancelled instead.",
+    request: { params: Id }, responses: { 200: json(z.object({ id: z.string(), deleted: z.literal(true) }), "Deleted."), 401: errors[401], 403: errors[403], 404: errors[404] } }),
+  async (c) => send(c, await deleteMeeting(c.var.deps, actor(c), c.req.valid("param").id)));
 
   api.openapi(createRoute({ method: "post", path: "/meetings/{id}/invite", tags: ["Meetings"], summary: "Send the calendar invite", security: secured,
     request: { params: Id, ...body(z.object({ agentId: z.string().optional() })) }, responses: { 200: json(Any, "sent, or pending_approval with the approval id"), 401: errors[401], 422: errors[422] } }),

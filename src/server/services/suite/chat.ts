@@ -190,8 +190,9 @@ async function orgUserIds(deps: Deps, orgId: string, ids: string[]) {
   return [...new Set(ids.map((id) => id.replace(/^member:/, "")))];
 }
 
-export async function createChannel(deps: Deps, a: SuiteActor, input: { name: string; topic?: string; private?: boolean; memberIds?: string[]; projectId?: string | null; guestAccess?: boolean }) {
+export async function createChannel(deps: Deps, a: SuiteActor, input: { name: string; topic?: string; private?: boolean; memberIds?: string[]; projectId?: string | null; guestAccess?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(a);
+  if (opts.id && opts.retry && await deps.db.select({ id: chatChannels.id }).from(chatChannels).where(and(eq(chatChannels.id, opts.id), eq(chatChannels.orgId, a.orgId))).get()) return getChannel(deps, a, opts.id); // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const name = slug(input.name);
   if (!name) throw new HttpError(422, "validation_failed", "Give the channel a name with letters or numbers.");
   if (input.private && isKey(a)) throw new HttpError(403, "forbidden", "API keys can make public channels only.");
@@ -200,7 +201,7 @@ export async function createChannel(deps: Deps, a: SuiteActor, input: { name: st
   if (input.projectId) await projectInOrg(deps, a.orgId, input.projectId);
   const memberIds = await orgUserIds(deps, a.orgId, input.memberIds ?? []);
   const now = deps.now();
-  const id = sortableId("chn", now.getTime());
+  const id = opts.id ?? sortableId("chn", now.getTime());
   await deps.db.insert(chatChannels).values({
     id, orgId: a.orgId, kind: "channel", name, topic: (input.topic ?? "").slice(0, 250), isPrivate: !!input.private,
     projectId: input.projectId ?? null, guestAccess: !!(input.projectId && input.guestAccess), createdAt: now, updatedAt: now, ...createdBy(a),

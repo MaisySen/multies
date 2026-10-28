@@ -3,6 +3,7 @@
  * mail that leaves the business: from an agent key it follows that agent's approval rules.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
+import { idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -51,7 +52,7 @@ export function registerSuiteR8Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/projects/{id}/fields", tags: ["Custom fields"], summary: "Add a custom field to a project", security: secured,
     description: "Types: text, number, currency (AUD), date, select, multiselect, person, checkbox, url. Select types take options [{ label, color? }].",
     request: { params: Id, ...body(FieldCreate) }, responses: { 201: json(z.object({ field: Field }), "The field."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, { field: await createField(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json")) }, 201));
+  async (c) => send(c, { field: await createField(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json"), await idempotentCreate(c.req.raw, "fld")) }, 201));
 
   api.openapi(createRoute({ method: "patch", path: "/fields/{id}", tags: ["Custom fields"], summary: "Rename a field, reorder it or change its options", security: secured,
     description: "Options keep their ids when you pass them back (or match by label), so values survive a rename. Values that point at a removed option are cleared.",

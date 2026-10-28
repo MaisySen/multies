@@ -9,10 +9,6 @@ import {
 import { agentTrackRecord } from "../services/agents/autonomy";
 import { ThreadViewQuery } from "./thread-state";
 
-// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
-const Q_AGENTS_1 = z.object({ mailboxId: z.string().optional(), folder: z.enum(["inbox", "sent", "archive", "spam"]).optional(), before: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) });
-const Q_AGENTS_2 = z.object({ status: z.enum(["pending", "sent", "rejected", "failed", "expired"]).optional(), agentId: z.string().optional() });
-
 const ApprovalMode = z.enum(["always", "external", "never"]);
 const Recipients = z.array(z.string().trim().min(3).max(254)).max(200).nullable().optional();
 
@@ -32,7 +28,7 @@ export function agentRoutes() {
     })
     // The shared inbox: threads across every mailbox this person can open, with agent activity labelled.
     .get("/threads", async (c) => {
-      const q = parseQuery(c, Q_AGENTS_1.merge(ThreadViewQuery));
+      const q = parseQuery(c, z.object({ mailboxId: z.string().optional(), folder: z.enum(["inbox", "sent", "archive", "spam"]).optional(), before: z.string().optional(), limit: z.coerce.number().int().min(1).max(100).default(50) }).merge(ThreadViewQuery));
       // Round 22: the list shows open threads unless a view says otherwise (all, mine, unassigned, assigned, waiting, done).
       return c.json(await listThreads(c.var.deps, c.var.auth.orgId, await scopeFor(c.var.deps, c.var.auth), { ...q, view: q.view ?? "open", viewerUserId: c.var.auth.userId }));
     })
@@ -62,7 +58,7 @@ export function approvalRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, Q_AGENTS_2);
+      const q = parseQuery(c, z.object({ status: z.enum(["pending", "sent", "rejected", "failed", "expired"]).optional(), agentId: z.string().optional() }));
       return c.json({ approvals: await listApprovals(c.var.deps, c.var.auth, q) });
     })
     .post("/:id/approve", async (c) => {

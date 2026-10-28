@@ -19,11 +19,6 @@ import {
 import { resolveTaskId } from "../services/suite/tasks";
 import { CommentCreate, FieldCreate, FieldPatch, GuestInvite } from "./suite-schemas";
 
-// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
-const Q_SUITE_R8_1 = z.object({ projectId: z.string().min(1) });
-const Q_SUITE_R8_2 = z.object({ projectId: z.string().min(1) });
-const Q_SUITE_R8_3 = z.object({ taskId: z.string().min(1) });
-
 export const FileUpload = z.object({
   filename: z.string().trim().min(1).max(200), contentType: z.string().max(100).optional(),
   contentBase64: z.string().min(1).max(14_000_000),
@@ -49,7 +44,7 @@ export function fieldRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const { projectId } = parseQuery(c, Q_SUITE_R8_1);
+      const { projectId } = parseQuery(c, z.object({ projectId: z.string().min(1) }));
       return c.json({ fields: await listFields(c.var.deps, c.var.auth.orgId, projectId) });
     })
     .post("/", async (c) => {
@@ -70,7 +65,7 @@ export function guestAdminRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const { projectId } = parseQuery(c, Q_SUITE_R8_2);
+      const { projectId } = parseQuery(c, z.object({ projectId: z.string().min(1) }));
       return c.json({ guests: await listGuests(c.var.deps, c.var.auth.orgId, projectId) });
     })
     .post("/", async (c) => {
@@ -84,7 +79,7 @@ export function fileRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const { taskId } = parseQuery(c, Q_SUITE_R8_3);
+      const { taskId } = parseQuery(c, z.object({ taskId: z.string().min(1) }));
       return c.json({ files: await listFiles(c.var.deps, c.var.auth.orgId, await resolveTaskId(c.var.deps, c.var.auth.orgId, taskId)) });
     })
     .post("/", async (c) => {
