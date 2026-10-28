@@ -1,5 +1,8 @@
 import { createElement, type ReactElement } from "react";
-import { Notice, renderEmail, type Brand } from "../emails";
+// R53 (cold start): the mail templates (and the mail component library, about 58 ms of module init in the profile) load
+// on the first mail an isolate sends, not at every isolate's startup.
+import type { Brand } from "../emails";
+const loadEmails = () => import("../emails");
 import type { Deps } from "../context";
 import { newId } from "../lib/crypto";
 import { deliverInbound, isHosted, logDelivery } from "./mail/delivery";
@@ -40,6 +43,7 @@ export const emailBrand = (deps: Deps): Brand => ({ appName: deps.config.appName
 
 /** HTML part: the template element when the caller built one, else the generic notice. */
 export async function renderSystemHtml(deps: Deps, e: SystemEmail): Promise<string> {
+  const { Notice, renderEmail } = await loadEmails();
   const el = e.element ?? createElement(Notice, { brand: emailBrand(deps), title: e.subject, text: e.text, action: e.action });
   return (await renderEmail(el)).html;
 }

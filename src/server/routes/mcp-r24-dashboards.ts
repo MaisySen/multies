@@ -10,6 +10,7 @@ import { addWidget, CHARTS, createDashboard, dashboardData, GROUP_BYS, listDashb
 import type { Scoped } from "./mcp-server";
 import { LIST_SORTS, METRICS, NOTE_MAX, OPS, PIVOT_AXES, RANGES } from "../services/suite/dashboards-r38-schema";
 import { widgetCatalog } from "../services/suite/dashboard-widget-catalog-r39";
+import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -74,7 +75,7 @@ export function registerDashboardTools(server: McpServer, deps: Deps, actor: Sco
     inputSchema: { name: z.string().max(80).optional(), shared: z.boolean().optional(), starter: z.enum(["team"]).optional(), widgets: z.array(z.object(widget)).max(MAX_WIDGETS).optional() },
   }, tool(async (x: { name?: string; shared?: boolean; starter?: "team"; widgets?: W[] }) => {
     writable();
-    return { dashboard: await createDashboard(deps, a, { name: x.name, shared: x.shared, starter: x.starter, widgets: x.widgets?.map(toInput) }) };
+    return { dashboard: await createDashboard(deps, a, { name: x.name, shared: x.shared, starter: x.starter, widgets: x.widgets?.map(toInput) }, await mcpCreate("dsh")) };
   }) as never);
   server.registerTool("add_dashboard_widget", {
     title: "Add a dashboard widget", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },

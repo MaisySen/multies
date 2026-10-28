@@ -8,6 +8,7 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { createView, deleteView, listViews } from "../services/suite/tasks";
 import type { Scoped } from "./mcp-server";
+import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 const VIEWS = ["board", "list", "calendar", "timeline", "sprints", "workload"] as const;
@@ -29,7 +30,7 @@ export function registerSavedViewTools(server: McpServer, deps: Deps, actor: Sco
     },
   }, tool(async (x: ViewInput) => {
     writable();
-    return { view: await createView(deps, a, { projectId: x.projectId ?? null, name: x.name, view: x.view, filters: x.filters ?? {}, shared: x.shared ?? true }) };
+    return { view: await createView(deps, a, { projectId: x.projectId ?? null, name: x.name, view: x.view, filters: x.filters ?? {}, shared: x.shared ?? true }, await mcpCreate("viw")) };
   }) as never);
   server.registerTool("delete_saved_view", {
     title: "Delete a saved view", annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },

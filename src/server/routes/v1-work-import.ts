@@ -9,6 +9,7 @@ import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
 import { previewImport, runImport } from "../services/work-import/service";
+import { idempotentCreate } from "../lib/idempotency"; // R53 (MB-239)
 import { WorkImportFile, WorkImportRun } from "./work-imports";
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
@@ -33,5 +34,5 @@ export function registerWorkImportRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("/work-imports/preview", "Preview a work tool export", "Body: { content, fileName?, mapping? }. content is the file's text: a Trello board JSON, or a CSV from Asana, ClickUp, monday, Jira, Linear or Notion. Answers the detected source, the column mapping (change any field and send it back), the first 20 rows and the statuses. Writes nothing.", WorkImportFile),
     async (c) => send(c, await previewImport(c.var.deps, actor(c), await jsonBody(c, WorkImportFile))));
   api.openapi(route("/work-imports/run", "Import a work tool export", "Body: { content, fileName?, mapping?, projectId?, projectName? }. Without projectId it makes a new project. Tasks already brought in from the same file are skipped, so a run that stopped (stopped: daily_cap, write_budget or time) carries on when sent again. Unknown assignees are kept as a note on the task, never added as members.", WorkImportRun),
-    async (c) => send(c, await runImport(c.var.deps, actor(c), await jsonBody(c, WorkImportRun))));
+    async (c) => send(c, await runImport(c.var.deps, actor(c), await jsonBody(c, WorkImportRun), { project: await idempotentCreate(c.req.raw, "prj") }))); // R53
 }

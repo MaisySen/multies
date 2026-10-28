@@ -137,14 +137,18 @@ export async function listComments(deps: Deps, a: SuiteActor, threadId: string) 
   return { threadId, comments: rows.map((r) => present(r, names, a)), mentionable: await mentionable(deps, a.orgId, t.mailboxIds) };
 }
 
-export async function addComment(deps: Deps, a: SuiteActor, threadId: string, input: { body: string; mentions?: string[] }) {
+export async function addComment(deps: Deps, a: SuiteActor, threadId: string, input: { body: string; mentions?: string[] }, opts: { id?: string; retry?: boolean } = {}) {
+  if (opts.id && opts.retry) { // R53 (MB-239): a retry under the same Idempotency-Key returns the comment the first attempt made
+    const hit = await deps.db.select().from(threadComments).where(and(eq(threadComments.orgId, a.orgId), eq(threadComments.id, opts.id))).get();
+    if (hit) return present(hit, await authorNames(deps, a.orgId, [hit]), a);
+  }
   assertWritable(a);
   const t = await openThread(deps, a, threadId);
   const body = cleanBody(input.body);
   const people = await mentionable(deps, a.orgId, t.mailboxIds);
   const mentioned = parseMentions(body, people, input.mentions ?? []);
   const now = deps.now();
-  const row: Row = { id: sortableId("tcm", now.getTime()), orgId: a.orgId, threadId, mailboxId: t.mailboxId, ...authorOf(a), body, mentions: JSON.stringify(mentioned), editedAt: null, createdAt: now };
+  const row: Row = { id: opts.id ?? sortableId("tcm", now.getTime()), orgId: a.orgId, threadId, mailboxId: t.mailboxId, ...authorOf(a), body, mentions: JSON.stringify(mentioned), editedAt: null, createdAt: now };
   if (!row.authorId) throw new HttpError(403, "forbidden", "Only a person or an agent can write a note.");
   await deps.db.insert(threadComments).values(row);
   await notifyMentions(deps, a, threadId, t.subject, mentioned, await actorName(deps, a));

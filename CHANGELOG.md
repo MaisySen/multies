@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 53 (28 Oct 2026)
+
+- Connected mailboxes sync with less work: some providers keep one change counter for the whole account, so last round's skip for unchanged folders rarely applied to them. Now a pass asks only for the messages whose read or star state changed since the last pass, and mail that is already stored, or that another folder brought in the same pass (some providers show new mail in two folders at once), is no longer downloaded and read twice.
+- Agent API: retrying an MCP create tool, an import run or a webhook endpoint creation after a server error keeps the same id, so a retry never makes a second item, project or signing secret.
+- A new worker starts with less to load: the email templates load when the first email is sent, not on every start.
+
 ### Round 52 (28 Oct 2026)
 
 - Agent API: creating a form, goal, time entry, chat channel, agent, saved reply, custom field, checklist item or sprint keeps the same id when retried after a server error, and a retry after a first attempt that did go through now returns that item instead of failing again. POST /mcp honours Idempotency-Key, now covered by tests and described in the docs.

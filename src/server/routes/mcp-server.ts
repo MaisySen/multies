@@ -8,6 +8,8 @@ import { CfWorkerJsonSchemaValidator } from "@modelcontextprotocol/sdk/validatio
 import { StreamableHTTPTransport } from "@hono/mcp";
 import { z } from "zod";
 import { BUSY_MESSAGE, isD1BusyError } from "../lib/d1-busy";
+import { hasIdempotencySeed } from "../lib/idempotency"; // R53 (MB-239)
+import { mcpCreate, withMcpCall } from "./mcp-idempotency"; // R53 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv, Deps } from "../context";
 import { HttpError } from "../lib/errors";
@@ -98,7 +100,10 @@ function tool<A>(fn: (args: A) => Promise<unknown>) {
   };
 }
 
-export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
+/** R53 (MB-239): the keyed request behind this MCP call, and the index of each message in a JSON-RPC batch. */
+export type McpCallContext = { req: Request; batch?: Map<string | number, number> };
+
+export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?: McpCallContext) {
   const server = new McpServer({ name: "mymail", title: "Multies", version: deps.config.release, websiteUrl: origin },
     { jsonSchemaValidator: new CfWorkerJsonSchemaValidator(), instructions: actor.agentId
       ? "You are connected as one Multies agent inbox. Read threads, search, send or reply as this agent, and pick up tasks assigned to you (next_task), comment on them and mark them done. Sends may wait for a person to approve them; the result says so."
@@ -113,6 +118,18 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
         const need = toolScope(name, !!config.annotations?.readOnlyHint);
         if (need === "full" || !hasScope(actor.scope, need)) return fail(`insufficient_scope: This API key does not have the ${need} scope that ${name} needs. An admin can add it in Settings, Developers.`);
         return cb(...args);
+      });
+  }
+  // R53 (MB-239): under an Idempotency-Key every tool call runs with its request in scope, so creates take the same
+  // id on a retry (mcpCreate in ./mcp-idempotency). A batch gives each message its own part (its index), so two
+  // creates in one batch never share an id and each keeps its id across a retry of the whole batch.
+  if (call) {
+    const register = server.registerTool.bind(server) as unknown as (n: string, cfg: unknown, cb: unknown) => unknown;
+    (server as unknown as { registerTool: unknown }).registerTool = (name: string, config: unknown, cb: (...a: unknown[]) => unknown) =>
+      register(name, config, (...args: unknown[]) => {
+        const extra = args[args.length - 1] as { requestId?: string | number } | undefined;
+        const index = call.batch && extra?.requestId !== undefined ? call.batch.get(extra.requestId) : undefined;
+        return withMcpCall({ req: call.req, part: index === undefined ? undefined : String(index) }, () => cb(...args));
       });
   }
   const agentFor = async (agentId?: string) => {
@@ -248,7 +265,7 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string) {
       },
     }, tool(async (a: { name: string; localPart?: string; approvalMode: "always" | "external" | "never" }) => {
       writable();
-      return createAgent(deps, actor, { name: a.name, localPart: a.localPart?.toLowerCase(), approvalMode: a.approvalMode });
+      return createAgent(deps, actor, { name: a.name, localPart: a.localPart?.toLowerCase(), approvalMode: a.approvalMode }, { ...(await mcpCreate("agt")), mailboxId: (await mcpCreate("mbx")).id }); // R53
     }));
 
     // MB-61 (R25): a mailbox's default Reply-To, the same as PATCH /api/v1/mailboxes/{id}.
@@ -391,9 +408,9 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
   }, tool(async (x: { title?: string; notes?: string; projectId?: string; status?: "todo" | "doing" | "done"; assignee?: string | null; priority?: "none" | "low" | "medium" | "high" | "urgent"; due?: string; labels?: string[]; parentId?: string; messageId?: string; threadId?: string; type?: TaskType; points?: number; sprintId?: string }) => {
     writable();
     const assignee = parseAssignee(x.assignee);
-    if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }) };
+    if (x.messageId || x.threadId) return { task: await createTaskFromThread(deps, a, { ...x, assignee }, await mcpCreate("tsk")) }; // R53: same id on a retry
     if (!x.title) throw new HttpError(422, "validation_failed", "Give the task a title, or pass messageId to make it from an email.");
-    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }) }; // R32: agents' tasks wait in Triage when the project uses it
+    return { task: await createTask(deps, a, { ...x, title: x.title, assignee, triage: { source: "agent", when: "if_project" } }, await mcpCreate("tsk")) }; // R32: agents' tasks wait in Triage when the project uses it
   }));
 
   server.registerTool("update_task", {
@@ -416,7 +433,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
     title: "Comment on a task", annotations: rw,
     description: "Add a comment to a task, for example what you did or what you need from a person.",
     inputSchema: { id: z.string(), body: z.string().min(1).max(20_000) },
-  }, tool(async (x: { id: string; body: string }) => { writable(); return { comment: await addComment(deps, a, x.id, x.body) }; }));
+  }, tool(async (x: { id: string; body: string }) => { writable(); return { comment: await addComment(deps, a, x.id, x.body, await mcpCreate("cmt")) }; }));
 
   server.registerTool("list_projects", {
     title: "List projects", annotations: ro,
@@ -440,7 +457,7 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
   }, tool(async (x: { title: string; text: string; taskId?: string; projectId?: string; contactId?: string; threadId?: string }) => {
     writable();
     const links = [x.taskId && { type: "task" as const, id: x.taskId }, x.contactId && { type: "contact" as const, id: x.contactId }, x.threadId && { type: "thread" as const, id: x.threadId }].filter(Boolean) as { type: "task" | "contact" | "thread"; id: string }[];
-    const d = await createDoc(deps, a, { title: x.title, text: x.text, projectId: x.projectId, links });
+    const d = await createDoc(deps, a, { title: x.title, text: x.text, projectId: x.projectId, links }, await mcpCreate("doc")); // R53
     return { id: d.id, title: d.title, version: d.version };
   }));
 
@@ -469,9 +486,23 @@ function registerSuiteTools(server: McpServer, deps: Deps, actor: Scoped, writab
 }
 
 
+/**
+ * R53 (MB-239): the call context for a keyed POST /mcp, or undefined (no key: nothing changes). A JSON-RPC batch
+ * maps each message id to its index in the batch; the body is identical on a retry (the key checks its hash), so
+ * the indexes are too.
+ */
+async function mcpCallContext(req: Request): Promise<McpCallContext | undefined> {
+  if (req.method !== "POST" || !hasIdempotencySeed(req)) return undefined;
+  const body: unknown = await req.clone().json().catch(() => null);
+  if (!Array.isArray(body)) return { req };
+  const batch = new Map<string | number, number>();
+  body.forEach((m: { id?: string | number }, i) => { if (m && (typeof m.id === "string" || typeof m.id === "number") && !batch.has(m.id)) batch.set(m.id, i); });
+  return { req, batch };
+}
+
 /** Handles one MCP request (stateless: a fresh server and transport each time). */
 export async function handleMcp(c: Context<AppEnv>, actor: Scoped) {
-  const server = buildMcpServer(c.var.deps, actor, new URL(c.req.url).origin);
+  const server = buildMcpServer(c.var.deps, actor, new URL(c.req.url).origin, await mcpCallContext(c.req.raw));
   const transport = new StreamableHTTPTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
   await server.connect(transport);
   const res = await transport.handleRequest(c);
@@ -489,7 +520,7 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     title: "Start a timer on a task", annotations: rw,
     description: "Start tracking time on a task (id or reference like OPS-12) as this agent. A timer already running stops first. Needs an agent key.",
     inputSchema: { taskId: z.string(), note: z.string().max(500).optional() },
-  }, tool(async (x: { taskId: string; note?: string }) => { writable(); return { entry: await startTimer(deps, a, x) }; }));
+  }, tool(async (x: { taskId: string; note?: string }) => { writable(); return { entry: await startTimer(deps, a, x, await mcpCreate("tim")) }; }));
 
   server.registerTool("stop_timer", {
     title: "Stop the running timer", annotations: rw,
@@ -500,7 +531,7 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
     title: "Log time by hand", annotations: rw,
     description: "Add minutes spent on a task (or a project) on a date (YYYY-MM-DD, default today). Workspace keys pass person (member:<id> or agent:<id>).",
     inputSchema: { taskId: z.string().optional(), projectId: z.string().optional(), minutes: z.number().positive().max(1440), date: z.string().optional(), note: z.string().max(500).optional(), billable: z.boolean().optional(), person: z.string().optional() },
-  }, tool(async (x: { taskId?: string; projectId?: string; minutes: number; date?: string; note?: string; billable?: boolean; person?: string }) => { writable(); return { entry: await addEntry(deps, a, x) }; }));
+  }, tool(async (x: { taskId?: string; projectId?: string; minutes: number; date?: string; note?: string; billable?: boolean; person?: string }) => { writable(); return { entry: await addEntry(deps, a, x, await mcpCreate("tim")) }; }));
 
   server.registerTool("get_timesheet", {
     title: "Timesheet", annotations: ro,
@@ -533,7 +564,7 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
       name: z.string().max(120), description: z.string().max(2000).optional(), target: z.enum(["task", "contact"]).optional(), projectId: z.string().optional(),
       fields: z.array(z.object({ label: z.string(), type: z.enum(["text", "email", "textarea", "phone", "select", "number", "date"]), required: z.boolean().optional(), options: z.array(z.string()).optional() })).optional(),
     },
-  }, tool(async (x: Parameters<typeof createForm>[2]) => { writable(); return { form: await createForm(deps, a, x) }; }));
+  }, tool(async (x: Parameters<typeof createForm>[2]) => { writable(); return { form: await createForm(deps, a, x, await mcpCreate("frm")) }; }));
 
   server.registerTool("get_report", {
     title: "Workspace report", annotations: ro,
@@ -576,7 +607,7 @@ function registerR7Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
       const ag = await getAgent(deps, actor.orgId, id);
       who = { ...a, agentId: ag.id, name: ag.name };
     }
-    const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, recurrence: x.repeats, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined });
+    const r = await createMeeting(deps, who, { title: x.title, startsAt: x.startsAt, durationMin: x.durationMin, invitees: x.invitees, sendInvites: x.sendInvites, recurrence: x.repeats, source: x.sourceType && x.sourceId ? { type: x.sourceType, id: x.sourceId } : undefined }, await mcpCreate("mtg")); // R53
     return { meeting: { id: r.meeting.id, title: r.meeting.title, startsAt: r.meeting.startsAt, guestUrl: r.meeting.guestUrl, invitees: r.meeting.invitees, videoEnabled: r.meeting.videoEnabled, repeats: r.meeting.recurrence?.summary ?? null }, invites: r.invites };
   }));
   // R52 (MB-239): delete a meeting or a whole series. Same rule as an edit: anyone who can edit can delete.
@@ -611,7 +642,7 @@ function registerR8Tools(server: McpServer, deps: Deps, actor: Scoped, writable:
   }, tool(async (x: { projectId: string; name: string; type: z.infer<typeof fieldTypes>; options?: string[]; config?: Record<string, string | undefined> }) => {
     writable();
     const config = x.type === "rollup" ? { ...x.config, field: x.config?.field ?? null } : x.config;
-    return { field: await createField(deps, a, x.projectId, { name: x.name, type: x.type, options: x.options?.map((label) => ({ label })), config }) };
+    return { field: await createField(deps, a, x.projectId, { name: x.name, type: x.type, options: x.options?.map((label) => ({ label })), config }, await mcpCreate("fld")) };
   }));
 
   server.registerTool("set_task_fields", {
@@ -705,7 +736,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     title: "Post in a chat channel", annotations: rw,
     description: "Post a message in a public channel, or reply in a thread with parentId. Mention a person with <@member:USER_ID> (ids from list_assignees or get_task), link a task with <#task:ID> or an email thread with <#thread:ID>. Chat stays inside the workspace, so it needs no approval.",
     inputSchema: { channelId: z.string(), body: z.string().min(1).max(20_000), parentId: z.string().optional() },
-  }, tool(async (x: { channelId: string; body: string; parentId?: string }) => { writable(); return { message: await postMessage(deps, a, x.channelId, { body: x.body, parentId: x.parentId }) }; }));
+  }, tool(async (x: { channelId: string; body: string; parentId?: string }) => { writable(); return { message: await postMessage(deps, a, x.channelId, { body: x.body, parentId: x.parentId }, await mcpCreate("chm")) }; }));
 
   server.registerTool("message_to_task", {
     title: "Turn a chat message into a task", annotations: rw,
@@ -713,7 +744,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     inputSchema: { messageId: z.string(), title: z.string().max(300).optional(), projectId: z.string().optional(), assignee: z.string().optional(), triage: z.boolean().optional() },
   }, tool(async (x: { messageId: string; title?: string; projectId?: string; assignee?: string; triage?: boolean }) => {
     writable();
-    const t = await messageToTask(deps, a, x.messageId, { title: x.title, projectId: x.projectId, assignee: x.triage ? undefined : parseAssignee(x.assignee), triage: x.triage });
+    const t = await messageToTask(deps, a, x.messageId, { title: x.title, projectId: x.projectId, assignee: x.triage ? undefined : parseAssignee(x.assignee), triage: x.triage }, await mcpCreate("tsk"));
     return { task: { id: t.id, ref: t.ref, title: t.title } };
   }));
 
@@ -762,7 +793,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
       name: z.string().min(1).max(200), description: z.string().max(5000).optional(), parentId: z.string().optional(), due: z.string().optional(),
       keyResults: z.array(z.object({ name: z.string(), kind: z.enum(["number", "currency", "percent", "tasks"]).optional(), start: z.number().optional(), target: z.number().optional(), current: z.number().optional(), projectId: z.string().optional(), taskIds: z.array(z.string()).optional() })).max(20).optional(),
     },
-  }, tool(async (x: Parameters<typeof createGoal>[2]) => { writable(); return { goal: await createGoal(deps, a, x) }; }));
+  }, tool(async (x: Parameters<typeof createGoal>[2]) => { writable(); return { goal: await createGoal(deps, a, x, await mcpCreate("gol")) }; }));
 
   server.registerTool("update_key_result", {
     title: "Record progress on a key result", annotations: rw,

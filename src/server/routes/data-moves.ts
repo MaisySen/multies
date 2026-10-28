@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
-import { idempotency, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
+import { idempotency, idempotentRunKeys, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201), R53
 import { exportWorkspace } from "../services/privacy";
 import { exportFinished, getMove, listMoves, openExport, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { WorkImportRun } from "./work-imports";
@@ -55,7 +55,7 @@ export function dataMoveRoutes() {
     .get("/:id", async (c) => c.json(await getMove(c.var.deps, c.var.auth, c.req.param("id"))))
     .post("/exports", async (c) => c.json(await startExport(c.var.deps, c.var.auth)))
     .post("/imports/preview", async (c) => c.json(await previewMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
-    .post("/imports/run", async (c) => c.json(await runMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun))))
+    .post("/imports/run", async (c) => c.json(await runMove(c.var.deps, c.var.auth, await parseBody(c, DataMoveRun), await idempotentRunKeys(c.req.raw)))) // R53: one run on a retry
     .post("/mbox/batch", async (c) => c.json(await importMboxBatch(c.var.deps, c.var.auth, await parseBody(c, MboxBatch))))
     // R43: one part of a mail archive's messages (base64, one a line), kept so the scheduled pass can finish the run.
     .post("/mbox/:id/keep", async (c) => {
