@@ -15,6 +15,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-easier-to-read-phone",
+    date: "2026-10-28",
+    title: "Easier to read on phones",
+    body: "The unread count on the phone tab bar is a deeper red, so the number is easier to read. Screen readers now name the workspace, account and mail buttons with the words you see on them.",
+  },
+  {
     id: "2026-10-28-whats-new",
     date: "2026-10-28",
     title: "What's new, in the app",

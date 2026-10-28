@@ -261,7 +261,7 @@ export function AppLayout() {
           {barTitle && <span className="pointer-events-none absolute left-1/2 top-[env(safe-area-inset-top)] flex h-12 max-w-[46%] -translate-x-1/2 animate-fade-in items-center text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title"><span className="truncate">{barTitle}</span></span>}
           <div className="ml-auto flex shrink-0 items-center">
             <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label="Search" data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
-            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
+            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" drawn />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
           </div>
         </header>
         <ReadOnlyBanner />
@@ -314,8 +314,8 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
   return (
     <>
       <Menu align="start" trigger={variant === "chip" ? (
-        <button className="flex h-11 min-w-0 max-w-[58vw] items-center gap-2 rounded-full pl-1 pr-2 text-left transition-colors hover:bg-hover" aria-label={`Workspace ${current?.name ?? ""}. Switch workspace`} data-testid="topbar-workspace">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#0071E3] text-[14px] font-bold text-white shadow-[var(--shadow-e1)]" aria-hidden>{current?.name[0]?.toUpperCase()}</span>
+        <button className="flex h-11 min-w-0 max-w-[58vw] items-center gap-2 rounded-full pl-1 pr-2 text-left transition-colors hover:bg-hover" aria-label={`${current?.name ?? "Workspace"}, switch workspace`} /* R54: the name a screen reader hears starts with the words on the button (WCAG 2.5.3) */ data-testid="topbar-workspace">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-[#0071E3] text-[14px] font-bold text-white shadow-[var(--shadow-e1)] before:content-[attr(data-initial)]" aria-hidden data-initial={current?.name[0]?.toUpperCase() ?? ""} /* R54: drawn by CSS, not a text node, so the visible words are just the name (axe counted the letter) */ />
           {!compact && <span className="min-w-0 truncate text-[15px] font-semibold tracking-[-0.01em] text-fg">{current?.name}</span>}
           {!compact && <IconChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-subtle" aria-hidden />}
         </button>

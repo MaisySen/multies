@@ -2,7 +2,6 @@
  * Cmd+K / Ctrl+K: jump anywhere, run common actions. R31: everything comes from the one command
  * registry (lib/commands); with a task focused its actions lead, and its pickers open as nested pages
  * (Backspace on an empty search goes back). Loaded on demand by PaletteHost (palette-host.tsx).
- * R54: typed words act ("assign MB-12 to Asha due Fri"): one preview row leads, Enter applies, Undo in the toast.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -16,7 +15,6 @@ import { paletteScore } from "@/web/lib/palette-registry";
 import { openShortcutsSheet } from "@/web/lib/shortcuts";
 import { COMMANDS, TASK_PICKERS, inPalette, runCommand, useFocus, type Command as Cmd, type CommandContext, type TaskPickerPage } from "@/web/lib/commands";
 import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-pickers";
-import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
 import { useDomains, useMailboxes } from "@/web/lib/queries";
@@ -114,35 +112,16 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
     for (const [, list] of qc.getQueriesData<Task[]>({ queryKey: ["tasks"] })) if (Array.isArray(list)) for (const t of list) for (const l of t.labels) all.add(l);
     return [...all];
   }, [qc, pickerPage]); // eslint-disable-line react-hooks/exhaustive-deps
-  /** One PATCH with the lists changed at once; a refusal puts the lists back. Pickers and typed words both use it. */
-  const applyChange = (target: Task, patch: Record<string, unknown>, view: Partial<Task>, onSaved: () => void) => {
-    const before = qc.getQueriesData<Task[]>({ queryKey: ["tasks"] });
-    for (const [key, list] of before) if (Array.isArray(list)) qc.setQueryData<Task[]>(key, list.map((t) => (t.id === target.id ? { ...t, ...view } : t)));
-    update.mutate({ id: target.id, patch }, {
-      onSuccess: onSaved,
-      onError: () => { for (const [key, list] of before) qc.setQueryData(key, list); },
-    });
-  };
   const pick = (it: PickerItem) => {
     if (!task) return;
     close();
-    applyChange(task, it.patch, it.view, () => toast.success(it.done));
-  };
-
-  // R54: typed words that act on a task. Nothing changes until Enter.
-  const typed = useTypedAction(search, { enabled: open && !page, focusedTask: task, people: people.data, projects: projects.data });
-  const typedProblem = typed?.state === "ready" ? typed.resolved.problems.join(" ") : typed?.state === "missing" ? "Nothing will change." : "";
-  const runTyped = () => {
-    if (typed?.state !== "ready" || typed.resolved.problems.length) return;
-    const t = typed.task;
-    const project = projects.data?.find((p) => p.id === t.projectId);
-    const c = typedActionChange(t, typed.resolved, project);
-    const saved = typed.resolved.preview.replace(": ", " updated: ");
-    close();
-    qc.removeQueries({ queryKey: ["task-ref"] });
-    applyChange(t, c.patch, c.view, () => toast.success(saved, {
-      action: { label: "Undo", onClick: () => applyChange(t, c.undoPatch, c.undoView, () => toast.success(`${t.ref} put back`)) },
-    }));
+    // Optimistic: every loaded list shows the change now; a refusal puts the lists back.
+    const before = qc.getQueriesData<Task[]>({ queryKey: ["tasks"] });
+    for (const [key, list] of before) if (Array.isArray(list)) qc.setQueryData<Task[]>(key, list.map((t) => (t.id === task.id ? { ...t, ...it.view } : t)));
+    update.mutate({ id: task.id, patch: it.patch }, {
+      onSuccess: () => toast.success(it.done),
+      onError: () => { for (const [key, list] of before) qc.setQueryData(key, list); },
+    });
   };
   const pickerItems: Item[] = picker && task
     ? taskPickerItems(picker.page, task, { projects: projects.data ?? [], people: people.data ?? [], labels, search }).map((it) => ({
@@ -194,21 +173,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
           </>
         ) : (
           <>
-            {typed && (
-              <Command.Group forceMount heading={<Heading icon={IconSparkle}>Do this</Heading>} className={groupClass} data-testid="palette-action-preview">
-                <Command.Item forceMount value={`${search}|typed-action`} onSelect={runTyped}
-                  aria-label={[typed.label, typedProblem].filter(Boolean).join(". ")} data-state={typed.state} data-blocked={typedProblem ? "" : undefined}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2.5 text-[13.5px] text-fg transition-colors duration-150 data-[selected=true]:bg-hover motion-reduce:transition-none max-sm:min-h-[44px]">
-                  <IconSparkle className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block break-words font-medium">{typed.label}</span>
-                    {typedProblem && <span className="mt-0.5 block text-xs text-subtle">{typedProblem}</span>}
-                  </span>
-                  {typed.state === "ready" && !typedProblem && <span className="flex shrink-0 items-center gap-1 text-xs text-subtle"><Kbd>↵</Kbd><span className="max-sm:hidden">to apply</span></span>}
-                </Command.Item>
-              </Command.Group>
-            )}
-            {!typed && !content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
+            {!content.loading && !content.data?.groups.length && <Command.Empty className="px-4 py-8 text-center text-sm text-muted"><SmallNoResultsArt /><p className="mt-2 font-medium text-fg">No results for “{search}”</p><p className="mt-0.5 text-xs text-subtle">Try another word, or press ? to see every shortcut.</p></Command.Empty>}
             {group(<Heading icon={IconSparkle}>{task && focus.kind === "task" ? `Task ${task.ref}` : "This message"}</Heading>, contextual.map(toItem), "palette-context")}
             {group(<Heading icon={IconHistory}>Recently opened</Heading>, recentItems, "palette-recent-items")}
             {group(<Heading icon={IconClock}>Recent commands</Heading>, recentCommands, "palette-recent-commands")}

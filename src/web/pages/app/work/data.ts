@@ -91,10 +91,7 @@ export function useTaskMutations() {
     onMutate: async ({ id, patch }) => {
       await qc.cancelQueries({ queryKey: ["tasks"] });
       const snapshots = qc.getQueriesData<Task[]>({ queryKey: ["tasks"] });
-      // R54: the server takes assignee as an id string; the lists keep an object, so a string is left to the caller's view.
-      const { assignee, ...rest } = patch;
-      const shown: Record<string, unknown> = assignee === null ? { ...rest, assignee: null, assigneeId: null } : assignee && typeof assignee === "object" ? patch : rest;
-      const merge = (t: Task) => ({ ...t, ...(shown as Partial<Task>), ...(patch.fields ? { fields: { ...t.fields, ...(patch.fields as Record<string, FieldValue>) } } : {}) });
+      const merge = (t: Task) => ({ ...t, ...(patch as Partial<Task>), ...(patch.fields ? { fields: { ...t.fields, ...(patch.fields as Record<string, FieldValue>) } } : {}) });
       for (const [key, list] of snapshots) if (list) qc.setQueryData<Task[]>(key, list.map((t) => (t.id === id ? merge(t) : t)));
       return { snapshots };
     },

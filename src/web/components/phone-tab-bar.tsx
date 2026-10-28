@@ -24,7 +24,10 @@ export function tasksTabHref(stored: string | null): string {
   return stored && stored !== "calendar" ? `/app/tasks?view=${encodeURIComponent(stored)}` : "/app/tasks";
 }
 
-/** Badge text the way the system shows it: nothing at 0, 99+ past 99. */
+/** Badge text the way the system shows it: nothing at 0, 99+ past 99.
+ * R54: the badge red is #D70015 (white text 5.4:1); the brighter #FF3B30 gave 3.5:1, under the 4.5:1 small text needs.
+ * The number is drawn by CSS (data-badge), not a text node, so the tab's visible words stay its label and the
+ * link's name ("Mail, 10 unread") contains them (axe label-content-name-mismatch). */
 export function badgeText(n: number | undefined): string | null {
   if (!n || n <= 0) return null;
   return n > 99 ? "99+" : String(n);
@@ -55,7 +58,7 @@ export function PhoneTabBar({ mailUnread, moreOpen, onMore }: { mailUnread: numb
             <>
               <span className="relative" aria-hidden>
                 <Glyph size={25} filled={on} />
-                {badge && <span className="absolute -right-2.5 -top-1 min-w-[18px] rounded-full bg-[#FF3B30] px-1 text-center text-[11px] font-semibold leading-[18px] text-white tabular-nums ring-2 ring-[var(--color-surface)]">{badge}</span>}
+                {badge && <span className="absolute -right-2.5 -top-1 min-w-[18px] rounded-full bg-[#D70015] px-1 text-center text-[11px] font-semibold leading-[18px] text-white tabular-nums ring-2 ring-[var(--color-surface)] before:content-[attr(data-badge)]" data-badge={badge} />}
               </span>
               <span>{label}</span>
             </>

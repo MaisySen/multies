@@ -66,16 +66,19 @@ export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="keycap">{children}</kbd>;
 }
 
-export function Avatar({ label, className }: { label: string; className?: string }) {
+/** `drawn`: the letters are drawn by CSS instead of a text node. R54: use it inside a button with its own aria-label,
+ *  where axe counts the hidden letters as the button's visible words (label-content-name-mismatch). */
+export function Avatar({ label, className, drawn }: { label: string; className?: string; drawn?: boolean }) {
   let h = 0;
   for (const ch of label) h = (h * 31 + ch.charCodeAt(0)) % 360;
   return (
     <span
-      className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-fg", className)}
+      className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold text-fg", drawn && "before:content-[attr(data-label)]", className)}
       style={{ background: `hsl(${h} var(--avatar-s) var(--avatar-l))` }}
       aria-hidden
+      data-label={drawn ? label : undefined}
     >
-      {label}
+      {drawn ? null : label}
     </span>
   );
 }
