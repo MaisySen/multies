@@ -3,6 +3,7 @@
  * registry (lib/commands); with a task focused its actions lead, and its pickers open as nested pages
  * (Backspace on an empty search goes back). Loaded on demand by PaletteHost (palette-host.tsx).
  * R54: typed words act ("assign MB-12 to Asha due Fri"): one preview row leads, Enter applies, Undo in the toast.
+ * R55: more verbs ("MB-12 done", "MB-12 +urgent -later", "move MB-12 to Website"); the labels in use come from the loaded lists.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -130,13 +131,19 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   };
 
   // R54: typed words that act on a task. Nothing changes until Enter.
-  const typed = useTypedAction(search, { enabled: open && !page, focusedTask: task, people: people.data, projects: projects.data });
+  const knownLabels = useMemo(() => {
+    if (!open || page) return undefined;
+    const all = new Set<string>();
+    for (const [, list] of qc.getQueriesData<Task[]>({ queryKey: ["tasks"] })) if (Array.isArray(list)) for (const t of list) for (const l of t.labels) all.add(l);
+    return [...all];
+  }, [qc, open, page]);
+  const typed = useTypedAction(search, { enabled: open && !page, focusedTask: task, people: people.data, projects: projects.data, labels: knownLabels });
   const typedProblem = typed?.state === "ready" ? typed.resolved.problems.join(" ") : typed?.state === "missing" ? "Nothing will change." : "";
   const runTyped = () => {
     if (typed?.state !== "ready" || typed.resolved.problems.length) return;
     const t = typed.task;
     const project = projects.data?.find((p) => p.id === t.projectId);
-    const c = typedActionChange(t, typed.resolved, project);
+    const c = typedActionChange(t, typed.resolved, project, projects.data ?? []);
     const saved = typed.resolved.preview.replace(": ", " updated: ");
     close();
     qc.removeQueries({ queryKey: ["task-ref"] });
