@@ -176,19 +176,3 @@ What one imported task costs, measured on staging D1 (`wrangler d1 execute --rem
 So 9 rows per task is the floor (the task row, its indexes, the project status counter row the trigger keeps), and a subtask adds about 2 (its entry in the parent index, and the trigger's update of the parent's subtask count). A 1,000 row file with 800 subtasks costs about 10,600 rows, about a tenth of the shared 100,000 a day; the import already stops at the write budget warning and the daily task cap. Statements: about 1.05 write statements per row (one insert per task, 50 tasks per batch, one counter row per batch).
 
 The only avoidable part is the parent count update (about 0.8 rows per row on a subtask heavy file). Two ways to cut it, neither done yet: insert a family's subtasks before their parent inside one batch (the batch is one transaction, so the trigger finds no parent and the parent's insert carries its counts), or a migration that skips the trigger for imported rows and recounts once per batch. `tests/import-write-cost-r54.test.ts` locks the local meter at 17 units per row (it counts trigger rows as task rows, so it reads 16.2 where D1 reads 10.6).
-
-## Imports (R55, 28 Oct 2026)
-
-R55 cut the avoidable part, without a migration. Measured on staging D1 with the exact statements in the new order (`d1/query`, whose answer carries D1's own rows written per statement):
-
-| File shape | Before (R54 order) | After (R55 order) |
-| --- | --- | --- |
-| 1 parent with 4 subtasks | 53 rows, 10.6 per task | 49 rows, 9.8 per task |
-| 1 task with 2 comments and 2 checklist items | 25 rows | 21 rows |
-| 5 top level tasks | 45 rows, 9.0 per task | 45 rows, 9.0 per task (unchanged) |
-
-How:
-- A family (a top row and every row under it) that fits in one batch goes in together, children first, and the parent's insert carries its subtask counts. The subtask count trigger then finds no parent row and writes nothing. A batch never splits such a family, so a run that stops never leaves a subtask without its parent. A family bigger than a batch keeps the old order, parents first.
-- On D1 a batch is one transaction: it starts with `PRAGMA defer_foreign_keys = on`, comments and checklist items go in before their task, and the task row carries their counts, so the count triggers write nothing. SQLite in Node runs statements one by one, so there the task stays first.
-- 9 rows per flat task is still the floor: the row, its primary key, 6 indexes and the status counter row. Going lower needs a migration (drop an index or the counter trigger), which R55 did not do.
-- `tests/import-write-cost-r55.test.ts` checks every stored count against a recount, in both orders, with families bigger than a batch and with a run that stops; the local meter in `tests/import-write-cost-r54.test.ts` now reads 13.0 per row (was 16.2) and is held at 14.

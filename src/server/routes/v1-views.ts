@@ -9,6 +9,7 @@ import type { SuiteActor } from "../services/suite/common";
 import { createView, deleteView, listViews } from "../services/suite/tasks";
 import { ViewCreate } from "./suite-schemas";
 import { HttpError } from "../lib/errors";
+import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -36,7 +37,7 @@ export function registerSavedViewRoutes(api: OpenAPIHono<AppEnv>) {
   async (c) => {
     const parsed = ViewCreate.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) throw new HttpError(422, "validation_failed", parsed.error.issues[0]?.message ?? "Check the view.", parsed.error.issues);
-    const view = await createView(c.var.deps, actor(c), { ...parsed.data, shared: parsed.data.shared ?? true });
+    const view = await createView(c.var.deps, actor(c), { ...parsed.data, shared: parsed.data.shared ?? true }, await idempotentCreate(c.req.raw, "viw"));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return c.json({ view } as any, 201) as any;
   });

@@ -9,6 +9,7 @@ import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addComment, deleteComment, editComment, listComments } from "../services/mail/thread-comments";
 import { CommentBody } from "./thread-comments";
+import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -31,7 +32,7 @@ export function registerThreadCommentRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/threads/{id}/comments", "List a thread's internal notes", "Team only notes on the thread, oldest first, and the people who can be mentioned. Each note: { id, author: { type, id, name }, body, mentions: [{ userId, name }], editedAt, createdAt }. Notes are never sent outside the team.", { request: { params: Id } }),
     async (c) => send(c, await listComments(c.var.deps, actor(c), pid(c))));
   api.openapi(route("post", "/threads/{id}/comments", "Add an internal note", "Body: { body (up to 4,000 characters; \"@Full Name\" or \"@email\" mentions a teammate), mentions? (user ids or emails) }. Mentioned people who can open the thread get a notification. Agent keys write as the agent.", { request: { params: Id, ...body(CommentBody) } }),
-    async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), pid(c), await jsonBody(c, CommentBody)) }, 201));
+    async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), pid(c), await jsonBody(c, CommentBody), await idempotentCreate(c.req.raw, "tcm")) }, 201));
   api.openapi(route("patch", "/threads/{id}/comments/{commentId}", "Edit an internal note", "Only the author, within 24 hours. Body: { body, mentions? }. Only newly mentioned people are notified.", { request: { params: CommentId, ...body(CommentBody) } }),
     async (c) => send(c, { comment: await editComment(c.var.deps, actor(c), pid(c), pid(c, "commentId"), await jsonBody(c, CommentBody)) }));
   api.openapi(route("delete", "/threads/{id}/comments/{commentId}", "Delete an internal note", "The author, or a workspace key, owner or admin.", { request: { params: CommentId } }),

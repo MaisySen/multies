@@ -8,6 +8,7 @@ import type { AppEnv } from "../context";
 import { createAuthHook, deleteAuthHook, listAuthHooks } from "../services/mail/auth-email-hooks";
 import { registerAuthHookBrandingRoutes } from "./v1-r25-authmail";
 import { registerAuthEmailSettingsRoutes } from "./auth-email-settings-r27";
+import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -46,7 +47,7 @@ export function registerAuthHookRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("post", "/auth-email-hooks", "Send a Supabase project's auth emails through Multies",
     "Body: { from, secret, supabaseUrl, appName? }. Returns the hook URL to paste into Supabase (Authentication, Hooks, Send Email Hook, HTTPS). Needs a workspace key.",
     { request: { body: { required: true, content: { "application/json": { schema: AuthHookBody } } } } }),
-  async (c) => send(c, { hook: { ...(await createAuthHook(c.var.deps, auth(c), AuthHookBody.parse(await c.req.json().catch(() => ({}))))), setup: AUTH_HOOK_SETUP } }, 201));
+  async (c) => send(c, { hook: { ...(await createAuthHook(c.var.deps, auth(c), AuthHookBody.parse(await c.req.json().catch(() => ({}))), await idempotentCreate(c.req.raw, "ahk"))), setup: AUTH_HOOK_SETUP } }, 201));
   api.openapi(route("delete", "/auth-email-hooks/{id}", "Remove an auth email hook", "Calls to its URL fail from then on.", { request: { params: Id } }),
     async (c) => send(c, { deleted: await deleteAuthHook(c.var.deps, auth(c), c.req.param("id") ?? "") }));
   registerAuthHookBrandingRoutes(api); // R25 (MB-60): PATCH and preview
