@@ -147,7 +147,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "post", path: "/tasks/{id}/comments", tags: tag("Tasks"), summary: "Comment on a task", security: secured,
     request: { params: Id, ...body(CommentCreate) }, responses: { 201: json(z.object({ comment: Comment }), "The comment."), 401: errors[401], 404: errors[404] } }),
-  async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").body, { id: await idempotentId(c.req.raw, "cmt") }) }, 201));
+  async (c) => send(c, { comment: await addComment(c.var.deps, actor(c), c.req.valid("param").id, c.req.valid("json").body, await idempotentCreate(c.req.raw, "cmt")) }, 201));
 
   // ---------------------------------------------------------------- projects
   api.openapi(createRoute({ method: "get", path: "/projects", tags: tag("Projects"), summary: "List projects with their statuses", security: secured,

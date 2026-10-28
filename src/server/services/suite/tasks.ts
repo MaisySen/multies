@@ -781,8 +781,12 @@ export async function deleteTask(deps: Deps, actor: SuiteActor, idOrRef: string)
 
 // ---------------------------------------------------------------- comments, thread, detail
 
-export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string, body: string, opts: { id?: string } = {}) {
+export async function addComment(deps: Deps, actor: SuiteActor, idOrRef: string, body: string, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(actor);
+  if (opts.id && opts.retry) { // R52 (MB-239): a retry under the same Idempotency-Key returns the comment the first attempt made
+    const hit = await deps.db.select().from(taskComments).where(and(eq(taskComments.id, opts.id), eq(taskComments.orgId, actor.orgId))).get();
+    if (hit) return { id: hit.id, taskId: hit.taskId, body: hit.body, author: { type: hit.createdByType, id: hit.createdById, name: hit.authorName }, createdAt: hit.createdAt.toISOString() };
+  }
   const t = await taskRow(deps, actor.orgId, await resolveTaskId(deps, actor.orgId, idOrRef));
   const text = body.trim();
   if (!text) throw new HttpError(422, "validation_failed", "Write something first.");

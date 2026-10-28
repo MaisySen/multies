@@ -16,6 +16,7 @@ const cases: Case[] = [
   { name: "doc", table: "docs", path: () => "/docs", body: () => ({ title: "Retry doc" }), pick: one("doc") },
   { name: "deal", table: "deals", path: () => "/deals", body: () => ({ title: "Retry deal" }), pick: one("deal") },
   { name: "meeting", table: "meetings", path: () => "/meetings", body: () => ({ title: "Retry meeting", startsAt }), pick: one("meeting") },
+  { name: "task comment", table: "task_comments", path: (s) => `/tasks/${s.task}/comments`, body: () => ({ body: "Retry comment" }), pick: one("comment") },
   { name: "form", table: "forms", path: () => "/forms", body: () => ({ name: "Retry form" }), pick: one("form") },
   { name: "goal", table: "goals", path: () => "/goals", body: () => ({ name: "Retry goal" }), pick: one("goal") },
   { name: "time entry", table: "time_entries", path: () => "/time", body: (s) => ({ minutes: 30, taskId: s.task }), pick: one("entry") },
