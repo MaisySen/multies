@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 54 (28 Oct 2026)
+
+- Phone: the unread count on the tab bar is a deeper red so the number reads clearly, and screen readers name the workspace, account and mail buttons with the words shown on them.
+- Agent API: retrying after a server error keeps the same id for more creates: templates (and what a template makes), doc versions, task runs and run steps, meeting action items, dashboards and their widgets, reports, incoming hooks (the same address, no second token) and agent triggers.
+- Task lists: a page cursor that was not made by the app is refused with a clear error instead of reaching the database.
+
 ### Round 53 (28 Oct 2026)
 
 - Connected mailboxes sync with less work: some providers keep one change counter for the whole account, so last round's skip for unchanged folders rarely applied to them. Now a pass asks only for the messages whose read or star state changed since the last pass, and mail that is already stored, or that another folder brought in the same pass (some providers show new mail in two folders at once), is no longer downloaded and read twice.
