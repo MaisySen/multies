@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 55 (28 Oct 2026)
+
+- Automations: a task rule can do up to five things in order, for example set the priority, add a label and notify the assignee. The rule editor shows them under "And then"; the API takes them as `actionConfig.then`. A failing step stops the rest and the rule names which step failed.
+- Command menu: more words it understands. Change a status ("mark MB-12 in progress"), add or remove labels ("MB-12 +urgent -later") or move a task to another project with its status and sprint put back by Undo. Snooze and archive are recognised and answered plainly, since tasks have neither.
+- Imports write less: subtasks go in before their parent with the parent's counts already set, and comments and checklist items go in before their task in the same batch, so the counts are not updated row by row. A parent with four subtasks writes 49 rows instead of 53; a task with two comments and two checklist items 21 instead of 25.
+- Agent API: retrying after a server error keeps the same id for 16 more creates (thread notes, task from email, duplicate, mail splits, chat posts and message to task, timers, triage, views, key results, checklist item to subtask, integrations, run now on an agent trigger, auth email hooks, MCP scheduled sends). The docs list what is still not covered and why.
+- What's new keeps the ten changes people can see and use; work behind the scenes stays here.
+- Tests: the "E archives the open email" check waits on the open row instead of an idle network, which a live mail page never reaches.
+
 ### Round 54 (28 Oct 2026)
 
 - Command menu: type what you want done, like "assign MB-12 to Asha due Fri priority high"; one preview row shows the change, Enter makes it, Undo puts it back. Rules only; dates use the same reader as meeting action items.
