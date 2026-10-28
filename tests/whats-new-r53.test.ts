@@ -58,9 +58,10 @@ describe("R53 whats-new list", () => {
     }
   });
 
-  it("carries the R53 mail sync entry at the top", () => {
-    expect(WHATS_NEW[0].title).toMatch(/mail sync/i);
-    expect(WHATS_NEW[0].body).toMatch(/downloaded twice/);
+  it("carries the R53 entries at the top: What's new itself, then the mail sync change", () => {
+    expect(WHATS_NEW[0].id).toBe("2026-10-28-whats-new");
+    expect(WHATS_NEW[1].title).toMatch(/mail sync/i);
+    expect(WHATS_NEW[1].body).toMatch(/not downloaded again/);
   });
 
   it("formats a date as a calendar day without a time zone shift", () => {

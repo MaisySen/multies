@@ -15,10 +15,16 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-whats-new",
+    date: "2026-10-28",
+    title: "What's new, in the app",
+    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
+  },
+  {
     id: "2026-10-28-lighter-mail-sync",
     date: "2026-10-28",
     title: "Lighter mail sync",
-    body: "Mail that has not changed is no longer downloaded twice, and only flags that changed are read. Connected mailboxes stay in step with less work on every pass.",
+    body: "Mail you already have is not downloaded again, and only messages whose read or star state changed are checked. Connected mailboxes stay in step with less work on every pass.",
   },
   {
     id: "2026-10-28-delete-meetings",
@@ -30,7 +36,7 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     id: "2026-10-28-safe-retries",
     date: "2026-10-28",
     title: "No doubles when an app retries",
-    body: "If an app or agent that uses your workspace retries after an error, you get one item, not two. This now covers forms, goals, time entries, chat channels, saved replies, custom fields, checklists and sprints.",
+    body: "If an app or agent that uses your workspace retries after an error, you get one item, not two. This now covers forms, goals, time entries, chat channels, saved replies, custom fields, checklists, sprints, imports, webhook endpoints and agent tool calls.",
   },
   {
     id: "2026-10-28-quicker-task-lists",
