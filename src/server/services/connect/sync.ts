@@ -205,7 +205,6 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     }
 
     const fetched: { box: Box; m: FetchedMessage }[] = [];
-    const passIds = new Set<string>(); // R53: Message-IDs this pass already brought (Gmail shows new mail in Inbox and All Mail)
     for (const box of syncedKeys(state)) {
       const path = pathFor(state, box);
       if (!path) continue;
@@ -230,7 +229,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       const take = pending.slice(0, budget);
       if (pending.length > take.length) result.more = true;
       if (take.length) {
-        for (const m of await session.fetch(take, MAX_SYNC_BYTES, (heads) => needBodies(deps, c.mailboxId, heads, passIds))) fetched.push({ box, m });
+        for (const m of await session.fetch(take, MAX_SYNC_BYTES)) fetched.push({ box, m });
         st.last = take[take.length - 1];
         budget -= take.length;
       }
@@ -262,31 +261,6 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     await session.close().catch(() => undefined);
   }
   return result;
-}
-
-/**
- * R53: of the headers just fetched, the UIDs whose body is still needed. A message whose Message-ID is already stored in
- * this mailbox (`known`), or that an earlier folder of this pass already brought (`dup`), keeps its header only: the
- * store step treats both as the duplicates they are, so their bodies were downloaded and parsed for nothing before.
- * One indexed read per 90 Message-IDs, the same read the store step makes.
- */
-export async function needBodies(deps: Deps, mailboxId: string, heads: FetchedMessage[], passIds: Set<string>): Promise<Set<number>> {
-  const ids = [...new Set(heads.map((h) => h.envelope?.messageId).filter((x): x is string => !!x && x.length > 2 && !passIds.has(x)))];
-  const stored = new Set<string>();
-  for (let i = 0; i < ids.length; i += 90) {
-    const hits = await deps.db.select({ mid: messages.messageIdHeader }).from(messages)
-      .where(and(eq(messages.mailboxId, mailboxId), inArray(messages.messageIdHeader, ids.slice(i, i + 90))));
-    for (const h of hits) if (h.mid) stored.add(h.mid);
-  }
-  const want = new Set<number>();
-  for (const h of heads) {
-    const mid = h.envelope?.messageId;
-    if (mid && mid.length > 2 && passIds.has(mid)) h.dup = true;
-    else if (mid && stored.has(mid)) h.known = mid;
-    else want.add(h.uid);
-  }
-  for (const h of heads) { const mid = h.envelope?.messageId; if (mid && mid.length > 2) passIds.add(mid); }
-  return want;
 }
 
 /** Whether a pass has anything to do: queued changes for the provider, or new UIDs in Inbox or Sent. Reads only. */
@@ -353,25 +327,6 @@ export function folderFingerprint(opened: { uidNext: number; exists?: number; mo
   return opened.modseq ? `${opened.modseq}:${opened.exists ?? ""}:${opened.uidNext}:${last}` : undefined;
 }
 
-/** R53: the parts of a stored fingerprint, or undefined when it is missing or not all numbers. */
-export function parseFingerprint(f: string | undefined): { modseq: string; exists: number; uidNext: number; last: number } | undefined {
-  const p = (f ?? "").split(":");
-  if (p.length !== 4 || !p.every((x) => /^\d+$/.test(x))) return undefined;
-  return { modseq: p[0], exists: Number(p[1]), uidNext: Number(p[2]), last: Number(p[3]) };
-}
-
-/**
- * R53: how many messages left the folder since the fingerprint was taken. Every message that arrives (or is moved in)
- * takes a new UID, so arrivals = the growth of the next UID, and whatever the count did not grow by was removed.
- * 0 means nothing left the folder at all; undefined when it can't be told.
- */
-export function removedSince(prev: { exists: number; uidNext: number } | undefined, opened: { uidNext: number; exists?: number }): number | undefined {
-  if (!prev || opened.exists === undefined) return undefined;
-  const arrived = opened.uidNext - prev.uidNext;
-  const removed = arrived - (opened.exists - prev.exists);
-  return arrived >= 0 && removed >= 0 ? removed : undefined;
-}
-
 async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: string, st: FolderState) {
   const opened = await session.open(st.path);
   // R52: an unchanged folder (same modseq, count and next UID since its last full read) has no flag changes and
@@ -379,31 +334,13 @@ async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: s
   const fp = folderFingerprint(opened, st.last);
   if (fp && st.f === fp) return [];
   const lo = Math.max(1, st.last - FLAG_WINDOW + 1);
-  // R53: Gmail keeps one mod-sequence for the whole account, so any change anywhere moves every folder's modseq and
-  // the R52 skip almost never applies there. When nothing left the folder since the last read, ask only for the
-  // messages whose flags changed after the stored modseq (CONDSTORE CHANGEDSINCE) and read only those rows here.
-  const prev = parseFingerprint(st.f);
-  const incremental = !!(fp && prev && opened.modseq && removedSince(prev, opened) === 0);
-  const remote = await session.flags(lo, st.last, incremental ? { changedSince: prev!.modseq } : {});
-  if (incremental && remote.size === 0) { st.f = fp; return []; }
-  const changedUids = incremental ? [...remote.keys()].filter((u) => u >= lo && u <= st.last) : [];
-  if (incremental && changedUids.length === 0) { st.f = fp; return []; }
+  const remote = await session.flags(lo, st.last);
   const local = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
-    .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box),
-      incremental ? inArray(messages.remoteUid, changedUids.slice(0, 90)) : and(gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last))));
-  if (incremental && changedUids.length > 90) {
-    // Over 90 changed messages (the bound-parameter limit per statement): read the rest of the window the old way.
-    const rest = await deps.db.select({ id: messages.id, remoteUid: messages.remoteUid, isRead: messages.isRead, isStarred: messages.isStarred, folder: messages.folder })
-      .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last)));
-    const have = new Set(local.map((m) => m.id));
-    for (const m of rest) if (!have.has(m.id) && remote.has(m.remoteUid!)) local.push(m);
-  }
+    .from(messages).where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, st.last)));
   const changes = [];
   for (const m of local) {
     const f = remote.get(m.remoteUid!);
     if (!f) {
-      // Only a full read can say a message is gone; an incremental read lists changed messages only.
-      if (incremental) continue;
       changes.push(deps.db.update(messages).set(box === "inbox" && m.folder === "inbox" ? { folder: "archive", remoteUid: null } : { remoteUid: null }).where(eq(messages.id, m.id)));
       continue;
     }
@@ -431,11 +368,7 @@ function stub(m: FetchedMessage): ParsedEmail {
  */
 export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, orgId: string, fetched: { box: Box; m: FetchedMessage }[]) {
   const parsed: { box: Box; m: FetchedMessage; e: ParsedEmail }[] = [];
-  let skippedDup = 0;
   for (const f of fetched) {
-    // R53: headers only for mail already held (see needBodies): no MIME parse, straight to the duplicate path below.
-    if (f.m.dup) { skippedDup++; continue; }
-    if (f.m.known) { parsed.push({ ...f, e: { messageId: f.m.known } as unknown as ParsedEmail }); continue; }
     try { parsed.push({ ...f, e: f.m.source ? await parseMime(f.m.source) : stub(f.m) }); } catch (err) {
       deps.log?.warn("mail_sync.unparsable", { connection: c.id, uid: f.m.uid, error: (err as Error).message });
     }
@@ -449,7 +382,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     for (const h of hits) if (h.mid) { known.set(h.mid, h.threadId); if (!rows.has(h.mid) || rows.get(h.mid)!.remoteUid !== null) rows.set(h.mid, h); }
   }
   const statements: PromiseLike<unknown>[] = [];
-  let stored = 0, duplicates = skippedDup, bytes = 0;
+  let stored = 0, duplicates = 0, bytes = 0;
   const seen = new Set<string>();
   for (const { box, m, e } of parsed) {
     if (e.messageId && (known.has(e.messageId) || seen.has(e.messageId))) {

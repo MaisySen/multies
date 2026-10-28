@@ -9,7 +9,6 @@ import type { SuiteActor } from "../services/suite/common";
 import { createSnippet, listSnippets, renderSnippetFor } from "../services/suite/snippets";
 import { SNIPPET_BODY_MAX, SNIPPET_NAME_MAX, SNIPPET_SUBJECT_MAX } from "@/shared/snippets";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 const VARS = "{{first_name}}, {{name}}, {{email}} (the recipient), {{my_name}}, {{my_first_name}}, {{company}} (the workspace), {{mailbox}} (the sending address), {{date}}";
@@ -46,6 +45,6 @@ export function registerSnippetTools(server: McpServer, deps: Deps, actor: Scope
     },
   }, tool(async (x: { name: string; body: string; subject?: string; shortcut?: string; shared?: boolean }) => {
     writable();
-    return { snippet: await createSnippet(deps, a, x, await mcpCreate("snp")) };
+    return { snippet: await createSnippet(deps, a, x) };
   }) as never);
 }

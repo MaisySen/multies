@@ -61,13 +61,13 @@ export async function getTriageItem(deps: Deps, actor: SuiteActor, id: string) {
 export interface CreateTriageInput { title: string; notes?: string; source?: TriageSource; from?: string | null; projectId?: string }
 
 /** Puts a new item straight into Triage (the API and MCP). Without a project it goes to the default one. */
-export async function createTriageItem(deps: Deps, actor: SuiteActor, input: CreateTriageInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createTriageItem(deps: Deps, actor: SuiteActor, input: CreateTriageInput) {
   assertWritable(actor);
   const from = input.from?.trim() || null;
   return createTask(deps, actor, {
     title: input.title, notes: input.notes, projectId: input.projectId,
     triage: { source: input.source ?? "api", when: "always", from: from ? from.slice(0, 300) : null },
-  }, opts); // R53 (MB-239): same id on a retry
+  });
 }
 
 export interface AcceptInput { projectId?: string; assignee?: Assignee | null; statusId?: string; status?: Category; priority?: Priority; due?: string | null }

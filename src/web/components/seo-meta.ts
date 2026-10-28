@@ -19,6 +19,7 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/check": { title: "Check your domain's email | Multies", description: "Free check: see who hosts your domain's mail, whether SPF and DMARC are set, and the steps to switch to Multies without losing a message." },
   "/trust": { title: "Security and data | Multies", description: "Where Multies stores your data, the services it uses, backups, sign in options, encryption and incident history." },
   "/status": { title: "System status | Multies", description: "Live status of Multies' web app, API, inbound mail and outbound delivery." },
+  "/changelog": { title: "What's new | Multies", description: "What changed in Multies, newest first: new features, fixes and speed improvements." },
   "/privacy": { title: "Privacy policy | Multies", description: "What Multies collects, why, where it is processed and how to delete it." },
   "/terms": { title: "Terms of service | Multies", description: "The terms for using Multies' email, work management and agent features." },
   "/acceptable-use": { title: "Acceptable use policy | Multies", description: "What you may and may not send or store with Multies." },

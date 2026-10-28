@@ -6,7 +6,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Deps } from "../context";
 import { HttpError } from "../lib/errors";
-import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { projectRollups, taskComputed } from "../services/suite/computed";
 import { createField } from "../services/suite/fields";
@@ -37,7 +36,7 @@ export function registerFormulaTools(server: McpServer, deps: Deps, actor: Scope
     inputSchema: { projectId: z.string().min(1).max(64), name: z.string().min(1).max(60), expression: z.string().min(1).max(500) },
   }, tool(async (x: { projectId: string; name: string; expression: string }) => {
     writable();
-    return { field: await createField(deps, a, x.projectId, { name: x.name, type: "formula", config: { expression: x.expression } }, await mcpCreate("fld")) };
+    return { field: await createField(deps, a, x.projectId, { name: x.name, type: "formula", config: { expression: x.expression } }) };
   }) as never);
 
   server.registerTool("create_rollup_field", {
@@ -49,6 +48,6 @@ export function registerFormulaTools(server: McpServer, deps: Deps, actor: Scope
     },
   }, tool(async (x: { projectId: string; name: string; source: (typeof ROLLUP_SOURCES)[number]; fn: (typeof ROLLUP_FNS)[number]; field?: string }) => {
     writable();
-    return { field: await createField(deps, a, x.projectId, { name: x.name, type: "rollup", config: { source: x.source, fn: x.fn, field: x.field ?? null } }, await mcpCreate("fld")) };
+    return { field: await createField(deps, a, x.projectId, { name: x.name, type: "rollup", config: { source: x.source, fn: x.fn, field: x.field ?? null } }) };
   }) as never);
 }

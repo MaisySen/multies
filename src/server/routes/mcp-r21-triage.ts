@@ -9,7 +9,6 @@ import type { SuiteActor } from "../services/suite/common";
 import { parseAssignee } from "../services/suite/tasks";
 import { acceptTriage, createTriageItem, declineTriage, listTriage, mergeTriage } from "../services/suite/triage";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -73,6 +72,6 @@ export function registerTriageTools(server: McpServer, deps: Deps, actor: Scoped
     },
   }, tool(async (x: { title: string; notes?: string; source?: "mail" | "form" | "api" | "chat"; from?: string; projectId?: string }) => {
     writable();
-    return { item: await createTriageItem(deps, a, x, await mcpCreate("tsk")) };
+    return { item: await createTriageItem(deps, a, x) };
   }) as never);
 }

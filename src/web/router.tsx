@@ -100,6 +100,7 @@ const ImportSettings = lazy(() => import("./pages/app/data-move").then((m) => ({
 const DeveloperSettings = lazy(() => import("./pages/app/developers").then((m) => ({ default: m.DeveloperSettings })));
 const DeliverabilityPage = lazy(() => import("./pages/app/deliverability").then((m) => ({ default: m.DeliverabilityPage })));
 const StatusPage = lazy(() => import("./pages/status").then((m) => ({ default: m.StatusPage })));
+const ChangelogPage = lazy(() => import("./pages/changelog").then((m) => ({ default: m.ChangelogPage }))); // R53 MB-133
 const ThanksPage = lazy(() => import("./pages/thanks").then((m) => ({ default: m.ThanksPage })));
 const CheckPage = lazy(() => import("./pages/check").then((m) => ({ default: m.CheckPage })));
 const TrustPage = lazy(() => import("./pages/trust").then((m) => ({ default: m.TrustPage })));
@@ -124,6 +125,7 @@ export const router = createBrowserRouter([
       { path: "/agents", element: publicPage(<AgentsDevPage />) },
       { path: "/developers/mcp", element: publicPage(<McpDocsPage />) }, // R36: MCP tool docs
       { path: "/status", element: publicPage(<StatusPage />) },
+      { path: "/changelog", element: publicPage(<ChangelogPage />) }, // R53: What's new
       { path: "/privacy", element: publicPage(<LegalPage slug="privacy" />) },
       { path: "/support", element: publicPage(<SupportPage />) },
       { path: "/contact", element: publicPage(<ContactUsPage />) },

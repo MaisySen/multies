@@ -39,11 +39,6 @@ of a copy. A retried agent create answers `apiKey: null` when the first call alr
 shown once, in the lost answer): make a new one with `POST /api/v1/agents/{id}/keys`. Invites (`POST /invites`,
 `POST /projects/{id}/guests`) and contacts (`POST /contacts`) are matched by email, so a retry renews the same
 one. `POST /api/v1/mcp` takes the key too: a tool call sent twice with one key runs once (see MCP.md).
-R53: `POST /webhooks` retried after a 5xx returns the endpoint the first call made, with the same id and the
-same signing secret (no second secret is made). Imports retried with the same key leave one copy of every row:
-`POST /work-imports/run` fills the project its first call made instead of a second one, and
-`POST /data-moves/imports/run` answers the same run (`move.id`) and skips meetings, docs and projects the first
-call already wrote, even when it was cut off before saving its progress.
 Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.
 

@@ -121,11 +121,10 @@ export async function getProject(deps: Deps, orgId: string, id: string) {
 
 export interface StatusInput { id?: string; name: string; category: Category; color?: string }
 
-export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[] }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createProject(deps: Deps, actor: SuiteActor, input: { name: string; description?: string; key?: string; color?: string; statuses?: StatusInput[] }, opts: { id?: string } = {}) {
   assertWritable(actor);
   // R40 (MB-201): a retried create (same Idempotency-Key) carries the same id; if the first attempt committed, return it.
-  // R53: a caller that knows this is a first attempt (retry false) skips the read.
-  if (opts.id && opts.retry !== false && await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, opts.id), eq(projects.orgId, actor.orgId))).get()) return getProject(deps, actor.orgId, opts.id);
+  if (opts.id && await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.id, opts.id), eq(projects.orgId, actor.orgId))).get()) return getProject(deps, actor.orgId, opts.id);
   const now = deps.now();
   const id = opts.id ?? sortableId("prj", now.getTime());
   const base = (input.key ?? keyFrom(input.name)).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "TSK";
@@ -544,11 +543,10 @@ export interface CreateTaskInput {
 
 const cleanSubject = (s: string) => s.replace(/^\s*((re|fw|fwd|aw)\s*:\s*)+/i, "").trim();
 
-export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTaskInput, opts: { id?: string } = {}) {
   assertWritable(actor);
   // R40 (MB-201): a retried create (same Idempotency-Key) carries the same id; if the first attempt committed, return it.
-  // R53: a caller that knows this is a first attempt (retry false, as MCP tools pass) skips the read.
-  if (opts.id && opts.retry !== false && await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.id, opts.id), eq(tasks.orgId, actor.orgId))).get()) return getTask(deps, actor, opts.id);
+  if (opts.id && await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.id, opts.id), eq(tasks.orgId, actor.orgId))).get()) return getTask(deps, actor, opts.id);
   const title = input.title.trim();
   if (!title) throw new HttpError(422, "validation_failed", "Give the task a title.");
   let projectId = input.projectId;
@@ -624,7 +622,7 @@ export async function createTask(deps: Deps, actor: SuiteActor, input: CreateTas
 }
 
 /** One click from an email: the task takes the thread's subject and links back to it. */
-export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input: { messageId?: string; threadId?: string } & Partial<Omit<CreateTaskInput, "source">>, opts: { id?: string; retry?: boolean } = {}) {
+export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input: { messageId?: string; threadId?: string } & Partial<Omit<CreateTaskInput, "source">>) {
   const m = await deps.db.select().from(messages).where(and(eq(messages.orgId, actor.orgId), input.messageId ? eq(messages.id, input.messageId) : eq(messages.threadId, input.threadId ?? "-")))
     .orderBy(desc(messages.date)).get();
   if (!m) throw notFound("Message");
@@ -633,7 +631,7 @@ export async function createTaskFromThread(deps: Deps, actor: SuiteActor, input:
   const notes = input.notes ?? latestText(m.text).slice(0, 2000);
   // R21: mail turned into tasks by rules lands in Triage when the project has it on.
   const triage = input.triage !== undefined ? input.triage : actor.system ? { source: "mail" as const, when: "if_project" as const } : null;
-  return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage }, opts); // R53: same id on a retry
+  return createTask(deps, actor, { ...input, title, notes, source: { messageId: m.id, threadId: m.threadId }, triage });
 }
 
 const normaliseLabels = (l?: string[]) => [...new Set((l ?? []).map((x) => x.trim()).filter(Boolean).map((x) => x.slice(0, 40)))].slice(0, 20);
@@ -1011,16 +1009,11 @@ export async function listViews(deps: Deps, actor: SuiteActor, projectId?: strin
   return rows.map((v) => ({ id: v.id, projectId: v.projectId, name: v.name, view: v.view, filters: JSON.parse(v.filters) as Record<string, string>, shared: !v.userId }));
 }
 
-export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: "board" | "list" | "calendar" | "timeline" | "sprints" | "workload"; filters: Record<string, string>; shared?: boolean }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createView(deps: Deps, actor: SuiteActor, input: { projectId?: string | null; name: string; view: "board" | "list" | "calendar" | "timeline" | "sprints" | "workload"; filters: Record<string, string>; shared?: boolean }) {
   assertWritable(actor);
   if (input.projectId) await projectRow(deps, actor.orgId, input.projectId);
-  // R53 (MB-239): a retry under the same Idempotency-Key returns the view the first attempt saved (one read, only on a retry).
-  if (opts.id && opts.retry && await deps.db.select({ id: savedViews.id }).from(savedViews).where(and(eq(savedViews.orgId, actor.orgId), eq(savedViews.id, opts.id))).get()) {
-    const hit = (await listViews(deps, actor, input.projectId ?? undefined)).find((v) => v.id === opts.id);
-    if (hit) return hit;
-  }
   const now = deps.now();
-  const id = opts.id ?? sortableId("viw", now.getTime());
+  const id = sortableId("viw", now.getTime());
   await deps.db.insert(savedViews).values({ id, orgId: actor.orgId, projectId: input.projectId ?? null, userId: input.shared ? null : actor.userId || null, name: input.name.trim(), view: input.view, filters: JSON.stringify(input.filters), ...createdBy(actor), createdAt: now, updatedAt: now });
   return (await listViews(deps, actor, input.projectId ?? undefined)).find((v) => v.id === id)!;
 }

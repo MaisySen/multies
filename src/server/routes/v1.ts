@@ -13,7 +13,7 @@ import type { AppEnv } from "../context";
 import { mailboxes } from "../db/schema";
 import { claimFreeAddress } from "../services/free-address";
 import { HttpError, unauthorized } from "../lib/errors";
-import { idempotency, idempotentCreate } from "../lib/idempotency"; // R53: idempotentCreate for webhook endpoints
+import { idempotency } from "../lib/idempotency";
 import { audit } from "../services/audit";
 import { createAlias, createMailbox, deleteAlias, deleteMailbox, getMailbox, listAliases, listMailboxes, updateMailbox } from "../services/addresses";
 import { mailboxReplyToSchema } from "@/shared/schemas";
@@ -484,7 +484,7 @@ export function v1Routes() {
     responses: { 201: json(WebhookEndpoint.extend({ secret: z.string().openapi({ example: "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" }) }), "The endpoint and its signing secret."), 401: errors[401], 422: errors[422] } }),
   async (c) => {
     const { auth, deps } = c.var;
-    const out = await createEndpoint(deps, auth.orgId, c.req.valid("json"), await idempotentCreate(c.req.raw, "whe")); // R53 (MB-239): same id on a retry
+    const out = await createEndpoint(deps, auth.orgId, c.req.valid("json"));
     return c.json({ ...out.endpoint, createdAt: iso(out.endpoint.createdAt)!, secret: out.secret }, 201);
   });
 

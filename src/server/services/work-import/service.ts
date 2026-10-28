@@ -149,7 +149,7 @@ export interface RunInput extends FileInput {
 export type StopReason = "daily_cap" | "write_budget" | "time";
 
 /** Brings the file in. Safe to run again: tasks already in are skipped, and a stopped run carries on. */
-export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, opts: { maxMs?: number; batchSize?: number; project?: { id?: string; retry?: boolean } } = {}) {
+export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, opts: { maxMs?: number; batchSize?: number } = {}) {
   assertWritable(actor);
   const started = Date.now();
   const maxMs = opts.maxMs ?? 20_000;
@@ -191,10 +191,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       if ((fallbackNeeded(c) || (c === "done")) && !statuses.some((s) => s.category === c)) statuses = c === "todo" ? [{ name: n, category: c }, ...statuses] : [...statuses, { name: n, category: c }];
     }
     if (!plan.length && !rows.some((r) => r.category)) statuses = DEFAULT_STATUSES.map((s) => ({ name: s.name, category: s.category }));
-    // R53 (MB-239): under an Idempotency-Key the new project keeps one id, so a retry whose first attempt made the
-    // project but no task yet carries on in it instead of making a second, empty one. Tasks, their checklist items
-    // and comments go in one batch per part with their import key, so a retry skips every row that already landed.
-    const p = await createProject(deps, actor, { name, statuses: statuses.map((s) => ({ ...s, color: COLORS[s.category] })) }, opts.project);
+    const p = await createProject(deps, actor, { name, statuses: statuses.map((s) => ({ ...s, color: COLORS[s.category] })) });
     projectId = p.id;
     projectCreated = true;
   }

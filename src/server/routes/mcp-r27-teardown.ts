@@ -10,7 +10,6 @@ import type { SuiteActor } from "../services/suite/common";
 import { listWatchers, unwatchTask, watchTask } from "../services/suite/task-watchers-r27";
 import { duplicateTask } from "../services/suite/task-duplicate-r27";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -47,6 +46,6 @@ export function registerTeardownR27Tools(server: McpServer, deps: Deps, actor: S
   }, tool(async (x: { taskId: string; title?: string; projectId?: string; subtasks?: boolean; checklist?: boolean; assignee?: boolean; dependencies?: boolean }) => {
     writable();
     const { taskId, ...opts } = x;
-    return duplicateTask(deps, a, taskId, opts, await mcpCreate("tsk")); // R53: one copy on a retry
+    return duplicateTask(deps, a, taskId, opts);
   }) as never);
 }

@@ -64,15 +64,9 @@ const repeatOf = (t: Task): RepeatRule | null => {
 };
 
 /** Duplicates a task (and by default its subtasks and checklist). Returns the copy and what was copied. */
-export async function duplicateTask(deps: Deps, a: SuiteActor, taskIdOrRef: string, opts: DuplicateOptions = {}, idem: { id?: string; retry?: boolean } = {}) {
+export async function duplicateTask(deps: Deps, a: SuiteActor, taskIdOrRef: string, opts: DuplicateOptions = {}) {
   assertWritable(a);
   const src = await getTask(deps, a, taskIdOrRef);
-  // R53 (MB-239): a retry under the same Idempotency-Key whose first attempt made the copy returns that copy (one
-  // read, only on a retry) instead of copying the task again.
-  if (idem.id && idem.retry) {
-    const hit = await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, a.orgId), eq(tasks.id, idem.id))).get();
-    if (hit) return { task: await getTask(deps, a, hit.id), from: { id: src.id, ref: src.ref }, copied: { tasks: 0, subtasks: 0, checklistItems: 0, dependencies: 0 }, retried: true };
-  }
   if (src.triage) throw bad("Accept the task from Triage before duplicating it.");
   const title = (opts.title ?? `${src.title} (copy)`).replace(/\s+/g, " ").trim();
   if (!title) throw bad("Give the copy a title.");
@@ -91,7 +85,7 @@ export async function duplicateTask(deps: Deps, a: SuiteActor, taskIdOrRef: stri
       parentId: top ? (sameProject ? t.parentId : null) : parentId,
       type: t.type, points: t.points, sprintId: sameProject ? t.sprintId : null,
       repeat: repeatOf(t),
-    }, top && idem.id ? { id: idem.id, retry: false } : {});
+    });
     counts.tasks++;
     if (sameProject) await copyFieldValues(deps, a.orgId, t.id, made.id);
     if (opts.checklist !== false) counts.checklistItems += await copyChecklist(deps, a.orgId, t.id, made.id, by);

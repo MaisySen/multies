@@ -97,19 +97,15 @@ async function stopRow(deps: Deps, actor: SuiteActor, row: EntryRow) {
 }
 
 /** Starts a timer on a task. A timer already running for this person stops first. */
-export async function startTimer(deps: Deps, actor: SuiteActor, input: { taskId: string; note?: string }, opts: { id?: string; retry?: boolean } = {}) {
+export async function startTimer(deps: Deps, actor: SuiteActor, input: { taskId: string; note?: string }) {
   assertWritable(actor);
-  if (opts.id && opts.retry) { // R53 (MB-239): a retry under the same Idempotency-Key returns the timer the first attempt started
-    const hit = await deps.db.select().from(timeEntries).where(and(eq(timeEntries.id, opts.id), eq(timeEntries.orgId, actor.orgId))).get();
-    if (hit) return (await present(deps, actor.orgId, [hit]))[0];
-  }
   const p = personOf(actor);
   const t = await taskInfo(deps, actor.orgId, input.taskId);
   const running = await deps.db.select().from(timeEntries)
     .where(and(eq(timeEntries.orgId, actor.orgId), eq(timeEntries.personType, p.type), eq(timeEntries.personId, p.id), isNull(timeEntries.endedAt), isNull(timeEntries.deletedAt)));
   for (const r of running) await stopRow(deps, actor, r);
   const now = deps.now();
-  const id = opts.id ?? sortableId("tim", now.getTime());
+  const id = sortableId("tim", now.getTime());
   await deps.db.insert(timeEntries).values({
     id, orgId: actor.orgId, taskId: t.id, projectId: t.projectId, personType: p.type, personId: p.id,
     startedAt: now, endedAt: null, seconds: 0, note: (input.note ?? "").slice(0, 500), source: "timer", ...createdBy(actor), createdAt: now, updatedAt: now,

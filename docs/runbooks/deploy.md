@@ -122,15 +122,3 @@ npx --yes @sentry/cli@2 deploys new --release "$RELEASE" -e production
 - [ ] Remove the worktree: `git worktree remove /tmp/mm-deploy` (or keep it for the next deploy).
 
 If anything looks wrong: [rollback.md](rollback.md).
-
-## GitHub main and the local tree hash (R53)
-
-GitHub main's root tree hash never equals the local app checkout's, and that is expected: GitHub main also carries the
-phone app under `mobile/` (replayed there from the mobile repository by the push tooling), while the app checkout has no
-`mobile/` folder. Checked on 28 Oct 2026: GitHub tree 0487ac4 (commit de2e2f4) against local tree 3e4e568 (b60184a):
-all 1,789 app files have the same blob hash and mode; GitHub's 297 extra files are all under `mobile/`. Line endings,
-filters and submodules play no part.
-
-To check that a push carried the app exactly, compare the root entries of both trees with `mobile` left out (same names,
-modes and hashes at the root means every file below them is identical). The push tooling's `tree_check()` does this and
-answered "38 root entries, 0 differences" on 28 Oct. No force push and no history rewrite is needed or wanted.

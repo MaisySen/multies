@@ -105,19 +105,12 @@ async function endpointInOrg(deps: Deps, orgId: string, id: string) {
 
 export type EndpointFormat = "json" | "slack" | "discord" | "teams";
 
-export async function createEndpoint(deps: Deps, orgId: string, input: { url: string; events: string[]; description?: string; format?: EndpointFormat; connector?: string }, opts: { id?: string; retry?: boolean } = {}) {
-  if (opts.id && opts.retry) {
-    // R53 (MB-239): a retry under the same Idempotency-Key whose first attempt committed gets that endpoint back with
-    // the secret it was made with (the first answer, which would have shown it once, never arrived). No second
-    // secret is minted. One read, only on a retry.
-    const hit = await deps.db.select().from(webhookEndpoints).where(and(eq(webhookEndpoints.id, opts.id), eq(webhookEndpoints.orgId, orgId))).get();
-    if (hit) return { endpoint: presentEndpoint(hit), secret: await decryptSecret(deps.config.appSecret, hit.secretEnc) };
-  }
+export async function createEndpoint(deps: Deps, orgId: string, input: { url: string; events: string[]; description?: string; format?: EndpointFormat; connector?: string }) {
   const count = (await deps.db.select({ id: webhookEndpoints.id }).from(webhookEndpoints).where(eq(webhookEndpoints.orgId, orgId))).length;
   if (count >= MAX_ENDPOINTS) throw conflict(`A workspace can have up to ${MAX_ENDPOINTS} webhook endpoints.`);
   const url = validateEndpointUrl(deps, input.url);
   const secret = `whsec_${toB64(randomBytes(24))}`;
-  const id = opts.id ?? newId("whe");
+  const id = newId("whe");
   await deps.db.insert(webhookEndpoints).values({
     id, orgId, url, description: input.description ?? null, events: JSON.stringify(input.events),
     format: input.format ?? "json", connector: input.connector ?? null,

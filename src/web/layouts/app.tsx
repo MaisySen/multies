@@ -16,6 +16,7 @@ import { watchKeyboardInset } from "@/web/lib/keyboard-inset"; // R49 mobile web
 const CallDockHost = lazy(() => import("@/web/pages/app/work/call-r23").then((m) => ({ default: m.CallDockHost })));
 const Onboarding = lazy(() => import("@/web/pages/app/onboarding").then((m) => ({ default: m.Onboarding })));
 import { Menu, MenuItem, MenuLabel } from "@/web/components/ui/menu";
+import { useWhatsNew } from "@/web/lib/whats-new"; // R53 (MB-133)
 import { useConfig, useMe, useWorkspaces } from "@/web/lib/queries";
 import { useDemoSeedCatchUp } from "@/web/lib/demo";
 import type { Me } from "@/web/lib/types";
@@ -110,6 +111,7 @@ export function AppLayout() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [drawer, setDrawer] = useState(false);
+  const whatsNew = useWhatsNew(); // R53 (MB-133): unread dot, localStorage only
   useEffect(() => watchKeyboardInset(), []); // R49 mobile: composers stay above the on screen keyboard
   const approvals = useQuery({
     queryKey: ["approvals", "pending"], enabled: !!me.data?.organization, refetchInterval: 30_000,
@@ -173,6 +175,10 @@ export function AppLayout() {
           <MenuItem icon={<IconUserCog />} onSelect={() => navigate("/app/settings/account")}>Account & security</MenuItem>
           <MenuItem icon={<IconSettings />} onSelect={() => navigate("/app/settings")}>Workspace settings</MenuItem>
           <MenuItem icon={<IconKeyboard />} onSelect={openShortcutsSheet}>Keyboard shortcuts</MenuItem>
+          <MenuItem icon={<IconZap />} onSelect={() => { whatsNew.markSeen(); navigate("/changelog"); }}>
+            What's new
+            {whatsNew.unread && <span className="ml-auto flex items-center" data-testid="whats-new-dot"><span className="h-2 w-2 rounded-full bg-brand" aria-hidden /><span className="sr-only">(new)</span></span>}
+          </MenuItem>
           <MenuItem icon={<IconLogOut />} onSelect={signOut} danger>Sign out</MenuItem>
     </Menu>
   );
@@ -226,8 +232,8 @@ export function AppLayout() {
         </div>
       )}
       <div className="shrink-0 border-t border-line p-3">
-        {accountMenu(<button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-hover">
-            <Avatar label={initials(user.name)} className="h-7 w-7" />
+        {accountMenu(<button className="flex w-full items-center gap-2.5 rounded-lg p-1.5 text-left hover:bg-hover" data-testid="sidebar-account">
+            <span className="relative shrink-0"><Avatar label={initials(user.name)} className="h-7 w-7" />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span>
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px] font-medium">{user.name}</div>
               <div className="truncate text-[11.5px] text-subtle">{user.email}</div>
@@ -255,7 +261,7 @@ export function AppLayout() {
           {barTitle && <span className="pointer-events-none absolute left-1/2 top-[env(safe-area-inset-top)] flex h-12 max-w-[46%] -translate-x-1/2 animate-fade-in items-center text-[16px] font-semibold tracking-[-0.01em] text-fg" aria-hidden data-testid="bar-title"><span className="truncate">{barTitle}</span></span>}
           <div className="ml-auto flex shrink-0 items-center">
             <button onClick={() => openPalette()} className="grid h-11 w-11 place-items-center rounded-full text-fg/80 transition-colors hover:bg-hover hover:text-fg" aria-label="Search" data-testid="topbar-search"><IconSearch className="h-[22px] w-[22px]" /></button>
-            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><Avatar label={initials(user.name)} className="h-8 w-8" /></button>, "end")}
+            {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
           </div>
         </header>
         <ReadOnlyBanner />
