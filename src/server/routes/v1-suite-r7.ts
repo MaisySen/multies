@@ -69,7 +69,7 @@ export function registerSuiteR7Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/time/start", tags: ["Time"], summary: "Start a timer on a task", security: secured,
     description: "Agent keys only, or a person in the app: a timer belongs to someone. A timer already running stops first.",
     request: body(TimeStart), responses: { 201: json(z.object({ entry: TimeEntry }), "The running entry."), 401: errors[401], 404: errors[404], 422: errors[422] } }),
-  async (c) => send(c, { entry: await startTimer(c.var.deps, actor(c), c.req.valid("json"), await idempotentCreate(c.req.raw, "tim")) }, 201));
+  async (c) => send(c, { entry: await startTimer(c.var.deps, actor(c), c.req.valid("json")) }, 201));
 
   api.openapi(createRoute({ method: "post", path: "/time/stop", tags: ["Time"], summary: "Stop the running timer", security: secured,
     request: body(TimeStop), responses: { 200: json(z.object({ entry: TimeEntry.nullable() }), "The stopped entry, or null if none was running."), 401: errors[401] } }),

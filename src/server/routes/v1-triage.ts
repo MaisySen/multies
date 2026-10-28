@@ -8,7 +8,6 @@ import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { acceptTriage, bulkTriage, createTriageItem, declineTriage, getTriageItem, listTriage, mergeTriage, triageCount } from "../services/suite/triage";
 import { acceptInput, TriageAccept, TriageBulk, TriageCreate, TriageDecline, TriageMerge, TriageQuery } from "./triage";
-import { idempotentCreate } from "../lib/idempotency"; // R55 (MB-239): same id on a 5xx retry
 
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }) });
 const err = (description: string) => ({ description, content: { "application/json": { schema: ErrorSchema } } });
@@ -32,7 +31,7 @@ export function registerTriageRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/triage/count", "Count the Triage queue", "How many items wait in Triage."),
     async (c) => send(c, { count: await triageCount(c.var.deps, actor(c)) }));
   api.openapi(route("post", "/triage", "Create a Triage item", "Body: { title, notes?, source? (mail, form, api or chat; api by default), from? (an email address or \"Name <address>\" to reply to), projectId? (the default project when left out) }.", { request: body(TriageCreate) }),
-    async (c) => send(c, { item: await createTriageItem(c.var.deps, actor(c), await jsonBody(c, TriageCreate), await idempotentCreate(c.req.raw, "tsk")) }, 201));
+    async (c) => send(c, { item: await createTriageItem(c.var.deps, actor(c), await jsonBody(c, TriageCreate)) }, 201));
   api.openapi(route("post", "/triage/bulk", "Accept or decline several items", "Body: { ids (up to 100), action: accept | decline, accept?: { projectId?, assignee?, statusId?, status?, priority?, due? }, decline?: { reason?, reply?, message? } }. Each id reports ok or its error.", { request: body(TriageBulk) }),
     async (c) => { const b = await jsonBody(c, TriageBulk); return send(c, await bulkTriage(c.var.deps, actor(c), { ...b, accept: b.accept ? acceptInput(b.accept) : undefined })); });
   api.openapi(route("get", "/triage/{id}", "Read a Triage item", "The item as a task.", { request: { params: Id } }),
