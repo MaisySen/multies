@@ -105,3 +105,24 @@ method above on the new build at 0% before it took traffic, 27 Oct 08:44 UTC, 4 
 No gain, so it was reverted (more startup work for nothing). On production the first `/api/v1` request's cost is not
 the compile the local profile showed; next to look at: what the first real request builds per isolate (the lazily
 made error reporting client, the per isolate caches the warm up drops on purpose, the first D1 call). R45.
+
+## R52: warm request CPU on the task list, and idle mail sync passes
+
+Measured locally with the scripts/cold harness (the built worker in Node on a better-sqlite3 D1 stand in, 1,101 tasks,
+`GET /api/tasks?limit=50`, 120 warm requests per reading, three readings alternating old and new bundles):
+
+- Before: median 2.20 to 2.35 ms per request. The profile showed zod building the route's query schema on every request
+  (`TaskQuery.extend(...)` inside the handler) and drizzle mapping 44 columns of 50 rows through its generic per value loop.
+- After: median 1.55 to 1.65 ms. Every inline query schema in `src/server/routes` is now built once at module scope, and
+  the task lists read raw rows and map them with a mapper built once per table (`src/server/db/fast-rows.ts`). The JSON
+  answer is byte for byte the same for the plain list, paged list, sorted lists and both cursor kinds; the equality
+  with drizzle's own select is a unit test (`tests/fast-rows-r52.test.ts`).
+- The warm up fixture was re-recorded for the new query (`src/entry/warm-fixture.json`, see above).
+
+Mail sync (one Durable Object invocation per connected mailbox per pass) read the flags of the last 200 messages of every
+synced folder on every pass, plus the same 200 rows from D1, even when nothing had changed. With CONDSTORE (RFC 7162)
+the pass now keeps, per folder, the server's HIGHESTMODSEQ, message count and next UID from its last full read, and
+skips the flag read when all of them are unchanged (`folderFingerprint` in `services/connect/sync.ts`). A server
+without mod-sequences is read every pass as before. Local measurement against a minimal IMAP server (6 folders of 200
+messages, real IMAP client): a warm idle pass went from a median of 94 ms to 32 ms of CPU, and a pass in a fresh process
+from 400 to 430 ms to 87 to 97 ms. Tests: `tests/mail-sync-modseq-r52.test.ts`.
