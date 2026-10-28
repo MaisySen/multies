@@ -38,7 +38,7 @@ export function expectedVersion(c: Context<AppEnv>, fromBody: number | undefined
   return v;
 }
 const sprintFilter = (v: string | undefined) => (v === undefined ? undefined : v === "none" ? null : v);
-import { idempotentCreate, idempotentId } from "../lib/idempotency"; // R40 (MB-201), R52
+import { idempotentId } from "../lib/idempotency"; // R40 (MB-201)
 import {
   CommentCreate, ContactCreate, ContactPatch, DealCreate, DealPatch, DocAppend, DocCreate, DocPatch, ProjectCreate, ProjectPatch, TaskCreate, TaskFromEmail, TaskPatch, TaskQuery,
 } from "./suite-schemas";
@@ -184,7 +184,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/docs", tags: tag("Docs"), summary: "Create a doc", security: secured,
     description: "Send Tiptap JSON as content, or plain text as text. links ties it to tasks, projects, threads, contacts or deals.",
     request: body(DocCreate), responses: { 201: json(z.object({ doc: Doc }), "The doc."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { doc: await createDoc(c.var.deps, actor(c), c.req.valid("json"), await idempotentCreate(c.req.raw, "doc")) }, 201));
+  async (c) => send(c, { doc: await createDoc(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "doc") }) }, 201));
 
   api.openapi(createRoute({ method: "get", path: "/docs/{id}", tags: tag("Docs"), summary: "Read a doc", security: secured,
     request: { params: Id }, responses: { 200: json(z.object({ doc: Doc }), "The doc, with content and plain text."), 401: errors[401], 404: errors[404] } }),
@@ -248,7 +248,7 @@ export function registerSuiteRoutes(api: OpenAPIHono<AppEnv>) {
 
   api.openapi(createRoute({ method: "post", path: "/deals", tags: tag("Contacts"), summary: "Create a deal", security: secured,
     request: body(DealCreate), responses: { 201: json(z.object({ deal: Deal }), "The deal."), 401: errors[401], 422: errors[422] } }),
-  async (c) => send(c, { deal: await createDeal(c.var.deps, actor(c), c.req.valid("json"), await idempotentCreate(c.req.raw, "del")) }, 201));
+  async (c) => send(c, { deal: await createDeal(c.var.deps, actor(c), c.req.valid("json"), { id: await idempotentId(c.req.raw, "del") }) }, 201));
 
   api.openapi(createRoute({ method: "patch", path: "/deals/{id}", tags: tag("Contacts"), summary: "Update or move a deal", security: secured,
     request: { params: Id, ...body(DealPatch) }, responses: { 200: json(z.object({ deal: Deal }), "The deal."), 401: errors[401], 404: errors[404] } }),

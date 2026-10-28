@@ -4,7 +4,6 @@
  * An agent key posts as its agent, and @mentions of an agent arrive as the chat.mention webhook.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import { idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -40,7 +39,7 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/chat/channels", "Chat", "List public channels", "Public channels in the workspace with their topic and last message. DMs and private channels are only for people."),
     async (c) => send(c, { channels: await listChannels(c.var.deps, actor(c)) }));
   api.openapi(route("post", "/chat/channels", "Chat", "Create a public channel", "Body: { name, topic?, projectId?, guestAccess? }. With projectId and guestAccess the project's guests can read and post.", { request: body(ChannelCreate) }),
-    async (c) => send(c, { channel: await createChannel(c.var.deps, actor(c), await jsonBody(c, ChannelCreate), await idempotentCreate(c.req.raw, "chn")) }, 201));
+    async (c) => send(c, { channel: await createChannel(c.var.deps, actor(c), await jsonBody(c, ChannelCreate)) }, 201));
   api.openapi(route("patch", "/chat/channels/{id}", "Chat", "Update a channel", "Body: { name?, topic?, archived?, projectId?, guestAccess? }. The topic is the channel's purpose line.", { request: { params: Id, ...body(ChannelPatch) } }),
     async (c) => send(c, { channel: await updateChannel(c.var.deps, actor(c), pid(c), await jsonBody(c, ChannelPatch)) }));
   api.openapi(route("get", "/chat/channels/{id}/pins", "Chat", "List pinned messages", "The channel's pinned messages, newest pin first (up to 50).", { request: { params: Id } }),
@@ -79,7 +78,7 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/goals", "Goals", "List goals with progress", "Every goal as a tree with its key results, progress (0 to 100, rolled up from key results and child goals) and health, plus a portfolio summary."),
     async (c) => send(c, await goalTree(c.var.deps, actor(c).orgId)));
   api.openapi(route("post", "/goals", "Goals", "Create a goal", "Body: { name, description?, ownerId?, parentId?, start?, due?, health?, keyResults?: [...] }.", { request: body(GoalCreate) }),
-    async (c) => send(c, { goal: await createGoal(c.var.deps, actor(c), await jsonBody(c, GoalCreate), await idempotentCreate(c.req.raw, "gol")) }, 201));
+    async (c) => send(c, { goal: await createGoal(c.var.deps, actor(c), await jsonBody(c, GoalCreate)) }, 201));
   api.openapi(route("get", "/goals/{id}", "Goals", "Read a goal", "The goal with key results and child goals.", { request: { params: Id } }),
     async (c) => send(c, { goal: await getGoal(c.var.deps, actor(c).orgId, pid(c)) }));
   api.openapi(route("patch", "/goals/{id}", "Goals", "Update a goal", "Any of name, description, ownerId, parentId, start, due, health (on_track, at_risk, off_track or null), archived.", { request: { params: Id, ...body(GoalPatch) } }),

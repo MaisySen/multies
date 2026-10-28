@@ -36,6 +36,12 @@ import { getBoardSettings, setBoardSettings } from "../services/suite/board-sett
 import { BoardPatchSchema } from "./board-schema-r34";
 import { idempotency, idempotentId, sessionIdempotencyScope } from "../lib/idempotency"; // R40 (MB-201)
 
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_SUITE_1 = z.object({ q: z.string().max(200).optional(), projectId: z.string().optional(), linkedType: z.enum(["project", "task", "thread", "contact", "deal"]).optional(), linkedId: z.string().optional() });
+const Q_SUITE_2 = z.object({ q: z.string().max(200).optional(), companyId: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional(), offset: z.coerce.number().int().min(0).optional() });
+const Q_SUITE_3 = z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), view: z.enum(TRIAGE_VIEWS).optional() });
+const Q_SUITE_4 = z.object({ since: z.coerce.number().int().min(0).default(0), limit: z.coerce.number().int().min(1).max(1000).default(500) });
+
 type TaskBody = z.infer<typeof TaskCreate> | z.infer<typeof TaskPatch>;
 /** `assignee` and `assigneeId` are the same field; the mobile app sends assigneeId. */
 export const assigneeOf = (b: TaskBody) => parseAssignee(b.assignee !== undefined ? b.assignee : b.assigneeId);
@@ -63,12 +69,15 @@ export function projectRoutes() {
     .put("/:id/schedule", async (c) => c.json({ schedule: await setScheduleSettings(c.var.deps, c.var.auth, c.req.param("id"), await parseBody(c, ScheduleSettingsBody)) }));
 }
 
+// R52: built once per isolate, not on every request (zod schema construction showed up in the warm /api/tasks profile).
+const TaskListQuery = TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional(), ...PageQuery });
+
 export function taskRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .use("*", idempotency(sessionIdempotencyScope)) // R40 (MB-201)
     .get("/", async (c) => {
-      const { paged, cursor, ids, ...q } = parseQuery(c, TaskQuery.extend({ q: z.string().max(QUERY_MAX_LENGTH).optional(), ...PageQuery }));
+      const { paged, cursor, ids, ...q } = parseQuery(c, TaskListQuery);
       const fieldFilters = parseFieldFilters(c.req.query());
       // R26 (MB-86): q is the task query language (plain words still search titles and notes).
       const queryConds = q.q ? applyTaskQuery(q.q, { deps: c.var.deps, actor: c.var.auth }) : undefined;
@@ -130,7 +139,7 @@ export function docRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ q: z.string().max(200).optional(), projectId: z.string().optional(), linkedType: z.enum(["project", "task", "thread", "contact", "deal"]).optional(), linkedId: z.string().optional() }));
+      const q = parseQuery(c, Q_SUITE_1);
       return c.json({ docs: await listDocs(c.var.deps, c.var.auth.orgId, { q: q.q, projectId: q.projectId, linkedTo: q.linkedType && q.linkedId ? { type: q.linkedType, id: q.linkedId } : undefined }) });
     })
     .post("/", async (c) => c.json({ doc: await createDoc(c.var.deps, c.var.auth, await parseBody(c, DocCreate)) }, 201))
@@ -143,7 +152,7 @@ export function contactRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ q: z.string().max(200).optional(), companyId: z.string().optional(), limit: z.coerce.number().int().min(1).max(500).optional(), offset: z.coerce.number().int().min(0).optional() }));
+      const q = parseQuery(c, Q_SUITE_2);
       return c.json(await listContacts(c.var.deps, c.var.auth.orgId, q));
     })
     .post("/", async (c) => c.json({ contact: await createContact(c.var.deps, c.var.auth, await parseBody(c, ContactCreate)) }, 201))
@@ -187,7 +196,7 @@ export function notificationRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ unread: z.string().optional(), category: z.string().max(20).optional(), limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().max(64).optional(), view: z.enum(TRIAGE_VIEWS).optional() }));
+      const q = parseQuery(c, Q_SUITE_3);
       return c.json(await listNotifications(c.var.deps, c.var.auth.orgId, c.var.auth.userId, { unread: q.unread === "1" || q.unread === "true", category: q.category, limit: q.limit, before: q.before, view: q.view }));
     })
     // R31 triage: done, undone, snooze (until or preset), bulk done.
@@ -219,7 +228,7 @@ export function changeRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ since: z.coerce.number().int().min(0).default(0), limit: z.coerce.number().int().min(1).max(1000).default(500) }));
+      const q = parseQuery(c, Q_SUITE_4);
       return c.json(await changesSince(c.var.deps, c.var.auth.orgId, q.since, q.limit));
     });
 }

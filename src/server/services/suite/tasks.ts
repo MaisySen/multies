@@ -18,6 +18,7 @@ import { claimNumbers } from "./project-counter";
 import { invalidateStatuses, orgStatuses } from "./read-cache";
 import { SQL_IN_CHUNK, inChunks, inIds } from "../../lib/sql-chunks";
 import { isAgentEmail } from "../people";
+import { rowMapper, selectMapped } from "../../db/fast-rows"; // R52
 
 export type Category = "todo" | "doing" | "done";
 export type Priority = "none" | "low" | "medium" | "high" | "urgent";
@@ -31,6 +32,13 @@ export const DEFAULT_STATUSES: { name: string; category: Category; color: string
 ];
 
 type TaskRow = typeof tasks.$inferSelect;
+/** R52: task lists map their rows with a mapper built once (db/fast-rows.ts). */
+const taskRows = rowMapper(tasks);
+/** R52: the list query with the select list built once (db/fast-rows.ts); the same SQL drizzle's select() writes. */
+function taskListQuery(conds: (SQL | undefined)[], order: SQL[], limit: number, offset = 0): SQL {
+  const q = sql`select ${taskRows.selectList} from ${tasks} where ${and(...conds)} order by ${sql.join(order, sql`, `)} limit ${limit}`;
+  return offset ? sql`${q} offset ${offset}` : q;
+}
 type StatusRow = typeof projectStatuses.$inferSelect;
 type ProjectRow = typeof projects.$inferSelect;
 
@@ -385,7 +393,7 @@ async function listConds(deps: Deps, actor: SuiteActor, f: TaskFilters): Promise
 
 export async function listTasks(deps: Deps, actor: SuiteActor, f: TaskFilters = {}) {
   const conds = await listConds(deps, actor, f);
-  const rows = await deps.db.select().from(tasks).where(and(...conds)).orderBy(...await orderFor(deps, actor.orgId, f)).limit(Math.min(f.limit ?? TASK_LIST_LIMIT, 1000));
+  const rows = await selectMapped(deps.db, taskRows, taskListQuery(conds, await orderFor(deps, actor.orgId, f), Math.min(f.limit ?? TASK_LIST_LIMIT, 1000)));
   const l = await lookups(deps, actor.orgId, rows);
   return rows.map((r) => presentTask(r, l));
 }
@@ -424,9 +432,7 @@ export async function listTasksPage(deps: Deps, actor: SuiteActor, f: TaskFilter
     }
   } else order = [...await orderFor(deps, actor.orgId, f), asc(tasks.id)];
   const offset = cur && "o" in cur ? cur.o : 0;
-  let q = deps.db.select().from(tasks).where(and(...conds)).orderBy(...order).limit(size + 1).$dynamic();
-  if (!keyset && offset) q = q.offset(offset);
-  const rows = await q;
+  const rows = await selectMapped(deps.db, taskRows, taskListQuery(conds, order, size + 1, !keyset && offset ? offset : 0));
   const more = rows.length > size;
   if (more) rows.length = size;
   const last = rows[rows.length - 1];

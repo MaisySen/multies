@@ -149,9 +149,8 @@ async function fromSource(deps: Deps, actor: SuiteActor, s: MeetingSource) {
 
 export interface MeetingInput { title?: string; startsAt?: string; durationMin?: number; source?: MeetingSource; invitees?: string[]; sendInvites?: boolean; mailboxId?: string; recurrence?: MeetingRecurrenceInput; /** Round 23: set by a call from chat. */ channelId?: string }
 
-export async function createMeeting(deps: Deps, actor: SuiteActor, input: MeetingInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function createMeeting(deps: Deps, actor: SuiteActor, input: MeetingInput, opts: { id?: string } = {}) {
   assertWritable(actor);
-  if (opts.id && opts.retry && await deps.db.select({ id: meetings.id }).from(meetings).where(and(eq(meetings.id, opts.id), eq(meetings.orgId, actor.orgId))).get()) return { meeting: out(deps, await meetingRow(deps, actor.orgId, opts.id)), invites: null }; // R52 (MB-239): a retry under the same Idempotency-Key returns what the first attempt made
   const suggested = input.source ? await fromSource(deps, actor, input.source) : { title: "Meeting", invitees: [] as string[], mailboxId: undefined, sourceId: undefined };
   const invitees = [...new Set((input.invitees ?? suggested.invitees).map((e) => e.trim().toLowerCase()).filter(Boolean))];
   const bad = invitees.filter((e) => !EMAIL.test(e));

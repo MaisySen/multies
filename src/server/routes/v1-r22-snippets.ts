@@ -4,7 +4,6 @@
  * key. Agent keys see shared replies and their own, and write as their agent.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import { idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -35,7 +34,7 @@ export function registerSnippetRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/snippets", "List saved replies", "Shared saved replies plus the caller's private ones, by name. Each: { id, name, shortcut, subject, body, shared, createdBy: { id, name }, createdAt, updatedAt, canEdit }. q filters by name, shortcut or text.", { request: { query: Q } }),
     async (c) => send(c, await listSnippets(c.var.deps, actor(c), { q: c.req.query("q") })));
   api.openapi(route("post", "/snippets", "Create a saved reply", "Body: { name (up to 80), body (plain text, up to 10,000; variables {{first_name}}, {{name}}, {{email}}, {{my_name}}, {{my_first_name}}, {{company}}, {{mailbox}}, {{date}}), subject?, shortcut? (one word, unique in the workspace), shared? (default true; false keeps it to the author) }.", { request: body(SnippetCreate) }),
-    async (c) => send(c, { snippet: await createSnippet(c.var.deps, actor(c), await jsonBody(c, SnippetCreate), await idempotentCreate(c.req.raw, "snp")) }, 201));
+    async (c) => send(c, { snippet: await createSnippet(c.var.deps, actor(c), await jsonBody(c, SnippetCreate)) }, 201));
   api.openapi(route("get", "/snippets/{id}", "Get a saved reply", "One saved reply the caller can see.", { request: { params: Id } }),
     async (c) => send(c, { snippet: await getSnippet(c.var.deps, actor(c), pid(c)) }));
   api.openapi(route("patch", "/snippets/{id}", "Edit a saved reply", "The author, or an owner, admin or workspace key. Any of { name, body, subject, shortcut, shared }.", { request: { params: Id, ...body(SnippetPatch) } }),

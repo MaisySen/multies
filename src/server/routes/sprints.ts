@@ -12,6 +12,9 @@ import {
 } from "../services/suite/sprints";
 import { HttpError } from "../lib/errors";
 
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_SPRINTS_1 = z.object({ projectId: z.string(), limit: z.coerce.number().int().min(1).max(1000).optional(), ...PageQuery });
+
 const dateish = z.string().max(40);
 // startDate and endDate are accepted as other names for startAt and endAt (MB-54).
 const dateAliases = { startDate: dateish.optional(), endDate: dateish.optional() };
@@ -33,7 +36,7 @@ export function sprintRoutes() {
     .get("/backlog", async (c) => {
       const projectId = projectParam(c.req.query("projectId"));
       // R46 (MB-234): paged=1 then cursor reads the whole backlog page by page; ids=a,b refreshes the tasks the change feed names.
-      const q = parseQuery(c, z.object({ projectId: z.string(), limit: z.coerce.number().int().min(1).max(1000).optional(), ...PageQuery }));
+      const q = parseQuery(c, Q_SPRINTS_1);
       if (q.paged || q.ids !== undefined) return c.json(await backlogPage(c.var.deps, c.var.auth, projectId, { cursor: q.cursor, ids: splitIds(q.ids), limit: q.limit }));
       return c.json({ tasks: await backlog(c.var.deps, c.var.auth, projectId) });
     })
