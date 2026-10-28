@@ -417,11 +417,21 @@ type PageCursor = { p: number; c: number; i: string } | { o: number };
 export const encodeTaskCursor = (c: PageCursor) => btoa(JSON.stringify(c)).replace(/=+$/, "");
 export function decodeTaskCursor(s: string | undefined): PageCursor | null {
   if (!s) return null;
-  try {
-    const v = JSON.parse(atob(s)) as Record<string, unknown>;
-    if (typeof v.o === "number" && Number.isInteger(v.o) && v.o >= 0) return { o: v.o };
-    if (typeof v.p === "number" && typeof v.c === "number" && typeof v.i === "string") return { p: v.p, c: v.c, i: v.i };
-  } catch { /* falls through */ }
+  // R54: the cursor comes straight from the query string, so check everything before it reaches SQL: a bounded length,
+  // base64 only, a JSON object, and each key of the right type and range (a JSON number like 1e999 parses as Infinity,
+  // and a time outside the Date range makes an Invalid Date). Anything else is a 400, never a 500.
+  if (s.length <= 400 && /^[A-Za-z0-9+/_-]+={0,2}$/.test(s)) {
+    try {
+      const raw = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+      const v: unknown = JSON.parse(raw);
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        const o = v as Record<string, unknown>;
+        if (typeof o.o === "number" && Number.isSafeInteger(o.o) && o.o >= 0 && o.o <= 10_000_000) return { o: o.o };
+        if (typeof o.p === "number" && Number.isFinite(o.p) && typeof o.c === "number" && Number.isSafeInteger(o.c) && o.c >= 0 && o.c <= 8.64e15
+          && typeof o.i === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(o.i)) return { p: o.p, c: o.c, i: o.i };
+      }
+    } catch { /* falls through */ }
+  }
   throw new HttpError(400, "invalid_cursor", "That page cursor is not valid. Start again without one.");
 }
 
