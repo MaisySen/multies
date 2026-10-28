@@ -259,7 +259,7 @@ describe("templates", () => {
 
   it("lists the starter gallery and makes a project from one", async () => {
     const list = (await c.get("/api/templates")).body.templates as { id: string; name: string; builtin: boolean }[];
-    expect(list.filter((t) => t.builtin).map((t) => t.name)).toEqual(["Client onboarding", "Content calendar", "Sales pipeline", "Bug tracker", "Meeting notes", "Project brief"]);
+    expect(list.filter((t) => t.builtin).map((t) => t.name)).toEqual(["Client onboarding", "Content calendar", "Sales pipeline", "Bug tracker", "Two week sprint", "Hiring", "Product launch", "Support desk", "Meeting notes", "Project brief"]);
     const used = await c.post("/api/templates/starter-client-onboarding/use", { name: "Onboard Harbour Coffee", startDate: "2026-11-02" });
     expect(used.status).toBe(201);
     expect(used.body.project.name).toBe("Onboard Harbour Coffee");

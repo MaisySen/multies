@@ -1,6 +1,6 @@
 /**
  * Project, task and doc templates, plus the starter gallery (client onboarding, content calendar,
- * sales pipeline, bug tracker, meeting notes, project brief). A template is saved from an
+ * sales pipeline, bug tracker, sprint, hiring, launch, support desk, meeting notes, project brief). A template is saved from an
  * existing item or written from scratch. A project template carries statuses, custom fields and tasks
  * with due dates counted in days from the start date; a task template carries one task with
  * its subtasks. Starters live here in code; saved templates live in the templates table.
@@ -103,6 +103,80 @@ export const STARTERS: Starter[] = [
       tasks: [
         { title: "Example: checkout button does nothing on Safari", status: "Reported", priority: "high", subtasks: ["Reproduce", "Find the cause", "Fix and add a test", "Verify on the live site"] },
         { title: "Weekly bug triage", dueInDays: 2, repeat: { freq: "weekly", interval: 1, weekdays: [2] } },
+      ],
+    },
+  },
+  // R55 (plan idea 24): four starters for a young team: a sprint, hiring, a launch and a support desk.
+  {
+    id: "starter-sprint", kind: "project", name: "Two week sprint", category: "Product",
+    description: "Plan a two week sprint: a backlog, a daily check, a demo and a short look back.",
+    data: {
+      project: { name: "Sprint", color: "#4c8dff", statuses: [
+        { name: "Backlog", category: "todo", color: "#8a8f98" }, { name: "This sprint", category: "todo", color: "#e0a03a" },
+        { name: "In progress", category: "doing", color: "#4c8dff" }, { name: "In review", category: "doing", color: "#a061e8" }, { name: "Done", category: "done", color: "#2f9e6e" },
+      ] },
+      fields: [{ name: "Estimate", type: "number" }, { name: "Area", type: "select", options: ["Web", "Phone", "Backend", "Design"] }],
+      tasks: [
+        { title: "Sprint planning: pick the work and agree the goal", dueInDays: 0, priority: "high", status: "This sprint" },
+        { title: "Daily check in: done, next, blocked", dueInDays: 1, repeat: { freq: "weekly", interval: 1, weekdays: [1, 2, 3, 4, 5] } },
+        { title: "Example: people can reset their password from the phone", status: "Backlog", subtasks: ["Design the screen", "Build it", "Test on a real phone"] },
+        { title: "Sprint demo", dueInDays: 13, notes: "Show what shipped, on the live site where you can." },
+        { title: "Look back: what to keep, what to change", dueInDays: 13 },
+      ],
+    },
+  },
+  {
+    id: "starter-hiring", kind: "project", name: "Hiring", category: "People",
+    description: "Move candidates from applied to offer, with a clear next step for each person.",
+    data: {
+      project: { name: "Hiring", color: "#e0a03a", statuses: [
+        { name: "Applied", category: "todo", color: "#8a8f98" }, { name: "Phone screen", category: "doing", color: "#4c8dff" },
+        { name: "Interview", category: "doing", color: "#a061e8" }, { name: "Offer", category: "doing", color: "#e0a03a" },
+        { name: "Hired", category: "done", color: "#2f9e6e" }, { name: "Not this time", category: "done", color: "#d6455d" },
+      ] },
+      fields: [{ name: "Role", type: "text" }, { name: "Source", type: "select", options: ["Referral", "Job board", "Website", "Network"] }, { name: "CV link", type: "url" }],
+      tasks: [
+        { title: "Write the role: what they will do in the first 90 days", dueInDays: 0, priority: "high" },
+        { title: "Post the role and ask the team for referrals", dueInDays: 2 },
+        { title: "Example candidate: Sam Lee, product designer", status: "Applied", notes: "Replace with a real candidate, or make one from an application email with Make task." },
+        { title: "Review new applications", dueInDays: 3, repeat: { freq: "weekly", interval: 1, weekdays: [2, 4] } },
+        { title: "Send every candidate a reply within a week", dueInDays: 7 },
+      ],
+    },
+  },
+  {
+    id: "starter-launch", kind: "project", name: "Product launch", category: "Marketing",
+    description: "Get a launch out the door: the page, the story, the checks and the follow up.",
+    data: {
+      project: { name: "Launch", color: "#a061e8", statuses: [
+        { name: "To do", category: "todo", color: "#8a8f98" }, { name: "Doing", category: "doing", color: "#4c8dff" },
+        { name: "Ready", category: "doing", color: "#e0a03a" }, { name: "Done", category: "done", color: "#2f9e6e" },
+      ] },
+      fields: [{ name: "Owner team", type: "select", options: ["Product", "Marketing", "Sales", "Support"] }, { name: "Launch day", type: "date" }],
+      tasks: [
+        { title: "Agree the launch day and who owns it", dueInDays: 0, priority: "high" },
+        { title: "Launch page and screenshots", dueInDays: 7, subtasks: ["Write the page", "Take screenshots", "Check it on a phone"] },
+        { title: "Announcement email and posts", dueInDays: 10 },
+        { title: "Support answers for the top questions", dueInDays: 12 },
+        { title: "Launch day checks", dueInDays: 14, priority: "urgent", checklist: ["Site is up", "Sign up works", "Payments work", "Team knows the plan"] },
+        { title: "Follow up a week later: numbers and lessons", dueInDays: 21 },
+      ],
+    },
+  },
+  {
+    id: "starter-support-desk", kind: "project", name: "Support desk", category: "Support",
+    description: "Turn customer emails into tasks, answer them on time and fix what keeps coming back.",
+    data: {
+      project: { name: "Support desk", color: "#2f9e6e", statuses: [
+        { name: "New", category: "todo", color: "#8a8f98" }, { name: "Waiting on customer", category: "doing", color: "#e0a03a" },
+        { name: "Working on it", category: "doing", color: "#4c8dff" }, { name: "Solved", category: "done", color: "#2f9e6e" },
+      ] },
+      fields: [{ name: "Customer", type: "text" }, { name: "Kind", type: "select", options: ["Question", "Bug", "Billing", "Request"] }],
+      tasks: [
+        { title: "Set up a shared support address and add the team", dueInDays: 0, priority: "high", notes: "In Mail, open the support address, then use Make task on any email to land it here." },
+        { title: "Example: customer cannot find the invoice", status: "New", notes: "Replace with a real request, or make one from an email with Make task." },
+        { title: "Write saved replies for the five most common questions", dueInDays: 3 },
+        { title: "Weekly look at repeat questions and bugs", dueInDays: 7, repeat: { freq: "weekly", interval: 1, weekdays: [5] } },
       ],
     },
   },

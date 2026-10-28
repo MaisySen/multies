@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-startup-templates",
+    date: "2026-10-28",
+    title: "Four new starter templates",
+    body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
+  },
+  {
     id: "2026-10-28-rule-choices-fix",
     date: "2026-10-28",
     title: "Rule settings ask before saving",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-27",
     title: "Boards stay current",
     body: "Open boards and backlogs check for changes every 20 seconds and fetch only what changed. Moving a task between sprints now shows on other people's backlogs too.",
-  },
-  {
-    id: "2026-10-27-smoother-boards",
-    date: "2026-10-27",
-    title: "Smoother boards and a faster backlog",
-    body: "Long columns scroll smoothly even when you fling them. In the backlog, Shift with arrows selects a run of tasks and M opens Move to sprint.",
   },
 ];
 
