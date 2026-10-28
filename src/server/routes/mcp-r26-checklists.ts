@@ -9,7 +9,7 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addChecklistItems, checklistItemToSubtask, CHECKLIST_TITLE_MAX, deleteChecklistItem, listChecklist, reorderChecklist, updateChecklistItem } from "../services/suite/checklists";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate, mcpIds } from "./mcp-idempotency"; // R53 (MB-239)
+import { mcpIds } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -70,6 +70,6 @@ export function registerChecklistTools(server: McpServer, deps: Deps, actor: Sco
     inputSchema: { itemId: z.string().min(1) },
   }, tool(async (x: { itemId: string }) => {
     writable();
-    return checklistItemToSubtask(deps, a, x.itemId, await mcpCreate("tsk")); // R55 (MB-239): one subtask on a retry
+    return checklistItemToSubtask(deps, a, x.itemId);
   }) as never);
 }

@@ -34,7 +34,7 @@ export function registerSuiteR11Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/integrations", "Integrations", "List connections", "The catalogue plus the workspace's connected integrations (outgoing webhook endpoints made from the catalogue)."),
     async (c) => send(c, await listIntegrations(c.var.deps, actor(c).orgId)));
   api.openapi(route("post", "/integrations", "Integrations", "Connect an integration", "Body: { connector, url, events?, name? }. JSON targets get a signing secret in the answer, shown once.", { request: body(ConnectBody) }),
-    async (c) => send(c, await connectIntegration(c.var.deps, actor(c), await jsonBody(c, ConnectBody), await idempotentCreate(c.req.raw, "whe")), 201));
+    async (c) => send(c, await connectIntegration(c.var.deps, actor(c), await jsonBody(c, ConnectBody)), 201));
 
   // ---------------------------------------------------------------- incoming hooks
   api.openapi(route("get", "/incoming-hooks", "Incoming webhooks", "List incoming webhooks", "Each hook with its action, field mapping, call count and its last 20 calls."),

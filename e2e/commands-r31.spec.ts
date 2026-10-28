@@ -94,9 +94,13 @@ test("E archives the open email", async ({ page }) => {
   // The reader is open and the list knows the message (E acts on the open message).
   await expect(page.getByRole("heading", { name: "Launch checklist for Friday", level: 1 })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Archive (e)" })).toBeVisible();
-  await page.waitForLoadState("networkidle").catch(() => null);
+  // R55: wait on the page's own signal that the list holds the open message (its row is the current one), not on
+  // "networkidle": the mail page keeps a live connection and a presence beat open, so it never goes idle and the
+  // old wait ran out the whole test timeout. Since R32 E goes through the bulk path, whose toast names the count.
+  await expect(page.locator('button[aria-current="true"]').first()).toBeVisible({ timeout: 15_000 });
   const id = new URL(page.url()).searchParams.get("m")!;
   await page.keyboard.press("e");
-  await expect(page.getByText("Archived", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Archived 1 conversation", { exact: true }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Undo" }).first()).toBeVisible();
   await expect.poll(async () => (await (await page.request.get(`/api/mail/messages/${id}`)).json()).message.folder, { timeout: 15_000 }).toBe("archive");
 });
