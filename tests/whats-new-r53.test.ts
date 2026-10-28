@@ -64,7 +64,7 @@ describe("R53 whats-new list", () => {
     expect(i).toBeGreaterThanOrEqual(0);
     expect(WHATS_NEW[i + 1].title).toMatch(/mail sync/i);
     expect(WHATS_NEW[i + 1].body).toMatch(/not downloaded again/);
-    expect(WHATS_NEW[0].id).toBe("2026-10-28-more-safe-retries");
+    expect(WHATS_NEW[0].id).toBe("2026-10-28-command-menu-actions");
   });
 
   it("formats a date as a calendar day without a time zone shift", () => {

@@ -9,6 +9,8 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ### Round 54 (28 Oct 2026)
 
+- Command menu: type what you want done, like "assign MB-12 to Asha due Fri priority high"; one preview row shows the change, Enter makes it, Undo puts it back. Rules only; dates use the same reader as meeting action items.
+- Fixed: assigning someone from the command menu or the Assign picker no longer breaks the task list.
 - Phone: the unread count on the tab bar is a deeper red so the number reads clearly, and screen readers name the workspace, account and mail buttons with the words shown on them.
 - Agent API: retrying after a server error keeps the same id for more creates: templates (and what a template makes), doc versions, task runs and run steps, meeting action items, dashboards and their widgets, reports, incoming hooks (the same address, no second token) and agent triggers.
 - Task lists: a page cursor that was not made by the app is refused with a clear error instead of reaching the database.

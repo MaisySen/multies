@@ -15,6 +15,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-command-menu-actions",
+    date: "2026-10-28",
+    title: "Tell the command menu what to do",
+    body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
+  },
+  {
     id: "2026-10-28-more-safe-retries",
     date: "2026-10-28",
     title: "More things safe to retry",
