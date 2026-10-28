@@ -23,6 +23,7 @@ test("a rule with extra actions runs them all on a new task", async ({ page, con
   await dialog.getByLabel("Name").fill("Triage new tasks");
   await dialog.getByLabel("When").selectOption("task_created");
   await dialog.getByLabel("Then", { exact: true }).selectOption("set_priority");
+  await expect(dialog.getByLabel("Priority", { exact: true }).nth(1)).toHaveValue(""); // asks, instead of showing a choice it would not save
   await dialog.getByLabel("Priority", { exact: true }).nth(1).selectOption("high"); // nth(0) is the "only tasks with this priority" condition
   const more = dialog.getByRole("group", { name: "And then" });
   await expect(more).toBeVisible();

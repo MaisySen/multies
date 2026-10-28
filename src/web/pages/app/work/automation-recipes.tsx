@@ -191,10 +191,10 @@ export function R24RuleFields({ trigger, action, conditions, actionConfig, onCon
         <Field label="Channel">{(f) => <Select {...f} value={String(a.channelId ?? "")} onChange={(e) => setA("channelId", e.target.value)}><option value="">Pick a channel</option>{(channels.data ?? []).filter((x) => x.kind !== "dm" && !x.isPrivate).map((x) => <option key={x.id} value={x.id}>#{x.name}</option>)}</Select>}</Field>
         <Field label="Message" hint="You can use {task.title}, {task.ref}, {task.url}, {assignee} and {project}.">{(f) => <Input {...f} value={String(a.message ?? "")} onChange={(e) => setA("message", e.target.value)} />}</Field>
       </>}
-      {action === "set_priority" && <Field label="Priority">{(f) => <Select {...f} value={String(a.priority ?? "")} onChange={(e) => setA("priority", e.target.value)}>{["none", "low", "medium", "high", "urgent"].map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}</Select>}</Field>}
+      {action === "set_priority" && <Field label="Priority">{(f) => <Select {...f} value={String(a.priority ?? "")} onChange={(e) => setA("priority", e.target.value)}><option value="" disabled>Pick a priority</option>{["none", "low", "medium", "high", "urgent"].map((p) => <option key={p} value={p}>{p[0].toUpperCase() + p.slice(1)}</option>)}</Select>}</Field>}
       {action === "add_label" && <Field label="Label">{(f) => <Input {...f} value={String(a.label ?? "")} onChange={(e) => setA("label", e.target.value)} />}</Field>}
       {action === "set_status" && <Field label="Status name">{(f) => <Input {...f} value={String(a.statusName ?? "")} onChange={(e) => setA("statusName", e.target.value)} placeholder="In review" />}</Field>}
-      {action === "assign_task" && <Field label="Assign to">{(f) => <Select {...f} value={String(a.mode ?? "lead")} onChange={(e) => setA("mode", e.target.value)}><option value="lead">The project lead</option><option value="member">One person</option><option value="round_robin">People in turn</option></Select>}</Field>}
+      {action === "assign_task" && <Field label="Assign to">{(f) => <Select {...f} value={String(a.mode ?? "")} onChange={(e) => setA("mode", e.target.value)}><option value="" disabled>Pick who</option><option value="lead">The project lead</option><option value="member">One person</option><option value="round_robin">People in turn</option></Select>}</Field>}
     </div>
   );
 }

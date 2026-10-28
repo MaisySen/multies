@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-rule-choices-fix",
+    date: "2026-10-28",
+    title: "Rule settings ask before saving",
+    body: "A new rule that sets a priority or assigns the task now asks you to pick one, instead of showing a choice it did not save.",
+  },
+  {
     id: "2026-10-28-more-command-words",
     date: "2026-10-28",
     title: "More words the command menu understands",
