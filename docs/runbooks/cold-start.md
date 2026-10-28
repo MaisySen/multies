@@ -126,3 +126,34 @@ skips the flag read when all of them are unchanged (`folderFingerprint` in `serv
 without mod-sequences is read every pass as before. Local measurement against a minimal IMAP server (6 folders of 200
 messages, real IMAP client): a warm idle pass went from a median of 94 ms to 32 ms of CPU, and a pass in a fresh process
 from 400 to 430 ms to 87 to 97 ms. Tests: `tests/mail-sync-modseq-r52.test.ts`.
+
+## R53: Gmail's account wide mod-sequence, double downloads, and cold start numbers
+
+Production read (Cloudflare GraphQL analytics, `durableObjectsInvocationsAdaptiveGroups` on the mail sync namespace):
+one real connected Gmail mailbox, 6 folders, one pass every 15 minutes, 0 `exceededCpuErrors` since 18:00 on 27 Oct.
+R52 passes: 471, 499, 456, 430, 317, 197 ms CPU (00:30 to 01:45). The R52 skip rarely fired because Gmail keeps one
+HIGHESTMODSEQ for the whole account (137772 on every folder): any change anywhere moves every folder's value.
+
+- Incremental flags (`services/connect/sync.ts`, `pullFlags`): when the stored fingerprint shows nothing left the folder
+  (`removedSince` is 0: the next UID grew exactly as much as the message count), the pass sends FETCH FLAGS with the
+  CONDSTORE `CHANGEDSINCE <stored modseq>` modifier, so an unchanged folder answers no rows, and reads only the changed
+  rows from D1. Anything removed falls back to the full window read, which is the only read that can let mail go.
+- Headers only for mail already held (`needBodies`): Gmail shows each new message in Inbox and All Mail. After the header
+  fetch, a message whose Message-ID is stored in the mailbox, or that an earlier folder brought in the same pass, is not
+  downloaded or MIME parsed; the store step treats it as the duplicate it is (and still ties a stored copy that lost its
+  folder to the new one). Tests: `tests/mail-sync-gmail-r53.test.ts`.
+
+Cold start (method above, three 0% versions per reading, signed in session on `/api/tasks?limit=50`, then
+`/api/account/me` and `/api/dashboard`):
+
+| | first request CPU, ms | requests 2 to 6, ms |
+|---|---|---|
+| before (b60184a) | 13, 24, 14 (median 14) | median 14, p95 32 |
+| after (e9adbae, email templates lazy) | 16, 16, 15 (median 16) | median 12, p95 27 |
+
+No measurable change on the first request: Cloudflare does not count script startup in a request's CPU, and the local
+profile of the first request shows only about 3.5 ms of app code; the rest is the engine and the platform on first use.
+What did change is startup work: the email templates and their component library (about 58 ms of module init in Node)
+now load on the first email an isolate sends (`services/system-mail.ts` and its callers), and local startup CPU fell
+from a median of 822 to 754 ms (4 runs each). IMAP client init (about 55 ms) stays eager on purpose: moving it would
+bill it to every mail sync pass instead of the unbilled startup.
