@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import fs from "node:fs";
+import AxeBuilder from "@axe-core/playwright";
 
 /**
  * R53 (MB-133): "What's new". The account menu carries a What's new item with a small unread dot when the newest
@@ -74,6 +75,8 @@ test("/changelog is public, newest first, readable at 390 and 1280 in light and 
       const entries = page.getByTestId("changelog-entry");
       expect(await entries.count()).toBeGreaterThanOrEqual(8);
       expect(await overflowX(page)).toBeLessThanOrEqual(0);
+      const { violations } = await new AxeBuilder({ page }).include("main").analyze();
+      expect(violations.filter((v) => v.impact === "moderate" || v.impact === "serious" || v.impact === "critical").map((v) => `${v.id} ${v.nodes[0]?.target}`)).toEqual([]);
       await shot(page, `changelog-${tag}-${theme}`);
     }
   }

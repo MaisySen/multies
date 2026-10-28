@@ -19,7 +19,7 @@ export function ChangelogPage() {
           </li>
         ))}
       </ol>
-      <p className="mt-6 text-sm text-muted">Something not working? The <Link to="/status" className="text-brand-hover hover:underline">system status</Link> page shows live checks, and <Link to="/support" className="text-brand-hover hover:underline">support</Link> is a message away.</p>
+      <p className="mt-6 text-sm text-muted">Something not working? The <Link to="/status" className="text-brand-hover underline underline-offset-2">system status</Link> page shows live checks, and <Link to="/support" className="text-brand-hover underline underline-offset-2">support</Link> is a message away.</p>
     </section>
   );
 }
