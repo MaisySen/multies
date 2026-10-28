@@ -15,6 +15,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-28-more-safe-retries",
+    date: "2026-10-28",
+    title: "More things safe to retry",
+    body: "When an app or agent retries after an error, templates, doc versions, task runs, meeting action items, dashboards, reports, incoming hooks and agent triggers are now made once, not twice.",
+  },
+  {
     id: "2026-10-28-easier-to-read-phone",
     date: "2026-10-28",
     title: "Easier to read on phones",
