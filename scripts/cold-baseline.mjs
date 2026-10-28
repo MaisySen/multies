@@ -39,8 +39,13 @@ if (!existsSync("dist/worker/_worker.js")) { console.error("build first: dist/wo
 
 let key = null;
 if (process.env.COLD_KEY_FILE) key = JSON.parse(readFileSync(process.env.COLD_KEY_FILE, "utf8")).workspaceKey ?? null;
-const headers = key ? { authorization: `Bearer ${key}` } : {};
-const redact = (s) => (key ? String(s).split(key).join("***") : String(s));
+// R53: or a signed in session (JSON with cookie_name and cookie_value, never printed): the hot app routes the startup
+// warm up covers, e.g. --paths "/api/tasks?limit=50,/api/account/me,/api/dashboard".
+let cookie = null;
+if (!key && process.env.COLD_SESSION_FILE) { const j = JSON.parse(readFileSync(process.env.COLD_SESSION_FILE, "utf8")); cookie = `${j.cookie_name}=${j.cookie_value}`; }
+const secret = key ?? cookie;
+const headers = key ? { authorization: `Bearer ${key}` } : cookie ? { cookie } : {};
+const redact = (s) => (secret ? String(s).split(secret).join("***") : String(s));
 
 const wr = (a, timeoutMs = 300_000) => new Promise((resolve) => {
   const p = spawn("npx", ["wrangler", ...a], { env: { ...process.env, FORCE_COLOR: "0", CI: "true" }, stdio: ["ignore", "pipe", "pipe"] });
@@ -78,7 +83,7 @@ try {
     const base = ENV === "staging" ? "https://mymail-staging.mymail-app.workers.dev" : "https://mymail.mymail-app.workers.dev";
     const calls = [];
     for (let i = 0; i <= WARM; i++) {
-      const p = key ? PATHS[i % PATHS.length] : "/api/config";
+      const p = secret ? PATHS[i % PATHS.length] : "/api/config";
       const t0 = Date.now();
       let status = 0;
       try { const r = await fetch(base + p, { headers: { ...headers, "Cloudflare-Workers-Version-Overrides": `${script}="${versionId}"` } }); await r.arrayBuffer(); status = r.status; } catch { status = -1; }
