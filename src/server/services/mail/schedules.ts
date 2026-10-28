@@ -171,13 +171,8 @@ function checkSize(input: SendMessageInput) {
 }
 
 /** Holds a message for later. It goes through the same send path as Send when it is due. */
-export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknown, when: WhenInput, opts: { remindDays?: number; agentId?: string; id?: string; retry?: boolean } = {}) {
+export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknown, when: WhenInput, opts: { remindDays?: number; agentId?: string } = {}) {
   writable(actor);
-  if (opts.id && opts.retry) {
-    // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt queued the send gets that one back. One read, only on a retry.
-    const hit = await deps.db.select({ id: mailSchedules.id, dueAt: mailSchedules.dueAt }).from(mailSchedules).where(and(eq(mailSchedules.id, opts.id), eq(mailSchedules.orgId, actor.orgId))).get();
-    if (hit) return { id: hit.id, dueAt: hit.dueAt.toISOString() };
-  }
   const input = sendMessageSchema.parse(raw);
   checkSize(input);
   const dueAt = await resolveWhen(deps, actor, when);
@@ -199,7 +194,7 @@ export async function scheduleSend(deps: Deps, actor: ScheduleActor, raw: unknow
     if (input.draftId) await deps.db.delete(messages).where(and(eq(messages.id, input.draftId), eq(messages.mailboxId, mb.id), eq(messages.folder, "drafts")));
     payload = { via: "person", input: { ...input, draftId: undefined }, remindDays: opts.remindDays, apiKeyId: actor.apiKeyId };
   }
-  const id = opts.id ?? newId("msch");
+  const id = newId("msch");
   await deps.db.insert(mailSchedules).values({ id, orgId: actor.orgId, mailboxId, userId: actor.userId || null, kind: "send", dueAt, payload: JSON.stringify(payload), createdAt: deps.now() });
   return { id, dueAt: dueAt.toISOString() };
 }

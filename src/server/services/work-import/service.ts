@@ -3,9 +3,10 @@
  * Notion becomes tasks in a new or existing project.
  *
  * Write cost, in D1 rows (1 per table row plus 1 per index it touches):
- *   each task          8  (the tasks row, its key, its 5 indexes and the import key index; measured 819 for 100)
- *   each comment       2
- *   each checklist item 2  (R49: the row and its task index)
+ *   each task          9  (the tasks row, its key, its indexes, the import key index and the status counter row)
+ *   each subtask       +1 (its parent index entry; R55: no parent count update, the parent's insert carries it)
+ *   each comment       3  (R55 on D1: no comment count update on the task, its insert carries the count)
+ *   each checklist item 3  (the row, its key and its task index; R55 on D1: no count update, as for comments)
  *   each batch of 50   about 4 (task numbers claimed on the project, and the day's import counter)
  *   each import        5  (one summary activity row and one change entry on the project)
  * No per task activity or change rows. A re-run of the same file writes nothing for tasks already in.
@@ -242,7 +243,11 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     const p = idOf.get(r.parent) ?? idOf.get(`row:${r.parent.toLowerCase()}`) ?? byTitle.get(r.parent.toLowerCase()) ?? null;
     return p === idOf.get(r.externalId) ? null : p;
   };
-  // Parents first, so a run that stops never leaves a subtask pointing at a parent that is not in yet.
+  // R55: rows go in families (a top row and every row under it). A family that fits in one batch goes in together,
+  // children before their parent, and the parent's insert carries its subtask counts, so the count trigger finds no
+  // parent row yet and writes nothing (D1 measured 53 rows for a parent with 4 subtasks parent first, 49 children
+  // first). The batch is one transaction, so a run that stops never leaves a subtask pointing at a parent that is not
+  // in. A family bigger than a batch keeps the old order, parents first, across batches (the triggers count it).
   const depth = (r: ImportRow, seen = new Set<string>()): number => {
     if (!r.parent || seen.has(r.externalId)) return 0;
     seen.add(r.externalId);
@@ -251,8 +256,35 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
     return parent ? 1 + depth(parent, seen) : 0;
   };
   const depthOf = new Map(rows.map((r) => [r.externalId, r.parent ? depth(r) : 0]));
-  const pending = rows.map((r, i) => ({ r, key: keys[i] })).filter((x) => !existing.has(x.key))
-    .map((x, n) => ({ ...x, n })).sort((a, b) => depthOf.get(a.r.externalId)! - depthOf.get(b.r.externalId)! || a.n - b.n);
+  const pendingRows = rows.map((r, i) => ({ r, key: keys[i] })).filter((x) => !existing.has(x.key)).map((x, n) => ({ ...x, n }));
+  const pendingById = new Map(pendingRows.map((x) => [idOf.get(x.r.externalId)!, x]));
+  const rootOf = (x: (typeof pendingRows)[number]) => {
+    let cur = x; const seen = new Set<string>();
+    for (;;) {
+      const pid = parentOf(cur.r);
+      const up = pid ? pendingById.get(pid) : undefined;
+      if (!up || seen.has(pid!)) return cur;
+      seen.add(pid!); cur = up;
+    }
+  };
+  const familyOf = new Map<string, (typeof pendingRows)>();
+  for (const x of pendingRows) {
+    const root = idOf.get(rootOf(x).r.externalId)!;
+    familyOf.set(root, [...(familyOf.get(root) ?? []), x]);
+  }
+  // Families in file order of their top row; inside a family, deepest first when it fits a batch, else parents first.
+  const families = [...familyOf.values()].sort((a, b) => Math.min(...a.map((x) => x.n)) - Math.min(...b.map((x) => x.n)));
+  const byDepth = (dir: 1 | -1) => (a: (typeof pendingRows)[number], b: (typeof pendingRows)[number]) => dir * (depthOf.get(a.r.externalId)! - depthOf.get(b.r.externalId)!) || a.n - b.n;
+  const pending = families.flatMap((f) => (f.length > 1 && f.length <= batchSize ? [...f].sort(byDepth(-1)) : [...f].sort(byDepth(1))).map((x) => ({ ...x, family: f.length <= batchSize ? f : null })));
+  // Batches end on a family boundary: a family that fits never straddles two batches.
+  const parts: (typeof pending)[] = [];
+  for (let i = 0; i < pending.length;) {
+    let end = Math.min(i + batchSize, pending.length);
+    while (end < pending.length && end > i && pending[end].family && pending[end].family === pending[end - 1].family) end--;
+    if (end === i) end = Math.min(i + batchSize, pending.length);
+    parts.push(pending.slice(i, end));
+    i = end;
+  }
 
   const auto = await people(deps, actor.orgId);
   const chosenPeople = new Map(Object.entries(input.people ?? {}).map(([k, v]) => [k.trim().toLowerCase(), v ?? ""]));
@@ -268,15 +300,38 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
   const createdTaskIds: string[] = [];
   const author = `${label} import`;
 
-  for (let i = 0; i < pending.length; i += batchSize) {
+  // R55: on D1 a batch is one transaction, so comments and checklist items can go in before their task with the
+  // foreign key check deferred to the commit, and the task row carries their counts: the count triggers then find no
+  // task row and write nothing (staging: 25 rows for a task with 2 comments and 2 checklist items, task first; 21
+  // children first). SQLite in Node runs the statements one by one, so there the task stays first.
+  const atomic = typeof (deps.db as unknown as { batch?: unknown }).batch === "function";
+  let offset = 0;
+  for (const whole of parts) {
+    const i = offset;
     if (room <= 0) { stopped = "daily_cap"; break; }
     const level = (await writeBudget(deps)).level;
     if (level === "warn" || level === "shed") { stopped = "write_budget"; break; }
     if (i > 0 && Date.now() - started > maxMs) { stopped = "time"; break; }
-    const part = pending.slice(i, i + Math.min(batchSize, room));
+    // Under the day's cap: whole families only (a flat row is a family of one).
+    let take = Math.min(whole.length, room);
+    while (take < whole.length && take > 0 && whole[take].family && whole[take].family === whole[take - 1].family) take--;
+    // Not even one whole family fits under the cap: take what fits of it, parents first (the triggers count it).
+    const part = take > 0 ? whole.slice(0, take)
+      : [...whole].filter((x) => x.family === whole[0].family).sort(byDepth(1)).slice(0, room).map((x) => ({ ...x, family: null }));
+    offset += part.length;
+    // Subtask counts a parent's insert carries: its children in this batch (they go in first) when the family is whole here.
+    const kids = new Map<string, { total: number; done: number }>();
+    for (const { r, family } of part) {
+      const pid = parentOf(r);
+      if (!family || !pid || !pendingById.has(pid)) continue;
+      const k = kids.get(pid) ?? { total: 0, done: 0 };
+      k.total++; if (statusFor(r).category === "done") k.done++;
+      kids.set(pid, k);
+    }
     const first = await claimNumbers(deps, projectId, part.length); // R33: 1 row on project_counters
     const at = new Date(now.getTime() + i);
     const stmts: PromiseLike<unknown>[] = [];
+    if (atomic && part.some(({ r }) => r.checklist.length || r.comments.length)) stmts.push(deps.db.run(sql`PRAGMA defer_foreign_keys = on`));
     part.forEach(({ r, key }, j) => {
       const st = statusFor(r);
       const id = idOf.get(r.externalId)!;
@@ -287,12 +342,16 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
       const notes = [r.description,
         others.length ? `Assigned in ${label}: ${others.join(", ")}` : "",
         r.parent && !parentOf(r) ? `Parent in ${label}: ${r.parent}` : ""].filter(Boolean).join("\n\n");
-      stmts.push(deps.db.insert(tasks).values({
+      const sub = kids.get(id);
+      const task = deps.db.insert(tasks).values({
         id, orgId: actor.orgId, projectId: projectId!, number: first + j, statusId: st.id, status: st.category, title: r.title, notes,
         assigneeType: assignee ? "member" : null, assigneeId: assignee, priority: r.priority, startAt: r.start, dueAt: r.due,
         labels: JSON.stringify(r.labels), parentId: parentOf(r), position: maxPos + (created + j + 1) * 1024, completedAt: st.category === "done" ? at : null,
         importKey: key, ...createdBy(actor), createdAt: at, updatedAt: at,
-      }).onConflictDoNothing());
+        ...(sub ? { subtaskTotal: sub.total, subtaskDone: sub.done } : {}),
+        ...(atomic ? { commentCount: r.comments.length, checklistTotal: r.checklist.length, checklistDone: r.checklist.filter((c) => c.done).length } : {}),
+      }).onConflictDoNothing();
+      if (!atomic) stmts.push(task);
       // R49: checklist items land as checklist items on the task (2 rows each: the row and its task index).
       r.checklist.forEach((c, k) => {
         stmts.push(deps.db.insert(taskChecklistItems).values({ id: sortableId("chk", at.getTime() + j * 100 + k), orgId: actor.orgId, taskId: id, title: c.title, done: c.done, position: k + 1, createdBy: by, createdAt: at, updatedAt: at }));
@@ -302,6 +361,7 @@ export async function runImport(deps: Deps, actor: SuiteActor, input: RunInput, 
         stmts.push(deps.db.insert(taskComments).values({ id: sortableId("cmt", at.getTime() + j * 100 + k), orgId: actor.orgId, taskId: id, authorName: author, body, ...createdBy(actor), createdAt: at, updatedAt: at }));
         comments++;
       });
+      if (atomic) stmts.push(task);
     });
     stmts.push(deps.db.insert(usageCounters).values({ orgId: actor.orgId, period: day, metric: COUNTER_METRIC, count: part.length })
       .onConflictDoUpdate({ target: [usageCounters.orgId, usageCounters.period, usageCounters.metric], set: { count: sql`${usageCounters.count} + ${part.length}` } }));

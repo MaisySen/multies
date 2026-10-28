@@ -55,19 +55,6 @@ same trigger and, for a webhook trigger, the same secret). Two creates are excep
 over MCP (`create_share_link`) can be made twice, because a key or link is shown only once and kept only as a hash.
 List them (`GET /agent-members`, `list_share_links`) and delete the extra one (`DELETE /agent-members/{id}`,
 `revoke_share_link`).
-R55: the same holds for `POST /threads/{id}/comments`, `POST /tasks/from-email`, `POST /tasks/{id}/duplicate` (one
-copy), `POST /mail/splits`, `POST /chat/messages/{id}/task`, `POST /chat/channels/{id}/messages` (sent without a
-clientMsgId; with one, the clientMsgId decides), `POST /time/start`, `POST /triage`, `POST /views`,
-`POST /goals/{id}/key-results`, `POST /checklist-items/{id}/to-subtask` (one subtask, and the item is removed once),
-`POST /integrations` (the same connection and the same signing secret), `POST /agent-triggers/{id}/run` (the same
-queued run and, for a project trigger, the same task) and `POST /auth-email-hooks` (the same hook and URL). Still not
-covered: sends (`POST /messages`, `/agents/{id}/send`, `/agents/{id}/threads/{threadId}/reply`, `/approvals/{id}/approve`,
-`/meetings/{id}/invite`), because mail may already have left; `POST /data-moves/exports`, whose retry inside the export
-interval answers 429 and makes no second export; and doc edits (`POST /docs/{id}/append`, version restore), where
-`ifVersion` makes a retry answer `version_conflict` instead of applying twice. Keys and links shown once
-(`POST /agent-members`, `/agent-members/{id}/keys`, `/agents/{id}/keys`, `/inbound-keys`, `/share-links`) stay
-exceptions. Names, addresses and emails that must be unique (domains, mailboxes, aliases, contacts, invites,
-guests) never make a second row.
 Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.
 
@@ -754,6 +741,12 @@ The engine behind them (`POST /api/automations` takes the same values):
   for the project's owner, or round_robin over `memberIds`), `set_status` (`statusName`, `statusId` or
   `category`), `add_label` (`label`), `set_priority` (`priority`) and `create_subtask_checklist`
   (`items`, 1 to 10 subtasks). Meeting and chat rules can notify, make a task or post.
+- Several actions (R55): `actionConfig.then` is a list of up to 4 more `{ action, actionConfig }`, run in
+  order after the rule's own action, each seeing the task as the one before left it. Each is checked like
+  a first action for the same trigger; an extra action cannot have its own `then`, and `assign_thread`
+  stays a rule of its own. A failing step stops the rest and the rule's `lastError` reads "Action 2: ...".
+  The whole rule is one run against the plan. An empty list is dropped. The Automations editor shows them
+  under "And then" for task rules (label, priority, status and notify; other kinds made here show by name).
 - Loops: a rule's own change runs one level deeper and nothing runs past 3 levels; one rule acts on
   one task at most once a minute. Every run counts against the plan's monthly automation runs.
 

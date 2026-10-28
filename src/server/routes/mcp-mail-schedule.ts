@@ -9,7 +9,6 @@ import type { Deps } from "../context";
 import { HttpError } from "../lib/errors";
 import { cancelSchedule, listSchedules, scheduleSend, snoozeThread } from "../services/mail/schedules";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R55 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -44,7 +43,7 @@ export function registerMailScheduleTools(server: McpServer, deps: Deps, actor: 
     writable();
     const agent = await agentFor(a.agentId);
     const message = { mailboxId: agent.inboxId, to: a.to.map((x) => x.toLowerCase()), cc: a.cc?.map((x) => x.toLowerCase()), subject: a.subject, text: a.text };
-    return scheduleSend(deps, { ...actor, agentId: actor.agentId ?? null }, message, a, { agentId: agent.id, ...(await mcpCreate("msch")) }); // R55 (MB-239): one scheduled send on a retry
+    return scheduleSend(deps, { ...actor, agentId: actor.agentId ?? null }, message, a, { agentId: agent.id });
   }) as never);
 
   server.registerTool("list_scheduled", {

@@ -7,7 +7,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
-import { idempotentCreate, triggerRunIds } from "../lib/idempotency"; // R54 (MB-239), R55
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { createTrigger, deleteTrigger, getTrigger, listMyRuns, listTriggers, rotateTriggerSecret, runTriggerNow, triggerHistory, updateTrigger } from "../services/suite/agent-triggers";
 import { TriggerCreateBody, TriggerPatchBody } from "./agent-triggers-r28";
@@ -54,5 +54,5 @@ export function registerAgentTriggerRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await rotateTriggerSecret(c.var.deps, actor(c), pid(c))));
 
   api.openapi(route("post", "/agent-triggers/{id}/run", "Fire an agent trigger now", "Queues a run as if the trigger fired. The agent and queue limits apply (409, 429). Writes agent_trigger.fired or agent_trigger.refused.", { request: { params: Id } }),
-    async (c) => send(c, await runTriggerNow(c.var.deps, actor(c), pid(c), await triggerRunIds(c.req.raw)), 201));
+    async (c) => send(c, await runTriggerNow(c.var.deps, actor(c), pid(c)), 201));
 }
