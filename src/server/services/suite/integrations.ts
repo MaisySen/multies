@@ -8,7 +8,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { incomingHooks, members, users, webhookEndpoints } from "../../db/schema";
-import { hmacSha256Hex, randomToken, sha256Hex as sha256 } from "../../lib/crypto";
+import { randomToken, sha256Hex as sha256 } from "../../lib/crypto";
 import { HttpError, notFound } from "../../lib/errors";
 import { WEBHOOK_EVENTS, createEndpoint, emitEvent, presentEndpoint, type EndpointFormat } from "../developer/webhooks";
 import { assertWritable, sortableId, type SuiteActor } from "./common";
@@ -183,23 +183,8 @@ export async function getIncomingHook(deps: Deps, orgId: string, id: string) {
 }
 
 /** Creates a hook. The token is returned once; only its hash is kept. */
-/**
- * R54 (MB-239): under an Idempotency-Key the hook's URL token is derived from the stable hook id with the server's
- * secret (an HMAC, as unguessable as a random token), so a retry whose first attempt committed can answer with the
- * same URL the first answer would have shown once, without storing the token and without minting a second one.
- */
-const keyedHookToken = async (deps: Deps, id: string) => `mih_${(await hmacSha256Hex(deps.config.appSecret, `incoming-hook:${id}`)).slice(0, 32)}`;
-
-export async function createIncomingHook(deps: Deps, actor: SuiteActor, input: { name: string; action: HookAction; config?: HookConfig }, opts: { id?: string; retry?: boolean } = {}) {
+export async function createIncomingHook(deps: Deps, actor: SuiteActor, input: { name: string; action: HookAction; config?: HookConfig }) {
   assertWritable(actor);
-  if (opts.id && opts.retry) { // one read, only on a retry
-    const hit = await deps.db.select().from(incomingHooks).where(and(eq(incomingHooks.orgId, actor.orgId), eq(incomingHooks.id, opts.id))).get();
-    if (hit) {
-      const token = await keyedHookToken(deps, hit.id);
-      if (await sha256(token) !== hit.tokenHash) throw new HttpError(409, "conflict", "This incoming webhook was already made and its URL was shown once. Delete it and make a new one.");
-      return { hook: presentHook(hit, deps.config.appUrl), token, url: `${deps.config.appUrl}/api/hooks/in/${token}` };
-    }
-  }
   const config = input.config ?? {};
   checkConfig(input.action, config);
   if (input.action === "chat") {
@@ -208,8 +193,8 @@ export async function createIncomingHook(deps: Deps, actor: SuiteActor, input: {
   }
   const count = (await deps.db.select({ id: incomingHooks.id }).from(incomingHooks).where(eq(incomingHooks.orgId, actor.orgId))).length;
   if (count >= MAX_HOOKS) throw new HttpError(409, "conflict", `A workspace can have up to ${MAX_HOOKS} incoming webhooks.`);
-  const id = opts.id ?? sortableId("ihk", deps.now().getTime());
-  const token = opts.id ? await keyedHookToken(deps, id) : `mih_${randomToken(24).replace(/[^A-Za-z0-9]/g, "").slice(0, 32)}`;
+  const token = `mih_${randomToken(24).replace(/[^A-Za-z0-9]/g, "").slice(0, 32)}`;
+  const id = sortableId("ihk", deps.now().getTime());
   await deps.db.insert(incomingHooks).values({
     id, orgId: actor.orgId, name: input.name.trim().slice(0, 80), action: input.action, config: JSON.stringify(config),
     tokenHash: await sha256(token), tokenHint: token.slice(0, 8), createdById: actor.agentId ? null : actor.userId || null, createdAt: deps.now(),

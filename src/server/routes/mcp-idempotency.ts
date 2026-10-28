@@ -45,12 +45,6 @@ export async function mcpCreate(prefix: string, nth = 0): Promise<{ id?: string;
   return id ? { id, retry: idempotentRetry(call.req) } : {};
 }
 
-/** R54 (MB-239): true inside a keyed tool call that retries an earlier attempt (for a write with no row id of its own). */
-export function mcpRetry(): boolean {
-  const call = store?.getStore();
-  return call ? idempotentRetry(call.req) : false;
-}
-
 /** n stable ids for a tool that makes several rows of one kind in one call (checklist items). */
 export async function mcpIds(prefix: string, n: number): Promise<{ ids?: string[]; retry?: boolean }> {
   const call = store?.getStore();

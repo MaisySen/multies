@@ -49,9 +49,9 @@ async function lastEditor(deps: Deps, d: DocRow) {
   return c?.type ? { type: c.type, id: c.id, name: c.name ?? "" } : { type: d.createdByType, id: d.createdById, name: "" };
 }
 
-async function insertVersion(deps: Deps, d: DocRow, by: { type: "member" | "agent" | "system"; id: string | null; name: string }, reason: "edit" | "restore", name: string | null, givenId?: string) {
+async function insertVersion(deps: Deps, d: DocRow, by: { type: "member" | "agent" | "system"; id: string | null; name: string }, reason: "edit" | "restore", name: string | null) {
   const now = deps.now();
-  const id = givenId ?? sortableId("dver", now.getTime());
+  const id = sortableId("dver", now.getTime());
   await deps.db.insert(docVersions).values({
     id, orgId: d.orgId, docId: d.id, docVersion: d.version, title: d.title, content: d.content, plainText: d.plainText,
     authorType: by.type, authorId: by.id, authorName: by.name, reason, name, savedAt: d.updatedAt, createdAt: now,
@@ -131,15 +131,11 @@ const cleanName = (raw: unknown) => {
 };
 
 /** Saves the page as it is now as a named version. Essential write: a person asked for it. */
-export async function saveDocVersion(deps: Deps, a: SuiteActor, docId: string, input: { name?: string | null }, opts: { id?: string; retry?: boolean } = {}) {
+export async function saveDocVersion(deps: Deps, a: SuiteActor, docId: string, input: { name?: string | null }) {
   assertWritable(a);
   const d = await liveDoc(deps, a.orgId, docId);
-  if (opts.id && opts.retry) { // R54 (MB-239): a retry under the same Idempotency-Key returns the version the first attempt saved (one read, only on a retry)
-    const hit = await deps.db.select().from(docVersions).where(and(eq(docVersions.id, opts.id), eq(docVersions.orgId, a.orgId), eq(docVersions.docId, d.id))).get();
-    if (hit) return { version: presentVersion(hit) };
-  }
   const name = cleanName(input.name ?? "") ?? `Version ${d.version}`;
-  const id = await insertVersion(deps, d, await lastEditor(deps, d), "edit", name, opts.id);
+  const id = await insertVersion(deps, d, await lastEditor(deps, d), "edit", name);
   await recordWrite(deps, a, { entityType: "doc", entityId: d.id, op: "update", version: d.version, verb: "version_saved", data: { versionId: id, name } });
   return { version: presentVersion(await versionRow(deps, a, d.id, id)) };
 }

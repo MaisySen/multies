@@ -8,7 +8,6 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { createActionItems, meetingNotes } from "../services/suite/meeting-notes";
 import type { Scoped } from "./mcp-server";
-import { mcpIds } from "./mcp-idempotency"; // R54 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -38,6 +37,6 @@ export function registerMeetingNotesTools(server: McpServer, deps: Deps, actor: 
     },
   }, tool(async (x: { meetingId: string; items?: { title: string; assignee?: string; due?: string }[]; projectId?: string }) => {
     writable();
-    return createActionItems(deps, a, x.meetingId, { items: x.items, projectId: x.projectId }, x.items?.length ? await mcpIds("tsk", x.items.length) : {}); // R54 (MB-239)
+    return createActionItems(deps, a, x.meetingId, { items: x.items, projectId: x.projectId });
   }) as never);
 }

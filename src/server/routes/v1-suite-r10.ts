@@ -4,7 +4,7 @@
  * An agent key posts as its agent, and @mentions of an agent arrive as the chat.mention webhook.
  */
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
-import { idempotentCreate, templateUseIds } from "../lib/idempotency"; // R52 (MB-239), R54
+import { idempotentCreate } from "../lib/idempotency"; // R52 (MB-239)
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import type { SuiteActor } from "../services/suite/common";
@@ -71,9 +71,9 @@ export function registerSuiteR10Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/templates/{id}", "Templates", "Read a template", "The template with its statuses, fields and tasks.", { request: { params: Id } }),
     async (c) => send(c, { template: await getTemplate(c.var.deps, actor(c).orgId, pid(c)) }));
   api.openapi(route("post", "/templates", "Templates", "Create a template", "Body: { kind: project | task | doc, name?, description?, category?, and either data (write it from scratch) or fromProjectId, fromTaskId or fromDocId (save an existing item) }. data for a project: { project: { name, description?, color? }, tasks: [{ title, notes?, priority?, dueInDays?, subtasks? }] }; for a task: { title, notes?, subtasks?, ... }; for a doc: { title, text } (one paragraph per line, # headings, - bullets).", { request: body(TemplateSave) }),
-    async (c) => send(c, { template: await saveTemplate(c.var.deps, actor(c), await jsonBody(c, TemplateSave), await idempotentCreate(c.req.raw, "tpl")) }, 201));
+    async (c) => send(c, { template: await saveTemplate(c.var.deps, actor(c), await jsonBody(c, TemplateSave)) }, 201));
   api.openapi(route("post", "/templates/{id}/use", "Templates", "Make a project, task or doc from a template", "Body: { name?, projectId? (needed for a task template, optional for a doc), startDate? (YYYY-MM-DD, due dates count from it) }.", { request: { params: Id, ...body(TemplateUse) } }),
-    async (c) => send(c, await useTemplate(c.var.deps, actor(c), pid(c), await jsonBody(c, TemplateUse), await templateUseIds(c.req.raw)), 201));
+    async (c) => send(c, await useTemplate(c.var.deps, actor(c), pid(c), await jsonBody(c, TemplateUse)), 201));
 
   // ---------------------------------------------------------------- goals
   api.openapi(route("get", "/goals", "Goals", "List goals with progress", "Every goal as a tree with its key results, progress (0 to 100, rolled up from key results and child goals) and health, plus a portfolio summary."),

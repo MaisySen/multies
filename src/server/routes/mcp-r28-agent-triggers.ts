@@ -9,7 +9,6 @@ import type { SuiteActor } from "../services/suite/common";
 import { DAYS } from "../services/suite/scheduling";
 import { createTrigger, deleteTrigger, HISTORY_LIMIT, listTriggers, triggerHistory, TRIGGER_INSTRUCTIONS_MAX, TRIGGER_TITLE_MAX } from "../services/suite/agent-triggers";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R54 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 type CreateArgs = {
@@ -37,7 +36,7 @@ export function registerAgentTriggerTools(server: McpServer, deps: Deps, actor: 
     },
   }, tool(async (x: CreateArgs) => {
     writable();
-    return createTrigger(deps, a, x, await mcpCreate("trg")); // R54 (MB-239)
+    return createTrigger(deps, a, x);
   }) as never);
 
   server.registerTool("delete_agent_trigger", {

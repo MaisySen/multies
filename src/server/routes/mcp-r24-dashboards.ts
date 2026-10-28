@@ -83,6 +83,6 @@ export function registerDashboardTools(server: McpServer, deps: Deps, actor: Sco
     inputSchema: { dashboardId: z.string().min(1).max(64), ...widget },
   }, tool(async (x: W & { dashboardId: string }) => {
     writable();
-    return { dashboard: await addWidget(deps, a, x.dashboardId, toInput(x), await mcpCreate("wdg")) }; // R54 (MB-239)
+    return { dashboard: await addWidget(deps, a, x.dashboardId, toInput(x)) };
   }) as never);
 }

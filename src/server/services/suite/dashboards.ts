@@ -238,13 +238,10 @@ export async function updateDashboard(deps: Deps, actor: SuiteActor, id: string,
   return getDashboard(deps, actor, id);
 }
 
-export async function addWidget(deps: Deps, actor: SuiteActor, id: string, widget: WidgetInput, opts: { id?: string; retry?: boolean } = {}) {
+export async function addWidget(deps: Deps, actor: SuiteActor, id: string, widget: WidgetInput) {
   const d = await getDashboard(deps, actor, id);
-  // R54 (MB-239): a retry under the same Idempotency-Key whose first attempt saved the widget gets the dashboard back
-  // as it is, with no second widget. The dashboard is read here anyway, so the check costs nothing.
-  if (opts.id && opts.retry && d.widgets.some((w) => w.id === opts.id)) return d;
   if (d.widgets.length >= MAX_WIDGETS) throw new HttpError(422, "too_many_widgets", `A dashboard holds up to ${MAX_WIDGETS} widgets.`);
-  return updateDashboard(deps, actor, id, { widgets: [...d.widgets, { ...widget, id: opts.id }] });
+  return updateDashboard(deps, actor, id, { widgets: [...d.widgets, { ...widget, id: undefined }] });
 }
 
 export async function deleteDashboard(deps: Deps, actor: SuiteActor, id: string) {

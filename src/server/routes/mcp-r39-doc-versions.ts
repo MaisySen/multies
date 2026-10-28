@@ -9,7 +9,6 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { getDocVersion, listDocVersions, restoreDocVersion, saveDocVersion, VERSION_NAME_MAX } from "../services/suite/doc-versions-r39";
 import type { Scoped } from "./mcp-server";
-import { mcpCreate } from "./mcp-idempotency"; // R54 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -40,7 +39,7 @@ export function registerDocVersionR39Tools(server: McpServer, deps: Deps, actor:
     inputSchema: { docId: z.string().min(1), name: z.string().max(VERSION_NAME_MAX).optional() },
   }, tool(async (x: { docId: string; name?: string }) => {
     writable();
-    return await saveDocVersion(deps, a, x.docId, { name: x.name }, await mcpCreate("dver"));
+    return await saveDocVersion(deps, a, x.docId, { name: x.name });
   }) as never);
 
   server.registerTool("restore_doc_version", {
