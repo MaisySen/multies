@@ -1,7 +1,6 @@
 // R25 perf helper (local only): counts the SQL statements the server prepares so scripts/perf-r25.mjs
 // can report queries per request (each one is a network round trip on D1). Loaded with
 // NODE_OPTIONS=--require ./scripts/perf-r25-count.cjs and PERF_COUNT_PORT set; never used in production.
-/* eslint-disable @typescript-eslint/no-require-imports */
 const http = require("node:http");
 const port = Number(process.env.PERF_COUNT_PORT || 0);
 if (port) {

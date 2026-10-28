@@ -43,9 +43,10 @@
   for (var i = 0; i < 6; i++) rows += '<div class="skeleton mb-3 h-6 w-full"></div>';
   var cards = "";
   for (var j = 0; j < 4; j++) cards += '<div class="skeleton h-28"></div>';
-  var head = "";
+  var head;
   if (myWork) {
     var day = "";
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- a catch binding keeps old browsers parsing this file
     try { day = new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }); } catch (e) { /* old browser */ }
     head = '<p class="text-[13px] font-semibold uppercase tracking-[0.04em] text-[#0071E3] dark:text-brand-hover"><span>My Work</span><span aria-hidden="true"> · </span><span class="text-muted">' + day + '</span></p>' +
       '<div class="skeleton mt-2 mb-6 h-9 w-56"></div>';

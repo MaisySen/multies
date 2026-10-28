@@ -12,7 +12,6 @@ type Call = { url: string; init?: { method?: string; headers?: Record<string, st
 
 function load(file: string, name: string, fetchImpl: (url: string, init?: Call["init"]) => Promise<Response>) {
   const src = readFileSync(`deploy/auth0/legacy-migration/${file}`, "utf8");
-  // eslint-disable-next-line @typescript-eslint/no-implied-eval
   return new Function("configuration", "fetch", "WrongUsernameOrPasswordError", `${src}\nreturn ${name};`)(configuration, fetchImpl, WrongUsernameOrPasswordError) as (...args: unknown[]) => void;
 }
 const run = (fn: (...a: unknown[]) => void, ...args: unknown[]) => new Promise<{ err: unknown; user: unknown }>((resolve) => fn(...args, (err: unknown, user: unknown) => resolve({ err, user })));
