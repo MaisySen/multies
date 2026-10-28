@@ -29,6 +29,9 @@ const cases: Case[] = [
   { tool: "create_agent_inbox", table: "agents", args: () => ({ name: "Retry bot", localPart: "retrybot53", approvalMode: "always" }), pick: (j) => [((j.agent ?? j) as { id: string }).id], domain: true },
   { tool: "create_snippet", table: "mail_snippets", args: () => ({ name: "Retry reply", body: "Hello", shortcut: "retry53" }), pick: at("snippet") },
   { tool: "create_custom_field", table: "custom_fields", args: (s) => ({ projectId: s.project, name: "Retry field", type: "text" }), pick: at("field") },
+  // R54: the two computed field tools R53 listed as done without a test.
+  { tool: "create_formula_field", table: "custom_fields", args: (s) => ({ projectId: s.project, name: "Retry formula", expression: "{points} * 2" }), pick: at("field") },
+  { tool: "create_rollup_field", table: "custom_fields", args: (s) => ({ projectId: s.project, name: "Retry rollup", source: "subtasks", fn: "count" }), pick: at("field") },
   { tool: "add_checklist_items", table: "task_checklist_items", args: (s) => ({ taskId: s.task, items: [{ title: "One" }, { title: "Two" }] }),
     pick: (j) => (j.items as { id: string }[]).map((x) => x.id) },
   { tool: "create_sprint", table: "sprints", args: (s) => ({ projectId: s.project, name: "Retry sprint" }), pick: at("sprint") },
