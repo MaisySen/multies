@@ -166,7 +166,7 @@ const DUE = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
  * Items that already became tasks are skipped, so pressing twice makes nothing new. Each task links back
  * to the meeting ("about"). Assignees must be members or agents of this workspace (checked before any write).
  */
-export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId: string, input: { items?: ActionItemInput[]; projectId?: string | null } = {}) {
+export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId: string, input: { items?: ActionItemInput[]; projectId?: string | null } = {}, opts: { ids?: string[]; retry?: boolean } = {}) {
   assertWritable(actor);
   const m = await meetingRow(deps, actor.orgId, meetingId);
   if ((input.items?.length ?? 0) > MAX_CREATE) throw new HttpError(422, "validation_failed", `Up to ${MAX_CREATE} action items at a time.`);
@@ -174,9 +174,19 @@ export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId
   const tz = await zoneOf(deps, actor, m);
   const now = deps.now();
 
+  // R54 (MB-239): under an Idempotency-Key each given item's task takes a stable id (opts.ids, by the item's place in
+  // items). A retry whose first attempt made some of them finds those tasks among the meeting's claimed items (one
+  // read, only on a retry): their lines are not added to the notes again and their tasks come back as created.
+  const idOf = new Map((input.items ?? []).map((i, n) => [i, opts.ids?.[n]]));
+  const replayed = new Map<string, string>(); // task id -> item key, for items the first attempt already made
+  if (opts.retry && opts.ids?.length) {
+    const claims = await deps.db.select({ key: meetingActionItems.itemKey, taskId: meetingActionItems.taskId }).from(meetingActionItems).where(and(eq(meetingActionItems.orgId, actor.orgId), eq(meetingActionItems.meetingId, meetingId)));
+    const want = new Set(opts.ids);
+    for (const c of claims) if (c.taskId && want.has(c.taskId)) replayed.set(c.taskId, c.key);
+  }
   // New items (no key) go into the doc first, so the doc stays the record of what was agreed.
-  const fresh = (input.items ?? []).filter((i) => !i.key);
-  const plan: { key: string; title: string; assignee: Assignee | null; due: string | null }[] = [];
+  const fresh = (input.items ?? []).filter((i) => !i.key && !replayed.has(idOf.get(i) ?? ""));
+  const plan: { key: string; title: string; assignee: Assignee | null; due: string | null; id?: string }[] = [];
   for (const i of fresh) {
     if (!i.title?.trim()) throw new HttpError(422, "validation_failed", "Each new action item needs a title.");
     if (i.due && !DUE.test(i.due)) throw new HttpError(422, "validation_failed", "due looks like 2026-10-30.");
@@ -216,14 +226,14 @@ export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId
       const base = itemKey(actionItemText(i.title!.trim(), who, i.due ? i.due.slice(0, 10) : null));
       const key = [...byKey.keys()].reverse().find((k) => (k === base || k.startsWith(`${base}#`)) && !done.has(k) && !freshKeys.has(k)) ?? base;
       freshKeys.add(key);
-      plan.push({ key, title: i.title!.trim(), assignee, due: i.due ?? null });
+      plan.push({ key, title: i.title!.trim(), assignee, due: i.due ?? null, id: idOf.get(i) });
     }
-    for (const i of input.items.filter((x) => x.key)) {
+    for (const i of input.items.filter((x) => x.key && !replayed.has(idOf.get(x) ?? ""))) {
       const item = byKey.get(i.key!);
       if (!item) throw new HttpError(404, "not_found", "That action item is not in the notes any more. Reload the notes.");
       if (i.due && !DUE.test(i.due)) throw new HttpError(422, "validation_failed", "due looks like 2026-10-30.");
       const assignee = i.assignee !== undefined ? resolveAssignee(i.assignee, people) ?? null : item.assignee ? { type: item.assignee.type, id: item.assignee.id } : null;
-      plan.push({ key: item.key, title: i.title?.trim() || item.title, assignee, due: i.due !== undefined ? i.due : item.due });
+      plan.push({ key: item.key, title: i.title?.trim() || item.title, assignee, due: i.due !== undefined ? i.due : item.due, id: idOf.get(i) });
     }
   }
   const todo = plan.filter((p, n) => !done.has(p.key) && plan.findIndex((x) => x.key === p.key) === n).slice(0, MAX_CREATE);
@@ -235,8 +245,11 @@ export async function createActionItems(deps: Deps, actor: SuiteActor, meetingId
   }
 
   const created: Awaited<ReturnType<typeof getTask>>[] = [];
+  for (const taskId of (input.items ?? []).map((i) => idOf.get(i)).filter((x): x is string => !!x && replayed.has(x))) {
+    try { created.push(await getTask(deps, actor, taskId)); } catch { /* deleted since the first attempt */ }
+  }
   for (const p of todo) {
-    const task = await createTask(deps, actor, { title: p.title.slice(0, 500), assignee: p.assignee, due: p.due, projectId, notes: `From the meeting "${m.title}".` });
+    const task = await createTask(deps, actor, { title: p.title.slice(0, 500), assignee: p.assignee, due: p.due, projectId, notes: `From the meeting "${m.title}".` }, p.id ? { id: p.id, retry: opts.retry ?? false } : {});
     const claimed = await deps.db.insert(meetingActionItems).values({ orgId: actor.orgId, meetingId, itemKey: p.key, taskId: task.id, createdAt: now }).onConflictDoNothing().returning({ k: meetingActionItems.itemKey });
     if (!claimed.length) { await deleteTask(deps, actor, task.id); continue; } // another click got there first
     await link(deps, actor.orgId, { type: "task", id: task.id }, { type: "meeting", id: meetingId }, "about");

@@ -7,6 +7,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { createTrigger, deleteTrigger, getTrigger, listMyRuns, listTriggers, rotateTriggerSecret, runTriggerNow, triggerHistory, updateTrigger } from "../services/suite/agent-triggers";
 import { TriggerCreateBody, TriggerPatchBody } from "./agent-triggers-r28";
@@ -35,7 +36,7 @@ export function registerAgentTriggerRoutes(api: OpenAPIHono<AppEnv>) {
     async (c) => send(c, await listTriggers(c.var.deps, actor(c), { agentUserId: c.req.query("agentUserId") || undefined })));
 
   api.openapi(route("post", "/agent-triggers", "Create an agent trigger", "Body: { agentUserId, kind: schedule | webhook, name, taskId? | projectId? + titleTemplate?, instructions?, everyHours? (1 or more) | dailyAt? (HH:MM) + days? (sun..sat), timezone? (defaults to the workspace zone), enabled? }. A webhook trigger answers with its secret once. Writes agent_trigger.created.", { request: { ...body(TriggerCreateBody) } }),
-    async (c) => send(c, await createTrigger(c.var.deps, actor(c), await jsonBody(c, TriggerCreateBody)), 201));
+    async (c) => send(c, await createTrigger(c.var.deps, actor(c), await jsonBody(c, TriggerCreateBody), await idempotentCreate(c.req.raw, "trg")), 201));
 
   api.openapi(route("get", "/agent-triggers/{id}", "Get an agent trigger", "One trigger. The secret is never shown again; rotate it to get a new one.", { request: { params: Id } }),
     async (c) => send(c, { trigger: await getTrigger(c.var.deps, actor(c), pid(c)) }));

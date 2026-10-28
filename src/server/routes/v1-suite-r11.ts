@@ -5,6 +5,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { CATALOGUE, connectIntegration, createIncomingHook, deleteIncomingHook, getIncomingHook, listIncomingHooks, listIntegrations, updateIncomingHook } from "../services/suite/integrations";
 import { cancelByHost, getMyPage, listBookings, savePage } from "../services/suite/scheduling";
@@ -39,7 +40,7 @@ export function registerSuiteR11Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("get", "/incoming-hooks", "Incoming webhooks", "List incoming webhooks", "Each hook with its action, field mapping, call count and its last 20 calls."),
     async (c) => send(c, { hooks: await listIncomingHooks(c.var.deps, actor(c).orgId) }));
   api.openapi(route("post", "/incoming-hooks", "Incoming webhooks", "Create an incoming webhook", "Body: { name, action: task | chat | contact, config?: { projectId?, channelId? (required for chat), mapping?: { target: sourceField } } }. The answer carries the secret URL once: POST JSON or a form to it.", { request: body(HookCreate) }),
-    async (c) => send(c, await createIncomingHook(c.var.deps, actor(c), await jsonBody(c, HookCreate)), 201));
+    async (c) => send(c, await createIncomingHook(c.var.deps, actor(c), await jsonBody(c, HookCreate), await idempotentCreate(c.req.raw, "ihk")), 201));
   api.openapi(route("get", "/incoming-hooks/{id}", "Incoming webhooks", "Read an incoming webhook", "The hook and its recent calls.", { request: { params: Id } }),
     async (c) => send(c, { hook: await getIncomingHook(c.var.deps, actor(c).orgId, pid(c)) }));
   api.openapi(route("patch", "/incoming-hooks/{id}", "Incoming webhooks", "Update an incoming webhook", "Any of name, enabled, config.", { request: { params: Id, ...body(HookPatch) } }),

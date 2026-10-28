@@ -6,6 +6,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
+import { idempotentIds, idempotentRetry } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { createActionItems, ensureNotesDoc, meetingNotes } from "../services/suite/meeting-notes";
 import { ActionItemsCreate } from "./meeting-notes";
@@ -34,5 +35,9 @@ export function registerMeetingNotesRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(route("post", "/meetings/{id}/notes", "Make a meeting's notes doc", `Makes the notes doc (headings Agenda, Notes, Action items) if the meeting has none yet, and returns the notes as GET does. Safe to call twice.`, { request: { params: Id } }),
     async (c) => { await ensureNotesDoc(c.var.deps, actor(c), pid(c)); return send(c, await meetingNotes(c.var.deps, actor(c), pid(c))); });
   api.openapi(route("post", "/meetings/{id}/action-items", "Turn action items into tasks", "Body: { items?: [{ key?, title?, assignee?, due? }], projectId? }. With no items, every unchecked action item in the notes that is not a task yet becomes one. An item with a key (from GET .../notes) is one already in the notes; title, assignee and due override what was read from it. An item without a key is new: it is added to the notes, then made a task. assignee: member:<userId>, agent:<agentId>, a name or an email in the workspace. due: YYYY-MM-DD. Items that are already tasks are skipped. Returns { created: [task], skipped: [{ key, taskId }], docId }.", { request: { params: Id, ...body(ActionItemsCreate) } }),
-    async (c) => send(c, await createActionItems(c.var.deps, actor(c), pid(c), await jsonBody(c, ActionItemsCreate))));
+    async (c) => {
+      const b = await jsonBody(c, ActionItemsCreate);
+      const n = Math.min(b.items?.length ?? 0, 50); // R54 (MB-239): one stable task id per given item
+      return send(c, await createActionItems(c.var.deps, actor(c), pid(c), b, n ? { ids: await idempotentIds(c.req.raw, "tsk", n), retry: idempotentRetry(c.req.raw) } : {}));
+    });
 }

@@ -299,8 +299,18 @@ function scheduleOf(r: Pick<Row, "everyHours" | "dailyAt" | "days" | "timezone">
 }
 
 /** Creates a trigger. A webhook trigger's secret is returned once, here. */
-export async function createTrigger(deps: Deps, a: SuiteActor, input: TriggerInput) {
+export async function createTrigger(deps: Deps, a: SuiteActor, input: TriggerInput, opts: { id?: string; retry?: boolean } = {}) {
   assertAdmin(a);
+  if (opts.id && opts.retry) {
+    // R54 (MB-239): a retry under the same Idempotency-Key whose first attempt committed gets that trigger back, with
+    // the webhook secret it was made with (the first answer, which would have shown it once, never arrived). No
+    // second secret is minted. One read, only on a retry.
+    const hit = await deps.db.select().from(agentTriggers).where(and(eq(agentTriggers.orgId, a.orgId), eq(agentTriggers.id, opts.id))).get();
+    if (hit) {
+      const trigger = (await present(deps, a.orgId, [hit]))[0];
+      return hit.secretEnc ? { trigger, secret: await decryptSecret(deps.config.appSecret, hit.secretEnc) } : { trigger };
+    }
+  }
   const kind = input.kind;
   if (kind !== "schedule" && kind !== "webhook") throw bad("kind is schedule or webhook.");
   if (!input.agentUserId) throw bad("Name the agent member (agentUserId).");
@@ -311,7 +321,7 @@ export async function createTrigger(deps: Deps, a: SuiteActor, input: TriggerInp
   const fields = await resolveFields(deps, a.orgId, kind, {}, input);
   const now = deps.now();
   const timezone = fields.timezone ?? org?.tz ?? "UTC";
-  const id = sortableId("trg", now.getTime());
+  const id = opts.id ?? sortableId("trg", now.getTime());
   let secret: string | null = null;
   let secretEnc: string | null = null;
   if (kind === "webhook") { secret = `mtw_${randomToken(24)}`; secretEnc = await encryptSecret(deps.config.appSecret, secret); }

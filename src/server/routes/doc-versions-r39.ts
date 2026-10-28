@@ -15,6 +15,7 @@ import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAuth } from "../middleware";
 import { HttpError } from "../lib/errors";
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { getDocVersion, listDocVersions, renameDocVersion, restoreDocVersion, saveDocVersion, VERSION_NAME_MAX } from "../services/suite/doc-versions-r39";
 
@@ -74,7 +75,7 @@ export function registerDocVersionV1Routes(api: OpenAPIHono<AppEnv>) {
     description: `Keeps the doc as it is now under a name (up to ${VERSION_NAME_MAX} characters; left out: "Version N"). Named versions are never pruned. One row written.`,
     request: { params: Id, ...anyBody(false) },
     responses: { 201: json("The saved version."), 401: err("Missing or invalid API key."), 403: err("A read only key."), 404: err("Not found."), 422: err("Validation failed.") },
-  }), async (c) => send(c, await saveDocVersion(c.var.deps, actor(c), c.req.param("id") ?? "", await parse(c, VersionSave)), 201));
+  }), async (c) => send(c, await saveDocVersion(c.var.deps, actor(c), c.req.param("id") ?? "", await parse(c, VersionSave), await idempotentCreate(c.req.raw, "dver")), 201));
 
   api.openapi(createRoute({
     method: "get", path: "/docs/{id}/versions/{versionId}", tags: ["Docs"], summary: "Read one version", security: secured,

@@ -143,7 +143,7 @@ export interface StartRunInput { agentUserId?: string; moveToDoing?: boolean; no
  * Starts a run. An agent member's own key starts its run on a task it is assigned to or mentioned on, or claims a
  * run queued for it. A person or a full workspace key queues a run for a named agent member (the explicit allowance).
  */
-export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, input: StartRunInput = {}) {
+export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, input: StartRunInput = {}, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(a);
   if (a.agentId) throw forbid("agent_member_only", "Only an AI agent member's key can run tasks. Mail agent keys can't.");
   const t = await taskFor(deps, a.orgId, taskIdOrRef);
@@ -169,6 +169,9 @@ export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, i
   const active = await deps.db.select().from(agentRuns)
     .where(and(eq(agentRuns.taskId, t.id), eq(agentRuns.agentUserId, agentUserId), inArray(agentRuns.status, ACTIVE))).get(); // D1: fixed two-status list
   let id: string;
+  // R54 (MB-239): a retry under the same Idempotency-Key whose first attempt made this run gets the run back instead
+  // of run_in_progress. The active run is read here anyway, so a retry costs no extra read.
+  if (opts.id && opts.retry && active?.id === opts.id) return (await present(deps, a.orgId, [active]))[0];
   if (active && (active.status === "running" || !me)) {
     throw new HttpError(409, "run_in_progress", `${agentName} already has a ${active.status} run on ${t.ref}. Finish it first.`);
   }
@@ -184,7 +187,7 @@ export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, i
     if (me && !(await agentOnTask(deps, a.orgId, t, agentUserId))) {
       throw forbid("agent_not_on_task", `${agentName} isn't assigned to or mentioned on ${t.ref}. Assign it, mention it, or have a person queue a run for it.`);
     }
-    id = sortableId("run", now.getTime());
+    id = opts.id ?? sortableId("run", now.getTime());
     try {
       await deps.db.insert(agentRuns).values({
         id, orgId: a.orgId, taskId: t.id, agentUserId, status, startedAt: status === "running" ? now : null,
@@ -202,7 +205,7 @@ export async function startRun(deps: Deps, a: SuiteActor, taskIdOrRef: string, i
 }
 
 /** Appends one step. Only the run's own agent; a queued run becomes running on its first step. */
-export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input: { kind?: string; text: string }) {
+export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input: { kind?: string; text: string }, opts: { retry?: boolean } = {}) {
   assertWritable(a);
   const r = await runRow(deps, a.orgId, runId);
   const me = await actingAgent(deps, a);
@@ -212,6 +215,13 @@ export async function addRunStep(deps: Deps, a: SuiteActor, runId: string, input
   const text = (input.text ?? "").trim();
   if (!text) throw bad("A step needs text.");
   if (text.length > RUN_STEP_TEXT_MAX) throw bad(`A step is at most ${RUN_STEP_TEXT_MAX} characters.`);
+  if (opts.retry) {
+    // R54 (MB-239): a step has no id of its own (it is an entry in the run's step list), so a retry under the same
+    // Idempotency-Key checks the run it already read: when the last step is this same step, the first attempt landed
+    // and the retry answers with it instead of logging it twice.
+    const last = (JSON.parse(r.steps || "[]") as RunStep[]).at(-1);
+    if (last && last.kind === kind && last.text === text) return { runId: r.id, step: last, stepCount: r.stepCount };
+  }
   if (!ACTIVE.includes(r.status)) throw runOver(r.status);
   if (r.stepCount >= RUN_STEPS_MAX) throw new HttpError(422, "run_step_limit", `A run holds at most ${RUN_STEPS_MAX} steps. Finish it and start a new one.`);
   const now = deps.now();

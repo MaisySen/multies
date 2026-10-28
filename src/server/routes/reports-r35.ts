@@ -15,6 +15,8 @@ import { HttpError } from "../lib/errors";
 import type { SuiteActor } from "../services/suite/common";
 import { actOnReport, addBlock, createReport, listBlocks, listReports, openReportCount, removeBlock, REPORT_CONTEXTS, REPORT_REASONS } from "../services/suite/reports-r35";
 import type { Scoped } from "./mcp-server";
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
+import { mcpCreate } from "./mcp-idempotency"; // R54 (MB-239)
 
 export const ReportBody = zod.object({
   targetType: zod.enum(["message", "user"]),
@@ -86,7 +88,7 @@ export function registerReportsR35Routes(api: OpenAPIHono<AppEnv>) {
     const parsed = ReportBody.safeParse(await c.req.json().catch(() => ({})));
     if (!parsed.success) throw new HttpError(422, "validation_failed", parsed.error.issues[0]?.message ?? "Check the report.", parsed.error.issues);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return c.json(await createReport(c.var.deps, actor(c), parsed.data) as any, 201) as any;
+    return c.json(await createReport(c.var.deps, actor(c), parsed.data, await idempotentCreate(c.req.raw, "rpt")) as any, 201) as any;
   });
 
   api.openapi(createRoute({
@@ -128,7 +130,7 @@ export function registerReportsR35Tools(server: McpServer, deps: Deps, actorIn: 
     title: "Report a message or person", annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     description: "Reports a chat message (targetType message, messageId) or a person (targetType user, userId) to the Multies team. reason: spam, harassment, hate, sexual, violence, self_harm or other; note up to 500 characters; context chat, meeting or dm. Answers { id, status: open }. 20 a day.",
     inputSchema: { targetType: zod.enum(["message", "user"]), messageId: zod.string().max(64).optional(), userId: zod.string().max(64).optional(), context: zod.enum(REPORT_CONTEXTS).optional(), reason: zod.enum(REPORT_REASONS), note: zod.string().max(500).optional() },
-  }, tool(async (x: zod.infer<typeof ReportBody>) => { writable(); return createReport(deps, a, ReportBody.parse(x)); }) as never);
+  }, tool(async (x: zod.infer<typeof ReportBody>) => { writable(); return createReport(deps, a, ReportBody.parse(x), await mcpCreate("rpt")); }) as never);
   server.registerTool("list_blocks", {
     title: "People you blocked", annotations: { readOnlyHint: true, openWorldHint: false },
     description: "The people this key's owner blocked: { blocks: [{ userId, name, avatarUrl, createdAt }] }.",

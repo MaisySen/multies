@@ -6,6 +6,7 @@
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
+import { idempotentCreate } from "../lib/idempotency"; // R54 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { addWidget, createDashboard, dashboardData, deleteDashboard, getDashboard, listDashboards, updateDashboard, WidgetInput } from "../services/suite/dashboards";
 import { DashboardCreate, DashboardPatch, parseBody } from "./dashboards";
@@ -29,7 +30,7 @@ export function registerDashboardRoutes(api: OpenAPIHono<AppEnv>) {
     method: "post", path: "/dashboards", tags, security, summary: "Create a dashboard",
     description: "Body: name, shared (default false; a dashboard made by an agent key is always shared), widgets (up to 24; see GET /dashboards/{id}), or starter: \"team\" for Team overview (by status, by person, due this week, completed per week). One row write.",
     request: anyBody as any, responses: { 201: json("The dashboard."), ...common },
-  }), async (c) => c.json({ dashboard: await createDashboard(c.var.deps, actor(c), parseBody(DashboardCreate, await c.req.json().catch(() => ({})))) } as any, 201) as any);
+  }), async (c) => c.json({ dashboard: await createDashboard(c.var.deps, actor(c), parseBody(DashboardCreate, await c.req.json().catch(() => ({}))), await idempotentCreate(c.req.raw, "dsh")) } as any, 201) as any);
   // R39: the widget catalog (registered before /dashboards/{id}).
   api.openapi(createRoute({ method: "get", path: "/dashboards/widget-types", tags, security, summary: "List widget types", description: "Every widget type with label, group, what it shows, the data it reads, the charts it can use, its default chart and size, its source fields and each setting with allowed values and the default; plus the common fields and the widget limit. Reads no data; any key with tasks:read.", responses: { 200: json("{ types, common, maxWidgets }."), 401: common[401] } }),
     async (c) => c.json(widgetCatalog() as any, 200) as any);
@@ -43,7 +44,7 @@ export function registerDashboardRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "patch", path: "/dashboards/{id}", tags, security, summary: "Save a dashboard", description: "Body: name, shared, widgets (the whole list, in order), version (optional; a stale one answers 409). One row write.", request: { params: IdParam, ...anyBody } as any, responses: { 200: json("The dashboard."), 409: err("Someone changed it first."), ...common } }),
     async (c) => c.json({ dashboard: await updateDashboard(c.var.deps, actor(c), c.req.param("id"), parseBody(DashboardPatch, await c.req.json().catch(() => ({})))) } as any, 200) as any);
   api.openapi(createRoute({ method: "post", path: "/dashboards/{id}/widgets", tags, security, summary: "Add a widget", description: "Body: one widget (type, title, source, groupBy, chart, size); it goes last. One row write.", request: { params: IdParam, ...anyBody } as any, responses: { 201: json("The dashboard."), ...common } }),
-    async (c) => c.json({ dashboard: await addWidget(c.var.deps, actor(c), c.req.param("id"), parseBody(WidgetInput, await c.req.json().catch(() => ({})))) } as any, 201) as any);
+    async (c) => c.json({ dashboard: await addWidget(c.var.deps, actor(c), c.req.param("id"), parseBody(WidgetInput, await c.req.json().catch(() => ({}))), await idempotentCreate(c.req.raw, "wdg")) } as any, 201) as any);
   api.openapi(createRoute({ method: "delete", path: "/dashboards/{id}", tags, security, summary: "Remove a dashboard", description: "The owner, or a workspace admin for a shared one.", request: { params: IdParam }, responses: { 200: json("Removed."), ...common } }),
     async (c) => c.json(await deleteDashboard(c.var.deps, actor(c), c.req.param("id")) as any, 200) as any);
 }
