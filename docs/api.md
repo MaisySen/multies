@@ -55,6 +55,19 @@ same trigger and, for a webhook trigger, the same secret). Two creates are excep
 over MCP (`create_share_link`) can be made twice, because a key or link is shown only once and kept only as a hash.
 List them (`GET /agent-members`, `list_share_links`) and delete the extra one (`DELETE /agent-members/{id}`,
 `revoke_share_link`).
+R55: the same holds for `POST /threads/{id}/comments`, `POST /tasks/from-email`, `POST /tasks/{id}/duplicate` (one
+copy), `POST /mail/splits`, `POST /chat/messages/{id}/task`, `POST /chat/channels/{id}/messages` (sent without a
+clientMsgId; with one, the clientMsgId decides), `POST /time/start`, `POST /triage`, `POST /views`,
+`POST /goals/{id}/key-results`, `POST /checklist-items/{id}/to-subtask` (one subtask, and the item is removed once),
+`POST /integrations` (the same connection and the same signing secret), `POST /agent-triggers/{id}/run` (the same
+queued run and, for a project trigger, the same task) and `POST /auth-email-hooks` (the same hook and URL). Still not
+covered: sends (`POST /messages`, `/agents/{id}/send`, `/agents/{id}/threads/{threadId}/reply`, `/approvals/{id}/approve`,
+`/meetings/{id}/invite`), because mail may already have left; `POST /data-moves/exports`, whose retry inside the export
+interval answers 429 and makes no second export; and doc edits (`POST /docs/{id}/append`, version restore), where
+`ifVersion` makes a retry answer `version_conflict` instead of applying twice. Keys and links shown once
+(`POST /agent-members`, `/agent-members/{id}/keys`, `/agents/{id}/keys`, `/inbound-keys`, `/share-links`) stay
+exceptions. Names, addresses and emails that must be unique (domains, mailboxes, aliases, contacts, invites,
+guests) never make a second row.
 Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.
 
