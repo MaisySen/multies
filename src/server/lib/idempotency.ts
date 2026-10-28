@@ -162,6 +162,12 @@ export async function templateUseIds(req: Request): Promise<{ project?: string; 
   return { project: await idempotentId(req, "prj"), doc: await idempotentId(req, "doc"), task: await idempotentId(req, "tsk"), retry: idempotentRetry(req) };
 }
 
+/** R55 (MB-239): the ids a manual trigger fire keeps on a retry (its run, and the task a project trigger makes), {} without a key. */
+export async function triggerRunIds(req: Request): Promise<{ run?: string; task?: string; retry?: boolean }> {
+  if (!seeds.get(req)) return {};
+  return { run: await idempotentId(req, "run"), task: await idempotentId(req, "tsk"), retry: idempotentRetry(req) };
+}
+
 export async function pruneIdempotencyKeys(db: DB, now: Date) {
   await db.delete(idempotencyKeys).where(lt(idempotencyKeys.createdAt, new Date(now.getTime() - IDEMPOTENCY_TTL_MS)));
 }
