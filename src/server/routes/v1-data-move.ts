@@ -7,6 +7,7 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import type { AppEnv } from "../context";
 import { HttpError } from "../lib/errors";
+import { idempotentRunKeys } from "../lib/idempotency"; // R53 (MB-239)
 import type { SuiteActor } from "../services/suite/common";
 import { listMoves, previewMove, runMove, startExport, undoMove } from "../services/data-move/service";
 import { DataMoveRun } from "./data-moves";
@@ -41,7 +42,7 @@ export function registerDataMoveRoutes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({ method: "post", path: "/data-moves/imports/preview", tags: ["Import and export"], summary: "Preview an import", description: "Body: { kind, content, fileName?, mapping? }. kind is tasks (a work tool CSV, Excel, JSON or Markdown zip), calendar (.ics), contacts (.vcf or CSV), docs (Markdown or a zip of pages) or workspace (an export zip). Writes nothing.", security: [{ bearerAuth: [] }], request: body(DataMoveRun), responses }),
     async (c) => send(c, await previewMove(c.var.deps, actor(c), await jsonBody(c, DataMoveRun))));
   api.openapi(createRoute({ method: "post", path: "/data-moves/imports/run", tags: ["Import and export"], summary: "Run one step of an import", description: "Body: { kind, content, fileName?, mapping?, projectId?, projectName?, statusMap?, people?, moveId? }. Brings in about 15 seconds of items and answers move { id, status, done, total }. While status is stopped, send the same body with moveId to carry on. statusMap maps a status name in the file to a status id; people maps a person in the file to a member id, or \"\" to leave unassigned.", security: [{ bearerAuth: [] }], request: body(DataMoveRun), responses }),
-    async (c) => send(c, await runMove(c.var.deps, actor(c), await jsonBody(c, DataMoveRun))));
+    async (c) => send(c, await runMove(c.var.deps, actor(c), await jsonBody(c, DataMoveRun), await idempotentRunKeys(c.req.raw)))); // R53
   api.openapi(createRoute({ method: "post", path: "/data-moves/{id}/undo", tags: ["Import and export"], summary: "Undo an import", description: "Removes exactly what the import made: its tasks with their comments, the statuses and projects it added (when nothing else uses them), and its meetings, contacts and docs.", security: [{ bearerAuth: [] }], request: { params: z.object({ id: z.string() }) }, responses }),
     async (c) => send(c, await undoMove(c.var.deps, actor(c), c.req.param("id"))));
 }

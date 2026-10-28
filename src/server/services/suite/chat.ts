@@ -530,8 +530,8 @@ async function afterPost(deps: Deps, c: ChannelRow, m: ChatMessage, parent: Mess
   if (agentMentions.length) await emitEvent(deps, c.orgId, "chat.mention", { message: m, channel, agents: agentMentions.map((x) => ({ id: x.id, name: x.name })) });
 }
 
-export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }) {
-  return (await postMessageAcked(deps, a, channelId, input)).message;
+export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }, opts: { id?: string; retry?: boolean } = {}) {
+  return (await postMessageAcked(deps, a, channelId, input, opts)).message;
 }
 
 /**
@@ -539,13 +539,14 @@ export async function postMessage(deps: Deps, a: SuiteActor, channelId: string, 
  * server has already written (the same author, the same workspace) returns that message and
  * writes nothing: no second row, no second notification, no second live event.
  */
-export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }): Promise<{ message: ChatMessage; deduped: boolean }> {
+export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: string, input: { body: string; parentId?: string | null; files?: Upload[]; clientMsgId?: string }, opts: { id?: string; retry?: boolean } = {}): Promise<{ message: ChatMessage; deduped: boolean }> {
   assertWritable(a);
   const c = await visibleChannel(deps, a, channelId);
   await assertCanPostInDm(deps, c, isKey(a) ? null : a.userId); // R35: a DM with someone who blocked the sender: 403 blocked
   const who = actorOf(a);
-  const fixedId = messageIdForClient(a.orgId, `${who.type}:${who.id ?? ""}`, input.clientMsgId, deps.now().getTime());
-  if (fixedId) {
+  // R53 (MB-239): an Idempotency-Key id (MCP post_message) is the message id; a retry looks for the first attempt's row.
+  const fixedId = messageIdForClient(a.orgId, `${who.type}:${who.id ?? ""}`, input.clientMsgId, deps.now().getTime()) ?? opts.id ?? null;
+  if (fixedId && (fixedId !== opts.id || opts.retry)) {
     const seen = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.id, fixedId), eq(chatMessages.orgId, a.orgId))).get();
     if (seen) {
       if (seen.channelId !== c.id || seen.authorId !== who.id) throw new HttpError(409, "conflict", "That message id is already used.");
@@ -556,7 +557,7 @@ export async function postMessageAcked(deps: Deps, a: SuiteActor, channelId: str
   if (who.type === "member" && who.id && !isKey(a) && c.kind === "channel" && !c.isPrivate) {
     await deps.db.insert(chatMembers).values({ channelId: c.id, userId: who.id, orgId: a.orgId, lastReadAt: deps.now(), joinedAt: deps.now() }).onConflictDoNothing();
   }
-  const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, { ...input, id: fixedId, clientMsgId: fixedId ? input.clientMsgId : undefined });
+  const out = await writeMessage(deps, a, c, { type: who.type === "system" ? "system" : who.type, id: who.id, name: who.name || "Someone" }, { ...input, id: fixedId, clientMsgId: fixedId && fixedId !== opts.id ? input.clientMsgId : undefined });
   // R24.4: chat_message_posted rules (channels only; posts made by rules never come back here).
   if (c.kind === "channel" && !a.system) await (await import("./automations-r24")).runChatPosted(deps, a, { id: out.id, text: out.body, channelId: c.id, channelName: c.name, author: who.name || "Someone", authorId: who.id });
   return { message: out, deduped: false };

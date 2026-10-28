@@ -8,6 +8,7 @@ import type { Deps } from "../context";
 import { addToSprint, completeSprint, createSprint, getSprint, listSprints, removeFromSprint, startSprint } from "../services/suite/sprints";
 import type { SuiteActor } from "../services/suite/common";
 import type { Scoped } from "./mcp-server";
+import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -38,7 +39,7 @@ export function registerSprintTools(server: McpServer, deps: Deps, actor: Scoped
     },
   }, tool(async (x: { projectId: string; name?: string; goal?: string; startAt?: string; endAt?: string }) => {
     writable();
-    return { sprint: await createSprint(deps, a, x.projectId, x) };
+    return { sprint: await createSprint(deps, a, x.projectId, x, await mcpCreate("spr")) };
   }) as never);
 
   server.registerTool("start_sprint", {
