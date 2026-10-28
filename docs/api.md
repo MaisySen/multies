@@ -44,6 +44,17 @@ same signing secret (no second secret is made). Imports retried with the same ke
 `POST /work-imports/run` fills the project its first call made instead of a second one, and
 `POST /data-moves/imports/run` answers the same run (`move.id`) and skips meetings, docs and projects the first
 call already wrote, even when it was cut off before saving its progress.
+R54: the same holds for `POST /templates` and `POST /templates/{id}/use` (the project, doc or task it makes;
+a project template's fields and tasks are not made again), `POST /docs/{id}/versions`, `POST /tasks/{id}/runs`,
+`POST /runs/{id}/steps` (a step has no id: a retry whose step already landed answers with that step and logs no
+second one), `POST /meetings/{id}/action-items` (one id per item, and the notes get each new line once),
+`POST /dashboards` and `POST /dashboards/{id}/widgets`, `POST /reports` (one report and one mail to the team),
+`POST /incoming-hooks` (the same hook and the same URL; no second URL is made) and `POST /agent-triggers` (the
+same trigger and, for a webhook trigger, the same secret). Two creates are exceptions: a retry of
+`POST /agent-members` after a server error can make a second agent member with its own key, and a share link made
+over MCP (`create_share_link`) can be made twice, because a key or link is shown only once and kept only as a hash.
+List them (`GET /agent-members`, `list_share_links`) and delete the extra one (`DELETE /agent-members/{id}`,
+`revoke_share_link`).
 Errors are JSON:
 `{ "error": { "code", "message" } }` with 400, 401, 403, 404, 409, 422 or 429.
 

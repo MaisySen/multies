@@ -9,6 +9,7 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addRunStep, cancelRun, finishRun, listRuns, listTaskRuns, RUN_CANCEL_REASON_MAX, RUN_RESULT_MAX, RUN_STEP_KINDS, RUN_STEP_TEXT_MAX, startRun } from "../services/suite/agent-runs";
 import type { Scoped } from "./mcp-server";
+import { mcpCreate, mcpRetry } from "./mcp-idempotency"; // R54 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -23,7 +24,7 @@ export function registerAgentRunTools(server: McpServer, deps: Deps, actor: Scop
     inputSchema: { taskId: z.string().min(1).describe("A task id or a reference like OPS-12."), moveToDoing: z.boolean().optional(), note: z.string().max(RUN_STEP_TEXT_MAX).optional().describe("An optional first step."), agentUserId: z.string().max(80).optional().describe("Only when queuing a run for an agent with a person's or workspace key.") },
   }, tool(async (x: { taskId: string; moveToDoing?: boolean; note?: string; agentUserId?: string }) => {
     writable();
-    return { run: await startRun(deps, a, x.taskId, { moveToDoing: x.moveToDoing, note: x.note, agentUserId: x.agentUserId }) };
+    return { run: await startRun(deps, a, x.taskId, { moveToDoing: x.moveToDoing, note: x.note, agentUserId: x.agentUserId }, await mcpCreate("run")) };
   }) as never);
 
   server.registerTool("add_run_step", {
@@ -32,7 +33,7 @@ export function registerAgentRunTools(server: McpServer, deps: Deps, actor: Scop
     inputSchema: { runId: z.string().min(1), kind: z.enum(RUN_STEP_KINDS).default("note"), text: z.string().min(1).max(RUN_STEP_TEXT_MAX) },
   }, tool(async (x: { runId: string; kind: (typeof RUN_STEP_KINDS)[number]; text: string }) => {
     writable();
-    return addRunStep(deps, a, x.runId, { kind: x.kind, text: x.text });
+    return addRunStep(deps, a, x.runId, { kind: x.kind, text: x.text }, { retry: mcpRetry() });
   }) as never);
 
   server.registerTool("finish_task_run", {

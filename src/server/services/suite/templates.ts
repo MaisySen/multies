@@ -7,12 +7,12 @@
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Deps } from "../../context";
-import { customFields, projectStatuses, tasks, templates } from "../../db/schema";
+import { customFields, docs, projects, projectStatuses, tasks, templates } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
 import { assertWritable, createdBy, recordWrite, sortableId, type SuiteActor } from "./common";
 import { createField } from "./fields";
 import { normaliseRule, type RepeatRule } from "./recurrence";
-import { createProject, createTask, getProject, resolveTaskId, type Category, type Priority } from "./tasks";
+import { createProject, createTask, getProject, getTask, resolveTaskId, type Category, type Priority } from "./tasks";
 import { emitEvent } from "../developer/webhooks";
 import { checklistTitles, copyChecklist } from "./checklists"; // R26 (MB-85)
 
@@ -188,14 +188,16 @@ export function scratchData(kind: TemplateKind, raw: unknown): TemplateData {
   return { project: { name, description: text(p.description, 1000) || undefined, color: /^#[0-9a-f]{6}$/i.test(String(p.color)) ? String(p.color) : undefined }, tasks: list.map(task) };
 }
 
-export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput) {
+export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput, opts: { id?: string; retry?: boolean } = {}) {
   assertWritable(a);
+  // R54 (MB-239): a retry under the same Idempotency-Key returns the template the first attempt saved (one read, only on a retry).
+  if (opts.id && opts.retry && await deps.db.select({ id: templates.id }).from(templates).where(and(eq(templates.orgId, a.orgId), eq(templates.id, opts.id))).get()) return getTemplate(deps, a.orgId, opts.id);
   let data: TemplateData;
   let name = input.name?.trim() || "";
   if (input.data !== undefined) {
     data = scratchData(input.kind, input.data);
     name ||= input.kind === "project" ? (data as ProjectTemplateData).project.name : (data as TaskTemplateData | DocTemplateData).title;
-    return insertTemplate(deps, a, input, data, name);
+    return insertTemplate(deps, a, input, data, name, opts.id);
   }
   const checklistOf = async (taskId: string) => { const titles = await checklistTitles(deps, taskId); return titles.length ? { checklist: titles } : {}; }; // R26 (MB-85)
   const subtasksOf = async (taskId: string) => (await deps.db.select({ title: tasks.title }).from(tasks).where(and(eq(tasks.parentId, taskId), isNull(tasks.deletedAt))).orderBy(asc(tasks.position))).map((s) => s.title);
@@ -237,12 +239,12 @@ export async function saveTemplate(deps: Deps, a: SuiteActor, input: TemplateSav
     data = { title: t.title, notes: t.notes || undefined, priority: t.priority, labels: JSON.parse(t.labels) as string[], subtasks: await subtasksOf(t.id), repeat: t.repeatRule ? JSON.parse(t.repeatRule) as RepeatRule : null, ...await checklistOf(t.id) };
     name ||= t.title;
   }
-  return insertTemplate(deps, a, input, data, name);
+  return insertTemplate(deps, a, input, data, name, opts.id);
 }
 
-async function insertTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput, data: TemplateData, name: string) {
+async function insertTemplate(deps: Deps, a: SuiteActor, input: TemplateSaveInput, data: TemplateData, name: string, givenId?: string) {
   const now = deps.now();
-  const id = sortableId("tpl", now.getTime());
+  const id = givenId ?? sortableId("tpl", now.getTime());
   await deps.db.insert(templates).values({ id, orgId: a.orgId, kind: input.kind, name: name.slice(0, 120), description: (input.description ?? "").slice(0, 500), category: (input.category ?? "Custom").slice(0, 40), data: JSON.stringify(data), createdAt: now, updatedAt: now, ...createdBy(a) });
   await recordWrite(deps, a, { entityType: "template", entityId: id, op: "create", verb: "created", data: { name } });
   return getTemplate(deps, a.orgId, id);
@@ -256,29 +258,37 @@ export async function deleteTemplate(deps: Deps, a: SuiteActor, id: string) {
   return { ok: true };
 }
 
-async function makeTask(deps: Deps, a: SuiteActor, projectId: string, t: TemplateTask, start: Date, statusIds: Map<string, string>, parentId?: string) {
+async function makeTask(deps: Deps, a: SuiteActor, projectId: string, t: TemplateTask, start: Date, statusIds: Map<string, string>, parentId?: string, id?: string) {
   const task = await createTask(deps, a, {
     title: t.title, notes: t.notes, projectId, parentId,
     statusId: t.status ? statusIds.get(t.status.toLowerCase()) : undefined,
     priority: t.priority, labels: t.labels,
     due: t.dueInDays === undefined || t.dueInDays === null ? null : addDays(start, t.dueInDays).toISOString().slice(0, 10),
     repeat: t.repeat ? normaliseRule(t.repeat) : null,
-  });
+  }, id ? { id, retry: false } : {});
   for (const s of t.subtasks ?? []) await createTask(deps, a, { title: s, projectId, parentId: task.id });
   if (t.checklist?.length) await copyChecklist(deps, a, t.checklist, task.id); // R26 (MB-85)
   return task;
 }
 
 /** Makes a project (or a task in a project) from a template. Due dates count from startDate, today by default. */
-export async function useTemplate(deps: Deps, a: SuiteActor, id: string, input: { name?: string; projectId?: string; startDate?: string }) {
+/** R54 (MB-239): the ids a template use keeps on a retry, one per kind it can make. */
+export interface TemplateUseIds { project?: string; doc?: string; task?: string; retry?: boolean }
+
+export async function useTemplate(deps: Deps, a: SuiteActor, id: string, input: { name?: string; projectId?: string; startDate?: string }, ids: TemplateUseIds = {}) {
   assertWritable(a);
   const t = await load(deps, a.orgId, id);
+  // R54 (MB-239): the project, doc or task the template makes takes the stable id of the request's Idempotency-Key.
+  // A retry whose first attempt made it answers with what was made, without making its fields, tasks or event again
+  // (one read, only on a retry). A first attempt that stopped partway is not completed by the retry.
+  const made = ids.retry ? await alreadyMade(deps, a, t.kind, ids) : undefined;
+  if (made) return made;
   const now = deps.now();
   const start = input.startDate ? new Date(`${input.startDate}T00:00:00.000Z`) : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   if (Number.isNaN(start.getTime())) throw new HttpError(422, "validation_failed", "startDate must be YYYY-MM-DD.");
   if (t.kind === "project") {
     const d = t.data as ProjectTemplateData;
-    const project = await createProject(deps, a, { name: (input.name?.trim() || d.project.name).slice(0, 80), description: d.project.description, color: d.project.color, statuses: d.project.statuses });
+    const project = await createProject(deps, a, { name: (input.name?.trim() || d.project.name).slice(0, 80), description: d.project.description, color: d.project.color, statuses: d.project.statuses }, ids.project ? { id: ids.project, retry: false } : {});
     for (const f of d.fields ?? []) await createField(deps, a, project.id, { name: f.name, type: f.type, options: f.options?.map((label) => ({ label })) });
     const statusIds = new Map(project.statuses.map((s) => [s.name.toLowerCase(), s.id]));
     let made = 0;
@@ -290,13 +300,32 @@ export async function useTemplate(deps: Deps, a: SuiteActor, id: string, input: 
   if (t.kind === "doc") {
     const d = t.data as DocTemplateData;
     const { createDoc } = await import("./docs");
-    const doc = await createDoc(deps, a, { title: (input.name?.trim() || d.title).slice(0, 200), ...(d.content !== undefined ? { content: d.content } : { text: d.text ?? "" }), projectId: input.projectId ?? null });
+    const doc = await createDoc(deps, a, { title: (input.name?.trim() || d.title).slice(0, 200), ...(d.content !== undefined ? { content: d.content } : { text: d.text ?? "" }), projectId: input.projectId ?? null }, ids.doc ? { id: ids.doc } : {});
     await emitEvent(deps, a.orgId, "template.used", { templateId: t.id, name: t.name, docId: doc.id });
     return { kind: "doc" as const, doc };
   }
   if (!input.projectId) throw new HttpError(422, "validation_failed", "Pass projectId for a task template.");
   const project = await getProject(deps, a.orgId, input.projectId);
-  const task = await makeTask(deps, a, project.id, { ...(t.data as TaskTemplateData), title: input.name?.trim() || (t.data as TaskTemplateData).title }, start, new Map(project.statuses.map((s) => [s.name.toLowerCase(), s.id])));
+  const task = await makeTask(deps, a, project.id, { ...(t.data as TaskTemplateData), title: input.name?.trim() || (t.data as TaskTemplateData).title }, start, new Map(project.statuses.map((s) => [s.name.toLowerCase(), s.id])), undefined, ids.task);
   await emitEvent(deps, a.orgId, "template.used", { templateId: t.id, name: t.name, taskId: task.id });
   return { kind: "task" as const, task };
+}
+
+/** R54 (MB-239): on a retry, what the first attempt of this template use already made, answered the same way; else undefined. */
+async function alreadyMade(deps: Deps, a: SuiteActor, kind: string, ids: TemplateUseIds) {
+  if (kind === "project" && ids.project) {
+    if (!await deps.db.select({ id: projects.id }).from(projects).where(and(eq(projects.orgId, a.orgId), eq(projects.id, ids.project))).get()) return undefined;
+    const tops = await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.projectId, ids.project), isNull(tasks.parentId), isNull(tasks.deletedAt)));
+    return { kind: "project" as const, project: await getProject(deps, a.orgId, ids.project), tasks: tops.length };
+  }
+  if (kind === "doc" && ids.doc) {
+    if (!await deps.db.select({ id: docs.id }).from(docs).where(and(eq(docs.orgId, a.orgId), eq(docs.id, ids.doc))).get()) return undefined;
+    const { getDoc } = await import("./docs");
+    return { kind: "doc" as const, doc: await getDoc(deps, a.orgId, ids.doc) };
+  }
+  if (kind === "task" && ids.task) {
+    if (!await deps.db.select({ id: tasks.id }).from(tasks).where(and(eq(tasks.orgId, a.orgId), eq(tasks.id, ids.task))).get()) return undefined;
+    return { kind: "task" as const, task: await getTask(deps, a, ids.task) };
+  }
+  return undefined;
 }

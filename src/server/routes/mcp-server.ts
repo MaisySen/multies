@@ -757,7 +757,11 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     title: "Make a project, task or doc from a template", annotations: rw,
     description: "Creates a project (statuses, custom fields, tasks with due dates from startDate), a task in projectId for a task template, or a doc for a doc template.",
     inputSchema: { templateId: z.string(), name: z.string().max(120).optional(), projectId: z.string().optional(), startDate: z.string().optional() },
-  }, tool(async (x: { templateId: string; name?: string; projectId?: string; startDate?: string }) => { writable(); return useTemplate(deps, a, x.templateId, x); }));
+  }, tool(async (x: { templateId: string; name?: string; projectId?: string; startDate?: string }) => {
+    writable();
+    const [p, d, k] = [await mcpCreate("prj"), await mcpCreate("doc"), await mcpCreate("tsk")]; // R54 (MB-239)
+    return useTemplate(deps, a, x.templateId, x, { project: p.id, doc: d.id, task: k.id, retry: p.retry });
+  }));
 
   server.registerTool("pin_message", {
     title: "Pin or unpin a chat message", annotations: rw,
@@ -769,7 +773,7 @@ function registerR10Tools(server: McpServer, deps: Deps, actor: Scoped, writable
     title: "Create a template from scratch", annotations: rw,
     description: "kind project: data { project: { name, description? }, tasks: [{ title, notes?, priority?, dueInDays?, subtasks? }] }. kind task: data { title, notes?, subtasks? }. kind doc: data { title, text } with one paragraph per line, # headings and - bullets.",
     inputSchema: { kind: z.enum(["project", "task", "doc"]), name: z.string().max(120).optional(), description: z.string().max(500).optional(), data: z.record(z.string(), z.unknown()) },
-  }, tool(async (x: { kind: TemplateKind; name?: string; description?: string; data: Record<string, unknown> }) => { writable(); return { template: await saveTemplate(deps, a, x) }; }));
+  }, tool(async (x: { kind: TemplateKind; name?: string; description?: string; data: Record<string, unknown> }) => { writable(); return { template: await saveTemplate(deps, a, x, await mcpCreate("tpl")) }; }));
 
   server.registerTool("set_task_repeat", {
     title: "Make a task repeat", annotations: rw,
@@ -833,7 +837,7 @@ function registerR11Tools(server: McpServer, deps: Deps, actor: Scoped, writable
   }, tool(async (x: { name: string; action: "task" | "chat" | "contact"; projectId?: string; channelId?: string; mapping?: Record<string, string> }) => {
     writable();
     const { createIncomingHook } = await import("../services/suite/integrations");
-    return createIncomingHook(deps, a, { name: x.name, action: x.action, config: { projectId: x.projectId, channelId: x.channelId, mapping: x.mapping } });
+    return createIncomingHook(deps, a, { name: x.name, action: x.action, config: { projectId: x.projectId, channelId: x.channelId, mapping: x.mapping } }, await mcpCreate("ihk")); // R54 (MB-239)
   }));
   if (deps.config.schedulingEnabled) {
     server.registerTool("list_bookings", {

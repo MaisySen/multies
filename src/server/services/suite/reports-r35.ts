@@ -126,15 +126,18 @@ async function sharesWorkspace(deps: Deps, me: string, other: string) {
 }
 
 /** Files a report. Essential write (one row, plus at most one app_settings row per 15 minutes for the operator mail). */
-export async function createReport(deps: Deps, a: SuiteActor, input: ReportInput) {
+export async function createReport(deps: Deps, a: SuiteActor, input: ReportInput, opts: { id?: string; retry?: boolean } = {}) {
   const me = person(a);
+  // R54 (MB-239): a retry under the same Idempotency-Key whose first attempt filed the report answers as the first
+  // attempt would have, with no second report and no second mail to the team (one read, only on a retry).
+  if (opts.id && opts.retry && await deps.db.select({ id: contentReports.id }).from(contentReports).where(and(eq(contentReports.id, opts.id), eq(contentReports.reporterUserId, me))).get()) return { id: opts.id, status: "open" as const };
   const now = deps.now();
   const recent = await deps.db.select({ n: count() }).from(contentReports)
     .where(and(eq(contentReports.reporterUserId, me), gt(contentReports.createdAt, new Date(now.getTime() - 24 * 3600_000)))).get();
   if ((recent?.n ?? 0) >= REPORTS_PER_DAY) throw new HttpError(429, "rate_limited", "You've sent a lot of reports today. Our team is on them; try again tomorrow, or write to contact@fintex.au.");
   const note = (input.note ?? "").trim().slice(0, 500) || null;
   let row: typeof contentReports.$inferInsert;
-  const id = sortableId("rpt", now.getTime());
+  const id = opts.id ?? sortableId("rpt", now.getTime());
   if (input.targetType === "message") {
     if (!input.messageId) throw new HttpError(422, "validation_failed", "Say which message.");
     const m = await deps.db.select().from(chatMessages).where(and(eq(chatMessages.orgId, a.orgId), eq(chatMessages.id, input.messageId))).get();
