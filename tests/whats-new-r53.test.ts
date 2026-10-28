@@ -58,10 +58,12 @@ describe("R53 whats-new list", () => {
     }
   });
 
-  it("carries the R53 entries at the top: What's new itself, then the mail sync change", () => {
-    expect(WHATS_NEW[0].id).toBe("2026-10-28-whats-new");
-    expect(WHATS_NEW[1].title).toMatch(/mail sync/i);
-    expect(WHATS_NEW[1].body).toMatch(/not downloaded again/);
+  it("carries the R53 entries: What's new itself, then the mail sync change (R54 entries sit above them)", () => {
+    const i = WHATS_NEW.findIndex((e) => e.id === "2026-10-28-whats-new");
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(WHATS_NEW[i + 1].title).toMatch(/mail sync/i);
+    expect(WHATS_NEW[i + 1].body).toMatch(/not downloaded again/);
+    expect(WHATS_NEW[0].id).toBe("2026-10-28-more-safe-retries");
   });
 
   it("formats a date as a calendar day without a time zone shift", () => {
