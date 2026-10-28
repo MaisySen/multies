@@ -15,6 +15,9 @@ import { organizations } from "../db/schema";
 import { FieldLogicSchema, FieldRulesSchema, FormRouteSchema } from "./forms-r31";
 import { eq } from "drizzle-orm";
 
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_SUITE_R7_1 = z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() });
+
 export const TimeStart = z.object({ taskId: z.string().min(1), note: z.string().max(500).optional() });
 export const TimeStop = z.object({ entryId: z.string().optional() });
 export const TimeEntryCreate = z.object({
@@ -95,7 +98,7 @@ export function meetingRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const q = parseQuery(c, z.object({ upcoming: z.string().optional(), sourceType: z.enum(["thread", "task", "contact"]).optional(), sourceId: z.string().optional() }));
+      const q = parseQuery(c, Q_SUITE_R7_1);
       return c.json({ meetings: await listMeetings(c.var.deps, c.var.auth, { upcoming: q.upcoming === "1" || q.upcoming === "true", sourceType: q.sourceType, sourceId: q.sourceId }), videoEnabled: meetingsEnabled(c.var.deps) });
     })
     .post("/", async (c) => c.json(await createMeeting(c.var.deps, c.var.auth, await parseBody(c, MeetingCreate)), 201))

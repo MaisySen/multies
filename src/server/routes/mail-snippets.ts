@@ -10,6 +10,9 @@ import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { createSnippet, deleteSnippet, getSnippet, listSnippets, renderSnippetFor, updateSnippet } from "../services/suite/snippets";
 import { SNIPPET_BODY_MAX, SNIPPET_NAME_MAX, SNIPPET_SUBJECT_MAX } from "@/shared/snippets";
 
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_MAIL_SNIPPETS_1 = z.object({ q: z.string().max(200).optional() });
+
 export const SnippetCreate = z.object({
   name: z.string().min(1).max(SNIPPET_NAME_MAX * 2),
   body: z.string().min(1).max(SNIPPET_BODY_MAX + 1000),
@@ -28,7 +31,7 @@ export function mailSnippetRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/", async (c) => {
-      const { q } = parseQuery(c, z.object({ q: z.string().max(200).optional() }));
+      const { q } = parseQuery(c, Q_MAIL_SNIPPETS_1);
       return c.json(await listSnippets(c.var.deps, c.var.auth, { q }));
     })
     .post("/", async (c) => c.json({ snippet: await createSnippet(c.var.deps, c.var.auth, await parseBody(c, SnippetCreate)) }, 201))

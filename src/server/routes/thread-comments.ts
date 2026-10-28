@@ -9,6 +9,9 @@ import type { AppEnv } from "../context";
 import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { addComment, commentCounts, COMMENT_MAX, deleteComment, editComment, listComments } from "../services/mail/thread-comments";
 
+// R52: query schemas built once per isolate, not on every request (zod schema construction is real CPU on a warm request).
+const Q_THREAD_COMMENTS_1 = z.object({ ids: z.string().max(5000).default("") });
+
 export const CommentBody = z.object({
   body: z.string().min(1).max(COMMENT_MAX),
   mentions: z.array(z.string().min(1).max(254)).max(50).optional(),
@@ -18,7 +21,7 @@ export function threadCommentRoutes() {
   return new Hono<AppEnv>()
     .use("*", requireAuth)
     .get("/comment-counts", async (c) => {
-      const { ids } = parseQuery(c, z.object({ ids: z.string().max(5000).default("") }));
+      const { ids } = parseQuery(c, Q_THREAD_COMMENTS_1);
       return c.json({ counts: await commentCounts(c.var.deps, c.var.auth, ids.split(",").filter(Boolean)) });
     })
     .get("/:id/comments", async (c) => c.json(await listComments(c.var.deps, c.var.auth, c.req.param("id"))))
