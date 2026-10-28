@@ -23,6 +23,7 @@ import { writeBudget } from "../write-budget";
 import { enqueue, registerJob } from "../jobs";
 import { sendSystemEmail } from "../system-mail";
 import { assertWritable, createdBy, sortableId, type SuiteActor } from "../suite/common";
+import { hash36 } from "../suite/chat-ack-r33"; // R53 (MB-239): stable item ids under an Idempotency-Key
 import { createDoc } from "../suite/docs";
 import { markdownToDoc } from "../suite/markdown-doc";
 import { invalidateStatuses } from "../suite/read-cache";
@@ -162,9 +163,21 @@ export async function exportFinished(deps: Deps, id: string, counts: Record<stri
 
 export interface ImportInput extends RunInput { kind: MoveKind; moveId?: string | null }
 
-async function startRow(deps: Deps, actor: SuiteActor, kind: MoveKind, source: string, fileName: string | undefined, total: number) {
+/**
+ * R53 (MB-239): an import run under an Idempotency-Key. The run row keeps one id (moveId) and a new project keeps
+ * one id (projectId) on every retry of that key, and each item the run makes takes an id made from the run's id and
+ * the item's place in the file, so a retry whose first attempt committed (then answered 5xx or was cut off) finds
+ * the run, skips the meetings already in (same id, insert or nothing), returns the docs already in (one read per
+ * doc, only on a retry), and contacts and tasks skip as before (by email, by import key). Without a key: {}.
+ */
+export interface MoveKeys { moveId?: string; projectId?: string; retry?: boolean }
+
+function keyedItemId(prefix: string, m: typeof dataMoves.$inferSelect, key: string) {
+  return `${prefix}_${new Date(m.createdAt).getTime().toString(36).padStart(9, "0")}${hash36(`${m.id}|${key}`).slice(0, 10)}`;
+}
+
+async function startRow(deps: Deps, actor: SuiteActor, kind: MoveKind, source: string, fileName: string | undefined, total: number, id = newId("mov")) {
   const now = deps.now();
-  const id = newId("mov");
   // Essential write: the run row the history and Undo read.
   await deps.db.insert(dataMoves).values({ id, orgId: actor.orgId, kind: "import", source: `${kind}:${source}`, fileName: fileName?.slice(0, 255) ?? null, status: "running", total, done: 0,
     createdByUserId: actor.userId || null, createdByEmail: await starterEmail(deps, actor), createdAt: now, updatedAt: now });
@@ -280,8 +293,8 @@ async function budgetStop(deps: Deps) {
  * One step of an import: brings in up to 15 seconds of items and answers the run with its progress. Call again with
  * the run's id (moveId) while status is "stopped" and stopped is "time"; the web page does this on its own.
  */
-export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput) {
-  const r = await runMoveStep(deps, actor, input);
+export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput, keys: MoveKeys = {}) {
+  const r = await runMoveStep(deps, actor, input, keys);
   // R43: a step that stopped part way keeps this request's input (once per run), so the scheduled pass can finish the
   // run if the page closes. The step's own answer is unchanged; a failed keep only means the run waits for its page.
   if (r.move.status === "stopped" && deps.importFiles) {
@@ -292,16 +305,19 @@ export async function runMove(deps: Deps, actor: SuiteActor, input: ImportInput)
 }
 
 /** One step, without keeping anything (the scheduled pass calls this with the kept input). */
-export async function runMoveStep(deps: Deps, actor: SuiteActor, input: ImportInput) {
+export async function runMoveStep(deps: Deps, actor: SuiteActor, input: ImportInput, keys: MoveKeys = {}) {
   assertWritable(actor);
   requireImportAdmin(actor);
-  const prior = await resume(deps, actor, input.moveId);
-  if (input.kind === "tasks") return runTaskStep(deps, actor, input, prior);
-  if (input.kind === "workspace") return runWorkspaceStep(deps, actor, input, prior);
+  // R53 (MB-239): a keyed retry carries on in the run its first attempt started (one read, only on a retry).
+  const prior = await resume(deps, actor, input.moveId)
+    ?? (keys.retry && keys.moveId ? (await deps.db.select().from(dataMoves).where(and(eq(dataMoves.id, keys.moveId), eq(dataMoves.orgId, actor.orgId), eq(dataMoves.kind, "import"))).get()) ?? null : null);
+  if (input.kind === "tasks") return runTaskStep(deps, actor, input, prior, keys);
+  if (input.kind === "workspace") return runWorkspaceStep(deps, actor, input, prior, keys);
   const started = Date.now();
   const f = input.kind === "docs" ? { pages: readPagesSafe(input.content, input.fileName), skipped: 0 } : readFile(input.kind, input.content);
   const items = (f.contacts ?? f.events ?? f.pages ?? []) as unknown[];
-  const m = prior ?? await findPaused(deps, actor.orgId, input.kind, input.fileName, items.length) ?? await startRow(deps, actor, input.kind, input.kind === "calendar" ? "ics" : input.kind === "contacts" ? "vcard" : "markdown", input.fileName, items.length);
+  const m = prior ?? await findPaused(deps, actor.orgId, input.kind, input.fileName, items.length) ?? await startRow(deps, actor, input.kind, input.kind === "calendar" ? "ics" : input.kind === "contacts" ? "vcard" : "markdown", input.fileName, items.length, keys.moveId);
+  const kid = keys.moveId ? (prefix: string, key: string) => keyedItemId(prefix, m, key) : null; // R53
   const created = parseJson<Created>(m.created, {});
   let done = m.done;
   let stopped: "time" | "write_budget" | null = null;
@@ -319,10 +335,10 @@ export async function runMoveStep(deps: Deps, actor: SuiteActor, input: ImportIn
       created.contacts = [...(created.contacts ?? []), ...r.ids];
       already += r.already;
     } else if (input.kind === "calendar") {
-      created.meetings = [...(created.meetings ?? []), ...(await insertMeetings(deps, actor, part as EventIn[]))];
+      created.meetings = [...(created.meetings ?? []), ...(await insertMeetings(deps, actor, part as EventIn[], kid ? part.map((_, i) => kid("mtg", `calendar:${done + i}`)) : undefined))];
     } else {
-      for (const p of part as { title: string; body: string }[]) {
-        const d = await createDoc(deps, actor, { title: p.title, content: markdownToDoc(p.body) });
+      for (const [i, p] of (part as { title: string; body: string }[]).entries()) {
+        const d = await createDoc(deps, actor, { title: p.title, content: markdownToDoc(p.body) }, kid ? { id: kid("doc", `docs:${done + i}`), retry: keys.retry } : {});
         created.docs = [...(created.docs ?? []), d.id];
       }
     }
@@ -345,27 +361,27 @@ async function insertContacts(deps: Deps, actor: SuiteActor, list: ContactIn[]) 
   return { ids: rows.map((r) => r.id), already: known.size };
 }
 
-async function insertMeetings(deps: Deps, actor: SuiteActor, list: EventIn[]) {
+async function insertMeetings(deps: Deps, actor: SuiteActor, list: EventIn[], keyed?: string[]) {
   const now = deps.now();
   const ids: string[] = [];
   for (const [i, e] of list.entries()) {
-    const id = sortableId("mtg", now.getTime() + i);
+    const id = keyed?.[i] ?? sortableId("mtg", now.getTime() + i); // R53: a keyed run's ids are stable, so a retry adds nothing
     const past = !e.recurrence && e.startsAt.getTime() + e.durationMin * 60_000 < now.getTime();
     // Essential write: one meeting row. No invites are sent for imported events.
     await deps.db.insert(meetings).values({
       id, orgId: actor.orgId, title: e.title, room: `mymail-${id.slice(4)}`, guestToken: randomToken(18).replace(/[^A-Za-z0-9]/g, "").slice(0, 24),
       startsAt: e.startsAt, durationMin: e.durationMin, status: past ? "ended" : "scheduled", invitees: JSON.stringify(e.invitees),
       recurrence: e.recurrence, recurrenceTz: e.recurrence ? "UTC" : null, ...createdBy(actor), createdAt: now, updatedAt: now,
-    } as typeof meetings.$inferInsert);
+    } as typeof meetings.$inferInsert).onConflictDoNothing();
     ids.push(id);
   }
   return ids;
 }
 
-async function runTaskStep(deps: Deps, actor: SuiteActor, input: ImportInput, prior: typeof dataMoves.$inferSelect | null) {
+async function runTaskStep(deps: Deps, actor: SuiteActor, input: ImportInput, prior: typeof dataMoves.$inferSelect | null, keys: MoveKeys = {}) {
   const projectId = input.projectId ?? prior?.projectId ?? null;
-  const r = await runImport(deps, actor, { ...input, projectId }, { maxMs: STEP_MS });
-  const m = prior ?? await startRow(deps, actor, "tasks", r.source, input.fileName, r.total);
+  const r = await runImport(deps, actor, { ...input, projectId }, { maxMs: STEP_MS, ...(keys.projectId ? { project: { id: keys.projectId, retry: keys.retry } } : {}) });
+  const m = prior ?? await startRow(deps, actor, "tasks", r.source, input.fileName, r.total, keys.moveId);
   const created = parseJson<Created>(m.created, {});
   created.tasks = [...(created.tasks ?? []), ...r.createdTaskIds];
   created.statuses = [...(created.statuses ?? []), ...r.createdStatusIds];
@@ -437,10 +453,11 @@ function summarizeWorkspace(w: WorkspaceFile) {
 }
 
 /** One step of a whole workspace import: projects in order (each its own project), then contacts, calendar and docs. */
-async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInput, prior: typeof dataMoves.$inferSelect | null) {
+async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInput, prior: typeof dataMoves.$inferSelect | null, keys: MoveKeys = {}) {
   const w = readWorkspace(input.content);
   const sum = summarizeWorkspace(w);
-  const m = prior ?? await findPaused(deps, actor.orgId, "workspace", input.fileName, sum.total) ?? await startRow(deps, actor, "workspace", "multies", input.fileName, sum.total);
+  const m = prior ?? await findPaused(deps, actor.orgId, "workspace", input.fileName, sum.total) ?? await startRow(deps, actor, "workspace", "multies", input.fileName, sum.total, keys.moveId);
+  const kid = keys.moveId ? (prefix: string, key: string) => keyedItemId(prefix, m, key) : null; // R53
   const created = parseJson<Created>(m.created, {});
   const counts = parseJson<Record<string, number>>(m.counts, {});
   const started = Date.now();
@@ -455,7 +472,7 @@ async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInpu
     if (p < names.length) {
       const name = names[p];
       const existingId = (created.projects ?? [])[p] ?? null;
-      const r = await runImport(deps, actor, { fileName: `${name}.csv`, content: w.projects.get(name)!, projectId: existingId, projectName: name, mapping: { status: "Status", statusGroup: "Status group", id: "ID" } }, { maxMs: STEP_MS });
+      const r = await runImport(deps, actor, { fileName: `${name}.csv`, content: w.projects.get(name)!, projectId: existingId, projectName: name, mapping: { status: "Status", statusGroup: "Status group", id: "ID" } }, { maxMs: STEP_MS, ...(kid ? { project: { id: kid("prj", `project:${p}`), retry: keys.retry } } : {}) });
       created.tasks = [...(created.tasks ?? []), ...r.createdTaskIds];
       created.statuses = [...(created.statuses ?? []), ...r.createdStatusIds];
       if (r.projectId && !existingId) created.projects = [...(created.projects ?? []), r.projectId];
@@ -469,8 +486,8 @@ async function runWorkspaceStep(deps: Deps, actor: SuiteActor, input: ImportInpu
       if (timeUp() || await budgetStop(deps)) { stopped = "time"; break; }
       const part = items.slice(offset, offset + (k === 2 ? 10 : CHUNK));
       if (k === 0) created.contacts = [...(created.contacts ?? []), ...(await insertContacts(deps, actor, part as ContactIn[])).ids];
-      else if (k === 1) created.meetings = [...(created.meetings ?? []), ...(await insertMeetings(deps, actor, part as EventIn[]))];
-      else for (const pg of part as { title: string; body: string }[]) created.docs = [...(created.docs ?? []), (await createDoc(deps, actor, { title: pg.title, content: markdownToDoc(pg.body) })).id];
+      else if (k === 1) created.meetings = [...(created.meetings ?? []), ...(await insertMeetings(deps, actor, part as EventIn[], kid ? part.map((_, i) => kid("mtg", `calendar:${offset + i}`)) : undefined))];
+      else for (const [i, pg] of (part as { title: string; body: string }[]).entries()) created.docs = [...(created.docs ?? []), (await createDoc(deps, actor, { title: pg.title, content: markdownToDoc(pg.body) }, kid ? { id: kid("doc", `docs:${offset + i}`), retry: keys.retry } : {})).id];
       offset += part.length;
     }
     if (!stopped) { p++; offset = 0; }

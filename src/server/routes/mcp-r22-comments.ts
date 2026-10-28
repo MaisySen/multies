@@ -8,6 +8,7 @@ import type { Deps } from "../context";
 import type { SuiteActor } from "../services/suite/common";
 import { addComment, COMMENT_MAX, deleteComment, listComments } from "../services/mail/thread-comments";
 import type { Scoped } from "./mcp-server";
+import { mcpCreate } from "./mcp-idempotency"; // R53 (MB-239)
 
 type Tool = <A>(fn: (args: A) => Promise<unknown>) => (args: A) => Promise<unknown>;
 
@@ -30,7 +31,7 @@ export function registerThreadCommentTools(server: McpServer, deps: Deps, actor:
     },
   }, tool(async (x: { threadId: string; body: string; mentions?: string[] }) => {
     writable();
-    return { comment: await addComment(deps, a, x.threadId, { body: x.body, mentions: x.mentions }) };
+    return { comment: await addComment(deps, a, x.threadId, { body: x.body, mentions: x.mentions }, await mcpCreate("tcm")) };
   }) as never);
 
   server.registerTool("delete_thread_comment", {

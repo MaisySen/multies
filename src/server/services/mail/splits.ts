@@ -114,16 +114,18 @@ async function own(deps: Deps, a: SplitActor, id: string) {
 
 export async function getSplit(deps: Deps, a: SplitActor, id: string) { return present(await own(deps, a, id)); }
 
-export async function createSplit(deps: Deps, a: SplitActor, input: { name: string; rules: SplitRuleT[]; match?: "all" | "any"; leavesImportant?: boolean; position?: number }) {
+export async function createSplit(deps: Deps, a: SplitActor, input: { name: string; rules: SplitRuleT[]; match?: "all" | "any"; leavesImportant?: boolean; position?: number }, opts: { id?: string; retry?: boolean } = {}) {
   writable(a);
   const userId = person(a);
   const existing = await listSplits(deps, a);
+  // R53 (MB-239): a retry under the same Idempotency-Key gets the split its first attempt made, not "already exists".
+  if (opts.id && opts.retry && existing.some((s) => s.id === opts.id)) return getSplit(deps, a, opts.id);
   if (existing.length >= SPLITS_MAX) throw badRequest(`You can have up to ${SPLITS_MAX} splits.`);
   const name = input.name.trim();
   if (["important", "other"].includes(name.toLowerCase())) throw badRequest("Important and Other are already tabs. Pick another name.");
   if (existing.some((s) => s.name.toLowerCase() === name.toLowerCase())) throw new HttpError(409, "split_exists", "You already have a split with that name.");
   const now = deps.now();
-  const id = newId("spl");
+  const id = opts.id ?? newId("spl");
   await deps.db.insert(mailSplits).values({
     id, orgId: a.orgId, userId, name, rules: JSON.stringify(input.rules), match: input.match ?? "all",
     leavesImportant: input.leavesImportant ?? true, position: input.position ?? existing.length, createdAt: now, updatedAt: now,
