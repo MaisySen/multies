@@ -697,11 +697,9 @@ export async function updateTask(deps: Deps, actor: SuiteActor, idOrRef: string,
     const p = await projectRow(deps, actor.orgId, patch.projectId);
     // R34: the ref it leaves behind (OPS-12) keeps opening it after the move.
     const from = await projectRow(deps, actor.orgId, t.projectId).catch(() => null);
-    // R55: moving back to a project it left gives the task its old number again when it is free (exact Undo).
-    const refs = await import("./task-refs-r34");
-    set.projectId = p.id; set.number = (await refs.keptNumberFor(deps, actor.orgId, p, t.id)) ?? await claimNumbers(deps, p.id); projectId = p.id;
+    set.projectId = p.id; set.number = await claimNumbers(deps, p.id); projectId = p.id;
     changed.projectId = p.id;
-    if (from?.key) await refs.rememberMovedRef(deps, actor.orgId, `${from.key}-${t.number}`, t.id);
+    if (from?.key) { const { rememberMovedRef } = await import("./task-refs-r34"); await rememberMovedRef(deps, actor.orgId, `${from.key}-${t.number}`, t.id); }
   }
   let fromCategory: Category | null = null;
   if (patch.statusId !== undefined || patch.status !== undefined || set.projectId) {

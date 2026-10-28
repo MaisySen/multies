@@ -459,7 +459,7 @@ async function queuedCount(deps: Deps, orgId: string, agentUserId: string) {
   return n;
 }
 
-interface FireOptions { source: FireSource; payload?: unknown; hookTs?: number; actor?: SuiteActor | null }
+interface FireOptions { source: FireSource; payload?: unknown; hookTs?: number; actor?: SuiteActor | null; ids?: { run?: string; task?: string } }
 
 /**
  * Fires a trigger: checks the agent, its queue and the target, claims the trigger row (so two passes or two
@@ -509,12 +509,12 @@ export async function fireTrigger(deps: Deps, t: Row, opts: FireOptions) {
 
   if (!task) {
     const title = renderTitle(t.titleTemplate || "{trigger} {date}", { trigger: t.name, at: now, timezone: t.timezone });
-    const made = await createTask(deps, triggerActor(t), { title, projectId: t.projectId!, assignee: { type: "member", id: t.agentUserId }, notes: t.instructions ?? undefined });
+    const made = await createTask(deps, triggerActor(t), { title, projectId: t.projectId!, assignee: { type: "member", id: t.agentUserId }, notes: t.instructions ?? undefined }, opts.ids?.task ? { id: opts.ids.task, retry: false } : {});
     task = { id: made.id, ref: made.ref, title: made.title };
   }
   const input = JSON.stringify({ source: opts.source, triggerId: t.id, triggerName: t.name, instructions: t.instructions ?? null, ...(opts.payload !== undefined ? { payload: opts.payload } : {}) });
   const step = { at: now.toISOString(), kind: "note", text: `Queued by the trigger "${t.name}" (${opts.source}).` };
-  const runId = sortableId("run", now.getTime());
+  const runId = opts.ids?.run ?? sortableId("run", now.getTime());
   try {
     await deps.db.insert(agentRuns).values({
       id: runId, orgId: t.orgId, taskId: task.id, agentUserId: t.agentUserId, status: "queued", startedAt: null,
@@ -529,11 +529,20 @@ export async function fireTrigger(deps: Deps, t: Row, opts: FireOptions) {
 }
 
 /** "Run now" from the app or the API: queues a run as if the trigger fired (the queue and agent limits apply). */
-export async function runTriggerNow(deps: Deps, a: SuiteActor, id: string) {
+export async function runTriggerNow(deps: Deps, a: SuiteActor, id: string, opts: { run?: string; task?: string; retry?: boolean } = {}) {
   assertAdmin(a);
   const t = await triggerRow(deps, a.orgId, id);
+  if (opts.run && opts.retry) {
+    // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt queued the run answers with that run
+    // (and the task a project trigger made for it) instead of firing again. Reads only on a retry.
+    const hit = await deps.db.select({ id: agentRuns.id, taskId: agentRuns.taskId, status: agentRuns.status }).from(agentRuns).where(and(eq(agentRuns.id, opts.run), eq(agentRuns.orgId, a.orgId))).get();
+    if (hit) {
+      const tk = await taskFor(deps, a.orgId, hit.taskId);
+      return { fired: { runId: hit.id, taskId: hit.taskId, taskRef: tk?.ref ?? "", agentUserId: t.agentUserId, status: hit.status as "queued" } };
+    }
+  }
   if (!t.enabled) throw new HttpError(409, "trigger_disabled", "Turn the trigger on first.");
-  return { fired: await fireTrigger(deps, t, { source: "manual", actor: a }) };
+  return { fired: await fireTrigger(deps, t, { source: "manual", actor: a, ids: opts.run ? { run: opts.run, task: opts.task } : undefined }) };
 }
 
 /**

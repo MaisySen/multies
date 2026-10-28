@@ -11,7 +11,7 @@ import { tasks, taskChecklistItems } from "../../db/schema";
 import { HttpError, notFound } from "../../lib/errors";
 import { chunkIds, inChunks, inIds } from "../../lib/sql-chunks";
 import { assertWritable, iso, parseDate, sortableId, actorOf, type SuiteActor } from "./common";
-import { createTask, parseAssignee, resolveTaskId, validateAssignee, type Task } from "./tasks";
+import { createTask, getTask, parseAssignee, resolveTaskId, validateAssignee, type Task } from "./tasks";
 
 export const CHECKLIST_MAX_ITEMS = 200;
 export const CHECKLIST_TITLE_MAX = 500;
@@ -152,10 +152,19 @@ export async function reorderChecklist(deps: Deps, a: SuiteActor, taskIdOrRef: s
 }
 
 /** Turns an item into a subtask of its task (same title, assignee and due date) and removes the item. */
-export async function checklistItemToSubtask(deps: Deps, a: SuiteActor, itemId: string): Promise<{ task: Task; removedItemId: string }> {
+export async function checklistItemToSubtask(deps: Deps, a: SuiteActor, itemId: string, opts: { id?: string; retry?: boolean } = {}): Promise<{ task: Task; removedItemId: string }> {
   assertWritable(a);
+  if (opts.id && opts.retry) {
+    // R55 (MB-239): a retry under the same Idempotency-Key whose first attempt made the subtask returns it (the item is
+    // already gone then, or goes now if the first attempt was cut off between the two writes). One read, only on a retry.
+    const made = await deps.db.select({ id: tasks.id, parentId: tasks.parentId }).from(tasks).where(and(eq(tasks.id, opts.id), eq(tasks.orgId, a.orgId))).get();
+    if (made) {
+      if (made.parentId) await deps.db.delete(taskChecklistItems).where(and(eq(taskChecklistItems.id, itemId), eq(taskChecklistItems.taskId, made.parentId)));
+      return { task: await getTask(deps, a, made.id), removedItemId: itemId };
+    }
+  }
   const r = await itemFor(deps, a, itemId);
-  const task = await createTask(deps, a, { title: r.title, parentId: r.taskId, assignee: r.assignee ? parseAssignee(r.assignee) : null, due: r.due ? r.due.toISOString() : null });
+  const task = await createTask(deps, a, { title: r.title, parentId: r.taskId, assignee: r.assignee ? parseAssignee(r.assignee) : null, due: r.due ? r.due.toISOString() : null }, opts.id ? { id: opts.id, retry: false } : {});
   await deps.db.delete(taskChecklistItems).where(eq(taskChecklistItems.id, r.id));
   return { task, removedItemId: r.id };
 }

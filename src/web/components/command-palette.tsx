@@ -3,14 +3,13 @@
  * registry (lib/commands); with a task focused its actions lead, and its pickers open as nested pages
  * (Backspace on an empty search goes back). Loaded on demand by PaletteHost (palette-host.tsx).
  * R54: typed words act ("assign MB-12 to Asha due Fri"): one preview row leads, Enter applies, Undo in the toast.
- * R55: more verbs ("MB-12 done", "MB-12 +urgent -later", "move MB-12 to Website"); the labels in use come from the loaded lists.
  */
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Command } from "cmdk";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { IconArrowDown, IconArrowUp, IconBack, IconCheck, IconClock, IconCommand, IconGlobe, IconHistory, IconInbox, IconLogOut, IconSearch, IconSparkle, IconToday, IconUser, IconArrowRight, IconTag, IconCheckCircle } from "@/web/components/ui/icon";
+import { IconArrowDown, IconArrowUp, IconBack, IconCheck, IconClock, IconCommand, IconGlobe, IconHistory, IconInbox, IconLogOut, IconSearch, IconSparkle, IconToday, IconUser, IconArrowRight } from "@/web/components/ui/icon";
 import { displayKeys } from "@/web/lib/commands/registry";
 import { hintForUrl, readRecents, recordRecent } from "@/web/lib/palette-recents"; // R36
 import { paletteScore } from "@/web/lib/palette-registry";
@@ -131,23 +130,13 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   };
 
   // R54: typed words that act on a task. Nothing changes until Enter.
-  const knownLabels = useMemo(() => {
-    if (!open || page) return undefined;
-    const all = new Set<string>();
-    for (const [, list] of qc.getQueriesData<Task[]>({ queryKey: ["tasks"] })) if (Array.isArray(list)) for (const t of list) for (const l of t.labels) all.add(l);
-    return [...all];
-  }, [qc, open, page]);
-  const typed = useTypedAction(search, { enabled: open && !page, focusedTask: task, people: people.data, projects: projects.data, labels: knownLabels });
+  const typed = useTypedAction(search, { enabled: open && !page, focusedTask: task, people: people.data, projects: projects.data });
   const typedProblem = typed?.state === "ready" ? typed.resolved.problems.join(" ") : typed?.state === "missing" ? "Nothing will change." : "";
-  // R55: the row's glyph says what kind of change it is: a move, labels, a status, or several.
-  const tr = typed?.state === "ready" ? typed.resolved : null;
-  const only = (k: "labels" | "status") => !!tr?.[k] && !tr[k === "labels" ? "status" : "labels"] && tr.assignee === undefined && tr.due === undefined && !tr.priority;
-  const TypedIcon = !tr ? IconSparkle : tr.project ? IconArrowRight : only("labels") ? IconTag : only("status") ? IconCheckCircle : IconSparkle;
   const runTyped = () => {
     if (typed?.state !== "ready" || typed.resolved.problems.length) return;
     const t = typed.task;
     const project = projects.data?.find((p) => p.id === t.projectId);
-    const c = typedActionChange(t, typed.resolved, project, projects.data ?? []);
+    const c = typedActionChange(t, typed.resolved, project);
     const saved = typed.resolved.preview.replace(": ", " updated: ");
     close();
     qc.removeQueries({ queryKey: ["task-ref"] });
@@ -210,7 +199,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
                 <Command.Item forceMount value={`${search}|typed-action`} onSelect={runTyped}
                   aria-label={[typed.label, typedProblem].filter(Boolean).join(". ")} data-state={typed.state} data-blocked={typedProblem ? "" : undefined}
                   className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2.5 text-[13.5px] text-fg transition-colors duration-150 data-[selected=true]:bg-hover motion-reduce:transition-none max-sm:min-h-[44px]">
-                  <TypedIcon className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+                  <IconSparkle className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                   <span className="min-w-0 flex-1">
                     <span className="block break-words font-medium">{typed.label}</span>
                     {typedProblem && <span className="mt-0.5 block text-xs text-subtle">{typedProblem}</span>}
