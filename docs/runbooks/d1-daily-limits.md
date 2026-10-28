@@ -162,3 +162,17 @@ Not cut in R32, and why: task create at 8 rows (the goal) was not reached; it ne
 Measured with `tests/d1-meter.ts` (`tests/r33-measure.test.ts` prints the table by table split); `tests/write-budget-r32.test.ts` locks the new numbers and `tests/d1-rows-r33.test.ts` checks the query plan (`changes_entity_idx`) and the behaviour.
 
 The cron writes one uptime row per pass: 96 a day on production (every 15 minutes) and 24 on staging (hourly), about 360 D1 rows a day with the row's index. No cut needed.
+
+## Imports (R54, 28 Oct 2026)
+
+What one imported task costs, measured on staging D1 (`wrangler d1 execute --remote`, whose answer carries D1's own rows written) with the exact insert statements the work import sends:
+
+| File shape | Tasks | D1 rows written | Per task |
+| --- | --- | --- | --- |
+| 1 parent with 4 subtasks, parent first (today's order) | 5 | 53 | 10.6 |
+| the same, subtasks before their parent | 5 | 49 | 9.8 |
+| 5 top level tasks | 5 | 45 | 9.0 |
+
+So 9 rows per task is the floor (the task row, its indexes, the project status counter row the trigger keeps), and a subtask adds about 2 (its entry in the parent index, and the trigger's update of the parent's subtask count). A 1,000 row file with 800 subtasks costs about 10,600 rows, about a tenth of the shared 100,000 a day; the import already stops at the write budget warning and the daily task cap. Statements: about 1.05 write statements per row (one insert per task, 50 tasks per batch, one counter row per batch).
+
+The only avoidable part is the parent count update (about 0.8 rows per row on a subtask heavy file). Two ways to cut it, neither done yet: insert a family's subtasks before their parent inside one batch (the batch is one transaction, so the trigger finds no parent and the parent's insert carries its counts), or a migration that skips the trigger for imported rows and recounts once per batch. `tests/import-write-cost-r54.test.ts` locks the local meter at 17 units per row (it counts trigger rows as task rows, so it reads 16.2 where D1 reads 10.6).
