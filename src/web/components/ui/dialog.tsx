@@ -1,6 +1,8 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { IconClose } from "./icon";
 import { cn } from "@/web/lib/cn";
+// R58 (MB-245): an open dialog makes the page inert, so the "switched in another tab" strip shows inside it too.
+import { WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58";
 
 /** Modal built on the native <dialog>: focus trapping, Esc and inert background come for free. */
 export function Dialog({ open, onClose, title, description, children, footer, className }: {
@@ -34,6 +36,7 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
     >
       {open && (
         <div>
+          <WorkspaceSwitchedBanner variant="dialog" />
           <div className="flex items-start justify-between gap-4 px-6 pt-5">
             <div>
               <h2 id="dialog-title" className="text-[17px] font-semibold">{title}</h2>

@@ -24,9 +24,7 @@ function routerPaths(): string[] {
 }
 
 /** A sample URL for a route pattern: each :param becomes a plain value. */
-// R58 (MB-237): /switch/:source is known only for the tools the import reads (others are a real 404), so it samples one of them.
-const SAMPLES: Record<string, string> = { "/switch/:source": "/switch/trello" };
-const sample = (p: string) => SAMPLES[p] ?? p.replace(/:[A-Za-z]+/g, "sample1");
+const sample = (p: string) => p.replace(/:[A-Za-z]+/g, "sample1");
 
 describe("known routes cover the router (R37)", () => {
   const paths = routerPaths();

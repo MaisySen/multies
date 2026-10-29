@@ -143,8 +143,14 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const tr = typed?.state === "ready" ? typed.resolved : null;
   const only = (k: "labels" | "status") => !!tr?.[k] && !tr[k === "labels" ? "status" : "labels"] && tr.assignee === undefined && tr.due === undefined && !tr.priority;
   const TypedIcon = !tr ? IconSparkle : tr.project ? IconArrowRight : only("labels") ? IconTag : only("status") ? IconCheckCircle : IconSparkle;
+  // R58 (MB-246): a label no task has yet is made only after a second Enter, so a typo never becomes a label quietly.
+  const [labelsOkFor, setLabelsOkFor] = useState<string | null>(null);
+  const newLabels = tr?.newLabels ?? [];
+  const askLabels = newLabels.length > 0 && labelsOkFor !== search;
+  const newLabelWords = newLabels.join(", ");
   const runTyped = () => {
     if (typed?.state !== "ready" || typed.resolved.problems.length) return;
+    if (askLabels) { setLabelsOkFor(search); return; }
     const t = typed.task;
     const project = projects.data?.find((p) => p.id === t.projectId);
     const c = typedActionChange(t, typed.resolved, project, projects.data ?? []);
@@ -214,8 +220,13 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
                   <span className="min-w-0 flex-1">
                     <span className="block break-words font-medium">{typed.label}</span>
                     {typedProblem && <span className="mt-0.5 block text-xs text-subtle">{typedProblem}</span>}
+                    {!typedProblem && newLabels.length > 0 && (
+                      <span className="mt-0.5 block text-xs text-subtle" data-testid="palette-new-label" data-asked={askLabels ? undefined : ""}>
+                        {askLabels ? `No task has the label ${newLabelWords} yet. Press Enter to check.` : `Make the new label ${newLabelWords}? Press Enter again to apply.`}
+                      </span>
+                    )}
                   </span>
-                  {typed.state === "ready" && !typedProblem && <span className="flex shrink-0 items-center gap-1 text-xs text-subtle"><Kbd>↵</Kbd><span className="max-sm:hidden">to apply</span></span>}
+                  {typed.state === "ready" && !typedProblem && <span className="flex shrink-0 items-center gap-1 text-xs text-subtle"><Kbd>↵</Kbd><span className="max-sm:hidden">{askLabels ? "to check" : "to apply"}</span></span>}
                 </Command.Item>
               </Command.Group>
             )}

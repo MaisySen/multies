@@ -3,14 +3,10 @@
  * path with HTTP 404 (the app still shows its page-not-found screen), so search engines and
  * link checkers see a real 404. Keep this in step with the router.
  */
-import { SWITCH_SLUGS } from "./switch-sources";
-
 const EXACT = new Set([
   "/", "/pricing", "/agents", "/developers/mcp", "/check", "/trust", "/status", "/changelog", "/privacy", "/support", "/delete-account", "/terms", "/acceptable-use", "/dpa",
   "/login", "/signup", "/forgot-password", "/reset-password", "/email-verified", "/guest", "/thanks", "/contact", "/thank-you", "/oauth/authorize",
 ]);
-// R58 (MB-237): the free plan page, the switch list, and one switch page per tool the import reads (unknown tools are a 404).
-for (const p of ["/startups", "/switch", ...SWITCH_SLUGS.map((s) => `/switch/${s}`)]) EXACT.add(p);
 const PREFIXES = ["/app", "/invite/", "/f/", "/m/", "/g/", "/book/"];
 
 export function isKnownPage(pathname: string) {

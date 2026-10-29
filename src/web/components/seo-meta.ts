@@ -2,9 +2,6 @@
  * Titles and descriptions for every public page. Pure data, so the Worker can import it to put the same
  * tags into the HTML shell before the app loads. The client applies them on every navigation (main.tsx).
  */
-import { freeHeadline } from "../../shared/free-plan";
-import { SWITCH_SOURCES } from "../../shared/switch-sources";
-
 export const SITE_URL = "https://multies.si";
 export const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
@@ -37,13 +34,6 @@ export const PUBLIC_META: Record<string, PageMeta> = {
   "/contact": { title: "Contact us | Multies", description: "Send the Multies team a message: questions, a demo for your team, or help moving your mail. We reply within one business day." },
   "/thank-you": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies. We reply within one business day.", noindex: true },
   "/thanks": { title: "Thank you | Multies", description: "Thanks for getting in touch with Multies.", noindex: true },
-  // R58 (MB-237): the free plan page and the switch pages. The free plan numbers come from plans.ts.
-  "/startups": { title: "Free for startups and small teams | Multies", description: `${freeHeadline()} Mail on your own domain with tasks, chat and docs, no card and no trial clock.` },
-  "/switch": { title: "Move your work to Multies | Multies", description: "Bring your tasks over from the tool you use now: export a file, upload it, check a preview, and undo the whole import if you change your mind." },
-  ...Object.fromEntries(SWITCH_SOURCES.map((s) => [`/switch/${s.slug}`, {
-    title: `Import from ${s.label} | Multies`,
-    description: `Bring your ${s.label} work into Multies: export ${s.file}, upload it, check the columns and a preview, then import. Try it with a sample file first.`,
-  }])),
 };
 
 export const NOT_FOUND_META: PageMeta = { title: "Page not found | Multies", description: "This address doesn't exist on Multies.", noindex: true };

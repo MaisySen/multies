@@ -237,7 +237,7 @@ export function parseCommand(input: string, ctx: ParseContext): ParsedCommand | 
 // ---------------------------------------------------------------- resolve against the task
 
 export interface CmdTask { ref: string; labels: string[]; statusId?: string | null; assigneeId?: string | null; projectId?: string | null; category?: string | null }
-export interface CmdProject { id: string; name: string; key: string; archived?: boolean; statuses: CmdStatus[] }
+export interface CmdProject { id: string; name: string; key: string; archived?: boolean; statuses: CmdStatus[]; /** R58 (MB-246): the number the next task there gets, when known. */ nextNumber?: number }
 
 /** R55: what resolveCommand may also know: the workspace's projects (for move) and the labels in use. */
 export interface ResolveExtra { projects?: CmdProject[]; knownLabels?: string[] }
@@ -254,6 +254,15 @@ export interface ResolvedCommand {
   labels?: string[];
   /** R55: the project the task moves to (status then holds the status it lands in). */
   project?: { id: string; name: string; key: string };
+  /** R58 (MB-246): a move gives the task a new ref; `to` is null when the new number is not known yet. */
+  refChange?: { from: string; to: string | null; key: string };
+  /** R58 (MB-246): labels that no task uses yet; the menu asks before making them. */
+  newLabels?: string[];
+}
+
+/** R58 (MB-246): the plain words for a ref that changes with a move. */
+export function refChangeWords(c: { from: string; to: string | null; key: string }): string {
+  return c.to ? `${c.from} becomes ${c.to}` : `${c.from} gets a new ${c.key} number`;
 }
 
 const PRIORITY_WORD: Record<CmdPriority, string> = { urgent: "Urgent", high: "High", medium: "Medium", low: "Low", none: "No priority" };
@@ -384,6 +393,7 @@ export function resolveCommand(cmd: ParsedCommand, task: CmdTask, statuses: CmdS
         if (!have) labels.push(c.label);
         labelsTouched = true;
         const fresh = !have && extra.knownLabels !== undefined && !known.has(fold(c.label));
+        if (fresh) (out.newLabels ??= []).push(c.label);
         parts.push(fresh ? `label ${c.label} (a new label)` : `label ${have ?? c.label}`);
         break;
       }
@@ -411,6 +421,9 @@ export function resolveCommand(cmd: ParsedCommand, task: CmdTask, statuses: CmdS
       if (s) { out.status = s; parts[movePart] = `move to ${t.name} (status ${s.name})`; }
       else out.problems.push(`${t.name} has no statuses yet.`);
     }
+    // R58 (MB-246): say that the ref changes, so a link or a ref someone wrote down is not a surprise later.
+    out.refChange = { from: task.ref, to: t.nextNumber ? `${t.key}-${t.nextNumber}` : null, key: t.key };
+    parts.splice(movePart + 1, 0, refChangeWords(out.refChange));
   }
   const verb = parts.join(", ");
   out.preview = `${task.ref}: ${verb || (cmd.clauses.some((c) => c.kind === "unsupported") ? cmd.clauses.find((c): c is Extract<Clause, { kind: "unsupported" }> => c.kind === "unsupported")!.verb : "no change")}`;

@@ -98,14 +98,14 @@ describe("resolve: move to another project", () => {
     const r = run("move MB-12 to Website");
     expect(r.project).toEqual({ id: "p2", name: "Website", key: "WEB" });
     expect(r.status?.id).toBe("w2"); // the task is in a doing status: the first doing status there
-    expect(r.preview).toBe("MB-12: move to Website (status Building)");
+    expect(r.preview).toBe("MB-12: move to Website (status Building), MB-12 gets a new WEB number"); // R58 (MB-246)
     expect(run("move MB-12 to web").project?.id).toBe("p2"); // the key, any case
     expect(run("move MB-12 to project rev").project?.id).toBe("p3");
     expect(landingStatus(projects[2], "doing")?.id).toBe("r1");
   });
   it("a status typed with the move is read in the new project", () => {
     const r = run("move MB-12 to Website status shipped");
-    expect(r).toMatchObject({ preview: "MB-12: move to Website, status Shipped", status: { id: "w4" }, problems: [] });
+    expect(r).toMatchObject({ preview: "MB-12: move to Website, MB-12 gets a new WEB number, status Shipped", status: { id: "w4" }, problems: [] });
     expect(run("move MB-12 to Website status backlog").problems).toEqual(['This project has no status called "backlog".']);
   });
   it("ambiguity and unknowns show in the row, not a guess", () => {
