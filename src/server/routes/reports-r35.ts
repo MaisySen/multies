@@ -79,7 +79,7 @@ const ReportReqSchema = z.object({
 export function registerReportsR35Routes(api: OpenAPIHono<AppEnv>) {
   api.openapi(createRoute({
     method: "post", path: "/reports", tags: ["Moderation"], summary: "Report a chat message or a person", security: [{ bearerAuth: [] }],
-    description: "Body: { targetType: message | user, messageId? (for message), userId? (for user), context?: chat | meeting | dm, reason: spam | harassment | hate | sexual | violence | self_harm | other, note? (up to 500) }. Answers 201 { id, status: open }. A message report keeps a copy of the text and author at report time. 20 reports per person a day (429). A message you can't see, or yourself, is 404. The operator reviews reports within 24 hours.",
+    description: "Body: { targetType: message | user, messageId? (for message), userId? (for user), context?: chat | meeting | dm, reason: spam | harassment | hate | sexual | violence | self_harm | other, note? (up to 500) }. Answers 201 { id, status: open }. A message report keeps a copy of the text and author at report time. 20 reports per person a day (429). A message you can't see, or yourself, is 404. The operator reviews reports within one business day.",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     request: { body: { content: { "application/json": { schema: ReportReqSchema as any } } } },
     responses: { 201: { description: "Filed.", content: { "application/json": { schema: z.object({ id: z.string(), status: z.literal("open") }) } } }, 401: err("Missing or invalid API key."), 404: err("No such message or person."), 422: err("Validation failed."), 429: err("Too many reports today.") },

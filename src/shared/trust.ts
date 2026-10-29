@@ -6,9 +6,9 @@
  * security contact). Claims that could not be verified are left out, not guessed.
  */
 
-export const TRUST_UPDATED = "25 October 2026";
-// security@multies.si is not a live mailbox yet (docs/runbooks/multies-si-mailboxes.md has the
-// steps); until it is, security reports go to the company contact from the runbook (company.md).
+export const TRUST_UPDATED = "30 October 2026";
+// One public contact for everything (owner approved review, 30 October 2026). security@multies.si also
+// routes to the team inbox and stays in security.txt as a second contact.
 export const SECURITY_EMAIL = "contact@fintex.au";
 
 export interface TrustFact { label: string; value: string }
@@ -26,34 +26,35 @@ export interface Subprocessor {
 // Source: wrangler.toml ([[d1_databases]] mymail-au, [placement] region aws:ap-southeast-2) and
 // CREDENTIALS (staging D1 region Oceania). Cloudflare treats a location as a hint, not a country.
 export const DATA_REGION: TrustFact[] = [
-  { label: "Database", value: "Cloudflare D1, primary placed in Cloudflare's Oceania region. Cloudflare treats this as a location hint and does not promise a country." },
-  { label: "App servers", value: "Cloudflare Workers, placed in Sydney (AWS ap-southeast-2 region hint) to sit next to the database. Static pages are served from Cloudflare's edge worldwide." },
-  { label: "Live docs", value: "Co-editing rooms run in Cloudflare Durable Objects, one per doc. Cloudflare chooses where each one runs." },
+  { label: "Database", value: "Our database, primary placed in our hosting provider's Oceania region. Our hosting provider treats this as a location hint and does not promise a country." },
+  { label: "App servers", value: "Our app servers run on our hosting provider, placed in Sydney to sit next to the database. Static pages are served from our hosting provider's network worldwide." },
+  { label: "Live docs", value: "Co-editing rooms run on our hosting provider, one per doc. The provider chooses where each one runs." },
 ];
 
 // Source: src/server/config.ts (env vars per provider), wrangler.toml secrets list, docs/auth.md
 // (Auth0 tenant in the US region), CREDENTIALS (Sentry and LiveKit US data regions, Resend us-east-1).
 export const SUBPROCESSORS: Subprocessor[] = [
-  { name: "Cloudflare", purpose: "Hosting, database, live doc rooms, inbound mail routing, DDoS protection", data: "All service data", where: "Oceania for the database; edge worldwide", when: "always", env: [] },
-  { name: "Auth0 (Okta)", purpose: "Sign in and sign up for people (Universal Login)", data: "Name, email, sign in method, second factor enrolment", where: "United States", when: "always", env: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"] },
-  { name: "Resend", purpose: "Delivers mail you send to addresses outside Multies", data: "Outbound messages and their recipients", where: "United States", when: "always", env: ["RESEND_API_KEY"] },
-  { name: "Sentry", purpose: "Error and performance monitoring", data: "Error reports with account ids", where: "United States", when: "always", env: ["SENTRY_DSN_API", "SENTRY_DSN_WEB"] },
-  { name: "Stripe", purpose: "Payments and invoices for paid add-ons", data: "Billing contact; card details are held by Stripe, never by Multies", where: "Australia and United States", when: "optional", env: ["STRIPE_SECRET_KEY"] },
-  { name: "LiveKit", purpose: "Video meetings, only while a meeting is running", data: "Meeting audio and video, display names", where: "United States", when: "optional", env: ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"] },
-  { name: "Google Public DNS", purpose: "Second resolver for DNS lookups when Cloudflare's resolver does not answer (domain checks)", data: "Domain names being checked, no personal data", where: "Worldwide", when: "always", env: [] },
+  { name: "Our hosting and database provider", purpose: "Hosting, database, live doc rooms, inbound mail routing, DDoS protection", data: "All service data", where: "Oceania for the database; edge worldwide", when: "always", env: [] },
+  { name: "Our sign in provider", purpose: "Sign in and sign up for people", data: "Name, email, sign in method, second factor enrolment", where: "United States", when: "always", env: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"] },
+  { name: "Our outbound email provider", purpose: "Delivers mail you send to addresses outside Multies", data: "Outbound messages and their recipients", where: "United States", when: "always", env: ["RESEND_API_KEY"] },
+  { name: "Our error monitoring provider", purpose: "Error and performance monitoring", data: "Error reports with account ids", where: "United States", when: "always", env: ["SENTRY_DSN_API", "SENTRY_DSN_WEB"] },
+  { name: "Our payments provider", purpose: "Payments and invoices for paid add ons", data: "Billing contact; card details are held by our payments provider, never by Multies", where: "Australia and United States", when: "always", env: ["STRIPE_SECRET_KEY"] },
+  { name: "Our video meetings provider", purpose: "Video meetings, only while a meeting is running", data: "Meeting audio and video, display names", where: "United States", when: "optional", env: ["LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"] },
+  { name: "A public DNS resolver", purpose: "Second resolver for DNS lookups when our hosting provider's resolver does not answer (domain checks)", data: "Domain names being checked, no personal data", where: "Worldwide", when: "always", env: [] },
+  { name: "Our push notification provider", purpose: "Notifications to the Multies phone apps, only when push notifications are turned on", data: "Device push token and message ids, no message text", where: "United States", when: "optional", env: ["PUSH_ENABLED"] },
   { name: "Your AI provider", purpose: "Only when your workspace adds its own key: the assistant sends the thread you ask about to that provider", data: "The email thread you ask the assistant about", where: "Set by the provider you choose", when: "optional", env: [] },
 ];
 
 // Source: docs/runbooks/db-backup-restore.md.
 export const BACKUPS: TrustFact[] = [
-  { label: "Point in time restore", value: "Cloudflare D1 Time Travel can restore the database to any minute in the last 7 days." },
-  { label: "Encrypted exports", value: "Our release runbook takes a full export, encrypted with age and kept outside the code repository, before any production release that changes the database schema. An automatic nightly encrypted export is set up and starts in November 2026, when our build minutes renew." },
+  { label: "Point in time restore", value: "Our database provider's point in time restore can bring the database back to any minute in the last 7 days." },
+  { label: "Encrypted exports", value: "Our release runbook takes a full export, encrypted and kept outside the code repository, before any production release that changes the database schema. Every copy is encrypted, and copies older than 30 days are deleted." },
   { label: "Restores", value: "Our restore runbook loads a backup into a new database and checks it before anything touches production." },
 ];
 
 // Source: docs/auth.md (tenant section), src/server/auth/session.ts, src/server/services/developer/api-keys.ts.
 export const SIGN_IN: TrustFact[] = [
-  { label: "People", value: "Auth0 Universal Login: passkeys, password (at least 12 characters, with dictionary and personal data checks), one time email codes, Google, Apple and GitHub." },
+  { label: "People", value: "Our sign in provider supports passkeys, password (at least 12 characters, with dictionary and personal data checks), one time email codes, Google, Apple and GitHub." },
   { label: "Two factor", value: "Authenticator app, security keys, email codes and recovery codes. Once you enrol a factor, every sign in asks for it." },
   { label: "Protection", value: "Brute force lockout and suspicious IP throttling at the identity provider, plus rate limits and a sign in lockout in Multies." },
   { label: "Sessions", value: "An HttpOnly, Secure, SameSite=Lax cookie. Sign out on one device or all of them from Account and security." },
@@ -64,8 +65,8 @@ export const SIGN_IN: TrustFact[] = [
 // src/server/db/schema.ts (AES-GCM with the app secret), Cloudflare D1 data security docs
 // (https://developers.cloudflare.com/d1/reference/data-security/: AES-256 in GCM mode at rest, TLS in transit).
 export const ENCRYPTION: TrustFact[] = [
-  { label: "In transit", value: "HTTPS only, with HSTS for two years on every subdomain and a strict Content Security Policy. Traffic between our Workers and the database also uses TLS." },
-  { label: "At rest", value: "Cloudflare encrypts every D1 database with AES-256 (GCM), with keys it manages." },
+  { label: "In transit", value: "HTTPS only, with HSTS for two years on every subdomain and a strict Content Security Policy. Traffic between our app servers and the database also uses TLS." },
+  { label: "At rest", value: "Our database provider encrypts the database with AES-256 (GCM), with keys it manages." },
   { label: "Secrets we hold", value: "DKIM signing keys, webhook secrets, connected app tokens, mail app passwords and your workspace's AI key are encrypted again with AES-GCM under an app secret before they are stored." },
   { label: "Audit log", value: "Sign ins, lockouts, password and key changes and admin actions are written to your workspace's audit log." },
 ];

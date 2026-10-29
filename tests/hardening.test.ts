@@ -64,6 +64,8 @@ describe("security headers", () => {
     const res = await app.request("/.well-known/security.txt");
     const body = await res.text();
     expect(body).toContain("Contact: mailto:security@example.com");
+    expect(body.indexOf("Contact: mailto:contact@fintex.au")).toBeLessThan(body.indexOf("Contact: mailto:security@example.com"));
+    expect(body.indexOf("Contact: mailto:contact@fintex.au")).toBeGreaterThanOrEqual(0);
     expect(body).toMatch(/Expires: \d{4}-/);
   });
 });

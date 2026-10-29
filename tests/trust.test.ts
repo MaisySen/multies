@@ -15,7 +15,7 @@ const envKeys = new Set([...config.matchAll(/^ {2}([A-Z][A-Z0-9_]+): z/gm)].map(
 const NOT_LISTED: Record<string, string> = {
   GOOGLE_CLIENT_ID: "direct Google sign in is for self host; Multies signs in with Google through Auth0",
   GITHUB_CLIENT_ID: "direct GitHub sign in is for self host; Multies signs in with GitHub through Auth0",
-  PUSH_ENABLED: "phone push through Expo is off in production (not in wrangler.toml [vars])",
+  PUSH_ENABLED: "listed as the optional push notification provider; off in production (not in wrangler.toml [vars])",
   XERO_CLIENT_ID: "Xero invoice reminders are not configured in production",
   STALWART_URL: "the IMAP and SMTP server is a local test server only",
   BODY_STORE_ENDPOINT: "the external body store is not configured in production",
@@ -38,7 +38,7 @@ describe("trust page facts", () => {
     for (const s of SUBPROCESSORS) for (const k of s.env) expect(envKeys.has(k), `${s.name}: ${k}`).toBe(true);
   });
 
-  it("push stays off in production while the page leaves Expo out", () => {
+  it("push stays off in production, so its row stays optional", () => {
     const prodVars = wrangler.split(/^\[vars\]$/m)[1]!.split(/^\[\[|^\[env/m)[0]!;
     expect(prodVars).not.toMatch(/PUSH_ENABLED/);
     expect(prodVars).not.toMatch(/XERO_CLIENT_ID/);
@@ -87,6 +87,23 @@ describe("trust page facts", () => {
     expect(LEGAL_LINE_TEXT).toBe("Multies is provided by Fintex Australia Pty Ltd (ABN 60 688 406 108), New South Wales, Australia. Contact: contact@fintex.au.");
     expect(LEGAL_ENTITY.address).toBe("New South Wales, Australia");
     expect(LEGAL_ENTITY.website).toBe("https://fintex.au");
+  });
+
+  it("names providers by category and keeps the named list in the DPA (owner approved review, 30 October 2026)", async () => {
+    const { LEGAL_DOCS, SUBPROCESSORS: NAMED } = await import("../src/shared/legal");
+    const vendors = /Cloudflare|Auth0|Okta|Resend|Stripe|Sentry|LiveKit|Expo\b|Google Public DNS|\bage\b|AWS/;
+    const trustText = JSON.stringify({ DATA_REGION, SUBPROCESSORS, BACKUPS, SIGN_IN, ENCRYPTION });
+    expect(trustText).not.toMatch(vendors);
+    for (const slug of ["privacy", "terms", "acceptable-use"] as const) expect(JSON.stringify(LEGAL_DOCS[slug]), slug).not.toMatch(vendors);
+    const dpaOutsideTable = JSON.stringify(LEGAL_DOCS.dpa.sections.map((s) => ({ ...s, body: s.body.filter((b) => !(typeof b === "object" && "table" in b && b.table === NAMED)) })));
+    expect(dpaOutsideTable).not.toMatch(vendors);
+    const names = NAMED.slice(1).map((r) => r[0]);
+    for (const n of ["Cloudflare", "Auth0 (Okta)", "Resend", "Stripe", "Sentry", "LiveKit", "Expo", "Google Public DNS"]) expect(names).toContain(n);
+    expect(SUBPROCESSORS.length).toBe(NAMED.length - 1);
+    const all = JSON.stringify(LEGAL_DOCS);
+    expect(all).not.toMatch(/24 hours|99\.9/);
+    expect(all).toMatch(/within one business day/);
+    expect(BACKUPS.map((b) => b.value).join(" ")).toMatch(/Every copy is encrypted, and copies older than 30 days are deleted/);
   });
 
   it("shows no internal mailbox or account name in public config or pages", () => {

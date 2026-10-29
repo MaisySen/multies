@@ -86,7 +86,7 @@ export function ReportSheet({ target, onClose, onBlock, isBlocked }: { target: R
         {sent ? (
           <div className="space-y-4 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand"><IconCheck className="h-6 w-6" aria-hidden /></div>
-            <p className="text-[15px] text-fg">Thanks. Our team reviews reports within 24 hours.</p>
+            <p className="text-[15px] text-fg">Thanks. Our team reviews reports within one business day.</p>
             {!isBlocked && <p className="text-[13.5px] text-muted">You can also block {target.name}, so you won't see their messages and they can't message you.</p>}
             <div className="flex flex-col gap-2">
               {!isBlocked && <Button variant="danger" onClick={() => onBlock(target)} data-testid="report-block">Block {target.name}</Button>}
