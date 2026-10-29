@@ -68,7 +68,7 @@ export default function Settings() {
       </Card>
 
       <SectionTitle>Workspace</SectionTitle>
-      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} />
+      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} onPress={() => router.push("/workspaces")} testID="workspaces-link" />
       <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
       <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />

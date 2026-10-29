@@ -84,6 +84,7 @@ function Navigator({ client }: { client: QueryClient }) {
         <Stack.Screen name="task/new" options={{ presentation: "modal", title: "New task" }} />
         <Stack.Screen name="meetings" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Meetings" }} />
         <Stack.Screen name="portfolio" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Portfolio" }} />
+        <Stack.Screen name="workspaces" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Workspaces" }} />
         <Stack.Screen name="people" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "People" }} />
         <Stack.Screen name="runs" options={{ headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerLargeTitleStyle: { color: colors.fg }, title: "Agent runs" }} />
         <Stack.Screen name="run/[id]" options={{ title: "Run" }} />

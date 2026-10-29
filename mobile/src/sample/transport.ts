@@ -90,9 +90,14 @@ export class SampleTransport implements Transport {
       return json(work);
     }
 
+    if (method === "POST" && parts[0] === "account" && parts[1] === "workspaces" && parts[3] === "switch") {
+      return d.me.organization && parts[2] === d.me.organization.id ? json({ ok: true, workspace: { id: d.me.organization.id, name: d.me.organization.name } }) : (() => { throw new ApiError(404, "not_found", "Workspace not found."); })();
+    }
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });
       case "GET /account/me": return json(d.me);
+      // Multiws: the sample person is in one workspace; switching to it is a no op.
+      case "GET /account/workspaces": return json({ workspaces: d.me.organization ? [{ id: d.me.organization.id, name: d.me.organization.name, plan: d.me.organization.plan, role: d.me.organization.role, isDemo: true }] : [] });
       case "GET /mail/overview": return json({ mailboxes: d.mailboxes });
       case "GET /agents": return json({ agents: d.agents });
       case "GET /mail/messages": {
