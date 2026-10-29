@@ -152,6 +152,9 @@ describe("connect a mailbox: saving and the first sync", () => {
 
   it("first sync is bounded: recent days only, at most the cap, a batch per pass", async () => {
     const { ctx, c, imap } = await setup();
+    // R57: the bound is the first passes' new mail step; with the full history backfill on, older mail follows after it
+    // (tests/mail-sync-backfill-r57.test.ts). Off here to check the bound alone.
+    ctx.deps.config.mailConnect.backfill.enabled = false;
     const old = new Date(Date.now() - 90 * 86_400_000);
     imap.deliver(GMAIL, rawMail({ to: GMAIL, subject: "Very old", id: "<old@x>", date: old }), { date: old });
     for (let i = 1; i <= 12; i++) imap.deliver(GMAIL, rawMail({ to: GMAIL, subject: `New ${i}`, id: `<n${i}@x>` }));
