@@ -10,7 +10,12 @@ export function Dialog({ open, onClose, title, description, children, footer, cl
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
-    if (open && !d.open) d.showModal();
+    if (open && !d.open) {
+      d.showModal();
+      // R56 (MB-243): showModal() focuses the first focusable element, the Close button, after React's autoFocus already
+      // ran on a field that was not yet shown. A field asking for focus (data-autofocus, set by Input and Textarea) gets it back.
+      d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    }
     if (!open && d.open) d.close();
   }, [open]);
   return (

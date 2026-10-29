@@ -28,6 +28,12 @@ describe("R56 names from a sign in email (MB-241, MB-248)", () => {
     expect(suggestFreeLocalPart("Maximiliana Wolfeschlegelstein", "Extraordinarily Long Company Name Pty")).toBe("maximiliana.extraordinarilyl");
     for (const s2 of [s, suggestFreeLocalPart("Ada", "Acme"), suggestFreeLocalPart("", "", PLUS)]) expect(freeLocalPartProblem(s2)).toBeNull();
   });
+  it("never suggests a name the check would refuse, even when the name holds a kept word", () => {
+    for (const n of ["ProdMultiesQASecondTest", "Multies", "Admin Person", "Support", "Team", "Fintex"]) {
+      const s = suggestFreeLocalPart(n, "Acme Multies team");
+      expect(freeLocalPartProblem(s), `${n} gave ${s}`).toBeNull();
+    }
+  });
   it("never looks up the audit metadata with LIKE (D1 refuses patterns over 50 bytes)", () => {
     const src = readFileSync("src/server/services/free-address.ts", "utf8");
     expect(src).not.toMatch(/\blike\(/);

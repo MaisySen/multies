@@ -66,6 +66,24 @@
           "buttonText": "Continue to Multies"
         }
       }
+    },
+    "signup-id": {
+      "en": {
+        "signup-id": {
+          "title": "Create your account",
+          "description": "Sign up to join your team on Multies.",
+          "buttonText": "Continue"
+        }
+      }
+    },
+    "login-id": {
+      "en": {
+        "login-id": {
+          "title": "Sign in",
+          "description": "Sign in to continue to Multies.",
+          "buttonText": "Continue"
+        }
+      }
     }
   },
   "client": {

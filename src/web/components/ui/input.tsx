@@ -6,11 +6,12 @@ import { PhoneSelectButton, PhoneTimeButton } from "./phone-picker";
 const field = "w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-fg placeholder:text-subtle transition-[border-color,box-shadow] duration-150 ease-out focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15 disabled:opacity-60 aria-[invalid=true]:border-bad aria-[invalid=true]:focus:ring-bad/15 max-sm:text-base";
 
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input({ className, ...rest }, ref) {
-  return <input ref={ref} className={cn(field, "h-10 max-sm:h-11", className)} {...rest} />;
+  // R56 (MB-243): the mark lets a native <dialog> put focus back on this field after showModal() takes it to Close.
+  return <input ref={ref} className={cn(field, "h-10 max-sm:h-11", className)} data-autofocus={rest.autoFocus ? "" : undefined} {...rest} />;
 });
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea({ className, ...rest }, ref) {
-  return <textarea ref={ref} className={cn(field, "py-2.5 leading-relaxed", className)} {...rest} />;
+  return <textarea ref={ref} className={cn(field, "py-2.5 leading-relaxed", className)} data-autofocus={rest.autoFocus ? "" : undefined} {...rest} />;
 });
 
 /**

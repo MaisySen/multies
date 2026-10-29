@@ -73,8 +73,12 @@ export function suggestFreeLocalPart(personName: string, workspaceName: string, 
   const parts = [first || "me", team && team !== first ? team : ""].filter(Boolean);
   let s = parts.join(".").slice(0, 40).replace(/[.-]+$/, "");
   if (s.length < 3) s = `${s}mail`.slice(0, 40);
-  if (freeLocalPartProblem(s)) s = `${s.replace(/[^a-z0-9]/g, "").slice(0, 30) || "me"}.team`;
-  return s;
+  if (!freeLocalPartProblem(s)) return s;
+  // R56: a name holding a kept word ("multies", "admin") must not come back as a suggestion the check then refuses.
+  const bare = s.replace(/[^a-z0-9]/g, "");
+  const unbranded = BRAND_WORDS.reduce((acc, w) => acc.split(w).join(""), bare).slice(0, 30);
+  // ("team" and "mail" are kept words too, so the old "<name>.team" fallback was itself refused.)
+  return [bare.slice(0, 30), unbranded, `${unbranded.slice(0, 30) || "my"}.inbox`, "my.inbox"].find((c) => c.length >= 3 && !freeLocalPartProblem(c)) ?? "my.inbox";
 }
 
 /**
