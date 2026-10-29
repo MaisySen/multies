@@ -137,6 +137,9 @@ jobs:
           npx --yes @sentry/cli@2 sourcemaps upload --release "$RELEASE" -p mymail-api dist/worker/_worker.js dist/worker/_worker.js.map
       - name: Apply database migrations (staging)
         run: npx wrangler d1 migrations apply mymail-staging --remote --env staging
+      # R58: keep the live release's /assets files beside the new ones, so a tab opened before the deploy still loads.
+      - name: Carry the previous release's assets (staging)
+        run: node scripts/carry-assets.mjs https://mymail-staging.mymail-app.workers.dev dist/worker/assets
       - name: Deploy to staging
         run: npx wrangler deploy --env staging --var RELEASE:$RELEASE
       - name: Smoke test staging
@@ -177,6 +180,8 @@ jobs:
       - run: echo "RELEASE=${GITHUB_SHA::12}" >> "$GITHUB_ENV"
       - name: Apply database migrations (idempotent, before the new code goes live)
         run: npx wrangler d1 migrations apply mymail-au --remote
+      - name: Carry the previous release's assets (production)
+        run: node scripts/carry-assets.mjs https://multies.si dist/worker/assets
       - name: Deploy the app (Workers + D1)
         run: |
           test -f dist/worker/.assetsignore || { echo "dist/worker/.assetsignore is missing from the promoted build"; exit 1; }

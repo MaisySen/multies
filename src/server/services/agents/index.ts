@@ -69,10 +69,19 @@ export async function agentMailboxIds(deps: Deps, a: Agent): Promise<string[]> {
 
 const startOfUtcDay = (now: Date) => new Date(Math.floor(now.getTime() / DAY) * DAY);
 
-async function sentTodayBy(deps: Deps, agentId: string) {
+/**
+ * R58: the agent's sent mail today. The workspace filter lets it ride the (org_id, folder, date) index; without it the
+ * count read every message of every workspace (a full table scan on each agent send and each agent card).
+ */
+export function agentSentTodayQuery(db: Deps["db"], a: { id: string; orgId: string }, since: Date) {
+  return db.select({ n: count() }).from(messages).where(and(eq(messages.orgId, a.orgId), eq(messages.folder, "sent"), gte(messages.date, since), eq(messages.sentByAgentId, a.id)));
+}
+
+async function sentTodayBy(deps: Deps, a: { id: string; orgId: string }) {
   const since = startOfUtcDay(deps.now());
+  const agentId = a.id;
   const [sent, queued] = await Promise.all([
-    deps.db.select({ n: count() }).from(messages).where(and(eq(messages.sentByAgentId, agentId), eq(messages.folder, "sent"), gte(messages.date, since))).get(),
+    agentSentTodayQuery(deps.db, a, since).get(),
     deps.db.select({ n: count() }).from(sendApprovals).where(and(eq(sendApprovals.agentId, agentId), eq(sendApprovals.status, "pending"), gte(sendApprovals.createdAt, since))).get(),
   ]);
   return (sent?.n ?? 0) + (queued?.n ?? 0);
@@ -81,7 +90,7 @@ async function sentTodayBy(deps: Deps, agentId: string) {
 async function withStats(deps: Deps, a: Agent, mb: Mailbox) {
   const [mailboxIds, sentToday, pending] = await Promise.all([
     agentMailboxIds(deps, a),
-    sentTodayBy(deps, a.id),
+    sentTodayBy(deps, a),
     deps.db.select({ n: count() }).from(sendApprovals).where(and(eq(sendApprovals.agentId, a.id), eq(sendApprovals.status, "pending"))).get(),
   ]);
   return presentAgent(a, mb, { mailboxIds, sentToday, pendingApprovals: pending?.n ?? 0 });
@@ -457,7 +466,7 @@ export async function requestSend(deps: Deps, actor: Actor, agentId: string, inp
   const allow = parseAllow(a.allowedRecipients);
   const outside = recipients.filter((r) => !recipientAllowed(allow, r));
   if (outside.length) throw await block("recipient_not_allowed", `This agent may only send to its allowed recipients. Not allowed: ${outside.join(", ")}.`);
-  if ((await sentTodayBy(deps, a.id)) >= a.sendCapDaily) throw await block("agent_send_cap", `This agent has reached its limit of ${a.sendCapDaily} messages today. It resets at midnight UTC.`, 429);
+  if ((await sentTodayBy(deps, a)) >= a.sendCapDaily) throw await block("agent_send_cap", `This agent has reached its limit of ${a.sendCapDaily} messages today. It resets at midnight UTC.`, 429);
   const plan = await getPlan(deps.db, actor.orgId);
   if ((await readCounter(deps.db, actor.orgId, "agent_messages", deps.now())) >= plan.limits.agentMessagesMonthly) {
     throw await block("plan_limit", `Agents in this workspace have sent ${plan.limits.agentMessagesMonthly.toLocaleString("en-AU")} messages this month, the plan's allowance. ${addonHint("agentMessagesMonthly")}`);
