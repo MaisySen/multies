@@ -7,6 +7,31 @@
 import { ImapFlow } from "imapflow";
 import type { ServerSettings } from "@/shared/mail-connect";
 
+/** R59: the largest second partial fetch of one message (headers longer than this are read from the envelope only). */
+export const HEAD_PEEK_MAX = 32768;
+
+/** R59: where the header block of raw message bytes ends (the first byte after the blank line), or -1 when it is not in them. */
+export function headerEnd(src: Uint8Array): number {
+  for (let i = 0; i + 1 < src.length; i++) {
+    if (src[i] !== 10) continue;
+    if (src[i + 1] === 10) return i + 2;
+    if (src[i + 1] === 13 && src[i + 2] === 10) return i + 3;
+  }
+  return -1;
+}
+
+/**
+ * R59: how many bytes a second partial fetch of a message should take, or 0 when the first one is enough: the whole
+ * message is in hand, or its headers ended and at least 2 KB of body follow (enough for the preview).
+ */
+export function secondPeek(src: Uint8Array | undefined, size: number, peek: number): number {
+  if (!src || !size || src.byteLength >= size) return 0;
+  const end = headerEnd(src);
+  if (end < 0) return Math.min(size, HEAD_PEEK_MAX);
+  if (src.byteLength - end >= 2048) return 0;
+  return Math.min(size, end + peek, HEAD_PEEK_MAX);
+}
+
 export interface ImapAuth { user: string; secret: string; xoauth2?: boolean }
 
 export interface FolderPaths { inbox: string; sent?: string; archive?: string; trash?: string; drafts?: string; spam?: string }
@@ -21,7 +46,9 @@ export interface FetchedMessage {
   /** The raw message; missing when it was over the size limit. */
   source?: Uint8Array;
   /** Headers only, for messages over the size limit. */
-  envelope?: { subject?: string; messageId?: string; date?: Date; from?: { address?: string; name?: string } };
+  envelope?: { subject?: string; messageId?: string; date?: Date; from?: { address?: string; name?: string }; to?: { address: string; name?: string }[]; cc?: { address: string; name?: string }[]; inReplyTo?: string };
+  /** R59: the server's INTERNALDATE (when it received the message), a date of last resort for a partial fetch. */
+  internalDate?: Date;
   /**
    * R53: set by the sync when the body was not downloaded because the message is already known: `known` is the stored
    * copy's Message-ID (same mailbox), `dup` means an earlier folder in the same pass already brought the same message.
@@ -150,14 +177,32 @@ class FlowSession implements ImapSession {
   async fetchHeads(uids: number[], peekBytes: number) {
     if (!uids.length) return [];
     const out: FetchedMessage[] = [];
-    for await (const m of this.c.fetch(range(uids), { uid: true, flags: true, size: true, envelope: true, source: { start: 0, maxLength: peekBytes } }, { uid: true })) {
+    const addr = (list?: { address?: string; name?: string }[]) => (list ?? []).filter((a) => !!a.address).map((a) => ({ address: a.address!, name: a.name || undefined }));
+    for await (const m of this.c.fetch(range(uids), { uid: true, flags: true, size: true, envelope: true, internalDate: true, source: { start: 0, maxLength: peekBytes } }, { uid: true })) {
       const e = m.envelope;
       const size = Number(m.size ?? 0);
+      const internal = m.internalDate instanceof Date && !Number.isNaN(m.internalDate.getTime()) ? m.internalDate : undefined;
       out.push({
         uid: Number(m.uid), flags: new Set(m.flags ?? []), size, partial: true,
         ...(m.source ? { source: new Uint8Array(m.source) } : {}),
-        envelope: e ? { subject: e.subject, messageId: e.messageId, date: e.date ? new Date(e.date) : undefined, from: e.from?.[0] ? { address: e.from[0].address, name: e.from[0].name } : undefined } : undefined,
+        ...(internal ? { internalDate: internal } : {}),
+        envelope: e ? {
+          subject: e.subject, messageId: e.messageId, date: e.date ? new Date(e.date) : undefined,
+          from: e.from?.[0]?.address ? { address: e.from[0].address, name: e.from[0].name } : undefined,
+          to: addr(e.to), cc: addr(e.cc), inReplyTo: e.inReplyTo || undefined,
+        } : undefined,
       });
+    }
+    // R59: a message whose header block is longer than the peek (long Received/ARC/DKIM chains) or whose body starts at
+    // the very end of it gets one more partial fetch, so its row has real headers and a preview.
+    const again = out.map((h) => ({ h, want: secondPeek(h.source, h.size, peekBytes) })).filter((x) => x.want > 0);
+    if (again.length) {
+      const byUid = new Map(again.map((x) => [x.h.uid, x.h]));
+      const maxLength = Math.max(...again.map((x) => x.want));
+      for await (const m of this.c.fetch(range(again.map((x) => x.h.uid)), { uid: true, source: { start: 0, maxLength } }, { uid: true })) {
+        const h = byUid.get(Number(m.uid));
+        if (h && m.source && m.source.length > (h.source?.byteLength ?? 0)) h.source = new Uint8Array(m.source);
+      }
     }
     return out.sort((a, b) => a.uid - b.uid);
   }

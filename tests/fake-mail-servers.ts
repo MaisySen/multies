@@ -5,6 +5,7 @@
  * tests/connect.live.test.ts.
  */
 import type { FetchedMessage, FolderPaths, ImapConnector, ImapSession, InboxWatcher } from "@/server/services/connect/imap";
+import { secondPeek } from "@/server/services/connect/imap";
 import type { MailSocket, SocketOpener } from "@/server/services/connect/socket";
 import { SocketError } from "@/server/services/connect/socket";
 
@@ -22,6 +23,8 @@ export class FakeImapServer {
   actions: string[] = [];
   /** R57: bulk header fetches made (backfill). */
   headFetches?: number;
+  /** R59: the server answers no envelope on header fetches (a sender that can't be read yet). */
+  noEnvelope?: boolean;
 
   addAccount(user: string, password: string, opts: { sentPath?: string } = {}) {
     const folders = new Map<string, Folder>();
@@ -111,9 +114,10 @@ export class FakeImapServer {
         server.headFetches = (server.headFetches ?? 0) + 1;
         return open!.msgs.filter((m) => uids.includes(m.uid)).map((m): FetchedMessage => {
           const size = Buffer.byteLength(m.raw);
-          const subject = /^Subject: (.*)$/m.exec(m.raw)?.[1];
           const bytes = new TextEncoder().encode(m.raw);
-          return { uid: m.uid, flags: new Set(m.flags), size, source: bytes.slice(0, peekBytes), partial: size > peekBytes, envelope: { subject, messageId: /^Message-ID: (.*)$/mi.exec(m.raw)?.[1]?.trim(), date: m.internalDate, from: { address: "big@example.com" } } };
+          // R59: like the real session, a second partial fetch when the headers outrun the peek or the body barely starts.
+          const again = server.noEnvelope ? 0 : secondPeek(bytes.slice(0, peekBytes), size, peekBytes);
+          return { uid: m.uid, flags: new Set(m.flags), size, source: bytes.slice(0, again || peekBytes), partial: size > peekBytes, internalDate: m.internalDate, envelope: server.noEnvelope ? undefined : envelopeOf(m.raw, m.internalDate) };
         });
       },
       async fetch(uids, maxBytes) {
@@ -248,8 +252,19 @@ class FakeSmtpSocket implements MailSocket {
   async close() { this.closed = true; for (const w of this.waiting.splice(0)) w(null); }
 }
 
-export function rawMail(o: { from?: string; to: string; subject: string; id: string; body?: string; inReplyTo?: string; date?: Date }) {
+/** R59: what an IMAP server's ENVELOPE says for a raw message (From, Subject, Message-ID, Date, To), as the session maps it. */
+export function envelopeOf(raw: string, internal?: Date): NonNullable<FetchedMessage["envelope"]> {
+  const head = raw.slice(0, Math.max(0, raw.search(/\r?\n\r?\n/)) || raw.length);
+  const get = (k: string) => new RegExp(`^${k}: (.*)$`, "mi").exec(head)?.[1]?.trim();
+  const addr = (v?: string) => { if (!v) return undefined; const m = /^(?:"?(.*?)"?\s*)?<([^>]+)>$/.exec(v); return m ? { address: m[2], name: m[1] || undefined } : { address: v }; };
+  const d = get("Date");
+  const to = addr(get("To"));
+  return { subject: get("Subject"), messageId: get("Message-ID"), date: d ? new Date(d) : internal, from: addr(get("From")), to: to ? [to] : [] };
+}
+
+export function rawMail(o: { from?: string; to: string; subject: string; id: string; body?: string; inReplyTo?: string; date?: Date; extraHeaders?: string[] }) {
   return [
+    ...(o.extraHeaders ?? []),
     `From: ${o.from ?? "Grace Hopper <grace@navy.mil>"}`, `To: ${o.to}`, `Subject: ${o.subject}`, `Message-ID: ${o.id}`,
     ...(o.inReplyTo ? [`In-Reply-To: ${o.inReplyTo}`, `References: ${o.inReplyTo}`] : []),
     `Date: ${(o.date ?? new Date()).toUTCString()}`, "MIME-Version: 1.0", "Content-Type: text/plain; charset=utf-8", "", o.body ?? "Hello there.", "",

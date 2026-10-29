@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-30-older-mail-headers",
+    date: "2026-10-30",
+    title: "Older mail shows its sender and subject",
+    body: "Some older emails copied from a connected mailbox showed as unknown@invalid with no subject. They now load their real sender, subject, date and preview, and stay out of your list until they do.",
+  },
+  {
     id: "2026-10-29-workspace-tabs",
     date: "2026-10-29",
     title: "Other tabs follow your workspace",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "Tell the command menu what to do",
     body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
-  },
-  {
-    id: "2026-10-28-easier-to-read-phone",
-    date: "2026-10-28",
-    title: "Easier to read on phones",
-    body: "The unread count on the phone tab bar is a deeper red, so the number is easier to read. Screen readers now name the workspace, account and mail buttons with the words you see on them.",
   },
   {
     id: "2026-10-28-whats-new",

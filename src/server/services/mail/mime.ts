@@ -87,7 +87,7 @@ export async function parseMime(raw: string | Uint8Array | ArrayBuffer): Promise
 /** Plain-text preview of a message for list views. */
 export function makeSnippet(text: string, html?: string): string {
   let src = text;
-  if (!src.trim() && html) src = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
+  if (!src.trim() && html) src = html.replace(/<style[\s\S]*?(?:<\/style>|$)|<script[\s\S]*?(?:<\/script>|$)/gi, " ").replace(/<[^>]+>/g, " ");
   return src
     .split(/\r?\n/)
     .filter((l) => !l.trim().startsWith(">"))
