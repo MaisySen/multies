@@ -36,7 +36,7 @@ import { chatLiveUpgrade, durableChatLive } from "../server/realtime/worker";
 import { CHAT_LIVE_PATH } from "../server/realtime/hub";
 import { durablePresence } from "../server/collab/thread-presence";
 import { workerSocketOpener } from "./worker-socket";
-import { syncConnection } from "../server/services/connect/sync";
+import { loadBody, syncConnection } from "../server/services/connect/sync";
 import { LiveBudget, LiveMail, type LiveTouch } from "../server/services/connect/live";
 import { withReadRetry } from "../server/lib/d1-busy";
 import { withWriteMeter } from "../server/services/workspace-budget";
@@ -120,6 +120,7 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
     importFiles: env.IMPORT_FILES ? kvImportFileStore(env.IMPORT_FILES) : undefined, // R43
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
+    loadMailBody: mailBodyDispatcher(env),
     liveMail: liveMailDispatcher(env),
     liveWait: liveWaitDispatcher(env),
     presence: presenceDispatcher(env),
@@ -159,6 +160,16 @@ function mailSyncDispatcher(env: WorkerEnv): ((id: string) => Promise<void>) | u
   return async (id: string) => {
     const res = await ns.get(ns.idFromName(id)).fetch(new Request("https://mail-sync/run", { method: "POST", body: JSON.stringify({ id }) }));
     if (!res.ok) throw new Error(`mail sync answered ${res.status}`);
+  };
+}
+
+/** R57: an older message's body is fetched in a Durable Object (named by mailbox), where the CPU allowance fits a MIME parse. */
+function mailBodyDispatcher(env: WorkerEnv): ((mailboxId: string, messageId: string) => Promise<void>) | undefined {
+  const ns = env.MAIL_SYNC as DurableObjectNamespaceLike | undefined;
+  if (!ns || typeof ns.idFromName !== "function") return undefined;
+  return async (mailboxId: string, messageId: string) => {
+    const res = await ns.get(ns.idFromName(`body:${mailboxId}`)).fetch(new Request("https://mail-sync/body", { method: "POST", body: JSON.stringify({ messageId }) }));
+    if (!res.ok) throw new Error(`mail body answered ${res.status}`);
   };
 }
 
@@ -215,6 +226,11 @@ export class MailSyncRunner {
       if (path === "/wait") return Response.json({ stored: await this.live.waitForMail(body.id, Math.min(Number(body.ms) || 0, 25_000)) });
       return Response.json(await this.live.touch(body.id, body.seconds));
     }
+    if (path === "/body") {
+      const { messageId } = (await request.json()) as { messageId: string };
+      const { deps } = await getReady(this.env);
+      return Response.json({ loaded: await loadBody({ ...deps, loadMailBody: undefined, dispatchMailSync: undefined }, messageId) });
+    }
     const { id } = (await request.json()) as { id: string };
     await this.state.storage.put("id", id);
     return Response.json(await this.pass(id));
@@ -241,7 +257,8 @@ export class MailSyncRunner {
   private async pass(id: string) {
     const { deps } = await getReady(this.env);
     const r = await syncConnection({ ...deps, dispatchMailSync: undefined }, id);
-    if (r.more && !r.skipped) await this.state.storage.setAlarm(Date.now() + 20_000);
+    // R57: while only older mail is left, the next pass follows sooner (it is header only and cheap).
+    if (r.more && !r.skipped) await this.state.storage.setAlarm(Date.now() + (r.backfilled && r.backfilled === r.stored ? 10_000 : 20_000));
     return { stored: r.stored, more: r.more, skipped: r.skipped ?? null };
   }
 }

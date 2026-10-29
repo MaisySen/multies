@@ -28,6 +28,8 @@ export interface FetchedMessage {
    */
   known?: string;
   dup?: boolean;
+  /** R57: `source` holds only the first bytes of the message (backfill: headers and the start of the body, for the snippet). */
+  partial?: boolean;
 }
 
 /** R53: which of the fetched headers still need their body (the rest are already stored or already in this pass). */
@@ -45,6 +47,13 @@ export interface ImapSession {
   /** UIDs above `uid` in the open folder. */
   uidsAfter(uid: number): Promise<number[]>;
   fetch(uids: number[], maxBytes: number, needSource?: NeedSource): Promise<FetchedMessage[]>;
+  /** R57: UIDs below `uid` in the open folder (older mail, for the full history backfill). */
+  uidsBefore?(uid: number): Promise<number[]>;
+  /**
+   * R57: one bulk FETCH for older mail: flags, size, envelope and only the first `peekBytes` of each message (headers
+   * plus the start of the body, enough for threading and the snippet). The full body is fetched when it is first opened.
+   */
+  fetchHeads?(uids: number[], peekBytes: number): Promise<FetchedMessage[]>;
   /**
    * Flags of every message with a UID in [lo, hi]. R53: with `changedSince` (a CONDSTORE mod-sequence) only the
    * messages whose flags changed after it (servers without CONDSTORE answer every message, which is still correct).
@@ -130,6 +139,27 @@ class FlowSession implements ImapSession {
       }
     }
     return heads.sort((a, b) => a.uid - b.uid);
+  }
+
+  async uidsBefore(uid: number) {
+    if (uid <= 1) return [];
+    const r = await this.c.search({ uid: `1:${uid - 1}` }, { uid: true });
+    return (r || []).map(Number).filter((u) => u < uid).sort((a, b) => a - b);
+  }
+
+  async fetchHeads(uids: number[], peekBytes: number) {
+    if (!uids.length) return [];
+    const out: FetchedMessage[] = [];
+    for await (const m of this.c.fetch(range(uids), { uid: true, flags: true, size: true, envelope: true, source: { start: 0, maxLength: peekBytes } }, { uid: true })) {
+      const e = m.envelope;
+      const size = Number(m.size ?? 0);
+      out.push({
+        uid: Number(m.uid), flags: new Set(m.flags ?? []), size, partial: true,
+        ...(m.source ? { source: new Uint8Array(m.source) } : {}),
+        envelope: e ? { subject: e.subject, messageId: e.messageId, date: e.date ? new Date(e.date) : undefined, from: e.from?.[0] ? { address: e.from[0].address, name: e.from[0].name } : undefined } : undefined,
+      });
+    }
+    return out.sort((a, b) => a.uid - b.uid);
   }
 
   async flags(lo: number, hi: number, opts: { changedSince?: string } = {}) {

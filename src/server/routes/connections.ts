@@ -9,7 +9,7 @@ import {
   connectEnabled, createConnection, getConnection, listConnections, reconnect, removeConnection, testConnection,
 } from "../services/connect";
 import { ConnectFailed } from "../services/connect/problems";
-import { syncConnection } from "../services/connect/sync";
+import { setBackfillPaused, syncAndChain, syncConnection } from "../services/connect/sync";
 import { LIVE_WINDOW_SECONDS, localLiveMail, type LiveMode } from "../services/connect/live";
 import { listFolders, setFolderSync } from "../services/connect/folders";
 import { oauthAvailable, oauthFinish, oauthStart, type OAuthProvider } from "../services/connect/oauth";
@@ -101,7 +101,7 @@ export function connectionRoutes() {
       const { deps, auth } = c.var;
       const connection = await run(() => createConnection(deps, auth, b as never));
       // The first pass runs now so the inbox has mail when the person opens it; the rest follows on its own.
-      const first = deps.dispatchMailSync ? deps.dispatchMailSync(connection.id) : syncConnection(deps, connection.id);
+      const first = deps.dispatchMailSync ? deps.dispatchMailSync(connection.id) : syncAndChain(deps, connection.id);
       const work = first.catch((err) => deps.log?.warn("mail_sync.first_failed", { connection: connection.id, error: (err as Error).message }));
       // Workers keep the pass running after the answer; Node (no execution context) waits for it.
       let waitUntil: ((p: Promise<unknown>) => void) | undefined;
@@ -115,8 +115,26 @@ export function connectionRoutes() {
       if (!syncs.take(auth.userId)) throw tooMany("Syncing already. Give it a minute.");
       const conn = await getConnection(deps, auth, c.req.param("id"));
       const result = await syncConnection(deps, conn.id, { force: true });
+      // R57: when more is waiting (new or older mail), the following passes run on their own.
+      if (result.more && !result.skipped) {
+        const chainMs = deps.config.mailConnect.chainMs;
+        const next: Promise<unknown> = deps.dispatchMailSync
+          ? deps.dispatchMailSync(conn.id).catch(() => undefined)
+          : chainMs > 0 ? new Promise((res) => setTimeout(res, chainMs)).then(() => syncAndChain(deps, conn.id)).catch(() => undefined) : Promise.resolve();
+        try { c.executionCtx.waitUntil(next); } catch { void next; }
+      }
       const fresh = (await listConnections(deps, auth)).find((x) => x.id === conn.id);
       return c.json({ result: { stored: result.stored, more: result.more, error: result.error ?? null, skipped: result.skipped ?? null }, connection: fresh });
+    })
+    // R57: pause or resume copying older mail (new mail keeps coming either way).
+    .post("/:id/backfill", async (c) => {
+      const { deps, auth } = c.var;
+      const b = await parseBody(c, z.object({ paused: z.boolean() }));
+      const conn = await getConnection(deps, auth, c.req.param("id"));
+      await setBackfillPaused(deps, conn.id, b.paused);
+      if (!b.paused && deps.dispatchMailSync) { try { c.executionCtx.waitUntil(deps.dispatchMailSync(conn.id).catch(() => undefined)); } catch { /* Node: the next scheduled pass */ } }
+      const fresh = (await listConnections(deps, auth)).find((x) => x.id === conn.id);
+      return c.json({ connection: fresh });
     })
     // Round 19: the provider's folders, and which of the person's own folders sync.
     .get("/:id/folders", async (c) => {

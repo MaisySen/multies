@@ -38,7 +38,17 @@ interface FolderState {
    * moves the modseq, an expunge moves the count, new mail moves the next UID), so the pass reads no flags for it.
    */
   f?: string;
+  /**
+   * R57 full history backfill: the lowest UID stored from this folder. UIDs below it are older mail still to copy,
+   * walked downward, newest first. `left` is how many were below it at the last pass; `done` once none are.
+   * A UIDVALIDITY change starts the folder again (new cursor, new `low`); Message-ID dedupe keeps that from doubling mail.
+   */
+  low?: number;
+  left?: number;
+  done?: boolean;
 }
+/** R57: backfill bookkeeping for the connection: messages backfilled on `day` (UTC), the person's pause, and why it waits. */
+export interface BackfillState { day: string; n: number; paused?: boolean; wait?: "daily" | "budget" | null }
 /**
  * Inbox and Sent cursors sit at the top level (round 18); round 19 adds the other synced folders
  * under `boxes` (Archive, Drafts, Spam, Trash, and the person's own folders as "f:<path>"), the
@@ -53,6 +63,7 @@ export interface SyncState {
   extra?: string[];
   list?: RemoteFolder[];
   listedAt?: number;
+  bf?: BackfillState;
 }
 
 export interface SyncResult {
@@ -61,8 +72,10 @@ export interface SyncResult {
   duplicates: number;
   flagsUpdated: number;
   pushed: number;
-  /** More new mail is waiting than this pass took. */
+  /** More new mail (or, R57, older mail the backfill may take now) is waiting than this pass took. */
   more: boolean;
+  /** R57: older messages stored header and snippet only by this pass. */
+  backfilled?: number;
   error?: string;
 }
 
@@ -222,7 +235,7 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
         const recent = await session.searchSince(since);
         const cap = box === "inbox" ? cfg.initialCap : box === "sent" ? Math.ceil(cfg.initialCap / 2) : Math.ceil(cfg.initialCap / 4);
         const kept = recent.slice(-cap);
-        st = { path, v: opened.uidValidity, last: kept.length ? kept[0] - 1 : Math.max(0, opened.uidNext - 1) };
+        st = { path, v: opened.uidValidity, last: kept.length ? kept[0] - 1 : Math.max(0, opened.uidNext - 1), low: kept.length ? kept[0] : Math.max(1, opened.uidNext) };
         setCursor(state, box, st);
       }
       if (budget <= 0) { result.more = result.more || (await session.uidsAfter(st.last)).length > 0; continue; }
@@ -238,11 +251,21 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
 
 
     result.flagsUpdated = flagCount;
+    const newMore = result.more;
+
+    // R57: full history backfill, with what this pass has left once new mail is handled.
+    if (!newMore) {
+      const bf = await backfillStep(deps, c, session, state, reading, day, passIds);
+      fetched.push(...bf.fetched);
+      if (bf.more) result.more = true;
+    }
 
     const stored = await storeBatch(deps, c, mb.orgId, fetched);
+    result.backfilled = stored.lazy;
+    if (stored.lazy) { const b = (state.bf ??= { day, n: 0 }); if (b.day !== day) { b.day = day; b.n = 0; } b.n += stored.lazy; }
     result.stored = stored.stored;
     result.duplicates = stored.duplicates;
-    const initialDone = c.initialDone || !result.more;
+    const initialDone = c.initialDone || !newMore;
     await runBatch(deps.db, [
       ...stored.statements,
       ...flagChanges,
@@ -436,6 +459,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     // R53: headers only for mail already held (see needBodies): no MIME parse, straight to the duplicate path below.
     if (f.m.dup) { skippedDup++; continue; }
     if (f.m.known) { parsed.push({ ...f, e: { messageId: f.m.known } as unknown as ParsedEmail }); continue; }
+    if (f.m.partial) { parsed.push({ ...f, e: await parsePartial(f.m) }); continue; }
     try { parsed.push({ ...f, e: f.m.source ? await parseMime(f.m.source) : stub(f.m) }); } catch (err) {
       deps.log?.warn("mail_sync.unparsable", { connection: c.id, uid: f.m.uid, error: (err as Error).message });
     }
@@ -449,7 +473,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     for (const h of hits) if (h.mid) { known.set(h.mid, h.threadId); if (!rows.has(h.mid) || rows.get(h.mid)!.remoteUid !== null) rows.set(h.mid, h); }
   }
   const statements: PromiseLike<unknown>[] = [];
-  let stored = 0, duplicates = skippedDup, bytes = 0;
+  let stored = 0, duplicates = skippedDup, bytes = 0, lazy = 0;
   const seen = new Set<string>();
   for (const { box, m, e } of parsed) {
     if (e.messageId && (known.has(e.messageId) || seen.has(e.messageId))) {
@@ -468,6 +492,20 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     const threadId = refs.map((r) => known.get(r)).find(Boolean) ?? newId("thr");
     if (e.messageId) known.set(e.messageId, threadId);
     const id = newId("msg");
+    if (m.partial) {
+      // R57: older mail, header and snippet only: one row, no attachment rows, no storage counted. A negative size marks
+      // the body as still at the provider; loadBody fetches it the first time the message is opened.
+      statements.push(deps.db.insert(messages).values({
+        id, orgId, mailboxId: c.mailboxId, folder: localFolderFor(box), messageIdHeader: e.messageId ?? null,
+        inReplyTo: e.inReplyTo ?? null, references: e.references ?? null, threadId,
+        fromAddress: e.from?.address ?? "unknown@invalid", fromName: e.from?.name ?? "", to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []), bcc: "[]",
+        replyTo: e.replyTo ?? null, subject: e.subject ?? "", text: "", html: null, snippet: makeSnippet(e.text ?? "", e.html),
+        sizeBytes: -Math.max(1, m.size), isRead: box === "sent" || box === "drafts" || m.flags.has("\\Seen"), isStarred: m.flags.has("\\Flagged"), isAnswered: m.flags.has("\\Answered"),
+        hasAttachments: looksLikeAttachments(m), authResults: null, remoteBox: box, remoteUid: m.uid, date: e.date ?? m.envelope?.date ?? new Date(),
+      }));
+      stored++; lazy++;
+      continue;
+    }
     const size = m.source?.byteLength ?? m.size;
     bytes += size;
     const keepAtts = (e.attachments ?? []).filter((a) => a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES);
@@ -488,7 +526,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     stored++;
   }
   if (bytes && stored) statements.push(deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${bytes}` }).where(eq(mailboxes.id, c.mailboxId)));
-  return { statements, stored, duplicates };
+  return { statements, stored, duplicates, lazy };
 }
 
 /**
@@ -503,11 +541,175 @@ export async function runDueMailSyncs(deps: Deps, limit = 20) {
   for (const { id } of due) {
     try {
       if (deps.dispatchMailSync) await deps.dispatchMailSync(id);
-      else await syncConnection(deps, id);
+      else await syncAndChain(deps, id);
       dispatched++;
     } catch (err) {
       deps.log?.warn("mail_sync.dispatch_failed", { connection: id, error: (err as Error).message });
     }
   }
   return { dispatched };
+}
+
+
+/** R57: headers and the start of the body of an older message (a partial fetch), for its row and snippet. Never throws. */
+export async function parsePartial(m: FetchedMessage): Promise<ParsedEmail> {
+  const env = m.envelope ?? {};
+  let e: Partial<ParsedEmail> = {};
+  if (m.source) { try { e = await parseMime(m.source); } catch { e = {}; } }
+  return {
+    ...e,
+    messageId: e.messageId ?? env.messageId,
+    from: e.from?.address ? e.from : { address: env.from?.address ?? "unknown@invalid", name: env.from?.name },
+    subject: e.subject ?? env.subject ?? "(no subject)",
+    date: e.date ?? env.date ?? new Date(),
+    to: e.to ?? [], cc: e.cc ?? [], attachments: [],
+    text: e.text ?? "",
+  } as ParsedEmail;
+}
+
+/** R57: whether the top of a partly fetched message says it carries attachments (multipart/mixed, or an attachment part seen). */
+export function looksLikeAttachments(m: FetchedMessage): boolean {
+  if (!m.source) return false;
+  const head = new TextDecoder().decode(m.source.subarray(0, Math.min(m.source.byteLength, 8192)));
+  return /^content-type:\s*multipart\/mixed/im.test(head) || /content-disposition:\s*attachment/i.test(head);
+}
+
+/** R57: why the backfill waits, or how many older messages it may store now (per connection, account wide, write level). */
+export async function backfillAllowance(deps: Deps, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }, day: string) {
+  const cfg = deps.config.mailConnect.backfill;
+  if (!cfg.enabled) return { n: 0, wait: null as BackfillState["wait"] };
+  if (state.bf?.paused) return { n: 0, wait: null as BackfillState["wait"] };
+  if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return { n: 0, wait: "budget" as const };
+  const mine = state.bf?.day === day ? state.bf.n : 0;
+  const perConn = Math.max(0, cfg.dailyCap - mine);
+  if (perConn <= 0) return { n: 0, wait: "daily" as const };
+  // Account wide: what every connection backfilled today (a few rows, one read). Two passes at the same moment can
+  // each take one batch past the line; that is bounded by the batch size.
+  const row = await deps.db.select({ n: sql<number>`coalesce(sum(json_extract(${mailConnections.syncState}, '$.bf.n')), 0)` }).from(mailConnections)
+    .where(sql`json_extract(${mailConnections.syncState}, '$.bf.day') = ${day}`).get();
+  const global = Math.max(0, cfg.globalDaily - Number(row?.n ?? 0));
+  if (global <= 0) return { n: 0, wait: "daily" as const };
+  return { n: Math.min(cfg.batch, perConn, global), wait: null as BackfillState["wait"] };
+}
+
+/**
+ * R57: one backfill step. For each synced folder, Inbox and Sent first, walks the UIDs below the folder's `low` cursor,
+ * newest first, with one bulk header fetch per folder, until this pass's allowance is spent. Mail already stored (same
+ * Message-ID) keeps its header only and is skipped by the store step, so a restart or a UIDVALIDITY change never doubles
+ * mail. Answers the fetched heads (marked partial) and whether more older mail may be taken right away.
+ */
+export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }, day: string, passIds: Set<string>) {
+  const fetched: { box: Box; m: FetchedMessage }[] = [];
+  if (!session.uidsBefore || !session.fetchHeads) return { fetched, more: false };
+  const keys = syncedKeys(state).filter((k) => { const st = cursor(state, k); return st && !st.done; });
+  const bf = (state.bf ??= { day, n: 0 });
+  if (!keys.length) { bf.wait = null; return { fetched, more: false }; }
+  const allow = await backfillAllowance(deps, state, reading, day);
+  bf.wait = allow.wait;
+  let budget = allow.n;
+  if (budget <= 0) return { fetched, more: false };
+  const peek = deps.config.mailConnect.backfill.peekBytes;
+  for (const box of keys) {
+    if (budget <= 0) break;
+    const st = cursor(state, box)!;
+    const path = pathFor(state, box);
+    if (!path) continue;
+    try {
+      const opened = await session.open(path);
+      if (opened.uidValidity !== st.v) continue; // renumbered since the new mail step: the next pass starts it again
+      if (st.low === undefined) {
+        // A folder synced before R57: start below the oldest copy already stored from it.
+        const r = await deps.db.select({ lo: sql<number | null>`min(${messages.remoteUid})` }).from(messages)
+          .where(and(eq(messages.mailboxId, c.mailboxId), eq(messages.remoteBox, box))).get();
+        st.low = r?.lo ? Number(r.lo) : st.last + 1;
+      }
+      const older = await session.uidsBefore(st.low);
+      if (!older.length) { st.left = 0; st.done = true; continue; }
+      const take = older.slice(-budget);
+      const heads = await session.fetchHeads(take, peek);
+      await needBodies(deps, c.mailboxId, heads, passIds);
+      for (const m of heads) fetched.push({ box, m: { ...m, partial: true } });
+      st.low = take[0];
+      st.left = older.length - take.length;
+      if (st.left === 0) st.done = true;
+      budget -= take.length;
+    } catch (err) {
+      // A person's own folder that went away: leave it; Inbox and Sent problems surface through the pass.
+      if (!box.startsWith("f:")) throw err;
+      st.done = true;
+    }
+  }
+  const more = syncedKeys(state).some((k) => { const st = cursor(state, k); return st && !st.done; });
+  return { fetched, more: more && allow.n > 0 };
+}
+
+export { backfillProgress } from "./backfill-progress";
+
+/**
+ * R57: the body of an older message stored header and snippet only (negative size), fetched from the provider the first
+ * time it is opened, then kept: one UPDATE of the row (plus its attachment rows). Answers false when the provider no
+ * longer has it at that UID (moved or deleted there); the row keeps its snippet and the next folder sync ties it again.
+ */
+export async function loadBody(deps: Deps, messageId: string): Promise<boolean> {
+  const m = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, sizeBytes: messages.sizeBytes, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid })
+    .from(messages).where(eq(messages.id, messageId)).get();
+  if (!m || m.sizeBytes >= 0) return true;
+  if (!m.remoteBox || m.remoteUid === null) return false;
+  const c = await deps.db.select().from(mailConnections).where(eq(mailConnections.mailboxId, m.mailboxId)).get();
+  if (!c) return false;
+  const state = parseState(c.syncState);
+  const path = pathFor(state, m.remoteBox);
+  if (!path) return false;
+  const cfg = deps.config.mailConnect;
+  const secret = await connectionSecret(deps, c);
+  const access = c.authKind === "oauth" ? await (await import("./oauth")).accessTokenFor(deps, c, secret) : secret;
+  const session = await imapConnector(deps)({ host: c.imapHost, port: c.imapPort, security: c.imapSecurity }, { user: c.username, secret: access, xoauth2: c.authKind === "oauth" }, { allowSelfSigned: cfg.allowSelfSigned });
+  try {
+    const opened = await session.open(path);
+    const st = cursor(state, m.remoteBox);
+    if (st && st.v !== opened.uidValidity) return false;
+    const [f] = await session.fetch([m.remoteUid], MAX_SYNC_BYTES);
+    if (!f || f.uid !== m.remoteUid) return false;
+    const e = f.source ? await parseMime(f.source) : stub(f);
+    const size = f.source?.byteLength ?? f.size;
+    const statements: PromiseLike<unknown>[] = [
+      deps.db.update(messages).set({ text: e.text ?? "", html: e.html ?? null, snippet: makeSnippet(e.text ?? "", e.html), sizeBytes: Math.max(0, size), hasAttachments: (e.attachments?.length ?? 0) > 0, authResults: e.authResults ? JSON.stringify(e.authResults) : null }).where(eq(messages.id, m.id)),
+    ];
+    for (const a of e.attachments ?? []) {
+      const inline = a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES;
+      statements.push(deps.db.insert(attachments).values({ id: newId("att"), messageId: m.id, filename: a.filename.slice(0, 255), contentType: a.contentType.slice(0, 255), sizeBytes: a.content.byteLength, contentB64: inline ? toB64(a.content) : null, storageKey: null }));
+    }
+    if (size) statements.push(deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${size}` }).where(eq(mailboxes.id, m.mailboxId)));
+    await runBatch(deps.db, statements);
+    return true;
+  } finally {
+    await session.close().catch(() => undefined);
+  }
+}
+
+/**
+ * R57: a pass, then the next ones on their own while more mail is waiting. On Workers the connection's Durable Object
+ * chains passes on its alarm (dispatchMailSync); on Node a timer does, when MAIL_SYNC_CHAIN_MS is set (the local E2E server).
+ */
+export async function syncAndChain(deps: Deps, connectionId: string, opts: { force?: boolean } = {}): Promise<SyncResult> {
+  const r = await syncConnection(deps, connectionId, opts);
+  if (r.more && !r.skipped) {
+    if (deps.dispatchMailSync) {
+      await deps.dispatchMailSync(connectionId).catch((err) => deps.log?.warn("mail_sync.chain_failed", { connection: connectionId, error: (err as Error).message }));
+    } else if (deps.config.mailConnect.chainMs > 0) {
+      const t = setTimeout(() => { void syncAndChain(deps, connectionId).catch(() => undefined); }, deps.config.mailConnect.chainMs);
+      (t as unknown as { unref?: () => void }).unref?.();
+    }
+  }
+  return r;
+}
+
+/** R57: the person pauses or resumes copying older mail (one write). New mail keeps syncing either way. */
+export async function setBackfillPaused(deps: Deps, connectionId: string, paused: boolean) {
+  const c = await deps.db.select({ syncState: mailConnections.syncState }).from(mailConnections).where(eq(mailConnections.id, connectionId)).get();
+  if (!c) return;
+  const state = parseState(c.syncState);
+  const b = (state.bf ??= { day: today(deps.now()), n: 0 });
+  b.paused = paused;
+  await deps.db.update(mailConnections).set({ syncState: JSON.stringify(state), ...(paused ? {} : { nextSyncAt: deps.now() }) }).where(eq(mailConnections.id, connectionId));
 }

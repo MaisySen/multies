@@ -128,6 +128,8 @@ export interface ConnectionView {
   lastSyncAt: string | null;
   initialDone: boolean;
   messagesSynced: number;
+  /** R57: copying the whole mailbox (older mail comes in on its own, header first, body on first open). */
+  backfill?: { done: boolean; counted: boolean; synced: number; total: number; paused: boolean; wait: "daily" | "budget" | null };
   imapHost: string;
   smtpHost: string;
   createdAt: string;

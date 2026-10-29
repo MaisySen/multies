@@ -161,6 +161,10 @@ export interface AppConfig {
     initialCap: number;
     /** Minutes between scheduled syncs of one connection. */
     intervalMinutes: number;
+    /** R57: full history backfill (header and snippet only; body on first open). */
+    backfill: { enabled: boolean; batch: number; dailyCap: number; globalDaily: number; stopPct: number; peekBytes: number };
+    /** R57: Node only, the wait before the next chained pass (0, the default, chains nothing: the cron picks it up). */
+    chainMs: number;
     /** Live mail while Multies is open (IDLE on the Inbox). MAIL_LIVE=off turns it off. */
     live: boolean;
     /** Minutes of live windows a day for the whole account (Durable Object wall time on the free plan). */
@@ -293,6 +297,12 @@ const EnvSchema = z.object({
   MAIL_SYNC_INITIAL_DAYS: z.string().optional(),
   MAIL_SYNC_INITIAL_CAP: z.string().optional(),
   MAIL_SYNC_INTERVAL_MINUTES: z.string().optional(),
+  MAIL_SYNC_BACKFILL: z.string().optional(),
+  MAIL_SYNC_BACKFILL_BATCH: z.string().optional(),
+  MAIL_SYNC_BACKFILL_DAILY_CAP: z.string().optional(),
+  MAIL_SYNC_BACKFILL_GLOBAL_DAILY: z.string().optional(),
+  MAIL_SYNC_BACKFILL_STOP_PCT: z.string().optional(),
+  MAIL_SYNC_CHAIN_MS: z.string().optional(),
   MAIL_LIVE: z.string().optional(),
   MAIL_LIVE_MINUTES_PER_DAY: z.string().optional(),
   MAIL_OAUTH: z.string().optional(),
@@ -501,6 +511,23 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
         initialDays: num(env.MAIL_SYNC_INITIAL_DAYS, 30),
         initialCap: num(env.MAIL_SYNC_INITIAL_CAP, 200),
         intervalMinutes: num(env.MAIL_SYNC_INTERVAL_MINUTES, 10),
+        /**
+         * R57: full history backfill. Older mail is stored as header and snippet only (one messages row, no attachment
+         * rows, about 6 D1 rows written with its indexes) and its body is fetched when it is first opened.
+         * Per connection per UTC day `dailyCap` such messages, account wide `globalDaily`, and none at all once the
+         * account's D1 writes reach `stopPct` percent of the daily budget (below the 60% warn level, so staging keeps
+         * its writes and new mail is never held back). New mail keeps its own `batch` and `dailyCap` above.
+         */
+        backfill: {
+          enabled: env.MAIL_SYNC_BACKFILL !== "off" && env.MAIL_SYNC_BACKFILL !== "0" && env.MAIL_SYNC_BACKFILL !== "false",
+          batch: Math.min(num(env.MAIL_SYNC_BACKFILL_BATCH, 250), 500),
+          dailyCap: num(env.MAIL_SYNC_BACKFILL_DAILY_CAP, 5000),
+          globalDaily: num(env.MAIL_SYNC_BACKFILL_GLOBAL_DAILY, 7000),
+          stopPct: Math.min(num(env.MAIL_SYNC_BACKFILL_STOP_PCT, 50), 85),
+          peekBytes: 6144,
+        },
+        /** R57: Node only (no Durable Object alarm): the wait before the next chained pass while more mail is waiting. */
+        chainMs: env.MAIL_SYNC_CHAIN_MS ? num(env.MAIL_SYNC_CHAIN_MS, 0) : 0,
         live: env.MAIL_LIVE !== "off" && env.MAIL_LIVE !== "0" && env.MAIL_LIVE !== "false",
         liveMinutesPerDay: num(env.MAIL_LIVE_MINUTES_PER_DAY, 900),
         oauth: {

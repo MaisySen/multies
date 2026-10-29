@@ -20,6 +20,8 @@ export class FakeImapServer {
   /** Whether MOVE answers the new UIDs (UIDPLUS). */
   uidplus = true;
   actions: string[] = [];
+  /** R57: bulk header fetches made (backfill). */
+  headFetches?: number;
 
   addAccount(user: string, password: string, opts: { sentPath?: string } = {}) {
     const folders = new Map<string, Folder>();
@@ -104,6 +106,16 @@ export class FakeImapServer {
       },
       async searchSince(since) { return open!.msgs.filter((m) => m.internalDate >= since).map((m) => m.uid); },
       async uidsAfter(uid) { return open!.msgs.filter((m) => m.uid > uid).map((m) => m.uid); },
+      async uidsBefore(uid) { return open!.msgs.filter((m) => m.uid < uid).map((m) => m.uid); },
+      async fetchHeads(uids, peekBytes) {
+        server.headFetches = (server.headFetches ?? 0) + 1;
+        return open!.msgs.filter((m) => uids.includes(m.uid)).map((m): FetchedMessage => {
+          const size = Buffer.byteLength(m.raw);
+          const subject = /^Subject: (.*)$/m.exec(m.raw)?.[1];
+          const bytes = new TextEncoder().encode(m.raw);
+          return { uid: m.uid, flags: new Set(m.flags), size, source: bytes.slice(0, peekBytes), partial: size > peekBytes, envelope: { subject, messageId: /^Message-ID: (.*)$/mi.exec(m.raw)?.[1]?.trim(), date: m.internalDate, from: { address: "big@example.com" } } };
+        });
+      },
       async fetch(uids, maxBytes) {
         return open!.msgs.filter((m) => uids.includes(m.uid)).map((m): FetchedMessage => {
           const size = Buffer.byteLength(m.raw);

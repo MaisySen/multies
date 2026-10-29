@@ -104,7 +104,18 @@ export function mailRoutes() {
     })
     .get("/messages/:id", async (c) => {
       const { db } = c.var.deps;
-      const m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
+      let m = await getMessage(db, c.var.auth.orgId, c.req.param("id"), await mailboxScope(db, c.var.auth));
+      if (m.sizeBytes < 0) {
+        // R57: older synced mail kept header and snippet only: fetch its body from the provider now, once.
+        const { deps } = c.var;
+        try {
+          if (deps.loadMailBody) await deps.loadMailBody(m.mailboxId, m.id);
+          else await (await import("../services/connect/sync")).loadBody(deps, m.id);
+          m = await getMessage(db, c.var.auth.orgId, m.id);
+        } catch (err) {
+          deps.log?.warn("mail_sync.body_failed", { message: m.id, error: (err as Error).message });
+        }
+      }
       if (!m.isRead) {
         // R32: read because it was opened is deferrable (services/write-priority.ts); the Mark read action is not.
         await deferrableWrite(c.var.deps, "mail_read_on_open", `${c.var.auth.userId}:${m.threadId}`, async () => {

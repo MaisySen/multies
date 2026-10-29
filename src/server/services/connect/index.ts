@@ -25,6 +25,7 @@ import { imapflowConnector, type ImapAuth } from "./imap";
 import { nodeSocketOpenerLazy } from "./default-socket";
 import { classifyProblem, ConnectFailed } from "./problems";
 import { smtpVerify } from "./smtp";
+import { backfillProgress } from "./backfill-progress";
 
 /** The shared domain row every connected mailbox sits on. Never resolvable, never sent from. */
 export const CONNECTED_DOMAIN = "connected.multies.invalid";
@@ -111,6 +112,7 @@ export function present(c: Connection, mb: { address: string; displayName: strin
     providerLabel: CONNECT_PRESETS[c.provider as ConnectPresetId]?.label ?? "Other server", authKind: c.authKind, status: c.status,
     lastError: c.lastError, lastSyncAt: c.lastSyncAt ? c.lastSyncAt.toISOString() : null, initialDone: c.initialDone,
     messagesSynced: c.messagesSynced, imapHost: c.imapHost, smtpHost: c.smtpHost, createdAt: c.createdAt.toISOString(),
+    backfill: backfillProgress(safeState(c.syncState), c.messagesSynced),
     // R41: the demo's sample connection (a .example host); the app offers a one tap Reconnect for it.
     ...(c.imapHost.endsWith(".example") ? { sample: true } : {}),
   };
@@ -259,3 +261,5 @@ export async function queueRemoteChange(deps: Deps, rows: MessageRow[], action: 
   }
   return values.length;
 }
+
+function safeState(raw: string | null | undefined) { try { return JSON.parse(raw || "{}") as Parameters<typeof backfillProgress>[0]; } catch { return {}; } }

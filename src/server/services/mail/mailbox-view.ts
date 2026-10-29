@@ -31,7 +31,9 @@ export function presentMessage(m: Row, atts: (typeof attachments.$inferSelect)[]
     html: m.html,
     messageIdHeader: m.messageIdHeader,
     authResults: m.authResults ? JSON.parse(m.authResults) : null,
-    sizeBytes: m.sizeBytes,
+    sizeBytes: Math.max(0, m.sizeBytes),
+    /** R57: older synced mail whose body is still at the provider (it loads when opened); the snippet stands in. */
+    ...(m.sizeBytes < 0 ? { bodyPending: true as const, text: m.snippet } : {}),
     attachments: atts.map((a) => ({ id: a.id, filename: a.filename, contentType: a.contentType, sizeBytes: a.sizeBytes, available: a.contentB64 !== null || a.storageKey !== null })),
   };
 }
@@ -108,7 +110,7 @@ export async function getThread(db: DB, orgId: string, m: Row) {
 export async function deleteMessagesPermanently(db: DB, rows: Row[]) {
   for (const r of rows) {
     await db.delete(messages).where(eq(messages.id, r.id));
-    await db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${r.sizeBytes})` }).where(eq(mailboxes.id, r.mailboxId));
+    await db.update(mailboxes).set({ usedBytes: sql`max(0, ${mailboxes.usedBytes} - ${Math.max(0, r.sizeBytes)})` }).where(eq(mailboxes.id, r.mailboxId));
   }
 }
 
