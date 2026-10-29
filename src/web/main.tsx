@@ -16,9 +16,12 @@ import "./index.css";
 import { prefetchOnIntent, prefetchRoute } from "./lib/prefetch";
 import { authProvidersQuery, isAuthLayoutPath } from "./lib/auth-providers";
 import { PUSH_ON_PAGE_EVENT, registerServiceWorker } from "./lib/sw-client";
+import { installStaleChunkRecovery } from "./lib/stale-chunk";
 
 // R25: start the opened page's code now, beside the app frame, instead of after the frame has loaded,
 // and warm a page's code when a link to it is hovered, touched or focused.
+// R56b: a page file from an older release reloads the tab once into the new release (lib/stale-chunk.ts).
+installStaleChunkRecovery();
 prefetchRoute(window.location.pathname);
 prefetchOnIntent();
 // R40 (MB-203): an /app page also needs the app frame's code; start it now beside the page's own, instead of

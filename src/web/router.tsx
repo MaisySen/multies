@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, type ReactNode } from "react";
 import { createBrowserRouter } from "react-router";
+import { RouteError } from "./components/route-error";
 import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
@@ -119,6 +120,7 @@ const publicPage = (node: ReactNode) => <Suspense fallback={<div className="min-
 export const router = createBrowserRouter([
   {
     element: <MarketingLayout />,
+    errorElement: <RouteError />,
     children: [
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: publicPage(<PricingPage />) },
@@ -139,6 +141,7 @@ export const router = createBrowserRouter([
   },
   {
     element: <AuthLayout />,
+    errorElement: <RouteError />,
     // R30: the auth layout holds its own Suspense, so the logo and the card appear together.
     children: [
       { path: "/login", element: <LoginPage /> },
@@ -153,6 +156,7 @@ export const router = createBrowserRouter([
   {
     path: "/app",
     element: <Suspense fallback={<AppSkeleton />}><AppLayout /></Suspense>,
+    errorElement: <RouteError />,
     children: [
       { index: true, element: page(<DashboardPage />) },
       { path: "my-work", element: page(<MyWorkPage />) },
@@ -213,14 +217,14 @@ export const router = createBrowserRouter([
     ],
   },
   // Public pages with no site header: a form anyone can fill in, and a meeting guest link.
-  { path: "/f/:slug", element: publicPage(<PublicFormPage />) },
-  { path: "/m/:token", element: publicPage(<GuestMeetingPage />) },
-  { path: "/book/:slug", element: publicPage(<BookingPage />) },
-  { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />) },
+  { path: "/f/:slug", element: publicPage(<PublicFormPage />), errorElement: <RouteError /> },
+  { path: "/m/:token", element: publicPage(<GuestMeetingPage />), errorElement: <RouteError /> },
+  { path: "/book/:slug", element: publicPage(<BookingPage />), errorElement: <RouteError /> },
+  { path: "/book/:slug/cancel/:id", element: publicPage(<BookingCancelPage />), errorElement: <RouteError /> },
   // A project guest (a client): the invite link, then the one project they can see.
-  { path: "/g/:token", element: publicPage(<GuestAcceptPage />) },
-  { path: "/guest", element: publicPage(<GuestProjectPage />) },
-  { path: "/thanks", element: publicPage(<ThanksPage />) },
-  { path: "/thank-you", element: publicPage(<ThanksPage />) },
+  { path: "/g/:token", element: publicPage(<GuestAcceptPage />), errorElement: <RouteError /> },
+  { path: "/guest", element: publicPage(<GuestProjectPage />), errorElement: <RouteError /> },
+  { path: "/thanks", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
+  { path: "/thank-you", element: publicPage(<ThanksPage />), errorElement: <RouteError /> },
   { path: "*", element: <NotFound /> },
 ]);
