@@ -166,4 +166,14 @@ describe("R57 full mailbox sync", () => {
     expect(backfillProgress({ ...plain, inbox: { ...plain.inbox, done: true }, sent: { ...plain.sent, done: true } }, 990)).toMatchObject({ done: true, total: 990 });
     expect(backfillProgress({ ...plain, bf: { day: "x", n: 1, paused: true } } as never, 220)).toMatchObject({ paused: true });
   });
+
+  it("older mail does not use up the new mail cap: a backfill past it keeps chaining to the end", async () => {
+    const { ctx, row, count } = await setup({ MAIL_SYNC_DAILY_CAP: "20" }, 90, 0);
+    const results = await drain(ctx, row.id, 40);
+    expect(results.every((r) => r.skipped === undefined)).toBe(true);
+    expect(await count()).toBe(90);
+    // New mail still has its own cap of 20 a day, older mail aside.
+    const c = (await ctx.db.select().from(mailConnections).where(eq(mailConnections.id, row.id)).get())!;
+    expect(c.messagesToday).toBe(90);
+  });
 });

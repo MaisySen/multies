@@ -158,10 +158,13 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
   }
   const cfg = deps.config.mailConnect;
   const day = today(now);
-  const doneToday = c.day === day ? c.messagesToday : 0;
-  const allowance = Math.max(0, cfg.dailyCap - doneToday);
-
   const state = parseState(c.syncState);
+  const doneToday = c.day === day ? c.messagesToday : 0;
+  // R57: messagesToday counts every message stored today; older mail from the backfill has its own caps, so only new
+  // mail counts against the new mail cap (otherwise a big backfill used it up and stopped the chain at 500).
+  const backfilledToday = state.bf?.day === day ? state.bf.n : 0;
+  const allowance = Math.max(0, cfg.dailyCap - Math.max(0, doneToday - backfilledToday));
+
   let session: ImapSession;
   try {
     const secret = await connectionSecret(deps, c);
