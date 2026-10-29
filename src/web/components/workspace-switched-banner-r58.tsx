@@ -22,10 +22,15 @@ export function useAnnounceWorkspace(org: Me["organization"] | null | undefined)
   const ready = !!org?.id;
   useEffect(() => {
     if (!ready) return;
-    let carried: string | null = null;
-    try { carried = sessionStorage.getItem(CARRY_KEY); sessionStorage.removeItem(CARRY_KEY); } catch { /* blocked */ }
-    if (!carried) return;
-    const t = setTimeout(() => toast.success("What you typed before reloading is copied. Paste it to carry on.", { id: "carried-text", duration: 12_000 }), 250);
+    let carried: { copied?: boolean; text?: string } | null = null;
+    try { carried = JSON.parse(sessionStorage.getItem(CARRY_KEY) ?? "null"); sessionStorage.removeItem(CARRY_KEY); } catch { /* blocked or old */ }
+    const text = carried?.text;
+    if (!text) return;
+    const words = carried?.copied ? "What you typed before reloading is copied. Paste it to carry on." : "What you typed before reloading is kept. Copy it to carry on.";
+    const t = setTimeout(() => toast.success(words, {
+      id: "carried-text", duration: 20_000,
+      action: { label: "Copy", onClick: () => { void navigator.clipboard?.writeText(text).catch(() => undefined); } },
+    }), 250);
     return () => clearTimeout(t);
   }, [ready]);
 }
@@ -33,9 +38,10 @@ export function useAnnounceWorkspace(org: Me["organization"] | null | undefined)
 export async function reloadKeepingText(): Promise<void> {
   const text = typeof document !== "undefined" ? typedText(document) : "";
   if (text) {
-    try { await navigator.clipboard.writeText(text); sessionStorage.setItem(CARRY_KEY, "1"); } catch { /* no clipboard: the text stays in this tab, so ask first */
-      if (!window.confirm("Reloading clears what you typed in this tab. Copy it first if you need it. Reload now?")) return;
-    }
+    let copied = false;
+    try { await navigator.clipboard.writeText(text); copied = true; } catch { /* no clipboard here: the next page offers Copy */ }
+    // The text itself rides to the next page (this tab only), so it is never lost even without a clipboard.
+    try { sessionStorage.setItem(CARRY_KEY, JSON.stringify({ copied, text })); } catch { /* blocked */ }
   }
   // Open the workspace that is active now; a page of the old one (a project, a doc) would not open there.
   window.location.assign("/app");
