@@ -42,7 +42,8 @@ test("Reply from the shared inbox in the Mail composer, and the draft survives a
   await expect(bar.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
   await expect(bar.getByRole("button", { name: "Reply all" })).toBeVisible();
   await bar.getByRole("button", { name: "Reply", exact: true }).click();
-  const body = page.locator("textarea").first();
+  const composer = page.getByRole("dialog", { name: "New message" });
+  const body = composer.getByLabel("Message");
   await expect(body).toBeVisible();
   await expect(page).toHaveURL(/\/app\/inbox/);
   const words = `Checking this now ${Date.now()}`;
