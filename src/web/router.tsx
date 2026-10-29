@@ -9,6 +9,10 @@ import { AppSkeleton } from "./layouts/app-skeleton";
 
 // R25: sign-in and the other public pages load on their own, so the landing page carries none of the
 // auth client and the app carries none of the marketing pages.
+const StartupsPage = lazy(() => import("./pages/startups").then((m) => ({ default: m.StartupsPage }))); // R58 (MB-237)
+const switchPages = () => import("./pages/switch"); // R58 (MB-237)
+const SwitchIndexPage = lazy(() => switchPages().then((m) => ({ default: m.SwitchIndexPage })));
+const SwitchPage = lazy(() => switchPages().then((m) => ({ default: m.SwitchPage })));
 const PricingPage = lazy(() => import("./pages/pricing").then((m) => ({ default: m.PricingPage })));
 const AgentsDevPage = lazy(() => import("./pages/agents").then((m) => ({ default: m.AgentsDevPage })));
 const McpDocsPage = lazy(() => import("./pages/mcp-docs").then((m) => ({ default: m.McpDocsPage }))); // R36
@@ -124,6 +128,9 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Landing /> },
       { path: "/pricing", element: publicPage(<PricingPage />) },
+      { path: "/startups", element: publicPage(<StartupsPage />) }, // R58 (MB-237): the free plan for small teams
+      { path: "/switch", element: publicPage(<SwitchIndexPage />) }, // R58 (MB-237)
+      { path: "/switch/:source", element: publicPage(<SwitchPage />) }, // R58 (MB-237): one page per import source
       { path: "/agents", element: publicPage(<AgentsDevPage />) },
       { path: "/developers/mcp", element: publicPage(<McpDocsPage />) }, // R36: MCP tool docs
       { path: "/status", element: publicPage(<StatusPage />) },
