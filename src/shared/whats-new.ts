@@ -16,6 +16,30 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-29-workspace-tabs",
+    date: "2026-10-29",
+    title: "Other tabs follow your workspace",
+    body: "Switch workspace in one tab and your other tabs ask you to reload, so nothing saves in the wrong place.",
+  },
+  {
+    id: "2026-10-29-guest-link",
+    date: "2026-10-29",
+    title: "Share a guest invite yourself",
+    body: "When an invite email doesn't reach a guest, copy their invite link and send it your own way. Get link on a waiting guest makes a fresh one.",
+  },
+  {
+    id: "2026-10-29-move-ref",
+    date: "2026-10-29",
+    title: "Moves say when a number changes",
+    body: "The command menu tells you when moving a task to another project gives it a new number, and checks before it makes a new label.",
+  },
+  {
+    id: "2026-10-29-free-and-switch",
+    date: "2026-10-29",
+    title: "Free for a small team, and easy to move in",
+    body: "See what Free includes on one page, and move your work over from eight tools, with a sample file to try first.",
+  },
+  {
     id: "2026-10-29-full-mailbox-sync",
     date: "2026-10-29",
     title: "Your whole mailbox syncs by itself",
@@ -74,30 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "What's new, in the app",
     body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
-  },
-  {
-    id: "2026-10-28-delete-meetings",
-    date: "2026-10-28",
-    title: "Delete a meeting",
-    body: "Meetings can now be deleted, from the app or through the API.",
-  },
-  {
-    id: "2026-10-27-webhook-events",
-    date: "2026-10-27",
-    title: "More webhook events",
-    body: "Webhooks now tell you when a project, doc or comment is deleted, and when a comment is added or edited.",
-  },
-  {
-    id: "2026-10-27-mail-to-task-phone",
-    date: "2026-10-27",
-    title: "Turn an email into a task on your phone",
-    body: "An open email has a task button in the bar at the bottom. One tap makes a task, and if the thread already has one, the same tap opens it. Back from the task takes you to the email.",
-  },
-  {
-    id: "2026-10-27-workspace-switching",
-    date: "2026-10-27",
-    title: "Switching workspaces sticks",
-    body: "If your account is in several workspaces, switching from the workspace menu now lands on every device and stays put after a reload. If a switch cannot finish, the menu says so and keeps you where you were.",
   },
 ];
 

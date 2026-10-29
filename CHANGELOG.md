@@ -7,6 +7,16 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 58 (29 Oct 2026)
+
+- Changed: older mail backfill shares each pass between Sent and Inbox (Sent first with half, the rest flows to Inbox, then other folders), so a big Inbox no longer leaves Sent waiting until it is done.
+- Changed: deploys keep the previous release's /assets files (scripts/carry-assets.mjs walks the live release from index.html through every chunk, style and font it names; local deploy script and CI), so a tab opened before a deploy still loads its lazy pages.
+- Fixed: the agent daily send count read every message in the database; it now rides the (org, folder, date) index. Index study of `messages` in files/plans: every index is in real use, no migration.
+- Added: switching workspace in one tab shows a Reload banner in your other tabs, and those tabs send no writes until they reload (MB-245).
+- Added: Get link on a waiting guest makes a fresh invite link without email; clearer wording when an invite was not emailed (MB-253).
+- Changed: the command menu says when a move gives a task a new number, and asks before making a new label (MB-246; old ref aliases planned, not built).
+- Added: /startups shows what Free includes for small teams, with every limit read from the plan (3 seats); /switch and a page per supported import tool (8) with a sample file and a button into the import, which now opens on that tool (MB-237).
+
 ### Round 57 (29 Oct 2026)
 
 - Added: full mailbox sync. After new mail, every sync pass walks each folder's older mail downward (Inbox and Sent first) until the folder's first message, chaining passes on its own. Older mail is stored as header and snippet only (one row, about 6 D1 rows written with its indexes) and its body is fetched from the provider the first time it is opened. Caps: 5,000 older messages per connection and 7,000 account wide per UTC day, and none once the account's D1 writes reach 50% (below the 60% warn level); new mail is never held back by these. Restart safe, deduped by Message-ID, and a UIDVALIDITY change starts the folder again without doubling mail.
