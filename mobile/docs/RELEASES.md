@@ -1,5 +1,17 @@
 # Releases
 
+## 27 Oct 2026: 1.9.8 to 100%, then 1.9.8 plus Switch workspace (critical)
+
+- 12:13 UTC: 1.9.8 (commit 724e8e8) promoted from 10% straight to 100% on both platforms. The 50% step was
+  skipped by the root's decision for an owner urgent bug (one account in three workspaces could not reach the
+  others from the phone). Schedule c482cc21 (12:00 promote check) was cancelled by the root first.
+- 12:19 UTC preview: ios update 01a17d49-a338-739c-895e-7c4b49885f46 (group 94574dc6-6746-4365-b39d-be4a261d36fc),
+  android update 01a17d49-a338-7e3d-b6de-4fc1bbf3fe7c (group 2fb9d112-8df8-49ef-ae77-e1f444383e26).
+- 12:22 UTC production at 100%, marked critical: ios update 01a17d4e-f6ee-7b29-aac5-c6a29f7d7c2a
+  (group dac22e49-9acc-45ba-97eb-f66d88237a85), android update 01a17d4e-f6ee-77b1-98a8-4a0174df6d04
+  (group 7a71d8ae-0e30-498f-a9ed-db9a5d34a891). Commit c796958 (branch multiws-198 on 724e8e8), JS 1.9.8.
+- The switcher is folded into the ota branch (f08a84f), so 1.9.9 keeps it; see docs/OTA.md.
+
 Every store build, newest first. Add a row for every upload and every OTA update.
 
 | Version | Android versionCode | iOS build | Commit (mobile repo) | Files | Status |
