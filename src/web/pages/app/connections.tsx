@@ -17,6 +17,7 @@ import { Section } from "./settings";
 import { MailFolderArt } from "@/web/components/illustrations";
 import { AvatarTile, PlainStatusPill } from "@/web/components/premium5-r39";
 import { connectionStatus } from "@/web/lib/premium5-r39";
+import { MailboxSyncProgress } from "@/web/components/mail-sync-progress";
 
 const STATUS: Record<ConnectionView["status"], { label: string; tone: "ok" | "warn" | "bad" | "neutral" | "brand" }> = {
   active: { label: "Connected", tone: "ok" },
@@ -111,6 +112,7 @@ function ConnectionRow({ c }: { c: ConnectionView }) {
           <p className="mt-0.5 text-[13px] text-muted">
             {c.providerLabel} · {c.authKind === "oauth" ? "signed in with the provider" : "app password"} · {c.lastSyncAt ? `last sync ${timeAgo(c.lastSyncAt)}` : "first sync starting"} · {num(c.messagesSynced)} messages{c.initialDone ? "" : ", still copying recent mail"}
           </p>
+          <MailboxSyncProgress c={c} />
           {c.lastError && c.status !== "active" && <p className="mt-1.5 text-[13px] text-bad" data-testid="connection-error">{c.lastError}</p>}
           {plain.next && <p className="mt-2 flex items-start gap-1.5 rounded-[10px] bg-warn-soft px-3 py-2 text-[13px] text-fg" data-testid="connection-next"><IconArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warn" aria-hidden /><span><span className="font-semibold">Next step: </span>{plain.next}</span></p>}
           <div className="mt-3 flex flex-wrap gap-2">

@@ -1,4 +1,5 @@
 import { InboxZeroArt, MailFolderArt, NoSearchResultsArt } from "@/web/components/illustrations";
+import { MailSyncBanner } from "@/web/components/mail-sync-progress";
 import { folderEmpty } from "@/web/lib/empty-copy-r36"; // R36
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -466,6 +467,7 @@ export function WebmailPage() {
           </form>
           <button className="inline-flex shrink-0 items-center justify-center rounded-lg bg-brand p-2 text-brand-fg transition-[background-color,transform] duration-150 ease-out active:scale-[0.97] hover:bg-brand/90 md:hidden max-sm:h-11 max-sm:w-11" onClick={() => startCompose()} aria-label="Compose"><IconCompose className="h-4 w-4" /></button>
         </div>
+        <MailSyncBanner />
         {splitsOn && splitTabs.length > 0 && <SplitTabs tabs={splitTabs} active={split} onChange={setSplit} onEdit={() => setEditSplits(true)} />}
         <div className="flex items-center justify-between px-4 py-2 text-xs text-subtle">
           <span>{q ? `Results for “${q}”` : FOLDER_UI.find((f) => f.id === folder)?.label ?? SCHEDULE_VIEWS.find((f) => f.id === folder)?.label ?? folder.slice(2)}</span>

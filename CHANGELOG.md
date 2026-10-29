@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 57 (29 Oct 2026)
+
+- Added: full mailbox sync. After new mail, every sync pass walks each folder's older mail downward (Inbox and Sent first) until the folder's first message, chaining passes on its own. Older mail is stored as header and snippet only (one row, about 6 D1 rows written with its indexes) and its body is fetched from the provider the first time it is opened. Caps: 5,000 older messages per connection and 7,000 account wide per UTC day, and none once the account's D1 writes reach 50% (below the 60% warn level); new mail is never held back by these. Restart safe, deduped by Message-ID, and a UIDVALIDITY change starts the folder again without doubling mail.
+- Added: progress on the connection screen and at the top of Mail ("Syncing your mailbox: 3,240 of 18,900"), then "All mail synced", with Pause and Resume for older mail.
+
 ### Round 56 (29 Oct 2026)
 
 - Fixed: checking a free address of about 21 letters or more answered "Something went wrong" (the app's own suggestion for an email with a plus tag was that long). The check no longer uses a pattern the database caps at 50 bytes; a name longer than 64 characters is refused with 422 and plain words before any lookup, and a claim with a name the rules refuse answers 422 instead of 400.

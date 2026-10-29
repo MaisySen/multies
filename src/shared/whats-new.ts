@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-29-full-mailbox-sync",
+    date: "2026-10-29",
+    title: "Your whole mailbox syncs by itself",
+    body: "A connected mailbox now keeps copying older mail on its own until all of it is in, and shows how far it has got.",
+  },
+  {
     id: "2026-10-29-inbox-reply",
     date: "2026-10-29",
     title: "Reply straight from the shared inbox",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-27",
     title: "Switching workspaces sticks",
     body: "If your account is in several workspaces, switching from the workspace menu now lands on every device and stays put after a reload. If a switch cannot finish, the menu says so and keeps you where you were.",
-  },
-  {
-    id: "2026-10-27-every-task-on-boards",
-    date: "2026-10-27",
-    title: "Big projects show every task",
-    body: "Board, list and backlog now load every task, page by page, so column counts and point totals cover the whole project. The notice about showing only the first 500 is gone.",
   },
 ];
 
