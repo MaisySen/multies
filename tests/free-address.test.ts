@@ -122,7 +122,7 @@ describe("free addresses", () => {
     const dup = await b.post("/api/free-address", { localPart: "ada.acme" });
     expect(dup.status).toBe(409);
     expect(dup.body.error.message).toMatch(/taken/);
-    expect((await b.post("/api/free-address", { localPart: "support" })).status).toBe(400);
+    expect((await b.post("/api/free-address", { localPart: "support" })).status).toBe(422);
     const unverified = new Client(ctx.app);
     await unverified.signup(undefined, "Eve", "Evil");
     expect((await unverified.post("/api/free-address", { localPart: "eve.evil" })).status).toBe(403);

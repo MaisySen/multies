@@ -12,6 +12,7 @@ import { authFor } from "./options";
 import { SSO_METHODS } from "./session";
 import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
+import { autoWorkspaceName } from "@/shared/person-name";
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -64,7 +65,7 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     // country starts from the edge's guess (Cloudflare's CF-IPCountry) when it is a real country.
     const edgeCountry = (headers.get("cf-ipcountry") ?? "").toUpperCase();
     await db.insert(organizations).values({
-      id: orgId, name: `${s.user.name.split("@")[0].split(" ")[0] || "My"}'s workspace`, slug: orgId,
+      id: orgId, name: autoWorkspaceName(s.user.name, s.user.email), slug: orgId, // R56 (MB-248): never the raw email
       timezone: DEFAULT_TIMEZONE, country: isCountry(edgeCountry) ? edgeCountry : DEFAULT_COUNTRY,
     });
     const memberId = newId("mem");

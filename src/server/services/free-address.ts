@@ -12,11 +12,12 @@
  * outbound provider (one domain slot for every free user together), so free users never spend
  * the provider's per-account domain slots one by one.
  */
-import { and, count, eq, gte, like, type SQL } from "drizzle-orm";
+import { and, count, eq, gte, sql, type SQL } from "drizzle-orm";
+import { firstNameGuess } from "@/shared/person-name";
 import type { AuthContext, Deps } from "../context";
 import { aliases, auditLogs, domains, mailboxes, organizations } from "../db/schema";
 import { encryptSecret, generateDkimKeyPair, newId, randomToken } from "../lib/crypto";
-import { badRequest, conflict, HttpError } from "../lib/errors";
+import { conflict, HttpError } from "../lib/errors";
 import { assertCanCreate, getPlan } from "./plans";
 import { audit } from "./audit";
 
@@ -61,11 +62,14 @@ function plain(s: string): string {
 
 /**
  * A suggested free address: the person's first name and the workspace's name, for example
- * "ada.acme". Falls back to the part of their sign in email before the @.
+ * "ada.acme". R56 (MB-241): the name comes from the person's name, or from the first word of their
+ * sign in email's local part, never the whole local part with its plus tag; each part is kept short
+ * so the suggestion stays well inside the 3 to 40 rule.
  */
 export function suggestFreeLocalPart(personName: string, workspaceName: string, email = ""): string {
-  const first = plain(personName.split(/[\s@]+/)[0] ?? "") || plain(email.split("@")[0] ?? "");
-  const team = plain(workspaceName.replace(/'s workspace$/i, "").replace(/\bworkspace\b/i, ""));
+  const first = plain(firstNameGuess(personName, email)).slice(0, 20);
+  // A workspace still on its sign up name ("ada's workspace") says nothing new about the team.
+  const team = /'s workspace$/i.test(workspaceName.trim()) ? "" : plain(workspaceName.replace(/\bworkspace\b/i, "")).slice(0, 16);
   const parts = [first || "me", team && team !== first ? team : ""].filter(Boolean);
   let s = parts.join(".").slice(0, 40).replace(/[.-]+$/, "");
   if (s.length < 3) s = `${s}mail`.slice(0, 40);
@@ -118,6 +122,17 @@ export async function freeAddressInfo(deps: Deps, auth: Pick<AuthContext, "orgId
   };
 }
 
+/**
+ * R56 (MB-241, Sentry MYMAIL-API-16): the audit metadata holds this exact text. instr() instead of LIKE:
+ * D1 refuses a LIKE pattern over 50 bytes ("LIKE or GLOB pattern too complex"), which an address of
+ * about 21 letters or more already passes, so the check answered 500 on the app's own suggestion.
+ * instr() has no pattern limit and no wildcards to escape; it reads the same rows as the LIKE did.
+ */
+export const metadataHas = (text: string) => sql`instr(${auditLogs.metadata}, ${text}) > 0`;
+
+/** The longest local part a check or claim reads at all; anything longer is refused before any lookup. */
+export const MAX_LOCAL_INPUT = 64;
+
 /** The audit action every claim writes; the abuse limits below count these rows (reads only). */
 export const CLAIM_ACTION = "free_address.claimed";
 
@@ -136,7 +151,7 @@ async function assertClaimAllowed(deps: Deps, userId: string, ctx: { ip?: string
   const [mine, fromIp, fromDevice, today] = await Promise.all([
     n(and(eq(auditLogs.action, CLAIM_ACTION), eq(auditLogs.actorUserId, userId))),
     ctx.ip ? n(and(claims, eq(auditLogs.ip, ctx.ip))) : Promise.resolve(0),
-    ctx.deviceId ? n(and(claims, like(auditLogs.metadata, `%"device":"${ctx.deviceId.replace(/[^a-zA-Z0-9-]/g, "")}"%`))) : Promise.resolve(0),
+    ctx.deviceId ? n(and(claims, metadataHas(`"device":"${ctx.deviceId.replace(/[^a-zA-Z0-9-]/g, "").slice(0, 64)}"`))) : Promise.resolve(0),
     n(claims),
   ]);
   if (mine >= CLAIM_LIMITS.perPerson) throw new HttpError(409, "free_mail_one_each", "You already have a free address. Each person gets one.");
@@ -154,7 +169,7 @@ async function assertClaimAllowed(deps: Deps, userId: string, ctx: { ip?: string
  */
 async function wasClaimedBefore(deps: Deps, address: string) {
   const row = await deps.db.select({ id: auditLogs.id }).from(auditLogs)
-    .where(and(eq(auditLogs.action, CLAIM_ACTION), like(auditLogs.metadata, `%"address":"${address.replace(/[%_"\\]/g, "")}"%`))).get();
+    .where(and(eq(auditLogs.action, CLAIM_ACTION), metadataHas(`"address":"${address.replace(/["\\]/g, "")}"`))).get();
   return Boolean(row);
 }
 
@@ -187,7 +202,7 @@ export async function claimFreeAddress(deps: Deps, auth: AuthContext, input: { l
   if (org.suspendedAt) throw new HttpError(403, "workspace_suspended", "This workspace is suspended.");
   const local = input.localPart.trim().toLowerCase();
   const problem = freeLocalPartProblem(local);
-  if (problem) throw badRequest(problem);
+  if (problem) throw new HttpError(422, "free_mail_name", problem);
   await assertClaimAllowed(deps, auth.userId, ctx);
   await assertCanCreate(deps.db, auth.orgId, "mailboxes");
   const domain = await ensurePlatformDomain(deps, domainName);

@@ -7,6 +7,11 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 56 (29 Oct 2026)
+
+- Fixed: checking a free address of about 21 letters or more answered "Something went wrong" (the app's own suggestion for an email with a plus tag was that long). The check no longer uses a pattern the database caps at 50 bytes; a name longer than 64 characters is refused with 422 and plain words before any lookup, and a claim with a name the rules refuse answers 422 instead of 400.
+- Set up: a new workspace is named after the person's first name (never the raw sign in email with its plus tag), and Welcome renames a workspace still on its sign up name after the name the person gives, once. The free address suggestion starts with that first name.
+
 ### Round 55 (28 Oct 2026)
 
 - Automations: a task rule can do up to five things in order, for example set the priority, add a label and notify the assignee. The rule editor shows them under "And then"; the API takes them as `actionConfig.then`. A failing step stops the rest and the rule names which step failed.

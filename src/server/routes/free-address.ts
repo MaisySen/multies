@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppEnv } from "../context";
 import { parseBody, requireAdmin, requireAuth } from "../middleware";
-import { checkFreeAddress, claimFreeAddress, freeAddressInfo } from "../services/free-address";
+import { checkFreeAddress, claimFreeAddress, freeAddressInfo, MAX_LOCAL_INPUT } from "../services/free-address";
 import { RateLimiter } from "../lib/rate-limit";
-import { tooMany } from "../lib/errors";
+import { HttpError, tooMany } from "../lib/errors";
 
 const claimSchema = z.object({
-  localPart: z.string().trim().min(1).max(64),
+  localPart: z.string().trim().min(1, "Choose a name for your address.").max(64, "That name is too long. Use 3 to 40 lowercase letters, numbers, dots or dashes."),
   displayName: z.string().trim().max(120).optional(),
 });
 
@@ -19,8 +19,10 @@ export function freeAddressRoutes() {
     .use("*", requireAuth)
     .get("/", async (c) => c.json(await freeAddressInfo(c.var.deps, c.var.auth)))
     .get("/check", async (c) => {
-      const localPart = (c.req.query("localPart") ?? "").slice(0, 64);
+      const localPart = c.req.query("localPart") ?? "";
       if (!checks.take(c.var.auth.userId || c.var.ip || "anon")) throw tooMany("Too many checks. Slow down a little.");
+      // R56 (MB-241): an over long name is refused before any lookup, in words, never cut short and checked as something else.
+      if (localPart.length > MAX_LOCAL_INPUT) throw new HttpError(422, "free_mail_name", "That name is too long. Use 3 to 40 lowercase letters, numbers, dots or dashes.");
       return c.json(await checkFreeAddress(c.var.deps, localPart));
     })
     .post("/", requireAdmin, async (c) => {

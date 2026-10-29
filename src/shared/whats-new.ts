@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-29-names-from-you",
+    date: "2026-10-29",
+    title: "Set up uses your name",
+    body: "A new workspace is named after the name you give at Welcome, and the free address we suggest starts with your first name, never your sign in email.",
+  },
+  {
     id: "2026-10-28-startup-templates",
     date: "2026-10-28",
     title: "Four new starter templates",

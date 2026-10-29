@@ -21,6 +21,7 @@ import { runDueJobs } from "../services/jobs";
 import { createWorkspace, deleteWorkspace, listWorkspaces, switchWorkspace } from "../services/team";
 import { markWorkspace } from "../auth/workspace-mark";
 import { cleanLocale, isCountry, isTimeZone } from "@/shared/locale";
+import { autoWorkspaceName } from "@/shared/person-name";
 
 /**
  * Product-level account endpoints. Sign-up, sign-in, sessions, 2FA, password reset
@@ -229,9 +230,13 @@ export function accountRoutes() {
       if (!org) throw notFound("Workspace");
       await deps.db.update(users).set({ name: input.name, timezone: input.timezone, locale: input.locale }).where(eq(users.id, auth.userId));
       // The workspace's own name, country and zone: its owner or admins, once (later changes are in Settings).
-      if (auth.role !== "member" && !org.isDemo && (input.company || input.country || input.workspaceTimezone)) {
+      // R56 (MB-248): with no company typed, a workspace still on its sign up name ("ada's workspace", or one
+      // made from a raw email before R56) is renamed after the name the person just gave, once.
+      const firstOnboarding = !readOrgMeta(org.metadata).onboardedAt;
+      const rename = input.company || (firstOnboarding && /'s workspace$/.test(org.name) && org.name !== autoWorkspaceName(input.name) ? autoWorkspaceName(input.name) : null);
+      if (auth.role !== "member" && !org.isDemo && (rename || input.country || input.workspaceTimezone)) {
         await deps.db.update(organizations).set({
-          ...(input.company ? { name: input.company } : {}),
+          ...(rename ? { name: rename } : {}),
           ...(input.country ? { country: input.country } : {}),
           timezone: input.workspaceTimezone ?? input.timezone,
           metadata: JSON.stringify({ ...readOrgMeta(org.metadata), onboardedAt: deps.now().toISOString() }),
