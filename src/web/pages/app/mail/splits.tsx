@@ -27,7 +27,8 @@ export function useSplits(mailboxId: string, enabled: boolean) {
     queryKey: splitsKey(mailboxId),
     enabled: enabled && !!mailboxId,
     queryFn: () => api.get<{ splits: MailSplit[]; tabs: SplitTab[] }>(`/mail/splits?${new URLSearchParams({ mailboxId })}`),
-    refetchInterval: 30_000,
+    // R59 hotfix (D1 reads): tab counts repeat the badge counts' work, so they refresh every 2 minutes (and on mail changes), not every 30 s.
+    refetchInterval: 120_000, staleTime: 30_000,
   });
 }
 
