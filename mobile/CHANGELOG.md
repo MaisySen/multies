@@ -3,6 +3,18 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.11 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
+
+- Tappable links: web and email addresses in mail are blue and underlined, and a tap opens them in
+  your browser or mail app. This also covers quoted text, task comments and drafts waiting for your
+  approval.
+- Long links: a very long web address shows as the site and its last parts, for example
+  github.com/…/actions/runs/40926009018, and wraps between parts instead of in the middle of a word.
+  A tap still opens the full address.
+- Version: Settings, About shows the version of the app you are running.
+
+Carries everything in 1.9.10 and 1.9.9.
+
 ## 1.9.10 (OTA, runs on Android versionCode 15 and iOS build 17), 29 Oct 2026
 
 Carries everything in 1.9.9, plus:

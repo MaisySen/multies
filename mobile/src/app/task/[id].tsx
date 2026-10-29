@@ -11,6 +11,7 @@ import { StartMeetingButton } from "@/components/meetings";
 import { CustomFields } from "@/components/custom-fields";
 import { ChecklistSection } from "@/components/checklist";
 import { TaskRuns } from "@/components/runs";
+import { LinkedText } from "@/components/linked-text";
 import { useAssignees, useTask, useTaskMutations } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
 import { PRIORITIES, STATUSES, dayFrom, dayLabel, dueLabel, nextMonday, senderName } from "@/lib/tasks";
@@ -177,7 +178,7 @@ export default function TaskDetail() {
                 <Text style={{ color: colors.fg, fontWeight: "600", fontSize: 15, flex: 1 }} numberOfLines={1}>{c.author.name ?? "Someone"}</Text>
                 <Text style={font.tiny}>{shortDate(c.createdAt)}</Text>
               </View>
-              <Text style={[font.body, { fontSize: 16 }]}>{c.body}</Text>
+              <Text style={[font.body, { fontSize: 16 }]} selectable><LinkedText text={c.body} /></Text>
             </View>
           </View>
         ))}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, Text, View, StyleSheet } from "react-native";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Avatar, Badge, Banner, Button, EmptyState, Icon, IconButton, Loading } from "@/components/ui";
@@ -8,7 +8,8 @@ import { useAgents, useMessageAction, useTaskMutations, useThread } from "@/lib/
 import { useOffline } from "@/lib/offline";
 import { bytes, displayName, longDate, shortDate } from "@/lib/format";
 import { previewLine, splitQuoted } from "@/lib/quote";
-import { bodyText, linkSegments } from "@/lib/mail-body";
+import { bodyText } from "@/lib/mail-body";
+import { LinkedText } from "@/components/linked-text";
 import { animateList } from "@/lib/motion";
 import { success, tick, warning } from "@/lib/haptics";
 import { FEATURES } from "@/config";
@@ -141,22 +142,6 @@ function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: strin
   );
 }
 
-/** Text with tappable links (web addresses and email addresses). */
-function LinkedText({ text }: { text: string }) {
-  return (
-    <>
-      {linkSegments(text).map((seg, i) =>
-        seg.kind === "link" ? (
-          <Text key={i} style={{ color: colors.brand, textDecorationLine: "underline" }} accessibilityRole="link" suppressHighlighting={false}
-            onPress={() => { tick(); Linking.openURL(seg.url).catch(() => undefined); }}>{seg.text}</Text>
-        ) : (
-          <Text key={i}>{seg.text}</Text>
-        ),
-      )}
-    </>
-  );
-}
-
 function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: string; onCollapse?: () => void }) {
   const [showQuoted, setShowQuoted] = useState(false);
   const { body, quoted } = splitQuoted(bodyText(m));
@@ -178,7 +163,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
       </Pressable>
       {agentName ? <View style={{ paddingHorizontal: space.lg }}><Badge label={`Written by agent ${agentName}`} tone="brand" icon="cpu" /></View> : null}
       <Text style={[font.body, { paddingHorizontal: space.lg, paddingTop: space.sm }]} selectable accessibilityHint={longDate(m.date)}>
-        {body ? <LinkedText text={body} /> : "This message is empty."}
+        {body ? <LinkedText text={body} testID={`body-${m.id}`} /> : "This message is empty."}
       </Text>
       {quoted ? (
         <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
@@ -187,7 +172,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
             <Icon name="more-horizontal" size={16} color={colors.muted} />
             <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "500" }}>{showQuoted ? "Hide quoted text" : "Show quoted text"}</Text>
           </Pressable>
-          {showQuoted ? <Text style={t.quoted} selectable><LinkedText text={quoted} /></Text> : null}
+          {showQuoted ? <Text style={t.quoted} selectable><LinkedText text={quoted} testID={`quotedtext-${m.id}`} /></Text> : null}
         </View>
       ) : null}
       {m.attachments.length ? (

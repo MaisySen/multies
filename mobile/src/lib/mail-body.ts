@@ -52,6 +52,51 @@ export function linkSegments(text: string): Segment[] {
   return out.filter((s) => s.text.length > 0);
 }
 
+const ZWSP = "\u200b";
+
+/**
+ * 1.9.11: what a link shows. Mail notifications carry long addresses that wrapped mid word on a phone
+ * (".../actions/runs/40926009018" split anywhere). A web address shows without "https://" and "www.",
+ * a very long one shortened to its site and last path parts ("github.com/…/actions/runs/40926009018"),
+ * and a zero width space after each "/", "?", "&" and "=" so a line breaks between parts, never inside
+ * a word. The tap always opens the full address (Segment.url).
+ */
+export function linkLabel(seg: { text: string; url: string }, max = 40): string {
+  if (/^mailto:/i.test(seg.url)) return seg.text;
+  let s = seg.text.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+  const q = s.search(/[?#]/);
+  if (s.length > max && q > 0) s = s.slice(0, q);
+  s = s.replace(/\/+$/, "");
+  if (s.length > max) {
+    const parts = s.split("/");
+    const host = parts.shift() ?? "";
+    const named = parts.filter(Boolean);
+    const tail: string[] = [];
+    let len = host.length + 2;
+    for (let i = named.length - 1; i >= 0; i--) {
+      let part = named[i];
+      if (!tail.length) {
+        // The last part (a run id, a file or page name) stays whole unless it is very long; then it is
+        // cut after a "-", "_" or "." so the shortened label never ends in the middle of a word.
+        if (part.length > 36) {
+          const cut = part.slice(0, 32);
+          const at = Math.max(cut.lastIndexOf("-"), cut.lastIndexOf("_"), cut.lastIndexOf("."));
+          part = `${at > 12 ? cut.slice(0, at) : cut}\u2026`;
+        }
+      } else if (len + part.length + 1 > max) break;
+      tail.unshift(part);
+      len += part.length + 1;
+    }
+    s = `${host}/${tail.length < named.length ? "\u2026/" : ""}${tail.join("/")}`;
+  }
+  return breakable(s);
+}
+
+/** Lets a long address break after "/", "?", "&" and "=", never inside a word. */
+export function breakable(s: string): string {
+  return s.replace(/([/?&=])(?=.)/g, `$1${ZWSP}`);
+}
+
 /** The text to show: the plain part, or a text version of the HTML part when there is no plain part. */
 export function bodyText(m: { text: string; html: string | null }): string {
   if (m.text && m.text.trim()) return m.text;
