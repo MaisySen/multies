@@ -28,7 +28,7 @@ export function freeLimits(plan: Plan = PLANS.starter, addons: Record<string, Ad
   const l = plan.limits;
   const box = addons.mailboxes, dom = addons.domain, send = addons.send_boost, store = addons.storage, agent = addons.agent_inbox;
   return [
-    { key: "domains", value: plural(l.domains, "domain"), label: "Your own domain, with mail that passes the sender checks", more: `Add another domain for ${price(dom)}` },
+    { key: "domains", value: plural(l.domains, "domain"), label: "The domain you own, for your team's mail", more: `Add another domain for ${price(dom)}` },
     { key: "mailboxes", value: plural(l.mailboxes, "mailbox", "mailboxes"), label: `Real addresses on your domain, plus ${n(l.aliases)} aliases`, more: `Add ${box.unit} for ${price(box)}` },
     { key: "seats", value: plural(l.seats, "person", "people"), label: "People who can sign in, the owner included", more: `${n(box.grants.seats ?? 0)} more come with each mailbox pack` },
     { key: "dailySends", value: `${n(l.dailySends)} a day`, label: "Recipients outside Multies you can send to each day", more: `Add ${send.unit} for ${price(send)}` },
