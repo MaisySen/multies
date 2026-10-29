@@ -3,6 +3,15 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.9.10 (OTA, runs on Android versionCode 15 and iOS build 17), 29 Oct 2026
+
+Carries everything in 1.9.9, plus:
+
+- Links in mail are tappable: web addresses and email addresses in a message open with one tap, and
+  the angle brackets around them are gone.
+- Mail that only has a designed (HTML) version, like newsletters and receipts, now shows its text and
+  links instead of "This message has no plain text version".
+
 ## 1.9.9 (OTA, runs on Android versionCode 15 and iOS build 17), not published yet: ships after 1.9.8 reaches all phones
 
 Keeps Switch workspace, which reached phones with 1.9.8 on 27 Oct 2026 (see docs/OTA.md).
