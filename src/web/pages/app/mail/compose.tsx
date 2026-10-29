@@ -10,6 +10,7 @@ import { Select } from "@/web/components/ui/input";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
+import { createAutosaver, type Autosaver } from "@/web/lib/draft-autosave";
 import { SavedRepliesButton, useSnippetShortcut } from "./saved-replies";
 import { AlsoReplying, useThreadPresence } from "@/web/lib/thread-presence";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
@@ -69,6 +70,25 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
+  // R56 (MB-244): the draft saves itself a moment after typing stops and when the page is hidden, so a reload keeps it in Drafts.
+  const [saveState, setSaveState] = useState<"saving" | "saved" | "failed" | null>(null);
+  const auto = useRef<Autosaver<ComposeDraft> | null>(null);
+  if (!auto.current) {
+    auto.current = createAutosaver<ComposeDraft>((x, id) => api.post<{ id: string }>("/mail/drafts", {
+      id, mailboxId: x.mailboxId, to: splitAddrs(x.to), cc: splitAddrs(x.cc), bcc: splitAddrs(x.bcc), subject: x.subject, text: x.text, inReplyToId: x.inReplyToId,
+    }), { firstId: initial.draftId, onState: setSaveState });
+  }
+  useEffect(() => {
+    if (dirty && (d.text.trim() || d.to || d.subject)) auto.current?.change(d);
+  }, [d, dirty]);
+  useEffect(() => {
+    const hide = () => { if (document.visibilityState === "hidden") void auto.current?.flush(); };
+    document.addEventListener("visibilitychange", hide);
+    window.addEventListener("pagehide", hide);
+    return () => { document.removeEventListener("visibilitychange", hide); window.removeEventListener("pagehide", hide); };
+  }, []);
+  /** The draft this compose saved on its own, taken over by a send, a manual save or a discard. */
+  const takeAutoDraft = () => auto.current?.stop();
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   // Round 20: "remind me if no reply" (days, 0 is off) and send later, both through the same hold as Send.
   const [remindDays, setRemindDays] = useState(0);
@@ -78,7 +98,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     if (!d.to.trim()) { toRef.current?.focus(); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
-    const snapshot = d;
+    const snapshot = { ...d, draftId: takeAutoDraft() ?? d.draftId };
     const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];
     // One key per held message: a retried post can never deliver twice.
     const key = `send_${crypto.randomUUID()}`;
@@ -123,7 +143,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     onClose();
   };
   const saveDraft = useMutation({
-    mutationFn: () => api.post("/mail/drafts", { id: d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId }),
+    mutationFn: () => api.post("/mail/drafts", { id: takeAutoDraft() ?? d.draftId, mailboxId: d.mailboxId, to: splitAddrs(d.to), cc: splitAddrs(d.cc), bcc: splitAddrs(d.bcc), subject: d.subject, text: d.text, inReplyToId: d.inReplyToId }),
     onSuccess: () => { refresh(); toast.success("Draft saved"); onClose(); },
     onError: (e) => showError(e),
   });
@@ -190,6 +210,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
               <Button type="submit" disabled={!d.to.trim()} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
+              {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved yet"}</span>}
               <SendLaterMenu disabled={!d.to.trim()} onPick={(when) => send(true, when)} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
@@ -202,7 +223,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
-            <button type="button" onClick={onClose} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+            <button type="button" onClick={() => { const saved = takeAutoDraft(); if (saved && saved !== initial.draftId) void api.del(`/mail/messages/${saved}`).then(refresh, () => {}); onClose(); }} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           </div>
         </form>
       )}

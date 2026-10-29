@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-29-inbox-reply",
+    date: "2026-10-29",
+    title: "Reply straight from the shared inbox",
+    body: "Open a thread in the shared inbox and press Reply or Reply all to answer the customer right there. Replies now save as a draft while you type, so a reload keeps them.",
+  },
+  {
     id: "2026-10-29-names-from-you",
     date: "2026-10-29",
     title: "Set up uses your name",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-27",
     title: "Big projects show every task",
     body: "Board, list and backlog now load every task, page by page, so column counts and point totals cover the whole project. The notice about showing only the first 500 is gone.",
-  },
-  {
-    id: "2026-10-27-boards-stay-current",
-    date: "2026-10-27",
-    title: "Boards stay current",
-    body: "Open boards and backlogs check for changes every 20 seconds and fetch only what changed. Moving a task between sprints now shows on other people's backlogs too.",
   },
 ];
 

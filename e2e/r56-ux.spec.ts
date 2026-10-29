@@ -29,3 +29,43 @@ for (const vp of [{ name: "desktop", width: 1280, height: 800 }, { name: "phone"
     await ctx.close();
   });
 }
+
+test("Reply from the shared inbox in the Mail composer, and the draft survives a reload (MB-242, MB-244)", async ({ page, context }) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
+  await page.setViewportSize({ width: 1280, height: 860 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /Password reset not arriving/ }).click();
+  const bar = page.getByTestId("inbox-reply-bar");
+  await expect(bar.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Reply all" })).toBeVisible();
+  await bar.getByRole("button", { name: "Reply", exact: true }).click();
+  const body = page.locator("textarea").first();
+  await expect(body).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/inbox/);
+  const words = `Checking this now ${Date.now()}`;
+  await body.press("Home");
+  await body.pressSequentially(words, { delay: 5 });
+  await expect(page.getByTestId("draft-autosave")).toHaveText("Saved", { timeout: 15_000 });
+  await page.reload();
+  await page.goto("/app/mail?folder=drafts");
+  await expect(page.getByText(words).first()).toBeVisible({ timeout: 15_000 });
+});
+
+test("the reply buttons fit a phone and notes stay separate (MB-242, phone)", async ({ page, context }) => {
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": ip() });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Explore a demo workspace" }).click();
+  await expect(page).toHaveURL(/\/app/, { timeout: 20_000 });
+  await page.goto("/app/inbox");
+  await page.getByRole("button", { name: /Password reset not arriving/ }).click();
+  const bar = page.getByTestId("inbox-reply-bar");
+  await expect(bar.getByRole("button", { name: "Reply", exact: true })).toBeVisible();
+  const box = await bar.getByRole("button", { name: "Reply", exact: true }).boundingBox();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await expect(bar.getByText("Team notes below stay inside your team.")).toBeVisible();
+});

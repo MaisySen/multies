@@ -10,6 +10,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 ### Round 56 (29 Oct 2026)
 
 - Fixed: checking a free address of about 21 letters or more answered "Something went wrong" (the app's own suggestion for an email with a plus tag was that long). The check no longer uses a pattern the database caps at 50 bytes; a name longer than 64 characters is refused with 422 and plain words before any lookup, and a claim with a name the rules refuse answers 422 instead of 400.
+- Shared inbox: Reply and Reply all on a thread open the Mail composer right there (undo send, saved replies, presence), from the thread's own mailbox; shown only to people who can send from that mailbox, with a line saying the reply goes to the customer and notes stay inside the team.
+- Mail: a reply or new message saves itself as a draft about 2.5 s after typing stops and when the page is hidden, one save at a time, replacing its own draft each time; Send and Discard take that draft with them. A reload keeps the text in Drafts.
+- New task, and every dialog with a field that asks for focus, now opens with that field focused instead of the Close button.
+- My Work: the Next meeting tile shows the time in the same zone as the meeting list under it.
+- Sign in pages: the first screen of sign up and sign in now reads "Sign up to join your team on Multies." and "Sign in to continue to Multies." instead of naming Multies twice.
+- Free address: a suggestion never contains a kept word, so the check never refuses the app's own suggestion ("team" and "mail" are kept too, which the old fallback used).
 - Set up: a new workspace is named after the person's first name (never the raw sign in email with its plus tag), and Welcome renames a workspace still on its sign up name after the name the person gives, once. The free address suggestion starts with that first name.
 
 ### Round 55 (28 Oct 2026)

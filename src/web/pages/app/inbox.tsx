@@ -1,6 +1,11 @@
 import { useSearchParams } from "react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconUser } from "@/web/components/ui/icon";
+import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconReply, IconUser } from "@/web/components/ui/icon";
+import { Button } from "@/web/components/ui/button";
+import { Compose, type ComposeDraft } from "./mail/compose";
+import { useReopenedDrafts } from "@/web/lib/undo-send";
+import { replyDraftFor } from "./inbox-reply";
 import { api } from "@/web/lib/api";
 import { useMailboxes } from "@/web/lib/queries";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -38,6 +43,10 @@ export function TeamInboxPage() {
   const agents = useAgents();
   const boxName = (id: string) => mailboxes.data?.find((m) => m.id === id)?.address ?? agents.data?.find((a) => a.inboxId === id)?.address ?? "";
   const open = (id: string | null) => setParams(id ? { thread: id } : {}, { replace: false });
+  // R56 (MB-242): reply to the customer right here, in the same composer as Mail (undo send, saved replies, draft autosave).
+  const [compose, setCompose] = useState<ComposeDraft | null>(null);
+  useReopenedDrafts<ComposeDraft>((d) => setCompose(d));
+  const sendable = mailboxes.data ?? [];
   return (
     <>
       <PageHeader title="Shared inbox" description="Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place." />
@@ -71,14 +80,15 @@ export function TeamInboxPage() {
             )}
         </Card>
         <div className={cn("lg:sticky lg:top-6 lg:self-start", !selected && "hidden lg:block")}>
-          {selected ? <ThreadView id={selected} onBack={() => open(null)} /> : <Card><EmptyState icon={<IconInbox />} title="Pick a thread" body="See every message, who wrote it, and what an agent wants to send next." /></Card>}
+          {selected ? <ThreadView id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} /> : <Card><EmptyState icon={<IconInbox />} title="Pick a thread" body="See every message, who wrote it, and what an agent wants to send next." /></Card>}
         </div>
       </div>
+      {compose && <Compose key={`${compose.inReplyToId ?? "new"}:${compose.draftId ?? ""}`} initial={compose} mailboxes={sendable} onClose={() => setCompose(null)} />}
     </>
   );
 }
 
-function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
+function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack: () => void; canReply: (mailboxId: string) => boolean; own: string[]; onReply: (d: ComposeDraft) => void }) {
   const thread = useQuery({ queryKey: ["team-inbox", id], queryFn: () => api.get<Thread>(`/agents/threads/${id}`) });
   if (thread.isPending) return <Card className="p-5"><Skeleton className="h-6 w-2/3" /><Skeleton className="mt-4 h-32" /></Card>;
   if (thread.error) return <Card className="p-6 text-sm text-bad">{thread.error.message}</Card>;
@@ -111,6 +121,13 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         </Card>
       ))}
       {t.pendingApprovals.map((a) => <ApprovalCard key={a.id} a={a} compact />)}
+      {canReply(t.mailboxId) && t.messages.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="inbox-reply-bar">
+          <Button onClick={() => onReply(replyDraftFor(t, own, false))} className="max-sm:min-h-11 max-sm:flex-1"><IconReply className="h-4 w-4" aria-hidden />Reply</Button>
+          <Button variant="secondary" onClick={() => onReply(replyDraftFor(t, own, true))} className="max-sm:min-h-11 max-sm:flex-1"><IconReply className="h-4 w-4" aria-hidden />Reply all</Button>
+          <span className="text-xs text-subtle max-sm:w-full">Goes to the customer. Team notes below stay inside your team.</span>
+        </div>
+      )}
       <ThreadNotes threadId={t.id} />
     </div>
   );
