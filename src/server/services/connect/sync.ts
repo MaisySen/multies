@@ -46,6 +46,8 @@ interface FolderState {
   low?: number;
   left?: number;
   done?: boolean;
+  /** R57: the folder's message count at the provider when last opened (EXISTS), for the progress total. */
+  size?: number;
 }
 /** R57: backfill bookkeeping for the connection: messages backfilled on `day` (UTC), the person's pause, and why it waits. */
 export interface BackfillState { day: string; n: number; paused?: boolean; wait?: "daily" | "budget" | null }
@@ -238,6 +240,9 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
         st = { path, v: opened.uidValidity, last: kept.length ? kept[0] - 1 : Math.max(0, opened.uidNext - 1), low: kept.length ? kept[0] : Math.max(1, opened.uidNext) };
         setCursor(state, box, st);
       }
+      // R57: the folder's message count, for the progress total (no extra round trip: SELECT answers it).
+      const exists = (opened as { exists?: number }).exists;
+      if (typeof exists === "number") st.size = exists;
       if (budget <= 0) { result.more = result.more || (await session.uidsAfter(st.last)).length > 0; continue; }
       const pending = await session.uidsAfter(st.last);
       const take = pending.slice(0, budget);

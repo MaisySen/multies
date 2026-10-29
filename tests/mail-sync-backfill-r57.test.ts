@@ -152,4 +152,18 @@ describe("R57 full mailbox sync", () => {
     await drain(ctx, row.id);
     expect(await count()).toBe(40);
   });
+
+  it("progress: the total is the provider's count; Gmail's All Mail holds Inbox and Sent, so it is not counted twice", () => {
+    const plain = { paths: { inbox: "INBOX", sent: "Sent" }, inbox: { path: "INBOX", v: "1", last: 9, size: 900, left: 700 }, sent: { path: "Sent", v: "2", last: 9, size: 100, left: 80 } };
+    expect(backfillProgress(plain, 220)).toMatchObject({ done: false, counted: true, synced: 220, total: 1000 });
+    const gmail = {
+      paths: { inbox: "INBOX", sent: "[Gmail]/Sent Mail", archive: "[Gmail]/All Mail" },
+      list: [{ path: "[Gmail]/All Mail", specialUse: "\\All" }],
+      inbox: { path: "INBOX", v: "1", last: 9, size: 900 }, sent: { path: "[Gmail]/Sent Mail", v: "2", last: 9, size: 100 },
+      boxes: { archive: { path: "[Gmail]/All Mail", v: "3", last: 9, size: 5000 } },
+    };
+    expect(backfillProgress(gmail, 300)).toMatchObject({ counted: true, total: 5000 });
+    expect(backfillProgress({ ...plain, inbox: { ...plain.inbox, done: true }, sent: { ...plain.sent, done: true } }, 990)).toMatchObject({ done: true, total: 990 });
+    expect(backfillProgress({ ...plain, bf: { day: "x", n: 1, paused: true } } as never, 220)).toMatchObject({ paused: true });
+  });
 });
