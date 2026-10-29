@@ -1,5 +1,4 @@
 import { markReadOnly, markWorkspaceBudget } from "./read-only";
-import { workspaceTabs } from "./workspace-tabs-r58"; // R58 (MB-245)
 
 /** Thin typed client for the Multies API. Cookies carry the session. */
 export class ApiError extends Error {
@@ -92,9 +91,6 @@ async function once<T>(method: string, path: string, body: unknown, headers: Rec
 }
 
 async function request<T>(method: string, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {
-  // R58 (MB-245): a tab behind a workspace switch made in another tab sends no write; the banner offers Reload.
-  const blocked = workspaceTabs()?.blockWrite(method, path);
-  if (blocked) throw new ApiError(409, "workspace_switched", blocked);
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["content-type"] = "application/json";
   if (opts.idempotencyKey) headers["idempotency-key"] = opts.idempotencyKey;

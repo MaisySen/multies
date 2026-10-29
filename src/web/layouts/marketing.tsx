@@ -86,6 +86,8 @@ export function MarketingLayout() {
             <ul className="mt-3 space-y-2 text-sm text-muted">
               <li><Link to="/#features" className="hover:text-fg">Features</Link></li>
               <li><Link to="/pricing" className="hover:text-fg">Pricing</Link></li>
+              <li><Link to="/startups" className="hover:text-fg">Free for small teams</Link></li>
+              <li><Link to="/switch" className="hover:text-fg">Move to Multies</Link></li>
               <li><Link to="/#faq" className="hover:text-fg">FAQ</Link></li>
               <li><Link to="/check" className="hover:text-fg">Check your domain</Link></li>
               <li><Link to="/status" className="hover:text-fg">System status</Link></li>

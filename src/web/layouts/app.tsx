@@ -30,8 +30,6 @@ const authClientModule = () => import("@/web/lib/auth-client");
 import { clearOfflineData } from "@/web/lib/sw-client"; // R32
 import { scopeOf, setOfflineScope } from "@/web/lib/offline-lists"; // R33
 import { OfflineBanner } from "@/web/components/offline-banner-r32"; // R32
-import { useAnnounceWorkspace, WorkspaceSwitchedBanner } from "@/web/components/workspace-switched-banner-r58"; // R58 (MB-245)
-import { workspaceTabs } from "@/web/lib/workspace-tabs-r58"; // R58 (MB-245)
 import { PendingInviteBanner } from "@/web/components/pending-invite-banner-r39"; // R39 (MB-202)
 import { JoinInvitePrompt } from "@/web/components/join-invite-prompt-r41"; // R41 (MB-221)
 import { api } from "@/web/lib/api";
@@ -107,7 +105,6 @@ export function AppLayout() {
   if (me.data) setOfflineScope(scopeOf(me.data));
   const config = useConfig();
   useDemoSeedCatchUp(!!me.data?.organization?.isDemo);
-  useAnnounceWorkspace(me.data?.organization); // R58 (MB-245): other tabs learn which workspace is open
   const loc = useLocation();
   const [mainEl, setMainEl] = useState<HTMLElement | null>(null);
   const barTitle = useCollapsingTitle(mainEl, loc.pathname); // R35: large title folds into the bar on phones
@@ -267,7 +264,6 @@ export function AppLayout() {
             {accountMenu(<button className="grid h-11 w-11 place-items-center rounded-full transition-colors hover:bg-hover" aria-label="Account" data-testid="topbar-account"><span className="relative"><Avatar label={initials(user.name)} className="h-8 w-8" drawn />{whatsNew.unread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-brand ring-2 ring-surface" aria-hidden data-testid="whats-new-unread" />}</span></button>, "end")}
           </div>
         </header>
-        <WorkspaceSwitchedBanner />
         <ReadOnlyBanner />
         <OfflineBanner />
         {!!me.error && <ReconnectingPill onRetry={() => void me.refetch()} />}
@@ -302,7 +298,6 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
     setSwitching(id); setSwitchError(null);
     try {
       await api.post(`/account/workspaces/${id}/switch`);
-      workspaceTabs()?.switchedHere(); // R58 (MB-245): up to date again; other tabs hear the workspace opened
       qc.clear();
       navigate("/app");
     } catch (e) {
@@ -312,7 +307,7 @@ function WorkspaceSwitcher({ current, variant = "sidebar", compact = false }: { 
   };
   const create = async () => {
     setBusy(true); setError(null);
-    try { await api.post("/account/workspaces", { name }); workspaceTabs()?.switchedHere(); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
+    try { await api.post("/account/workspaces", { name }); qc.clear(); setCreating(false); setName(""); navigate("/app"); }
     catch (e) { setError(e instanceof Error ? e.message : "Couldn't create it."); }
     finally { setBusy(false); }
   };

@@ -5,7 +5,7 @@
  * Source app names appear only in the picker and its help text, so people can find their tool.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -130,7 +130,9 @@ function Stepper({ steps, at }: { steps: string[]; at: number }) {
 export function ImportExportSettings() {
   const me = useMe();
   const isAdmin = me.data?.organization?.role !== "member";
-  const [source, setSource] = useState<Source | null>(null);
+  // R58 (MB-237): a switch page links here with ?source=<tool>, so the wizard opens on that tool.
+  const [params] = useSearchParams();
+  const [source, setSource] = useState<Source | null>(() => SOURCES.find((s) => s.id === params.get("source")) ?? null);
   const wizardRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (source) wizardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }, [source]);
   return (

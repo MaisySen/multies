@@ -13,7 +13,7 @@ import { fromB64 } from "../lib/crypto";
 import { createField, deleteField, listFields, updateField } from "../services/suite/fields";
 import { portfolio } from "../services/suite/portfolio";
 import {
-  acceptInvite, addFile, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, newGuestLink, readFile, resolveGuest, revokeGuest,
+  acceptInvite, addFile, GUEST_COOKIE, GUEST_SESSION_DAYS, guestComment, guestDoc, guestHome, guestTaskDetail, inviteGuest, listFiles, listGuests, readFile, resolveGuest, revokeGuest,
   type GuestContext,
 } from "../services/suite/guests";
 import { resolveTaskId } from "../services/suite/tasks";
@@ -77,8 +77,6 @@ export function guestAdminRoutes() {
       const b = await parseBody(c, GuestInvite.extend({ projectId: z.string().min(1) }));
       return c.json(await inviteGuest(c.var.deps, c.var.auth, b.projectId, b), 201);
     })
-    // R58 (MB-253): a new link to share by hand when the invite email did not reach the guest. No email is sent.
-    .post("/:id/link", async (c) => c.json(await newGuestLink(c.var.deps, c.var.auth, c.req.param("id"))))
     .delete("/:id", async (c) => c.json(await revokeGuest(c.var.deps, c.var.auth, c.req.param("id"))));
 }
 

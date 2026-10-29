@@ -102,26 +102,6 @@ export async function inviteGuest(deps: Deps, actor: SuiteActor, projectId: stri
   return { guest, delivery, ...(delivery.status === "not_sent" && !actor.agentId ? { inviteUrl: url } : {}) };
 }
 
-/**
- * R58 (MB-253): a fresh invite link for a guest who has not joined, without sending any email, so a person whose invite
- * did not reach the guest can pass the link on by hand. The old link stops working. Only a person gets it (an agent's
- * invite goes through its approval queue, so an agent never gets a link and an agent's invite is never re-linked here).
- * One row update: essential (a person's own action), never deferred.
- */
-export async function newGuestLink(deps: Deps, actor: SuiteActor, guestId: string) {
-  assertWritable(actor);
-  if (actor.agentId) throw new HttpError(403, "forbidden", "Only a person can get an invite link to share.");
-  const g = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.orgId, actor.orgId), eq(projectGuests.id, guestId))).get();
-  if (!g || g.status === "revoked") throw notFound("Guest");
-  if (g.status === "active") throw new HttpError(409, "already_joined", "This guest has already joined, so they don't need a link.");
-  if (g.approvalId) throw new HttpError(409, "waiting_for_approval", "This invite is waiting for approval, so it can't be shared by hand yet.");
-  await getProject(deps, actor.orgId, g.projectId); // the project must still be there
-  const token = randomToken(32);
-  const now = deps.now();
-  await deps.db.update(projectGuests).set({ inviteHash: await sha256Hex(token), inviteExpiresAt: new Date(now.getTime() + INVITE_DAYS * 86_400_000), updatedAt: now }).where(eq(projectGuests.id, g.id));
-  return { inviteUrl: `${deps.config.appUrl}/g/${token}`, inviteExpiresAt: new Date(now.getTime() + INVITE_DAYS * 86_400_000).toISOString() };
-}
-
 export async function revokeGuest(deps: Deps, actor: SuiteActor, guestId: string) {
   assertWritable(actor);
   const g = await deps.db.select().from(projectGuests).where(and(eq(projectGuests.orgId, actor.orgId), eq(projectGuests.id, guestId))).get();
