@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { IconMinus, IconPlus } from "@/web/components/ui/icon";
@@ -41,7 +40,6 @@ export function PricingPage() {
       <div className="mx-auto mb-14 max-w-2xl text-center">
         <h1 className="text-fg text-4xl font-semibold tracking-tight sm:text-5xl">Free for your business. A few dollars for what you add.</h1>
         <p className="mt-4 text-[17px] text-muted">Email on your own domain for your team and your AI agents, with tasks, boards, docs and contacts built in. No per person pricing, ever.</p>
-        <p className="mt-3 text-sm text-muted">{/* R58 (MB-237) */}<Link to="/startups" className="font-medium text-brand-hover hover:underline">What Free includes for small teams</Link> <span aria-hidden>·</span> <Link to="/switch" className="font-medium text-brand-hover hover:underline">Move your work over</Link></p>
       </div>
       <PlanCards headingLevel={2} />
       <Calculator />

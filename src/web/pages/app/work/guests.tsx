@@ -29,6 +29,14 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
       setLast(r); setEmail(""); setName(""); await q.refetch();
     } catch (e) { showError(e as Error); } finally { setBusy(false); }
   };
+  // R58 (MB-253): a guest who has not joined can be handed a fresh link by hand (no email; the old link stops working).
+  const [links, setLinks] = useState<Record<string, string>>({});
+  const [linking, setLinking] = useState<string | null>(null);
+  const getLink = async (g: Guest) => {
+    setLinking(g.id);
+    try { const r = await api.post<{ inviteUrl: string }>(`/guests/${g.id}/link`, {}); setLinks((m) => ({ ...m, [g.id]: r.inviteUrl })); }
+    catch (e) { showError(e as Error); } finally { setLinking(null); }
+  };
   const remove = async (g: Guest) => {
     try { await api.del(`/guests/${g.id}`); await q.refetch(); } catch (e) { showError(e as Error); }
   };
@@ -43,7 +51,11 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
         <p className="mt-3 rounded-lg border border-line bg-elevated/60 p-2.5 text-[12.5px] text-muted" role="status">
           {last.delivery.status === "sent" ? <>Invite sent to {last.guest.email}.</>
             : last.delivery.status === "pending_approval" ? <>The invite to {last.guest.email} is waiting for approval.</>
-              : <>Email isn't connected here, so nothing was sent. Share this link with {last.guest.email} yourself: {last.inviteUrl && <CopyButton value={last.inviteUrl} label="Copy invite link" />}</>}
+              : <span data-testid="guest-invite-not-sent">The invite email to {last.guest.email} didn't go out, so share the link with them yourself.{" "}
+                {last.inviteUrl
+                  ? <CopyButton value={last.inviteUrl} label="Copy invite link" toastText="Invite link copied" className="ml-1 align-middle" />
+                  : <>Use Get link on their row below.</>}
+              </span>}
         </p>
       )}
       <ul className="mt-4 divide-y divide-line" aria-label="Guests">
@@ -58,6 +70,9 @@ export function GuestsDialog({ project, onClose }: { project: Project; onClose: 
               {g.status === "active" ? "Joined" : g.approvalStatus === "pending" ? "Waiting for approval" : g.approvalStatus && g.approvalStatus !== "sent" ? "Invite not sent" : "Invited"}
             </Badge>
             {g.lastSeenAt && <span className="hidden text-[11.5px] text-subtle sm:inline">seen {timeAgo(g.lastSeenAt)}</span>}
+            {g.status === "pending" && !g.approvalId && (links[g.id]
+              ? <CopyButton value={links[g.id]!} label="Copy link" toastText="Invite link copied" />
+              : <Button size="sm" variant="secondary" loading={linking === g.id} onClick={() => void getLink(g)} title="A new link to share by hand. No email is sent and the old link stops working." aria-label={`Get an invite link for ${g.email}`}>Get link</Button>)}
             <ConfirmButton armedLabel="Remove?" aria-label={`Remove ${g.email}`} title="They lose access straight away" onConfirm={() => void remove(g)}><IconTrash className="h-4 w-4" /></ConfirmButton>
           </li>
         ))}
