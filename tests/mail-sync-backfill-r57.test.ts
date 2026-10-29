@@ -177,27 +177,3 @@ describe("R57 full mailbox sync", () => {
     expect(c.messagesToday).toBe(90);
   });
 });
-
-describe("R58 Inbox and Sent share each backfill pass", () => {
-  const byBox = async (ctx: Awaited<ReturnType<typeof setup>>["ctx"], mailboxId: string) => {
-    const rows = await ctx.db.select({ box: messages.remoteBox, n: sql<number>`count(*)` }).from(messages).where(eq(messages.mailboxId, mailboxId)).groupBy(messages.remoteBox).all();
-    return Object.fromEntries(rows.map((r) => [r.box, Number(r.n)])) as Record<string, number>;
-  };
-
-  it("a big Inbox does not starve Sent: the first older pass takes from both", async () => {
-    const { ctx, row } = await setup({}, 200, 40);
-    // The pass at connect stores the 10 recent Inbox mails, then one backfill pass of 30 shared by Sent and Inbox.
-    const n = await byBox(ctx, row.mailboxId);
-    expect(n.sent).toBe(15);
-    expect(n.inbox).toBe(10 + 15);
-  });
-
-  it("what Sent does not use flows on to Inbox in the same pass", async () => {
-    const { ctx, row } = await setup({}, 200, 5);
-    const n = await byBox(ctx, row.mailboxId);
-    expect(n.sent).toBe(5);
-    expect(n.inbox).toBe(10 + 25);
-    const state = parseState((await ctx.db.select().from(mailConnections).where(eq(mailConnections.id, row.id)).get())!.syncState);
-    expect(state.sent).toMatchObject({ done: true, left: 0 });
-  });
-});

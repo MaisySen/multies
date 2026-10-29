@@ -601,7 +601,7 @@ export async function backfillAllowance(deps: Deps, state: SyncState, reading: {
 }
 
 /**
- * R57: one backfill step. For each synced folder, Inbox and Sent first (R58: sharing the pass), walks the UIDs below the folder's `low` cursor,
+ * R57: one backfill step. For each synced folder, Inbox and Sent first, walks the UIDs below the folder's `low` cursor,
  * newest first, with one bulk header fetch per folder, until this pass's allowance is spent. Mail already stored (same
  * Message-ID) keeps its header only and is skipped by the store step, so a restart or a UIDVALIDITY change never doubles
  * mail. Answers the fetched heads (marked partial) and whether more older mail may be taken right away.
@@ -617,15 +617,8 @@ export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailb
   let budget = allow.n;
   if (budget <= 0) return { fetched, more: false };
   const peek = deps.config.mailConnect.backfill.peekBytes;
-  // R58: Inbox and Sent share each pass, so a huge Inbox never leaves Sent waiting until it is done. Sent goes first
-  // (it is usually the smaller one) with half the pass; what it does not use flows on to Inbox, then to other folders.
-  const shared = (["sent", "inbox"] as BoxKey[]).filter((k) => keys.includes(k));
-  const order = [...shared, ...keys.filter((k) => !shared.includes(k))];
-  let sharesLeft = shared.length;
-  for (const box of order) {
+  for (const box of keys) {
     if (budget <= 0) break;
-    const share = sharesLeft > 1 ? Math.ceil(budget / sharesLeft) : budget;
-    if (sharesLeft > 0) sharesLeft--;
     const st = cursor(state, box)!;
     const path = pathFor(state, box);
     if (!path) continue;
@@ -640,7 +633,7 @@ export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailb
       }
       const older = await session.uidsBefore(st.low);
       if (!older.length) { st.left = 0; st.done = true; continue; }
-      const take = older.slice(-share);
+      const take = older.slice(-budget);
       const heads = await session.fetchHeads(take, peek);
       await needBodies(deps, c.mailboxId, heads, passIds);
       for (const m of heads) fetched.push({ box, m: { ...m, partial: true } });
