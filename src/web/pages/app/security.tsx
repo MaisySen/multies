@@ -228,7 +228,13 @@ function DevicesSection() {
   const others = rows.filter((s) => !s.current).length;
   return (
     <Section title="Devices" description="Where you're signed in. Sessions end after 30 days without activity.">
-      {sessions.isPending ? <Skeleton className="h-24" /> : (
+      {sessions.isPending ? <Skeleton className="h-24" /> : sessions.isError ? (
+        // R73 (MB-272): a failed read said nothing at all before; now it says so and offers a retry.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-3 text-sm" role="alert" data-testid="devices-error">
+          <span className="text-muted">Could not load your devices.</span>
+          <Button size="sm" variant="secondary" loading={sessions.isFetching} onClick={() => void sessions.refetch()}>Try again</Button>
+        </div>
+      ) : (
         <>
           <ul className="divide-y divide-line border-y border-line" aria-label="Signed-in devices">
             {rows.map((s) => (

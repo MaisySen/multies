@@ -5,7 +5,7 @@
  * Retry where the page would be, inside the app frame, and tries again by itself when the connection returns.
  * Anything else a page throws goes on to the route's error screen as before.
  */
-import { Component, lazy, type ComponentProps, type ComponentType, type ReactNode } from "react";
+import { Component, lazy, useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
 import { Button } from "@/web/components/ui/button";
 import { IconWifiOff } from "@/web/components/ui/icon";
 import { isPageLoadError, loadPageModule } from "@/web/lib/page-load";
@@ -25,14 +25,18 @@ export interface LazyPageOptions {
  */
 export function lazyPage<M extends Record<K, AnyComponent>, K extends string>(load: () => Promise<M>, name: K, options: LazyPageOptions = {}): ComponentType<ComponentProps<M[K]>> {
   const make = () => lazy(async () => ({ default: await loadPageModule<AnyComponent>(load, name) }));
-  const holder = { Comp: make() };
+  // `failed`: the last load failed. React.lazy keeps a failed load, so the next time the page is opened (after going
+  // back online, say) it starts a fresh load instead of showing the old failure again.
+  const holder = { Comp: make(), failed: false };
   const Inner = (props: Record<string, unknown>) => {
     const C = holder.Comp;
     return <C {...props} />;
   };
+  const fresh = () => { holder.Comp = make(); holder.failed = false; };
   function LazyPage(props: ComponentProps<M[K]>) {
+    useState(() => { if (holder.failed) fresh(); return 0; });
     return (
-      <PageLoadBoundary page={name} quiet={!!options.quiet} onRetry={() => { holder.Comp = make(); }}>
+      <PageLoadBoundary page={name} quiet={!!options.quiet} onFailed={() => { holder.failed = true; }} onRetry={fresh}>
         <Inner {...(props as Record<string, unknown>)} />
       </PageLoadBoundary>
     );
@@ -41,7 +45,7 @@ export function lazyPage<M extends Record<K, AnyComponent>, K extends string>(lo
   return LazyPage;
 }
 
-interface BoundaryProps { page: string; quiet: boolean; onRetry: () => void; children: ReactNode }
+interface BoundaryProps { page: string; quiet: boolean; onRetry: () => void; onFailed?: () => void; children: ReactNode }
 interface BoundaryState { error: unknown; retries: number }
 
 /** Exported for tests. Catches only page load failures; everything else is thrown on to the route's boundary. */
@@ -49,8 +53,12 @@ export class PageLoadBoundary extends Component<BoundaryProps, BoundaryState> {
   state: BoundaryState = { error: null, retries: 0 };
   static getDerivedStateFromError(error: unknown): Partial<BoundaryState> { return { error }; }
   componentDidCatch(error: unknown) {
-    if (isPageLoadError(error)) captureWarning(error, { page_load: error.reason, page: this.props.page });
+    if (!isPageLoadError(error)) return;
+    this.props.onFailed?.();
+    captureWarning(error, { page_load: error.reason, page: this.props.page });
   }
+  // A page that fails on its first load is caught while the boundary mounts, so the listener starts here too.
+  componentDidMount() { if (this.state.error) this.listen(isPageLoadError(this.state.error)); }
   componentDidUpdate(_: BoundaryProps, prev: BoundaryState) {
     if (!!prev.error !== !!this.state.error) this.listen(!!this.state.error && isPageLoadError(this.state.error));
   }

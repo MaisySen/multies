@@ -262,6 +262,18 @@ export const OCR_SLOW_NOTE = "English is quickest. Nepali, Hindi, Chinese, Japan
 export const ocrLanguagesFor = (features: readonly string[]) => (features.includes("ocr_langs") ? OCR_LANGUAGES : OCR_LANGUAGES.filter((l) => l.value === "eng"));
 
 /** The file extensions a tool takes, from its accept list (".pdf", ".docx", ...). */
+/**
+ * R73 (MB-272): Split starts with a range filled in once the PDF's pages are counted: every page on its own for up to
+ * 30 pages, else parts of 10 pages. Empty for a one page file (nothing to split).
+ */
+export function defaultSplitRanges(pages: number): string {
+  if (!Number.isFinite(pages) || pages < 2) return "";
+  if (pages <= 30) return Array.from({ length: pages }, (_, i) => String(i + 1)).join(", ");
+  const parts: string[] = [];
+  for (let a = 1; a <= pages; a += 10) { const b = Math.min(pages, a + 9); parts.push(a === b ? String(a) : `${a}-${b}`); }
+  return parts.join(", ");
+}
+
 export const toolExtensions = (def: Pick<ToolDef, "accept">) => def.accept.split(",").filter((x) => x.startsWith("."));
 /** Whether a tool takes a file with this name. */
 export function toolTakes(def: Pick<ToolDef, "accept">, filename: string): boolean {

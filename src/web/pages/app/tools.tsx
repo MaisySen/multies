@@ -21,7 +21,7 @@ import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { ShareResultLinks } from "./tools-share-sign/entry"; // Tools P2: share links and e-sign
-import { isToolOp, notCountedLine, ocrPageCap, toolTakes, type ToolDef, type ToolJob, type ToolOp, type ToolsInfo } from "@/shared/tools";
+import { defaultSplitRanges, isToolOp, notCountedLine, ocrPageCap, toolTakes, type ToolDef, type ToolJob, type ToolOp, type ToolsInfo } from "@/shared/tools";
 import {
   SECTIONS, STARTERS, buildEntries, carryFiles, entryTakes, middleTruncate, noRunsLine, pagesLine, recentKeys, rememberRecent, resetWhen, runsLeft, runsLeftLabel,
   savedLine, searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
@@ -176,6 +176,17 @@ export function ToolsPage() {
     void countPdfPages(firstPdf).then((n) => { if (!stop && n) setPageCount({ file: firstPdf, pages: n }); });
     return () => { stop = true; };
   }, [firstPdf]);
+  // R73 (MB-272): Split fills in a starting range once the pages are counted (only while the field is empty).
+  const splitPdf = tool?.op === "split" && files.length === 1 && /\.pdf$/i.test(files[0].name) ? files[0] : null;
+  useEffect(() => {
+    if (!splitPdf) return;
+    let stop = false;
+    void countPdfPages(splitPdf).then((n) => {
+      const r = n ? defaultSplitRanges(n) : "";
+      if (!stop && r) setOptions((o) => (o.ranges?.trim() ? o : { ...o, ranges: r }));
+    });
+    return () => { stop = true; };
+  }, [splitPdf]);
   const tooManyPages = !!firstPdf && !!pageLimit && pageCount?.file === firstPdf && pageCount.pages > pageLimit ? pageCount.pages : 0;
 
   /** Adds files after checking type, count and size, so a wrong file is caught before any upload. */

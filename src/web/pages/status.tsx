@@ -3,6 +3,7 @@ import { IconRefresh } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { LOCALE } from "@/shared/locale";
 import { cn } from "@/web/lib/cn";
+import { statusHeadline } from "@/web/lib/status-headline";
 
 type State = "operational" | "degraded" | "down" | "not_configured";
 interface Day { date: string; checks: number; uptime: number | null; worst: State | null }
@@ -17,7 +18,6 @@ const pct = (v: number | null | undefined) => (v === null || v === undefined ? "
 
 const label: Record<State, string> = { operational: "Operational", degraded: "Degraded", down: "Down", not_configured: "Not offered" };
 const dot: Record<State, string> = { operational: "bg-ok", degraded: "bg-warn", down: "bg-bad", not_configured: "bg-subtle/40" };
-const headline = { operational: "Everything is working.", degraded: "Some things are slow or failing.", down: "Part of Multies is down." } as const;
 
 export function StatusPage() {
   const q = useQuery({
@@ -38,7 +38,7 @@ export function StatusPage() {
         {s ? (
           <div className="flex items-center gap-3">
             <span className={cn("h-3 w-3 rounded-full", dot[s.overall])} aria-hidden />
-            <span className="text-lg font-medium">{headline[s.overall]}</span>
+            <span className="text-lg font-medium">{statusHeadline(s.overall, s.components)}</span>
           </div>
         ) : <span className="text-muted">{q.error ? "Couldn't reach the status check." : "Checking..."}</span>}
         <Button size="sm" variant="ghost" onClick={() => q.refetch()} loading={q.isFetching}><IconRefresh className="h-3.5 w-3.5" />Check again</Button>

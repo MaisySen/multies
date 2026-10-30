@@ -92,6 +92,8 @@ export function holdMessage<R>(o: HoldMessageOptions<R>): HeldSend<R> {
   return h;
 }
 
+const coarsePointer = () => { try { return window.matchMedia("(pointer: coarse)").matches; } catch { return false; } };
+
 function HeldToast({ h, label }: { h: HeldSend; label: string }) {
   const [left, setLeft] = useState(h.remaining());
   const [sending, setSending] = useState(h.state() === "sending");
@@ -107,8 +109,9 @@ function HeldToast({ h, label }: { h: HeldSend; label: string }) {
         <div className="min-w-0 flex-1" role="status" aria-live="polite">
           {/* The visible countdown ticks; screen readers hear the hold once, not every second. */}
           <div className="whitespace-nowrap font-medium" aria-hidden>{sending ? "Sending" : `Sending in ${left} s`}</div>
-          {label && <div className="truncate text-[12px] text-muted" aria-hidden>{label}</div>}
-          <span className="sr-only">{`Message held for ${h.seconds} seconds ${label}. Press Z or the Undo button to take it back.`}</span>
+          {label && <div className="truncate text-[12px] text-muted">{label}</div>}
+          {/* R73 (MB-272): the address is read once (above), and phones are not told about a keyboard key. */}
+          <span className="sr-only">{`Held for ${h.seconds} seconds. ${coarsePointer() ? "Tap Undo" : "Press Z or use Undo"} to take it back.`}</span>
         </div>
         {!sending && (
           <div className="flex shrink-0 items-center gap-1">
