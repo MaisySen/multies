@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { keys, useApprovals } from "@/lib/queries";
 import { setAppBadge } from "@/lib/badges";
 import { useBadges } from "@/lib/use-badges";
-import { chrome } from "@/components/chrome";
+import { BarBlur, chrome, hasBarBlur, withAlpha } from "@/components/chrome";
 import { CommandSheet } from "@/components/command-sheet";
 import { SyncPill, useCommandQueueRunner } from "@/components/sync-pill";
 import { openCommandSheet } from "@/lib/command-sheet-store";
@@ -14,6 +14,7 @@ import { tick } from "@/lib/haptics";
 import { notifyApprovals } from "@/lib/push";
 import { FEATURES } from "@/config";
 import { colors } from "@/theme";
+import { useQuickActions } from "@/lib/native-features";
 
 export default function TabsLayout() {
   const pending = useApprovals("pending");
@@ -33,6 +34,8 @@ export default function TabsLayout() {
   }, [qc]);
   // R33: offline edits wait in a command queue and sync when the connection is back.
   useCommandQueueRunner();
+  // R37: app icon quick actions (New task, Compose, Search, Inbox) on 1.10.0 builds.
+  useQuickActions();
 
   // A local alert when a new approval arrives while the app is in the background but still alive.
   const seen = useRef<Set<string> | null>(null);
@@ -54,8 +57,9 @@ export default function TabsLayout() {
       screenOptions={{
       headerShown: false,
       headerStyle: { backgroundColor: colors.bg }, headerTintColor: colors.fg, headerShadowVisible: false,
-      // R34: translucent bar with a hairline edge (real blur is native batch 1).
-      tabBarStyle: chrome.tabBar,
+      // R34: translucent bar with a hairline edge. R37: real blur material on iOS 1.10.0 builds.
+      tabBarStyle: hasBarBlur() ? { ...chrome.tabBar, backgroundColor: withAlpha(colors.surface, 0.55) } : chrome.tabBar,
+      tabBarBackground: hasBarBlur() ? () => <BarBlur /> : undefined,
       tabBarLabelStyle: { fontSize: 10, fontWeight: "500", letterSpacing: 0.1 },
       tabBarActiveTintColor: colors.brand, tabBarInactiveTintColor: colors.subtle,
       tabBarBadgeStyle: { backgroundColor: colors.bad, color: "#FFFFFF", fontWeight: "600", fontSize: 11 },

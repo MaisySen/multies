@@ -18,6 +18,7 @@ import { usePrefs, type TaskSwipe } from "@/lib/prefs";
 import { isTempId } from "@/lib/pending";
 import { useOffline } from "@/lib/offline";
 import { kv } from "@/lib/kv";
+import { recordTaskCompleted } from "@/lib/native-features";
 import { progressBadge } from "@/lib/checklist";
 import { loadLastQuery, queryErrorText, saveLastQuery } from "@/lib/task-query";
 import { TaskQueryBox } from "@/components/task-query-box";
@@ -40,7 +41,11 @@ export default function Tasks() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const onFail = { onError: () => warning() };
-  const move = (t: Task, status: TaskStatus) => update.mutate({ id: t.id, patch: { status } }, onFail);
+  const move = (t: Task, status: TaskStatus) => {
+    // R37: the fifth completed task asks once for a store review (1.10.0 builds; no-op elsewhere).
+    if (status === "done" && t.status !== "done") recordTaskCompleted();
+    update.mutate({ id: t.id, patch: { status } }, onFail);
+  };
   // R33: complete, delete and move hide or change at once with Undo; the call runs when the window closes.
   const undo = useUndoQueue();
   const prefs = usePrefs();

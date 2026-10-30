@@ -17,6 +17,7 @@ import { colors, font, space } from "@/theme";
 import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
 import { UpdateRows } from "@/components/update-rows";
 import { GestureSettings } from "@/components/gesture-settings";
+import { biometricAvailable, biometricLabel, getBiometricLock, setBiometricLock } from "@/lib/native-features";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
 
@@ -32,6 +33,20 @@ export default function Settings() {
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
+  // R37: "Unlock with Face ID" (or fingerprint), off by default; shows only where the phone supports it.
+  const [lockAvailable, setLockAvailable] = useState(false);
+  const [lockLabel, setLockLabel] = useState("Face ID");
+  const [lockOn, setLockOn] = useState(false);
+  useEffect(() => {
+    biometricAvailable().then(setLockAvailable).catch(() => {});
+    biometricLabel().then(setLockLabel).catch(() => {});
+    getBiometricLock().then(setLockOn).catch(() => {});
+  }, []);
+  const toggleLock = async () => {
+    const next = await setBiometricLock(!lockOn).catch(() => lockOn);
+    if (!lockOn && !next) Alert.alert(`Couldn't turn on ${lockLabel}`, "Check that it is set up in your phone's Settings app, then try again.");
+    setLockOn(next);
+  };
 
   const turnOnPush = async () => {
     const r = await registerPush(mode === "live" ? api : null, { prompt: true });
@@ -79,6 +94,13 @@ export default function Settings() {
       <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
       <Row tile="purple" icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
       <Row tile="gray" icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
+
+      {lockAvailable ? (
+        <>
+          <SectionTitle>Security</SectionTitle>
+          <Row tile="green" icon="lock" label={`Unlock with ${lockLabel}`} value={lockOn ? "On" : "Off"} onPress={toggleLock} testID="biometric-lock" />
+        </>
+      ) : null}
 
       <SectionTitle>Notifications</SectionTitle>
       <Row tile="red" icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />

@@ -3,6 +3,35 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.1 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- New Tools: the same design as multies.si. Search, your recent tools, and five sections: Edit PDF,
+  Convert, Secure, Smart and Automate. New on the phone: add a password, stamp and number pages,
+  anything to PDF, PDF to text or Excel, PDF tables to Excel, merge and clean up spreadsheets, scan to
+  PDF, hide sensitive info, and OCR in Nepali, Hindi and more languages.
+- One screen per tool: add files from Files, Photos (Android) or straight from an email, see only the
+  options that matter, then follow Upload, Work and Done, with Cancel at any time.
+- Results: see how much smaller a file got, then open it, save or share it, attach it to a new email,
+  or use it in another tool.
+- Runs left: Tools shows how many runs you have left today or this month and when more arrive.
+- Nothing lost: a run keeps going when you leave the app, comes back when you open it again, and tries
+  again by itself when your connection drops.
+- Page editor, forms, compare, share links, workflows and document templates open the web page.
+
+Carries everything in 1.9.12.
+
+## 1.10.0 (store build: Android versionCode 16, iOS build 20), first build with native batch 1
+
+- iPhone symbols: tabs, buttons and rows draw the phone's own SF Symbols, with the filled symbol on
+  the selected tab.
+- Softer bars: the tab bar and the compact title bar use the iPhone's blurred material.
+- Unlock with Face ID: turn it on in Settings, Security. Multies then asks for Face ID, Touch ID or
+  your fingerprint when you open it and each time you come back to it. It is off until you turn it
+  on.
+- App icon shortcuts: press and hold the Multies icon for New task, Compose, Search and Inbox.
+- After you complete a few tasks, Multies asks once whether you would like to rate it.
+- The app icon badge shows what is unread, on more Android launchers too.
+- Smoother gestures underneath swipes and sheets.
 ## 1.9.13 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
 
 - New Tools: the same design as multies.si. Search, your recent tools, and five sections: Edit PDF,

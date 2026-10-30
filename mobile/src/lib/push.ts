@@ -25,10 +25,10 @@ export function configureNotifications() {
     handleNotification: async () => ({ shouldPlaySound: false, shouldSetBadge: true, shouldShowBanner: true, shouldShowList: true }),
   });
   if (Platform.OS === "android") {
-    Notifications.setNotificationChannelAsync(CHANNELS.mail, { name: "New mail", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#0071E3" }).catch(() => {});
-    Notifications.setNotificationChannelAsync(CHANNELS.approvals, { name: "Agent approvals", description: "When an agent asks to send a message", importance: Notifications.AndroidImportance.HIGH, lightColor: "#0071E3" }).catch(() => {});
-    Notifications.setNotificationChannelAsync(CHANNELS.chat, { name: "Chat", description: "Mentions, direct messages and thread replies", importance: Notifications.AndroidImportance.HIGH, lightColor: "#0071E3" }).catch(() => {});
-    Notifications.setNotificationChannelAsync(CHANNELS.tasks, { name: "Tasks", description: "Assigned tasks, comments, replies and due dates", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#0071E3" }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.mail, { name: "New mail", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#0071E3", showBadge: true }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.approvals, { name: "Agent approvals", description: "When an agent asks to send a message", importance: Notifications.AndroidImportance.HIGH, lightColor: "#0071E3", showBadge: true }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.chat, { name: "Chat", description: "Mentions, direct messages and thread replies", importance: Notifications.AndroidImportance.HIGH, lightColor: "#0071E3", showBadge: true }).catch(() => {});
+    Notifications.setNotificationChannelAsync(CHANNELS.tasks, { name: "Tasks", description: "Assigned tasks, comments, replies and due dates", importance: Notifications.AndroidImportance.DEFAULT, lightColor: "#0071E3", showBadge: true }).catch(() => {});
   }
 }
 
