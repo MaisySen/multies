@@ -237,7 +237,7 @@ export function TasksPage() {
       </div>
 
       {project && <ProjectRollups projectId={project.id} fields={allFields} />}
-      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
+      <div className="-mx-4 mb-4 flex items-center gap-2 overflow-x-auto overscroll-x-contain px-4 pb-1 [scrollbar-width:none] max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0 [&>*]:shrink-0" aria-label="Filters">
         <TaskQueryBox value={filters.q ?? ""} onApply={(q) => set({ q })} values={queryValues} />
         <PhoneFilters groups={[
           { key: "assignee", label: "Assignee", value: filters.assignee ?? "", onChange: (v) => set({ assignee: v || null }), options: [{ value: "", label: "Anyone" }, { value: "me", label: "Me" }, { value: "none", label: "Nobody" }, ...(people.data ?? []).map((p) => ({ value: p.id, label: p.name }))] },

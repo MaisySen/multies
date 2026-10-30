@@ -12,15 +12,16 @@ import { moveTargets, useProviderFolders } from "./provider-folders";
 
 type Act = (call: Omit<BulkCall, "ids">, label?: string) => void;
 
+/** R71 (MB-267): a 44 px touch area around the box (the box itself stays small), a little bigger on a phone. */
 export function RowCheck({ checked, visible, label, onToggle }: { checked: boolean; visible: boolean; label: string; onToggle: (shift: boolean) => void }) {
   return (
     <button type="button" role="checkbox" aria-checked={checked} aria-label={label} data-testid="mail-select"
       onClick={(e) => { e.stopPropagation(); onToggle(e.shiftKey); }}
       className={cn(
-        "absolute left-1 top-3 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md transition-opacity duration-150 motion-reduce:transition-none focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
+        "absolute left-1 top-3 z-[1] inline-flex h-6 w-6 items-center justify-center rounded-md before:absolute before:-inset-2.5 before:content-[''] transition-opacity duration-150 motion-reduce:transition-none focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
         visible || checked ? "opacity-100" : "opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100",
       )}>
-      <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-[5px] border transition-colors duration-150 motion-reduce:transition-none", checked ? "border-brand bg-brand text-brand-fg" : "border-line-strong bg-surface")}>
+      <span className={cn("inline-flex h-4 w-4 items-center justify-center rounded-[5px] border max-sm:h-5 max-sm:w-5 transition-colors duration-150 motion-reduce:transition-none", checked ? "border-brand bg-brand text-brand-fg" : "border-line-strong bg-surface")}>
         {checked && <IconCheck className="h-3 w-3" strokeWidth={3} aria-hidden />}
       </span>
     </button>

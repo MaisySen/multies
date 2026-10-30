@@ -123,6 +123,16 @@ export function ToolsPage() {
   const features = useMemo(() => info.data?.features ?? [], [info.data]);
   const entries = useMemo(() => buildEntries(info.data?.tools ?? [], features), [info.data, features]);
   const tool = op ? (info.data?.tools ?? []).find((t) => t.op === op && !t.hidden && !t.path) : undefined;
+  // R71 (MB-268): an old link to a tool that now has its own page (?op=organize, form-fill, compare) goes to that page.
+  const movedTo = op ? (info.data?.tools ?? []).find((t) => t.op === op && t.path)?.path : undefined;
+  useEffect(() => {
+    if (!movedTo) return;
+    const rest = new URLSearchParams(params);
+    rest.delete("op");
+    const q = rest.toString();
+    navigate(q ? `${movedTo}${movedTo.includes("?") ? "&" : "?"}${q}` : movedTo, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movedTo]);
   const entry = entries.find((e) => e.key === op);
 
   // The list: search, a file dropped on it (show only what takes it), recent.

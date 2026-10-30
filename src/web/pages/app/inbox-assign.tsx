@@ -57,19 +57,20 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
   const people = (team.data?.members ?? []).filter((m) => m.kind === "human");
   const seg = (v: InboxView, label: string) => (
     <button type="button" onClick={() => set(v)} aria-pressed={view === v}
-      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
+      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-10", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
   );
   return (
     <div className="mb-4 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        {/* R67 (MB-252): on a phone the views scroll sideways inside their pill instead of pushing the page wider. */}
-        <div role="group" aria-label="Thread view" className="no-scrollbar inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-fill p-0.5 [&>*]:shrink-0" data-testid="inbox-views">
+        {/* R67 (MB-252): on a phone the views scroll sideways inside their pill instead of pushing the page wider.
+            R71 (MB-267): 44 px tall there, and the cut edge fades so it reads as more to scroll. */}
+        <div role="group" aria-label="Thread view" className="no-scrollbar inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-fill p-0.5 max-sm:p-0.5 max-sm:pr-8 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-32px),transparent)] [&>*]:shrink-0" data-testid="inbox-views">
           {seg("open", "All")}
           {seg("mine", "Mine")}
           {seg("unassigned", "Unassigned")}
           <Select bare aria-label="Assigned to" value={view === "assigned" && assignee ? assignee : ""} onChange={(e) => e.target.value ? set("assigned", e.target.value) : set("open")}
             className={cn("h-7 rounded-md bg-transparent px-2 text-[13px] font-medium outline-none", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}
-            phoneClassName={cn("h-7 max-w-[9rem] rounded-md px-2 text-left text-[13px] font-medium", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted")}>
+            phoneClassName={cn("h-7 max-w-[9rem] rounded-md px-2 max-sm:h-10 text-left text-[13px] font-medium", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted")}>
             <option value="">Assigned to...</option>
             {people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
           </Select>

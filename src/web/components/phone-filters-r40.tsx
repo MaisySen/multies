@@ -25,14 +25,14 @@ export function PhoneFilters({ groups, className }: { groups: FilterGroup[]; cla
   return (
     <div className={cn("flex items-center gap-2 sm:hidden", className)} data-testid="phone-filters">
       <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" data-testid="phone-filter-button"
-        className={cn("inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none",
+        className={cn("inline-flex h-11 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors duration-150 motion-reduce:transition-none",
           active.length ? "border-brand/40 bg-brand-soft text-brand-hover" : "border-line bg-elevated text-fg")}>
         <IconSliders className="h-3.5 w-3.5" aria-hidden />Filter{active.length ? <span className="grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[10.5px] font-semibold text-white">{active.length}</span> : null}
       </button>
       {active.map((g) => (
-        <span key={g.key} className="inline-flex h-8 items-center gap-1 rounded-full border border-line bg-elevated pl-2.5 pr-1 text-[12.5px]" data-testid="filter-chip">
+        <span key={g.key} className="inline-flex h-11 items-center gap-1 rounded-full border border-line bg-elevated pl-2.5 pr-1 text-[12.5px]" data-testid="filter-chip">
           {labelOf(g)}
-          <button type="button" onClick={() => g.onChange("")} aria-label={`Clear ${g.label.toLowerCase()} filter`} className="grid h-6 w-6 place-items-center rounded-full text-subtle hover:bg-hover hover:text-fg"><IconClose className="h-3 w-3" /></button>
+          <button type="button" onClick={() => g.onChange("")} aria-label={`Clear ${g.label.toLowerCase()} filter`} className="grid h-9 w-9 place-items-center rounded-full text-subtle hover:bg-hover hover:text-fg"><IconClose className="h-3 w-3" /></button>
         </span>
       ))}
       <Dialog open={open} onClose={() => setOpen(false)} title="Filter"
