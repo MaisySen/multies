@@ -61,6 +61,9 @@ describe("CHAT_CHANNELS switch", () => {
     const tools = await mcpTools(ctx, owner);
     expect(tools.filter((t) => CHAT_TOOLS.includes(t))).toEqual([]);
     expect(tools).toContain("list_channels"); // team chat stays
+    const catalog = (await (await ctx.app.request("/api/mcp-tools")).json()).tools.map((t: { name: string }) => t.name);
+    expect(catalog.filter((t: string) => CHAT_TOOLS.includes(t))).toEqual([]);
+    expect(await (await ctx.app.request("/developers/mcp.md")).text()).not.toContain("list_chat_conversations");
   });
 
   it("on: the routes answer, the tools are listed and /api/config says so", async () => {
@@ -70,6 +73,8 @@ describe("CHAT_CHANNELS switch", () => {
     expect((await (await ctx.app.request("/api/config")).json()).chatChannels).toBe(true);
     const tools = await mcpTools(ctx, owner);
     expect(CHAT_TOOLS.filter((t) => !tools.includes(t))).toEqual([]);
+    const catalog = (await (await ctx.app.request("/api/mcp-tools")).json()).tools.map((t: { name: string }) => t.name);
+    expect(CHAT_TOOLS.filter((t) => !catalog.includes(t))).toEqual([]);
   });
 });
 

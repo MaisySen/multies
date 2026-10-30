@@ -316,7 +316,7 @@ export function createApp(deps: Deps) {
     const wantsKey = c.req.query("view") === "key" && !!c.req.header("authorization");
     if (!scopeParam && !wantsKey) {
       c.header("cache-control", "public, max-age=3600");
-      return c.json({ release, endpoint: "/api/v1/mcp", tools: mcpCatalog(release) });
+      return c.json({ release, endpoint: "/api/v1/mcp", tools: mcpCatalog(release, !!c.var.deps.config.channels?.enabled) });
     }
     let scope = scopeParam ?? "full";
     if (wantsKey) {
@@ -327,7 +327,7 @@ export function createApp(deps: Deps) {
       if (!auth) return c.json({ error: { code: "unauthorized", message: "That key or token is not valid." } }, 401);
       scope = auth.scope ?? "full";
     }
-    const view = mcpCatalogView(release, scope);
+    const view = mcpCatalogView(release, scope, !!c.var.deps.config.channels?.enabled);
     if (!view.ok) return c.json({ error: { code: "invalid_scope", message: `Unknown scope: ${view.unknown.join(", ")}.` } }, 422);
     c.header("cache-control", wantsKey ? "private, no-store" : "public, max-age=3600");
     return c.json({ release, endpoint: "/api/v1/mcp", scope: view.scope, total: view.total, tools: view.tools });
@@ -336,7 +336,7 @@ export function createApp(deps: Deps) {
     const { mcpCatalogMarkdown } = await import("./services/developer/mcp-catalog");
     c.header("content-type", "text/markdown; charset=utf-8");
     c.header("cache-control", "public, max-age=3600");
-    return c.body(mcpCatalogMarkdown(c.var.deps.config.release));
+    return c.body(mcpCatalogMarkdown(c.var.deps.config.release, !!c.var.deps.config.channels?.enabled));
   });
   app.get("/healthz", health);
 
