@@ -101,7 +101,7 @@ export function ToolsFrame({ entryKey, title, description, testId, actions, usag
             {entry ? <ToolIcon e={entry} size="lg" /> : <span className="h-11 w-11 shrink-0 rounded-xl bg-fill" aria-hidden />}
             <div className="min-w-0 flex-1">
               <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
-              <p className="mt-1 text-[14px] text-muted">{description}</p>
+              <p className="mt-1 text-[14px] text-muted max-sm:line-clamp-2">{description}</p>
               {usage && <RunsLeftPill className="mt-2 sm:hidden" />}
             </div>
             {(actions || usage) && <div className="flex shrink-0 items-center gap-2 max-sm:hidden">{usage && <RunsLeftPill />}{actions}</div>}

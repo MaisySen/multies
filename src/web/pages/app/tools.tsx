@@ -28,6 +28,8 @@ import {
 } from "@/web/components/tools/tool-directory";
 import { ToolIcon } from "@/web/components/tools/tool-icon";
 import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result; R71: page count before Run
+import { Dialog } from "@/web/components/ui/dialog";
+import { NoRunsNote } from "@/web/components/tools/tools-frame";
 
 // Tools UX: the auto redact flow is only loaded when someone opens it.
 const AutoRedactPanel = lazy(() => import("@/web/components/tools/auto-redact").then((m) => ({ default: m.AutoRedactPanel })));
@@ -562,20 +564,23 @@ export function ToolsPage() {
 
         <div className="min-w-0">
           <button type="button" onClick={backToList} className={`mb-3 flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</button>
+          {/* R71 (MB-266): one frame with the pages that have their own address: the header above the panel, the runs
+              used up note right under it, then the tool in its card. */}
+          <header className="mb-5 flex items-start gap-3.5" data-testid="tools-frame-header">
+            <ToolIcon e={e0} size="lg" />
+            <div className="min-w-0 flex-1">
+              <h1 id="tool-title" className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{tool.label}</h1>
+              <p className="mt-1 text-[14px] text-muted">{tool.blurb}</p>
+              {usage && <div className="mt-2 sm:hidden">{usage}</div>}
+            </div>
+            <div className="max-sm:hidden">{usage}</div>
+          </header>
+          {noneLeft && <div className="mb-5"><NoRunsNote /></div>}
           <section className="relative space-y-5 rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:p-6" data-testid="tools-panel" aria-labelledby="tool-title"
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && ready) { e.preventDefault(); void run(); } }}>
             {dragging && !busy && !fromMail && (
               <div className="pointer-events-none absolute inset-0 z-10 grid place-items-center rounded-2xl border-2 border-dashed border-brand bg-brand/10 text-[15px] font-semibold text-brand" aria-hidden>Drop to add</div>
             )}
-            <header className="flex items-start gap-3.5">
-              <ToolIcon e={e0} size="lg" />
-              <div className="min-w-0 flex-1">
-                <h1 id="tool-title" className="text-[20px] font-semibold leading-tight tracking-[-0.01em]">{tool.label}</h1>
-                <p className="mt-1 text-[14px] text-muted">{tool.blurb}</p>
-              </div>
-              <div className="max-sm:hidden">{usage}</div>
-            </header>
-            {usage && <div className="-mt-2 sm:hidden">{usage}</div>}
             {tool.note && <p className="flex gap-2 rounded-lg bg-fill/60 px-3 py-2 text-[13px] text-muted" data-testid="tools-note"><IconAlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{tool.note}</p>}
 
             {phase.kind === "done" && phase.job.downloadUrl && (!tool.flow || tool.flow === "autoredact") ? (
@@ -836,12 +841,25 @@ function ResultCard({ job, tool, before, level, onAttach, onChain, chaining, onA
   const saved = before && job.bytes ? savedLine(before, job.bytes, level) : null;
   const ext = /\.([a-z0-9]{1,5})$/i.exec(job.name)?.[1]?.toLowerCase();
   const pct = before && job.bytes && job.bytes < before ? Math.round((job.bytes / before) * 100) : null;
+  const [preview, setPreview] = useState(false);
+  const big = typeof window === "undefined" ? 420 : Math.max(240, Math.min(440, window.innerWidth - 64));
   return (
     <div className="space-y-4" data-testid="tools-result">
+      {ext === "pdf" && job.downloadUrl && (
+        <Dialog open={preview} onClose={() => setPreview(false)} title="Page 1">
+          {preview && <div className="flex justify-center px-6 pb-6" data-testid="tools-preview-big"><PdfThumb url={job.downloadUrl} bytes={job.bytes} width={big} fallback={<FileBadge name={job.name} big />} /></div>}
+        </Dialog>
+      )}
       <div className="flex items-center gap-2 text-[14px] font-semibold text-ok"><IconCheckCircle className="h-5 w-5" aria-hidden />Done</div>
       <div className="flex items-center gap-3.5 rounded-xl border border-line bg-bg/40 p-3.5">
         {ext === "pdf" && job.downloadUrl
-          ? <PdfThumb url={job.downloadUrl} bytes={job.bytes} width={48} fallback={<FileBadge name={job.name} big />} />
+          ? (
+            // R71 (MB-265): big enough to judge a Smallest scan, and a tap shows page 1 larger before downloading.
+            <button type="button" onClick={() => setPreview(true)} aria-label="Show page 1 larger" data-testid="tools-result-preview"
+              className={`shrink-0 self-start rounded-md ${ring}`}>
+              <PdfThumb url={job.downloadUrl} bytes={job.bytes} width={96} fallback={<FileBadge name={job.name} big />} />
+            </button>
+          )
           : <FileBadge name={job.name} big />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold" title={job.name}><MidName name={job.name} phone={26} desk={44} /></p>

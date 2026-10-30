@@ -60,12 +60,13 @@ export function PdfPicker({ label, value, onChange, disabled, testId, hint }: { 
   return (
     <div>
       <div onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={onDrop}
-        className={cn("flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors duration-150",
+        className={cn("flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-9 text-center transition-colors duration-150 max-sm:py-7",
           dragging ? "border-brand bg-brand/5" : "border-line hover:border-line-strong")}>
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-fill text-muted [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconFileUp /></span>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-[13px] text-muted">{hint ?? "Drop a PDF here, or"}</div>
-        <Button type="button" variant="outline" size="sm" disabled={disabled} onClick={() => input.current?.click()} data-testid={`${testId}-choose`}>Choose a PDF</Button>
+        {/* R71 (MB-266): the same drop zone as the tool screens: brand icon, what to add, the limit, one filled button. */}
+        <span className="mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-brand/10 text-brand [&_svg]:h-6 [&_svg]:w-6" aria-hidden><IconFileUp /></span>
+        <div className="text-[15px] font-semibold">{label}</div>
+        <div className="mt-1 text-[13px] text-muted">{hint ?? "Drop a PDF here, or choose one."}</div>
+        <Button type="button" disabled={disabled} onClick={() => input.current?.click()} data-testid={`${testId}-choose`} className="mt-4">Choose a file</Button>
         <input ref={input} type="file" accept=".pdf,application/pdf" className="sr-only" tabIndex={-1} aria-label={label} data-testid={`${testId}-input`}
           onChange={(e) => { take(e.target.files); e.target.value = ""; }} />
       </div>

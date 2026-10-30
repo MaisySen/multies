@@ -93,7 +93,7 @@ describe("R66 MB-255: runs left", () => {
     const src = readFileSync("src/web/pages/app/tools.tsx", "utf8");
     expect(src).toContain("&& !noneLeft");
     expect(src).toContain('data-testid="tools-none-left"');
-    expect(src).toContain('{usage && <div className="-mt-2 sm:hidden">{usage}</div>}');
+    expect(src).toContain('{usage && <div className="mt-2 sm:hidden">{usage}</div>}');
   });
 });
 

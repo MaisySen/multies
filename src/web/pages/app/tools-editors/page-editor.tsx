@@ -17,6 +17,9 @@ import { cn } from "@/web/lib/cn";
 import { EDITOR_MAX_PAGES, planSummary, turn, type EditorJob, type PlanEntry, type Rotation } from "@/shared/tools-editors";
 import { readThumbnails, start, waitFor, RunError, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard } from "./shell";
+import { useToolsInfo } from "@/web/components/tools/use-tools-info";
+import { noRunsLine, runsLeft } from "@/web/components/tools/tool-directory";
+import { tz } from "@/web/lib/format";
 
 interface Item { id: string; page: number; rotate: Rotation }
 type Phase = { kind: "pick" } | { kind: "loading"; pct: number | null } | { kind: "edit" } | { kind: "saving"; pct: number | null } | { kind: "done"; job: EditorJob } | { kind: "failed"; error: RunError; back: "pick" | "edit" };
@@ -142,18 +145,25 @@ export function PageEditorPage() {
   };
   const again = () => { setSrc(null); setThumbs([]); setItems([]); setHistory([]); setPhase({ kind: "pick" }); };
   const busy = phase.kind === "loading" || phase.kind === "saving";
+  const showGrid = (phase.kind === "edit" || phase.kind === "saving" || (phase.kind === "failed" && phase.back === "edit")) && items.length > 0;
+  // R71 (MB-266): with no runs left, Save says that (not "move a page") and stays off.
+  const toolsInfo = useToolsInfo();
+  const runs = toolsInfo.data ? runsLeft(toolsInfo.data.usage, toolsInfo.data.limits) : null;
+  const noneLeft = runs?.left === 0;
 
   return (
     <EditorFrame feature="editor" title="Edit pages" description="See every page, then drag to reorder, turn or delete pages. Save makes a new PDF; the original is not changed." testId="page-editor">
-      {phase.kind !== "done" && (
+      {phase.kind !== "done" && !showGrid && (
         <Card className="space-y-4 p-4">
-          <PdfPicker label="PDF to edit" value={src} onChange={(s) => setSrc(s)} disabled={busy} testId="page-editor-pdf" hint={`Drop a PDF here (up to ${EDITOR_MAX_PAGES} pages), or`} />
+          <PdfPicker label="PDF to edit" value={src} onChange={(s) => setSrc(s)} disabled={busy} testId="page-editor-pdf" hint={`Drop a PDF here or choose one. Up to ${EDITOR_MAX_PAGES} pages.`} />
           {phase.kind === "loading" && <BusyLine>{phase.pct !== null && phase.pct < 100 ? `Uploading ${phase.pct}%` : "Drawing the pages"}</BusyLine>}
         </Card>
       )}
 
-      {(phase.kind === "edit" || phase.kind === "saving" || (phase.kind === "failed" && phase.back === "edit")) && items.length > 0 && (
+      {showGrid && (
         <Card className="space-y-4 p-4" data-testid="page-grid-card">
+          {/* R71 (MB-266): the chosen file is one row inside this card, so on a phone the pages start near the top. */}
+          <PdfPicker label="PDF to edit" value={src} onChange={(s) => setSrc(s)} disabled={busy} testId="page-editor-pdf" />
           {/* R69 (QA5 15): four even buttons on a phone, nothing cut off at the right edge */}
           <div className="flex flex-wrap items-center gap-2 max-sm:grid max-sm:grid-cols-4 max-sm:gap-1.5" data-testid="page-toolbar">
             <Button type="button" variant="outline" size="sm" onClick={undo} disabled={!history.length || busy} data-testid="page-undo" className="max-sm:min-h-11 max-sm:px-1"><IconUndo className="h-3.5 w-3.5" aria-hidden />Undo</Button>
@@ -175,9 +185,10 @@ export function PageEditorPage() {
           </DndContext>
           <div className="sr-only" aria-live="polite">{said}</div>
           <div className="flex flex-wrap items-center gap-3 border-t border-line pt-4 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:-mb-4 max-sm:rounded-b-[inherit] max-sm:bg-surface/95 max-sm:px-4 max-sm:pb-[max(12px,env(safe-area-inset-bottom))] max-sm:backdrop-blur">
-            <Button type="button" onClick={save} disabled={busy || unchanged} loading={phase.kind === "saving"} data-testid="page-save" className="max-sm:w-full">Save as new PDF</Button>
+            <Button type="button" onClick={save} disabled={busy || unchanged || noneLeft} loading={phase.kind === "saving"} data-testid="page-save" className="max-sm:w-full">Save as new PDF</Button>
             {phase.kind === "saving" && <BusyLine>{phase.pct !== null && phase.pct < 100 ? `Uploading ${phase.pct}%` : "Saving"}</BusyLine>}
-            {unchanged && phase.kind === "edit" && <span className="text-[13px] text-muted">Move, turn or delete a page to save.</span>}
+            {noneLeft && runs && phase.kind === "edit" ? <span className="text-[13px] text-muted" data-testid="page-save-why">{noRunsLine(runs, tz())}</span>
+              : unchanged && phase.kind === "edit" && <span className="text-[13px] text-muted" data-testid="page-save-why">Move, turn or delete a page to save.</span>}
           </div>
         </Card>
       )}
