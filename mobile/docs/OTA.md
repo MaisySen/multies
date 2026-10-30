@@ -212,6 +212,11 @@ Nothing in R29b needed native code. Add native items here as they come up; ship 
   `ios.privacyManifests` in `app.json` with the next store build.
 - Optional: `@sentry/react-native` for native crash symbolication (native module).
 - Optional: EAS Update code signing needs a paid EAS plan; not on the free plan.
+- Tools (1.9.12): make `expo-file-system` a direct dependency (same version as the one under
+  `node_modules/expo`, `npx expo install expo-file-system`) and change the import in
+  `src/lib/tools-files.ts` to `"expo-file-system"`. Add `expo-image-picker` so Tools can pick from the
+  iPhone's Photos library (today iOS picks from Files; Android's picker already shows Photos), and
+  `expo-sharing` so Android gets a real share sheet with the file (today Android has Open and Save).
 
 ## How this compares (R29b review, 26 Oct 2026)
 
