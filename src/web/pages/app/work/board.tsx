@@ -26,7 +26,7 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
       {t.labels.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">{t.labels.slice(0, 3).map((l) => <span key={l} className="rounded bg-fill px-1.5 py-px text-[11px] text-muted">{l}</span>)}</div>
       )}
-      <div className="mt-2.5 flex items-center gap-2.5 text-[11.5px] text-subtle">
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[11.5px] text-subtle">
         <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap"><TypeIcon type={t.type} /><span className="font-mono">{t.ref}</span></span>
         {!project && t.priority !== "none" && <span className={cn("inline-flex items-center gap-0.5", PRIORITY_COLOR[t.priority])} title={PRIORITY_LABEL[t.priority]}><IconFlag className="h-3 w-3" />{PRIORITY_LABEL[t.priority]}</span>}
         {!project && t.due && <span className={cn(isOverdue(t) && "text-bad")}>{dueLabel(t.due)}</span>}
@@ -35,7 +35,7 @@ export function TaskCard({ t, onOpen, dragging, handle, project }: { t: Task; on
         <ChecklistChip checklist={t.checklist} />
         <ClashBadge id={t.id} />
         {t.commentCount > 0 && <span className="inline-flex items-center gap-0.5"><IconChat className="h-3 w-3" />{t.commentCount}</span>}
-        <span className="ml-auto flex items-center gap-1.5">
+        <span className="ml-auto flex min-w-0 items-center gap-1.5">
           {project && <CardQuickEdits t={t} project={project} />}
           {!project && t.assignee && (isAgentLike(t.assignee)
             ? <span className="grid h-5 w-5 place-items-center rounded-full bg-brand-soft text-brand-hover" title={`${t.assignee.name} (agent)`}><IconAgent className="h-3 w-3" /></span>
@@ -217,7 +217,7 @@ function Column({ id, title, color, count, children, onAdd, limit, onSetLimit, o
         <button onClick={onAdd} className={cn(!onSetLimit && "ml-auto", "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-subtle hover:bg-elevated hover:text-fg sm:h-auto sm:w-auto sm:rounded sm:p-1")} aria-label={`Add a task to ${title}`}><IconPlus className="h-3.5 w-3.5 max-sm:h-5 max-sm:w-5" /></button>
       </header>
       <ul ref={(el) => { setNodeRef(el); if (listRef) listRef.current = el; }} aria-label={`${title} cards`} data-testid="board-column-cards"
-        className={cn("relative flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
+        className={cn("relative flex min-h-[60px] flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden overscroll-y-contain px-2 [overflow-anchor:none]", onQuickAdd ? "pb-2" : "pb-3")}>{children}</ul>
       {onQuickAdd && <ColumnComposer title={title} onQuickAdd={onQuickAdd} />}
     </section>
   );

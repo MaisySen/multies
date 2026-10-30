@@ -8,6 +8,7 @@ import { CONNECTIONS, JURISDICTION, LESS_ADMIN, RESIDENCY_ANSWER, RESIDENCY_CHEC
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
+import { DemoPausedNote } from "@/web/components/demo-paused";
 import { LegalLine } from "@/web/components/legal-line";
 
 const card = "rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6";
@@ -85,6 +86,7 @@ function TryIt() {
         {config.data?.demoEnabled && <Button variant="secondary" onClick={demo.start} loading={demo.loading} data-testid="trust-demo"><IconPlay className="h-4 w-4" aria-hidden /> Open the live demo</Button>}
         <ButtonLink to="/signup" data-testid="trust-free-address">Take a free test address</ButtonLink>
       </div>
+      {demo.paused && <DemoPausedNote className="mx-0" />}
     </>
   );
 }

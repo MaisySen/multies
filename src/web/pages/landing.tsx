@@ -5,6 +5,7 @@ import { HeroVisual } from "@/web/components/hero-visual";
 import { PlanCards } from "@/web/components/plan-cards";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
+import { DemoPausedNote } from "@/web/components/demo-paused";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
 import { OFFER_COPY } from "@/shared/offers";
 
@@ -69,6 +70,7 @@ export function Landing() {
               </Button>
             )}
           </div>
+          {demo.paused && <DemoPausedNote />}
           <p className="mt-4 text-xs text-subtle">Free forever for 1 domain, 3 mailboxes and 3 agent inboxes. No card.</p>
           {/* R60 (trust): try it without a client mailbox, stated where people decide. */}
           <p className="mt-1 text-xs text-subtle" data-testid="hero-safe-trial">Testing first? Use the live demo or a free test address. No client mailbox needed. <Link to="/trust#try" className="font-medium text-brand-hover hover:underline">How to try it safely</Link> <span aria-hidden>·</span> <Link to="/trust#where" className="font-medium text-brand-hover hover:underline">Data stored in the Oceania region</Link></p>
@@ -205,6 +207,7 @@ export function Landing() {
             <ButtonLink to="/signup" size="lg">Create your account</ButtonLink>
             {demoEnabled && <Button size="lg" variant="secondary" onClick={demo.start} loading={demo.loading}>Explore the demo</Button>}
           </div>
+          {demo.paused && <DemoPausedNote />}
         </div>
       </section>
     </>

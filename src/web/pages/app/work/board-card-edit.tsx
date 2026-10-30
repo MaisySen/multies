@@ -124,6 +124,12 @@ export function CardQuickEdits({ t, project }: { t: Task; project: Project }) {
  * that project's first column). A keyboard press still starts the keyboard drag, so the menu opens on pointer clicks
  * only. The menu is drawn over the page (a column scrolls and would cut it off); on a phone it is a sheet at the bottom.
  */
+/** Where the move menu sits for a handle at this box: below it, or above when there is more room there. */
+function place(r: DOMRect): { top: number; left: number; up: boolean } {
+  const up = window.innerHeight - r.bottom < 320 && r.top > window.innerHeight - r.bottom;
+  return { top: up ? r.top - 6 : r.bottom + 6, left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)), up };
+}
+
 export function MoveHandle({ t, project, dragProps, children }: { t: Task; project: Project; dragProps: Record<string, unknown>; children: React.ReactNode }) {
   const qc = useQueryClient();
   const projects = useProjects();
@@ -137,27 +143,36 @@ export function MoveHandle({ t, project, dragProps, children }: { t: Task; proje
     if (!at) return;
     const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { close(); btn.current?.focus(); }
+      if (e.key === "Escape") { close(); btn.current?.focus({ preventScroll: true }); }
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         const items = [...(box.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
         const i = items.indexOf(document.activeElement as HTMLElement);
-        items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+        items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus({ preventScroll: true });
       }
     };
-    const onScroll = (e: Event) => { if (!box.current?.contains(e.target as Node)) close(); };
+    // R71 (MB-261): only a scroll that moves the card closes the menu, and only once the card has left the screen; any
+    // other scroll (the menu's own list, another column, the browser bringing the focused handle into view) keeps it
+    // open and the menu follows the card. Before, the focus scroll on some cards closed it the moment it opened.
+    const onScroll = (e: Event) => {
+      const target = e.target as Node;
+      if (box.current?.contains(target)) return;
+      const b = btn.current;
+      if (!b || !(target === document || target.contains?.(b))) return;
+      const r = b.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) { close(); return; }
+      setAt((cur) => (cur ? place(r) : cur));
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     window.addEventListener("scroll", onScroll, true);
     window.addEventListener("resize", close);
-    setTimeout(() => box.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus(), 0);
+    setTimeout(() => box.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus({ preventScroll: true }), 0);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close); };
   }, [at]);
   const open = () => {
     const r = btn.current?.getBoundingClientRect();
-    if (!r) return;
-    const up = window.innerHeight - r.bottom < 320 && r.top > window.innerHeight - r.bottom;
-    setAt({ top: up ? r.top - 6 : r.bottom + 6, left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)), up });
+    if (r) setAt(place(r));
   };
   const toStatus = (s: Project["statuses"][number]) => void editTask(qc, t, { statusId: s.id }, (x) => ({ ...x, statusId: s.id, statusName: s.name, statusColor: s.color, status: s.category }), `Moved to ${s.name}`);
   const toProject = (p: Project) => {
@@ -187,6 +202,7 @@ export function MoveHandle({ t, project, dragProps, children }: { t: Task; proje
   return (
     <>
       <button ref={btn} type="button" {...dragProps} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`} aria-haspopup="menu" aria-expanded={!!at} data-testid="card-move"
+        onMouseDown={(e) => e.preventDefault()}
         onClick={(e) => { if (e.detail === 0) return; e.stopPropagation(); if (at) close(); else open(); }}
         className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg max-sm:h-9 max-sm:w-9">{children}</button>
       {menu}

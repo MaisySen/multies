@@ -12,6 +12,7 @@ import { authClient, unwrap } from "@/web/lib/auth-client";
 import { useConfig } from "@/web/lib/queries";
 import { authProvidersQuery } from "@/web/lib/auth-providers";
 import { useStartDemo } from "@/web/lib/demo";
+import { DemoPausedNote } from "@/web/components/demo-paused";
 import { SocialSignInButtons } from "@/web/components/social-sign-in";
 import { GitHubLogo, GoogleSignInButton, ProviderButton } from "@/web/components/google-button";
 import { browserTimeZone } from "@/web/lib/format";
@@ -163,6 +164,7 @@ function DemoLink() {
     <>
       <div className="my-6 flex items-center gap-3 text-xs text-subtle"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
       <Button variant="secondary" className="w-full" onClick={demo.start} loading={demo.loading}><IconPlay className="h-4 w-4" /> Explore a demo workspace</Button>
+      {demo.paused && <DemoPausedNote />}
     </>
   );
 }

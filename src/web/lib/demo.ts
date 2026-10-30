@@ -4,9 +4,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "./api";
 
+export const DEMO_PAUSED_TITLE = "The demo is resting for today";
+export const DEMO_PAUSED_MESSAGE = "The demo is resting for today. Create a free account instead, or try the demo again tomorrow.";
+
 /** Opens a sandbox workspace (server must run with DEMO_MODE) and goes to the dashboard. */
 export function useStartDemo() {
   const [loading, setLoading] = useState(false);
+  // R71 (MB-262): the demo rests when the day's write budget or demo count is used. The page says so where the
+  // button is, with the way to start for real, instead of a toast that is gone in four seconds.
+  const [paused, setPaused] = useState<string | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
   const start = async () => {
@@ -19,12 +25,17 @@ export function useStartDemo() {
       // a part per request. A request cut short is simply asked again.
       void finishDemoSeed(() => void qc.invalidateQueries());
     } catch (err) {
+      if (err instanceof ApiError && err.code === "demo_paused") {
+        setPaused(err.message || DEMO_PAUSED_MESSAGE);
+        toast(DEMO_PAUSED_TITLE, { description: "Create a free account instead. No card needed.", duration: 10_000, action: { label: "Create account", onClick: () => navigate("/signup") } });
+        return;
+      }
       toast.error(err instanceof ApiError && err.status === 404 ? "The live demo isn't enabled on this server." : err instanceof Error ? err.message : "Couldn't open the demo.");
     } finally {
       setLoading(false);
     }
   };
-  return { start, loading };
+  return { start, loading, paused };
 }
 
 let seeding: Promise<void> | null = null;
