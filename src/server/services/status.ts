@@ -80,7 +80,8 @@ async function computeStatus(deps: Deps) {
     });
   }
 
-  const q = await timed(() => queueStats(deps));
+  // R74: on request work (a demo's sample data) is not background work, so it never makes the queue look stuck.
+  const q = await timed(() => queueStats(deps, ["demo.seed_suite"]));
   if (q.value) {
     const backlog = q.value.oldestPendingAgeMs > 30 * 60_000;
     components.push({

@@ -14,6 +14,7 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 - Added: Split PDF choices (Every page, Every N pages, Two halves, Choose pages) with a live preview of the parts; the same ranges go to the engine.
 - Fixed (MB-271): our own smoke and QA checks send a token (QA_CHECK_TOKEN in x-multies-check); their demos are marked and never count toward the visitors' daily demo cap or the per address limit.
 - Changed (MB-212): Mail with no mailbox offers the free address first when it is on.
+- Fixed: the public status page's queue no longer reads degraded because of a demo's sample data job left waiting when its visitor left (that job only runs on request).
 - What's new drops "Free for a small team, and easy to move in" to stay at 14.
 
 ### Round 73 (30 Oct 2026)

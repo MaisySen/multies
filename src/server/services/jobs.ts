@@ -115,9 +115,13 @@ export async function replayJobs(deps: Deps, ids: string[]) {
   return rows.length;
 }
 
-export async function queueStats(deps: Deps) {
+/**
+ * Counts by status. R74: `excludeTypes` leaves out work that only runs on request (a demo's sample data is seeded when
+ * its visitor opens it; the background runner never picks it up), so a visitor who left early is not a backlog.
+ */
+export async function queueStats(deps: Deps, excludeTypes: JobType[] = []) {
   const rows = (await deps.db.select({ status: jobs.status, n: sql<number>`count(*)`, oldest: sql<number>`min(${jobs.runAt})` })
-    .from(jobs).groupBy(jobs.status)) as { status: string; n: number; oldest: number | null }[];
+    .from(jobs).where(excludeTypes.length ? notInArray(jobs.type, excludeTypes) : undefined).groupBy(jobs.status)) as { status: string; n: number; oldest: number | null }[];
   const get = (s: string) => rows.find((r) => r.status === s);
   const oldestPending = get("pending")?.oldest;
   return {
