@@ -9,14 +9,18 @@ import {
 } from "@/lib/tools";
 import { SAMPLE_TOOLS, sampleToolsInfo } from "@/sample/tools";
 import { COMMANDS, createHandlers } from "@/lib/commands";
+import { resetToolRunCache } from "@/lib/tool-run";
+import { memoryKV, setKV } from "@/lib/kv";
 
 const mockPush = jest.fn();
 let mockParams: Record<string, string> = {};
-jest.mock("expo-router", () => ({ router: { push: (...a: unknown[]) => mockPush(...a), back: jest.fn(), replace: jest.fn() }, useLocalSearchParams: () => mockParams, Stack: { Screen: () => null } }));
+jest.mock("expo-router", () => ({ router: { push: (...a: unknown[]) => mockPush(...a), back: jest.fn(), replace: jest.fn(), canGoBack: () => true }, useLocalSearchParams: () => mockParams, useFocusEffect: () => {}, Stack: { Screen: () => null } }));
+const mockOpenBrowser = jest.fn(() => Promise.resolve());
+jest.mock("expo-web-browser", () => ({ openBrowserAsync: (...a: unknown[]) => mockOpenBrowser(...(a as [])) }));
 const mockPick = jest.fn();
 jest.mock("@/lib/tools-files", () => ({
   pickFiles: (...a: unknown[]) => mockPick(...a),
-  uploadJob: jest.fn(), downloadResult: jest.fn(), openFile: jest.fn(), shareFile: jest.fn(), saveToPhone: jest.fn(),
+  uploadJob: jest.fn(), downloadResult: jest.fn(), openFile: jest.fn(), shareFile: jest.fn(), saveToPhone: jest.fn(), readResultText: jest.fn(), asPicked: jest.fn(),
 }));
 
 const def = (op: string) => SAMPLE_TOOLS.find((t) => t.op === op) as ToolDef;
@@ -24,20 +28,25 @@ const limits = sampleToolsInfo(0).limits;
 const pdf = (name: string, size = 1000) => ({ uri: `file:///${name}`, name, size, type: "application/pdf" });
 
 describe("Tools on the phone: the rules", () => {
-  it("groups the 13 tools the way the web page does", () => {
-    const g = groupTools(SAMPLE_TOOLS);
+  it("groups the P1 tools by their catalogue group (older servers)", () => {
+    const p1 = SAMPLE_TOOLS.filter((t) => !t.feature && !t.path);
+    const g = groupTools(p1);
     expect(g.map((x) => x.group)).toEqual(["Organise", "Convert", "Protect", "Scans"]);
     expect(g.reduce((n, x) => n + x.tools.length, 0)).toBe(13);
   });
 
-  it("offers a mail attachment only the tools that take it, never merge", () => {
+  it("offers a mail attachment only the phone tools that take it, never merge or the web editors", () => {
     const forPdf = toolsForFile(SAMPLE_TOOLS, "Invoice.PDF").map((t) => t.op);
     expect(forPdf).toContain("compress");
     expect(forPdf).toContain("redact");
+    expect(forPdf).toContain("protect");
+    expect(forPdf).toContain("pii-find");
     expect(forPdf).not.toContain("merge");
+    expect(forPdf).not.toContain("organize");
+    expect(forPdf).not.toContain("compare");
     expect(forPdf).not.toContain("convert");
     expect(toolsForFile(SAMPLE_TOOLS, "Quote.docx").map((t) => t.op)).toEqual(["convert"]);
-    expect(toolsForFile(SAMPLE_TOOLS, "notes.txt")).toEqual([]);
+    expect(toolsForFile(SAMPLE_TOOLS, "backup.zip")).toEqual([]);
     expect(toolTakes(def("images-to-pdf"), "IMG_0001", "image/jpeg")).toBe(true);
   });
 
@@ -47,6 +56,7 @@ describe("Tools on the phone: the rules", () => {
     expect(filesProblem(def("compress"), [], limits)).toBe("Add a file first.");
     expect(filesProblem(def("compress"), [pdf("a.docx")], limits)).toMatch(/takes a PDF, not a\.docx/);
     expect(filesProblem(def("compress"), [pdf("big.pdf", 30 * 1024 * 1024)], limits)).toMatch(/up to 25 MB/);
+    expect(filesProblem(def("protect"), [pdf("a.pdf")], limits)).toBeNull();
     expect(filesProblem(def("ocr"), [pdf("scan.pdf", 21 * 1024 * 1024)], limits)).toMatch(/up to 20 MB/);
   });
 
@@ -68,6 +78,8 @@ describe("Tools on the phone: the rules", () => {
     expect(text).toContain('name="files"; filename="a_b.pdf"\r\nContent-Type: application/pdf\r\n\r\n%PDF\r\n');
     expect(text.endsWith("--B--\r\n")).toBe(true);
     expect(uploadQuery("merge", [pdf("Q3 report.pdf"), pdf("b.pdf")])).toBe("op=merge&files=2&name=Q3%20report.pdf");
+    // Tools P2: the option the result type follows rides in the query (the server streams the form unread).
+    expect(uploadQuery("pdf-to", [pdf("a.pdf")], { name: "format", value: "xlsx" })).toBe("op=pdf-to&files=1&name=a.pdf&format=xlsx");
   });
 
   it("asks the picker for the right file types and says when the plan's runs are used", () => {
@@ -96,17 +108,38 @@ function wrap(children: ReactNode) {
 }
 
 describe("Tools screens (sample workspace)", () => {
-  beforeEach(() => { mockPush.mockClear(); mockPick.mockReset(); });
+  beforeEach(() => { mockPush.mockClear(); mockPick.mockReset(); resetToolRunCache(); setKV(memoryKV()); });
 
-  it("lists every tool in its group and opens a tool's sheet", async () => {
+  it("lists the tools in five sections with the runs left line, and opens a tool's screen", async () => {
     const Tools = require("@/app/tools").default;
     await render(wrap(<Tools />));
     expect(await screen.findByTestId("tool-compress")).toBeTruthy();
-    expect(screen.getByText("Merge PDFs")).toBeTruthy();
-    expect(screen.getByText("Make searchable (OCR)")).toBeTruthy();
-    expect(screen.getByTestId("tools-usage").props.children).toMatch(/runs used this month/);
-    fireEvent.press(screen.getByTestId("tool-merge"));
+    expect(screen.getByTestId("tools-group-Edit PDF")).toBeTruthy();
+    expect(screen.getByTestId("tools-group-Convert")).toBeTruthy();
+    expect(screen.getByTestId("tools-group-Secure")).toBeTruthy();
+    expect(screen.getByTestId("tools-group-Automate")).toBeTruthy();
+    expect(screen.queryByTestId("tools-group-Smart")).toBeNull();
+    expect(screen.getByText("Make searchable")).toBeTruthy();
+    expect(screen.getByTestId("tools-usage").props.children).toMatch(/runs left today/);
+    expect(screen.getByTestId("tools-recent")).toBeTruthy();
+    await fireEvent.press(screen.getByTestId("tool-merge"));
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/tool/[op]", params: { op: "merge" } });
+  });
+
+  it("finds tools by search and opens web only tools in the browser", async () => {
+    const Tools = require("@/app/tools").default;
+    await render(wrap(<Tools />));
+    await fireEvent.changeText(await screen.findByTestId("tools-search"), "password");
+    expect(await screen.findByTestId("tools-results")).toBeTruthy();
+    expect(screen.getByTestId("tool-protect")).toBeTruthy();
+    expect(screen.getByTestId("tool-unlock")).toBeTruthy();
+    expect(screen.queryByTestId("tool-compress")).toBeNull();
+    await fireEvent.changeText(screen.getByTestId("tools-search"), "edit pages");
+    await fireEvent.press(await screen.findByTestId("tool-organize"));
+    expect(mockOpenBrowser).toHaveBeenCalled();
+    expect(String((mockOpenBrowser.mock.calls[0] as unknown[])[0])).toMatch(/\/app\/tools\/pages$/);
+    await fireEvent.changeText(screen.getByTestId("tools-search"), "zzzz");
+    expect(await screen.findByTestId("tools-no-results")).toBeTruthy();
   });
 
   it("runs a tool: pick a file, run, see the result with Open and Share", async () => {
@@ -114,11 +147,11 @@ describe("Tools screens (sample workspace)", () => {
     mockPick.mockResolvedValue([pdf("Invoice.pdf", 420_000)]);
     const Sheet = require("@/app/tool/[op]").default;
     await render(wrap(<Sheet />));
-    fireEvent.press(await screen.findByTestId("tool-run"));
+    await fireEvent.press(await screen.findByTestId("tool-run"));
     expect(await screen.findByText("Add a file first.")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("tool-add-files"));
+    await fireEvent.press(screen.getByTestId("tool-add-files"));
     expect(await screen.findByText("Invoice.pdf")).toBeTruthy();
-    fireEvent.press(screen.getByTestId("tool-run"));
+    await fireEvent.press(screen.getByTestId("tool-run"));
     expect(await screen.findByTestId("tool-done", {}, { timeout: 5000 })).toBeTruthy();
     expect(screen.getByTestId("tool-open")).toBeTruthy();
     expect(screen.getByText("Quarterly report-compressed.pdf")).toBeTruthy();
@@ -129,9 +162,9 @@ describe("Tools screens (sample workspace)", () => {
     mockPick.mockResolvedValue([pdf("Draft.pdf")]);
     const Sheet = require("@/app/tool/[op]").default;
     await render(wrap(<Sheet />));
-    fireEvent.press(await screen.findByTestId("tool-add-files"));
+    await fireEvent.press(await screen.findByTestId("tool-add-files"));
     await screen.findByText("Draft.pdf");
-    fireEvent.press(screen.getByTestId("tool-run"));
+    await fireEvent.press(screen.getByTestId("tool-run"));
     expect(await screen.findByText("Watermark text is needed.")).toBeTruthy();
     expect(screen.queryByTestId("tool-progress")).toBeNull();
   });
@@ -145,20 +178,23 @@ describe("Tools screens (sample workspace)", () => {
     expect(screen.queryByTestId("tool-add-files")).toBeNull();
   });
 
-  it("gives a PDF attachment in a thread a Tools sheet with the tools that take it", async () => {
+  it("gives a PDF attachment a short Tools sheet, most useful first, then More tools", async () => {
     const { AttachmentRow } = require("@/components/attachment-tools");
     await render(wrap(<AttachmentRow a={{ id: "att_9", filename: "Contract.pdf", contentType: "application/pdf", sizeBytes: 90_000, available: true }} />));
-    fireEvent.press(await screen.findByText("Tools"));
+    await fireEvent.press(await screen.findByText("Tools"));
     expect(await screen.findByTestId("sheet-compress")).toBeTruthy();
+    expect(screen.getByTestId("sheet-pdf-to-docx")).toBeTruthy();
     expect(screen.queryByTestId("sheet-merge")).toBeNull();
-    fireEvent.press(screen.getByTestId("sheet-redact"));
+    expect(screen.queryByTestId("sheet-redact")).toBeNull();
+    await fireEvent.press(screen.getByTestId("sheet-__more"));
+    await fireEvent.press(await screen.findByTestId("sheet-redact"));
     expect(mockPush).toHaveBeenCalledWith({ pathname: "/tool/[op]", params: { op: "redact", attachment: "att_9", name: "Contract.pdf" } });
   });
 
-  it("shows a text file attachment without a Tools button", async () => {
+  it("shows a file no tool takes without a Tools button", async () => {
     const { AttachmentRow } = require("@/components/attachment-tools");
-    await render(wrap(<AttachmentRow a={{ id: "att_8", filename: "notes.txt", contentType: "text/plain", sizeBytes: 900, available: true }} />));
-    expect(await screen.findByText("notes.txt")).toBeTruthy();
+    await render(wrap(<AttachmentRow a={{ id: "att_8", filename: "backup.zip", contentType: "application/zip", sizeBytes: 900, available: true }} />));
+    expect(await screen.findByText("backup.zip")).toBeTruthy();
     await waitFor(() => expect(screen.queryByText("Tools")).toBeNull());
   });
 });
