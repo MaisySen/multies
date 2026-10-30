@@ -3,9 +3,11 @@ import { Link } from "react-router";
 import { ButtonLink } from "@/web/components/ui/button";
 import { Logo } from "@/web/components/logo";
 
-export function NotFound() {
+/** `embedded` (R67): inside a layout that already has the page's main landmark, so this is a plain block. */
+export function NotFound({ embedded = false }: { embedded?: boolean }) {
+  const Box = embedded ? "div" : "main";
   return (
-    <main className="grid min-h-dvh place-items-center bg-bg px-6 py-16 text-center">
+    <Box className="grid min-h-dvh place-items-center bg-bg px-6 py-16 text-center">
       <div className="w-full max-w-md animate-pop-in">
         <Link to="/" aria-label="Multies home" className="inline-flex"><Logo /></Link>
         <p className="mt-12 text-[13px] font-semibold tabular-nums tracking-wide text-subtle">Error 404</p>
@@ -17,6 +19,6 @@ export function NotFound() {
         </div>
         <p className="mt-8 text-[13px] text-subtle">Still stuck? <Link to="/support" className="font-medium text-brand-hover hover:underline">Contact support</Link></p>
       </div>
-    </main>
+    </Box>
   );
 }

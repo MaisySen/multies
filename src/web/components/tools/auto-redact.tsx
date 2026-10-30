@@ -56,7 +56,7 @@ export function phrasesFor(matches: PiiMatch[], ticked: Set<string>): string {
 
 const mask = (t: string) => (t.length <= 4 ? t : `${t.slice(0, Math.max(2, t.length - 6))}${"•".repeat(Math.min(6, t.length - 2))}`);
 
-export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage }: { tool: ToolDef; fromMail: { id: string; name: string } | null; file: File | null; disabled: boolean; onUsage?: () => void }) {
+export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage, onDone }: { tool: ToolDef; fromMail: { id: string; name: string } | null; file: File | null; disabled: boolean; onUsage?: () => void; /** R67: hand the finished file to the shared result screen. */ onDone?: (job: ToolJob) => void }) {
   const navigate = useNavigate();
   const [kinds, setKinds] = useState<Set<string>>(() => new Set(PII_KINDS.map((k) => k.kind)));
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -92,6 +92,7 @@ export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage }: { t
     setPhase({ kind: "burning", step: "Starting", matches: keep });
     try {
       const job = await runOn("redact", { phrases }, (s) => setPhase({ kind: "burning", step: s, matches: keep }));
+      if (onDone && job.downloadUrl) { onDone(job); return; }
       setPhase({ kind: "done", job });
     } catch (err) { setPhase({ kind: "failed", message: (err as Error).message }); }
   };
@@ -112,7 +113,7 @@ export function AutoRedactPanel({ tool, fromMail, file, disabled, onUsage }: { t
           </div>
           {j.downloadUrl && <a href={j.downloadUrl} download={j.name} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-fg hover:opacity-90" data-testid="autoredact-download"><IconDownload className="h-4 w-4" aria-hidden />Download</a>}
           <Button type="button" variant="secondary" onClick={() => attachToNewEmail(navigate, { jobs: [j] })}><IconMail className="h-4 w-4" aria-hidden />Attach to a new email</Button>
-          <Button type="button" variant="ghost" onClick={() => setPhase({ kind: "idle" })}>Start again</Button>
+          <Button type="button" variant="ghost" onClick={() => setPhase({ kind: "idle" })}>Start over</Button>
         </div>
       </div>
     );

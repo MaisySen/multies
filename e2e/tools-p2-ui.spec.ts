@@ -124,8 +124,10 @@ test("find and hide sensitive info: grouped review, untick one, black out the re
   await expect(page.getByTestId("autoredact-burn")).toHaveText("Black out 7 items");
   await shots(page, "autoredact-review", async () => { await page.getByTestId("autoredact-review").scrollIntoViewIfNeeded(); });
   await page.getByTestId("autoredact-burn").click();
-  await expect(page.getByTestId("autoredact-done")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("autoredact-facts")).toContainText("Blacked out 5 matches");
+  // R67: the shared result screen (Download, Attach, Use in another tool, Start over).
+  await expect(page.getByTestId("tools-result")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("tools-facts")).toContainText("Blacked out 5 matches");
+  await expect(page.getByTestId("tools-chain")).toBeVisible();
   await shots(page, "autoredact-done", () => toPanel(page));
 });
 

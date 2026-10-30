@@ -23,7 +23,7 @@ export function LegalPage({ slug: fixed }: { slug?: LegalSlug }) {
   const slug = (fixed ?? params.slug) as LegalSlug;
   const doc = LEGAL_DOCS[slug];
   useEffect(() => { if (doc) document.title = `${doc.title} | Multies`; }, [doc]);
-  if (!doc) return <NotFound />;
+  if (!doc) return <NotFound embedded />;
   return (
     <article className="mx-auto max-w-3xl px-5 pb-24 pt-28">
       <p className="text-xs uppercase tracking-wide text-subtle">Legal</p>

@@ -197,7 +197,9 @@ export function createApp(deps: Deps) {
   const apiHeaders = securityHeaders({ csp: API_CSP, hsts });
   const docsHeaders = securityHeaders({ csp: docsCsp(), hsts });
   // Pages served by this app (the Node server serves the SPA too) get the page policy.
-  const cspBase = { analytics: !!deps.config.cfBeaconToken, appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
+  // R67 (QA5 #11): the zone adds Cloudflare's cookieless analytics beacon to pages this worker makes (the public sign and
+  // share pages), so its script and reporting host are always allowed; a blocked beacon was a console error on each load.
+  const cspBase = { analytics: true, appUrl: deps.config.appUrl, livekitUrl: deps.config.meetings?.url };
   const pageHeaders = securityHeaders({ csp: appCsp(cspBase), hsts });
   const formPageHeaders = securityHeaders({ csp: appCsp({ ...cspBase, turnstile: true }), hsts });
   app.use("*", async (c, next) => {

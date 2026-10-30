@@ -564,7 +564,7 @@ export function ToolsPage() {
             {usage && <div className="-mt-2 sm:hidden">{usage}</div>}
             {tool.note && <p className="flex gap-2 rounded-lg bg-fill/60 px-3 py-2 text-[13px] text-muted" data-testid="tools-note"><IconAlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{tool.note}</p>}
 
-            {phase.kind === "done" && phase.job.downloadUrl && !tool.flow ? (
+            {phase.kind === "done" && phase.job.downloadUrl && (!tool.flow || tool.flow === "autoredact") ? (
               <ResultCard job={phase.job} tool={tool} before={tool.op === "compress" ? before ?? files[0]?.size ?? null : null}
                 onAttach={() => attachToNewEmail(navigate, { jobs: [phase.job] })} onChain={() => chain(phase.job)} chaining={chaining}
                 onAgain={runAgain} onStartOver={startOver} />
@@ -662,7 +662,7 @@ export function ToolsPage() {
 
                 {tool.flow === "autoredact" ? (
                   <Suspense fallback={<Skeleton className="h-24 w-full" />}>
-                    <AutoRedactPanel tool={tool} fromMail={fromMail} file={files[0] ?? null} disabled={!(fromMail ? mailFits : files.length >= 1 && !tooBig)} onUsage={() => qc.invalidateQueries({ queryKey: ["tools"] })} />
+                    <AutoRedactPanel tool={tool} fromMail={fromMail} file={files[0] ?? null} disabled={!(fromMail ? mailFits : files.length >= 1 && !tooBig)} onUsage={() => qc.invalidateQueries({ queryKey: ["tools"] })} onDone={(job) => setPhase({ kind: "done", job })} />
                   </Suspense>
                 ) : (
                   <>

@@ -45,7 +45,7 @@ export function SwitchIndexPage() {
 export function SwitchPage() {
   const { source } = useParams();
   const s = switchSource(source);
-  if (!s) return <NotFound />;
+  if (!s) return <NotFound embedded />;
   return <SwitchSourcePage s={s} />;
 }
 
