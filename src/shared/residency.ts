@@ -85,7 +85,7 @@ export const CONNECTIONS: Connection[] = [
   { name: "Incoming webhooks", status: "available", detail: "Any tool that can send a webhook, including automation tools and web forms, can create tasks, contacts or deals in Multies." },
   { name: "Outgoing webhooks", status: "available", detail: "Send new mail, task and form events to any HTTPS address, a chat channel or an automation tool, and from there into a CRM." },
   { name: "REST API and MCP server", status: "available", detail: "Read and write mail, tasks, contacts and more with API keys, or connect an AI agent through MCP." },
-  { name: "Your CRM or industry platform", status: "available", detail: "No ready made connector. If it can send or receive webhooks, or has an API, leads can flow between it and Multies through the webhooks above." },
+  { name: "Your CRM or industry platform, through webhooks or the API (no ready made connector)", status: "available", detail: "If it can send or receive webhooks, or has an API, leads can flow between it and Multies through the webhooks above." },
   { name: "WhatsApp enquiries in the shared inbox", status: "planned", detail: "Built and being tested, not switched on. Planned, not available today." },
 ];
 
