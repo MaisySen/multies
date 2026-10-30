@@ -2,6 +2,7 @@
  * Tools P2 (flag templates): invoices, quotes and letters (and the workspace's own templates) filled from a
  * form, previewed live, made into a PDF by the engine, then downloaded or attached to a new email.
  */
+import { PagePreview } from "./page-preview";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -141,7 +142,7 @@ export function TemplatesPage() {
           </Card>
           <Card className="overflow-hidden p-0 lg:sticky lg:top-4 lg:self-start">
             <p className="border-b border-line px-4 py-2 text-[12px] text-muted">Preview</p>
-            <iframe title="Preview" sandbox="" srcDoc={preview} className="h-[720px] w-full bg-white" data-testid="template-preview" />
+            <PagePreview title="Preview" html={preview} testId="template-preview" />
           </Card>
         </div>
       )}

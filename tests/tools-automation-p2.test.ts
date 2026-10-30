@@ -129,10 +129,23 @@ describe("Tools P2 automation: shared rules", () => {
     expect(html).toContain("$110.00");
     expect(html).toContain("30 October 2026");
     expect(html).not.toMatch(/\{\{/);
+    // Empty optional fields print no label.
+    expect(html).not.toContain("ABN");
+    expect(html).not.toContain("Due ");
+    expect(html).not.toContain("PAYMENT DETAILS");
+    const full = fillTemplate(inv, { business_name: "Acme", business_abn: "51 824 753 556", due_date: "2026-11-13", payment_details: "BSB 062 000", notes: "Thanks", client_name: "Bo", invoice_number: "INV-1", issue_date: "2026-10-30", lines: "[]" }, { workspaceName: "Acme", today: "2026-10-30" });
+    expect(full).toContain("ABN 51 824 753 556");
+    expect(full).toContain("Due 13 November 2026");
+    expect(full).toContain("BSB 062 000");
+    expect(full).toContain("Thanks");
+    expect(full).not.toMatch(/\{\{/);
   });
   it("merge rows carry one line with totals worked out per person", () => {
     const inv = BUILT_IN_TEMPLATES[0];
     expect(mergeTemplateHtml(inv.html)).toContain("{{item}}");
+    // The engine fills merge rows with plain placeholders only: no conditional markers reach it.
+    for (const tpl of BUILT_IN_TEMPLATES) expect(mergeTemplateHtml(tpl.html)).not.toMatch(/\{\{[?/](?!lines)/);
+    expect(mergeTemplateHtml(inv.html)).toContain("ABN {{business_abn}}");
     expect(mergeRowValues(inv, { client_name: "Bo", item: "Fee", qty: "2", unit_price: "$1,000" }, { workspaceName: "Acme", today: "2026-10-30" })).toMatchObject({ line_total: "$2,000.00", gst: "$200.00", total: "$2,200.00" });
   });
   it("checks workflow steps", () => {

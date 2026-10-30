@@ -1,6 +1,0 @@
-﻿Task ID,Created At,Completed At,Last Modified,Name,Section/Column,Assignee,Assignee Email,Start Date,Due Date,Tags,Notes,Projects,Parent task,Blocked By (Dependencies),Blocking (Dependencies)
-1200000000000001,2026-10-01,,2026-10-02,Plan the launch,To do,Owner Person,owner@acme.io,2026-10-05,2026-10-30,"Launch,Q4","Line one
-line two, with a comma",Launch,,,
-1200000000000002,2026-10-01,2026-10-03,2026-10-03,Book the venue,To do,Sam Stranger,sam@elsewhere.test,,2026-10-12,,,Launch,Plan the launch,,
-1200000000000003,2026-10-01,,2026-10-02,Draft the invite,In progress,,,,2026-11-02,Copy,"She said ""hello""",Launch,Plan the launch,,
-1200000000000004,2026-10-01,2026-10-04,2026-10-04,Pick a date,Done,Owner Person,owner@acme.io,,2026-10-04,,,Launch,,,

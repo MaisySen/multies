@@ -160,7 +160,7 @@ export interface TemplateContext { workspaceName: string; logoDataUri?: string |
 /**
  * Fills a template: {{#lines}}...{{/lines}} repeats per line item ({{description}}, {{quantity}},
  * {{unit_price}}, {{line_total}}), {{subtotal}} {{gst}} {{total}} are computed, textarea values keep
- * their line breaks, {{logo}} is an img tag when a logo exists, and every value is escaped.
+ * their line breaks, {{?key}}...{{/key}} shows only when the field has a value, {{logo}} is an img tag when a logo exists, and every value is escaped.
  */
 export function fillTemplate(t: Pick<TemplateDef, "html" | "fields">, values: Record<string, unknown>, ctx: TemplateContext): string {
   const linesField = t.fields.find((f) => f.type === "lines");
@@ -174,6 +174,8 @@ export function fillTemplate(t: Pick<TemplateDef, "html" | "fields">, values: Re
     if (k === "line_total") return escapeHtml(money(r.total));
     return m2;
   })).join(""));
+  // {{?key}}...{{/key}} keeps its contents only when the field has a value (an empty ABN or due date prints no label).
+  html = html.replace(/\{\{\?([a-z][a-z0-9_]{0,39})\}\}([\s\S]*?)\{\{\/\1\}\}/g, (_m, k: string, inner: string) => (String(values[k] ?? "").trim() ? inner : ""));
   const types = new Map(t.fields.map((f) => [f.key, f.type]));
   html = html.replace(PLACEHOLDER, (_m, k: string) => {
     if (k === "logo") return ctx.logoDataUri ? `<img class="logo" src="${escapeHtml(ctx.logoDataUri)}" alt="">` : "";
@@ -239,14 +241,14 @@ const ITEMS = `<table width="100%" cellpadding="6" cellspacing="0" class="items"
 <tr><td colspan="2">&nbsp;</td><td align="right" class="muted">GST (10%)</td><td align="right">{{gst}}</td></tr>
 <tr class="grand"><td colspan="2">&nbsp;</td><td align="right"><strong>Total</strong></td><td align="right"><strong>{{total}}</strong></td></tr></tbody></table>`;
 
-const SELLER = `<td width="55%" valign="top">{{logo}}<p><span class="biz">{{business_name}}</span><br><span class="muted">ABN {{business_abn}}</span><br><span class="muted">{{business_address}}</span></p></td>`;
+const SELLER = `<td width="55%" valign="top">{{logo}}<p><span class="biz">{{business_name}}</span>{{?business_abn}}<br><span class="muted">ABN {{business_abn}}</span>{{/business_abn}}{{?business_address}}<br><span class="muted">{{business_address}}</span>{{/business_address}}</p></td>`;
 
-const NOTES = `${GAP}<table width="100%" cellpadding="10" cellspacing="0" class="notes"><tr><td bgcolor="#f5f7fb">{{notes}}</td></tr></table>`;
+const NOTES = `{{?notes}}${GAP}<table width="100%" cellpadding="10" cellspacing="0" class="notes"><tr><td bgcolor="#f5f7fb">{{notes}}</td></tr></table>{{/notes}}`;
 
 const INVOICE_HTML = `${docHead("Tax invoice")}
-<table width="100%" cellpadding="0" cellspacing="0"><tr>${SELLER}<td width="45%" align="right" valign="top"><p align="right"><span class="title">TAX INVOICE</span><br>Invoice {{invoice_number}}<br><span class="muted">Issued {{issue_date}}</span><br><span class="muted">Due {{due_date}}</span></p></td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0"><tr>${SELLER}<td width="45%" align="right" valign="top"><p align="right"><span class="title">TAX INVOICE</span><br>Invoice {{invoice_number}}<br><span class="muted">Issued {{issue_date}}</span>{{?due_date}}<br><span class="muted">Due {{due_date}}</span>{{/due_date}}</p></td></tr></table>
 ${RULE}
-<table width="100%" cellpadding="0" cellspacing="0"><tr><td width="50%" valign="top"><p><span class="label">BILL TO</span><br><strong>{{client_name}}</strong><br>{{client_email}}<br>{{client_address}}</p></td><td width="50%" valign="top"><p><span class="label">PAYMENT DETAILS</span><br>{{payment_details}}</p></td></tr></table>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td width="50%" valign="top"><p><span class="label">BILL TO</span><br><strong>{{client_name}}</strong>{{?client_email}}<br>{{client_email}}{{/client_email}}{{?client_address}}<br>{{client_address}}{{/client_address}}</p></td><td width="50%" valign="top">{{?payment_details}}<p><span class="label">PAYMENT DETAILS</span><br>{{payment_details}}</p>{{/payment_details}}</td></tr></table>
 ${GAP}${ITEMS}
 ${NOTES}
 </body></html>`;
@@ -254,7 +256,7 @@ ${NOTES}
 const QUOTE_HTML = `${docHead("Quote")}
 <table width="100%" cellpadding="0" cellspacing="0"><tr>${SELLER}<td width="45%" align="right" valign="top"><p align="right"><span class="title">QUOTE</span><br>Quote {{quote_number}}<br><span class="muted">Date {{issue_date}}</span><br><span class="muted">Valid until {{valid_until}}</span></p></td></tr></table>
 ${RULE}
-<p><span class="label">PREPARED FOR</span><br><strong>{{client_name}}</strong><br>{{client_email}}<br>{{client_address}}</p>
+<p><span class="label">PREPARED FOR</span><br><strong>{{client_name}}</strong>{{?client_email}}<br>{{client_email}}{{/client_email}}{{?client_address}}<br>{{client_address}}{{/client_address}}</p>
 ${GAP}${ITEMS}
 ${NOTES}
 </body></html>`;
@@ -331,7 +333,8 @@ export function missingRequired(t: Pick<TemplateDef, "fields">, values: Record<s
  * row whose values come from the person's columns, and totals are worked out per person.
  */
 export function mergeTemplateHtml(html: string): string {
-  return html.replace(SECTION, (_m, row: string) => row
+  // The engine fills merge rows itself and knows only plain placeholders, so {{?key}}...{{/key}} keeps its contents here.
+  return html.replace(/\{\{\?([a-z][a-z0-9_]{0,39})\}\}([\s\S]*?)\{\{\/\1\}\}/g, "$2").replace(SECTION, (_m, row: string) => row
     .replace(/\{\{\s*description\s*\}\}/g, "{{item}}").replace(/\{\{\s*quantity\s*\}\}/g, "{{qty}}")
     .replace(/\{\{\s*unit_price\s*\}\}/g, "{{unit_price_text}}").replace(/\{\{\s*line_total\s*\}\}/g, "{{line_total}}"));
 }

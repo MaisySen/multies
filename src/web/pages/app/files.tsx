@@ -79,7 +79,7 @@ export function FilesPage() {
           })}
           {indexing && (
             <p className="hidden px-3 pt-3 text-xs text-subtle md:block">
-              {!indexing.on ? "Reading attachments is off for this workspace." : indexing.waiting > 0 ? `${indexing.waiting.toLocaleString()} attachments waiting to be read. Older mail is read a little at a time.` : `${indexing.indexed.toLocaleString()} attachments read.`}
+              {!indexing.on ? "Reading attachments is off for this workspace." : indexing.waiting > 0 ? `${indexing.waiting.toLocaleString()} ${indexing.waiting === 1 ? "attachment" : "attachments"} waiting to be read. Older mail is read a little at a time.` : `${indexing.indexed.toLocaleString()} ${indexing.indexed === 1 ? "attachment" : "attachments"} read.`}
             </p>
           )}
         </nav>

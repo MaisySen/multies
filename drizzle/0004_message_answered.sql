@@ -1,1 +1,0 @@
-ALTER TABLE `messages` ADD `is_answered` integer DEFAULT false NOT NULL;

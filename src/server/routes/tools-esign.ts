@@ -115,7 +115,7 @@ async function signerPage(c: Context<AppEnv>, v: SignerView, token: string) {
   const pagesHtml = pagesWithFields.map((p) => {
     const size = pageSizes.find((x) => x.page === p);
     const boxes = size ? fields.filter((f) => f.page === p).map((f) => `<span class="box" title="${f.kind === "date" ? "Date" : f.kind === "initials" ? "Your initials" : "Your signature"}" style="left:${(f.x / size.width) * 100}%;top:${(f.y / size.height) * 100}%;width:${(f.w / size.width) * 100}%;height:${(f.h / size.height) * 100}%"></span>`).join("") : "";
-    return `<figure class="pg" style="width:200px;margin:0"><img src="/sign/${esc(token)}/page/${p}" alt="Page ${p}" width="200">${boxes}<figcaption class="small muted" style="padding:4px 6px">Page ${p}</figcaption></figure>`;
+    return `<figure class="pg" style="width:100%;max-width:440px;margin:0"><img src="/sign/${esc(token)}/page/${p}" alt="Page ${p}" style="display:block;width:100%;height:auto">${boxes}<figcaption class="small muted" style="padding:4px 6px">Page ${p}</figcaption></figure>`;
   }).join("");
   const kinds = fields.map((f) => f.kind);
   const what = [kinds.includes("signature") ? "your signature" : "", kinds.includes("initials") ? "your initials" : "", kinds.includes("date") ? "the date" : ""].filter(Boolean).join(", ");

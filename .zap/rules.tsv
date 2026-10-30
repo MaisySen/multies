@@ -1,7 +1,0 @@
-10049	IGNORE	(Non-storable or storable content: informational cache notes on hashed assets and no-store API responses, both by design)
-10109	IGNORE	(Modern web application: informational, the app is a single page application on purpose)
-10027	IGNORE	(Information disclosure, suspicious comments: matches words like select in the minified bundle, no comments ship)
-10096	IGNORE	(Timestamp disclosure: build hashes and ISO dates in JSON, no server internals)
-90004	IGNORE	(Cross-Origin-Embedder-Policy missing: COEP would block opt-in remote images in email bodies; COOP and CORP are set)
-10055	IGNORE	(CSP notes: img-src allows https: so a reader can opt in to remote images in a message, and style-src allows inline styles because HTML email relies on style blocks and React sets style attributes; script-src is strict 'self' with no inline or eval. tests/hardening.test.ts pins the policy, so a regression fails CI there)
-10015	IGNORE	(Cache-control: the HTML shell is no-cache on purpose so a deploy is picked up at once; it holds no personal data. Hashed assets are immutable and API responses are no-store)

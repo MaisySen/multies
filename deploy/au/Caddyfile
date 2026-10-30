@@ -1,4 +1,0 @@
-{$APP_HOST} {
-	encode zstd gzip
-	reverse_proxy mymail:8787
-}

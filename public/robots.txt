@@ -1,8 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /app
-Disallow: /api
-Disallow: /invite/
-Disallow: /guest
-
-Sitemap: https://multies.si/sitemap.xml

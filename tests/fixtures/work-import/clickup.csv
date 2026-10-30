@@ -1,4 +1,0 @@
-Task ID,Task Name,Task Content,Status,Date Created,Due Date,Start Date,Priority,Assignees,Tags,Parent ID,Checklists,Comments
-86b001,Launch site,Go live on Monday,in progress,1759300000000,1761868800000,,urgent,"[ana@acme.io]","[web, launch]",,"{""Before launch"":[{""name"":""DNS ready"",""resolved"":true},{""name"":""Smoke test"",""resolved"":false}]}",
-86b002,Write the press note,,to do,1759300000000,"Monday, November 3rd 2026",,normal,[],[pr],86b001,,"[{""text"":""Draft by Friday"",""by"":""Ana""}]"
-86b003,Fix 404 page,,complete,1759300000000,,,low,"[ben@acme.io]",,86b001,,

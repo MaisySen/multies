@@ -1,5 +1,0 @@
-﻿Task ID,Created At,Completed At,Last Modified,Name,Section/Column,Assignee,Assignee Email,Start Date,Due Date,Tags,Notes,Projects,Parent task,Blocked By (Dependencies),Blocking (Dependencies)
-1209000000000001,2026-10-01,,2026-10-02,Plan the launch,Planning,Ana Admin,ana@acme.io,2026-10-05,2026-10-30,"Launch,Q4","Line one
-line two, with a comma",Launch,,,
-1209000000000002,2026-10-01,2026-10-03,2026-10-03,Book the venue,Planning,Ben Builder,ben@acme.io,,2026-10-12,,,Launch,Plan the launch,,
-1209000000000003,2026-10-01,,2026-10-03,Send invites,Doing,,,,2026/10/20,Launch,,Launch,,,

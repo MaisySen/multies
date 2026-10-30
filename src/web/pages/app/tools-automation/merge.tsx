@@ -3,6 +3,7 @@
  * sent as one email per person from your mailbox, spread over time. Consent tick required; marketing
  * sends get an unsubscribe line; a daily cap per plan.
  */
+import { PagePreview } from "./page-preview";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
@@ -158,7 +159,7 @@ export function MergePage() {
                   {valid.slice(0, 3).map((p) => (
                     <Card key={p.email} className="overflow-hidden p-0">
                       <div className="space-y-1 border-b border-line p-3 text-[13px]"><p><strong>To:</strong> {p.email}</p><p><strong>Subject:</strong> {fillText(textFor(subject), p)}</p><p className="whitespace-pre-line text-muted">{personalBody(textFor(body), p).slice(0, 220)}</p></div>
-                      <iframe title={`Preview for ${p.name || p.email}`} sandbox="" srcDoc={previewHtml(p)} className="h-72 w-full bg-white" />
+                      <PagePreview title={`Preview for ${p.name || p.email}`} html={previewHtml(p)} maxHeight={420} />
                     </Card>
                   ))}
                 </div>
