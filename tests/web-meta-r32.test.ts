@@ -92,7 +92,7 @@ describe("R32 llms.txt", () => {
       expect(u.startsWith(SITE + "/")).toBe(true);
       const path = new URL(u).pathname;
       expect([...LINKS.map((l) => l.path), ...PUBLIC_DOCS.map((d) => d.path)]).toContain(path); // R33: the .md docs pages
-      if (path === "/" || path === "/developers/mcp" || path === "/trust" || path === "/privacy") continue; // SPA pages are served by the static assets (R36: the MCP tools page; its .md copy is checked here)
+      if (path === "/" || path === "/developers/mcp") continue; // SPA pages are served by the static assets (R36: the MCP tools page; its .md copy is checked here)
       const r = await ctx.app.request(path, { headers: { host: "localhost" } });
       expect(r.status, path).toBe(200);
     }
@@ -102,7 +102,7 @@ describe("R32 llms.txt", () => {
 describe("R33 docs as Markdown", () => {
   it("serves a .md copy of each docs page as text/markdown, cacheable, and llms.txt says so", async () => {
     const ctx = await makeTestApp();
-    expect(Object.keys(DOCS_MD).sort()).toEqual(["/docs/api.md", "/docs/mcp.md", "/trust.md"]);
+    expect(Object.keys(DOCS_MD).sort()).toEqual(["/docs/api.md", "/docs/mcp.md"]);
     for (const d of PUBLIC_DOCS) {
       const r = await ctx.app.request(d.path, { headers: { host: "localhost" } });
       expect(r.status, d.path).toBe(200);

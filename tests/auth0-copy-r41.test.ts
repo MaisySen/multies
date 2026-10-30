@@ -18,6 +18,11 @@ describe("R41 MB-223 and MB-233: identity provider copy", () => {
     expect(copyProblems({ prompts: { x: { en: { y: { title: "Password Changed!" } } } } }).length).toBeGreaterThan(0);
     expect(copy.client.initiate_login_uri).toBe("https://multies.si/login?confirmed=1");
   });
+  it("R59 (MB-223): the screen after saving a new password has its own title, not the provider's \"Password Changed!\"", () => {
+    const copy = JSON.parse(readFileSync("deploy/auth0/r41-copy.json", "utf8"));
+    expect(copy.prompts["reset-password"].en["reset-password-success"].eventTitle).toBe("Password saved");
+    expect(copyProblems({ prompts: { x: { en: { y: { eventTitle: "Password Changed!" } } } } }).length).toBeGreaterThan(0);
+  });
 });
 
 describe("R45 (MB-233) text part line breaks", () => {

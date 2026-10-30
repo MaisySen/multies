@@ -1,5 +1,3 @@
-import { RESIDENCY_ANSWER, WHERE_DATA_LIVES } from "./residency";
-
 /**
  * Legal documents for Multies: privacy policy, terms of service, acceptable use policy and
  * data processing agreement. Final text, effective 30 October 2026 (the owner approved review of 30 October 2026 applied), issued by Fintex Australia
@@ -49,7 +47,7 @@ const E = LEGAL_ENTITY;
 export const PROVIDER_CATEGORIES: string[][] = [
   ["Provider", "What they do for us", "Data", "Where"],
   ["Our hosting and database provider", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in our hosting provider's Oceania region; edge network worldwide"],
-  ["Our sign in provider", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
+  ["Our sign in provider", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "United States"],
   ["Our outbound email provider", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Our payments provider", "Payments and invoices for paid add ons", "Billing contact; card details are held by our payments provider, never by us", "Australia and United States"],
   ["Our error monitoring provider", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
@@ -63,7 +61,7 @@ export const PROVIDER_CATEGORIES: string[][] = [
 export const SUBPROCESSORS: string[][] = [
   ["Sub processor", "What they do for us", "Data", "Where"],
   ["Cloudflare", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in Cloudflare's Oceania region; edge network worldwide"],
-  ["Auth0 (Okta)", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
+  ["Auth0 (Okta)", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "United States"],
   ["Resend", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices for paid add ons", "Billing contact; card details are held by Stripe, never by us", "Australia and United States"],
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
@@ -133,13 +131,8 @@ export const PRIVACY: LegalDoc = {
       { table: PROVIDER_CATEGORIES },
       "We may also disclose information if Australian law requires it (for example a valid warrant), and we will tell you unless the law forbids it.",
     ] },
-    // R60 (trust): the same facts as /trust, from src/shared/residency.ts, so the two never disagree.
-    { id: "where", title: "Where your data lives", body: [
-      RESIDENCY_ANSWER,
-      { table: [["Data", "Where", "Notes"], ...WHERE_DATA_LIVES.map((r) => [r.data, r.where, r.detail])] },
-    ] },
     { id: "overseas", title: "Overseas disclosure (APP 8)", body: [
-      "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
+      "Our primary database is placed in our hosting provider's Oceania region, and requests are handled at the edge location nearest you. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
       "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",

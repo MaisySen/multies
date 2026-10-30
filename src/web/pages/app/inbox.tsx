@@ -18,6 +18,8 @@ import { NoteCount, ThreadNotes, useNoteCounts } from "./inbox-comments";
 import { AssigneeChip, InboxViewBar, ThreadAssignControls, useInboxView, type ThreadAssignee, type ThreadStatus } from "./inbox-assign";
 import { ThreadCollab } from "./inbox-presence";
 import { InboxZeroArt } from "@/web/components/illustrations"; // R36
+import { useChannelsStatus } from "./channels-ui"; // C1
+import { ChannelFilterControl, ChatRow, ChatView, mergeByDate, useChannelFilter, useChatConversations } from "./inbox-chat"; // C1
 
 interface ThreadSummary {
   id: string; mailboxId: string; subject: string; snippet: string; lastMessageAt: string; messageCount: number; unreadCount: number;
@@ -36,29 +38,49 @@ interface Thread { id: string; mailboxId: string; subject: string; messages: Thr
 export function TeamInboxPage() {
   const [params, setParams] = useSearchParams();
   const selected = params.get("thread");
+  const selectedConv = params.get("conv"); // C1: an open chat
   const iv = useInboxView();
   const threads = useQuery({ queryKey: ["team-inbox", "list", iv.query], queryFn: () => api.get<{ data: ThreadSummary[] }>(`/agents/threads${iv.query}`), refetchInterval: 20_000 });
   const noteCounts = useNoteCounts(threads.data?.data.map((t) => t.id) ?? []);
   const mailboxes = useMailboxes();
   const agents = useAgents();
+  // C1: chats from WhatsApp, Messenger and Instagram merge into the same list when the workspace has them on.
+  const channels = useChannelsStatus();
+  const chatOn = !!channels.data?.enabled;
+  const chats = useChatConversations(chatOn, iv.view, iv.assignee);
+  const cf = useChannelFilter();
+  const filter = chatOn ? cf.filter : "all";
+  const channelName = (id: string) => channels.data?.channels.find((c) => c.id === id)?.name;
+  const providers = [...new Set((channels.data?.channels ?? []).map((c) => c.provider))];
   const boxName = (id: string) => mailboxes.data?.find((m) => m.id === id)?.address ?? agents.data?.find((a) => a.inboxId === id)?.address ?? "";
   const open = (id: string | null) => setParams(id ? { thread: id } : {}, { replace: false });
   // R56 (MB-242): reply to the customer right here, in the same composer as Mail (undo send, saved replies, draft autosave).
   const [compose, setCompose] = useState<ComposeDraft | null>(null);
   useReopenedDrafts<ComposeDraft>((d) => setCompose(d));
   const sendable = mailboxes.data ?? [];
+  const openConv = (id: string) => setParams({ conv: id }, { replace: false });
+  const mail = filter === "all" || filter === "email" ? threads.data?.data ?? [] : [];
+  const chatRows = chatOn && filter !== "email" ? (chats.data ?? []).filter((c) => filter === "all" || c.provider === filter) : [];
+  const rows = mergeByDate(mail, chatRows);
+  const anySelected = !!(selected || selectedConv);
+  const pending = threads.isPending || (chatOn && chats.isPending && filter !== "email");
   return (
     <>
-      <PageHeader title="Shared inbox" description="Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place." />
+      <PageHeader title="Shared inbox" description={chatOn ? "Mail and customer chats in one place, with your team and your agents. Agent replies are labelled." : "Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place."} />
       <InboxViewBar {...iv} />
+      {chatOn && <div className="-mt-1 mb-4"><ChannelFilterControl filter={filter} set={cf.set} providers={providers} /></div>}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-        <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", selected && "hidden lg:block")}>
-          {threads.isPending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
+        <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", anySelected && "hidden lg:block")}>
+          {pending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
             : threads.error ? <p className="p-6 text-sm text-bad">{threads.error.message}</p>
-            : !threads.data.data.length ? <EmptyState icon={<IconInbox />} art={<InboxZeroArt />} title="No threads yet" body="Mail to your mailboxes and agent inboxes shows up here." />
+            : !rows.length ? (filter === "all" || filter === "email"
+              ? <EmptyState icon={<IconInbox />} art={<InboxZeroArt />} title={filter === "email" ? "No email here" : "No threads yet"} body={chatOn ? "Mail and customer chats show up here." : "Mail to your mailboxes and agent inboxes shows up here."} />
+              : <EmptyState icon={<IconInbox />} title="No chats here" body="New customer messages on this channel show up here." />)
             : (
               <ul className="divide-y divide-line">
-                {threads.data.data.map((t) => (
+                {rows.map((r) => r.kind === "chat" ? (
+                  <li key={`c-${r.item.id}`}><ChatRow c={r.item} channelName={channelName(r.item.channelId)} selected={selectedConv === r.item.id} onOpen={() => openConv(r.item.id)} /></li>
+                ) : (() => { const t = r.item; return (
                   <li key={t.id}>
                     <button onClick={() => open(t.id)} aria-current={selected === t.id} className={cn("block w-full px-4 py-3 text-left transition-colors hover:bg-hover", selected === t.id && "bg-fill/60")}>
                       <div className="flex items-baseline justify-between gap-3">
@@ -75,12 +97,14 @@ export function TeamInboxPage() {
                       </div>
                     </button>
                   </li>
-                ))}
+                ); })())}
               </ul>
             )}
         </Card>
-        <div className={cn("lg:sticky lg:top-6 lg:self-start", !selected && "hidden lg:block")}>
-          {selected ? <ThreadView id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} /> : <Card><EmptyState icon={<IconInbox />} title="Pick a thread" body="See every message, who wrote it, and what an agent wants to send next." /></Card>}
+        <div className={cn("lg:sticky lg:top-6 lg:self-start", !anySelected && "hidden lg:block")}>
+          {selectedConv && chatOn ? <ChatView id={selectedConv} onBack={() => open(null)} />
+            : selected ? <ThreadView id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
+            : <Card><EmptyState icon={<IconInbox />} title={chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
         </div>
       </div>
       {compose && <Compose key={`${compose.inReplyToId ?? "new"}:${compose.draftId ?? ""}`} initial={compose} mailboxes={sendable} onClose={() => setCompose(null)} />}

@@ -875,5 +875,21 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE TRIGGER `tasks_project_counts_au_old` AFTER UPDATE OF `project_id`, `status`, `deleted_at`, `triage_state` ON `tasks` WHEN OLD.`deleted_at` IS NULL AND OLD.`triage_state` IS NULL AND (NOT (NEW.`deleted_at` IS NULL AND NEW.`triage_state` IS NULL) OR (NEW.`project_id` IS NOT OLD.`project_id` OR NEW.`status` IS NOT OLD.`status`)) BEGIN UPDATE `project_status_counts` SET `n` = max(`n` - 1, 0) WHERE `org_id` = OLD.`org_id` AND `project_id` = OLD.`project_id` AND `status` = OLD.`status`; END;",
       "CREATE TRIGGER `tasks_project_counts_au_new` AFTER UPDATE OF `project_id`, `status`, `deleted_at`, `triage_state` ON `tasks` WHEN NEW.`deleted_at` IS NULL AND NEW.`triage_state` IS NULL AND (NOT (OLD.`deleted_at` IS NULL AND OLD.`triage_state` IS NULL) OR (NEW.`project_id` IS NOT OLD.`project_id` OR NEW.`status` IS NOT OLD.`status`)) BEGIN INSERT INTO `project_status_counts` (`org_id`, `project_id`, `status`, `n`) VALUES (NEW.`org_id`, NEW.`project_id`, NEW.`status`, 1) ON CONFLICT (`org_id`, `project_id`, `status`) DO UPDATE SET `n` = `n` + 1; END;"
     ]
+  },
+  {
+    "name": "0089_c1_channels",
+    "statements": [
+      "ALTER TABLE `organizations` ADD `channels_enabled` integer DEFAULT false NOT NULL;",
+      "ALTER TABLE `organizations` ADD `channels_agent_autosend` integer DEFAULT false NOT NULL;",
+      "CREATE TABLE `msg_channels` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`provider` text NOT NULL,\n\t`external_id` text NOT NULL,\n\t`external_account_id` text,\n\t`name` text NOT NULL,\n\t`handle` text,\n\t`token_enc` text,\n\t`status` text DEFAULT 'active' NOT NULL,\n\t`last_error` text,\n\t`connected_by` text,\n\t`connected_at` integer NOT NULL,\n\t`disconnected_at` integer,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `msg_channels_org_idx` ON `msg_channels` (`org_id`);",
+      "CREATE INDEX `msg_channels_external_idx` ON `msg_channels` (`provider`,`external_id`);",
+      "CREATE TABLE `msg_conversations` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`channel_id` text NOT NULL,\n\t`contact_external_id` text NOT NULL,\n\t`contact_name` text DEFAULT '' NOT NULL,\n\t`snippet` text DEFAULT '' NOT NULL,\n\t`last_message_at` integer NOT NULL,\n\t`last_inbound_at` integer,\n\t`unread_count` integer DEFAULT 0 NOT NULL,\n\t`status` text DEFAULT 'open' NOT NULL,\n\t`assignee_user_id` text,\n\t`labels` text DEFAULT '[]' NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`channel_id`) REFERENCES `msg_channels`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`assignee_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n);",
+      "CREATE UNIQUE INDEX `msg_conversations_contact_uq` ON `msg_conversations` (`channel_id`,`contact_external_id`);",
+      "CREATE INDEX `msg_conversations_org_last_idx` ON `msg_conversations` (`org_id`,`last_message_at`);",
+      "CREATE TABLE `msg_messages` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`channel_id` text NOT NULL,\n\t`conversation_id` text NOT NULL,\n\t`direction` text NOT NULL,\n\t`external_id` text,\n\t`kind` text DEFAULT 'text' NOT NULL,\n\t`text` text DEFAULT '' NOT NULL,\n\t`delivery` text NOT NULL,\n\t`error` text,\n\t`media_name` text,\n\t`media_type` text,\n\t`media_size` integer,\n\t`media_b64` text,\n\t`media_key` text,\n\t`template_name` text,\n\t`draft_payload` text,\n\t`sent_by_user_id` text,\n\t`sent_by_agent_id` text,\n\t`date` integer NOT NULL,\n\t`created_at` integer NOT NULL,\n\tFOREIGN KEY (`org_id`) REFERENCES `organizations`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`conversation_id`) REFERENCES `msg_conversations`(`id`) ON UPDATE no action ON DELETE cascade\n);",
+      "CREATE INDEX `msg_messages_conv_idx` ON `msg_messages` (`conversation_id`,`date`);",
+      "CREATE UNIQUE INDEX `msg_messages_external_uq` ON `msg_messages` (`channel_id`,`external_id`);"
+    ]
   }
 ];

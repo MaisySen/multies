@@ -138,8 +138,6 @@ function EmailPaths({ onDone }: { onDone: () => void }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">How do you want to use email?</h1>
         <p className="mt-1.5 text-sm text-muted">Pick one now or later. Tasks, chat and meetings work straight away either way.</p>
-        {/* R60 (trust): say plainly that a test does not need a client mailbox, and what connecting one does. */}
-        <p className="mt-2 text-[13px] text-subtle" data-testid="onboarding-safe-trial">Just testing? Take a free address and leave client mailboxes where they are. Connecting a mailbox copies its mail into Multies, stored in the Oceania region; removing it deletes our copy. <Link to="/trust#where" target="_blank" rel="noreferrer" className="font-medium text-brand-hover hover:underline">Where your data lives</Link></p>
       </div>
       {domain && (
         <div data-testid="path-free">

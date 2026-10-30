@@ -1,11 +1,9 @@
-import { Link } from "react-router";
 import { IconArrowRight, IconPlay } from "@/web/components/ui/icon";
 import { Button, ButtonLink } from "@/web/components/ui/button";
 import { HeroVisual } from "@/web/components/hero-visual";
 import { PlanCards } from "@/web/components/plan-cards";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
-import { RESIDENCY_ANSWER } from "@/shared/residency";
 
 const features = [
   { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail that works on any device." },
@@ -38,8 +36,7 @@ const faqs = [
   { q: "Can I send mail too?", a: "Yes. Outbound mail goes through a transactional email provider with your domain's SPF, DKIM and DMARC in place, so it lands in inboxes rather than spam." },
   { q: "What happens if I already use Google Workspace?", a: "We'll spot your existing MX and SPF records and show you exactly what to change, including a merged SPF record, so nothing breaks during the move." },
   { q: "Do I still need Monday or ClickUp?", a: "For many small teams, no. Multies has tasks with boards, lists, a calendar and a timeline with dependencies, custom fields (text, number, AUD currency, date, select, multi select, person, checkbox and link) you can filter, sort and group a board by, repeating tasks, project templates, goals with key results, team chat with threads, a notifications inbox, free guests for your clients, a portfolio of every project with its health, docs that two people can edit at once, contacts, deals, time tracking, public forms, report dashboards, sprints with a burndown, a triage queue, a shared inbox with assignments and team notes, video calls in chat with screen share, meeting notes whose action items become tasks, calendar sync, a workload view of who has what each week, and simple automations, all built around your mail. It is still simpler than those tools: no app marketplace, no formula or rollup fields, and fewer automation recipes. If you rely on those, keep them and connect Multies with webhooks, the API and MCP." },
-  { q: "Where is my mail stored?", a: RESIDENCY_ANSWER },
-  { q: "Can I try it without connecting a client mailbox?", a: "Yes. Open the live demo, a sample workspace with made up mail and no sign up, deleted after 24 hours. Or take a free test address like yourname@mail.multies.si. Connect a real mailbox only when you are ready; removing it deletes our copy." },
+  { q: "Is my mail stored in Australia?", a: "Not yet. Our database sits in Cloudflare's Oceania region, which is a placement hint rather than a promise of a country, and some providers we use are in the United States. We're preparing Sydney hosting and will only say so once it's true." },
   { q: "Is my mail private?", a: "Workspaces are fully isolated, sessions are server-side, passwords are hashed, and signing keys and webhook secrets are encrypted at rest. Every admin action is in your audit log." },
 ];
 
@@ -67,8 +64,6 @@ export function Landing() {
             )}
           </div>
           <p className="mt-4 text-xs text-subtle">Free forever for 1 domain, 3 mailboxes and 3 agent inboxes. No card.</p>
-          {/* R60 (trust): try it without a client mailbox, stated where people decide. */}
-          <p className="mt-1 text-xs text-subtle" data-testid="hero-safe-trial">Testing first? Use the live demo or a free test address. No client mailbox needed. <Link to="/trust#try" className="font-medium text-brand-hover hover:underline">How to try it safely</Link> <span aria-hidden>·</span> <Link to="/trust#where" className="font-medium text-brand-hover hover:underline">Data stored in the Oceania region</Link></p>
           <p className="mt-1 text-xs text-subtle">Bring your own AI: connect any AI app or agent through MCP, free.</p>
         </div>
         <div className="relative mt-16 px-5 pb-16 sm:mt-20">

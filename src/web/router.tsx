@@ -98,6 +98,7 @@ const AccountSettings = lazy(() => import("./pages/app/security").then((m) => ({
 const TeamSettings = lazy(() => import("./pages/app/team").then((m) => ({ default: m.TeamSettings })));
 const BillingSettings = lazy(() => import("./pages/app/billing").then((m) => ({ default: m.BillingSettings })));
 const AuthEmailSettings = lazy(() => import("./pages/app/auth-email-settings").then((m) => ({ default: m.AuthEmailSettings }))); // R27
+const ChannelsSettings = lazy(() => import("./pages/app/channels-settings").then((m) => ({ default: m.ChannelsSettings }))); // C1
 const CalendarSettings = lazy(() => import("./pages/app/calendar-settings").then((m) => ({ default: m.CalendarSettings })));
 const ConnectionsSettings = lazy(() => import("./pages/app/connections").then((m) => ({ default: m.ConnectionsSettings })));
 const MailAppsSettings = lazy(() => import("./pages/app/mail-apps").then((m) => ({ default: m.MailAppsSettings })));
@@ -140,7 +141,6 @@ export const router = createBrowserRouter([
       { path: "/contact", element: publicPage(<ContactUsPage />) },
       { path: "/check", element: publicPage(<CheckPage />) },
       { path: "/trust", element: publicPage(<TrustPage />) },
-      { path: "/security", element: publicPage(<TrustPage />) }, // R60: the address security reviews and assistants try first
       { path: "/delete-account", element: publicPage(<DeleteAccountPage />) },
       { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },
       { path: "/acceptable-use", element: publicPage(<LegalPage slug="acceptable-use" />) },
@@ -210,6 +210,7 @@ export const router = createBrowserRouter([
           { index: true, element: page(<GeneralSettings />) },
           { path: "general", element: page(<GeneralSettings />) }, // R38: the phone settings hub opens General here
           { path: "team", element: page(<TeamSettings />) },
+          { path: "channels", element: page(<ChannelsSettings />) }, // C1
           { path: "billing", element: page(<BillingSettings />) },
           { path: "account", element: page(<AccountSettings />) },
           { path: "notifications", element: page(<NotificationSettings />) },

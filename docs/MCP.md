@@ -10,7 +10,7 @@ General, AI; it is encrypted at rest.
 
 - URL: `https://multies.si/api/v1/mcp` (your own deployment: `<origin>/api/v1/mcp`)
 - Transport: Streamable HTTP, stateless. Built on the official MCP TypeScript SDK.
-- Tools: 199 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
+- Tools: 206 (listed below). An agent key sees the agent tools; `create_agent_inbox` and `set_mailbox_reply_to` are for workspace keys and people.
 
 ## Signing in
 
@@ -304,6 +304,20 @@ Registered in src/server/routes/mcp-r32-triage.ts. Same service as the Triage pa
 | --- | --- |
 | `task_triage_list` | Tasks waiting in Triage (from mail, forms, the API and agents), newest first, with the count. `view`: pending (default) or snoozed |
 | `task_triage_action` | accept (optional status, project, assignee), decline (optional reason), snooze (`until`, at most a year out), unsnooze, duplicate (`duplicateOf`) or restore (undo an accept, decline or duplicate from the last day). `comment`: a one line note written with an accept or decline (the answer carries `comment.id`); `commentId` with restore removes it in the same undo |
+
+### Chat channels (C1)
+
+Registered in src/server/routes/mcp-c1-chat.ts, under the mail area scopes, and listed only when the server runs with CHAT_CHANNELS=on (R59; off by default). Customer chats from WhatsApp (and later Messenger and Instagram) in the shared inbox; see docs/channels.md. Unless the workspace turns on "Agents may send chat replies without review" (Settings, Channels; off by default), a reply or template sent through these tools is saved as a draft that a person sends or discards in the chat with one tap. Replies written through the API carry the agent's name.
+
+| Tool | What it does |
+| --- | --- |
+| `list_chat_conversations` | Chat conversations in the shared inbox, newest first. Filters: `channel`, `status`, `assignee`, `unread`, `q` |
+| `get_chat_conversation` | One conversation with its messages and the reply window (`window.open`, time left) |
+| `reply_chat` | Reply with text inside the 24 hour window; answers `window_closed` outside it. A draft unless agent auto send is on. Takes an idempotency key |
+| `list_chat_templates` | Approved templates for the conversation's number, with their blanks |
+| `send_chat_template` | Send an approved template (named or numbered blanks), the only way to write after 24 hours. A draft unless agent auto send is on |
+| `update_chat_conversation` | Assign, set status (open, waiting, done) or labels |
+| `add_chat_note` | Add an internal note the customer never sees |
 
 ### Inbox splits and read status (R31)
 

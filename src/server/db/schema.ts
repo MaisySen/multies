@@ -61,6 +61,10 @@ export const organizations = sqliteTable("organizations", {
   sendCapDaily: integer("send_cap_daily"),
   /** R34 (0077, MB-171): operator override for call participant-minutes a month; null means the plan's rule (free 1,000, paid none). */
   meetingMinutesCap: integer("meeting_minutes_cap"),
+  /** C1 (0089): chat channels (WhatsApp, Messenger, Instagram) in the shared inbox. Off until an admin turns it on. */
+  channelsEnabled: integer("channels_enabled", { mode: "boolean" }).notNull().default(false),
+  /** C1: agents (MCP) may send chat replies without a person approving each one. Off: their replies wait as drafts. */
+  channelsAgentAutosend: integer("channels_agent_autosend", { mode: "boolean" }).notNull().default(false),
   /** How the Stripe subscription bills: "month", or "year" when add-ons total under A$5 a month. */
   billingInterval: text("billing_interval", { enum: ["month", "year"] }),
   createdAt: createdAt(),
@@ -2057,3 +2061,95 @@ export const dataMoves = sqliteTable("data_moves", {
   /** R43: the kept file is deleted by this time at the latest (7 days after it was kept). */
   fileExpiresAt: ts("file_expires_at"),
 }, (t) => [index("data_moves_org_idx").on(t.orgId, t.createdAt), index("data_moves_status_step_idx").on(t.status, t.lastStepAt)]);
+
+
+/**
+ * C1 (0089): a WhatsApp number, Facebook Page or Instagram account connected to a workspace (services/channels).
+ * The access token is encrypted at rest (lib/crypto encryptSecret, AES-GCM from APP_SECRET) and never leaves
+ * the server. A disconnect keeps the row and its conversations (history stays); the token is wiped.
+ * The webhook finds the channel by (provider, external_id): the phone number id, page id or Instagram id.
+ */
+export const msgChannels = sqliteTable("msg_channels", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  provider: text("provider", { enum: ["whatsapp", "messenger", "instagram", "mock"] }).notNull(),
+  /** WhatsApp phone_number_id, Page id or Instagram account id. */
+  externalId: text("external_id").notNull(),
+  /** WhatsApp Business Account id (WABA) or the Page an Instagram account belongs to. */
+  externalAccountId: text("external_account_id"),
+  name: text("name").notNull(),
+  /** Display phone number or handle. */
+  handle: text("handle"),
+  tokenEnc: text("token_enc"),
+  status: text("status", { enum: ["active", "disconnected", "error"] }).notNull().default("active"),
+  lastError: text("last_error"),
+  connectedBy: text("connected_by"),
+  connectedAt: ts("connected_at").notNull(),
+  disconnectedAt: ts("disconnected_at"),
+  createdAt: createdAt(),
+}, (t) => [
+  index("msg_channels_org_idx").on(t.orgId),
+  index("msg_channels_external_idx").on(t.provider, t.externalId),
+]);
+
+/**
+ * C1 (0089): one customer on one channel: the chat equivalent of a mail thread, listed in the shared inbox beside
+ * mail. Assignment, status and labels live on the row (no separate state table, so an inbound message touches one
+ * conversation row). last_inbound_at drives Meta's 24 hour reply window.
+ */
+export const msgConversations = sqliteTable("msg_conversations", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull().references(() => msgChannels.id, { onDelete: "cascade" }),
+  /** WhatsApp wa_id (the customer's number) or the page scoped id. */
+  contactExternalId: text("contact_external_id").notNull(),
+  contactName: text("contact_name").notNull().default(""),
+  snippet: text("snippet").notNull().default(""),
+  lastMessageAt: ts("last_message_at").notNull(),
+  lastInboundAt: ts("last_inbound_at"),
+  unreadCount: integer("unread_count").notNull().default(0),
+  status: text("status", { enum: ["open", "waiting", "done"] }).notNull().default("open"),
+  assigneeUserId: text("assignee_user_id").references(() => users.id, { onDelete: "set null" }),
+  /** JSON string[] */
+  labels: text("labels").notNull().default("[]"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("msg_conversations_contact_uq").on(t.channelId, t.contactExternalId),
+  index("msg_conversations_org_last_idx").on(t.orgId, t.lastMessageAt),
+]);
+
+/**
+ * C1 (0089): one chat message in or out. (channel_id, external_id) is unique, so Meta's retried webhook deliveries
+ * (it resends for up to 7 days) insert nothing the second time. A message carries at most one file; small files
+ * stay on the row (base64, like mail attachments), larger ones go to the body store when one is configured.
+ */
+export const msgMessages = sqliteTable("msg_messages", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  conversationId: text("conversation_id").notNull().references(() => msgConversations.id, { onDelete: "cascade" }),
+  direction: text("direction", { enum: ["in", "out"] }).notNull(),
+  /** Meta's message id (wamid or mid); null on an outbound message until Meta accepts it. */
+  externalId: text("external_id"),
+  kind: text("kind").notNull().default("text"),
+  text: text("text").notNull().default(""),
+  /** "draft": an agent's reply waiting for a person to approve it (the workspace has agent auto send off). */
+  delivery: text("delivery", { enum: ["draft", "pending", "sent", "delivered", "read", "failed", "received"] }).notNull(),
+  error: text("error"),
+  mediaName: text("media_name"),
+  mediaType: text("media_type"),
+  mediaSize: integer("media_size"),
+  mediaB64: text("media_b64"),
+  mediaKey: text("media_key"),
+  templateName: text("template_name"),
+  /** A draft's send payload (JSON: template language and values) until it is approved; cleared then. */
+  draftPayload: text("draft_payload"),
+  sentByUserId: text("sent_by_user_id"),
+  /** The agent inbox an MCP key replied as, when that is how the reply was written. */
+  sentByAgentId: text("sent_by_agent_id"),
+  date: ts("date").notNull(),
+  createdAt: createdAt(),
+}, (t) => [
+  index("msg_messages_conv_idx").on(t.conversationId, t.date),
+  uniqueIndex("msg_messages_external_uq").on(t.channelId, t.externalId),
+]);
