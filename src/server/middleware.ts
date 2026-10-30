@@ -24,7 +24,10 @@ export const csrfGuard: MiddlewareHandler<AppEnv> = async (c, next) => {
     // A browser that leaves out Origin still says where the request came from.
     throw new HttpError(403, "bad_origin", "Cross-site request blocked.");
   }
-  const hasBody = c.req.header("content-length") !== "0" && (m === "POST" || m === "PUT" || m === "PATCH");
+  const hasBody = c.req.header("content-length") !== "0" && (m === "POST" || m === "PATCH" || m === "PUT");
+  // Tools P1: a file upload to the Tools engine is a streamed form upload, not JSON. It must carry the
+  // custom upload header, which a cross-site form cannot send without a CORS preflight (the Origin check above still runs).
+  if (hasBody && m === "POST" && c.req.path === "/api/tools/jobs" && c.req.header("x-multies-upload") === "1") return next();
   if (hasBody && !isJsonContentType(c.req.header("content-type"))) throw new HttpError(403, "bad_content_type", "Requests must be JSON.");
   await next();
 };

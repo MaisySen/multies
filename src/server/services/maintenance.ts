@@ -92,6 +92,11 @@ export async function runMaintenance(deps: Deps, opts: { rotate?: boolean; probe
       pruneJobs(deps), pruneAgentEvents(deps), pruneImports(deps),
     ]);
   });
+  // Tools P1: keep the document engine's free host awake (no D1), and prune old usage rows once an hour.
+  if (deps.config.tools.enabled) await step("tools", async () => {
+    const t = await import("./tools/maintenance");
+    await t.toolsMaintenance(deps, inSlot(1));
+  });
   return { ...legacy, jobs: jobsRun, mailSync, mailSchedules, agentTriggers: agentTriggersRun, uptime, crossChecks, dunning, approvalsExpired, reminders, writes: writes ? { level: writes.level, rowsWritten: writes.rowsWritten } : undefined };
 }
 

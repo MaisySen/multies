@@ -891,5 +891,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `msg_messages_conv_idx` ON `msg_messages` (`conversation_id`,`date`);",
       "CREATE UNIQUE INDEX `msg_messages_external_uq` ON `msg_messages` (`channel_id`,`external_id`);"
     ]
+  },
+  {
+    "name": "0091_tools_usage",
+    "statements": [
+      "-- Tools P1: document tools usage per workspace. One row per month (period \"2026-10\") and one per day\n-- (period \"2026-10-30\"); a run adds one to both in a single upsert. The cron prunes day rows after 2 days\n-- and month rows after 13 months. WITHOUT ROWID so a run writes only the primary key b-tree row.\nCREATE TABLE `tool_usage` (\n\t`org_id` text NOT NULL,\n\t`period` text NOT NULL,\n\t`runs` integer DEFAULT 0 NOT NULL,\n\t`bytes_in` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `period`)\n) WITHOUT ROWID;"
+    ]
+  },
+  {
+    "name": "0092_tools_switch",
+    "statements": [
+      "-- Tools P1: a workspace switch for Tools. NULL follows the default (on wherever the deployment has Tools),\n-- \"off\" hides Tools for the workspace, \"on\" keeps them on. Read only by the Tools routes.\nALTER TABLE `organizations` ADD `tools_mode` text;"
+    ]
   }
 ];
