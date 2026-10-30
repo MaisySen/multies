@@ -16,6 +16,24 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-30-tools-pages-forms",
+    date: "2026-10-30",
+    title: "Edit pages, fill forms and compare PDFs",
+    body: "Drag to reorder, turn or delete the pages of a PDF, fill PDF forms and flatten them, and compare two versions of a PDF page by page. Tools also has a new look, with search, clear groups and progress you can follow and cancel.",
+  },
+  {
+    id: "2026-10-30-tools-share-workflows",
+    date: "2026-10-30",
+    title: "Share links, workflows and templates",
+    body: "Send a big file as a link that expires, with an optional password and download limit. Chain tools into a saved workflow, fill an invoice, quote or letter from a template with GST worked out, and let rules compress big PDFs as you attach them.",
+  },
+  {
+    id: "2026-10-30-tools-more",
+    date: "2026-10-30",
+    title: "More document tools",
+    body: "Add a password, stamps, page numbers, headers and footers, find and hide sensitive info, convert more file types, use the Excel tools, scan paper to PDF and make scans searchable in Nepali, Hindi and 11 more languages. Run a tool on every attachment in a thread at once, or from your own app with the API.",
+  },
+  {
     id: "2026-10-30-yearly-and-referrals",
     date: "2026-10-30",
     title: "Pay yearly, get two months free",
@@ -52,12 +70,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "When an invite email doesn't reach a guest, copy their invite link and send it your own way. Get link on a waiting guest makes a fresh one.",
   },
   {
-    id: "2026-10-29-move-ref",
-    date: "2026-10-29",
-    title: "Moves say when a number changes",
-    body: "The command menu tells you when moving a task to another project gives it a new number, and checks before it makes a new label.",
-  },
-  {
     id: "2026-10-29-free-and-switch",
     date: "2026-10-29",
     title: "Free for a small team, and easy to move in",
@@ -74,18 +86,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-29",
     title: "Reply straight from the shared inbox",
     body: "Open a thread in the shared inbox and press Reply or Reply all to answer the customer right there. Replies now save as a draft while you type, so a reload keeps them.",
-  },
-  {
-    id: "2026-10-29-names-from-you",
-    date: "2026-10-29",
-    title: "Set up uses your name",
-    body: "A new workspace is named after the name you give at Welcome, and the free address we suggest starts with your first name, never your sign in email.",
-  },
-  {
-    id: "2026-10-28-startup-templates",
-    date: "2026-10-28",
-    title: "Four new starter templates",
-    body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
   },
   {
     id: "2026-10-28-command-menu-actions",

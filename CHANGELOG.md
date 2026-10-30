@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 65 (30 Oct 2026)
+
+- Added: Tools P2 on production behind TOOLS_FEATURES: page editor, form filling, compare, OCR in 13 more languages, scan to PDF, password protect, stamps and page numbers, more conversions, Excel tools, find and hide sensitive info, batch runs on a thread's attachments, share links, rules before sending, workflows, templates and the Tools API. Migrations 0095 to 0098, and drizzle-index/0001 on the separate index database (INDEX_DB, multies-index; the main database holds no virtual table). A new Tools look (search, groups, staged progress with cancel, result next steps).
+- Not yet on production (code shipped, flags off until a legal review): e-sign, mail merge, the AI document helpers (ask, translate, invoices, expenses, contracts) and search inside attachments with smart folders.
+- Changed: receipts, invoice emails and Billing show A$. What's new drops "Four new starter templates", "Set up uses your name" and "Moves say when a number changes" to stay at 14 (they stay in this file).
+
 ### Round 64 (30 Oct 2026)
 
 - Added: yearly billing for add ons at ten months for twelve (Monthly or Yearly switch in Billing and on the pricing page; under A$5 a month stays yearly only), the LAUNCH30 promotion code (30% off the first 3 months, monthly checkouts and first time customers only) and referral links in Billing (both workspaces get one month of the referred workspace's add ons as account credit once its first payment has stood 14 days; self referrals blocked, 12 credits a year). Migration 0094 (referral codes, referrals, Business storage grandfathering).
