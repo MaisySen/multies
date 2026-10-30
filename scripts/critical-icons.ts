@@ -38,7 +38,7 @@ export function criticalIconNames(roots: string[], srcDir: string): Set<string> 
     try { text = readFileSync(file, "utf8"); } catch { continue; }
     for (const m of text.matchAll(IMPORT_RE)) {
       const [, what, spec] = m;
-      if (/components\/ui\/icons?(\/|$)|\.\/icons?(\/|$)/.test(spec)) for (const n of what.match(ICON_NAME_RE) ?? []) names.add(n);
+      if (/(^|\/)icons?(\/[\w-]+)?$/.test(spec)) for (const n of what.match(ICON_NAME_RE) ?? []) names.add(n);
       const next = resolve(spec, file, srcDir);
       if (next && !/[\\/]components[\\/]ui[\\/]icons[\\/]/.test(next)) stack.push(next);
     }
@@ -58,9 +58,21 @@ export function iconFilesFor(names: Set<string>, iconDir: string): Set<string> {
   return files;
 }
 
+/** Files a module loads with import("..."), resolved (the app frame mounts some of these on every page). */
+export function lazyImports(file: string, srcDir: string): string[] {
+  let text: string;
+  try { text = readFileSync(file, "utf8"); } catch { return []; }
+  const out: string[] = [];
+  for (const m of text.matchAll(/import\(\s*["']([^"']+)["']\s*\)/g)) { const r = resolve(m[1], file, srcDir); if (r) out.push(r); }
+  return out;
+}
+
 /** The first screens' glyph files for this checkout. */
 export function criticalIconFiles(root: string): Set<string> {
   const src = path.join(root, "src");
-  const roots = ["web/main.tsx", "web/layouts/app.tsx", "web/pages/app/my-work.tsx", "web/pages/landing.tsx"].map((r) => path.join(src, r));
+  const frame = ["web/layouts/app.tsx", "web/pages/app/my-work.tsx"].map((r) => path.join(src, r));
+  // The frame's and My Work's own lazy parts (the call dock, banners) load on every app page, so they count too;
+  // the router's lazy pages do not.
+  const roots = [...["web/main.tsx", "web/pages/landing.tsx"].map((r) => path.join(src, r)), ...frame, ...frame.flatMap((f) => lazyImports(f, src))];
   return iconFilesFor(criticalIconNames(roots, src), path.join(src, "web/components/ui/icons"));
 }

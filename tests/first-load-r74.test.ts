@@ -29,6 +29,14 @@ describe("critical icons (R74)", () => {
     expect(editor).toMatch(/IconGrip/);
     expect(names.has("IconGrip")).toBe(false);
   });
+  it("counts the app frame's own lazy parts (the call dock loads on every app page) and ../ui/icon imports", () => {
+    const files = [...criticalIconFiles(root)].map((f) => path.basename(f));
+    const dock = readFileSync(path.join(src, "web/pages/app/work/call-r23.tsx"), "utf8");
+    const used = [...dock.matchAll(/\b(Icon[A-Z][A-Za-z0-9]*)\b/g)].map((m) => m[1]);
+    expect(used.length).toBeGreaterThan(0);
+    const names = criticalIconNames([path.join(src, "web/pages/app/work/call-r23.tsx")], src);
+    for (const n of names) expect(files.some((f) => readFileSync(path.join(src, "web/components/ui/icons", f), "utf8").includes(`export const ${n} `))).toBe(true);
+  });
   it("the build keeps two icon files", () => {
     const cfg = readFileSync(path.join(root, "vite.config.ts"), "utf8");
     expect(cfg).toMatch(/name: "icons",/);
