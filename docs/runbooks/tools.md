@@ -43,7 +43,7 @@ own caps: 2 jobs at a time per workspace, 20 queued in all, 500 pages a PDF; OCR
 page on the free host, with page by page progress); PDF to images 100 pages; images to PDF 50 images. Options are
 published per tool at GET /internal/v1/operations and mirrored in src/shared/tools.ts (tests/tools-all-p1.test.ts
 checks the two against tests/fixtures/tools-engine-operations.json; refresh that file when the engine changes).
-The unlock password is passed to the engine for that run only and is never written to disk or logs. D1 per run: 1 read and 2 writes (the
+The password for Remove password is passed to the engine for that run only and is never written to disk or logs. D1 per run: 1 read and 2 writes (the
 usage upsert in tool_usage, migration 0091, and the audit row tools.run, which never holds a file name). Polling a
 job reads no D1 (signed job tokens).
 
