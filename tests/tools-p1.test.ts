@@ -36,7 +36,7 @@ function fakeEngine() {
     let bodyLen = 0;
     if (init?.body) bodyLen = (await new Response(init.body as BodyInit).arrayBuffer()).byteLength;
     const len = h.get("content-length") ?? "0";
-    const want = createHmac("sha256", ENGINE_KEY).update(["v1", method, pathQs, h.get("x-multies-ts"), h.get("x-multies-ws"), h.get("x-multies-user"), h.get("x-multies-max-bytes"), len].join("\n")).digest("hex");
+    const want = createHmac("sha256", ENGINE_KEY).update(["v1", method, pathQs, h.get("x-multies-ts"), h.get("x-multies-nonce"), h.get("x-multies-ws"), h.get("x-multies-user"), h.get("x-multies-max-bytes"), len].join("\n")).digest("hex");
     if (h.get("x-multies-key") !== "stg-1" || h.get("x-multies-sig") !== want) return Response.json({ error: "unauthorized" }, { status: 401 });
     if (init?.body && String(bodyLen) !== len) return Response.json({ error: "length mismatch" }, { status: 400 });
     const ws = h.get("x-multies-ws")!;
@@ -85,8 +85,8 @@ async function setup(env: Record<string, string> = ON) {
 describe("Tools P1 signing", () => {
   it("matches the shared vector the engine's Python verifier also checks", async () => {
     const v = VECTOR;
-    expect(canonical(v.method, v.path_qs, v.ts, v.ws, v.user, v.max_bytes, v.content_length)).toBe(v.canonical);
-    expect(await signEngine(v.secret, v.method, v.path_qs, v.ts, v.ws, v.user, v.max_bytes, v.content_length)).toBe(v.signature);
+    expect(canonical(v.method, v.path_qs, v.ts, v.nonce, v.ws, v.user, v.max_bytes, v.content_length)).toBe(v.canonical);
+    expect(await signEngine(v.secret, v.method, v.path_qs, v.ts, v.nonce, v.ws, v.user, v.max_bytes, v.content_length)).toBe(v.signature);
   });
   it("is off unless the switch, an engine address and both long keys are set", () => {
     expect(loadConfig({ APP_SECRET: "t".repeat(40) }).tools.enabled).toBe(false);
