@@ -9,7 +9,6 @@ import { useReduceMotion } from "@/lib/motion";
 import { Icon as PlatformIcon } from "./Icon";
 import type { IconName } from "./icons";
 import { artFor, EmptyIllustration, type EmptyArt } from "./empty-art";
-import { BarBlur, hasBarBlur, withAlpha } from "./chrome";
 
 export type { IconName } from "./icons";
 
@@ -248,8 +247,7 @@ export function LargeTitle({ title, subtitle, right, top = 0, collapsed = false 
   if (collapsed) {
     return (
       <View testID="large-title-collapsed" style={{ paddingTop: top, paddingHorizontal: space.md, height: top + 48, flexDirection: "row", alignItems: "center", gap: space.sm,
-        backgroundColor: hasBarBlur() ? withAlpha(colors.surface, 0.55) : colors.surface, borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, opacity: 0.98 }}>
-        <BarBlur />
+        backgroundColor: colors.surface, borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth, opacity: 0.98 }}>
         <View style={{ flex: 1 }} />
         <Text style={[font.headline, { position: "absolute", left: 96, right: 96, top: top + 13, textAlign: "center" }]} accessibilityRole="header" numberOfLines={1}>{title}</Text>
         {right ? <View style={{ flexDirection: "row", alignItems: "center" }}>{right}</View> : null}

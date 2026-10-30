@@ -8,7 +8,7 @@ import { useUndoSeconds, parseUndoSeconds, UNDO_SEND_CHOICES } from "@/lib/undo-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSession } from "@/lib/session";
-import { useBlocks, useNotificationCount, useOverview } from "@/lib/queries";
+import { useBlocks, useNotificationCount, useOverview, useTools } from "@/lib/queries";
 import { permissionGranted, registerPush, type PushState } from "@/lib/push";
 import { kv } from "@/lib/kv";
 import { bytes } from "@/lib/format";
@@ -17,7 +17,6 @@ import { colors, font, space } from "@/theme";
 import { currentVersionFacts, updateDetail, versionLabel } from "@/lib/app-version";
 import { UpdateRows } from "@/components/update-rows";
 import { GestureSettings } from "@/components/gesture-settings";
-import { biometricAvailable, biometricLabel, getBiometricLock, setBiometricLock } from "@/lib/native-features";
 
 const PLAN_LABEL: Record<string, string> = { free: "Free", starter: "Starter", pro: "Pro", business: "Business" };
 
@@ -28,24 +27,11 @@ export default function Settings() {
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   const insets = useSafeAreaInsets();
   const blocksQ = useBlocks();
+  const tools = useTools();
   const version = currentVersionFacts();
   const [push, setPush] = useState<PushState | null>(null);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => { permissionGranted().then(setAllowed).catch(() => {}); }, []);
-  // R37: "Unlock with Face ID" (or fingerprint), off by default; shows only where the phone supports it.
-  const [lockAvailable, setLockAvailable] = useState(false);
-  const [lockLabel, setLockLabel] = useState("Face ID");
-  const [lockOn, setLockOn] = useState(false);
-  useEffect(() => {
-    biometricAvailable().then(setLockAvailable).catch(() => {});
-    biometricLabel().then(setLockLabel).catch(() => {});
-    getBiometricLock().then(setLockOn).catch(() => {});
-  }, []);
-  const toggleLock = async () => {
-    const next = await setBiometricLock(!lockOn).catch(() => lockOn);
-    if (!lockOn && !next) Alert.alert(`Couldn't turn on ${lockLabel}`, "Check that it is set up in your phone's Settings app, then try again.");
-    setLockOn(next);
-  };
 
   const turnOnPush = async () => {
     const r = await registerPush(mode === "live" ? api : null, { prompt: true });
@@ -83,22 +69,16 @@ export default function Settings() {
       </Card>
 
       <SectionTitle>Workspace</SectionTitle>
-      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} />
+      <Row tile="indigo" icon="briefcase" label="Workspace" value={me?.organization?.name} onPress={() => router.push("/workspaces")} testID="workspaces-link" />
       <Row tile="blue" icon="inbox" label="Email addresses" value={overview.data ? String(overview.data.filter((m) => m.kind !== "agent").length) : undefined} onPress={() => router.push("/email-setup")} testID="email-setup-link" />
       <Row tile="purple" icon="cpu" label="Agent inboxes" value={overview.data ? String(overview.data.filter((m) => m.kind === "agent").length) : undefined} />
       <Row tile="gray" icon="hard-drive" label="Storage used" value={overview.data ? bytes(used) : undefined} />
+      {tools.data ? <Row tile="brand" icon="wrench" label="Tools" value="PDF and Office" onPress={() => router.push("/tools")} testID="tools-link" /> : null}
       <Row tile="green" icon="video" label="Meetings" onPress={() => router.push("/meetings")} testID="meetings" />
       <Row tile="orange" icon="layers" label="Portfolio" onPress={() => router.push("/portfolio")} testID="portfolio-link" />
       <Row tile="teal" icon="users" label="People" onPress={() => router.push("/people")} testID="people-link" />
       <Row tile="purple" icon="bot" label="Agent runs" onPress={() => router.push("/runs")} testID="runs-link" />
       <Row tile="gray" icon="external-link" label="Domains and team, on the web" onPress={() => open(WEB_PAGES.team)} />
-
-      {lockAvailable ? (
-        <>
-          <SectionTitle>Security</SectionTitle>
-          <Row tile="green" icon="lock" label={`Unlock with ${lockLabel}`} value={lockOn ? "On" : "Off"} onPress={toggleLock} testID="biometric-lock" />
-        </>
-      ) : null}
 
       <SectionTitle>Notifications</SectionTitle>
       <Row tile="red" icon="inbox" label="Notifications inbox" value={inbox.data ? `${inbox.data} unread` : undefined} onPress={() => router.push("/notifications")} testID="notifications-link" />

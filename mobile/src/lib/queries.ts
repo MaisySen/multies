@@ -68,6 +68,12 @@ export function useOverview() {
   return useQuery({ queryKey: keys.overview, queryFn: () => cached(kv(), `meta:${mode}:overview`, () => api.overview()), select: (d) => d.mailboxes });
 }
 
+/** Tools: the catalogue, this month's runs and the plan's limits. A 404 means Tools are off (server or workspace). */
+export function useTools() {
+  const { api, mode } = useSession();
+  return useQuery({ queryKey: ["tools", mode], queryFn: () => api.tools(), staleTime: 60_000, retry: (n, e) => (e as { status?: number })?.status !== 404 && n < 2 });
+}
+
 export function useAgents() {
   const { api, mode } = useSession();
   return useQuery({ queryKey: keys.agents, queryFn: () => cached(kv(), `meta:${mode}:agents`, () => api.agents()), select: (d) => d.agents, staleTime: 5 * 60_000 });

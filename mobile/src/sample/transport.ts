@@ -1,4 +1,5 @@
 import type { Method, RequestOptions, Transport } from "@/api/transport";
+import { sampleJob, sampleToolsInfo } from "./tools";
 import { ApiError } from "@/api/errors";
 import type { Approval, Message, SendInput } from "@/api/types";
 import { sampleData } from "./fixtures";
@@ -25,6 +26,7 @@ export class SampleTransport implements Transport {
   /** R35: report and block in the sample workspace, kept in memory only. */
   private blocks: { userId: string; name: string; avatarUrl: string | null; createdAt: string }[] = [];
   private reports = 0;
+  private toolRuns = 3;
 
   constructor(private latencyMs = 0) {}
 
@@ -49,6 +51,18 @@ export class SampleTransport implements Transport {
     const route = `${method} /${parts.map((p, i) => (i > 0 && isId(p) ? ":id" : p)).join("/")}`;
     const id = parts.find((p, i) => i > 0 && isId(p)) ?? "";
     const json = <R>(v: R) => structuredCloneSafe(v) as unknown as T;
+
+    // Tools: the catalogue and runs that finish at once (no file is made in the sample workspace).
+    if (path === "/tools" && method === "GET") return json(sampleToolsInfo(this.toolRuns));
+    if (path === "/tools/jobs/from-attachments" && method === "POST") {
+      const b = (body ?? {}) as { op?: string; name?: string };
+      this.toolRuns += 1;
+      return json(sampleJob(b.op ?? "compress", `sample.${b.op ?? "compress"}.${this.toolRuns}`, b.name ?? "Sample", false));
+    }
+    if (path.startsWith("/tools/jobs/") && method === "GET") {
+      const [, op = "compress"] = decodeURIComponent(parts[2] ?? "").split(".");
+      return json(sampleJob(op, parts[2] ?? "", "Quarterly report", true));
+    }
 
     // R35: report and block, the same shapes as the server.
     if (path === "/reports" && method === "POST") {
@@ -90,9 +104,14 @@ export class SampleTransport implements Transport {
       return json(work);
     }
 
+    if (method === "POST" && parts[0] === "account" && parts[1] === "workspaces" && parts[3] === "switch") {
+      return d.me.organization && parts[2] === d.me.organization.id ? json({ ok: true, workspace: { id: d.me.organization.id, name: d.me.organization.name } }) : (() => { throw new ApiError(404, "not_found", "Workspace not found."); })();
+    }
     switch (route) {
       case "POST /auth/sign-out": return json({ success: true });
       case "GET /account/me": return json(d.me);
+      // Multiws: the sample person is in one workspace; switching to it is a no op.
+      case "GET /account/workspaces": return json({ workspaces: d.me.organization ? [{ id: d.me.organization.id, name: d.me.organization.name, plan: d.me.organization.plan, role: d.me.organization.role, isDemo: true }] : [] });
       case "GET /mail/overview": return json({ mailboxes: d.mailboxes });
       case "GET /agents": return json({ agents: d.agents });
       case "GET /mail/messages": {

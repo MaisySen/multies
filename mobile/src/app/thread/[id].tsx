@@ -6,12 +6,15 @@ import { Avatar, Badge, Banner, Button, EmptyState, Icon, IconButton, Loading } 
 import { InsetGroup, GroupRow, SpringIn } from "@/components/grouped";
 import { useAgents, useMessageAction, useTaskMutations, useThread } from "@/lib/queries";
 import { useOffline } from "@/lib/offline";
-import { bytes, displayName, longDate, shortDate } from "@/lib/format";
+import { displayName, longDate, shortDate } from "@/lib/format";
 import { previewLine, splitQuoted } from "@/lib/quote";
+import { bodyText } from "@/lib/mail-body";
+import { LinkedText } from "@/components/linked-text";
 import { animateList } from "@/lib/motion";
 import { success, tick, warning } from "@/lib/haptics";
 import { FEATURES } from "@/config";
 import { StartMeetingButton } from "@/components/meetings";
+import { AttachmentRow } from "@/components/attachment-tools";
 import type { Message } from "@/api/types";
 import { colors, font, radius, shadow, space } from "@/theme";
 
@@ -125,7 +128,7 @@ function BarButton({ icon, label, onPress, testID, primary }: { icon: "corner-up
 function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: string; onPress: () => void }) {
   const name = agentName ?? displayName(m.from);
   return (
-    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${shortDate(m.date)}. ${previewLine(m.text)}`} accessibilityHint="Opens this message"
+    <Pressable onPress={onPress} testID={`collapsed-${m.id}`} accessibilityRole="button" accessibilityLabel={`${name}, ${shortDate(m.date)}. ${previewLine(bodyText(m))}`} accessibilityHint="Opens this message"
       style={({ pressed }) => [t.card, t.collapsed, pressed && { backgroundColor: colors.hover }]}>
       <Avatar name={name} agent={!!agentName} size={32} />
       <View style={{ flex: 1, gap: 2 }}>
@@ -134,7 +137,7 @@ function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: strin
           {m.attachments.length ? <Icon name="paperclip" size={13} color={colors.subtle} /> : null}
           <Text style={t.time}>{shortDate(m.date)}</Text>
         </View>
-        <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{previewLine(m.text) || "No text"}</Text>
+        <Text style={{ color: colors.muted, fontSize: 14 }} numberOfLines={1}>{previewLine(bodyText(m)) || "No text"}</Text>
       </View>
     </Pressable>
   );
@@ -142,7 +145,7 @@ function CollapsedRow({ m, agentName, onPress }: { m: Message; agentName?: strin
 
 function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: string; onCollapse?: () => void }) {
   const [showQuoted, setShowQuoted] = useState(false);
-  const { body, quoted } = splitQuoted(m.text);
+  const { body, quoted } = splitQuoted(bodyText(m));
   const name = agentName ?? displayName(m.from);
   return (
     <View style={[t.card, agentName ? { borderColor: colors.brandLine } : null]} testID={`message-${m.id}`}>
@@ -161,7 +164,7 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
       </Pressable>
       {agentName ? <View style={{ paddingHorizontal: space.lg }}><Badge label={`Written by agent ${agentName}`} tone="brand" icon="cpu" /></View> : null}
       <Text style={[font.body, { paddingHorizontal: space.lg, paddingTop: space.sm }]} selectable accessibilityHint={longDate(m.date)}>
-        {body || "This message has no plain text version. Open it on the web to see it in full."}
+        {body ? <LinkedText text={body} testID={`body-${m.id}`} /> : "This message is empty."}
       </Text>
       {quoted ? (
         <View style={{ paddingHorizontal: space.lg, gap: space.sm }}>
@@ -170,20 +173,12 @@ function MessageCard({ m, agentName, onCollapse }: { m: Message; agentName?: str
             <Icon name="more-horizontal" size={16} color={colors.muted} />
             <Text style={{ color: colors.muted, fontSize: 13, fontWeight: "500" }}>{showQuoted ? "Hide quoted text" : "Show quoted text"}</Text>
           </Pressable>
-          {showQuoted ? <Text style={t.quoted} selectable>{quoted}</Text> : null}
+          {showQuoted ? <Text style={t.quoted} selectable><LinkedText text={quoted} testID={`quotedtext-${m.id}`} /></Text> : null}
         </View>
       ) : null}
       {m.attachments.length ? (
         <View style={{ gap: space.sm, paddingHorizontal: space.lg }}>
-          {m.attachments.map((a) => (
-            <View key={a.id} style={t.attachment} accessible accessibilityLabel={`Attachment ${a.filename}, ${bytes(a.sizeBytes)}`}>
-              <View style={t.fileTile}><Icon name={a.contentType?.includes("pdf") ? "file-text" : "paperclip"} size={18} color={colors.brand} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "500" }} numberOfLines={1}>{a.filename}</Text>
-                <Text style={{ color: colors.subtle, fontSize: 13 }}>{bytes(a.sizeBytes)}</Text>
-              </View>
-            </View>
-          ))}
+          {m.attachments.map((a) => <AttachmentRow key={a.id} a={a} />)}
         </View>
       ) : null}
       <View style={{ height: space.lg }} />

@@ -3,20 +3,42 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
-## 1.10.0 (store build: Android versionCode 16, iOS build 20), first build with native batch 1
+## 1.9.12 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
 
-- iPhone symbols: tabs, buttons and rows draw the phone's own SF Symbols, with the filled symbol on
-  the selected tab.
-- Softer bars: the tab bar and the compact title bar use the iPhone's blurred material.
-- Unlock with Face ID: turn it on in Settings, Security. Multies then asks for Face ID, Touch ID or
-  your fingerprint when you open it and each time you come back to it. It is off until you turn it
-  on.
-- App icon shortcuts: press and hold the Multies icon for New task, Compose, Search and Inbox.
-- After you complete a few tasks, Multies asks once whether you would like to rate it.
-- The app icon badge shows what is unread, on more Android launchers too.
-- Smoother gestures underneath swipes and sheets.
+- Tools on the phone: Settings, Tools (or Tools in the command sheet) has the same 13 document tools as
+  multies.si: merge, split, rotate, compress, convert Word, Excel and PowerPoint to PDF, PDF to images,
+  images to PDF, PDF to Word, redact, remove metadata, watermark, remove a password and make a scan
+  searchable. Choose files from your phone, set the options, run it, then open, share or save the result.
+- Tools on attachments: in an email, tap a PDF or Office attachment to run a tool on it straight away.
+- Tools follow your workspace: when an admin turns Tools off, the phone says so, and your plan's limits
+  show before you run anything.
+
+Carries everything in 1.9.11.
+
+## 1.9.11 (OTA, runs on Android versionCode 15 and iOS build 17), 30 Oct 2026
+
+- Tappable links: web and email addresses in mail are blue and underlined, and a tap opens them in
+  your browser or mail app. This also covers quoted text, task comments and drafts waiting for your
+  approval.
+- Long links: a very long web address shows as the site and its last parts, for example
+  github.com/…/actions/runs/40926009018, and wraps between parts instead of in the middle of a word.
+  A tap still opens the full address.
+- Version: Settings, About shows the version of the app you are running.
+
+Carries everything in 1.9.10 and 1.9.9.
+
+## 1.9.10 (OTA, runs on Android versionCode 15 and iOS build 17), 29 Oct 2026
+
+Carries everything in 1.9.9, plus:
+
+- Links in mail are tappable: web addresses and email addresses in a message open with one tap, and
+  the angle brackets around them are gone.
+- Mail that only has a designed (HTML) version, like newsletters and receipts, now shows its text and
+  links instead of "This message has no plain text version".
 
 ## 1.9.9 (OTA, runs on Android versionCode 15 and iOS build 17), not published yet: ships after 1.9.8 reaches all phones
+
+Keeps Switch workspace, which reached phones with 1.9.8 on 27 Oct 2026 (see docs/OTA.md).
 
 - Report and block: press and hold a chat message to report it or block the person. Pick a reason,
   add a note if you like, and our team reviews reports within 24 hours. In a direct message, the
@@ -54,6 +76,8 @@ Android, CFBundleShortVersionString on iOS).
 
 ## 1.9.8 (OTA, runs on Android versionCode 15 and iOS build 17), 26 October 2026
 
+- Switch workspace: if you belong to more than one workspace, Settings, Workspace lists them all and
+  a tap opens another one on this phone. Your other devices stay where they are.
 - Stay signed in: when the connection drops or the server is slow, you stay signed in. The app
   only signs you out when your session has really ended, and it renews the session quietly first.
 - Swipes you choose: short and long swipes on mail and tasks, left and right, set in Settings,

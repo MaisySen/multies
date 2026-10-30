@@ -24,7 +24,7 @@ export const COMMAND_IDS = [
   // Go to
   "go-i", "go-t", "go-d", "go-c", "go-m", "go-n",
   // App actions
-  "compose", "new-task", "search-mail", "runs", "settings",
+  "compose", "new-task", "search-mail", "runs", "tools", "settings",
   // Task actions (long-press on a task row)
   "task-status", "task-assignee", "task-priority", "task-label", "task-due",
   // Mail actions (long-press and swipe on a mail row)
@@ -47,6 +47,7 @@ export const COMMANDS: Command[] = [
   { id: "new-task", title: "New task", scope: "app", icon: "plus", keywords: ["create task", "add task", "todo"] },
   { id: "search-mail", title: "Search mail", scope: "app", icon: "search", web: ["/"], keywords: ["find"] },
   { id: "runs", title: "Agent runs", scope: "app", icon: "cpu", keywords: ["agents", "runs", "history"] },
+  { id: "tools", title: "Tools", scope: "app", icon: "wrench", keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf", "redact", "ocr", "watermark"] },
   { id: "settings", title: "Settings", scope: "app", icon: "settings", keywords: ["preferences", "account", "version"] },
 
   { id: "task-status", title: "Change status", scope: "task", icon: "check-circle", web: ["S"], keywords: ["move", "done"] },
@@ -161,6 +162,7 @@ export function createHandlers(d: CommandDeps): Record<CommandId, CommandHandler
     "new-task": () => d.navigate("/task/new"),
     "search-mail": () => d.navigate("/search"),
     runs: () => d.navigate("/runs"),
+    tools: () => d.navigate("/tools"),
     settings: () => d.navigate("/settings"),
     "task-status": task("status"),
     "task-assignee": task("assignee"),

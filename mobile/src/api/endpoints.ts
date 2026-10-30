@@ -5,8 +5,10 @@ import type { SnoozePreset } from "@/lib/snooze";
 import type { ConnectInput, ConnectionView, ConnectionsInfo, FreeAddressInfo } from "@/lib/mail-connect";
 import type {
   AgentRun, Agent, Approval, Assignee, ChecklistItem, ChecklistView, ChangePage, ListFolder, MailboxOverview, Me, MessagePage, Project, SendInput, SendResult,
-  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, NotificationView, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog,
+  CustomField, ChatChannel, ChatMessage, ChatPerson, ChatSend, ChatUnread, NotificationPage, NotificationSettings, NotificationView, Meeting, MeetingCreate, Person, PortfolioProject, Task, TaskComment, TaskCreate, TaskPatch, TaskQuery, TaskView, ThreadView, TimeEntry, TimeLog, WorkspaceSummary,
 } from "./types";
+
+import type { ToolJob, ToolsInfo } from "@/lib/tools";
 
 export interface SignInResult { twoFactorRedirect?: boolean; user?: { email: string } }
 
@@ -32,6 +34,9 @@ export function endpoints(t: Transport) {
     /** A private sample workspace on the server, signed in. Only where the server has demo mode on. */
     startDemo: () => t.request<{ ok: true }>("POST", "/account/demo", {}),
     me: () => t.request<Me>("GET", "/account/me"),
+    /** Multiws: every workspace this person belongs to, and moving this phone's session to another. */
+    workspaces: () => t.request<{ workspaces: WorkspaceSummary[] }>("GET", "/account/workspaces"),
+    switchWorkspace: (id: string) => t.request<{ ok: true; workspace?: { id: string; name: string } }>("POST", `/account/workspaces/${encodeURIComponent(id)}/switch`, {}),
     overview: () => t.request<{ mailboxes: MailboxOverview[] }>("GET", "/mail/overview"),
     messages: (p: { folder?: ListFolder; q?: string; cursor?: string; mailboxId?: string; limit?: number }) =>
       t.request<MessagePage>("GET", `/mail/messages${q({ folder: p.folder, q: p.q, cursor: p.cursor, mailboxId: p.mailboxId, limit: p.limit ?? 40 })}`),
@@ -99,6 +104,11 @@ export function endpoints(t: Transport) {
     chatChannel: (id: string) => t.request<{ channel: ChatChannel }>("GET", `/chat/channels/${encodeURIComponent(id)}`),
     chatMessages: (id: string, p: { limit?: number; before?: string; since?: string } = {}) =>
       t.request<{ messages: ChatMessage[]; hasMore: boolean }>("GET", `/chat/channels/${encodeURIComponent(id)}/messages${q({ limit: p.limit, before: p.before, since: p.since })}`),
+    // Tools (document tools, the same catalogue as the web). 404 when the server or the workspace has them off.
+    tools: () => t.request<ToolsInfo>("GET", "/tools"),
+    toolJob: (token: string) => t.request<ToolJob>("GET", `/tools/jobs/${encodeURIComponent(token)}`),
+    toolFromAttachments: (op: string, attachmentIds: string[], options: Record<string, string>) =>
+      t.request<ToolJob>("POST", "/tools/jobs/from-attachments", { op, attachmentIds, options }),
     chatMessage: (id: string) => t.request<{ message: ChatMessage; channel: ChatChannel }>("GET", `/chat/messages/${encodeURIComponent(id)}`),
     chatThread: (id: string) => t.request<{ message: ChatMessage; replies: ChatMessage[] }>("GET", `/chat/messages/${encodeURIComponent(id)}/thread`),
     sendChat: (channelId: string, input: ChatSend, opts: { onUploadProgress?: (fraction: number) => void } = {}) =>

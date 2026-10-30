@@ -3,6 +3,7 @@ import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, Vie
 import { router, useLocalSearchParams } from "expo-router";
 import { Badge, Button, EmptyState, Field, Loading } from "@/components/ui";
 import { APPROVAL_STATUS } from "@/components/approval-card";
+import { LinkedText } from "@/components/linked-text";
 import { useAgents, useApprovals, useDecide } from "@/lib/queries";
 import { longDate, timeLeft } from "@/lib/format";
 import { colors, font, radius, space } from "@/theme";
@@ -63,7 +64,7 @@ export default function ApprovalDetail() {
         ) : (
           <View style={{ gap: space.md }}>
             <Text style={[font.heading, { fontSize: 18 }]}>{a.subject}</Text>
-            <Text style={font.body} selectable>{a.text}</Text>
+            <Text style={font.body} selectable><LinkedText text={a.text} /></Text>
             {a.error ? <Text style={{ color: colors.bad }}>{a.error}</Text> : null}
           </View>
         )}

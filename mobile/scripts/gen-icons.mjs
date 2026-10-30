@@ -87,6 +87,7 @@ export const MAP = {
   "users": ["users", "group"],
   "video": ["video-camera", "videocam"],
   "wifi-off": ["wifi-slash", "wifi_off"],
+  "wrench": ["wrench", "build"],
   "x": ["x", "close"],
   "zap": ["lightning", "bolt"],
   "tasks": ["check-square-offset", "task_alt"],

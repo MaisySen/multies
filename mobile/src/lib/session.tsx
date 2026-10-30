@@ -32,6 +32,8 @@ interface SessionValue {
   /** Deletes the account (live) or clears the sample workspace from this phone. Throws ApiError on failure. */
   deleteAccount(password?: string): Promise<void>;
   refreshMe(): Promise<void>;
+  /** Multiws: moves this phone to another workspace of this person's. Throws ApiError on failure. */
+  switchWorkspace(id: string): Promise<void>;
 }
 
 const Ctx = createContext<SessionValue | null>(null);
@@ -163,6 +165,13 @@ export function SessionProvider({ children, initialMode, transportOverride }: { 
       setStatus("signedOut");
     },
     async refreshMe() { setMe(await api.me()); },
+    async switchWorkspace(id) {
+      if (me?.organization?.id === id) return;
+      await api.switchWorkspace(id);
+      // Mail, tasks and lists saved on this phone belong to the workspace just left.
+      for (const prefix of ["list:", "thread:", "meta:", "task:", "worklist:"]) await kv().clear(prefix).catch(() => {});
+      setMe(await api.me());
+    },
   }), [status, mode, api, transport, me, live, sample, clearLocal]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

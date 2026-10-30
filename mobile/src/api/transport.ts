@@ -59,6 +59,9 @@ export interface Transport {
   request<T>(method: Method, path: string, body?: unknown, opts?: RequestOptions): Promise<T>;
 }
 
+/** What native file work (Tools uploads and downloads) needs from a signed in session. */
+export interface FileAuth { base: string; headers: () => Record<string, string>; refresh: () => Promise<unknown> }
+
 export interface JarStore {
   get(): Jar;
   set(jar: Jar): void;
@@ -93,6 +96,21 @@ export class HttpTransport implements Transport {
     const outcome = await this.refresh();
     if (outcome === "gone") this.onUnauthorised();
     return outcome;
+  }
+
+  /** The server and the session headers for a request the phone makes itself (Tools files). */
+  fileAuth(): FileAuth {
+    return {
+      base: this.base,
+      headers: () => {
+        const h: Record<string, string> = {};
+        if (Platform.OS !== "web") h.origin = this.base;
+        const cookie = cookieHeader(this.jar.get());
+        if (cookie) h.cookie = cookie;
+        return h;
+      },
+      refresh: () => this.refresh(),
+    };
   }
 
   async request<T>(method: Method, path: string, body?: unknown, opts: RequestOptions = {}): Promise<T> {

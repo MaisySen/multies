@@ -1,19 +1,18 @@
 {
   "note": "Runtime versions (fingerprints) of the newest store builds. The OTA guard compares against these. Update after every store build (docs/OTA.md).",
-  "commit": "3c232cbf9d06b4cd3f24f02200eb66696141cf04",
+  "commit": "9ededbe9b5570d6d02752dcc7d8c689ed7af4c1b",
   "android": {
-    "version": "1.10.0",
-    "versionCode": 16,
-    "runtimeVersion": "5c9046a2b2722bcdb48711f629fb4a38c335e78e",
+    "version": "1.9.3",
+    "versionCode": 15,
+    "runtimeVersion": "e5a5bb6ce563a5072e021a35eb0966285dc7af8a",
     "channel": "production",
-    "track": "internal",
-    "playEdit": "04590038110376775609"
+    "track": "internal"
   },
   "ios": {
-    "version": "1.10.0",
-    "buildNumber": "20",
-    "runtimeVersion": "fe703a98e9c589973da00970bfe6a3245f336a96",
+    "version": "1.9.3",
+    "buildNumber": "17",
+    "runtimeVersion": "e184c142208d3b3fae34511c791824950b768f8a",
     "channel": "production",
-    "easBuild": "d91c1c3e-30a4-4bed-92df-834740e7e3d4"
+    "easBuild": "89a4cbf4-336a-40b9-89e5-a8499a56a09a"
   }
 }

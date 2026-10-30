@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { LayoutAnimation, Platform, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
-import { colors, scheme } from "@/theme";
-import { nativeBlur } from "@/lib/native-modules";
+import { LayoutAnimation, Platform, StyleSheet, type NativeScrollEvent, type NativeSyntheticEvent } from "react-native";
+import { colors } from "@/theme";
 
 /** "#RRGGBB" to "rgba(r,g,b,a)". Anything else comes back as it was. */
 export function withAlpha(hex: string, alpha: number): string {
@@ -19,25 +18,6 @@ export const chrome = {
   tabBar: { backgroundColor: withAlpha(colors.surface, 0.94), borderTopColor: colors.line, borderTopWidth: StyleSheet.hairlineWidth, elevation: 0 },
   header: { backgroundColor: withAlpha(colors.bg, 0.94), borderBottomColor: colors.line, borderBottomWidth: StyleSheet.hairlineWidth },
 };
-
-/** R37: whether bars can draw a real blur material (iOS builds from 1.10.0 with expo-blur). */
-export function hasBarBlur(): boolean {
-  return Platform.OS === "ios" && !!nativeBlur();
-}
-
-/**
- * R37: the system chrome material behind a bar (tab bar, compact title bar). Draws nothing where
- * expo-blur is missing, so the semi-opaque surface colour above stays the look there.
- */
-export function BarBlur() {
-  const B = Platform.OS === "ios" ? nativeBlur() : null;
-  if (!B) return null;
-  return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill} testID="bar-blur">
-      <B.BlurView intensity={80} tint={scheme === "dark" ? "systemChromeMaterialDark" : "systemChromeMaterialLight"} style={StyleSheet.absoluteFill} />
-    </View>
-  );
-}
 
 /** Past this many points of scroll the large title has gone and the compact bar shows. */
 export const COLLAPSE_AT = 44;
