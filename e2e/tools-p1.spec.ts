@@ -198,7 +198,7 @@ test("convert a Word document to PDF", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/app/tools");
-    await expect(page.getByTestId("tools-page")).toBeVisible();
-    await page.screenshot({ path: join(SHOTS, "tools-empty-desktop-dark.png") });
+    await expect(page.getByTestId("tool-ocr")).toBeVisible();
+    await page.screenshot({ path: join(SHOTS, "tools-grid-desktop-dark.png"), fullPage: true });
   }
 });
