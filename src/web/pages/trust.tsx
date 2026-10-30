@@ -61,7 +61,7 @@ export function TrustPage() {
       <div className="mt-8 space-y-5">
         <Section id="region" icon={IconDatabase} title="Data region"><Facts items={DATA_REGION} /></Section>
 
-        <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls, named by what they do. Optional ones run only when you use that feature. Our Data processing agreement names each one.">
+        <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls. Optional ones run only when you use that feature.">
           <ul className="divide-y divide-line">
             {SUBPROCESSORS.map((s) => (
               <li key={s.name} className="py-3 first:pt-0 last:pb-0">

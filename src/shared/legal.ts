@@ -1,6 +1,6 @@
 /**
  * Legal documents for Multies: privacy policy, terms of service, acceptable use policy and
- * data processing agreement. Final text, effective 30 October 2026 (the owner approved review of 30 October 2026 applied), issued by Fintex Australia
+ * data processing agreement. Final text, effective 27 October 2026, issued by Fintex Australia
  * Pty Ltd and governed by the laws of New South Wales, Australia. Keep every statement true to
  * how Multies works; when the product changes (a new provider, a new plan rule), change the text
  * here and update LEGAL_UPDATED.
@@ -30,8 +30,8 @@ export const LEGAL_LINE = {
 export const LEGAL_LINE_TEXT = LEGAL_LINE.before + LEGAL_LINE.company + LEGAL_LINE.after;
 
 /** The date the current version of every legal document took effect. */
-export const LEGAL_EFFECTIVE = "30 October 2026";
-export const LEGAL_UPDATED = "30 October 2026";
+export const LEGAL_EFFECTIVE = "27 October 2026";
+export const LEGAL_UPDATED = "27 October 2026";
 
 export type Block = string | { list: string[] } | { table: string[][] };
 export interface LegalSection { id: string; title: string; body: Block[] }
@@ -39,34 +39,14 @@ export interface LegalDoc { slug: string; title: string; summary: string; sectio
 
 const E = LEGAL_ENTITY;
 
-/**
- * The Privacy policy names providers by what they do (owner rule, 30 October 2026); the Data processing
- * agreement names each sub processor, because a business customer is entitled to know who they are.
- * Keep both tables, and SUBPROCESSORS in src/shared/trust.ts, saying the same thing.
- */
-export const PROVIDER_CATEGORIES: string[][] = [
-  ["Provider", "What they do for us", "Data", "Where"],
-  ["Our hosting and database provider", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in our hosting provider's Oceania region; edge network worldwide"],
-  ["Our sign in provider", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "United States"],
-  ["Our outbound email provider", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
-  ["Our payments provider", "Payments and invoices for paid add ons", "Billing contact; card details are held by our payments provider, never by us", "Australia and United States"],
-  ["Our error monitoring provider", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
-  ["Our video meetings provider", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
-  ["Our push notification provider", "Notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
-  ["A public DNS resolver", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
-  ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
-];
-
-/** The named sub processor list in the Data processing agreement (DPA items 83 and 84). */
 export const SUBPROCESSORS: string[][] = [
-  ["Sub processor", "What they do for us", "Data", "Where"],
+  ["Provider", "What they do for us", "Data", "Where"],
   ["Cloudflare", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in Cloudflare's Oceania region; edge network worldwide"],
   ["Auth0 (Okta)", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "United States"],
   ["Resend", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices for paid add ons", "Billing contact; card details are held by Stripe, never by us", "Australia and United States"],
   ["Sentry", "Error and performance monitoring", "Error reports with account ids; no message content", "United States"],
   ["LiveKit", "Video meetings, only while a meeting is running", "Meeting audio and video, display names", "United States"],
-  ["Expo", "Push notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
   ["Google Public DNS", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
   ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
 ];
@@ -91,8 +71,8 @@ export const PRIVACY: LegalDoc = {
         "Content: mail you send and receive with its attachments, folders and flags, delivery records (sender, recipient, time, result), and the tasks, comments, chat messages, docs, calendar events and files you create.",
         "Connected mailboxes: the address, the provider's server names, and the app password or sign in you give us, stored encrypted. We also keep a copy of the synced mail (see Connected mailboxes below).",
         "Free addresses: the name you choose on mail.multies.si, and, to stop abuse, a record of each claim with the network and a random device id from your browser.",
-        "Billing: your add ons, invoices and the payments provider customer id. Card details go straight to our payments provider and never reach our servers.",
-        "Security and usage: IP address, browser and device for each session, an audit log of important changes, and request logs kept for no more than 30 days.",
+        "Billing: your add ons, invoices and the Stripe customer id. Card details go straight to Stripe and never reach our servers.",
+        "Security and usage: IP address, browser and device for each session, an audit log of changes, and request logs kept for 30 days.",
         "Support: what you send us when you contact us.",
       ] },
       "We do not buy personal information, and we do not collect sensitive information (as defined in the Privacy Act) on purpose. Mail you receive may contain it; we treat all content as confidential.",
@@ -127,15 +107,15 @@ export const PRIVACY: LegalDoc = {
       "We do not sell personal information, show ads, or use your content to train models.",
     ] },
     { id: "share", title: "Who we share it with", body: [
-      "Only the service providers below, under terms that require them to protect it, and only for the purposes above. The public DNS resolver sees only domain names being checked. Our Data processing agreement names each provider.",
-      { table: PROVIDER_CATEGORIES },
+      "Only the service providers below, under contracts that require them to protect it, and only for the purposes above:",
+      { table: SUBPROCESSORS },
       "We may also disclose information if Australian law requires it (for example a valid warrant), and we will tell you unless the law forbids it.",
     ] },
     { id: "overseas", title: "Overseas disclosure (APP 8)", body: [
-      "Our primary database is placed in our hosting provider's Oceania region, and requests are handled at the edge location nearest you. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
+      "Our primary database is placed in Cloudflare's Oceania region, and requests are handled at the edge location nearest you. Some providers listed above process data in the United States. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
-      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
+      "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. There are no advertising or analytics cookies. Our visitor analytics (Cloudflare Web Analytics) is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
     ] },
     { id: "keep", title: "How long we keep it", body: [
       { list: [
@@ -143,12 +123,12 @@ export const PRIVACY: LegalDoc = {
         "Mail and content: until you or your workspace delete it.",
         "Connected mailbox passwords: until you remove the connection, then deleted straight away. Synced copies of its mail: until you remove the connection or delete them.",
         "Free address claim records: for the life of the account, so the one address per person limit holds.",
-        "After you delete your account or workspace: removed from the live database straight away, and from backups within 30 days. Every backup copy is encrypted, and copies older than 30 days are deleted.",
-        "Request logs: no more than 30 days. Audit logs: for the life of the workspace. Invoices: 7 years, as Australian tax law requires.",
+        "After you delete your account or workspace: removed from the live database straight away, and from backups within 30 days.",
+        "Request logs: 30 days. Audit logs: for the life of the workspace. Invoices: 7 years, as Australian tax law requires.",
       ] },
     ] },
     { id: "security", title: "Security", body: [
-      "Data is encrypted in transit (TLS) and at rest. Signing keys, secrets and connected mailbox passwords are encrypted again before they are stored; sign in has lockout and optional two factor authentication, and important changes are written to an audit log. To report a security problem, see /.well-known/security.txt or our Trust page.",
+      "Data is encrypted in transit (TLS) and at rest. Signing keys, secrets and connected mailbox passwords are encrypted again before they are stored; sign in has lockout and optional two factor authentication, and every change is in an audit log. To report a security problem, see /.well-known/security.txt or our Trust page.",
       "If a data breach is likely to cause serious harm, we will notify you and the Office of the Australian Information Commissioner (OAIC) under the Notifiable Data Breaches scheme, and, where the GDPR applies, the relevant authority within 72 hours.",
     ] },
     { id: "rights", title: "Your rights", body: [
@@ -182,7 +162,7 @@ export const TERMS: LegalDoc = {
       "Multies is a workspace for email, tasks, chat, docs, calendar and meetings, with an API, webhooks and an MCP server, on the web and in the Multies apps for iPhone and Android. It gives you email in three ways: connect a mailbox you already have at another provider, take a free personal address on mail.multies.si, or host mailboxes and aliases on a domain you own.",
       "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. The original mail stays at your provider; the copy we sync into your workspace is deleted when you remove the connection. Our Privacy policy explains how we handle both.",
       "When you add your own domain, you must own or control it and keep its DNS records in place.",
-      "We work to keep Multies available and show its current status on our status page. We do not promise a level of availability.",
+      "We aim for 99.9% monthly availability for mail delivery and the API, shown on our status page. This is a target, not a guarantee.",
       "We improve Multies all the time. We may add, change or remove features; if we remove a feature you pay for, we will tell you first and refund the unused part of what you paid for it.",
     ] },
     { id: "accounts", title: "Accounts", body: [
@@ -190,7 +170,7 @@ export const TERMS: LegalDoc = {
     ] },
     { id: "plans", title: "Free plan, add ons and billing", body: [
       "The Free plan costs nothing and has no time limit. You can buy small paid add ons, such as extra domains, storage, mailboxes and sending capacity, at the prices shown on our pricing page.",
-      "Prices are in Australian dollars and exclude GST; where GST applies it is added at checkout and shown on your tax invoice. Add ons are billed in advance through our payments provider, monthly, or yearly when your add ons total under A$5 a month, and renew automatically until you remove them.",
+      "Prices are in Australian dollars and exclude GST; where GST applies it is added at checkout and shown on your tax invoice. Add ons are billed in advance through Stripe, monthly, or yearly when your add ons total under A$5 a month, and renew automatically until you remove them.",
       "Adding an add on takes effect straight away and is charged pro rata for the rest of the billing period. Removing one or cancelling takes effect at the end of the paid period, and you keep it until then.",
       "If a payment fails we retry it and email you. Your workspace keeps working during a grace period of 7 days. After that, sending is paused until payment is made; receiving and access to existing mail continue for a further 30 days before we may close the workspace, with notice.",
       "We will give you at least 30 days notice by email before a price increase for an add on you already have. You can remove it before the new price applies.",
@@ -201,7 +181,7 @@ export const TERMS: LegalDoc = {
       `To ask for a refund, write to ${E.supportEmail} with your workspace name and the invoice.`,
     ] },
     { id: "your-data", title: "Your data", body: [
-      "Your mail and content belong to you. You give us permission to store, process and transmit it only to provide and secure the service. You can export it at any time from Settings while your account is open, including after you cancel paid add ons. Deleting your account removes your data straight away, so export what you need first.",
+      "Your mail and content belong to you. You give us permission to store, process and transmit it only to provide and secure the service. You can export it at any time from Settings, and for 30 days after cancellation on request.",
       "You are responsible for having the right to the content you put into Multies and for the instructions you give, including to agents and automations you set up.",
     ] },
     { id: "ours", title: "Our property", body: [
@@ -210,10 +190,10 @@ export const TERMS: LegalDoc = {
     ] },
     { id: "acceptable-use", title: "Acceptable use", body: [
       "You must follow the Acceptable use policy, which is part of these terms. It covers spam (including the Spam Act 2003), illegal content and abuse of the network. We may suspend sending, or a workspace, to stop serious harm, and will tell you why.",
-      "There is no tolerance for objectionable content or abusive users in chat, direct messages, meetings or anything else people share in Multies. Anyone can report a message or a person and block them. We review every report within one business day and can remove content and suspend accounts. The Acceptable use policy, section \"Objectionable content and abusive users\", sets out the rules.",
+      "There is no tolerance for objectionable content or abusive users in chat, direct messages, meetings or anything else people share in Multies. Anyone can report a message or a person and block them. We review every report within 24 hours and can remove content and suspend accounts. The Acceptable use policy, section \"Objectionable content and abusive users\", sets out the rules.",
     ] },
     { id: "third-party", title: "Other services", body: [
-      "Multies can work with services run by others: mailboxes you connect, sign in providers, our payments provider, and any AI provider or app you link to your workspace. Their own terms apply to your use of them, and we are not responsible for services we do not run.",
+      "Multies can work with services run by others: mailboxes you connect, sign in providers, payment by Stripe, and any AI provider or app you link to your workspace. Their own terms apply to your use of them, and we are not responsible for services we do not run.",
     ] },
     { id: "liability", title: "Liability", body: [
       "To the extent the law allows, Multies is provided as is, our total liability for any claim connected with these terms or the service is limited to the fees you paid us in the 12 months before the claim (or A$100 if that is more), and we are not liable for indirect or consequential loss, or loss of profit, revenue or data.",
@@ -225,7 +205,7 @@ export const TERMS: LegalDoc = {
     ] },
     { id: "ending", title: "Ending the agreement", body: [
       "You can cancel at any time in Settings, Billing, or delete your workspace or account. We can end the agreement with 30 days notice, or immediately for a serious breach such as sending spam or illegal content.",
-      "When the agreement ends, your right to use Multies stops. We delete your data as set out in the Privacy policy, so export what you need before you delete your account. Sections that by their nature should survive, such as liability, survive.",
+      "When the agreement ends, your right to use Multies stops. We delete your data as set out in the Privacy policy, after the export window above. Sections that by their nature should survive, such as liability, survive.",
     ] },
     { id: "changes", title: "Changes, law and contact", body: [
       "We may update these terms. We will give at least 30 days notice by email of changes that reduce your rights; if you do not agree, you can cancel before they apply. The date at the top shows the version in force.",
@@ -273,7 +253,7 @@ export const AUP: LegalDoc = {
         "Illegal content of any kind.",
       ] },
       "Anyone can report a message or a person, and block someone so they no longer see that person's messages and that person can't message them. The blocked person is not told.",
-      `We review every report within one business day. We can remove the content and suspend the account of anyone who breaks these rules, without notice for serious cases. To contact us about content or a person, write to ${E.abuseEmail}.`,
+      `We review every report within 24 hours. We can remove the content and suspend the account of anyone who breaks these rules, without notice for serious cases. To contact us about content or a person, write to ${E.abuseEmail}.`,
     ] },
     { id: "limits", title: "Sending limits", body: [
       "Each workspace has a daily sending limit shown in your dashboard. Multies is built for person to person and transactional email. Newsletters are allowed to opted in lists that meet the rules above, within your limits.",
@@ -340,7 +320,7 @@ export const DPA: LegalDoc = {
       ] },
     ] },
     { id: "transfers", title: "International transfers", body: [
-      "Customer data is stored with the sub processors listed, with the primary database placed in our hosting provider's Oceania region. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, Fintex takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
+      "Customer data is stored with the sub processors listed, with the primary database placed in Cloudflare's Oceania region. Where personal data from the EEA, UK or Switzerland is transferred to a country without an adequacy decision, the Standard Contractual Clauses (module 2 or 3 as applicable) are incorporated by reference. For Australian personal information, Fintex takes reasonable steps under APP 8 so overseas recipients comply with the APPs.",
     ] },
     { id: "general", title: "General", body: [
       "If this agreement conflicts with the Terms on data protection, this agreement wins. Liability is as set out in the Terms. This agreement is governed by the laws of New South Wales, Australia, except where the Standard Contractual Clauses require otherwise.",

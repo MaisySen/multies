@@ -7,24 +7,24 @@ import { suggestFreeLocalPart, freeLocalPartProblem } from "@/server/services/fr
 import { firstNameGuess, nameFromEmail, autoWorkspaceName } from "@/shared/person-name";
 
 const FREE = { FREE_MAIL_DOMAIN: "mail.multies.si", FREE_MAIL_DAILY_SENDS: "3" };
-const PLUS = "sammy.tester+qa4s369a28@mail.example.com";
+const PLUS = "mymail.builder+qa4s369a28@mail.example.com";
 
 describe("R56 names from a sign in email (MB-241, MB-248)", () => {
   it("takes the first word of the local part, never the plus tag", () => {
-    expect(nameFromEmail(PLUS)).toBe("Sammy");
+    expect(nameFromEmail(PLUS)).toBe("Mymail");
     expect(nameFromEmail("ada_lovelace99@x.com")).toBe("Ada");
     expect(nameFromEmail("12345@x.com")).toBe("");
     expect(firstNameGuess("Ada Lovelace", PLUS)).toBe("Ada");
-    expect(firstNameGuess(PLUS, PLUS)).toBe("Sammy");
+    expect(firstNameGuess(PLUS, PLUS)).toBe("Mymail");
     expect(firstNameGuess("", "bidur@example.com")).toBe("Bidur");
-    expect(autoWorkspaceName(PLUS, PLUS)).toBe("Sammy's workspace");
+    expect(autoWorkspaceName(PLUS, PLUS)).toBe("Mymail's workspace");
     expect(autoWorkspaceName("", "1@x.com")).toBe("My's workspace");
   });
   it("suggests a short valid address from the name, not the raw email", () => {
     const s = suggestFreeLocalPart(PLUS, `${PLUS.split("@")[0]}'s workspace`, PLUS);
-    expect(s).toBe("sammy");
+    expect(s).toBe("mymail");
     expect(s).not.toContain("qa4");
-    expect(suggestFreeLocalPart("QA Four", "Sammy's workspace", PLUS)).toBe("qamail");
+    expect(suggestFreeLocalPart("QA Four", "Mymail's workspace", PLUS)).toBe("qamail");
     expect(suggestFreeLocalPart("Maximiliana Wolfeschlegelstein", "Extraordinarily Long Company Name Pty")).toBe("maximiliana.extraordinarilyl");
     for (const s2 of [s, suggestFreeLocalPart("Ada", "Acme"), suggestFreeLocalPart("", "", PLUS)]) expect(freeLocalPartProblem(s2)).toBeNull();
   });
@@ -73,7 +73,7 @@ describe("R56 free address check and claim (MB-241, Sentry MYMAIL-API-16)", () =
     const info = await c.get("/api/free-address");
     expect(info.status).toBe(200);
     const suggestion = (info.body as { suggestion: string }).suggestion;
-    expect(suggestion).toBe("sammy");
+    expect(suggestion).toBe("mymail");
     const chk = await c.get(`/api/free-address/check?localPart=${suggestion}`);
     expect(chk.status).toBe(200);
   });
@@ -87,7 +87,7 @@ describe("R56 workspace name after Welcome (MB-248)", () => {
     const me = await c.get("/api/account/me");
     const orgId = (me.body as { organization: { id: string } }).organization.id;
     let org = await ctx.db.select().from(organizations).where(eq(organizations.id, orgId)).get();
-    expect(org!.name).toBe("Sammy's workspace");
+    expect(org!.name).toBe("Mymail's workspace");
     const r = await c.post("/api/account/onboarding", { name: "QA Four", timezone: "Australia/Sydney", locale: "en" });
     expect(r.status).toBe(200);
     org = await ctx.db.select().from(organizations).where(eq(organizations.id, orgId)).get();

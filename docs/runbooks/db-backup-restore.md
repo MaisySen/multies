@@ -21,17 +21,6 @@ npx wrangler d1 export mymail-au --remote --output mymail-au-$(date -u +%Y%m%dT%
 npx wrangler d1 export mymail-staging --remote --env staging --output mymail-staging-$(date -u +%Y%m%dT%H%MZ).sql
 ```
 
-Encrypt each export as soon as it is written and keep only the `.age` file (the public pages promise that
-every backup copy is encrypted and deleted within 30 days):
-
-```bash
-gzip mymail-au-STAMP.sql && age -r age1u2psgukkx5mmu8s6dcqfwgmtpwwh8sz3k9zntvszp9k0dqvh9v9ssml57h -o mymail-au-STAMP.sql.gz.age mymail-au-STAMP.sql.gz && shred -u mymail-au-STAMP.sql.gz
-```
-
-On the build machine the copies live outside the repo in one folder, and a daily job deletes any copy older
-than 30 days and any copy that is not encrypted (30 Oct 2026: 10 unencrypted copies from 23 to 26 Oct were
-encrypted this way and the plain files removed).
-
 The Cloudflare token for these commands is in "CREDENTIALS (owner email v7)", Cloudflare section.
 
 `wrangler d1 export` blocks every other query on that database for as long as it runs (Cloudflare's

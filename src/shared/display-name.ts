@@ -1,6 +1,6 @@
 /**
  * R41 (MB-224): the name a greeting uses. A real profile name gives its first word. A name that is only the
- * email's local part (what a hosted sign up page hands over, for example "sammy.tester+qa3p55caab") is never
+ * email's local part (what a hosted sign up page hands over, for example "mymail.builder+qa3p55caab") is never
  * shown raw: the part before "+" is used only when it reads like a person's name, otherwise "" so the greeting
  * falls back to a plain "Good morning".
  */
@@ -21,7 +21,7 @@ function titleCase(word: string) {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-/** "Olive Owner" -> "Olive"; "olive.owner@x.com" as the name -> "Olive"; "sammy.tester+qa3" -> "". */
+/** "Olive Owner" -> "Olive"; "olive.owner@x.com" as the name -> "Olive"; "mymail.builder+qa3" -> "". */
 export function displayFirstName(name: string | null | undefined, email?: string | null): string {
   const n = (name ?? "").trim();
   if (!nameLooksLikeEmail(n, email)) return n.split(/\s+/)[0];

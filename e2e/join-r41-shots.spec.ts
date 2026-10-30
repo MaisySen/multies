@@ -78,7 +78,7 @@ test("join shots", async ({ browser }) => {
   }
   // 3. The greeting for a person whose provider name is their email.
   for (const v of views) for (const scheme of ["light", "dark"] as const) {
-    const email = `qa.tester+qa3p${tag}${v.device[0]}${scheme[0]}@example.com`;
+    const email = `mymail.builder+qa3p${tag}${v.device[0]}${scheme[0]}@example.com`;
     const p = await signIn(browser, email, email, { colorScheme: scheme, viewport: v.viewport });
     if (v.device === "desktop" && scheme === "light") await shot(p.page, "welcome-name", v.device, scheme);
     await p.page.request.patch(`${BASE}/api/account/preferences`, { data: { timezone: "UTC", locale: "en" }, headers });

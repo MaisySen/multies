@@ -15,18 +15,17 @@
  * - Nothing runs while the write budget reads warn or shed.
  * - Flag changes from the provider write only the rows that changed.
  */
-import { and, asc, eq, gt, gte, inArray, isNotNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
 import { runBatch } from "../../db";
 import { attachments, mailboxes, mailConnections, mailSyncOutbox, messages } from "../../db/schema";
 import { newId, toB64 } from "../../lib/crypto";
 import { makeSnippet, parseMime, type ParsedEmail } from "../mail/mime";
 import { MAX_INLINE_ATTACHMENT_BYTES } from "../mail/store";
-import { PENDING_FROM } from "../mail/pending-from";
 import { writeBudget } from "../write-budget";
 import { connectionSecret, imapConnector, type Connection } from ".";
 import { classifyProblem } from "./problems";
-import { headerEnd, pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
+import { pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
 import type { Folder } from "@/shared/mail";
 import type { ConnectPresetId } from "@/shared/mail-connect";
 import { inIds } from "../../lib/sql-chunks";
@@ -52,8 +51,6 @@ interface FolderState {
 }
 /** R57: backfill bookkeeping for the connection: messages backfilled on `day` (UTC), the person's pause, and why it waits. */
 export interface BackfillState { day: string; n: number; paused?: boolean; wait?: "daily" | "budget" | null }
-/** R59: the header repair sweep over older rows stored with placeholders or no preview: `at` is the last row id read, `done` ends it. */
-export interface RepairState { at?: string; done?: boolean }
 /**
  * Inbox and Sent cursors sit at the top level (round 18); round 19 adds the other synced folders
  * under `boxes` (Archive, Drafts, Spam, Trash, and the person's own folders as "f:<path>"), the
@@ -61,8 +58,6 @@ export interface RepairState { at?: string; done?: boolean }
  * list as last read (`list`, `listedAt`).
  */
 export interface SyncState {
-  /** R59: header repair sweep (see repairStep). */
-  rp?: RepairState;
   inbox?: FolderState;
   sent?: FolderState;
   paths?: FolderPaths;
@@ -272,13 +267,8 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
       fetched.push(...bf.fetched);
       if (bf.more) result.more = true;
     }
-    // R59: rows stored with placeholder headers or no preview get their headers read again, a batch a pass.
-    const repair = !newMore ? await repairStep(deps, c, session, state, reading) : { statements: [], more: false, repaired: 0 };
-    if (repair.more) result.more = true;
 
     const stored = await storeBatch(deps, c, mb.orgId, fetched);
-    // A row still without a sender starts the repair sweep again on a later pass.
-    if (stored.pending) state.rp = undefined;
     result.backfilled = stored.lazy;
     if (stored.lazy) { const b = (state.bf ??= { day, n: 0 }); if (b.day !== day) { b.day = day; b.n = 0; } b.n += stored.lazy; }
     result.stored = stored.stored;
@@ -286,7 +276,6 @@ export async function syncConnection(deps: Deps, connectionId: string, opts: { f
     const initialDone = c.initialDone || !newMore;
     await runBatch(deps.db, [
       ...stored.statements,
-      ...repair.statements,
       ...flagChanges,
       deps.db.update(mailConnections).set({
         status: "active", lastError: null, lastSyncAt: now, initialDone, syncState: JSON.stringify(state),
@@ -473,12 +462,12 @@ function stub(m: FetchedMessage): ParsedEmail {
  */
 export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, orgId: string, fetched: { box: Box; m: FetchedMessage }[]) {
   const parsed: { box: Box; m: FetchedMessage; e: ParsedEmail }[] = [];
-  let skippedDup = 0, pending = 0;
+  let skippedDup = 0;
   for (const f of fetched) {
     // R53: headers only for mail already held (see needBodies): no MIME parse, straight to the duplicate path below.
     if (f.m.dup) { skippedDup++; continue; }
     if (f.m.known) { parsed.push({ ...f, e: { messageId: f.m.known } as unknown as ParsedEmail }); continue; }
-    if (f.m.partial) { const e = await parsePartial(f.m); if (e.pending) pending++; parsed.push({ ...f, e }); continue; }
+    if (f.m.partial) { parsed.push({ ...f, e: await parsePartial(f.m) }); continue; }
     try { parsed.push({ ...f, e: f.m.source ? await parseMime(f.m.source) : stub(f.m) }); } catch (err) {
       deps.log?.warn("mail_sync.unparsable", { connection: c.id, uid: f.m.uid, error: (err as Error).message });
     }
@@ -517,7 +506,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
       statements.push(deps.db.insert(messages).values({
         id, orgId, mailboxId: c.mailboxId, folder: localFolderFor(box), messageIdHeader: e.messageId ?? null,
         inReplyTo: e.inReplyTo ?? null, references: e.references ?? null, threadId,
-        fromAddress: e.from?.address ?? PENDING_FROM, fromName: e.from?.name ?? "", to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []), bcc: "[]",
+        fromAddress: e.from?.address ?? "unknown@invalid", fromName: e.from?.name ?? "", to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []), bcc: "[]",
         replyTo: e.replyTo ?? null, subject: e.subject ?? "", text: "", html: null, snippet: makeSnippet(e.text ?? "", e.html),
         sizeBytes: -Math.max(1, m.size), isRead: box === "sent" || box === "drafts" || m.flags.has("\\Seen"), isStarred: m.flags.has("\\Flagged"), isAnswered: m.flags.has("\\Answered"),
         hasAttachments: looksLikeAttachments(m), authResults: null, remoteBox: box, remoteUid: m.uid, date: e.date ?? m.envelope?.date ?? new Date(),
@@ -545,7 +534,7 @@ export async function storeBatch(deps: Deps, c: Pick<Connection, "id" | "mailbox
     stored++;
   }
   if (bytes && stored) statements.push(deps.db.update(mailboxes).set({ usedBytes: sql`${mailboxes.usedBytes} + ${bytes}` }).where(eq(mailboxes.id, c.mailboxId)));
-  return { statements, stored, duplicates, lazy, pending };
+  return { statements, stored, duplicates, lazy };
 }
 
 /**
@@ -570,38 +559,20 @@ export async function runDueMailSyncs(deps: Deps, limit = 20) {
 }
 
 
-/**
- * R57: headers and the start of the body of an older message (a partial fetch), for its row and snippet. Never throws.
- * R59: parseMime fills a missing From, Subject or Date with placeholders (unknown@invalid, empty, now). On a partial fetch
- * those headers can simply lie past the cut (a long Received/ARC/DKIM chain), so the server's envelope comes first and a
- * parsed header counts only when it is really there. With no sender anywhere the row is marked pending: lists hide it
- * and the repair sweep reads it again.
- */
-export async function parsePartial(m: FetchedMessage): Promise<ParsedEmail & { pending?: boolean }> {
+/** R57: headers and the start of the body of an older message (a partial fetch), for its row and snippet. Never throws. */
+export async function parsePartial(m: FetchedMessage): Promise<ParsedEmail> {
   const env = m.envelope ?? {};
   let e: Partial<ParsedEmail> = {};
-  let h: Record<string, string> = {};
-  if (m.source) { try { e = await parseMime(m.source); h = e.headers ?? {}; } catch { e = {}; } }
-  const valid = (d?: Date) => (d instanceof Date && !Number.isNaN(d.getTime()) ? d : undefined);
-  const parsedFrom = "from" in h && e.from?.address && e.from.address !== PENDING_FROM ? e.from : undefined;
-  let from = env.from?.address ? { address: env.from.address, name: env.from.name || parsedFrom?.name } : parsedFrom;
-  // The server answered and the message has no From at all: say so plainly rather than retrying it for ever.
-  if (!from && m.envelope && m.source && headerEnd(m.source) >= 0) from = { address: "", name: "Unknown sender" };
-  const subject = env.subject ?? ("subject" in h ? e.subject : undefined);
-  const date = valid(env.date) ?? ("date" in h ? valid(e.date) : undefined) ?? valid(m.internalDate);
+  if (m.source) { try { e = await parseMime(m.source); } catch { e = {}; } }
   return {
     ...e,
     messageId: e.messageId ?? env.messageId,
-    inReplyTo: e.inReplyTo ?? env.inReplyTo,
-    from: from ?? { address: PENDING_FROM },
-    pending: !from,
-    subject: subject ?? "",
-    date: date ?? new Date(),
-    to: env.to?.length ? env.to : e.to ?? [],
-    cc: env.cc?.length ? env.cc : e.cc ?? [],
-    attachments: [],
+    from: e.from?.address ? e.from : { address: env.from?.address ?? "unknown@invalid", name: env.from?.name },
+    subject: e.subject ?? env.subject ?? "(no subject)",
+    date: e.date ?? env.date ?? new Date(),
+    to: e.to ?? [], cc: e.cc ?? [], attachments: [],
     text: e.text ?? "",
-  } as ParsedEmail & { pending?: boolean };
+  } as ParsedEmail;
 }
 
 /** R57: whether the top of a partly fetched message says it carries attachments (multipart/mixed, or an attachment part seen). */
@@ -687,60 +658,6 @@ export async function backfillStep(deps: Deps, c: Pick<Connection, "id" | "mailb
   return { fetched, more: more && allow.n > 0 };
 }
 
-/** R59: rows one pass reads again at most in the header repair sweep. */
-export const REPAIR_BATCH = 100;
-
-/**
- * R59: the header repair sweep. Older rows stored before R59 with placeholder headers (sender unknown@invalid, empty
- * subject, the store time as date) or with no preview get their envelope and first bytes read again from the provider,
- * REPAIR_BATCH rows a pass in id order, under the same write level stop as the backfill (one UPDATE per row; a row
- * that already has a good sender only gets its preview). The sweep ends when a read finds fewer rows than a batch,
- * and starts again when a pass stores a new row without a sender. Cursors, caps and the backfill are not touched.
- */
-export async function repairStep(deps: Deps, c: Pick<Connection, "id" | "mailboxId">, session: ImapSession, state: SyncState, reading: { rowsWritten: number; budget: number; level: string }) {
-  const statements: PromiseLike<unknown>[] = [];
-  const none = { statements, more: false, repaired: 0 };
-  const cfg = deps.config.mailConnect.backfill;
-  if (!session.fetchHeads || state.rp?.done || !cfg.enabled || state.bf?.paused) return none;
-  if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return none;
-  const rows = await deps.db.select({ id: messages.id, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid, fromAddress: messages.fromAddress, snippet: messages.snippet, sizeBytes: messages.sizeBytes })
-    .from(messages)
-    .where(and(eq(messages.mailboxId, c.mailboxId), gt(messages.id, state.rp?.at ?? ""), isNotNull(messages.remoteUid),
-      or(eq(messages.fromAddress, PENDING_FROM), and(lt(messages.sizeBytes, 0), eq(messages.snippet, "")))))
-    .orderBy(asc(messages.id)).limit(REPAIR_BATCH);
-  let repaired = 0;
-  const byBox = new Map<string, typeof rows>();
-  for (const r of rows) if (r.remoteBox) byBox.set(r.remoteBox, [...(byBox.get(r.remoteBox) ?? []), r]);
-  for (const [box, list] of byBox) {
-    const path = pathFor(state, box);
-    const st = cursor(state, box);
-    if (!path || !st) continue;
-    try {
-      const opened = await session.open(path);
-      if (opened.uidValidity !== st.v) continue; // renumbered: these UIDs mean other mail now; the folder sync relinks them
-      const heads = new Map((await session.fetchHeads(list.map((r) => r.remoteUid!), cfg.peekBytes)).map((m) => [m.uid, m]));
-      for (const r of list) {
-        const m = heads.get(r.remoteUid!);
-        if (!m) continue; // gone at the provider: the folder sync lets it go
-        const e = await parsePartial(m);
-        const set: Partial<typeof messages.$inferInsert> = {};
-        if (r.fromAddress === PENDING_FROM && !e.pending) {
-          Object.assign(set, { fromAddress: e.from.address, fromName: e.from.name ?? "", subject: e.subject ?? "", date: e.date, to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []) });
-        }
-        // " " marks a preview that was looked for and is truly empty, so the sweep does not read it again.
-        if (r.sizeBytes < 0 && !r.snippet) set.snippet = makeSnippet(e.text ?? "", e.html) || " ";
-        if (Object.keys(set).length) { statements.push(deps.db.update(messages).set(set).where(eq(messages.id, r.id))); repaired++; }
-      }
-    } catch (err) {
-      // A folder that went away: its rows wait; Inbox and Sent problems surface through the pass.
-      if (!box.startsWith("f:")) throw err;
-    }
-  }
-  state.rp = rows.length < REPAIR_BATCH ? { done: true } : { at: rows[rows.length - 1].id };
-  if (repaired) deps.log?.info?.("mail_sync.repaired", { connection: c.id, rows: rows.length, repaired });
-  return { statements, more: rows.length >= REPAIR_BATCH, repaired };
-}
-
 export { backfillProgress } from "./backfill-progress";
 
 /**
@@ -749,7 +666,7 @@ export { backfillProgress } from "./backfill-progress";
  * longer has it at that UID (moved or deleted there); the row keeps its snippet and the next folder sync ties it again.
  */
 export async function loadBody(deps: Deps, messageId: string): Promise<boolean> {
-  const m = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, sizeBytes: messages.sizeBytes, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid, fromAddress: messages.fromAddress })
+  const m = await deps.db.select({ id: messages.id, mailboxId: messages.mailboxId, sizeBytes: messages.sizeBytes, remoteBox: messages.remoteBox, remoteUid: messages.remoteUid })
     .from(messages).where(eq(messages.id, messageId)).get();
   if (!m || m.sizeBytes >= 0) return true;
   if (!m.remoteBox || m.remoteUid === null) return false;
@@ -771,10 +688,7 @@ export async function loadBody(deps: Deps, messageId: string): Promise<boolean> 
     const e = f.source ? await parseMime(f.source) : stub(f);
     const size = f.source?.byteLength ?? f.size;
     const statements: PromiseLike<unknown>[] = [
-      deps.db.update(messages).set({
-        // R59: a row stored with placeholder headers gets the real ones from the whole message.
-        ...(m.fromAddress === PENDING_FROM && f.source && e.from?.address && e.from.address !== PENDING_FROM ? { fromAddress: e.from.address, fromName: e.from.name ?? "", subject: e.subject ?? "", date: e.date, to: JSON.stringify(e.to ?? []), cc: JSON.stringify(e.cc ?? []) } : {}),
-        text: e.text ?? "", html: e.html ?? null, snippet: makeSnippet(e.text ?? "", e.html), sizeBytes: Math.max(0, size), hasAttachments: (e.attachments?.length ?? 0) > 0, authResults: e.authResults ? JSON.stringify(e.authResults) : null }).where(eq(messages.id, m.id)),
+      deps.db.update(messages).set({ text: e.text ?? "", html: e.html ?? null, snippet: makeSnippet(e.text ?? "", e.html), sizeBytes: Math.max(0, size), hasAttachments: (e.attachments?.length ?? 0) > 0, authResults: e.authResults ? JSON.stringify(e.authResults) : null }).where(eq(messages.id, m.id)),
     ];
     for (const a of e.attachments ?? []) {
       const inline = a.content.byteLength <= MAX_INLINE_ATTACHMENT_BYTES;

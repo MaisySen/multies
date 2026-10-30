@@ -4,7 +4,6 @@ import { attachments, mailboxes, mailConnections, messages } from "../../db/sche
 import { notFound } from "../../lib/errors";
 import type { Address, Folder } from "@/shared/mail";
 import { inIds } from "../../lib/sql-chunks";
-import { PENDING_FROM } from "./pending-from";
 
 type Row = typeof messages.$inferSelect;
 
@@ -48,7 +47,7 @@ export async function mailboxOverview(db: DB, orgId: string, scope: Scope = null
     .filter((b) => !scope || scope.includes(b.id));
   const counts = await db
     .select({ mailboxId: messages.mailboxId, folder: messages.folder, total: sql<number>`count(*)`, unread: sql<number>`sum(case when ${messages.isRead} = 0 then 1 else 0 end)` })
-    .from(messages).where(and(eq(messages.orgId, orgId), sql`${messages.fromAddress} <> ${PENDING_FROM}`)).groupBy(messages.mailboxId, messages.folder);
+    .from(messages).where(eq(messages.orgId, orgId)).groupBy(messages.mailboxId, messages.folder);
   const connected = new Map((await db.select({ mailboxId: mailConnections.mailboxId, id: mailConnections.id }).from(mailConnections).where(eq(mailConnections.orgId, orgId))).map((r) => [r.mailboxId, r.id]));
   return boxes.map((b) => {
     const folders: Record<string, { total: number; unread: number }> = {};
@@ -61,8 +60,7 @@ const escapeLike = (s: string) => s.replace(/[!%_]/g, (ch) => `!${ch}`);
 
 export async function listMessages(db: DB, orgId: string, q: { mailboxId?: string; folder?: Folder | "starred"; remote?: string; search?: string; cursor?: string; limit?: number; scope?: Scope; extra?: SQL }) {
   const limit = Math.min(q.limit ?? 50, 100);
-  // R59: a connected mailbox's older row whose headers are still being read is left out until they are in.
-  const conds = [eq(messages.orgId, orgId), sql`${messages.fromAddress} <> ${PENDING_FROM}`];
+  const conds = [eq(messages.orgId, orgId)];
   const s = inScope(q.scope ?? null);
   if (s) conds.push(s);
   if (q.mailboxId) conds.push(eq(messages.mailboxId, q.mailboxId));

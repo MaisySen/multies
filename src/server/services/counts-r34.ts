@@ -13,7 +13,7 @@ import type { Deps } from "../context";
 import { mailboxAccess, messages, notifications, tasks } from "../db/schema";
 import { IsolateCache } from "../lib/isolate-cache";
 import { snoozeHiddenCond } from "./mail/schedules";
-import { listSplits, splitCountParts } from "./mail/splits";
+import { listSplits, splitCond } from "./mail/splits";
 import { unreadQuery } from "./suite/chat";
 import type { SuiteActor } from "./suite/common";
 import { DEFAULT_SNOOZE_ZONE, inboxWhere } from "./suite/notify-triage";
@@ -95,8 +95,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
 
   const list = await splitsCopy.getOr(`${a.userId}:${a.orgId}`, () => listSplits(deps, { orgId: a.orgId, userId: a.userId }));
   const split = { orgId: a.orgId, userId: a.userId };
-  // R59 hotfix: the Important rule is evaluated once per row; Other is "not claimed" minus Important.
-  const { important, notClaimed } = splitCountParts(split.orgId, list);
+  const [important, other] = await Promise.all([splitCond(deps, split, "important", list), splitCond(deps, split, "other", list)]);
   // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
   const scope = (a.role ?? "member") === "member"
     ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId)))) // D1: a subquery, not a bound list
@@ -108,7 +107,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const r = await deps.db.select({
     inbox: sql<number>`count(*)`,
     important: sql<number>`coalesce(sum(case when ${important} then 1 else 0 end), 0)`,
-    notClaimed: notClaimed ? sql<number>`coalesce(sum(case when ${notClaimed} then 1 else 0 end), 0)` : sql<number>`count(*)`,
+    other: sql<number>`coalesce(sum(case when ${other} then 1 else 0 end), 0)`,
     dueToday: sql<number>`(${dueToday})`,
     overdue: sql<number>`(${overdue})`,
     triage: sql<number>`(${triage})`,
@@ -120,8 +119,7 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   )).get();
   out.tasks = { dueToday: Number(r?.dueToday ?? 0), overdue: Number(r?.overdue ?? 0) };
   out.triage = Number(r?.triage ?? 0);
-  const importantN = Number(r?.important ?? 0);
-  out.mail = { inbox: Number(r?.inbox ?? 0), important: importantN, other: Math.max(0, Number(r?.notClaimed ?? 0) - importantN) };
+  out.mail = { inbox: Number(r?.inbox ?? 0), important: Number(r?.important ?? 0), other: Number(r?.other ?? 0) };
   out.chat = { unread: Number(r?.chat ?? 0), mentions: Number(r?.mentions ?? 0) };
   out.notifications = { unread: Number(r?.notes ?? 0) };
   return out;

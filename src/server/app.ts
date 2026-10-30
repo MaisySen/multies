@@ -78,7 +78,6 @@ import { dataMoveDownloadRoutes, dataMoveRoutes } from "./routes/data-moves";
 import { systemStatus, uptimeHistory } from "./services/status";
 import { deliverabilityRoutes, resendWebhookRoutes } from "./routes/deliverability";
 import { authHookWebhookRoutes } from "./routes/auth-hooks";
-import { SECURITY_EMAIL } from "@/shared/trust";
 import { authEmailSettingsRoutes } from "./routes/auth-email-settings-r27";
 import { formRoutes, meetingRoutes, publicRoutes, reportRoutes, timeRoutes } from "./routes/suite-r7";
 import { formResultsRoutes } from "./routes/forms-r31";
@@ -345,8 +344,7 @@ export function createApp(deps: Deps) {
     const expires = new Date(Date.UTC(new Date().getUTCFullYear() + 1, 0, 1)).toISOString();
     c.header("cache-control", "public, max-age=86400");
     return c.text([
-      // One public contact everywhere (legal pages, Trust page); the routed security address follows it.
-      ...[`mailto:${SECURITY_EMAIL}`, deps.config.securityContact].filter((v, i, a) => a.indexOf(v) === i).map((v) => `Contact: ${v}`),
+      `Contact: ${deps.config.securityContact}`,
       `Expires: ${expires}`,
       "Preferred-Languages: en",
       `Canonical: ${deps.config.appUrl}/.well-known/security.txt`,

@@ -16,18 +16,6 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
-    id: "2026-10-30-clearer-legal",
-    date: "2026-10-30",
-    title: "Clearer privacy and terms",
-    body: "The privacy policy, terms and trust page now say plainly what we do today, with one contact address: contact@fintex.au. Every backup is encrypted and deleted after 30 days.",
-  },
-  {
-    id: "2026-10-30-older-mail-headers",
-    date: "2026-10-30",
-    title: "Older mail shows its sender and subject",
-    body: "Some older emails copied from a connected mailbox showed as unknown@invalid with no subject. They now load their real sender, subject, date and preview, and stay out of your list until they do.",
-  },
-  {
     id: "2026-10-29-workspace-tabs",
     date: "2026-10-29",
     title: "Other tabs follow your workspace",
@@ -76,6 +64,12 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
   },
   {
+    id: "2026-10-28-rule-choices-fix",
+    date: "2026-10-28",
+    title: "Rule settings ask before saving",
+    body: "A new rule that sets a priority or assigns the task now asks you to pick one, instead of showing a choice it did not save.",
+  },
+  {
     id: "2026-10-28-more-command-words",
     date: "2026-10-28",
     title: "More words the command menu understands",
@@ -92,6 +86,12 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "Tell the command menu what to do",
     body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
+  },
+  {
+    id: "2026-10-28-easier-to-read-phone",
+    date: "2026-10-28",
+    title: "Easier to read on phones",
+    body: "The unread count on the phone tab bar is a deeper red, so the number is easier to read. Screen readers now name the workspace, account and mail buttons with the words you see on them.",
   },
   {
     id: "2026-10-28-whats-new",

@@ -48,7 +48,7 @@ You are sent back to the Multies sign in page with "That sign in didn't complete
 The email arrived in under a minute, from "Multies" at no-reply@auth0user.net, plain, with a click tracking link. It works, but it is Auth0's shared test sender and will hit limits and spam folders at scale.
 
 ### 5. First sign in and empty workspace
-Sign in worked once the email was verified. A bot check appeared on one retry. The workspace is named "qa.tester+stranger1025's workspace" and the greeting uses the email as a name, because nothing asks for a name or company. Step 4 of the checklist says "Route MX through Cloudflare", which means nothing to most people and is wrong for new domains (they route through our provider now). "0/0 verified, plan allows 1" is confusing.
+Sign in worked once the email was verified. A bot check appeared on one retry. The workspace is named "mymail.builder+stranger1025's workspace" and the greeting uses the email as a name, because nothing asks for a name or company. Step 4 of the checklist says "Route MX through Cloudflare", which means nothing to most people and is wrong for new domains (they route through our provider now). "0/0 verified, plan allows 1" is confusing.
 
 ![First screen after sign in](img/19-first-landing.jpg)
 

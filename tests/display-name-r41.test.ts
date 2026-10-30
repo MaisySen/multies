@@ -7,8 +7,8 @@ describe("R41 MB-224: displayFirstName", () => {
     expect(displayFirstName("  Sam  ", "s@example.com")).toBe("Sam");
   });
   it("never shows a raw email local part", () => {
-    expect(displayFirstName("sammy.tester+qa3p55caab", "sammy.tester+qa3p55caab@mail.example")).toBe("");
-    expect(displayFirstName("sammy.tester+qa3p55caab@mail.example", "sammy.tester+qa3p55caab@mail.example")).toBe("");
+    expect(displayFirstName("mymail.builder+qa3p55caab", "mymail.builder+qa3p55caab@mail.example")).toBe("");
+    expect(displayFirstName("mymail.builder+qa3p55caab@mail.example", "mymail.builder+qa3p55caab@mail.example")).toBe("");
     expect(displayFirstName("", "info@acme.com")).toBe("");
     expect(displayFirstName("qa3p55", "qa3p55@x.com")).toBe("");
   });
@@ -18,7 +18,7 @@ describe("R41 MB-224: displayFirstName", () => {
     expect(displayFirstName("jane99", "jane99@example.com")).toBe("Jane");
   });
   it("knows which names are just the email", () => {
-    expect(nameLooksLikeEmail("sammy.tester+qa", "sammy.tester+qa@x.com")).toBe(true);
+    expect(nameLooksLikeEmail("mymail.builder+qa", "mymail.builder+qa@x.com")).toBe(true);
     expect(nameLooksLikeEmail("Ada Lovelace", "ada@x.com")).toBe(false);
     expect(nameLooksLikeEmail("ada", "ada@x.com")).toBe(true);
     expect(nameLooksLikeEmail("Ada", "ada.l@x.com")).toBe(false);
