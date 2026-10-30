@@ -86,12 +86,12 @@ async function saveChannel(deps: Deps, a: AuthContext, c: { provider: ChannelRow
   return summarizeChannel(row!);
 }
 
-export async function connectWhatsApp(deps: Deps, a: AuthContext, b: { code: string; wabaId: string; phoneNumberId: string }) {
+export async function connectWhatsApp(deps: Deps, a: AuthContext, b: { code: string; wabaId: string; phoneNumberId: string; coexistence?: boolean }) {
   if (!isAdmin(a)) throw forbidden("Only owners and admins can connect channels.");
   if (!deps.config.channels.meta) throw new HttpError(409, "channel_unavailable", "Messaging channels are not set up on this server yet.");
   let r;
   try {
-    r = await adapterFor(deps, "whatsapp").connect({ code: b.code, accountId: b.wabaId, externalId: b.phoneNumberId });
+    r = await adapterFor(deps, "whatsapp").connect({ code: b.code, accountId: b.wabaId, externalId: b.phoneNumberId, coexistence: b.coexistence });
   } catch (e) {
     if (e instanceof ProviderError) throw new HttpError(502, "provider_refused", e.message);
     throw e;

@@ -48,7 +48,7 @@ describe("channels: Meta app configured", () => {
   it("status hands the Embedded Signup values (never the secret)", async () => {
     const s = await owner.get("/api/channels/status");
     expect(s.body.available).toBe(true);
-    expect(s.body.embeddedSignup).toEqual({ appId: "1234", configId: "5678", graphVersion: "v24.0" });
+    expect(s.body.embeddedSignup).toEqual({ appId: "1234", configId: "5678", graphVersion: "v26.0" });
     expect(JSON.stringify(s.body)).not.toContain("app-secret-for-tests");
   });
   it("answers the subscribe handshake only with the right token", async () => {

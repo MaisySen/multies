@@ -395,7 +395,7 @@ export function freeMailDomain(raw: string | undefined, appUrl: string | undefin
 /** C1: the chat channel settings. The Meta app counts as configured only when all four values are set. */
 function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"]): AppConfig["channels"] {
   const id = env.META_APP_ID?.trim(), secret = env.META_APP_SECRET?.trim(), verify = env.META_VERIFY_TOKEN?.trim(), cfg = env.META_ES_CONFIG_ID?.trim();
-  const version = /^v\d{1,3}\.\d$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : "v24.0";
+  const version = /^v\d{1,3}\.\d$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : "v26.0";
   const mockAsked = env.CHANNELS_MOCK === "on" || env.CHANNELS_MOCK === "1" || env.CHANNELS_MOCK === "true";
   if (mockAsked && mode === "production") throw new ConfigError("CHANNELS_MOCK is for local tests only and cannot be on in production.");
   const cap = Number(env.CHANNELS_DAILY_SOFT_CAP);

@@ -4,7 +4,7 @@ import { makeTestApp, Client } from "./helpers";
 import { mockInboundPayload } from "@/server/services/channels/mock";
 import { handleWebhookPost } from "@/server/services/channels/receive";
 import { parseWebhook, verifySignature, MOCK_APP_SECRET } from "@/server/services/channels/webhook";
-import { msgChannels } from "@/server/db/schema";
+import { msgChannels, msgMessages } from "@/server/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -19,6 +19,42 @@ function spy(db: unknown) {
   client.prepare = (sql: string) => { log.push(sql); return prepare(sql); };
   return log;
 }
+
+describe("channels webhook durability", () => {
+  it("stores before answering: a database failure answers 500 so Meta retries, and the retry lands once", async () => {
+    const ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+    const owner = new Client(ctx.app);
+    await owner.signup("owner@acme.io", "Olive Owner");
+    const channelId = (await owner.post("/api/channels/connect-mock", {})).body.channel.id;
+    const ch = await ctx.db.select().from(msgChannels).where(eq(msgChannels.id, channelId)).get();
+    const p = await mockInboundPayload({ endpointId: ch!.externalId, from: "61400111222", text: "are you open today?" });
+    const broken = { ...ctx.deps, db: new Proxy(ctx.deps.db, { get: (t, k) => (k === "insert" ? () => { throw new Error("D1 busy"); } : Reflect.get(t, k)) }) };
+    expect((await handleWebhookPost(broken as typeof ctx.deps, p.body, p.signature)).status).toBe(500);
+    const ok = await handleWebhookPost(ctx.deps, p.body, p.signature);
+    expect(ok.status).toBe(200);
+    expect(ok.work).toBeNull();
+    expect((await handleWebhookPost(ctx.deps, p.body, p.signature)).status).toBe(200);
+    const rows = await ctx.db.select().from(msgMessages).where(eq(msgMessages.channelId, channelId));
+    expect(rows.map((r) => r.text)).toEqual(["are you open today?"]);
+  });
+  it("a photo is stored with the message before the answer and its bytes are copied after it", async () => {
+    const ctx = await makeTestApp({ CHANNELS_MOCK: "on" });
+    const owner = new Client(ctx.app);
+    await owner.signup("owner@acme.io", "Olive Owner");
+    const channelId = (await owner.post("/api/channels/connect-mock", {})).body.channel.id;
+    const ch = await ctx.db.select().from(msgChannels).where(eq(msgChannels.id, channelId)).get();
+    const p = await mockInboundPayload({ endpointId: ch!.externalId, from: "61400111222", text: "", image: true });
+    const r = await handleWebhookPost(ctx.deps, p.body, p.signature);
+    let row = await ctx.db.select().from(msgMessages).where(eq(msgMessages.channelId, channelId)).get();
+    expect(row).toMatchObject({ kind: "image", mediaB64: null });
+    expect(row!.mediaName).toBeTruthy();
+    expect(r.work).not.toBeNull();
+    await r.work;
+    row = await ctx.db.select().from(msgMessages).where(eq(msgMessages.channelId, channelId)).get();
+    expect(row!.mediaB64).toBeTruthy();
+    expect(row!.mediaSize).toBeGreaterThan(0);
+  });
+});
 
 describe("channels ingest cost", () => {
   it("one new text message: 3 writes and 2 reads; a duplicate: 1 read and no write", async () => {

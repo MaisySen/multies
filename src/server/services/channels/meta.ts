@@ -55,7 +55,7 @@ export class MetaCloudAdapter implements ProviderAdapter {
     return body;
   }
 
-  async connect(input: { code: string; accountId: string; externalId: string }): Promise<ConnectResult> {
+  async connect(input: { code: string; accountId: string; externalId: string; coexistence?: boolean }): Promise<ConnectResult> {
     // The code is short lived and single use; the client secret only travels in this server side call.
     const q = new URLSearchParams({ client_id: this.cfg.appId, client_secret: this.cfg.appSecret, code: input.code });
     const tok = await this.call<{ access_token?: string }>(`oauth/access_token?${q.toString()}`);
@@ -63,8 +63,10 @@ export class MetaCloudAdapter implements ProviderAdapter {
     const token = tok.access_token;
     const phone = await this.call<{ display_phone_number?: string; verified_name?: string }>(`${encodeURIComponent(input.externalId)}?fields=display_phone_number,verified_name`, { token });
     await this.call(`${encodeURIComponent(input.accountId)}/subscribed_apps`, { method: "POST", token });
-    // A new number has to be registered for Cloud API with a two step PIN we choose. A number shared with the
-    // WhatsApp Business app (coexistence) is already registered and answers an error here, which is fine.
+    // A new number has to be registered for Cloud API (within 14 days of signup) with a two step PIN we choose.
+    // A number shared with the WhatsApp Business app (coexistence) is already registered: Meta says skip it.
+    // Should registration still answer an error (already registered), the connection stands without a PIN.
+    if (input.coexistence) return { token, name: phone.verified_name || phone.display_phone_number || "WhatsApp", handle: phone.display_phone_number ?? null };
     const pin = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
     let registered = true;
     try {

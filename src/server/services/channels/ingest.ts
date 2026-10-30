@@ -1,11 +1,14 @@
 /**
- * C1: what a verified webhook delivery does to the database. Runs after the route has answered Meta 200.
+ * C1: what a verified webhook delivery does to the database. Meta keeps no copy to fetch later, so messages and
+ * statuses are stored before the route answers 200 (a failure answers 500 and Meta retries); only the file
+ * downloads run after the answer, as `mediaJobs`.
  *
  * D1 cost per inbound message (measured in tests/channels-ingest.test.ts): one read to skip a duplicate (Meta
  * resends for up to 7 days), one upsert of the workspace's daily counter, one conversation upsert and one
  * message insert. Statuses (sent, delivered, read, failed) are one guarded UPDATE each, never a downgrade.
- * Files are fetched straight away (Meta's links expire within minutes) and stored like mail attachments:
+ * Files are fetched straight after the answer (Meta's links expire within minutes) and stored like mail attachments:
  * inline up to MEDIA_INLINE_MAX, the body store above it when one is configured, otherwise kept as a name only.
+ * That is one more row write (the message's file columns) for a message with a file.
  */
 import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Deps } from "../../context";
@@ -25,10 +28,10 @@ export const snippetOf = (kind: string, text: string) => (text.trim() ? text.rep
 
 const RANK: Record<string, number> = { pending: 0, sent: 1, delivered: 2, read: 3, failed: 4, received: 0 };
 
-export interface IngestResult { stored: number; duplicates: number; statuses: number; unknownEndpoint: number; overCap: boolean }
+export interface IngestResult { stored: number; duplicates: number; statuses: number; unknownEndpoint: number; overCap: boolean; mediaJobs: Array<() => Promise<void>> }
 
 export async function ingestBatches(deps: Deps, batches: WebhookBatch[]): Promise<IngestResult> {
-  const res: IngestResult = { stored: 0, duplicates: 0, statuses: 0, unknownEndpoint: 0, overCap: false };
+  const res: IngestResult = { stored: 0, duplicates: 0, statuses: 0, unknownEndpoint: 0, overCap: false, mediaJobs: [] };
   if (!batches.length) return res;
   const endpointIds = [...new Set(batches.map((b) => b.endpointId))].slice(0, 50);
   const rows = await deps.db.select().from(msgChannels).where(and(inArray(msgChannels.externalId, endpointIds), eq(msgChannels.status, "active")));
@@ -37,7 +40,10 @@ export async function ingestBatches(deps: Deps, batches: WebhookBatch[]): Promis
     if (!ch) { res.unknownEndpoint++; continue; }
     for (const m of b.messages) {
       const r = await ingestMessage(deps, ch, m);
-      if (r === "duplicate") res.duplicates++; else { res.stored++; if (r === "over") res.overCap = true; }
+      if (r === "duplicate") { res.duplicates++; continue; }
+      res.stored++;
+      if (r.over) res.overCap = true;
+      if (r.job) res.mediaJobs.push(r.job);
     }
     for (const s of b.statuses) res.statuses += await applyStatus(deps, ch.id, s);
   }
@@ -52,36 +58,13 @@ async function countInbound(deps: Deps, orgId: string, now: Date): Promise<numbe
   return r?.count ?? 1;
 }
 
-async function ingestMessage(deps: Deps, ch: ChannelRow, m: InboundMessage): Promise<"stored" | "duplicate" | "over"> {
+async function ingestMessage(deps: Deps, ch: ChannelRow, m: InboundMessage): Promise<"duplicate" | { over: boolean; job: (() => Promise<void>) | null }> {
   // Read, not a write: Meta's retries of a delivery we already stored cost nothing more.
   const dup = await deps.db.select({ id: msgMessages.id }).from(msgMessages).where(and(eq(msgMessages.channelId, ch.id), eq(msgMessages.externalId, m.externalId))).get();
   if (dup) return "duplicate";
   const now = deps.now();
   const count = await countInbound(deps, ch.orgId, now);
   const over = count > deps.config.channels.dailySoftCap;
-
-  // Over the soft cap the text still lands (nothing is lost) but files are no longer copied.
-  let media: { name: string; type: string; size: number; b64: string | null; key: string | null } | null = null;
-  if (m.media) {
-    const name = (m.media.filename || `${m.kind}${extFor(m.media.mimeType)}`).slice(0, 255);
-    media = { name, type: (m.media.mimeType ?? "application/octet-stream").slice(0, 128), size: 0, b64: null, key: null };
-    if (!over) {
-      try {
-        const file = await adapterFor(deps, ch.provider).fetchMedia(await credentialsOf(deps, ch), m.media);
-        if (file) {
-          media.type = file.contentType.slice(0, 128);
-          media.size = file.bytes.byteLength;
-          if (file.bytes.byteLength <= MEDIA_INLINE_MAX) media.b64 = toB64(file.bytes);
-          else if (deps.bodyStore) {
-            media.key = `chat-media/${ch.orgId}/${newId("cm")}`;
-            await deps.bodyStore.put(media.key, file.bytes, file.contentType);
-          }
-        }
-      } catch (err) {
-        deps.log?.warn?.("channels.media_fetch_failed", { channelId: ch.id, error: String((err as Error).message ?? err) });
-      }
-    }
-  }
 
   const date = m.date.getTime() > now.getTime() + 300_000 ? now : m.date;
   const snippet = snippetOf(m.kind, m.text);
@@ -102,12 +85,34 @@ async function ingestMessage(deps: Deps, ch: ChannelRow, m: InboundMessage): Pro
     },
   }).returning({ id: msgConversations.id }).get();
 
+  const id = newId("cm");
+  const mediaName = m.media ? (m.media.filename || `${m.kind}${extFor(m.media.mimeType)}`).slice(0, 255) : null;
+  const mediaType = m.media ? (m.media.mimeType ?? "application/octet-stream").slice(0, 128) : null;
   await deps.db.insert(msgMessages).values({
-    id: newId("cm"), orgId: ch.orgId, channelId: ch.id, conversationId: conv!.id, direction: "in", externalId: m.externalId,
-    kind: m.kind, text: m.text, delivery: "received", date, createdAt: now,
-    mediaName: media?.name ?? null, mediaType: media?.type ?? null, mediaSize: media?.size || null, mediaB64: media?.b64 ?? null, mediaKey: media?.key ?? null,
+    id, orgId: ch.orgId, channelId: ch.id, conversationId: conv!.id, direction: "in", externalId: m.externalId,
+    kind: m.kind, text: m.text, delivery: "received", date, createdAt: now, mediaName, mediaType,
   }).onConflictDoNothing();
-  return over ? "over" : "stored";
+
+  // Over the soft cap the text still lands (nothing is lost) but files are no longer copied.
+  const ref = m.media;
+  const job = ref && !over ? async () => {
+    try {
+      const file = await adapterFor(deps, ch.provider).fetchMedia(await credentialsOf(deps, ch), ref);
+      if (!file) return;
+      let b64: string | null = null;
+      let key: string | null = null;
+      if (file.bytes.byteLength <= MEDIA_INLINE_MAX) b64 = toB64(file.bytes);
+      else if (deps.bodyStore) {
+        key = `chat-media/${ch.orgId}/${newId("cm")}`;
+        await deps.bodyStore.put(key, file.bytes, file.contentType);
+      }
+      await deps.db.update(msgMessages).set({ mediaType: file.contentType.slice(0, 128), mediaSize: file.bytes.byteLength, mediaB64: b64, mediaKey: key })
+        .where(and(eq(msgMessages.id, id), eq(msgMessages.channelId, ch.id)));
+    } catch (err) {
+      deps.log?.warn?.("channels.media_fetch_failed", { channelId: ch.id, error: String((err as Error).message ?? err) });
+    }
+  } : null;
+  return { over, job };
 }
 
 async function applyStatus(deps: Deps, channelId: string, s: StatusUpdate): Promise<number> {

@@ -13,7 +13,7 @@ const svc = () => import("../services/channels/service");
 
 // Built once per isolate (zod schema construction is real CPU on a warm request).
 const SettingsBody = z.object({ enabled: z.boolean() });
-const ConnectBody = z.object({ provider: z.literal("whatsapp"), code: z.string().min(1).max(2048), wabaId: z.string().regex(/^\d{1,32}$/), phoneNumberId: z.string().regex(/^\d{1,32}$/) });
+const ConnectBody = z.object({ provider: z.literal("whatsapp"), code: z.string().min(1).max(2048), wabaId: z.string().regex(/^\d{1,32}$/), phoneNumberId: z.string().regex(/^\d{1,32}$/), coexistence: z.boolean().optional() });
 const MockConnectBody = z.object({ name: z.string().max(80).optional() });
 const ListQuery = z.object({
   channel: z.string().max(64).optional(), status: z.enum(["open", "waiting", "done"]).optional(),
@@ -93,6 +93,8 @@ export function channelRoutes() {
 }
 
 /** Meta's webhook: GET is the subscribe handshake, POST the deliveries. No session; the signature is the auth. */
+const WEBHOOK_MAX_BYTES = 3 * 1024 * 1024;
+
 export function metaWebhookRoutes() {
   return new Hono<AppEnv>()
     .get("/", async (c) => {
@@ -101,14 +103,16 @@ export function metaWebhookRoutes() {
       return ok ? c.text(ok, 200) : c.text("Forbidden", 403);
     })
     .post("/", async (c) => {
+      // Meta's deliveries can carry up to 1,000 updates and 3 MB.
       const len = Number(c.req.header("content-length") ?? 0);
-      if (len > 1_000_000) return c.text("Too large", 413);
+      if (len > WEBHOOK_MAX_BYTES) return c.text("Too large", 413);
       const raw = await c.req.text();
-      if (raw.length > 1_000_000) return c.text("Too large", 413);
+      if (raw.length > WEBHOOK_MAX_BYTES) return c.text("Too large", 413);
       const { handleWebhookPost } = await import("../services/channels/receive");
       const r = await handleWebhookPost(c.var.deps, raw, c.req.header("x-hub-signature-256"));
+      // Messages are stored before this answer; only file downloads run after it on Workers. A 500 makes Meta retry.
       if (r.work) await runLater(c, r.work);
-      // Meta only needs a fast 200; the work above runs after the answer on Workers.
-      return c.text(r.status === 200 ? "EVENT_RECEIVED" : "Forbidden", r.status as 200 | 401);
+      if (r.status === 500) return c.text("Try again", 500);
+      return c.text(r.status === 200 ? "EVENT_RECEIVED" : "Forbidden", r.status);
     });
 }

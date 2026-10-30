@@ -27,7 +27,7 @@ Status: phase 1 (WhatsApp) is built and tested on a local test channel. It is of
 
 1. Meta calls `GET /api/webhooks/meta` once with `hub.mode=subscribe`, `hub.verify_token` and `hub.challenge`. The challenge is answered only when the token matches `META_VERIFY_TOKEN`.
 2. Every delivery is a `POST` with `X-Hub-Signature-256: sha256=<hex>`, the HMAC SHA-256 of the raw body under the app secret. Anything else is answered 401 and never parsed.
-3. A signed delivery is answered 200 at once. The work runs after the answer (`waitUntil` on Workers).
+3. Meta keeps no copy of a delivery to fetch later, so messages and statuses are stored before the answer (a few small writes, tens of milliseconds); a database failure answers 500 and Meta retries. Only file downloads run after the 200 (`waitUntil` on Workers). Deliveries can carry up to 1,000 updates and 3 MB.
 4. Each message is looked up by Meta's message id first (a read). Meta resends a delivery for up to 7 days; a message already stored writes nothing. A unique index on (channel, Meta id) backs this up.
 5. Status updates (sent, delivered, read, failed) move an outgoing message forward and never back; a failure keeps Meta's reason in plain words.
 6. A customer writing again reopens a conversation marked done.
@@ -35,7 +35,7 @@ Status: phase 1 (WhatsApp) is built and tested on a local test channel. It is of
 ### Measured cost (local, 28 Oct 2026)
 
 * CPU: signature check plus parse, median 0.18 ms per delivery; the whole path including the database work run in process, median 1.2 ms, p95 1.6 ms per message (200 messages). On Workers the database runs remotely, so the real CPU figure is lower. Limit on the free plan: 10 ms.
-* D1 rows written per inbound text message, measured with D1's own counter on a local D1: 7 for a customer already in the inbox (daily counter 1, conversation 2, message 4), 10 for the first message of a new customer (counter 2 on the first message of the day, conversation 4, message 4). Reads: 2 (channel and duplicate check). A status update writes 1 row. A duplicate delivery writes nothing.
+* D1 rows written per inbound text message, measured with D1's own counter on a local D1: 7 for a customer already in the inbox (daily counter 1, conversation 2, message 4), 10 for the first message of a new customer (counter 2 on the first message of the day, conversation 4, message 4). Reads: 2 (channel and duplicate check). A status update writes 1 row. A duplicate delivery writes nothing. A message with a file writes 1 more row when its bytes are copied.
 * `tests/channels-ingest.test.ts` fails if a change adds a statement to the inbound path.
 
 ### Daily guard
@@ -56,7 +56,7 @@ Sends carry an `Idempotency-Key`; a retry of the same key answers the message th
 
 ### Connecting a number
 
-Settings, Channels, Connect WhatsApp opens Meta's Embedded Signup (v4; v2 and v3 were retired on 15 Oct 2026) in a popup with the app id and configuration id. When it finishes, the page sends the one time code with the phone number id and WhatsApp Business Account id to `POST /api/channels/connect`. The server exchanges the code for a business token (the app secret never reaches the browser), subscribes the app to that account's webhooks and registers the number for the Cloud API. A number that is also used in the WhatsApp Business app (coexistence) is already registered; that step is skipped.
+Settings, Channels, Connect WhatsApp opens Meta's Embedded Signup (v4; v2 and v3 were retired on 15 Oct 2026) in a popup with the app id and configuration id. When it finishes, the page sends the one time code with the phone number id and WhatsApp Business Account id to `POST /api/channels/connect`. The code lives 30 seconds, so the page posts it as soon as both the code and the ids are in. The server exchanges it for a business token (the app secret never reaches the browser), subscribes the app to that account's webhooks and registers the number for the Cloud API (Meta allows 14 days for that). A number that is also used in the WhatsApp Business app (coexistence: event `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`, or `is_on_biz_app` in the v5 shape) is already registered; the page sends `coexistence: true` and that step is skipped. After connecting, the business adds a payment method in WhatsApp Manager; Meta bills each business directly.
 
 ## What the owner sets
 
@@ -68,7 +68,7 @@ Server settings (names only; values go in as Cloudflare secrets, never in chat o
 | `META_APP_SECRET` | The Meta app's secret (signs webhooks, exchanges codes) |
 | `META_VERIFY_TOKEN` | Any long random string; typed into the app's webhook settings too |
 | `META_ES_CONFIG_ID` | The Embedded Signup configuration id from Facebook Login for Business |
-| `META_GRAPH_VERSION` | Optional, for example `v24.0` |
+| `META_GRAPH_VERSION` | Optional, for example `v26.0` (the default) |
 | `CHANNELS_DAILY_SOFT_CAP` | Optional, inbound messages per workspace per day before the warning |
 
 Until all four `META_*` values are set, Settings, Channels shows "Coming soon" and the switch cannot be turned on. Webhook callback URL for the Meta app: `https://multies.si/api/webhooks/meta`, field `messages`.

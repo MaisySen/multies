@@ -158,7 +158,7 @@ describe("token encryption and config", () => {
     const base = { APP_SECRET: "t".repeat(40) };
     expect(loadConfig({ ...base, META_APP_ID: "1", META_APP_SECRET: "2", META_VERIFY_TOKEN: "3" }).channels.meta).toBeUndefined();
     expect(loadConfig({ ...base, META_APP_ID: "1", META_APP_SECRET: "2", META_VERIFY_TOKEN: "3", META_ES_CONFIG_ID: "4", META_GRAPH_VERSION: "v25.0" }).channels.meta).toMatchObject({ graphVersion: "v25.0" });
-    expect(loadConfig({ ...base, META_APP_ID: "1", META_APP_SECRET: "2", META_VERIFY_TOKEN: "3", META_ES_CONFIG_ID: "4", META_GRAPH_VERSION: "latest" }).channels.meta?.graphVersion).toBe("v24.0");
+    expect(loadConfig({ ...base, META_APP_ID: "1", META_APP_SECRET: "2", META_VERIFY_TOKEN: "3", META_ES_CONFIG_ID: "4", META_GRAPH_VERSION: "latest" }).channels.meta?.graphVersion).toBe("v26.0");
     expect(() => loadConfig({ ...base, APP_MODE: "production", CHANNELS_MOCK: "on" })).toThrow(/production/);
     expect(loadConfig({ ...base, CHANNELS_DAILY_SOFT_CAP: "50" }).channels.dailySoftCap).toBe(50);
   });
@@ -199,6 +199,13 @@ describe("Meta Cloud API adapter (fake fetch)", () => {
     const r = await new MetaCloudAdapter(cfg, f).connect({ code: "C", accountId: "1", externalId: "2" });
     expect(r.pin).toBeUndefined();
     expect(r.name).toBe("+61 400 000 000");
+  });
+  it("connect: a coexistence number (shared with the WhatsApp Business app) skips registration", async () => {
+    const { f, calls } = fakeFetch({ "oauth/access_token": { access_token: "T" }, "fields=display_phone_number": { display_phone_number: "+61 400 000 000", verified_name: "Shop" }, subscribed_apps: { success: true } });
+    const r = await new MetaCloudAdapter(cfg, f).connect({ code: "C", accountId: "1", externalId: "2", coexistence: true });
+    expect(r).toMatchObject({ token: "T", name: "Shop" });
+    expect(r.pin).toBeUndefined();
+    expect(calls.some((c) => c.url.includes("/register"))).toBe(false);
   });
   it("sends text in Meta's message shape with the token only in the header", async () => {
     const { f, calls } = fakeFetch({ "/messages": { messaging_product: "whatsapp", contacts: [{ input: "16505551234", wa_id: "16505551234" }], messages: [{ id: "wamid.SENT1" }] } });

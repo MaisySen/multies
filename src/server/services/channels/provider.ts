@@ -56,8 +56,11 @@ export interface ConnectResult {
 
 export interface ProviderAdapter {
   readonly provider: ChannelProvider;
-  /** Swaps an Embedded Signup code for a business token and finishes onboarding (webhooks subscribed, number registered). */
-  connect(input: { code: string; accountId: string; externalId: string }): Promise<ConnectResult>;
+  /**
+   * Swaps an Embedded Signup code for a business token and finishes onboarding (webhooks subscribed, number registered).
+   * A number shared with the WhatsApp Business app (coexistence) is already registered, so registration is skipped.
+   */
+  connect(input: { code: string; accountId: string; externalId: string; coexistence?: boolean }): Promise<ConnectResult>;
   sendText(c: ChannelCredentials, to: string, text: string): Promise<{ externalId: string }>;
   sendFile(c: ChannelCredentials, to: string, file: OutgoingFile, caption: string): Promise<{ externalId: string }>;
   sendTemplate(c: ChannelCredentials, to: string, t: { name: string; language: string; params: string[] }): Promise<{ externalId: string }>;

@@ -34,6 +34,8 @@ export async function verifySignature(rawBody: string, header: string | undefine
   return false;
 }
 
+/** Meta batches up to 1,000 updates in one delivery. */
+const BATCH_MAX = 1000;
 const str = (v: unknown, max = 4096): string => (typeof v === "string" ? v.slice(0, max) : typeof v === "number" ? String(v) : "");
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
@@ -95,9 +97,13 @@ function messagingEvent(e: Record<string, unknown>, now: Date): InboundMessage |
   if (!from || !id || msg.is_echo === true) return null;
   const att = obj(arr(msg.attachments)[0]);
   const t = str(att.type, 32);
-  const kind: ChatMessageKind = t === "image" || t === "video" || t === "audio" ? t : t === "file" ? "document" : t ? "unsupported" : "text";
-  const url = str(obj(att.payload).url, 2048);
-  return { externalId: id, from, contactName: null, date: when(e.timestamp, now), kind, text: str(msg.text, MAX_TEXT), media: url ? { url } : null };
+  const payload = obj(att.payload);
+  const text = str(msg.text, MAX_TEXT);
+  // A shared link arrives as a "fallback" attachment: it is a preview, not a file, so the text carries it.
+  if (t === "fallback") return { externalId: id, from, contactName: null, date: when(e.timestamp, now), kind: "text", text: text || [str(payload.title, 300), str(payload.url, 2048)].filter(Boolean).join(" "), media: null };
+  const kind: ChatMessageKind = t === "image" || t === "video" || t === "audio" || t === "sticker" ? t : t === "file" ? "document" : t ? "unsupported" : "text";
+  const url = str(payload.url, 2048);
+  return { externalId: id, from, contactName: null, date: when(e.timestamp, now), kind, text, media: url ? { url } : null };
 }
 
 /** Meta's payload as batches per business endpoint. Unknown objects and fields give an empty list (never a throw). */
@@ -105,10 +111,10 @@ export function parseWebhook(body: unknown, now: Date = new Date()): WebhookBatc
   const root = obj(body);
   const object = str(root.object, 64);
   const out: WebhookBatch[] = [];
-  for (const entryRaw of arr(root.entry).slice(0, 100)) {
+  for (const entryRaw of arr(root.entry).slice(0, BATCH_MAX)) {
     const entry = obj(entryRaw);
     if (object === "whatsapp_business_account") {
-      for (const chRaw of arr(entry.changes).slice(0, 100)) {
+      for (const chRaw of arr(entry.changes).slice(0, BATCH_MAX)) {
         const ch = obj(chRaw);
         if (ch.field !== "messages") continue;
         const v = obj(ch.value);
@@ -116,14 +122,14 @@ export function parseWebhook(body: unknown, now: Date = new Date()): WebhookBatc
         if (!endpointId) continue;
         const names = new Map<string, string>();
         for (const c of arr(v.contacts)) { const co = obj(c); const wa = str(co.wa_id, 64); const n = str(obj(co.profile).name, 200); if (wa && n) names.set(wa, n); }
-        const messages = arr(v.messages).slice(0, 100).map((m) => waMessage(obj(m), names, now)).filter((m): m is InboundMessage => !!m);
-        const statuses = arr(v.statuses).slice(0, 100).map((s) => waStatus(obj(s), now)).filter((s): s is StatusUpdate => !!s);
+        const messages = arr(v.messages).slice(0, BATCH_MAX).map((m) => waMessage(obj(m), names, now)).filter((m): m is InboundMessage => !!m);
+        const statuses = arr(v.statuses).slice(0, BATCH_MAX).map((s) => waStatus(obj(s), now)).filter((s): s is StatusUpdate => !!s);
         if (messages.length || statuses.length) out.push({ family: "whatsapp", endpointId, messages, statuses });
       }
     } else if (object === "page" || object === "instagram") {
       const endpointId = str(entry.id, 64);
       if (!endpointId) continue;
-      const events = arr(entry.messaging).slice(0, 100).map(obj);
+      const events = arr(entry.messaging).slice(0, BATCH_MAX).map(obj);
       const messages = events.map((e) => messagingEvent(e, now)).filter((m): m is InboundMessage => !!m);
       const statuses: StatusUpdate[] = [];
       for (const e of events) {
