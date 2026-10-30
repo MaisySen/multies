@@ -30,7 +30,12 @@ import { ToolIcon } from "@/web/components/tools/tool-icon";
 import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result; R71: page count before Run
 import { Dialog } from "@/web/components/ui/dialog";
 import { NoRunsNote } from "@/web/components/tools/tools-frame";
+import { SplitPresets } from "@/web/components/tools/split-presets"; // R74
 import { lazyPage } from "@/web/components/lazy-page";
+import { toast } from "sonner";
+import { forgetFiles, keepFiles, keptFiles } from "@/web/lib/kept-files"; // R74: a picked file survives a reload
+import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R74: ask before a picked file is lost
+import { RESTORED_LINE } from "./tools-editors/keep-source";
 
 // Tools UX: the auto redact flow is only loaded when someone opens it.
 const AutoRedactPanel = lazyPage(() => import("@/web/components/tools/auto-redact"), "AutoRedactPanel");
@@ -178,15 +183,31 @@ export function ToolsPage() {
   }, [firstPdf]);
   // R73 (MB-272): Split fills in a starting range once the pages are counted (only while the field is empty).
   const splitPdf = tool?.op === "split" && files.length === 1 && /\.pdf$/i.test(files[0].name) ? files[0] : null;
+  // R74: the counted pages also drive the Split choices (components/tools/split-presets.tsx).
+  const [splitPages, setSplitPages] = useState<{ file: File; pages: number } | null>(null);
   useEffect(() => {
     if (!splitPdf) return;
     let stop = false;
     void countPdfPages(splitPdf).then((n) => {
+      if (!stop && n) setSplitPages({ file: splitPdf, pages: n });
       const r = n ? defaultSplitRanges(n) : "";
       if (!stop && r) setOptions((o) => (o.ranges?.trim() ? o : { ...o, ranges: r }));
     });
     return () => { stop = true; };
   }, [splitPdf]);
+  // R74: the picked files are kept for this tab (lib/kept-files.ts) until the run is done; a reload brings them back.
+  const restoring = useRef(false);
+  /** The tool the files on screen were picked for (set when a tool opens), so a switch never files them under another. */
+  const filesFor = useRef<string | null>(null);
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  useEffect(() => {
+    if (!tool || restoring.current || filesFor.current !== tool.op) return;
+    const key = `tools:${tool.op}`;
+    if (phase.kind === "done" || !files.length) void forgetFiles(key);
+    else if (phase.kind === "idle") void keepFiles(key, files);
+  }, [tool, files, phase.kind]);
+  const leaveGuard = useLeaveGuard(!!tool && files.length > 0 && (phase.kind === "idle" || phase.kind === "failed"), files.length > 1 ? "your files" : "your file");
   const tooManyPages = !!firstPdf && !!pageLimit && pageCount?.file === firstPdf && pageCount.pages > pageLimit ? pageCount.pages : 0;
 
   /** Adds files after checking type, count and size, so a wrong file is caught before any upload. */
@@ -223,6 +244,18 @@ export function ToolsPage() {
     if (tool && kept && !carried.length) {
       setBefore(kept.before ?? null);
       setPhase({ kind: "working", job: { token: kept.token, op: tool.op, status: "queued", name: kept.name }, slow: false, since: kept.at });
+    }
+    // R74: no run and nothing handed over: the file picked here before a reload of this tab comes back.
+    filesFor.current = tool?.op ?? null;
+    restoring.current = !!tool && !kept && !carried.length && !askedAttachment;
+    if (tool && restoring.current) {
+      const want = tool;
+      void keptFiles(`tools:${want.op}`).then((back) => {
+        restoring.current = false;
+        if (!back?.length || toolRef.current?.op !== want.op) return;
+        add(back, want);
+        toast(RESTORED_LINE);
+      });
     }
     if (op) window.scrollTo({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -485,6 +518,7 @@ export function ToolsPage() {
     if (op && info.isLoading) return <ToolSkeleton />;
     return (
       <div className="mx-auto w-full max-w-5xl pb-10" data-testid="tools-page" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+        {leaveGuard}
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <h1 className="large-title">Tools</h1>
@@ -575,6 +609,7 @@ export function ToolsPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl pb-6" data-testid="tools-page" onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}>
+      {leaveGuard}
       <div className="lg:grid lg:grid-cols-[236px_minmax(0,1fr)] lg:gap-6">
         <nav className="hidden lg:block" aria-label="All tools">
           <div className="sticky top-2 max-h-[calc(100dvh-5rem)] space-y-2 overflow-y-auto pb-6 pr-1">
@@ -716,7 +751,15 @@ export function ToolsPage() {
                   <>
                     {essential.length > 0 && (
                       <div className="space-y-4" data-testid="tools-options">
-                        {essential.map((o) => <OptionField key={o.name} o={o} value={options[o.name] ?? ""} disabled={busy} onChange={(v) => setOptions((cur) => ({ ...cur, [o.name]: v }))} />)}
+                        {essential.map((o) => {
+                          const field = <OptionField key={o.name} o={o} value={options[o.name] ?? ""} disabled={busy} onChange={(v) => setOptions((cur) => ({ ...cur, [o.name]: v }))} />;
+                          // R74: Split picks its parts from choices once the pages are counted; typing is the Custom choice.
+                          if (tool.op === "split" && o.name === "ranges" && splitPdf && splitPages?.file === splitPdf && splitPages.pages > 1) {
+                            return <SplitPresets key={o.name} pages={splitPages.pages} value={options.ranges ?? ""} disabled={busy} custom={field}
+                              onChange={(v) => setOptions((cur) => ({ ...cur, ranges: v }))} />;
+                          }
+                          return field;
+                        })}
                       </div>
                     )}
                     {advanced.length > 0 && (

@@ -13,6 +13,8 @@ import { api } from "@/web/lib/api";
 import { readCompareChanges, type CompareChanges, type EditorJob } from "@/shared/tools-editors";
 import { readJson, startCompare, waitFor, RunError, sourceName, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard, sizeOf } from "./shell";
+import { useKeptSource } from "./keep-source"; // R74
+import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R74
 
 type Phase = { kind: "pick" } | { kind: "working"; pct: number | null } | { kind: "done"; report: EditorJob; changes: CompareChanges } | { kind: "failed"; error: RunError };
 
@@ -92,6 +94,10 @@ export function ComparePage() {
   };
   const again = () => { setOlder(null); setNewer(null); setPhase({ kind: "pick" }); };
   const swap = () => { const o = older; setOlder(newer); setNewer(o); };
+  // R74: both picked PDFs survive a reload of this tab, and leaving before Compare asks first.
+  useKeptSource("compare-older", older, setOlder, phase.kind === "done");
+  useKeptSource("compare-newer", newer, setNewer, phase.kind === "done");
+  const leaveGuard = useLeaveGuard(!!(older || newer) && phase.kind !== "done", "your files");
 
   return (
     <EditorFrame feature="compare" title="Compare PDFs" description="See what changed between two versions of a document, page by page." testId="compare-tool">
@@ -110,6 +116,7 @@ export function ComparePage() {
           </div>
         </Card>
       )}
+      {leaveGuard}
       {phase.kind === "failed" && <ErrorCard error={phase.error} onRetry={() => setPhase({ kind: "pick" })} />}
       {phase.kind === "done" && (
         <>

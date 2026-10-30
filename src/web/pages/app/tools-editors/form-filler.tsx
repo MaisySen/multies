@@ -16,6 +16,8 @@ import {
 } from "@/shared/tools-editors";
 import { readJson, start, useToolFeatures, waitFor, RunError, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard } from "./shell";
+import { useKeptSource } from "./keep-source"; // R74
+import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R74
 
 type Phase = { kind: "pick" } | { kind: "reading"; pct: number | null } | { kind: "form" } | { kind: "empty" } | { kind: "filling"; pct: number | null } | { kind: "done"; job: EditorJob } | { kind: "failed"; error: RunError; back: "pick" | "form" };
 
@@ -135,6 +137,9 @@ export function FormFillerPage() {
   const busy = phase.kind === "reading" || phase.kind === "filling";
   const showForm = phase.kind === "form" || phase.kind === "filling" || (phase.kind === "failed" && phase.back === "form");
   const filled = phase.kind === "done" ? phase.job.result?.fields_filled : undefined;
+  // R74: the picked form survives a reload of this tab, and leaving before it is filled in asks first.
+  useKeptSource("forms", src, setSrc, phase.kind === "done");
+  const leaveGuard = useLeaveGuard(!!src && phase.kind !== "done", "this form");
 
   return (
     <EditorFrame feature="forms" title="Fill a PDF form" description="Type into a PDF form's own fields, then download it filled in." testId="form-filler">
@@ -188,6 +193,7 @@ export function FormFillerPage() {
       )}
 
       {phase.kind === "failed" && <ErrorCard error={phase.error} onRetry={phase.back === "pick" ? again : () => setPhase({ kind: "form" })} />}
+      {leaveGuard}
       {phase.kind === "done" && <ResultCard job={phase.job} onAgain={again}
         facts={`${filled !== undefined ? `${filled} ${filled === 1 ? "field" : "fields"} filled in` : "Filled in"}${flatten ? ", flattened so it cannot be changed" : ""}.`} />}
     </EditorFrame>

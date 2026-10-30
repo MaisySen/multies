@@ -7,6 +7,7 @@
  *  - clearOfflineData() runs on sign out: this browser's push subscription is removed and every Multies
  *    cache is deleted, so the next person on this device sees nothing of the last one's.
  */
+import { forgetAllKeptFiles } from "./kept-files";
 import { api } from "./api";
 import { clearMeCache } from "./me-cache";
 import { wipeOfflineLists } from "./offline-lists"; // R33
@@ -72,6 +73,7 @@ export const CLEAR_CACHES_MESSAGE = { type: "CLEAR_CACHES" } as const;
 export async function clearOfflineData(): Promise<void> {
   await wipeOfflineLists(); // R33: stored list copies go with the caches
   clearMeCache(); // R40 (MB-200): and the saved account copy
+  void forgetAllKeptFiles(); // R74: and any Tools file kept for a reload
   try {
     if ("serviceWorker" in navigator) {
       const reg = await navigator.serviceWorker.getRegistration();

@@ -20,6 +20,8 @@ import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard } from "./shell
 import { useToolsInfo } from "@/web/components/tools/use-tools-info";
 import { noRunsLine, runsLeft } from "@/web/components/tools/tool-directory";
 import { tz } from "@/web/lib/format";
+import { useKeptSource } from "./keep-source"; // R74
+import { useLeaveGuard } from "@/web/components/tools/leave-guard"; // R74
 
 interface Item { id: string; page: number; rotate: Rotation }
 type Phase = { kind: "pick" } | { kind: "loading"; pct: number | null } | { kind: "edit" } | { kind: "saving"; pct: number | null } | { kind: "done"; job: EditorJob } | { kind: "failed"; error: RunError; back: "pick" | "edit" };
@@ -150,6 +152,9 @@ export function PageEditorPage() {
   const toolsInfo = useToolsInfo();
   const runs = toolsInfo.data ? runsLeft(toolsInfo.data.usage, toolsInfo.data.limits) : null;
   const noneLeft = runs?.left === 0;
+  // R74: the picked PDF survives a reload of this tab, and leaving before Save asks first.
+  useKeptSource("pages", src, setSrc, phase.kind === "done");
+  const leaveGuard = useLeaveGuard(!!src && phase.kind !== "done", "your page changes");
 
   return (
     <EditorFrame feature="editor" title="Edit pages" description="See every page, then drag to reorder, turn or delete pages. Save makes a new PDF; the original is not changed." testId="page-editor">
@@ -194,6 +199,7 @@ export function PageEditorPage() {
       )}
 
       {phase.kind === "failed" && <ErrorCard error={phase.error} onRetry={phase.back === "pick" ? again : () => setPhase({ kind: "edit" })} />}
+      {leaveGuard}
       {phase.kind === "done" && <ResultCard job={phase.job} facts={phase.job.result?.pages ? `${phase.job.result.pages} ${phase.job.result.pages === 1 ? "page" : "pages"}.` : summary} onAgain={again} />}
     </EditorFrame>
   );
