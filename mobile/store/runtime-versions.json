@@ -2,11 +2,12 @@
   "note": "Runtime versions (fingerprints) of the newest store builds. The OTA guard compares against these. Update after every store build (docs/OTA.md).",
   "commit": "3c232cbf9d06b4cd3f24f02200eb66696141cf04",
   "android": {
-    "version": "1.9.3",
-    "versionCode": 15,
-    "runtimeVersion": "e5a5bb6ce563a5072e021a35eb0966285dc7af8a",
+    "version": "1.10.0",
+    "versionCode": 16,
+    "runtimeVersion": "5c9046a2b2722bcdb48711f629fb4a38c335e78e",
     "channel": "production",
-    "track": "internal"
+    "track": "internal",
+    "playEdit": "04590038110376775609"
   },
   "ios": {
     "version": "1.10.0",
