@@ -82,12 +82,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
   },
   {
-    id: "2026-10-28-more-command-words",
-    date: "2026-10-28",
-    title: "More words the command menu understands",
-    body: "Change a status (\"mark MB-12 in progress\"), add or remove labels (\"MB-12 +urgent -later\") or move a task to another project (\"move MB-12 to project Website\"). You see the change before you press Enter, and Undo puts it back.",
-  },
-  {
     id: "2026-10-28-rules-do-more",
     date: "2026-10-28",
     title: "One rule, several actions",
