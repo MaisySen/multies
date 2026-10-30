@@ -52,7 +52,7 @@ const log = (...a) => console.log(...a);
 
 function easJson(args) {
   if (!process.env.EXPO_TOKEN) throw new Error("EXPO_TOKEN is not set. Run through node ../app/scripts/creds.mjs run EXPO_TOKEN -- ...");
-  const out = run("eas", [...args, "--json", "--non-interactive"]);
+  const out = run("eas", [...args, "--json", ...(args[0] === "update:view" ? [] : ["--non-interactive"])]);
   return JSON.parse(out.slice(out.search(/[[{]/)));
 }
 
