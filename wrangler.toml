@@ -156,7 +156,15 @@ DEMO_DAILY_LIMIT = "10"
 # Reads the account's rows written today from Cloudflare analytics with the CF_ANALYTICS_TOKEN secret
 # (no database writes). Alerts from 60%; from 80% new demo workspaces wait until 00:00 UTC.
 CF_ACCOUNT_ID = "84058c44c33b60521d2bb03c36dc0881"
-D1_DAILY_WRITE_BUDGET = "100000"
+# R61a: the account is on Workers Paid since 30 Oct 2026 (50M rows written and 25B rows read a month included, no daily
+# limit), so the daily budgets are a month's allowance over 30 days: warn from 1.5M rows written and 500M rows read a day.
+D1_DAILY_WRITE_BUDGET = "1666666"
+WRITE_BUDGET_WARN_PCT = "90"
+WRITE_BUDGET_SHED_PCT = "95"
+D1_DAILY_READ_BUDGET = "833333333"
+READ_BUDGET_WARN_PCT = "60"
+# Older mail (backfill and repair) waits past 200M rows read in a UTC day (MAIL_SYNC_BACKFILL_DAILY_CAP still applies).
+MAIL_SYNC_BACKFILL_READ_CEILING = "200000000"
 BILLING_GRACE_DAYS = "7"
 # Cross checks: production watches staging (the preview) (src/server/services/status.ts).
 MONITOR_URLS = "https://mymail-staging.mymail-app.workers.dev"
@@ -264,7 +272,13 @@ DEMO_DAILY_LIMIT = "2"
 # Staging spends production's daily D1 budget (same account). Strict: from 60% of the budget its API
 # answers writes with the read only message, so tests here can never take production read only.
 CF_ACCOUNT_ID = "84058c44c33b60521d2bb03c36dc0881"
-D1_DAILY_WRITE_BUDGET = "100000"
+# R61a: Workers Paid budgets, the same as production (one account).
+D1_DAILY_WRITE_BUDGET = "1666666"
+WRITE_BUDGET_WARN_PCT = "90"
+WRITE_BUDGET_SHED_PCT = "95"
+D1_DAILY_READ_BUDGET = "833333333"
+READ_BUDGET_WARN_PCT = "60"
+MAIL_SYNC_BACKFILL_READ_CEILING = "200000000"
 WRITE_BUDGET_GUARD = "strict"
 DEMO_MODE = "true"
 SENTRY_ENVIRONMENT = "staging"

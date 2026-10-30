@@ -13,10 +13,13 @@ function analytics(rows: number, calls = { n: 0 }) {
     expect((init?.headers as Record<string, string>).authorization).toBe("Bearer tok");
     calls.n++;
     // Grouped by date with an exact date filter: grouped only by database with date_geq, the live API
-    // answered a stale total (25 Oct: 111 against 13,550).
-    const q = JSON.parse(String(init?.body)).query as string;
-    expect(q).toContain("filter:{date:$d}");
-    expect(q).toContain("dimensions{databaseId date}");
+    // answered a stale total (25 Oct: 111 against 13,550). R61a: the UTC day as a datetime range summed from its
+    // hours, because the per date total lagged the hours by more than 3M rows read on 30 Oct.
+    const body = JSON.parse(String(init?.body)) as { query: string; variables: { s: string; e: string } };
+    expect(body.query).toContain("filter:{datetime_geq:$s,datetime_lt:$e}");
+    expect(body.query).toContain("dimensions{databaseId datetimeHour}");
+    expect(body.variables.s).toMatch(/^\d{4}-\d{2}-\d{2}T00:00:00Z$/);
+    expect(Date.parse(body.variables.e) - Date.parse(body.variables.s)).toBe(86_400_000);
     const half = Math.floor(rows / 2);
     return new Response(JSON.stringify({ data: { viewer: { accounts: [{ d1AnalyticsAdaptiveGroups: [
       { sum: { rowsWritten: half }, dimensions: { databaseId: "prod" } },
@@ -47,7 +50,7 @@ describe("D1 write budget", () => {
     expect(levelFor(35_000, custom)).toBe("shed");
   });
 
-  it("sums every database on the account and reads analytics at most every five minutes", async () => {
+  it("sums every database on the account and reads analytics at most once a minute", async () => {
     const calls = { n: 0 };
     const { deps } = await makeTestApp(env(), { fetch: analytics(61_001, calls) });
     const r = await writeBudget(deps);

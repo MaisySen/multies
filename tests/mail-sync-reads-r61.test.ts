@@ -64,11 +64,12 @@ describe("R61 read stop line for older mail", () => {
   const reading = (rowsRead?: number) => ({ rowsWritten: 0, budget: 100_000, level: "ok", rowsRead });
 
   it("holds at 40% of D1's 5M daily reads by default, and unknown reads never hold", async () => {
-    expect(readsHold({ rowsRead: 1_999_999 }, 40)).toBe(false);
-    expect(readsHold({ rowsRead: 2_000_000 }, 40)).toBe(true);
-    expect(readsHold({}, 40)).toBe(false);
+    expect(readsHold({ rowsRead: 1_999_999 }, 2_000_000)).toBe(false);
+    expect(readsHold({ rowsRead: 2_000_000 }, 2_000_000)).toBe(true);
+    expect(readsHold({}, 2_000_000)).toBe(false);
     const ctx = await makeTestApp();
     expect(ctx.deps.config.mailConnect.backfill.readStopPct).toBe(40);
+    expect(ctx.deps.config.mailConnect.backfill.readCeiling).toBe(2_000_000);
     const day = "2026-10-30";
     expect(await backfillAllowance(ctx.deps, parseState("{}"), reading(2_100_000), day)).toEqual({ n: 0, wait: "budget" });
     expect((await backfillAllowance(ctx.deps, parseState("{}"), reading(1_000_000), day)).n).toBeGreaterThan(0);
@@ -78,6 +79,17 @@ describe("R61 read stop line for older mail", () => {
   it("MAIL_SYNC_BACKFILL_READ_STOP_PCT moves the line, capped at 60", async () => {
     expect((await makeTestApp({ MAIL_SYNC_BACKFILL_READ_STOP_PCT: "30" })).deps.config.mailConnect.backfill.readStopPct).toBe(30);
     expect((await makeTestApp({ MAIL_SYNC_BACKFILL_READ_STOP_PCT: "95" })).deps.config.mailConnect.backfill.readStopPct).toBe(60);
+    expect((await makeTestApp({ MAIL_SYNC_BACKFILL_READ_STOP_PCT: "30" })).deps.config.mailConnect.backfill.readCeiling).toBe(1_500_000);
+  });
+
+  it("R61a: on Workers Paid the line is rows read today, from the read budget or set outright", async () => {
+    const paid = await makeTestApp({ D1_DAILY_READ_BUDGET: "833000000" });
+    expect(paid.deps.config.mailConnect.backfill.readCeiling).toBe(333_200_000);
+    const set = await makeTestApp({ D1_DAILY_READ_BUDGET: "833000000", MAIL_SYNC_BACKFILL_READ_CEILING: "200000000" });
+    expect(set.deps.config.mailConnect.backfill.readCeiling).toBe(200_000_000);
+    const day = "2026-10-30";
+    expect((await backfillAllowance(set.deps, parseState("{}"), reading(150_000_000), day)).n).toBeGreaterThan(0);
+    expect(await backfillAllowance(set.deps, parseState("{}"), reading(200_000_000), day)).toEqual({ n: 0, wait: "budget" });
   });
 
   it("the repair sweep reads nothing past the line", async () => {

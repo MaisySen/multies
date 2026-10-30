@@ -292,7 +292,7 @@ export function createApp(deps: Deps) {
       }
       // The account's D1 writes today (cached five minutes per isolate; absent when the guard is off).
       const wb = await writeBudget(deps);
-      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead) } : {}), workspaces: await workspaceHealthView(deps).catch(() => null) });
+      return c.json({ ok: true, mode: deps.config.mode, db: "ok", release: deps.config.release, ...(wb.level !== "off" ? { writes: { ...healthView(wb, deps.config.writeBudget, deps.now()), deferred: deferredCounts() }, reads: readsView(wb.rowsRead, deps.config.writeBudget) } : {}), workspaces: await workspaceHealthView(deps).catch(() => null) });
     } catch {
       return c.json({ ok: false, mode: deps.config.mode, db: "unreachable" }, 503);
     }

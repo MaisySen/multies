@@ -93,10 +93,11 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
     return out;
   }
 
-  const list = await splitsCopy.getOr(`${a.userId}:${a.orgId}`, () => listSplits(deps, { orgId: a.orgId, userId: a.userId }));
-  const split = { orgId: a.orgId, userId: a.userId };
+  // R61a kill switch (MAIL_SPLIT_COUNTS=off): Important and Other read 0 and their rule is not evaluated at all.
+  const splitsOn = deps.config.mailSplitCounts;
+  const list = splitsOn ? await splitsCopy.getOr(`${a.userId}:${a.orgId}`, () => listSplits(deps, { orgId: a.orgId, userId: a.userId })) : [];
   // R59 hotfix: the Important rule is evaluated once per row; Other is "not claimed" minus Important.
-  const { important, notClaimed } = splitCountParts(split.orgId, list);
+  const { important, notClaimed } = splitCountParts(a.orgId, list);
   // Owners and admins see every mailbox; a member only the ones granted (a subquery, not a separate read).
   const scope = (a.role ?? "member") === "member"
     ? inArray(messages.mailboxId, deps.db.select({ id: mailboxAccess.mailboxId }).from(mailboxAccess).where(and(eq(mailboxAccess.userId, a.userId), eq(mailboxAccess.orgId, a.orgId)))) // D1: a subquery, not a bound list
@@ -107,8 +108,8 @@ export async function getCounts(deps: Deps, a: SuiteActor, opts: { tz?: string |
   const notes = deps.db.select({ n: count() }).from(notifications).where(and(eq(notifications.orgId, a.orgId), eq(notifications.userId, a.userId), isNull(notifications.readAt), inboxWhere(now)));
   const r = await deps.db.select({
     inbox: sql<number>`count(*)`,
-    important: sql<number>`coalesce(sum(case when ${important} then 1 else 0 end), 0)`,
-    notClaimed: notClaimed ? sql<number>`coalesce(sum(case when ${notClaimed} then 1 else 0 end), 0)` : sql<number>`count(*)`,
+    important: splitsOn ? sql<number>`coalesce(sum(case when ${important} then 1 else 0 end), 0)` : sql<number>`0`,
+    notClaimed: !splitsOn ? sql<number>`0` : notClaimed ? sql<number>`coalesce(sum(case when ${notClaimed} then 1 else 0 end), 0)` : sql<number>`count(*)`,
     dueToday: sql<number>`(${dueToday})`,
     overdue: sql<number>`(${overdue})`,
     triage: sql<number>`(${triage})`,

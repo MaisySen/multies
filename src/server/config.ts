@@ -96,7 +96,13 @@ export interface AppConfig {
    */
   /** R48 (MB-235): rows one workspace may write per UTC day before its writes pause (0 = off); admins hear from `nearAt`. */
   workspaceBudget: { daily: number; nearAt: number };
-  writeBudget: { token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean; alertTo?: string };
+  writeBudget: {
+    token?: string; accountId?: string; daily: number; warnAt: number; shedAt: number; strict: boolean; alertTo?: string;
+    /** R61a: the account's daily D1 rows read budget for /api/health (D1_DAILY_READ_BUDGET; the Free plan's hard 5M by default, about 833M a day on Workers Paid) and its warn level (READ_BUDGET_WARN_PCT, 60). */
+    readsDaily: number; readsWarnAt: number;
+  };
+  /** R61a: Important and Other unread counts (MAIL_SPLIT_COUNTS, default on; "off" makes them 0 and skips their rule). */
+  mailSplitCounts: boolean;
   /** Stripe billing. `enabled` only when every key below is set. */
   billing: {
     enabled: boolean;
@@ -173,7 +179,7 @@ export interface AppConfig {
     /** Minutes between scheduled syncs of one connection. */
     intervalMinutes: number;
     /** R57: full history backfill (header and snippet only; body on first open). */
-    backfill: { enabled: boolean; batch: number; dailyCap: number; globalDaily: number; stopPct: number; readStopPct: number; peekBytes: number };
+    backfill: { enabled: boolean; batch: number; dailyCap: number; globalDaily: number; stopPct: number; readStopPct: number; readCeiling: number; peekBytes: number };
     /** R57: Node only, the wait before the next chained pass (0, the default, chains nothing: the cron picks it up). */
     chainMs: number;
     /** Live mail while Multies is open (IDLE on the Inbox). MAIL_LIVE=off turns it off. */
@@ -269,6 +275,9 @@ const EnvSchema = z.object({
   WRITE_BUDGET_WARN_PCT: z.string().optional(),
   WRITE_BUDGET_SHED_PCT: z.string().optional(),
   WRITE_BUDGET_GUARD: z.string().optional(),
+  D1_DAILY_READ_BUDGET: z.string().regex(/^\d+$/).optional(),
+  READ_BUDGET_WARN_PCT: z.string().optional(),
+  MAIL_SPLIT_COUNTS: z.string().optional(),
   OPS_ALERT_EMAIL: z.string().optional(),
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
@@ -322,6 +331,7 @@ const EnvSchema = z.object({
   MAIL_SYNC_BACKFILL_GLOBAL_DAILY: z.string().optional(),
   MAIL_SYNC_BACKFILL_STOP_PCT: z.string().optional(),
   MAIL_SYNC_BACKFILL_READ_STOP_PCT: z.string().optional(),
+  MAIL_SYNC_BACKFILL_READ_CEILING: z.string().regex(/^\d+$/).optional(),
   MAIL_SYNC_CHAIN_MS: z.string().optional(),
   MAIL_LIVE: z.string().optional(),
   MAIL_LIVE_MINUTES_PER_DAY: z.string().optional(),
@@ -483,6 +493,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       daily: Math.max(0, Number.parseInt(env.WORKSPACE_DAILY_WRITES ?? "20000", 10) || 0),
       nearAt: pct(env.WORKSPACE_BUDGET_NEAR_PCT, 80),
     },
+    mailSplitCounts: !(["off", "0", "false"].includes(String(env.MAIL_SPLIT_COUNTS ?? "").trim().toLowerCase())),
     writeBudget: {
       token: env.CF_ANALYTICS_TOKEN?.trim() || undefined,
       accountId: env.CF_ACCOUNT_ID?.trim() || undefined,
@@ -490,6 +501,8 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
       warnAt: pct(env.WRITE_BUDGET_WARN_PCT, 60),
       shedAt: pct(env.WRITE_BUDGET_SHED_PCT, 85),
       strict: env.WRITE_BUDGET_GUARD === "strict",
+      readsDaily: Math.max(1_000_000, Number.parseInt(env.D1_DAILY_READ_BUDGET ?? "5000000", 10) || 5_000_000),
+      readsWarnAt: pct(env.READ_BUDGET_WARN_PCT, 60),
       alertTo: env.OPS_ALERT_EMAIL?.trim() === "off" ? undefined : env.OPS_ALERT_EMAIL?.trim() || `security@${(env.SUPPORT_EMAIL?.trim() || "support@multies.si").split("@")[1]}`,
     },
     billing: {
@@ -561,8 +574,13 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
           dailyCap: num(env.MAIL_SYNC_BACKFILL_DAILY_CAP, 5000),
           globalDaily: num(env.MAIL_SYNC_BACKFILL_GLOBAL_DAILY, 7000),
           stopPct: Math.min(num(env.MAIL_SYNC_BACKFILL_STOP_PCT, 50), 85),
-          // R61: and none once the account's D1 reads reach this percent of the 5M a day (past 100% every read fails).
+          // R61: and none once the account's D1 reads reach this percent of the daily read budget (Free plan: 5M, past it every read fails).
           readStopPct: Math.min(num(env.MAIL_SYNC_BACKFILL_READ_STOP_PCT, 40), 60),
+          // R61a: the same stop as rows read today. MAIL_SYNC_BACKFILL_READ_CEILING sets it outright (Workers Paid has no daily
+          // limit); otherwise readStopPct of D1_DAILY_READ_BUDGET.
+          readCeiling: env.MAIL_SYNC_BACKFILL_READ_CEILING && Number(env.MAIL_SYNC_BACKFILL_READ_CEILING) > 0
+            ? Math.floor(Number(env.MAIL_SYNC_BACKFILL_READ_CEILING))
+            : Math.floor((Math.max(1_000_000, Number.parseInt(env.D1_DAILY_READ_BUDGET ?? "5000000", 10) || 5_000_000) * Math.min(num(env.MAIL_SYNC_BACKFILL_READ_STOP_PCT, 40), 60)) / 100),
           peekBytes: 6144,
         },
         /** R57: Node only (no Durable Object alarm): the wait before the next chained pass while more mail is waiting. */

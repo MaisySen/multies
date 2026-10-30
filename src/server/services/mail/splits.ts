@@ -206,20 +206,31 @@ export async function splitCond(deps: Deps, a: SplitActor, split: string, splits
  */
 export function splitCountParts(orgId: string, list: MailSplit[]): { important: SQL; notClaimed: SQL | null } {
   const claimed = claimedCond(list, orgId);
-  const base = sql`coalesce(${importantBaseCond(orgId)}, 0)`;
+  // R61a (D1 reads): "is true" / "is not true", never coalesce(<rule>, 0). The meaning is the same (a NULL counts as no), but
+  // inside coalesce() SQLite ran the rule's IN subqueries again for every unread row: 1,109,372 rows read per count on
+  // production for a workspace with 10,411 unread Inbox rows, against 73,836 written this way (measured 30 Oct).
+  const base = sql`(${importantBaseCond(orgId)}) is true`;
   if (!claimed) return { important: base, notClaimed: null };
-  const notClaimed = sql`not coalesce(${claimed}, 0)`;
+  const notClaimed = sql`(${claimed}) is not true`;
   return { important: sql`(${base} and ${notClaimed})`, notClaimed };
 }
 
 /** Inbox tabs for a mailbox (or every mailbox in scope), each with its unread count. Snoozed mail is left out. R59: one statement for every tab. */
 export async function splitTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; scope: string[] | null }): Promise<SplitTab[]> {
   const list = await listSplits(deps, a);
+  // R61a kill switch (MAIL_SPLIT_COUNTS=off): the tabs stay, their unread counts read as 0 and no count runs.
+  if (!deps.config.mailSplitCounts) {
+    return [
+      { id: "important", name: "Important", builtIn: true, unread: 0 },
+      { id: "other", name: "Other", builtIn: true, unread: 0 },
+      ...list.map((s) => ({ id: s.id, name: s.name, builtIn: false, unread: 0 })),
+    ];
+  }
   const parts = splitCountParts(a.orgId, list);
   const sum = (c: SQL) => sql<number>`coalesce(sum(case when ${c} then 1 else 0 end), 0)`;
   const cols: Record<string, SQL<number>> = { total: sql<number>`count(*)`, important: sum(parts.important) };
   if (parts.notClaimed) cols.notClaimed = sum(parts.notClaimed);
-  list.forEach((s, i) => { cols[`s${i}`] = sum(sql`coalesce(${splitMatchCond(s, a.orgId)}, 0)`); });
+  list.forEach((s, i) => { cols[`s${i}`] = sum(sql`(${splitMatchCond(s, a.orgId)}) is true`); });
   const row = (await deps.db.select(cols).from(messages).where(and(
     eq(messages.orgId, a.orgId), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, q.scope ? inIds(messages.mailboxId, q.scope) : undefined,
     eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(deps.now()),

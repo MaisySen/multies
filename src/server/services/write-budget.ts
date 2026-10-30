@@ -39,10 +39,12 @@ export function healthView(r: WriteBudgetReading, cfg: Pick<Deps["config"]["writ
   };
 }
 
-export function readsView(rowsRead: number | undefined) {
+/** R61a: against the configured daily read budget (D1_DAILY_READ_BUDGET: the Free plan's 5M by default, larger on Workers Paid). */
+export function readsView(rowsRead: number | undefined, cfg: { readsDaily: number; readsWarnAt: number } = { readsDaily: D1_DAILY_READS, readsWarnAt: READ_BUDGET_WARN_PCT / 100 }) {
   if (rowsRead === undefined) return null;
-  const pct = Math.round((rowsRead / D1_DAILY_READS) * 1000) / 10;
-  return { today: rowsRead, budget: D1_DAILY_READS, pct, level: pct >= 100 ? "limit" : pct >= READ_BUDGET_WARN_PCT ? "warn" : "ok", warnAt: READ_BUDGET_WARN_PCT, loadStopAt: READ_BUDGET_LOAD_STOP_PCT };
+  const pct = Math.round((rowsRead / cfg.readsDaily) * 1000) / 10;
+  const warnAt = Math.round(cfg.readsWarnAt * 100);
+  return { today: rowsRead, budget: cfg.readsDaily, pct, level: pct >= 100 ? "limit" : pct >= warnAt ? "warn" : "ok", warnAt, loadStopAt: READ_BUDGET_LOAD_STOP_PCT };
 }
 
 /** R32: alert and degrade from 60% (warn) and 85% (shed) of the daily budget, unless overridden by env. */
@@ -70,7 +72,8 @@ export const D1_DAILY_READS = 5_000_000;
 export const READ_BUDGET_WARN_PCT = 60;
 export const READ_BUDGET_LOAD_STOP_PCT = 50;
 
-const CACHE_MS = 5 * 60_000;
+// R61a: one minute (was five). On 30 Oct a 1.1M row burst landed after the cached reading and health kept showing 57.7%.
+const CACHE_MS = 60_000;
 let cached: { key: string; at: number; reading: WriteBudgetReading } | null = null;
 let inflight: Promise<WriteBudgetReading> | null = null;
 const alerted = new Set<string>();
@@ -100,7 +103,9 @@ export function levelFor(rowsWritten: number, cfg: Deps["config"]["writeBudget"]
 
 // The date is a dimension and an exact filter: grouped only by database with date_geq, the analytics API
 // answered 111 rows for 25 Oct while the same day grouped by date read 13,550 (checked 25 Oct 00:30 UTC).
-const QUERY = `query($a:String!,$d:Date!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:50,filter:{date:$d}){sum{rowsWritten rowsRead} dimensions{databaseId date}}}}}`;
+// R61a: the day is now summed from its hours (datetime range, grouped by hour and database). The per date total lags:
+// at 01:50 UTC on 30 Oct it still said 2.88M rows read while the hours (and the minute 01:34) already held 3.35M more.
+const QUERY = `query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){d1AnalyticsAdaptiveGroups(limit:200,filter:{datetime_geq:$s,datetime_lt:$e}){sum{rowsWritten rowsRead} dimensions{databaseId datetimeHour}}}}}`;
 
 async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
   const cfg = deps.config.writeBudget;
@@ -108,7 +113,7 @@ async function fetchReading(deps: Deps): Promise<WriteBudgetReading> {
   const res = await deps.fetch("https://api.cloudflare.com/client/v4/graphql", {
     method: "POST",
     headers: { authorization: `Bearer ${cfg.token}`, "content-type": "application/json" },
-    body: JSON.stringify({ query: QUERY, variables: { a: cfg.accountId, d: now.toISOString().slice(0, 10) } }),
+    body: JSON.stringify({ query: QUERY, variables: { a: cfg.accountId, s: `${now.toISOString().slice(0, 10)}T00:00:00Z`, e: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1)).toISOString() } }),
     signal: AbortSignal.timeout(5_000),
   });
   if (!res.ok) throw new Error(`analytics answered ${res.status}`);

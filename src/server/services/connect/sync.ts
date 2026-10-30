@@ -23,7 +23,7 @@ import { newId, toB64 } from "../../lib/crypto";
 import { makeSnippet, parseMime, type ParsedEmail } from "../mail/mime";
 import { MAX_INLINE_ATTACHMENT_BYTES } from "../mail/store";
 import { PENDING_FROM } from "../mail/pending-from";
-import { D1_DAILY_READS, writeBudget } from "../write-budget";
+import { writeBudget } from "../write-budget";
 import { connectionSecret, imapConnector, type Connection } from ".";
 import { classifyProblem } from "./problems";
 import { headerEnd, pickFolders, type FetchedMessage, type FolderPaths, type ImapSession, type RemoteFolder } from "./imap";
@@ -165,9 +165,11 @@ export function repairRowsQuery(db: Db, mailboxId: string, after: string) {
  * R61: D1's free plan refuses every read once the account passes 5M rows read in a UTC day (an outage, not a slowdown).
  * Older mail (backfill and repair sweep) waits once the day's reads reach `readStopPct` percent of that, as it already
  * does for writes at `stopPct`. New mail and flag changes keep going. Unknown reads (no analytics) do not hold it.
+ * R61a: the stop is a number of rows read today (`readCeiling`): on Workers Paid there is no daily limit, so the ceiling
+ * is set outright (MAIL_SYNC_BACKFILL_READ_CEILING); by default it is readStopPct of the daily read budget.
  */
-export function readsHold(reading: { rowsRead?: number }, readStopPct: number) {
-  return typeof reading.rowsRead === "number" && (reading.rowsRead / D1_DAILY_READS) * 100 >= readStopPct;
+export function readsHold(reading: { rowsRead?: number }, readCeiling: number) {
+  return typeof reading.rowsRead === "number" && reading.rowsRead >= readCeiling;
 }
 /** The provider's folder list is read again after this long. */
 export const FOLDER_LIST_TTL_MS = 6 * 3600_000;
@@ -654,7 +656,7 @@ export async function backfillAllowance(deps: Deps, state: SyncState, reading: {
   if (!cfg.enabled) return { n: 0, wait: null as BackfillState["wait"] };
   if (state.bf?.paused) return { n: 0, wait: null as BackfillState["wait"] };
   if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return { n: 0, wait: "budget" as const };
-  if (readsHold(reading, cfg.readStopPct)) return { n: 0, wait: "budget" as const };
+  if (readsHold(reading, cfg.readCeiling)) return { n: 0, wait: "budget" as const };
   const mine = state.bf?.day === day ? state.bf.n : 0;
   const perConn = Math.max(0, cfg.dailyCap - mine);
   if (perConn <= 0) return { n: 0, wait: "daily" as const };
@@ -740,7 +742,7 @@ export async function repairStep(deps: Deps, c: Pick<Connection, "id" | "mailbox
   const cfg = deps.config.mailConnect.backfill;
   if (!session.fetchHeads || state.rp?.done || !cfg.enabled || state.bf?.paused) return none;
   if (reading.level !== "off" && reading.budget > 0 && (reading.rowsWritten / reading.budget) * 100 >= cfg.stopPct) return none;
-  if (readsHold(reading, cfg.readStopPct)) return none;
+  if (readsHold(reading, cfg.readCeiling)) return none;
   const rows = await repairRowsQuery(deps.db, c.mailboxId, state.rp?.at ?? "");
   let repaired = 0;
   const byBox = new Map<string, typeof rows>();

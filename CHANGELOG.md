@@ -7,6 +7,12 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 61 (30 Oct 2026)
+
+- Fixed: opening the app could read over a million database rows per unread count for a workspace with a large synced mailbox (1,109,372 rows for 10,411 unread messages, measured on production), which took the account past its daily read limit. The Important rule in the unread counts and the Inbox tab counts is now written so its lookups run once per count (73,836 rows for the same count). MAIL_SPLIT_COUNTS=off turns the Important and Other counts off without a code change.
+- Changed: the connected mailbox sync reads only what it needs. Migration 0093 adds two partial indexes on messages for the flag window, the oldest stored UID and the repair sweep, and older mail waits past a daily rows read ceiling (MAIL_SYNC_BACKFILL_READ_CEILING).
+- Changed: the database budgets follow the Workers Paid plan (D1_DAILY_WRITE_BUDGET, D1_DAILY_READ_BUDGET, READ_BUDGET_WARN_PCT), and /api/health sums today's reads from the hourly analytics, read at most a minute old, so it no longer lags a burst.
+
 ### Round 59 (30 Oct 2026)
 
 - Fixed: older mail from the full mailbox sync could show as "unknown@invalid", no subject, dated the day it was copied, with no preview. The backfill reads the envelope plus the first 6 KB of each message; when the header block was longer (long Received, ARC and DKIM chains), From, Subject and Date fell past the cut and the MIME parser's placeholders won over the envelope. The envelope now comes first (then headers really present, then the server's received date), a message whose headers or body start outrun the peek gets one more partial fetch (up to 32 KB), and a row with no readable sender is kept out of lists and folder counts. A repair sweep in the sync runner reads such rows again (and older rows with no preview), 100 a pass, under the same 50% write stop as the backfill; cursors and caps are untouched.
