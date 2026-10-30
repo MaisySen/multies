@@ -10,7 +10,8 @@
  * inline up to MEDIA_INLINE_MAX, the body store above it when one is configured, otherwise kept as a name only.
  * That is one more row write (the message's file columns) for a message with a file.
  */
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { Deps } from "../../context";
 import { msgChannels, msgConversations, msgMessages, usageCounters } from "../../db/schema";
 import { newId, toB64 } from "../../lib/crypto";
@@ -34,7 +35,7 @@ export async function ingestBatches(deps: Deps, batches: WebhookBatch[]): Promis
   const res: IngestResult = { stored: 0, duplicates: 0, statuses: 0, unknownEndpoint: 0, overCap: false, mediaJobs: [] };
   if (!batches.length) return res;
   const endpointIds = [...new Set(batches.map((b) => b.endpointId))].slice(0, 50);
-  const rows = await deps.db.select().from(msgChannels).where(and(inArray(msgChannels.externalId, endpointIds), eq(msgChannels.status, "active")));
+  const rows = await deps.db.select().from(msgChannels).where(and(inIds(msgChannels.externalId, endpointIds), eq(msgChannels.status, "active")));
   for (const b of batches) {
     const ch = rows.find((r) => r.externalId === b.endpointId && (r.provider === b.family || (b.family === "whatsapp" && r.provider === "mock")));
     if (!ch) { res.unknownEndpoint++; continue; }

@@ -48,6 +48,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
   { id: "p-connections", label: "Connected mailboxes", to: "/app/settings/connections", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections"] },
   { id: "p-mail-apps", label: "Mail apps", to: "/app/settings/mail-apps", icon: IconSmartphone, keywords: ["imap", "smtp", "app password", "outlook", "apple mail"] },
+  { id: "p-chat-channels", label: "Chat channels", to: "/app/settings/channels", icon: IconChats, keywords: ["whatsapp", "messenger", "instagram", "chat", "connect"] },
   { id: "p-developers", label: "Developers", to: "/app/settings/developers", icon: IconKey, keywords: ["api", "webhooks", "keys", "mcp"] },
   { id: "p-sign-up-emails", label: "Sign-up emails", to: "/app/settings/sign-up-emails", icon: IconMention, keywords: ["auth emails", "verification", "hook"] },
   { id: "p-import", label: "Import", to: "/app/settings/import", icon: IconUpload, keywords: ["migrate", "move", "asana", "trello", "jira"] },

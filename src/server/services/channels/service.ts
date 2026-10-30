@@ -3,7 +3,8 @@
  * (organizations.channels_enabled, off by default; admins turn it on in Settings, Channels) and a member of the
  * workspace. Connecting and disconnecting a channel is for owners and admins. Tokens never leave the server.
  */
-import { and, asc, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, like, or, sql } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import type { Deps, AuthContext } from "../../context";
 import { agents, members, msgChannels, msgConversations, msgMessages, organizations, tasks, threadComments, usageCounters, users } from "../../db/schema";
 import { encryptSecret, fromB64, newId } from "../../lib/crypto";
@@ -137,8 +138,8 @@ async function namesOf(deps: Deps, ids: (string | null)[], agentIds: (string | n
   const list = [...new Set(ids.filter((x): x is string => !!x))].slice(0, 90);
   const agentList = [...new Set(agentIds.filter((x): x is string => !!x && x !== API_SENDER))].slice(0, 90);
   const map = new Map<string, string>();
-  if (list.length) for (const r of await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inArray(users.id, list))) map.set(r.id, r.name || r.email);
-  if (agentList.length) for (const r of await deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inArray(agents.id, agentList))) map.set(`agent:${r.id}`, r.name);
+  if (list.length) for (const r of await deps.db.select({ id: users.id, name: users.name, email: users.email }).from(users).where(inIds(users.id, list))) map.set(r.id, r.name || r.email);
+  if (agentList.length) for (const r of await deps.db.select({ id: agents.id, name: agents.name }).from(agents).where(inIds(agents.id, agentList))) map.set(`agent:${r.id}`, r.name);
   return map;
 }
 

@@ -8,7 +8,8 @@
  */
 import type { Deps } from "../../context";
 import { ingestBatches } from "./ingest";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { inIds } from "../../lib/sql-chunks";
 import { msgChannels } from "../../db/schema";
 import { MOCK_APP_SECRET, parseAccountUpdates, parseWebhook, verifySignature } from "./webhook";
 
@@ -25,7 +26,7 @@ export async function handleWebhookPost(deps: Deps, raw: string, signature: stri
     if (gone.length) {
       try {
         await deps.db.update(msgChannels).set({ status: "error", lastError: "This WhatsApp account removed Multies. Connect it again to keep receiving messages." })
-          .where(and(inArray(msgChannels.externalAccountId, gone.slice(0, 50)), eq(msgChannels.provider, "whatsapp"), eq(msgChannels.status, "active")));
+          .where(and(inIds(msgChannels.externalAccountId, gone.slice(0, 50)), eq(msgChannels.provider, "whatsapp"), eq(msgChannels.status, "active")));
       } catch { return { status: 500, work: null }; }
     }
     return { status: 200, work: null };
