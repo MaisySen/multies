@@ -621,7 +621,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     const target = data.thread[data.thread.length - 1] ?? data.message;
     api.get<{ message: Message }>(`/mail/messages/${draftId}`).then(({ message: dm }) => {
       if (dm.folder !== "drafts" || dm.threadId !== threadId) { forgetOpenReply(threadId); return; }
-      onCompose({ mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", ") || undefined, subject: dm.subject, text: dm.text, draftId: dm.id, threadId, inReplyToId: target.id });
+      onCompose({ mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", ") || undefined, subject: dm.subject, text: dm.text, draftId: dm.id, threadId, inReplyToId: target.id, resumed: true });
     }, () => forgetOpenReply(threadId));
   }, [data, onCompose]);
   if (error) return <div className="grid flex-1 place-items-center text-sm text-muted">This message is no longer available.</div>;

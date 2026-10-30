@@ -128,7 +128,7 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
     const base = replyDraftFor(data, own, false);
     api.get<{ message: { id: string; folder: string; threadId: string; mailboxId: string; to: { address: string }[]; cc: { address: string }[]; subject: string; text: string } }>(`/mail/messages/${draftId}`).then(({ message: dm }) => {
       if (dm.folder !== "drafts" || dm.threadId !== data.id) { forgetOpenReply(data.id); return; }
-      onReply({ ...base, mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", "), subject: dm.subject, text: dm.text, draftId: dm.id });
+      onReply({ ...base, mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", "), subject: dm.subject, text: dm.text, draftId: dm.id, resumed: true });
     }, () => forgetOpenReply(data.id));
   }, [data, canReply, own, onReply]);
   if (thread.isPending) return <Card className="p-5"><Skeleton className="h-6 w-2/3" /><Skeleton className="mt-4 h-32" /></Card>;

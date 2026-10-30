@@ -35,6 +35,8 @@ export interface ComposeDraft {
   toolFiles?: ToolFileRef[];
   /** Tools P2: files attached in this composer (kept in memory only; drafts do not keep them). */
   files?: File[];
+  /** R67 (MB-244): a reply opened again after a reload; Discard deletes its saved draft. */
+  resumed?: boolean;
 }
 
 type SendResult = { messageId?: string; internal: string[]; external: { address: string; status: string; detail?: string }[] };
@@ -241,7 +243,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <RemindSelect value={remindDays} onChange={setRemindDays} />
               <SavedRepliesButton draft={d} bodyRef={bodyRef} onApply={applySnippet} />
             </div>
-            <button type="button" onClick={() => { const saved = takeAutoDraft(); if (saved && saved !== initial.draftId) void api.del(`/mail/messages/${saved}`).then(refresh, () => {}); onClose(); }} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
+            <button type="button" onClick={() => { const saved = takeAutoDraft(); if (saved && (saved !== initial.draftId || initial.resumed)) void api.del(`/mail/messages/${saved}`).then(refresh, () => {}); onClose(); }} className="inline-flex shrink-0 items-center justify-center rounded-md p-2 text-muted hover:bg-hover hover:text-bad max-sm:h-11 max-sm:w-11 max-sm:rounded-full" aria-label="Discard"><IconTrash className="h-4 w-4 max-sm:h-5 max-sm:w-5" /></button>
           </div>
         </form>
       )}
