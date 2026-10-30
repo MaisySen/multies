@@ -6,7 +6,7 @@ import { ReadStatusSection } from "./mail/splits"; // R31
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconChats, IconSliders, IconSmartphone, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
+import { IconBack, IconBell, IconCalendar, IconCheck, IconChevronRight, IconCode, IconCreditCard, IconDownload, IconKey, IconMail, IconMailCheck, IconPlug, IconPlus, IconSearch, IconSend, IconShieldCheck, IconSliders, IconSmartphone, IconTeam, IconTrash, IconWarning } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api, ApiError } from "@/web/lib/api";
@@ -33,7 +33,6 @@ export const SETTINGS_GROUPS: { label: string; items: Pane[] }[] = [
   { label: "Workspace", items: [
     { to: "/app/settings", label: "General", end: true, icon: IconSliders, tint: "#8E8E93", keywords: "time zone language country workspace name logo share links agents keys export delete workspace" },
     { to: "/app/settings/team", label: "Team", icon: IconTeam, tint: "#0071E3", keywords: "members invite roles admin agents guests remove" },
-    { to: "/app/settings/channels", label: "Chat channels", icon: IconChats, tint: "#25D366", keywords: "whatsapp messenger instagram facebook meta chat channels connect number customers" }, // C1
     { to: "/app/settings/billing", label: "Billing", icon: IconCreditCard, tint: "#34C759", keywords: "plan invoices card upgrade receipts tax" },
   ] },
   { label: "You", items: [
@@ -56,10 +55,6 @@ const ALL_PANES = SETTINGS_GROUPS.flatMap((g) => g.items);
 export function paneFor(path: string): Pane {
   const clean = path.replace(/\/+$/, "") || "/app/settings";
   return ALL_PANES.find((p) => p.to !== "/app/settings" && (clean === p.to || clean.startsWith(p.to + "/"))) ?? ALL_PANES[0];
-}
-/** R59: panes tied to a server switch (chat channels, CHAT_CHANNELS) are listed only while it is on. */
-export function panesFor(config: { chatChannels?: boolean } | undefined): (p: Pane) => boolean {
-  return (p) => p.to !== "/app/settings/channels" || !!config?.chatChannels;
 }
 export function matchPanes(q: string): Pane[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -98,8 +93,7 @@ export function SettingsLayout() {
   const pane = paneFor(loc.pathname);
   const atHub = (loc.pathname.replace(/\/+$/, "") === "/app/settings") && !loc.hash;
   useEffect(() => { const prev = document.title; document.title = `${pane.label} · Settings | Multies`; return () => { document.title = prev; }; }, [pane.label]);
-  const config = useConfig();
-  const shown = matchPanes(q).filter(panesFor(config.data));
+  const shown = matchPanes(q);
   const groups = SETTINGS_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => shown.includes(i)) })).filter((g) => g.items.length);
   const go = () => { if (shown[0]) { navigate(shown[0].to); setQ(""); } };
   return (

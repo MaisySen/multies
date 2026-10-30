@@ -4,6 +4,7 @@ import { ButtonLink, buttonClass } from "@/web/components/ui/button";
 import { useSignedIn } from "@/web/lib/queries";
 import { SWITCH_SOURCES, sampleFileName, startImportHref, switchSource, type SwitchSource } from "@/shared/switch-sources";
 import { NotFound } from "./not-found";
+import { LESS_ADMIN } from "@/shared/residency";
 
 const card = "rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6";
 
@@ -25,6 +26,17 @@ export function SwitchIndexPage() {
         ))}
       </ul>
       <p className="mt-8 text-sm text-muted">Using a spreadsheet? Any CSV or Excel file with a title column works too, from the same import screen.</p>
+
+      {/* R60 (trust): what Multies takes over, honestly scoped (src/shared/residency.ts). */}
+      <section className={`${card} mt-10`} aria-labelledby="sw-less-admin" data-testid="switch-less-admin">
+        <h2 id="sw-less-admin" className="text-lg font-semibold">Less admin, not more</h2>
+        <ul className="mt-3 space-y-3">
+          {LESS_ADMIN.map((s) => (
+            <li key={s.title} className="flex gap-2.5 text-[15px]"><IconCheck className="mt-1 h-4 w-4 shrink-0 text-ok" aria-hidden /><span><span className="font-medium">{s.title}. </span><span className="text-muted">{s.body}</span></span></li>
+          ))}
+        </ul>
+        <p className="mt-4 text-[13px] text-subtle">What connects today and what is planned: <Link to="/trust#connections" className="text-brand-hover hover:underline">Connections</Link>. Want to look first? <Link to="/trust#try" className="text-brand-hover hover:underline">Try it without a client mailbox</Link>.</p>
+      </section>
     </article>
   );
 }

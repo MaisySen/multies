@@ -50,7 +50,7 @@ export function watchCountInvalidations(qc: QueryClient) {
 export function useCounts(enabled: boolean) {
   const qc = useQueryClient();
   const q = useQuery({
-    queryKey: COUNTS_KEY, enabled, refetchInterval: 30_000, refetchOnWindowFocus: true, staleTime: 5_000,
+    queryKey: COUNTS_KEY, enabled, refetchInterval: 60_000, refetchOnWindowFocus: true, staleTime: 10_000, // R59 hotfix (D1 reads): 60 s like the phone app; pushes and mail changes still refresh at once
     queryFn: () => api.get<Counts>(`/counts${tz() ? `?tz=${encodeURIComponent(tz())}` : ""}`),
   });
   useEffect(() => {

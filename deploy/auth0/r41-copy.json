@@ -50,7 +50,6 @@
           "buttonText": "Save password"
         },
         "reset-password-success": {
-          "eventTitle": "Password saved",
           "description": "Your new password is saved. Sign in with it now.",
           "buttonText": "Back to Multies"
         },

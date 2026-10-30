@@ -39,7 +39,6 @@ import {
 } from "../services/agents";
 
 import { registerMailScheduleTools } from "./mcp-mail-schedule";
-import { registerChatChannelTools } from "./mcp-c1-chat";
 import { registerTaskTypeTools } from "./mcp-r21-types";
 import { registerSprintTools } from "./mcp-r21-sprints";
 import { registerTriageTools } from "./mcp-r21-triage";
@@ -291,7 +290,6 @@ export function buildMcpServer(deps: Deps, actor: Scoped, origin: string, call?:
   registerR10Tools(server, deps, actor, writable);
   registerR20ChatTools(server, deps, actor, writable);
   registerMailScheduleTools(server, deps, actor, writable, agentFor, tool);
-  if (deps.config.channels?.enabled) registerChatChannelTools(server, deps, actor, writable, tool); // C1: WhatsApp chats in the shared inbox (R59: only with CHAT_CHANNELS=on)
   registerTaskTypeTools(server, deps, actor, writable, tool);
   registerSprintTools(server, deps, actor, writable, tool);
   registerTriageTools(server, deps, actor, writable, tool);

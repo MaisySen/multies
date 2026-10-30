@@ -61,7 +61,7 @@ test("report a message, block the person, DM refused, operator dismisses", async
   await sheet.getByLabel("Note").fill("Third time this week");
   await a.screenshot({ path: `${SHOTS}/chat-after-report-sheet.png` });
   await sheet.getByTestId("report-send").click();
-  await expect(sheet).toContainText("Thanks. Our team reviews reports within 24 hours.");
+  await expect(sheet).toContainText("Thanks. Our team reviews reports within one business day.");
   await sheet.getByTestId("report-block").click();
   const confirm = a.getByRole("dialog").filter({ hasText: "Block Sam Lee?" });
   await expect(confirm).toContainText("They won't be told.");

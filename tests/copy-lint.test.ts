@@ -24,5 +24,6 @@ describe("copy lint", () => {
     expect(findIssues("wrangler.toml", 'URL = "https://x.tab' + '.bot"')).toHaveLength(1);
     expect(findIssues("docs/x.md", "see https://multies.si/privacy/")).toHaveLength(0);
     expect(findIssues("src/x.ts", "stab.bottle")).toHaveLength(0);
+    expect(findIssues("tests/x.test.ts", 'const e = "mymail' + '.builder+qa1@x.com"')[0]).toMatchObject({ rule: "host" });
   });
 });

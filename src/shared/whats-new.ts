@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-30-clearer-legal",
+    date: "2026-10-30",
+    title: "Clearer privacy and terms",
+    body: "The privacy policy, terms and trust page now say plainly what we do today, with one contact address: contact@fintex.au. Every backup is encrypted and deleted after 30 days.",
+  },
+  {
     id: "2026-10-30-older-mail-headers",
     date: "2026-10-30",
     title: "Older mail shows its sender and subject",
@@ -68,12 +74,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "Four new starter templates",
     body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
-  },
-  {
-    id: "2026-10-28-rule-choices-fix",
-    date: "2026-10-28",
-    title: "Rule settings ask before saving",
-    body: "A new rule that sets a priority or assigns the task now asks you to pick one, instead of showing a choice it did not save.",
   },
   {
     id: "2026-10-28-more-command-words",

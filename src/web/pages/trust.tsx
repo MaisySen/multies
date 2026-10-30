@@ -1,9 +1,13 @@
 import { useEffect } from "react";
 import { Link } from "react-router";
-import { IconActivity, IconDatabase, IconDatabaseBackup, IconKey, IconLock, IconMail, IconShieldCheck, IconTeam, type IconComponent } from "@/web/components/ui/icon";
+import { IconActivity, IconCheck, IconDatabase, IconDatabaseBackup, IconFlask, IconGlobe, IconKey, IconLock, IconMail, IconPlay, IconPlug, IconShieldCheck, IconTeam, type IconComponent } from "@/web/components/ui/icon";
 import {
-  BACKUPS, DATA_REGION, ENCRYPTION, INCIDENTS, SECURITY_EMAIL, SIGN_IN, SUBPROCESSORS, TRUST_UPDATED, type TrustFact,
+  BACKUPS, ENCRYPTION, INCIDENTS, SECURITY_EMAIL, SIGN_IN, SUBPROCESSORS, TRUST_UPDATED, type TrustFact,
 } from "@/shared/trust";
+import { CONNECTIONS, JURISDICTION, LESS_ADMIN, RESIDENCY_ANSWER, RESIDENCY_CHECKED, SAFE_TRIAL, WHERE_DATA_LIVES, type Step } from "@/shared/residency";
+import { Button, ButtonLink } from "@/web/components/ui/button";
+import { useConfig } from "@/web/lib/queries";
+import { useStartDemo } from "@/web/lib/demo";
 import { LegalLine } from "@/web/components/legal-line";
 
 const card = "rounded-2xl border border-line bg-surface p-5 shadow-card sm:p-6";
@@ -36,8 +40,57 @@ function Facts({ items }: { items: TrustFact[] }) {
   );
 }
 
+function Steps({ items, numbered }: { items: Step[]; numbered?: boolean }) {
+  const List = numbered ? "ol" : "ul";
+  return (
+    <List className="space-y-3">
+      {items.map((s, i) => (
+        <li key={s.title} className="flex gap-3">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-fill text-[12px] font-semibold tabular-nums text-muted" aria-hidden>{numbered ? i + 1 : <IconCheck className="h-3.5 w-3.5" />}</span>
+          <p className="text-[14px] leading-relaxed text-muted"><span className="font-medium text-fg">{s.title}. </span>{s.body}</p>
+        </li>
+      ))}
+    </List>
+  );
+}
+
+/** R60: the residency table. A real table so screen readers and text readers get rows and columns. */
+function WhereTable() {
+  return (
+    <div className="-mx-1 overflow-x-auto">
+      <table className="w-full min-w-[520px] text-left text-[13px]" data-testid="where-table">
+        <caption className="sr-only">Where your data lives</caption>
+        <thead><tr className="border-b border-line text-subtle"><th scope="col" className="py-2 pr-3 font-medium">Data</th><th scope="col" className="py-2 pr-3 font-medium">Where</th><th scope="col" className="py-2 font-medium">Notes</th></tr></thead>
+        <tbody className="divide-y divide-line">
+          {WHERE_DATA_LIVES.map((r) => (
+            <tr key={r.data} className="align-top">
+              <td className="py-2.5 pr-3 font-medium text-fg">{r.data}</td>
+              <td className="whitespace-nowrap py-2.5 pr-3"><span className={r.region === "au" ? "text-ok" : "text-fg"}>{r.where}</span></td>
+              <td className="py-2.5 text-muted">{r.detail}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TryIt() {
+  const config = useConfig();
+  const demo = useStartDemo();
+  return (
+    <>
+      <Steps items={SAFE_TRIAL} numbered />
+      <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+        {config.data?.demoEnabled && <Button variant="secondary" onClick={demo.start} loading={demo.loading} data-testid="trust-demo"><IconPlay className="h-4 w-4" aria-hidden /> Open the live demo</Button>}
+        <ButtonLink to="/signup" data-testid="trust-free-address">Take a free test address</ButtonLink>
+      </div>
+    </>
+  );
+}
+
 const NAV = [
-  ["region", "Data region"], ["subprocessors", "Sub processors"], ["backups", "Backups"], ["sign-in", "Sign in"],
+  ["where", "Where your data lives"], ["residency", "Jurisdiction"], ["try", "Try it safely"], ["less-admin", "Less admin"], ["connections", "Connections"], ["subprocessors", "Sub processors"], ["backups", "Backups"], ["sign-in", "Sign in"],
   ["encryption", "Encryption"], ["incidents", "Incident history"], ["contact", "Report a problem"],
 ] as const;
 
@@ -48,7 +101,7 @@ export function TrustPage() {
     <article className="mx-auto max-w-3xl px-5 pb-24 pt-28 sm:pt-32">
       <p className="text-xs uppercase tracking-wide text-subtle">Trust</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Security and data at Multies</h1>
-      <p className="mt-3 max-w-2xl text-muted">Where your data lives, who helps us run the service, how it is protected and backed up, and what has gone wrong. Every line here describes how Multies works today.</p>
+      <p className="mt-3 max-w-2xl text-muted">Where your data lives, how to try Multies without a client mailbox, what it connects to, who helps us run the service, how it is protected and backed up, and what has gone wrong. Every line here describes how Multies works today.</p>
       <p className="mt-2 text-sm text-muted"><LegalLine /></p>
       <p className="mt-2 text-xs text-subtle">Last updated {TRUST_UPDATED}</p>
 
@@ -59,9 +112,40 @@ export function TrustPage() {
       </nav>
 
       <div className="mt-8 space-y-5">
-        <Section id="region" icon={IconDatabase} title="Data region"><Facts items={DATA_REGION} /></Section>
+        <Section id="where" icon={IconDatabase} title="Where your data lives" intro={RESIDENCY_ANSWER}>
+          <WhereTable />
+          <p className="mt-4 text-[13px] text-subtle">Checked {RESIDENCY_CHECKED}. Also as Markdown: <a href="/trust.md" className="text-brand-hover hover:underline">/trust.md</a>.</p>
+        </Section>
 
-        <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls. Optional ones run only when you use that feature.">
+        <Section id="residency" icon={IconGlobe} title="Jurisdiction and data residency">
+          <ul className="space-y-2 text-[14px] leading-relaxed text-muted">{JURISDICTION.map((j) => <li key={j}>{j}</li>)}</ul>
+        </Section>
+
+        <Section id="try" icon={IconFlask} title="Try Multies without connecting a client mailbox" intro="You do not need to connect a client mailbox to see whether Multies fits.">
+          <TryIt />
+        </Section>
+
+        <Section id="less-admin" icon={IconCheck} title="Less admin, not more" intro="What Multies can take over, and where it stops.">
+          <Steps items={LESS_ADMIN} />
+          <p className="mt-4 text-[13px] text-subtle">Moving tasks over? See <Link to="/switch" className="text-brand-hover hover:underline">bring your work over</Link>.</p>
+        </Section>
+
+        <Section id="connections" icon={IconPlug} title="Connections" intro="What connects today, and what is planned. Planned means not available yet.">
+          <ul className="divide-y divide-line">
+            {CONNECTIONS.map((c) => (
+              <li key={c.name} className="py-3 first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[14px] font-medium">{c.name}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${c.status === "planned" ? "bg-fill text-muted" : "bg-ok-soft text-ok"}`}>{c.status === "planned" ? "Planned" : "Available today"}</span>
+                </div>
+                <p className="mt-1 text-[13.5px] text-muted">{c.detail}</p>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 text-[13px] text-subtle">Developer details: <a href="/docs/api.md" className="text-brand-hover hover:underline">REST API and webhooks</a>.</p>
+        </Section>
+
+        <Section id="subprocessors" icon={IconTeam} title="Sub processors" intro="Only the services Multies actually calls, named by what they do. Optional ones run only when you use that feature. Our Data processing agreement names each one.">
           <ul className="divide-y divide-line">
             {SUBPROCESSORS.map((s) => (
               <li key={s.name} className="py-3 first:pt-0 last:pb-0">

@@ -44,8 +44,6 @@ export interface Command {
    */
   handler: "run" | "page" | "local";
   /** Only offered when this says so (e.g. a task is focused). */
-  /** R59: offered only while this server switch (from /api/config) is on. */
-  flag?: "chatChannels";
   when?: (ctx: { focus: import("./focus").Focus }) => boolean;
   run?: (ctx: CommandContext) => void;
 }

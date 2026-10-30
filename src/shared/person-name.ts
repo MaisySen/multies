@@ -1,10 +1,10 @@
 /**
  * R56 (MB-241, MB-248): a first name to greet someone with, or to name their workspace and suggest
  * their free address after. Never the raw sign in email: a plus tag ("name+tag@") or a dotted handle
- * ("mymail.builder") is not a name, so only the first word with letters in the email's local part is used.
+ * ("sammy.tester") is not a name, so only the first word with letters in the email's local part is used.
  */
 
-/** "mymail.builder+qa4@x.com" becomes "Mymail"; "ada_lovelace99@x.com" becomes "Ada". Empty when nothing usable. */
+/** "sammy.tester+qa4@x.com" becomes "Sammy"; "ada_lovelace99@x.com" becomes "Ada". Empty when nothing usable. */
 export function nameFromEmail(email: string): string {
   const local = (email.split("@")[0] ?? "").split("+")[0] ?? "";
   const word = local.split(/[._\-\d]+/).find((p) => /[a-z]/i.test(p)) ?? "";

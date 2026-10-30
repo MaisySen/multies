@@ -6,6 +6,9 @@
 import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
+import { residencyStaticHtml, STATIC_FACTS_PATHS } from "../shared/residency"; // R60 (trust)
+
+const cleanPath = (p: string) => p.replace(/\/+$/, "") || "/";
 import { env as startupEnv } from "cloudflare:workers";
 import { configureReporting, flushReporting, reportException, reportingClientExists, type ReportingEnv } from "./reporting";
 import { drizzle } from "drizzle-orm/d1";
@@ -486,7 +489,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
  * Puts the page's own title, description, canonical and social tags into the shell, so crawlers and
  * link previews that do not run scripts see the right ones. A streaming rewrite: no extra CPU to speak of.
  */
-interface RewriterElement { setAttribute(name: string, value: string): void; setInnerContent(text: string): void; append(content: string, opts?: { html: boolean }): void }
+interface RewriterElement { setAttribute(name: string, value: string): void; setInnerContent(text: string, opts?: { html: boolean }): void; append(content: string, opts?: { html: boolean }): void }
 interface Rewriter { on(selector: string, handler: { element(el: RewriterElement): void }): Rewriter; transform(res: Response): Response }
 declare const HTMLRewriter: { new (): Rewriter } | undefined;
 
@@ -505,6 +508,8 @@ function withPageMeta(res: Response, path: string): Response {
     .on('meta[name="twitter:description"]', content(meta.description))
     .on('link[rel="canonical"]', { element: (el) => { el.setAttribute("href", url); } })
     .on("head", { element: (el) => { if (meta.noindex) el.append('<meta name="robots" content="noindex" />', { html: true }); } })
+    // R60 (trust): residency, safe trial and connections as plain HTML for readers that do not run scripts.
+    .on("#root", { element: (el) => { if (STATIC_FACTS_PATHS.has(cleanPath(path))) el.setInnerContent(residencyStaticHtml(), { html: true }); } })
     .transform(res);
 }
 

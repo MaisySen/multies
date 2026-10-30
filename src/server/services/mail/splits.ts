@@ -51,10 +51,12 @@ function notBulkCond(): SQL {
 export function importantBaseCond(orgId: string): SQL {
   // Uncorrelated, so SQLite builds the set of addresses once per query rather than once per row.
   const wroteTo = sql`lower(${messages.fromAddress}) in (select lower(json_extract(j.value, '$.address')) from messages s, json_each(s.to_json) j where s.org_id = ${orgId} and s.folder = 'sent')`;
-  const inThread = sql`exists (select 1 from messages t where t.mailbox_id = ${messages.mailboxId} and t.thread_id = ${messages.threadId} and t.folder = 'sent')`;
+  // R59 hotfix: uncorrelated too. As a correlated EXISTS, SQLite served it with the (mailbox, folder) index and read every
+  // Sent row of the mailbox for each unread row; now the workspace's Sent threads are read once per statement.
+  const inThread = sql`(${messages.mailboxId}, ${messages.threadId}) in (select t.mailbox_id, t.thread_id from messages t where t.org_id = ${orgId} and t.folder = 'sent')`;
   // Contacts made by hand, imported or by an agent; every sender becomes a "mail" contact on its own, so those don't count.
   const contact = sql`lower(${messages.fromAddress}) in (select lower(ct.email) from contacts ct where ct.org_id = ${orgId} and ct.source <> 'mail')`;
-  return sql`(${notBulkCond()} and (${wroteTo} or ${inThread} or ${teammateCond(orgId)} or ${contact} or ${firstTimeAuthCond()}))`;
+  return sql`(${notBulkCond()} and (${wroteTo} or ${inThread} or ${teammateCond(orgId)} or ${contact} or ${firstTimeAuthCond(orgId)}))`;
 }
 
 /**
@@ -62,13 +64,18 @@ export function importantBaseCond(orgId: string): SQL {
  * authentication results stored on ingest, with DMARC not failing, so the domains line up) and it is not bulk
  * (the caller already requires notBulkCond: no list headers, no robot address). First time means no earlier
  * message from that address in this mailbox. Failing or missing SPF or DKIM stays in Other.
+ *
+ * R59 hotfix (D1 reads): "first" is the earliest message per mailbox and sender, worked out ONCE per statement as an
+ * uncorrelated set (one pass over the workspace's received mail, built only when some row gets this far). It used to
+ * be a correlated EXISTS comparing lower(from_address) per row, which no index serves, so every unread Inbox row
+ * scanned its whole mailbox: about 188k rows read per count on a 5k message backfilled mailbox.
  */
-export function firstTimeAuthCond(): SQL {
+export function firstTimeAuthCond(orgId: string): SQL {
   const res = (k: string) => sql`lower(coalesce(json_extract(${messages.authResults}, ${sql.raw(`'$.${k}'`)}), ''))`;
   const passed = sql`(${messages.authResults} is not null and json_valid(${messages.authResults}) and ${res("spf")} = 'pass' and ${res("dkim")} = 'pass' and ${res("dmarc")} <> 'fail')`;
-  const earlier = sql`exists (select 1 from messages p where p.mailbox_id = ${messages.mailboxId} and p.folder <> 'sent' and p.folder <> 'drafts'
-    and lower(p.from_address) = lower(${messages.fromAddress}) and (p.date < ${messages.date} or (p.date = ${messages.date} and p.id < ${messages.id})))`;
-  return sql`(${messages.folder} <> 'sent' and ${passed} and not ${earlier})`;
+  const first = sql`${messages.id} in (select f.id from (select p.id, row_number() over (partition by p.mailbox_id, lower(p.from_address) order by p.date, p.id) as rn
+    from messages p where p.org_id = ${orgId} and p.folder <> 'sent' and p.folder <> 'drafts') f where f.rn = 1)`;
+  return sql`(${messages.folder} <> 'sent' and ${passed} and ${first})`;
 }
 
 export function ruleCond(r: SplitRuleT, orgId: string): SQL {
@@ -192,24 +199,39 @@ export async function splitCond(deps: Deps, a: SplitActor, split: string, splits
   return splitMatchCond(s, a.orgId);
 }
 
-/** Inbox tabs for a mailbox (or every mailbox in scope), each with its unread count. Snoozed mail is left out. */
+/**
+ * R59 hotfix: what a count statement needs for Important and Other so the Important rule is evaluated once per row.
+ * Other is "not claimed" minus Important (a row is in exactly one of them, or claimed by a split). With no claiming
+ * split, notClaimed is null and Other is the row count minus Important.
+ */
+export function splitCountParts(orgId: string, list: MailSplit[]): { important: SQL; notClaimed: SQL | null } {
+  const claimed = claimedCond(list, orgId);
+  const base = sql`coalesce(${importantBaseCond(orgId)}, 0)`;
+  if (!claimed) return { important: base, notClaimed: null };
+  const notClaimed = sql`not coalesce(${claimed}, 0)`;
+  return { important: sql`(${base} and ${notClaimed})`, notClaimed };
+}
+
+/** Inbox tabs for a mailbox (or every mailbox in scope), each with its unread count. Snoozed mail is left out. R59: one statement for every tab. */
 export async function splitTabs(deps: Deps, a: SplitActor, q: { mailboxId?: string; scope: string[] | null }): Promise<SplitTab[]> {
   const list = await listSplits(deps, a);
-  const tabs: { id: string; name: string; builtIn: boolean }[] = [
-    { id: "important", name: "Important", builtIn: true },
-    { id: "other", name: "Other", builtIn: true },
-    ...list.map((s) => ({ id: s.id, name: s.name, builtIn: false })),
+  const parts = splitCountParts(a.orgId, list);
+  const sum = (c: SQL) => sql<number>`coalesce(sum(case when ${c} then 1 else 0 end), 0)`;
+  const cols: Record<string, SQL<number>> = { total: sql<number>`count(*)`, important: sum(parts.important) };
+  if (parts.notClaimed) cols.notClaimed = sum(parts.notClaimed);
+  list.forEach((s, i) => { cols[`s${i}`] = sum(sql`coalesce(${splitMatchCond(s, a.orgId)}, 0)`); });
+  const row = (await deps.db.select(cols).from(messages).where(and(
+    eq(messages.orgId, a.orgId), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, q.scope ? inIds(messages.mailboxId, q.scope) : undefined,
+    eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(deps.now()),
+  )).get()) as Record<string, number> | undefined;
+  const n = (k: string) => Number(row?.[k] ?? 0);
+  const important = n("important");
+  const other = (parts.notClaimed ? n("notClaimed") : n("total")) - important;
+  return [
+    { id: "important", name: "Important", builtIn: true, unread: important },
+    { id: "other", name: "Other", builtIn: true, unread: Math.max(0, other) },
+    ...list.map((s, i) => ({ id: s.id, name: s.name, builtIn: false, unread: n(`s${i}`) })),
   ];
-  const out: SplitTab[] = [];
-  for (const t of tabs) {
-    const cond = await splitCond(deps, a, t.id, list);
-    const row = await deps.db.select({ n: sql<number>`count(*)` }).from(messages).where(and(
-      eq(messages.orgId, a.orgId), q.mailboxId ? eq(messages.mailboxId, q.mailboxId) : undefined, q.scope ? inIds(messages.mailboxId, q.scope) : undefined,
-      eq(messages.folder, "inbox"), eq(messages.isRead, false), snoozeHiddenCond(deps.now()), cond,
-    )).get();
-    out.push({ ...t, unread: Number(row?.n ?? 0) });
-  }
-  return out;
 }
 
 /** Live preview for the rule builder: how many Inbox threads these rules match. */
