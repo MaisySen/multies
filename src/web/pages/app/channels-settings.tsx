@@ -85,7 +85,9 @@ function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: 
     let FB: FbSdk;
     try { FB = await loadFacebookSdk(es.appId, es.graphVersion); }
     catch (e) { setError(connectErrorCopy((e as Error).message)); setBusy(false); pending.current = null; return; }
-    // Embedded Signup: FB.login with the configuration id, a code (not a token) back, and the session info extras.
+    // Embedded Signup v4: FB.login with the configuration id and a code (not a token) back. The products come from the
+    // Facebook Login for Business configuration, so extras is { setup: {} } as in Meta's v4 sample. The code lives
+    // about 30 s, so it goes to the server the moment the window message with the number has also arrived.
     FB.login((r) => {
       const code = r.authResponse?.code;
       if (!pending.current) return;
@@ -94,7 +96,7 @@ function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: 
       if (pending.current.ids) void finish();
       // The window message usually lands first; give it a moment, then say plainly what is missing.
       else window.setTimeout(() => { if (pending.current && !pending.current.ids && !pending.current.done) { setError(connectErrorCopy("no_number")); setBusy(false); pending.current = null; } }, 8_000);
-    }, { config_id: es.configId, response_type: "code", override_default_response_type: true, extras: { setup: {}, featureType: "", sessionInfoVersion: "3" } });
+    }, { config_id: es.configId, response_type: "code", override_default_response_type: true, extras: { setup: {} } });
   };
   return { start, busy, error, clearError: () => setError(null) };
 }

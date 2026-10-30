@@ -52,6 +52,11 @@ describe("C1 chat UI logic", () => {
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "CANCEL", data: { current_step: "PHONE_NUMBER_SETUP" } }))).toEqual({ kind: "cancel", step: "PHONE_NUMBER_SETUP" });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "ERROR", data: { error_message: "Number already in use" } }))).toEqual({ kind: "error", message: "Number already in use" });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: {} }))).toEqual({ kind: "error", message: null });
+    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "CANCEL", data: { error_message: "Session expired", error_code: "524126", session_id: "s1" } }))).toEqual({ kind: "error", message: "Session expired" });
+    // v5 names the account messaging_account_ids.
+    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", messaging_account_ids: ["9"], is_on_biz_app: true } }))).toEqual({ kind: "finish", phoneNumberId: "1", wabaId: "9" });
+    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH_ONLY_WABA", data: { waba_id: "9" } }))).toEqual({ kind: "error", message: null });
+    expect(parseSignupMessage("https://evilfacebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", waba_id: "2" } }))).toBeNull();
     expect(parseSignupMessage("https://www.facebook.com", "not json")).toBeNull();
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "OTHER" }))).toBeNull();
   });

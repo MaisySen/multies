@@ -48,17 +48,20 @@ export function fillTemplate(body: string, params: string[]) {
 export type SignupEvent = { kind: "finish"; phoneNumberId: string; wabaId: string } | { kind: "cancel"; step: string | null } | { kind: "error"; message: string | null };
 export function parseSignupMessage(origin: string, data: unknown): SignupEvent | null {
   if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/.test(origin)) return null;
-  let d: { type?: string; event?: string; data?: Record<string, string | undefined> } | null = null;
+  let d: { type?: string; event?: string; data?: { phone_number_id?: string; waba_id?: string; messaging_account_ids?: string[]; current_step?: string; error_message?: string } } | null = null;
   try { d = typeof data === "string" ? JSON.parse(data) : (data as typeof d); } catch { return null; }
   if (!d || typeof d !== "object" || d.type !== "WA_EMBEDDED_SIGNUP") return null;
   const ev = String(d.event ?? "");
-  // FINISH, plus FINISH_ONLY_WABA and FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING (a number already on the business app).
+  // FINISH, FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING (a number already on the business app) and the rest; FINISH_ONLY_WABA has
+  // no phone number, which we need, so it reads as an error. Shapes: files/multies-c1/embedded-signup-v4.md (v4 and v5).
   if (ev.startsWith("FINISH")) {
     const phoneNumberId = d.data?.phone_number_id ?? "";
-    const wabaId = d.data?.waba_id ?? "";
+    // v4 sends waba_id; v5 sends messaging_account_ids instead.
+    const wabaId = d.data?.waba_id ?? d.data?.messaging_account_ids?.[0] ?? "";
     return phoneNumberId && wabaId ? { kind: "finish", phoneNumberId, wabaId } : { kind: "error", message: null };
   }
-  if (ev === "CANCEL") return { kind: "cancel", step: d.data?.current_step ?? null };
+  // A problem the person hit in the popup also arrives as CANCEL, with error_message set.
+  if (ev === "CANCEL") return d.data?.error_message ? { kind: "error", message: d.data.error_message } : { kind: "cancel", step: d.data?.current_step ?? null };
   if (ev === "ERROR") return { kind: "error", message: d.data?.error_message ?? null };
   return null;
 }
