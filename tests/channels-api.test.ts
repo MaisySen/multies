@@ -213,4 +213,19 @@ describe("channels: the inbox on the test provider", () => {
     expect((await owner.get(`/api/channels/conversations/${conv.id}`)).body.messages).toHaveLength(2);
     expect((await owner.post(`/api/channels/conversations/${conv.id}/messages`, { text: "x" })).status).toBe(409);
   });
+
+  it("past the daily soft cap text still lands, files are not copied, and admins see the level", async () => {
+    await setup({ CHANNELS_MOCK: "on", CHANNELS_DAILY_SOFT_CAP: "2" });
+    const channelId = await connectAndEnable();
+    await customerWrites(channelId, "one");
+    expect((await owner.get("/api/channels/status")).body.usage).toEqual({ today: 1, softCap: 2, level: "ok" });
+    await customerWrites(channelId, "two");
+    expect((await owner.get("/api/channels/status")).body.usage.level).toBe("over");
+    expect((await owner.post("/api/channels/mock/inbound", { channelId, from: "61400111222", text: "three", image: true })).status).toBe(200);
+    const conv = (await owner.get("/api/channels/conversations")).body.data[0];
+    const msgs = (await owner.get(`/api/channels/conversations/${conv.id}`)).body.messages;
+    expect(msgs).toHaveLength(3);
+    expect(msgs[2]).toMatchObject({ text: "three", kind: "image" });
+    expect(msgs[2].media.url).toBeNull();
+  });
 });
