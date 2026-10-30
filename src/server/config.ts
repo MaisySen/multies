@@ -11,6 +11,11 @@ export interface AppConfig {
   demoEnabled: boolean;
   /** Public booking pages and the scheduling API (SCHEDULING_ENABLED=true). Off unless set. */
   schedulingEnabled: boolean;
+  /**
+   * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
+   * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
+   */
+  tools: { enabled: boolean; engine: { url: string; keyId: string; key: string } | null; tokenKey: string | null };
   appName: string;
   /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
   supportEmail: string;
@@ -229,6 +234,11 @@ const EnvSchema = z.object({
   CHANNELS_MOCK: z.string().optional(),
   CHAT_CHANNELS: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
+  TOOLS_ENABLED: z.string().optional(),
+  DOC_ENGINE_URL: z.string().optional(),
+  DOC_ENGINE_KEY_ID: z.string().optional(),
+  DOC_ENGINE_KEY: z.string().optional(),
+  TOOLS_TOKEN_KEY: z.string().optional(),
   DNS_RESOLVER: z.enum(["doh", "node"]).optional(),
   MAIL_MX_HOSTS: z.string().optional(),
   MAIL_SPF_INCLUDES: z.string().optional(),
@@ -423,6 +433,18 @@ function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"])
   };
 }
 
+/** Tools are on only with the switch, an https engine address (http for a local engine in development) and keys of 32+ characters. */
+function toolsConfig(env: { TOOLS_ENABLED?: string; DOC_ENGINE_URL?: string; DOC_ENGINE_KEY_ID?: string; DOC_ENGINE_KEY?: string; TOOLS_TOKEN_KEY?: string; APP_MODE?: string; NODE_ENV?: string }): AppConfig["tools"] {
+  const url = env.DOC_ENGINE_URL?.trim() ?? "";
+  const keyId = env.DOC_ENGINE_KEY_ID?.trim() ?? "";
+  const key = env.DOC_ENGINE_KEY?.trim() ?? "";
+  const tokenKey = env.TOOLS_TOKEN_KEY?.trim() ?? "";
+  const urlOk = /^https:\/\/[^\s/]+/.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url);
+  const engine = urlOk && keyId && key.length >= 32 ? { url: url.replace(/\/+$/, ""), keyId, key } : null;
+  const on = env.TOOLS_ENABLED === "true" || env.TOOLS_ENABLED === "1";
+  return { enabled: on && !!engine && tokenKey.length >= 32, engine, tokenKey: tokenKey.length >= 32 ? tokenKey : null };
+}
+
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   const env = EnvSchema.parse(raw);
   const mode = env.APP_MODE ?? (env.NODE_ENV === "production" ? "production" : "development");
@@ -447,6 +469,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     mode,
     demoEnabled: env.DEMO_MODE === "true" || env.DEMO_MODE === "1",
     schedulingEnabled: env.SCHEDULING_ENABLED === "true" || env.SCHEDULING_ENABLED === "1",
+    tools: toolsConfig(env),
     appName: env.APP_NAME ?? "Multies",
     supportEmail: env.SUPPORT_EMAIL?.trim() || "support@multies.si",
     cfBeaconToken: /^[a-f0-9]{32}$/i.test(env.CF_BEACON_TOKEN?.trim() ?? "") ? env.CF_BEACON_TOKEN!.trim() : null,

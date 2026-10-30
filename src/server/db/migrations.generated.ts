@@ -893,6 +893,18 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
     ]
   },
   {
+    "name": "0091_tools_usage",
+    "statements": [
+      "-- Tools P1: document tools usage per workspace. One row per month (period \"2026-10\") and one per day\n-- (period \"2026-10-30\"); a run adds one to both in a single upsert. The cron prunes day rows after 2 days\n-- and month rows after 13 months. WITHOUT ROWID so a run writes only the primary key b-tree row.\nCREATE TABLE `tool_usage` (\n\t`org_id` text NOT NULL,\n\t`period` text NOT NULL,\n\t`runs` integer DEFAULT 0 NOT NULL,\n\t`bytes_in` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `period`)\n) WITHOUT ROWID;"
+    ]
+  },
+  {
+    "name": "0092_tools_switch",
+    "statements": [
+      "-- Tools P1: a workspace switch for Tools. NULL follows the default (on wherever the deployment has Tools),\n-- \"off\" hides Tools for the workspace, \"on\" keeps them on. Read only by the Tools routes.\nALTER TABLE `organizations` ADD `tools_mode` text;"
+    ]
+  },
+  {
     "name": "0093_r61_backfill_read_indexes",
     "statements": [
       "-- R61 D1 reads: the connected mailbox sync read the whole mailbox several times a pass. Measured on production\n-- (hour 00 UTC, 30 Oct, one mailbox of about 10,500 rows mid backfill): 2.83M rows read for about 5,000 stored\n-- messages, about 560 rows read per stored message. Three reads had no index to walk:\n-- the flag window (mailbox, folder key, UID range) and the oldest stored UID of a folder (min over the same) read every\n-- row of the mailbox through the mailbox prefix of another index, and the header repair sweep (mailbox, id order, rows\n-- still missing a sender or a preview) did the same and sorted. Partial indexes: only synced copies (remote_box set)\n-- and only rows still waiting for repair are indexed, so mail sent or received in Multies itself writes no extra row.\nCREATE INDEX IF NOT EXISTS `messages_mailbox_remote_idx` ON `messages` (`mailbox_id`,`remote_box`,`remote_uid`) WHERE \"messages\".\"remote_box\" IS NOT NULL;",
