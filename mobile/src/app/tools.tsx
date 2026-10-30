@@ -72,7 +72,7 @@ export default function Tools() {
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: left.left === 0 ? colors.bad : left.left <= 3 ? colors.warn : colors.ok }} />
           <Text style={{ color: left.left === 0 ? colors.bad : colors.muted, fontSize: 14, fontWeight: "500" }} testID="tools-usage">{runsLeftLabel(left)}</Text>
-          <Text style={{ color: colors.subtle, fontSize: 14 }}>{left.left === 0 ? `More ${resetWhen(left)}` : `Files up to ${mb(q.data.limits.maxBytes)}`}</Text>
+          <Text style={{ color: colors.subtle, fontSize: 14 }}>{left.left === 0 ? `· More ${resetWhen(left)}` : `· Files up to ${mb(q.data.limits.maxBytes)}`}</Text>
         </View>
         {left.left === 0 ? <Banner tone="warn" icon="clock" text={noRunsLine(left)} /> : null}
         {offline ? <Banner text="You're offline. Tools need a connection to run." /> : null}

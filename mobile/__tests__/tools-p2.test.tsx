@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -245,6 +245,28 @@ describe("Tools P2 screens (sample workspace)", () => {
     await fireEvent.press(screen.getByTestId("tool-burn"));
     expect(await screen.findByTestId("tool-done", {}, { timeout: 5000 })).toBeTruthy();
   });
+
+  it("keeps the files when the phone is offline and tries again by itself", async () => {
+    const { SampleTransport } = require("@/sample/transport");
+    const { ApiError } = require("@/api/errors");
+    const real = SampleTransport.prototype.request;
+    let failures = 1;
+    const spy = jest.spyOn(SampleTransport.prototype, "request").mockImplementation(function (this: unknown, ...a: unknown[]) {
+      if (a[1] === "/tools/jobs/from-attachments" && failures > 0) { failures -= 1; return Promise.reject(new ApiError(0, "network", "offline")); }
+      return real.apply(this, a);
+    });
+    mockParams = { op: "compress" };
+    mockPick.mockResolvedValue([pdf("Trip.pdf")]);
+    const Screen = require("@/app/tool/[op]").default;
+    await render(wrap(<Screen />));
+    await fireEvent.press(await screen.findByTestId("tool-add-files"));
+    await screen.findByText("Trip.pdf");
+    await fireEvent.press(screen.getByTestId("tool-run"));
+    expect(await screen.findByText("You're offline")).toBeTruthy();
+    expect(screen.getByText("Trip.pdf")).toBeTruthy();
+    expect(await screen.findByTestId("tool-done", {}, { timeout: 8000 })).toBeTruthy();
+    spy.mockRestore();
+  }, 15000);
 
   it("sends a tool that needs a big screen to the web", async () => {
     mockParams = { op: "organize" };

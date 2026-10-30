@@ -113,7 +113,9 @@ to publish when:
 - for production: the same commit was not published to preview first.
 
 They bundle with the same `EXPO_PUBLIC_*` values as the channel's build profile in `eas.json`
-(`EXPO_PUBLIC_API_BASE=https://multies.si` for production and preview). Each platform has its own
+(`EXPO_PUBLIC_API_BASE=https://multies.si` for production; since 1.9.13 the preview profile and channel use
+`https://preview.multies.si`, the staging server, so a preview update is tested against staging before
+the same commit goes to production). Each platform has its own
 runtime version, so one publish makes one update group per platform; every command above acts on
 both.
 

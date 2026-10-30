@@ -9,7 +9,7 @@ import { useTools } from "@/lib/queries";
 import { HttpTransport } from "@/api/transport";
 import { success, tick, warning } from "@/lib/haptics";
 import {
-  defaultsFor, filesProblem, maxFilesFor, optionProblem, optionShown, POLL_GIVE_UP_MS, pollDelay, resultExt, resultLine, runsOnPhone, typeForName,
+  defaultsFor, filesProblem, maxFilesFor, mb, optionProblem, optionShown, POLL_GIVE_UP_MS, pollDelay, resultExt, resultLine, runsOnPhone, typeForName,
   type PickedFile, type ToolDef, type ToolJob,
 } from "@/lib/tools";
 import { asPicked, downloadResult, openFile, pickFiles, readResultText, saveToPhone, shareFile, uploadJob } from "@/lib/tools-files";
@@ -174,9 +174,12 @@ export default function ToolScreen() {
   }
   if (!def || !runsOnPhone(def)) {
     return (
+      <>
+      <Stack.Screen options={{ title: entry?.name ?? "Tools" }} />
       <EmptyState icon="wrench" title={def ? `${entry?.name ?? def.label} works on the web` : "This tool isn't available"}
         body={def ? "It needs a bigger screen. Open it on multies.si." : "It may be switched off for this workspace."}
         action={def?.path ? <Button label="Open on the web" icon="external-link" onPress={() => openOnWeb(def.path!)} /> : undefined} />
+      </>
     );
   }
 
@@ -343,7 +346,7 @@ export default function ToolScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack.Screen options={{ title: name, headerRight: () => <Button variant="ghost" label="Done" onPress={() => (router.canGoBack() ? router.back() : router.replace("/tools"))} testID="tool-close" style={{ minHeight: 36, paddingHorizontal: 8 }} /> }} />
+      <Stack.Screen options={{ title: "", headerRight: () => <Button variant="ghost" label="Done" onPress={() => (router.canGoBack() ? router.back() : router.replace("/tools"))} testID="tool-close" style={{ minHeight: 36, paddingHorizontal: 8 }} /> }} />
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl * 3 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" testID={`tool-screen-${def.op}`}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
           {entry ? <ToolTile entry={entry} size={44} /> : null}
@@ -390,6 +393,7 @@ export default function ToolScreen() {
                     </View>
                   </View>
                 ) : null}
+                {!haveFiles ? <Text style={{ color: colors.subtle, fontSize: 13, lineHeight: 18 }} testID="tool-limits">{`Up to ${mb(Math.min(limits.maxBytes, def.maxBytes ?? Infinity))}${def.maxPages ? ` and ${def.maxPages} pages` : ""}. Files are deleted from our servers within an hour.`}</Text> : null}
                 {touched && fileError && !busy ? <Text style={{ color: colors.bad, fontSize: 14 }} accessibilityRole="alert">{fileError}</Text> : null}
               </View>
             ) : null}

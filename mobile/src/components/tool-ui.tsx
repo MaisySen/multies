@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { API_BASE } from "@/config";
 import { ActionSheet } from "./action-sheet";
@@ -28,7 +28,7 @@ export function ToolSearch({ value, onChange }: { value: string; onChange: (v: s
       <Icon name="search" size={18} color={colors.subtle} />
       <TextInput value={value} onChangeText={onChange} placeholder="Search tools" placeholderTextColor={colors.subtle} accessibilityLabel="Search tools" testID="tools-search"
         autoCorrect={false} autoCapitalize="none" returnKeyType="search" clearButtonMode="never" selectionColor={colors.brand}
-        style={{ flex: 1, minHeight: TOUCH, color: colors.fg, fontSize: 17 }} />
+        style={[{ flex: 1, minHeight: TOUCH, color: colors.fg, fontSize: 17 }, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null]} />
       {value ? (
         <Pressable onPress={() => onChange("")} accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={10} testID="tools-search-clear">
           <Icon name="x" size={18} color={colors.subtle} />
@@ -148,19 +148,20 @@ export function RunSteps({ at, pct, line, elapsed, note, onCancel }: { at: StepK
   const atIdx = steps.findIndex((s) => s.id === at);
   return (
     <View style={{ gap: space.md, padding: space.lg, borderRadius: radius.lg, backgroundColor: colors.surface }} testID="tool-progress" accessibilityLiveRegion="polite">
-      <View style={{ flexDirection: "row", alignItems: "center", gap: space.sm }}>
-        {steps.map((s, i) => {
+      <View style={{ flexDirection: "row", alignItems: "center", alignSelf: "stretch" }}>
+        {steps.flatMap((s, i) => {
           const doneStep = i < atIdx;
           const current = i === atIdx;
-          return (
-            <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: i < steps.length - 1 ? 1 : 0 }}>
+          const step = (
+            <View key={s.id} style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }} accessible accessibilityLabel={`${s.label}${doneStep ? ", done" : current ? ", now" : ""}`}>
               <View style={{ width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center", backgroundColor: doneStep ? TILE.green : current ? colors.brandFill : colors.elevated }}>
                 {doneStep ? <Icon name="check" size={13} color="#FFFFFF" /> : <Text style={{ color: current ? "#FFFFFF" : colors.subtle, fontSize: 12, fontWeight: "700" }}>{i + 1}</Text>}
               </View>
               <Text style={{ color: current ? colors.fg : colors.subtle, fontSize: 13.5, fontWeight: current ? "600" : "400" }}>{s.label}</Text>
-              {i < steps.length - 1 ? <View style={{ flex: 1, height: 1.5, borderRadius: 1, backgroundColor: doneStep ? TILE.green : colors.line }} /> : null}
             </View>
           );
+          if (i === steps.length - 1) return [step];
+          return [step, <View key={`${s.id}-line`} style={{ flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 12, height: 1.5, marginHorizontal: space.sm, borderRadius: 1, backgroundColor: doneStep ? TILE.green : colors.line }} />];
         })}
       </View>
       <View style={{ height: 6, borderRadius: 3, overflow: "hidden", backgroundColor: colors.elevated }} accessibilityRole="progressbar"
@@ -236,8 +237,13 @@ export function MailAttachmentSheet({ visible, tool, onClose, onPick }: { visibl
   useEffect(() => {
     if (!visible) return;
     let gone = false;
-    api.messages({ folder: "inbox", limit: 50 })
-      .then((p) => { if (!gone) { setError(null); setList(p.messages.filter((m) => m.hasAttachments)); } })
+    // The inbox and the archive, newest first: a file often sits in mail already dealt with.
+    Promise.all([api.messages({ folder: "inbox", limit: 50 }), api.messages({ folder: "archive", limit: 50 }).catch(() => ({ messages: [] as MessageSummary[] }))])
+      .then(([a, b]) => {
+        if (gone) return;
+        setError(null);
+        setList([...a.messages, ...b.messages].filter((m) => m.hasAttachments).sort((x, y) => String(y.date).localeCompare(String(x.date))));
+      })
       .catch((e: Error) => { if (!gone) setError(e.message || "Couldn't load your email."); });
     return () => { gone = true; };
   }, [visible, api]);
@@ -266,7 +272,7 @@ export function MailAttachmentSheet({ visible, tool, onClose, onPick }: { visibl
       {open && open.files === null ? <ActivityIndicator style={{ marginVertical: space.lg }} color={colors.brand} /> : null}
       {!open && list === null && !error ? <ActivityIndicator style={{ marginVertical: space.lg }} color={colors.brand} /> : null}
       {error ? <Text style={{ color: colors.bad, fontSize: 14, paddingHorizontal: space.lg }}>{error}</Text> : null}
-      {!open && list && !list.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingHorizontal: space.lg, paddingBottom: space.sm }}>No recent email in your inbox has an attachment.</Text> : null}
+      {!open && list && !list.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingHorizontal: space.lg, paddingBottom: space.sm }}>No recent email in your inbox or archive has an attachment.</Text> : null}
       {open && open.files && !open.files.length ? <Text style={{ color: colors.subtle, fontSize: 14, paddingHorizontal: space.lg, paddingBottom: space.sm }}>{`This email has no file this tool takes. It takes ${tool.acceptLabel}.`}</Text> : null}
       {open ? (
         <Pressable onPress={() => setOpen(null)} accessibilityRole="button" accessibilityLabel="Back to your emails" testID="tool-mail-back"
