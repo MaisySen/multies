@@ -104,7 +104,11 @@ const dateText = (ms: number | null) => (ms ? new Date(ms).toLocaleString("en-AU
 
 async function signerPage(c: Context<AppEnv>, v: SignerView, token: string) {
   const { r, s } = v;
-  if (v.state === "signed") return message("You have signed", `You signed ${r.title} on ${dateText(s.signed_at)}. ${r.status === "completed" ? "Everyone has signed; the signed copy was emailed to you." : "When everyone has signed, the signed copy is emailed to you."}`);
+  if (v.state === "signed") {
+    // R67 (QA5 #17): the last signer is told everyone has signed, not to wait for the others.
+    const allSigned = r.status === "completed" || (v.signers.length > 0 && v.signers.every((x) => x.status === "signed"));
+    return message("You have signed", `You signed ${r.title} on ${dateText(s.signed_at)}. ${r.status === "completed" ? "Everyone has signed. The signed copy was emailed to you." : allSigned ? "Everyone has signed. The signed copy is on its way to your email." : "When everyone has signed, the signed copy is emailed to you."}`);
+  }
   if (v.state === "declined") return message("You declined to sign", `You declined to sign ${r.title}. ${v.sender || "The sender"} has been told.`);
   if (v.state === "closed") return message("This signing link is no longer active", r.status === "cancelled" ? "The request was cancelled by the sender." : r.status === "completed" ? "Everyone has signed already." : "Ask the person who sent it for a new one.");
   if (v.state === "waiting_turn") return message("Not your turn yet", `${r.title} is signed in order. You will get an email when it is your turn.`);
@@ -115,8 +119,10 @@ async function signerPage(c: Context<AppEnv>, v: SignerView, token: string) {
   const pagesHtml = pagesWithFields.map((p) => {
     const size = pageSizes.find((x) => x.page === p);
     const boxes = size ? fields.filter((f) => f.page === p).map((f) => `<span class="box" title="${f.kind === "date" ? "Date" : f.kind === "initials" ? "Your initials" : "Your signature"}" style="left:${(f.x / size.width) * 100}%;top:${(f.y / size.height) * 100}%;width:${(f.w / size.width) * 100}%;height:${(f.h / size.height) * 100}%"></span>`).join("") : "";
-    return `<figure class="pg" style="width:100%;max-width:440px;margin:0"><img src="/sign/${esc(token)}/page/${p}" alt="Page ${p}" style="display:block;width:100%;height:auto">${boxes}<figcaption class="small muted" style="padding:4px 6px">Page ${p}</figcaption></figure>`;
+    // R67 (QA5 #17): a page keeps a readable width on a phone (swipe sideways inside its frame) and opens full size on tap.
+    return `<div class="pgwrap"><figure class="pg"><a href="/sign/${esc(token)}/page/${p}" target="_blank" rel="noopener" aria-label="Open page ${p} full size"><img src="/sign/${esc(token)}/page/${p}" alt="Page ${p}" style="display:block;width:100%;height:auto"></a>${boxes}<figcaption class="small muted" style="padding:4px 6px">Page ${p}</figcaption></figure></div>`;
   }).join("");
+  const pageCss = `<style>.pages{flex-direction:column;flex-wrap:nowrap}.pgwrap{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}.pgwrap .pg{width:100%;max-width:640px;margin:0}.pgwrap .box{pointer-events:none}.pghint{display:none}@media (max-width:600px){.pgwrap .pg{width:560px;max-width:none}.pghint{display:block}}</style>`;
   const kinds = fields.map((f) => f.kind);
   const what = [kinds.includes("signature") ? "your signature" : "", kinds.includes("initials") ? "your initials" : "", kinds.includes("date") ? "the date" : ""].filter(Boolean).join(", ");
   const fieldData = esc(JSON.stringify(fields.map((f) => ({ kind: f.kind, w: f.w, h: f.h }))));
@@ -125,7 +131,7 @@ async function signerPage(c: Context<AppEnv>, v: SignerView, token: string) {
 <h1>${esc(r.title)}</h1>
 ${r.message ? `<p style="white-space:pre-wrap">${esc(r.message)}</p>` : ""}
 <div class="row"><a class="btn sec" href="/sign/${esc(token)}/document" target="_blank" rel="noopener">Open the document</a><span class="muted small">Read it before you sign. This adds ${esc(what)} on ${pagesWithFields.length === 1 ? `page ${pagesWithFields[0]}` : `pages ${pagesWithFields.join(", ")}`}.</span></div>
-${pagesHtml ? `<div class="pages">${pagesHtml}</div>` : ""}
+${pagesHtml ? `${pageCss}<p class="pghint muted small">Swipe sideways to read the whole page, or tap it to open it full size.</p><div class="pages">${pagesHtml}</div>` : ""}
 <h2>Your signature</h2>
 <div class="tabs" role="tablist"><button type="button" role="tab" data-tab="draw" aria-selected="true">Draw</button><button type="button" role="tab" data-tab="type" aria-selected="false">Type</button><button type="button" role="tab" data-tab="upload" aria-selected="false">Upload</button></div>
 <div id="p-draw"><canvas id="pad" class="pad" aria-label="Draw your signature here"></canvas><div class="row" style="margin-top:8px"><button type="button" class="sec" id="clear">Clear</button></div></div>

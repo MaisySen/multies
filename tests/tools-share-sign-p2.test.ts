@@ -338,13 +338,16 @@ describe("Tools P2 e-sign", () => {
     expect((await signPost(t, bob[0].path, { ft: page.ft, action: "sign", images: [pngUrl(), pngUrl()] })).body).toMatchObject({ ok: true, finished: false });
     // Single use: the same link cannot sign again.
     expect((await signPost(t, bob[0].path, { ft: page.ft, action: "sign", images: [pngUrl(), pngUrl()] })).status).toBe(409);
-    expect((await openPage(t, bob[0].path)).html).toContain("You have signed");
+    expect((await openPage(t, bob[0].path)).html).toContain("When everyone has signed, the signed copy is emailed to you.");
 
     // Now Cara's turn: her link arrives.
     const cara = await links(t, "cara@example.com");
     expect(cara).toHaveLength(1);
     const cp = await openPage(t, cara[0].path);
+    expect(cp.html).toContain("Swipe sideways to read the whole page");
     expect((await signPost(t, cara[0].path, { ft: cp.ft, action: "sign", images: [pngUrl()] })).body).toMatchObject({ ok: true, finished: true });
+    // R67: the last signer hears everyone has signed (the finished copy may still be on its way).
+    expect((await openPage(t, cara[0].path)).html).toContain("Everyone has signed.");
 
     // The engine got every signature and the signing record, word for word from D1.
     const signJob = [...t.engine.jobs.values()].find((j) => j.op === "sign")!;

@@ -119,6 +119,8 @@ function NewDocument() {
   const [order, setOrder] = useState<"any" | "sequence">("any");
   const [message, setMessage] = useState("");
   const [mailboxId, setMailboxId] = useState("");
+  // R67 (QA5 #17): with only one mailbox, it is the one the request goes from.
+  useEffect(() => { const list = mailboxes.data ?? []; if (!mailboxId && list.length === 1) setMailboxId(list[0].id); }, [mailboxes.data, mailboxId]);
   const [days, setDays] = useState(14);
   const [remind, setRemind] = useState(3);
   const [selfDone, setSelfDone] = useState<SignRequestInfo | null>(null);
