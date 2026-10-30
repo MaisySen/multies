@@ -7,6 +7,13 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 69 (30 Oct 2026)
+
+- Changed: Edit pages, Fill a form, Compare, Share links, E-sign, AI helpers, Workflows, Document templates and Mail merge use the same Tools frame as the tool screens: the rail of every tool on wide screens, All tools on a phone, the tool's icon and the runs left line, with a plain note when runs are used up.
+- Changed: the editors' result card uses the tool screens' words (Attach to a new email, Start over) and stacks on a phone; page thumbnails are portrait and larger, and the page toolbar fits a 390 px screen.
+- Fixed: smart folders file a document headed Statement with an amount owing under Statements (staging only; the flag is off on production).
+- What's new drops "What's new, in the app" to stay at 14.
+
 ### Round 65 (30 Oct 2026)
 
 - Added: Tools P2 on production behind TOOLS_FEATURES: page editor, form filling, compare, OCR in 13 more languages, scan to PDF, password protect, stamps and page numbers, more conversions, Excel tools, find and hide sensitive info, batch runs on a thread's attachments, share links, rules before sending, workflows, templates and the Tools API. Migrations 0095 to 0098, and drizzle-index/0001 on the separate index database (INDEX_DB, multies-index; the main database holds no virtual table). A new Tools look (search, groups, staged progress with cancel, result next steps).

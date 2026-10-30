@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-tools-one-look",
+    date: "2026-10-31",
+    title: "Every tool, one look",
+    body: "Edit pages, forms, compare, share links, workflows and templates now open like every other tool: the full list stays on the left, All tools takes you back, and you always see how many runs are left. Page thumbnails are bigger on a phone.",
+  },
+  {
     id: "2026-10-30-tools-pages-forms",
     date: "2026-10-30",
     title: "Edit pages, fill forms and compare PDFs",
@@ -92,12 +98,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "Tell the command menu what to do",
     body: "Type what you want in the command menu, like \"assign MB-12 to Asha due Friday\", check the preview, press Enter, and Undo if you change your mind.",
-  },
-  {
-    id: "2026-10-28-whats-new",
-    date: "2026-10-28",
-    title: "What's new, in the app",
-    body: "The account menu has a What's new item, with a small dot when something new has shipped since you last looked. The same list is on the public changelog page.",
   },
 ];
 
