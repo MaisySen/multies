@@ -7,6 +7,10 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 72 (30 Oct 2026)
+
+- Changed: Stamp page numbers have their own Number digits choice (1, 2, 3 or Nepali digits), default Latin. A Nepali stamp, header or footer on an English PDF no longer turns the page numbers Nepali (engine option number_digits: latin, devanagari, auto).
+
 ### Round 71 (30 Oct 2026)
 
 - Fixed (MB-261): the board card's Move menu no longer closes the moment it opens; a card's footer wraps instead of overflowing its column, so focusing the handle no longer scrolls the column sideways, and only a scroll that takes the card off screen closes the menu.

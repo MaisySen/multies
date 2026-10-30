@@ -185,6 +185,7 @@ export const TOOLS: ToolDef[] = [
         { value: "bottom-left", label: "Bottom left" }, { value: "bottom-right", label: "Bottom right" }] },
       { name: "page_numbers", kind: "choice", label: "Page numbers", default: "none", choices: [{ value: "none", label: "None" }, { value: "n", label: "1, 2, 3" }, { value: "page n of N", label: "Page 1 of 9" }] },
       { name: "number_position", kind: "choice", label: "Number position", default: "bottom-center", when: { option: "page_numbers", not: ["none"] }, choices: [{ value: "bottom-center", label: "Bottom middle" }, { value: "bottom-right", label: "Bottom right" }, { value: "top-right", label: "Top right" }] },
+      { name: "number_digits", kind: "choice", label: "Number digits", default: "latin", when: { option: "page_numbers", not: ["none"] }, choices: [{ value: "latin", label: "1, 2, 3" }, { value: "devanagari", label: "१, २, ३ Nepali" }, { value: "auto", label: "Match the stamp language" }] },
       { name: "header", kind: "text", label: "Header", maxLen: 120, placeholder: "Acme Pty Ltd" },
       { name: "footer", kind: "text", label: "Footer", maxLen: 120, placeholder: "Commercial in confidence" },
       { name: "ranges", kind: "ranges", label: "Pages", maxLen: 200, placeholder: "All pages", help: "Leave empty for every page. " + RANGES_HELP },
