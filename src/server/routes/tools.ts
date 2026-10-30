@@ -6,7 +6,8 @@ import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
 import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { inIds } from "../lib/sql-chunks";
 import { z } from "zod";
 import { attachments, messages } from "../db/schema";
 import { attachmentBytes } from "../services/mail/store";
@@ -145,7 +146,7 @@ export function toolsRoutes() {
       const scope = await mailboxScope(deps.db, auth);
       const rows = await deps.db.select({ a: attachments, mailboxId: messages.mailboxId }).from(attachments)
         .innerJoin(messages, eq(messages.id, attachments.messageId))
-        .where(and(inArray(attachments.id, ids), eq(messages.orgId, auth.orgId))).all();
+        .where(and(inIds(attachments.id, ids), eq(messages.orgId, auth.orgId))).all();
       const byId = new Map(rows.filter((r) => !scope || scope.includes(r.mailboxId)).map((r) => [r.a.id, r.a]));
       const def = toolDef(op);
       const fd = new FormData();
