@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-30-yearly-and-referrals",
+    date: "2026-10-30",
+    title: "Pay yearly, get two months free",
+    body: "Billing has a Monthly or Yearly switch: a year of add ons costs ten months. New customers can use the code LAUNCH30 for 30% off their first 3 months on monthly billing, and every workspace has a referral link in Billing that gives both sides a month of credit.",
+  },
+  {
     id: "2026-10-30-tools",
     date: "2026-10-30",
     title: "Tools for your documents",
@@ -80,12 +86,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-28",
     title: "Four new starter templates",
     body: "Templates now has a two week sprint, hiring, a product launch and a support desk, each with its statuses, fields and first tasks ready to go.",
-  },
-  {
-    id: "2026-10-28-rules-do-more",
-    date: "2026-10-28",
-    title: "One rule, several actions",
-    body: "A task rule in Automations can now do up to five things in order. For example, when a bug is made, set it to high, add the label triage and notify the assignee.",
   },
   {
     id: "2026-10-28-command-menu-actions",
