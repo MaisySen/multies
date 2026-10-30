@@ -6,7 +6,7 @@ import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
 import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
-import { TOOLS, isToolOp, resultName, toolDef, type ToolJob, type ToolJobStatus, type ToolsInfo } from "@/shared/tools";
+import { TOOLS, isToolOp, resultName, toolDef, type ToolJob, type ToolJobStatus, type ToolResultFacts, type ToolsInfo } from "@/shared/tools";
 
 /** The custom header the web app sends with an upload. A cross site form cannot set it (it needs a CORS preflight). */
 export const TOOLS_UPLOAD_HEADER = "x-multies-upload";
@@ -41,9 +41,21 @@ async function engineError(res: Response): Promise<never> {
   let message = "";
   try { message = ((await res.json()) as { message?: string }).message ?? ""; } catch { /* not JSON */ }
   if (res.status === 400) throw new HttpError(422, "tool_input", message || "That file could not be used with this tool.");
-  if (res.status === 413) throw new HttpError(413, "too_large", "That upload is larger than your plan allows.");
+  if (res.status === 413) throw new HttpError(413, "too_large", message || "That upload is larger than your plan allows.");
   if (res.status === 429) throw new HttpError(429, "tools_busy", message || "Tools are busy. Try again in a minute.");
   throw engineDown();
+}
+
+const FACT_KEYS = ["pages", "parts", "matches", "phrases", "verified", "pages_changed", "pages_with_text"] as const;
+/** Only the known small facts pass through to the browser. */
+function pickFacts(r: ToolResultFacts): ToolResultFacts {
+  const out: Record<string, number | boolean> = {};
+  for (const k of FACT_KEYS) {
+    const v = (r as Record<string, unknown>)[k];
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    else if (typeof v === "boolean") out[k] = v;
+  }
+  return out as ToolResultFacts;
 }
 
 /** Tools: document tools on the private engine (/api/tools). Off (404) unless the deployment turns them on. */
@@ -74,8 +86,9 @@ export function toolsRoutes() {
       const files = Math.max(1, Math.min(1000, Number(c.req.query("files") ?? "1") || 1));
       const def = toolDef(op);
       if (files < def.minFiles) throw new HttpError(400, "bad_request", `This tool needs ${def.minFiles} or more files.`);
-      const maxFiles = def.maxFiles === "plan" ? limits.maxMergeFiles : def.maxFiles;
-      if (files > maxFiles) throw planLimit(`You can merge up to ${maxFiles} files at once on your plan.`);
+      if (def.maxFiles === "plan" && files > limits.maxMergeFiles) throw planLimit(`You can merge up to ${limits.maxMergeFiles} files at once on your plan.`);
+      if (def.maxFiles !== "plan" && files > def.maxFiles) throw new HttpError(400, "bad_request", `${def.label} takes up to ${def.maxFiles} ${def.maxFiles === 1 ? "file" : "files"}.`);
+      if (def.maxBytes && len > def.maxBytes + MULTIPART_ALLOWANCE) throw new HttpError(413, "too_large", `${def.label} takes files up to ${Math.round(def.maxBytes / (1024 * 1024))} MB.`);
       if (s.month >= limits.runsMonthly) throw planLimit(`Your workspace has used all ${limits.runsMonthly} tool runs this month. They reset on the 1st.`);
       if (s.day >= limits.runsDaily) throw planLimit(`Your workspace has used all ${limits.runsDaily} tool runs for today. Try again tomorrow.`);
       const res = await callEngine(c, engine, {
@@ -104,8 +117,10 @@ export function toolsRoutes() {
       const res = await callEngine(c, engine, { method: "GET", path: `/internal/v1/jobs/${t.j}`, ws: auth.orgId, user: auth.userId, maxBytes: 0 });
       if (res.status === 404) return c.json({ token: c.req.param("token"), op: t.o, status: "expired", name: t.n } satisfies ToolJob);
       if (!res.ok) await engineError(res);
-      const j = (await res.json()) as { status: ToolJobStatus; error?: string; output?: { bytes: number } };
+      const j = (await res.json()) as { status: ToolJobStatus; error?: string; output?: { bytes: number }; progress?: { done: number; total: number }; result?: ToolResultFacts };
       const out: ToolJob = { token: c.req.param("token"), op: t.o, status: j.status, name: t.n };
+      if (j.progress && Number.isFinite(j.progress.done) && Number.isFinite(j.progress.total)) out.progress = { done: j.progress.done, total: j.progress.total };
+      if (j.status === "done" && j.result) out.result = pickFacts(j.result);
       if (j.status === "failed") out.error = j.error || "The file could not be processed.";
       if (j.status === "done") {
         out.bytes = j.output?.bytes;
@@ -124,7 +139,7 @@ export function toolsRoutes() {
       if (!res.ok || !res.body) await engineError(res);
       const ascii = t.n.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
       const headers = new Headers({
-        "content-type": "application/pdf",
+        "content-type": isToolOp(t.o) ? toolDef(t.o).contentType : "application/octet-stream",
         "content-disposition": `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(t.n)}`,
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",

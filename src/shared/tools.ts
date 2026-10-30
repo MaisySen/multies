@@ -1,12 +1,34 @@
 /**
  * Tools (document tools inside Multies). The catalogue the web app and the server share.
  * The work runs on the private document engine; people only ever talk to Multies.
+ * Each tool's options mirror what the engine publishes at GET /internal/v1/operations
+ * (tests/tools-catalogue.test.ts holds the two together); this copy adds the words people see.
  */
-export type ToolOp = "compress" | "merge" | "convert";
+export type ToolOp =
+  | "compress" | "merge" | "convert" | "to-jpeg" | "images-to-pdf" | "split" | "rotate"
+  | "scrub" | "ocr" | "redact" | "watermark" | "unlock" | "pdf-to-docx";
+
+export type ToolGroup = "Organise" | "Convert" | "Protect" | "Scans";
+
+export interface ToolOption {
+  name: string;
+  kind: "choice" | "int" | "text" | "password" | "ranges" | "phrases";
+  label: string;
+  required?: boolean;
+  /** The engine's default when the field is left out. */
+  default?: string | number;
+  choices?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  maxLen?: number;
+  placeholder?: string;
+  help?: string;
+}
 
 export interface ToolDef {
   op: ToolOp;
   label: string;
+  group: ToolGroup;
   /** One plain line under the title. */
   blurb: string;
   /** What the drop zone takes (an accept attribute) and the words for it. */
@@ -17,14 +39,59 @@ export interface ToolDef {
   maxFiles: number | "plan";
   /** Added to the first file's name for the result, e.g. "invoice-compressed.pdf". */
   suffix: string;
+  /** The result's extension and type. */
+  ext: "pdf" | "zip" | "docx";
+  contentType: string;
+  options: ToolOption[];
+  /** A tighter page or size cap than the plan's (OCR on the shared server). */
+  maxPages?: number;
+  maxBytes?: number;
+  /** Slow tools report page by page progress and say how long to expect. */
+  slow?: { secondsPerPage: number };
+  /** A plain caveat shown beside the tool. */
+  note?: string;
+  /** Files are listed in order and the order matters (merge, images to PDF). */
+  ordered?: boolean;
 }
 
+const PDF = ".pdf,application/pdf";
+const PDF_TYPE = "application/pdf";
+const ZIP_TYPE = "application/zip";
+const DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const RANGES_HELP = "Page numbers and ranges, like 1-3, 5.";
+
 export const TOOLS: ToolDef[] = [
-  { op: "compress", label: "Compress PDF", blurb: "Make a PDF smaller so it is easier to send.", accept: ".pdf,application/pdf", acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-compressed" },
-  { op: "merge", label: "Merge PDFs", blurb: "Join several PDFs into one, in the order you choose.", accept: ".pdf,application/pdf", acceptLabel: "2 or more PDFs", minFiles: 2, maxFiles: "plan", suffix: "-merged" },
-  { op: "convert", label: "Convert to PDF", blurb: "Turn a Word, Excel, PowerPoint or OpenDocument file into a PDF.", accept: ".docx,.xlsx,.pptx,.odt,.ods,.odp", acceptLabel: "a Word, Excel, PowerPoint or OpenDocument file", minFiles: 1, maxFiles: 1, suffix: "" },
+  { op: "merge", group: "Organise", label: "Merge PDFs", blurb: "Join several PDFs into one, in the order you choose.", accept: PDF, acceptLabel: "2 or more PDFs", minFiles: 2, maxFiles: "plan", suffix: "-merged", ext: "pdf", contentType: PDF_TYPE, options: [], ordered: true },
+  { op: "split", group: "Organise", label: "Split PDF", blurb: "Pull out pages or ranges as separate PDFs.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-split", ext: "zip", contentType: ZIP_TYPE,
+    options: [{ name: "ranges", kind: "ranges", label: "Pages for each part", required: true, maxLen: 200, placeholder: "1-3, 4, 5-9", help: "Each range becomes its own PDF. " + RANGES_HELP }] },
+  { op: "rotate", group: "Organise", label: "Rotate pages", blurb: "Turn every page, or only the ones you pick.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-rotated", ext: "pdf", contentType: PDF_TYPE,
+    options: [
+      { name: "angle", kind: "choice", label: "Turn", default: "90", choices: [{ value: "90", label: "Right" }, { value: "180", label: "Upside down" }, { value: "270", label: "Left" }] },
+      { name: "ranges", kind: "ranges", label: "Pages", maxLen: 200, placeholder: "All pages", help: "Leave empty for every page. " + RANGES_HELP },
+    ] },
+  { op: "compress", group: "Convert", label: "Compress PDF", blurb: "Make a PDF smaller so it is easier to send.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-compressed", ext: "pdf", contentType: PDF_TYPE, options: [] },
+  { op: "convert", group: "Convert", label: "Convert to PDF", blurb: "Turn a Word, Excel, PowerPoint or OpenDocument file into a PDF.", accept: ".docx,.xlsx,.pptx,.odt,.ods,.odp", acceptLabel: "a Word, Excel, PowerPoint or OpenDocument file", minFiles: 1, maxFiles: 1, suffix: "", ext: "pdf", contentType: PDF_TYPE, options: [] },
+  { op: "to-jpeg", group: "Convert", label: "PDF to images", blurb: "Save every page as a JPEG image, in one ZIP.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-pages", ext: "zip", contentType: ZIP_TYPE, maxPages: 100, slow: { secondsPerPage: 1 },
+    options: [{ name: "dpi", kind: "choice", label: "Quality", default: "150", choices: [{ value: "72", label: "Small" }, { value: "150", label: "Standard" }, { value: "300", label: "Sharp" }] }] },
+  { op: "images-to-pdf", group: "Convert", label: "Images to PDF", blurb: "Put JPEG or PNG images into one PDF, one per page.", accept: ".jpg,.jpeg,.png,image/jpeg,image/png", acceptLabel: "JPEG or PNG images", minFiles: 1, maxFiles: 50, suffix: "", ext: "pdf", contentType: PDF_TYPE, options: [], ordered: true },
+  { op: "pdf-to-docx", group: "Convert", label: "PDF to Word", blurb: "Get the text of a PDF as a Word document you can edit.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "", ext: "docx", contentType: DOCX_TYPE, options: [], note: "Text and basic layout only. Fonts, columns, tables and images are not kept." },
+  { op: "redact", group: "Protect", label: "Redact text", blurb: "Black out words or phrases everywhere they appear. It cannot be undone.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-redacted", ext: "pdf", contentType: PDF_TYPE,
+    options: [{ name: "phrases", kind: "phrases", label: "Words or phrases to black out", required: true, maxLen: 2000, placeholder: "Jane Citizen\n123 456 782", help: "One per line, typed exactly as they appear. Every match is covered and the result is checked so none can be found." }],
+    note: "Pages with a match become images, so their text can no longer be selected." },
+  { op: "scrub", group: "Protect", label: "Remove metadata", blurb: "Strip the author, title, software and other hidden details.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-clean", ext: "pdf", contentType: PDF_TYPE, options: [] },
+  { op: "watermark", group: "Protect", label: "Watermark", blurb: "Stamp text such as DRAFT or CONFIDENTIAL across every page.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-watermarked", ext: "pdf", contentType: PDF_TYPE,
+    options: [
+      { name: "text", kind: "text", label: "Watermark text", required: true, maxLen: 80, placeholder: "CONFIDENTIAL" },
+      { name: "opacity", kind: "int", label: "Strength (percent)", default: 25, min: 10, max: 60 },
+    ] },
+  { op: "unlock", group: "Protect", label: "Remove password", blurb: "Save a copy without its password, when you know the password.", accept: PDF, acceptLabel: "a password protected PDF", minFiles: 1, maxFiles: 1, suffix: "-unlocked", ext: "pdf", contentType: PDF_TYPE,
+    options: [{ name: "password", kind: "password", label: "Current password", required: true, maxLen: 128, help: "Used for this run only and never stored." }] },
+  { op: "ocr", group: "Scans", label: "Make searchable (OCR)", blurb: "Read the text in a scanned PDF so you can search and copy it.", accept: PDF, acceptLabel: "a scanned PDF", minFiles: 1, maxFiles: 1, suffix: "-searchable", ext: "pdf", contentType: PDF_TYPE, maxPages: 30, maxBytes: 20 * 1024 * 1024, slow: { secondsPerPage: 6 },
+    options: [{ name: "language", kind: "choice", label: "Language", default: "eng", choices: [{ value: "eng", label: "English" }] }],
+    note: "Up to 30 pages and 20 MB. It reads about one page every few seconds." },
 ];
 
+export const TOOL_GROUPS: ToolGroup[] = ["Organise", "Convert", "Protect", "Scans"];
 export const TOOL_OPS = TOOLS.map((t) => t.op);
 export const isToolOp = (v: unknown): v is ToolOp => typeof v === "string" && (TOOL_OPS as string[]).includes(v);
 export const toolDef = (op: ToolOp) => TOOLS.find((t) => t.op === op)!;
@@ -32,11 +99,18 @@ export const toolDef = (op: ToolOp) => TOOLS.find((t) => t.op === op)!;
 /** The result's file name from the first input's name: letters, numbers and simple marks only. */
 export function resultName(op: ToolOp, firstName: string | null | undefined): string {
   const base = (firstName ?? "").replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[^A-Za-z0-9 _.()+-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "document";
-  return `${base}${toolDef(op).suffix}.pdf`;
+  const def = toolDef(op);
+  return `${base}${def.suffix}.${def.ext}`;
 }
 
 export interface ToolsUsage { month: number; day: number }
 export interface ToolsLimits { runsMonthly: number; runsDaily: number; maxBytes: number; maxMergeFiles: number }
 export interface ToolsInfo { enabled: boolean; tools: ToolDef[]; usage: ToolsUsage; limits: ToolsLimits }
 export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "expired";
-export interface ToolJob { token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string }
+/** Small facts about a result, never file contents: pages, parts, matches covered. */
+export interface ToolResultFacts { pages?: number; parts?: number; matches?: number; phrases?: number; verified?: boolean; pages_changed?: number; pages_with_text?: number }
+export interface ToolJob {
+  token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string;
+  progress?: { done: number; total: number };
+  result?: ToolResultFacts;
+}

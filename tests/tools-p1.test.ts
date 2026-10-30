@@ -127,7 +127,7 @@ describe("Tools P1 API", () => {
     const r = await c.get("/api/tools");
     expect(r.status).toBe(200);
     expect(r.body).toMatchObject({ enabled: true, usage: { month: 0, day: 0 }, limits: { runsMonthly: 100, runsDaily: 30, maxBytes: 20 * 1024 * 1024, maxMergeFiles: 10 } });
-    expect((r.body as { tools: { op: string }[] }).tools.map((t) => t.op)).toEqual(["compress", "merge", "convert"]);
+    expect((r.body as { tools: { op: string }[] }).tools).toHaveLength(13);
     expect(((await c.get("/api/config")).body as { tools: boolean }).tools).toBe(true);
   });
 
@@ -176,7 +176,7 @@ describe("Tools P1 API", () => {
     expect((await upload(app, c.cookie, "compress", [{ name: "a.pdf", body: PDF }], { noLength: true })).status).toBe(411);
     const noHeader = await upload(app, c.cookie, "compress", [{ name: "a.pdf", body: PDF }], { noHeader: true });
     expect(noHeader.status).toBe(403);
-    expect((await upload(app, c.cookie, "ocr", [{ name: "a.pdf", body: PDF }], { query: "op=ocr" })).status).toBe(400);
+    expect((await upload(app, c.cookie, "replace", [{ name: "a.pdf", body: PDF }], { query: "op=replace" })).status).toBe(400);
     expect(engine.seen).toHaveLength(0);
   });
 

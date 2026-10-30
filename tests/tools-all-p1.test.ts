@@ -1,0 +1,179 @@
+/**
+ * Tools P1, all 13 tools: the catalogue matches what the engine publishes, and every tool runs through
+ * /api/tools against a fake engine (options reach it in the form, progress and result facts come back,
+ * downloads carry the right type). The fake engine checks signatures like the real one.
+ */
+import { describe, it, expect } from "vitest";
+import { createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { sql } from "drizzle-orm";
+import { makeTestApp, Client } from "./helpers";
+import { TOOLS, resultName, toolDef, type ToolOp } from "@/shared/tools";
+
+const ENGINE_KEY = "k".repeat(40);
+const ON = { TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC_ENGINE_KEY_ID: "stg-1", DOC_ENGINE_KEY: ENGINE_KEY, TOOLS_TOKEN_KEY: "t".repeat(40) };
+const PDF = "%PDF-1.4\n% fake\n";
+
+interface EngineOp {
+  slug: string; accepts: string; min_files: number; max_files: number; output: { name: string; content_type: string };
+  options: { name: string; kind: string; label: string; required: boolean; default?: string | number; choices?: string[]; min?: number; max?: number; max_len?: number }[];
+  max_pages: number | null; max_bytes: number | null; slow: boolean;
+}
+const ENGINE = (JSON.parse(readFileSync("tests/fixtures/tools-engine-operations.json", "utf8")) as { operations: EngineOp[] }).operations;
+
+interface Job { id: string; ws: string; op: string; status: string; fields: Record<string, string>; files: number; progress?: { done: number; total: number }; result?: Record<string, unknown> }
+
+function fakeEngine() {
+  const jobs = new Map<string, Job>();
+  let next: Partial<Job> = {};
+  let answer: Response | null = null;
+  const fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(String(input));
+    const h = new Headers(init?.headers);
+    const method = init?.method ?? "GET";
+    if (url.pathname === "/healthz") return Response.json({ ok: true });
+    const len = h.get("content-length") ?? "0";
+    const want = createHmac("sha256", ENGINE_KEY).update(["v1", method, url.pathname + url.search, h.get("x-multies-ts"), h.get("x-multies-nonce"), h.get("x-multies-ws"), h.get("x-multies-user"), h.get("x-multies-max-bytes"), len].join("\n")).digest("hex");
+    if (h.get("x-multies-sig") !== want) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const ws = h.get("x-multies-ws")!;
+    if (method === "POST") {
+      if (answer) { const a = answer; answer = null; return a; }
+      const fd = await new Request("http://x", { method: "POST", body: init!.body as BodyInit, headers: { "content-type": h.get("content-type")! }, duplex: "half" } as RequestInit).formData();
+      const fields: Record<string, string> = {};
+      let files = 0;
+      for (const [k, v] of fd.entries()) { if (typeof v === "string") fields[k] = v; else files += 1; }
+      const id = Math.random().toString(16).slice(2).padEnd(16, "a") + "cafe";
+      jobs.set(id, { id, ws, op: url.searchParams.get("op")!, status: "done", fields, files, ...next });
+      next = {};
+      return Response.json({ id, status: "queued" }, { status: 202 });
+    }
+    const m = url.pathname.match(/^\/internal\/v1\/jobs\/([a-f0-9]+)(\/output)?$/);
+    const job = m ? jobs.get(m[1]) : undefined;
+    if (!job || job.ws !== ws) return Response.json({ error: "not_found" }, { status: 404 });
+    const op = ENGINE.find((o) => o.slug === job.op)!;
+    if (m![2]) return new Response("result-bytes", { headers: { "content-type": op.output.content_type, "content-length": "12" } });
+    return Response.json({ id: job.id, status: job.status, progress: job.progress, result: job.result, output: { name: op.output.name, bytes: 12, content_type: op.output.content_type } });
+  };
+  return { fetch: fetch as typeof globalThis.fetch, jobs, setNext: (j: Partial<Job>) => { next = j; }, answerOnce: (r: Response) => { answer = r; } };
+}
+
+const TYPES: Record<string, string> = { pdf: "application/pdf", office: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", image: "image/png" };
+const NAMES: Record<string, string> = { pdf: "Scan 7.pdf", office: "Report.docx", image: "photo.png" };
+
+async function upload(app: { request: (p: string, i?: RequestInit) => Response | Promise<Response> }, cookie: string, op: string, files: number, fields: Record<string, string> = {}, kind = "pdf", queryFiles?: number, bodySize = 0) {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  for (let i = 0; i < files; i++) fd.append("files", new Blob([bodySize ? "x".repeat(bodySize) : PDF], { type: TYPES[kind] }), i ? `${i}-${NAMES[kind]}` : NAMES[kind]);
+  const req = new Request("http://localhost/x", { method: "POST", body: fd });
+  const bytes = new Uint8Array(await req.arrayBuffer());
+  const headers = { cookie, host: "localhost", "content-type": req.headers.get("content-type")!, "content-length": String(bytes.byteLength), "x-multies-upload": "1" };
+  const res = await app.request(`/api/tools/jobs?op=${op}&files=${queryFiles ?? files}&name=${encodeURIComponent(NAMES[kind])}`, { method: "POST", headers, body: bytes });
+  return { status: res.status, body: (await res.json().catch(() => null)) as Record<string, unknown> | null };
+}
+
+async function setup() {
+  const engine = fakeEngine();
+  const ctx = await makeTestApp(ON, { fetch: engine.fetch });
+  const c = new Client(ctx.app);
+  await c.signup(undefined, "Ada Lovelace", "Acme");
+  const me = await c.get("/api/account/me");
+  const orgId = (me.body as { organization?: { id: string } }).organization?.id ?? "";
+  return { ...ctx, c, engine, orgId };
+}
+
+/** A valid set of options for each tool (the required ones filled in). */
+const GOOD: Partial<Record<ToolOp, Record<string, string>>> = {
+  split: { ranges: "1-2, 3" }, rotate: { angle: "270", ranges: "2" }, "to-jpeg": { dpi: "300" }, ocr: { language: "eng" },
+  redact: { phrases: "Jane Citizen\n123 456 782" }, watermark: { text: "DRAFT", opacity: "40" }, unlock: { password: "hunter22" },
+};
+
+describe("Tools catalogue", () => {
+  it("has the 13 tools the engine publishes, with the same options, caps and result types", () => {
+    expect(TOOLS.map((t) => t.op).sort()).toEqual(ENGINE.map((o) => o.slug).sort());
+    for (const eo of ENGINE) {
+      const t = toolDef(eo.slug as ToolOp);
+      expect(t.minFiles, eo.slug).toBe(eo.min_files);
+      if (t.maxFiles !== "plan") expect(t.maxFiles, eo.slug).toBe(eo.max_files);
+      expect(t.contentType, eo.slug).toBe(eo.output.content_type);
+      expect(eo.output.name.endsWith(`.${t.ext}`), eo.slug).toBe(true);
+      expect(t.maxPages ?? null, eo.slug).toBe(eo.max_pages);
+      expect(t.maxBytes ?? null, eo.slug).toBe(eo.max_bytes);
+      expect(!!t.slow, eo.slug).toBe(eo.slow);
+      expect(t.options.map((o) => o.name), eo.slug).toEqual(eo.options.map((o) => o.name));
+      for (const eopt of eo.options) {
+        const o = t.options.find((x) => x.name === eopt.name)!;
+        expect({ kind: o.kind, required: !!o.required, default: o.default, choices: o.choices?.map((ch) => ch.value), min: o.min, max: o.max, maxLen: o.maxLen }, `${eo.slug}.${o.name}`)
+          .toEqual({ kind: eopt.kind, required: eopt.required, default: eopt.default, choices: eopt.choices, min: eopt.min, max: eopt.max, maxLen: eopt.max_len });
+      }
+    }
+  });
+
+  it("names results with the right extension", () => {
+    expect(resultName("split", "Contract.pdf")).toBe("Contract-split.zip");
+    expect(resultName("to-jpeg", "Deck.pdf")).toBe("Deck-pages.zip");
+    expect(resultName("pdf-to-docx", "Letter.pdf")).toBe("Letter.docx");
+    expect(resultName("redact", "HR file.pdf")).toBe("HR file-redacted.pdf");
+  });
+
+  it("says plainly that PDF to Word keeps text and basic layout only", () => {
+    expect(toolDef("pdf-to-docx").note).toMatch(/^Text and basic layout only\./);
+  });
+});
+
+describe("Tools P1 API, every tool", () => {
+  it.each(TOOLS.map((t) => t.op))("runs %s: options reach the engine, the result downloads with its own type", async (op) => {
+    const { c, app, engine } = await setup();
+    const t = toolDef(op);
+    const kind = t.accept.includes(".docx") ? "office" : t.accept.includes(".png") ? "image" : "pdf";
+    const files = Math.max(t.minFiles, op === "images-to-pdf" ? 2 : 1);
+    const up = await upload(app, c.cookie, op, files, GOOD[op] ?? {}, kind);
+    expect(up.status, JSON.stringify(up.body)).toBe(202);
+    expect(up.body!.name).toBe(resultName(op, NAMES[kind]));
+    const job = [...engine.jobs.values()][0];
+    expect(job.op).toBe(op);
+    expect(job.files).toBe(files);
+    // Form encoding sends line breaks as CRLF; the engine splits phrases on either.
+    expect(Object.fromEntries(Object.entries(job.fields).map(([k, v]) => [k, v.replace(/\r\n/g, "\n")]))).toEqual(GOOD[op] ?? {});
+    const st = await c.get(`/api/tools/jobs/${up.body!.token}`);
+    expect(st.body).toMatchObject({ op, status: "done" });
+    const dl = await app.request((st.body as { downloadUrl: string }).downloadUrl, { headers: { cookie: c.cookie, host: "localhost" } });
+    expect(dl.status).toBe(200);
+    expect(dl.headers.get("content-type")).toBe(t.contentType);
+    expect(dl.headers.get("content-disposition")).toContain(encodeURIComponent(resultName(op, NAMES[kind])));
+  });
+
+  it("passes page progress while a slow tool runs, and only the known result facts when done", async () => {
+    const { c, app, engine } = await setup();
+    engine.setNext({ status: "running", progress: { done: 4, total: 18 } });
+    const up = await upload(app, c.cookie, "ocr", 1, { language: "eng" });
+    const run = await c.get(`/api/tools/jobs/${up.body!.token}`);
+    expect(run.body).toMatchObject({ status: "running", progress: { done: 4, total: 18 } });
+    engine.setNext({ status: "done", result: { matches: 7, phrases: 2, verified: true, pages_changed: 1, secret: "nope" } });
+    const up2 = await upload(app, c.cookie, "redact", 1, { phrases: "Jane" });
+    const done = await c.get(`/api/tools/jobs/${up2.body!.token}`);
+    expect((done.body as { result: unknown }).result).toEqual({ matches: 7, phrases: 2, verified: true, pages_changed: 1 });
+  });
+
+  it("caps OCR at 20 MB before calling the engine, and images at 50 files", async () => {
+    const { c, app, db, engine, orgId } = await setup();
+    await db.run(sql`update organizations set plan = 'pro' where id = ${orgId}`);
+    const ocr = await upload(app, c.cookie, "ocr", 1, { language: "eng" }, "pdf", undefined, 20 * 1024 * 1024 + 70 * 1024);
+    expect(ocr.status).toBe(413);
+    expect(JSON.stringify(ocr.body)).toContain("20 MB");
+    const many = await upload(app, c.cookie, "images-to-pdf", 1, {}, "image", 51);
+    expect(many.status).toBe(400);
+    expect(engine.jobs.size).toBe(0);
+  });
+
+  it("hands on the engine's busy answer (429) and its plain message for a bad option (422)", async () => {
+    const { c, app, engine } = await setup();
+    engine.answerOnce(Response.json({ error: "busy", message: "The tools are busy. Try again in a minute." }, { status: 429 }));
+    const busy = await upload(app, c.cookie, "ocr", 1);
+    expect(busy.status).toBe(429);
+    expect(busy.body).toMatchObject({ error: { code: "tools_busy" } });
+    engine.answerOnce(Response.json({ error: "bad_file", message: "Pages: use page numbers and ranges like 1-3, 5." }, { status: 400 }));
+    const bad = await upload(app, c.cookie, "split", 1, { ranges: "x" });
+    expect(bad.status).toBe(422);
+    expect(JSON.stringify(bad.body)).toContain("1-3, 5");
+  });
+});

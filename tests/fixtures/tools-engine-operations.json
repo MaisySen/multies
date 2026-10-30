@@ -1,0 +1,284 @@
+{
+ "operations": [
+  {
+   "slug": "compress",
+   "label": "Compress PDF",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "compressed.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "merge",
+   "label": "Merge PDFs",
+   "accepts": "pdf",
+   "min_files": 2,
+   "max_files": 20,
+   "output": {
+    "name": "merged.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "convert",
+   "label": "Convert to PDF",
+   "accepts": "office",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "converted.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "to-jpeg",
+   "label": "PDF to images",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "pages.zip",
+    "content_type": "application/zip"
+   },
+   "options": [
+    {
+     "name": "dpi",
+     "kind": "choice",
+     "label": "Quality",
+     "required": false,
+     "default": "150",
+     "choices": [
+      "72",
+      "150",
+      "300"
+     ]
+    }
+   ],
+   "max_pages": 100,
+   "max_bytes": null,
+   "slow": true
+  },
+  {
+   "slug": "images-to-pdf",
+   "label": "Images to PDF",
+   "accepts": "image",
+   "min_files": 1,
+   "max_files": 50,
+   "output": {
+    "name": "images.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "split",
+   "label": "Split PDF",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "split.zip",
+    "content_type": "application/zip"
+   },
+   "options": [
+    {
+     "name": "ranges",
+     "kind": "ranges",
+     "label": "Pages for each part",
+     "required": true,
+     "max_len": 200
+    }
+   ],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "rotate",
+   "label": "Rotate pages",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "rotated.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [
+    {
+     "name": "angle",
+     "kind": "choice",
+     "label": "Turn",
+     "required": false,
+     "default": "90",
+     "choices": [
+      "90",
+      "180",
+      "270"
+     ]
+    },
+    {
+     "name": "ranges",
+     "kind": "ranges",
+     "label": "Pages",
+     "required": false,
+     "max_len": 200
+    }
+   ],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "scrub",
+   "label": "Remove metadata",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "cleaned.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "ocr",
+   "label": "Make searchable (OCR)",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "searchable.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [
+    {
+     "name": "language",
+     "kind": "choice",
+     "label": "Language",
+     "required": false,
+     "default": "eng",
+     "choices": [
+      "eng"
+     ]
+    }
+   ],
+   "max_pages": 30,
+   "max_bytes": 20971520,
+   "slow": true
+  },
+  {
+   "slug": "redact",
+   "label": "Redact text",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "redacted.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [
+    {
+     "name": "phrases",
+     "kind": "phrases",
+     "label": "Words or phrases to black out",
+     "required": true,
+     "max_len": 2000
+    }
+   ],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "watermark",
+   "label": "Watermark",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "watermarked.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [
+    {
+     "name": "text",
+     "kind": "text",
+     "label": "Watermark text",
+     "required": true,
+     "max_len": 80
+    },
+    {
+     "name": "opacity",
+     "kind": "int",
+     "label": "Strength (percent)",
+     "required": false,
+     "default": 25,
+     "min": 10,
+     "max": 60
+    }
+   ],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "unlock",
+   "label": "Remove password",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "unlocked.pdf",
+    "content_type": "application/pdf"
+   },
+   "options": [
+    {
+     "name": "password",
+     "kind": "password",
+     "label": "Current password",
+     "required": true,
+     "max_len": 128
+    }
+   ],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  },
+  {
+   "slug": "pdf-to-docx",
+   "label": "PDF to Word",
+   "accepts": "pdf",
+   "min_files": 1,
+   "max_files": 1,
+   "output": {
+    "name": "document.docx",
+    "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+   },
+   "options": [],
+   "max_pages": null,
+   "max_bytes": null,
+   "slow": false
+  }
+ ]
+}
