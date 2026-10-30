@@ -239,14 +239,18 @@ describe("Tools P2 editors: API", () => {
     expect((await other.get(`/api/tools/editors/jobs/garbage.token`)).status).toBe(404);
   });
 
-  it("stops at the plan's daily runs, previews included", async () => {
+  it("stops a save at the plan's daily runs, but previews still show (R67)", async () => {
     const { app, cookie, db, engine } = await setup();
     const org = (await db.get<{ id: string }>(sql`select id from organizations limit 1`))!.id;
     const day = new Date().toISOString().slice(0, 10);
     await db.run(sql`insert into tool_usage (org_id, period, runs, bytes_in) values (${org}, ${day}, 100000, 0)`);
-    const r = await upload(app, cookie, "/api/tools/editors/jobs?op=thumbnails&name=a.pdf", ["a.pdf"]);
-    expect(r.status).toBe(403);
+    const save = await upload(app, cookie, "/api/tools/editors/jobs?op=organize&name=a.pdf", ["a.pdf"], { plan: JSON.stringify([{ page: 1, rotate: 0 }]) });
+    expect(save.status).toBe(403);
     expect(engine.jobs.size).toBe(0);
+    const preview = await upload(app, cookie, "/api/tools/editors/jobs?op=thumbnails&name=a.pdf", ["a.pdf"]);
+    expect(preview.status).toBe(202);
+    expect(engine.jobs.size).toBe(1);
+    expect(await runs(db)).toBe(100000);
   });
 
   describe("from mail attachments", () => {

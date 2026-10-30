@@ -41,7 +41,7 @@ export function useRunState() { return useState<RunState>({ kind: "idle" }); }
 export function AutomationLinks({ features }: { features: readonly string[] }) {
   const items = [
     { f: "workflows", to: "/app/tools/workflows", title: "Workflows", body: "Chain tools, for example scan, make searchable, compress." },
-    { f: "templates", to: "/app/tools/templates", title: "Templates", body: "Invoices, quotes and letters from a form, as a PDF." },
+    { f: "templates", to: "/app/tools/templates", title: "Document templates", body: "Invoices, quotes and letters from a form, as a PDF." },
     { f: "merge_mail", to: "/app/tools/merge", title: "Mail merge", body: "One template, a personal PDF and email for each person." },
     { f: "rules", to: "/app/settings#send-rules", title: "Before sending", body: "Compress big PDFs and turn Word files into PDFs as you attach them." },
   ].filter((x) => features.includes(x.f));

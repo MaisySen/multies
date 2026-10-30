@@ -44,7 +44,7 @@ export function TemplatesPage() {
   );
   return (
     <div>
-      <PageHeader title="Templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
+      <PageHeader title="Project templates" description="Start a project with its statuses, fields and tasks already in place. Due dates count from the start date you pick."
         actions={<div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" onClick={() => setSaving(true)}>Save a project as a template</Button><Button size="sm" onClick={() => setWriting(true)}><IconPlus className="h-4 w-4" />New template</Button></div>} />
       {q.isPending ? <Skeleton className="h-64" /> : (
         <>

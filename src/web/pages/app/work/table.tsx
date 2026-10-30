@@ -7,6 +7,7 @@
  * Columns live in TABLE_COLUMNS: adding one (a Type or Points column) is one entry there.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
 import { useQueryClient } from "@tanstack/react-query";
 import { SwipeTr } from "@/web/components/ui/swipe-row";
 import { useRevealRow, useWindowedList } from "@/web/lib/use-windowed-list"; // R43 (MB-210)
@@ -194,8 +195,10 @@ function TextEditor({ value, onSave, onCancel, label, type = "text" }: { value: 
   const [v, setV] = useState(value);
   const done = useRef(false);
   const finish = (save: boolean) => { if (done.current) return; done.current = true; if (save && v !== value) onSave(v); else onCancel(); };
+  // R67 (MB-250): dates are typed in the workspace's order.
+  const Box = type === "date" ? DateInput : "input";
   return (
-    <input autoFocus aria-label={label} type={type} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => finish(true)}
+    <Box autoFocus aria-label={label} type={type} value={v} onChange={(e) => setV(e.target.value)} onBlur={() => finish(true)}
       onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); finish(true); } if (e.key === "Escape") { e.preventDefault(); finish(false); } }}
       className="h-7 w-full min-w-0 rounded-md border border-brand bg-surface px-1.5 text-[13px] outline-none ring-2 ring-brand/20" />
   );
@@ -502,7 +505,7 @@ function BulkBar({ tasks, projects, people, writes, onClear }: { tasks: Task[]; 
           {barButton("due", <IconCalendarDays className="h-4 w-4" />, "Due date")}
           {pop === "due" && panel(
             <div className="space-y-2 p-2">
-              <input type="date" aria-label="Due date for the selected tasks" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px]" />
+              <DateInput aria-label="Due date for the selected tasks" value={due} onChange={(e) => setDue(e.target.value)} className="h-8 w-full rounded-md border border-line bg-surface px-2 text-[13px]" />
               <div className="flex gap-1.5">
                 <Button size="sm" disabled={!due} onClick={() => void run({ dueAt: due }, (t) => ({ ...t, due: dateIso(due) }))}>Set</Button>
                 <Button size="sm" variant="secondary" onClick={() => void run({ dueAt: null }, (t) => ({ ...t, due: null }))}>Clear due date</Button>

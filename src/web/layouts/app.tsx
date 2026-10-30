@@ -1,3 +1,4 @@
+import { setDisplayLocale } from "@/web/lib/date-input";
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -65,7 +66,7 @@ const nav: NavItem[] = [
   { to: "/app/dashboards", label: "Dashboards", icon: IconDashboard, group: "work" }, // R24.3
   { to: "/app/reports", label: "Reports", icon: IconChart, group: "work" },
   { to: "/app/portfolio", label: "Portfolio", icon: IconBriefcase, group: "work" },
-  { to: "/app/templates", label: "Templates", icon: IconTemplate, group: "work" },
+  { to: "/app/templates", label: "Project templates", icon: IconTemplate, group: "work" },
   { to: "/app/automations", label: "Automations", icon: IconZap, group: "work" },
   { to: "/app/mail", label: "Mail", icon: IconInbox, group: "mail" },
   { to: "/app/inbox", label: "Shared inbox", icon: IconChats, group: "mail" },
@@ -139,6 +140,8 @@ export function AppLayout() {
   useEffect(() => prefetchWhenIdle(), []);
   // Assigned during render so the first paint already uses the person's zone: their own, their browser's, else the workspace's.
   setDisplayTimeZone(me.data?.user?.timezone, browserTimeZone(), me.data?.organization?.timezone);
+  // R67 (MB-250): date fields follow the workspace's country (dd/mm/yyyy in Australia), in the person's language.
+  setDisplayLocale(me.data?.user?.locale, me.data?.organization?.country);
 
   // R40 (MB-200): only a 401 means signed out. A failed check with a saved copy keeps the app on screen
   // (Reconnecting pill, background retries); with no copy at all the shell frame stays with a calm Retry.

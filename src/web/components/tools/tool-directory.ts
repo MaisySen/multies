@@ -80,7 +80,7 @@ const PAGES: (Omit<Entry, "section" | "icon"> & { feature: string; section: Sect
   { key: "expenses", feature: "expenses", section: "Smart", icon: IconCreditCard, name: "Expense report", line: "Turn receipts into an expense report", words: "ai expenses receipts report gst", to: "/app/tools/ai?feature=expenses" },
   { key: "contracts", feature: "contracts", section: "Smart", icon: IconCalendarClock, name: "Contract dates", line: "Key dates and renewal reminders", words: "ai contract renewal notice dates reminder", to: "/app/tools/ai?feature=contracts", takesAttachment: true, takes: /\.(pdf|docx)$/i },
   { key: "workflows", feature: "workflows", section: "Automate", icon: IconWorkflow, name: "Workflows", line: "Chain tools into one step", words: "chain automate steps", to: "/app/tools/workflows" },
-  { key: "templates", feature: "templates", section: "Automate", icon: IconTemplate, name: "Templates", line: "Invoices, quotes and letters from a form", words: "invoice quote letter template", to: "/app/tools/templates" },
+  { key: "templates", feature: "templates", section: "Automate", icon: IconTemplate, name: "Document templates", line: "Invoices, quotes and letters from a form, as a PDF", words: "invoice quote letter template document", to: "/app/tools/templates" },
   { key: "merge_mail", feature: "merge_mail", section: "Automate", icon: IconMails, name: "Mail merge", line: "A personal PDF and email for each person", words: "mail merge bulk csv contacts", to: "/app/tools/merge" },
   { key: "rules", feature: "rules", section: "Automate", icon: IconZap, name: "Before sending", line: "Compress and convert files as you attach them", words: "rules auto compress convert attach send", to: "/app/settings#send-rules" },
 ];

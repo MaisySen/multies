@@ -16,10 +16,30 @@ import { IconClose } from "@/web/components/ui/icon";
 import { cn } from "@/web/lib/cn";
 import type { ToolJob } from "@/shared/tools";
 import {
-  TEMPLATE_FIELD_TYPES, fillTemplate, invoiceTotals, missingRequired, money, parseLines, templateDefaults,
+  TEMPLATE_FIELD_TYPES, fillTemplate, invoiceTotals, missingRequired, money, nextDocNumber, parseLines, templateDefaults,
   type LineItem, type TemplateDef, type TemplateField, type TemplateFieldType,
 } from "@/shared/tools-automation";
 import { AutoPage, ResultBox, useRunState } from "./shell";
+import { warmEngine } from "@/web/components/tools/tool-directory";
+
+/** R67: the last invoice and quote number made in this browser, per workspace, so the next one is suggested. */
+const NUMBER_KEYS = { invoice_number: "invoice", quote_number: "quote" } as const;
+const lastNumberKey = (ws: string, key: string) => `mm-last-doc-number:${ws}:${key}`;
+function suggestedNumbers(ws: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, kind] of Object.entries(NUMBER_KEYS)) {
+    let last: string | null = null;
+    try { last = localStorage.getItem(lastNumberKey(ws, key)); } catch { /* storage off */ }
+    out[key] = nextDocNumber(last, kind);
+  }
+  return out;
+}
+function rememberNumbers(ws: string, values: Record<string, string>) {
+  for (const key of Object.keys(NUMBER_KEYS)) {
+    const v = values[key]?.trim();
+    if (v) try { localStorage.setItem(lastNumberKey(ws, key), v); } catch { /* storage off */ }
+  }
+}
 
 interface Info { templates: TemplateDef[]; workspaceName: string; logo: string | null; today: string }
 
@@ -29,12 +49,16 @@ function LinesEditor({ value, onChange, gst }: { value: string; onChange: (v: st
   const t = invoiceTotals(parseLines(value), { gst: gst !== "no", gstIncluded: gst === "included" });
   return (
     <div className="space-y-2" data-testid="lines-editor">
+      {/* R67: column names once on wide screens; on a phone each box carries its own small label. */}
+      {lines.length > 0 && <div aria-hidden className="hidden grid-cols-[1fr_4.5rem_6.5rem_2rem] gap-2 text-[12px] text-muted sm:grid"><span>Description</span><span>Quantity</span><span>Unit price</span><span /></div>}
       {lines.map((l, i) => (
-        <div key={i} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-2 sm:grid-cols-[1fr_4.5rem_6.5rem_auto]">
+        <div key={i} className="grid grid-cols-[4.5rem_1fr_auto] items-end gap-2 sm:grid-cols-[1fr_4.5rem_6.5rem_2rem] sm:items-center">
           <Input className="col-span-3 sm:col-span-1" value={l.description} placeholder="Description" onChange={(e) => set(lines.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} aria-label={`Item ${i + 1}`} />
-          <Input type="number" min={0} step="any" value={String(l.quantity)} onChange={(e) => set(lines.map((x, j) => (j === i ? { ...x, quantity: Number(e.target.value) } : x)))} aria-label="Quantity" />
-          <Input type="number" min={0} step="0.01" value={String(l.unitPrice)} onChange={(e) => set(lines.map((x, j) => (j === i ? { ...x, unitPrice: Number(e.target.value) } : x)))} aria-label="Unit price" />
-          <button type="button" onClick={() => set(lines.filter((_, j) => j !== i))} aria-label="Remove item" className="rounded p-1.5 text-muted hover:bg-hover"><IconClose className="h-4 w-4" /></button>
+          <label className="block min-w-0"><span className="mb-1 block text-[12px] text-muted sm:hidden">Quantity</span>
+            <Input type="number" inputMode="decimal" min={0} step="any" value={String(l.quantity)} onChange={(e) => set(lines.map((x, j) => (j === i ? { ...x, quantity: Number(e.target.value) } : x)))} aria-label="Quantity" /></label>
+          <label className="block min-w-0"><span className="mb-1 block text-[12px] text-muted sm:hidden">Unit price</span>
+            <Input type="number" inputMode="decimal" min={0} step="0.01" value={String(l.unitPrice)} onChange={(e) => set(lines.map((x, j) => (j === i ? { ...x, unitPrice: Number(e.target.value) } : x)))} aria-label="Unit price" /></label>
+          <button type="button" onClick={() => set(lines.filter((_, j) => j !== i))} aria-label="Remove item" className="grid h-10 w-10 place-items-center rounded text-muted hover:bg-hover max-sm:h-11 max-sm:w-11"><IconClose className="h-4 w-4" /></button>
         </div>
       ))}
       <Button type="button" size="sm" variant="secondary" onClick={() => set([...lines, { description: "", quantity: 1, unitPrice: 0 }])}>Add an item</Button>
@@ -97,7 +121,11 @@ export function TemplatesPage() {
   const [run, setRun] = useRunState();
   const t = q.data?.templates.find((x) => x.id === id) ?? q.data?.templates[0];
   const ctx = useMemo(() => ({ workspaceName: q.data?.workspaceName ?? "", logoDataUri: q.data?.logo, today: q.data?.today ?? "" }), [q.data]);
-  useEffect(() => { if (t) { setValues(templateDefaults(t, ctx)); setRun({ kind: "idle" }); } }, [t?.id, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
+  const ws = q.data?.workspaceName ?? "";
+  // R67: the next invoice or quote number is suggested from the last one made here.
+  useEffect(() => { if (t) { const next = suggestedNumbers(ws); setValues({ ...templateDefaults(t, ctx), ...Object.fromEntries(t.fields.filter((f) => f.key in next).map((f) => [f.key, next[f.key]])) }); setRun({ kind: "idle" }); } }, [t?.id, ctx]); // eslint-disable-line react-hooks/exhaustive-deps
+  // R67: wake the document engine as the page opens, so Make PDF does not wait for a cold start.
+  useEffect(() => { void warmEngine(); }, []);
   const gst = values.gst ?? "yes";
   const preview = useMemo(() => (t ? fillTemplate(t, values, ctx) : ""), [t, values, ctx]);
   const missing = t ? missingRequired(t, values) : [];
@@ -110,17 +138,18 @@ export function TemplatesPage() {
       const job = await api.post<ToolJob>(`/tools/templates/${t.id}/render`, body);
       const doneJob = await waitForJobDone(job.token);
       setRun({ kind: "done", file: await jobFile(doneJob), job: doneJob });
+      rememberNumbers(ws, values);
     } catch (e) { setRun({ kind: "failed", message: errorMessage(e) }); }
   };
   const subject = t ? `${t.name}${values.invoice_number ? ` ${values.invoice_number}` : values.quote_number ? ` ${values.quote_number}` : values.subject ? `: ${values.subject}` : ""}` : "";
   return (
-    <AutoPage title="Templates" description="Fill in an invoice, quote or letter, check the preview, and get a PDF to send. Invoices work out line totals, GST and the total for you."
+    <AutoPage title="Document templates" description="Fill in an invoice, quote or letter, check the preview, and get a PDF to send. Invoices work out line totals, GST and the total for you."
       actions={<Button variant="secondary" onClick={() => setEditing({})}>New template</Button>}>
       {editing && <CustomEditor start={editing} onDone={() => setEditing(null)} />}
       {q.isPending ? <Skeleton className="h-96 w-full" /> : t && (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <Card className="space-y-4 p-4">
-            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Templates">
+            <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Document templates">
               {q.data!.templates.map((x) => (
                 <button key={x.id} role="tab" aria-selected={x.id === t.id} onClick={() => setId(x.id)}
                   className={cn("rounded-full border px-3 py-1 text-[13px]", x.id === t.id ? "border-[#0071E3] bg-[#0071E3]/10 text-[#0071E3]" : "border-line text-muted hover:text-fg")}>{x.name}</button>

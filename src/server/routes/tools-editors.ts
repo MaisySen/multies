@@ -84,6 +84,8 @@ function checkRun(op: EditorOp, files: number, s: ToolState) {
   const limits = toolLimits(s.plan);
   const want = FILES_FOR[op];
   if (files !== want) throw new HttpError(400, "bad_request", want === 2 ? "Choose two PDFs to compare." : "Choose one PDF.");
+  // R67: previews (page pictures, a form's fields) are not runs, so they still show when no runs are left.
+  if (EDITOR_PREVIEW_OPS.includes(op)) return;
   if (s.month >= limits.runsMonthly) throw planLimit(`Your workspace has used all ${limits.runsMonthly} tool runs this month. They reset on the 1st.`);
   if (s.day >= limits.runsDaily) throw planLimit(`Your workspace has used all ${limits.runsDaily} tool runs for today. Try again tomorrow.`);
 }

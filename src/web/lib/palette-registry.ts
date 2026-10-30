@@ -43,7 +43,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-dashboards", label: "Dashboards", to: "/app/dashboards", icon: IconDashboard, keywords: ["charts", "widgets"] },
   { id: "p-reports", label: "Reports", to: "/app/reports", icon: IconChart, keywords: ["analytics", "charts"] },
   { id: "p-portfolio", label: "Portfolio", to: "/app/portfolio", icon: IconBriefcase, keywords: ["projects", "status"] },
-  { id: "p-templates", label: "Templates", to: "/app/templates", icon: IconTemplate, keywords: ["blueprints"] },
+  { id: "p-templates", label: "Project templates", to: "/app/templates", icon: IconTemplate, keywords: ["blueprints", "templates"] },
   { id: "p-automations", label: "Automations", to: "/app/automations", icon: IconZap, keywords: ["rules", "workflows", "recipes"] },
   { id: "p-mail", label: "Mail", to: "/app/mail", icon: IconInbox, keywords: ["inbox", "webmail", "email"] },
   { id: "p-shared-inbox", label: "Shared inbox", to: "/app/inbox", icon: IconChats, keywords: ["team inbox", "support", "assign"] },

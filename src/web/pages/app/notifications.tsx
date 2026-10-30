@@ -4,6 +4,7 @@
  * H snooze, U read, Shift E undo) and hover buttons. Every action is optimistic and rolls back on an error.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DateInput } from "@/web/components/ui/input"; // R67 (MB-250)
 import { Link, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -246,7 +247,7 @@ function SnoozeMenu({ onPick, onClose }: { onPick: (b: { preset: SnoozePreset } 
       ))}
       <form className="mt-1 flex items-center gap-1 border-t border-line px-1.5 pt-1.5" onSubmit={(e) => { e.preventDefault(); const iso = pickedDateIso(date); if (iso) onPick({ until: iso }); }}>
         <label className="sr-only" htmlFor="snooze-date">Pick a date</label>
-        <input id="snooze-date" type="date" min={min} value={date} onChange={(e) => setDate(e.target.value)} className="h-7 min-w-0 flex-1 rounded-md border border-line bg-bg px-1.5 text-[12.5px]" />
+        <DateInput id="snooze-date" min={min} value={date} onChange={(e) => setDate(e.target.value)} className="h-7 min-w-0 flex-1 rounded-md border border-line bg-bg px-1.5 text-[12.5px]" />
         <Button size="sm" variant="secondary" type="submit" disabled={!date}>Set</Button>
       </form>
     </div>

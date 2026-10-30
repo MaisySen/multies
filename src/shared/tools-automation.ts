@@ -323,6 +323,14 @@ export function templateDefaults(t: TemplateDef, ctx: TemplateContext): Record<s
   return out;
 }
 
+/** R67: the number after the last one used ("INV-0041" gives "INV-0042", "2026/9" gives "2026/10"); a first one otherwise. */
+export function nextDocNumber(last: string | null | undefined, kind: "invoice" | "quote"): string {
+  const m = /^(.*?)(\d+)(\D*)$/.exec((last ?? "").trim());
+  if (!m) return kind === "invoice" ? "INV-0001" : "Q-0001";
+  const [, head, digits, tail] = m;
+  return `${head}${String(Number(digits) + 1).padStart(digits.length, "0")}${tail}`;
+}
+
 /** Fields the form left empty that the template marks as required. */
 export function missingRequired(t: Pick<TemplateDef, "fields">, values: Record<string, unknown>): string[] {
   return t.fields.filter((f) => f.required && (f.type === "lines" ? parseLines(values[f.key]).length === 0 : !String(values[f.key] ?? "").trim())).map((f) => f.label);
