@@ -6,7 +6,6 @@ import { CriticalUpdateNotice, StoreUpdateScreen, WhatsNewSheet } from "@/compon
 import { updateStatusLabel } from "@/components/update-rows";
 import { WHATS_NEW } from "@/lib/ota/whats-new.generated";
 import { JS_VERSION } from "@/lib/app-version";
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { parseChangelog, upToDate } = require("../scripts/whats-new");
 const { readFileSync } = require("fs");
 const { join } = require("path");

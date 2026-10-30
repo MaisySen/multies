@@ -23,16 +23,16 @@ describe("ota-publish live store builds", () => {
   const live = { ios: liveIos(asc, eas), android: liveAndroid(tracks, record) };
 
   it("reads the newest live builds and skips expired TestFlight builds", () => {
-    expect(live.ios.map((b) => b.build)).toEqual([20]);
+    expect(live.ios.map((b: { build: number }) => b.build)).toEqual([20]);
     expect(live.ios[0].runtimeVersion).toBe(RT110I);
-    expect(live.android.map((b) => b.build)).toEqual([16, 10]);
+    expect(live.android.map((b: { build: number }) => b.build)).toEqual([16, 10]);
     expect(live.android[1].updatable).toBe(false);
   });
 
   it("passes when the code matches the live 1.10.0 runtimes", () => {
     const r = checkRuntimes({ live, current: { ios: RT110I, android: RT110A }, channel: "production" });
     expect(r.ok).toBe(true);
-    expect(r.targets.map((t) => t.build).sort()).toEqual([16, 20]);
+    expect(r.targets.map((t: { build: number }) => t.build).sort()).toEqual([16, 20]);
   });
 
   it("refuses the 1.9.13 publish (1.9.3 runtimes) while phones run 1.10.0", () => {

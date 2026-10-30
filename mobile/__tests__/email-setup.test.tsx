@@ -3,7 +3,7 @@
  * the connected accounts list, and Compose pointing to them when there is nothing to send from.
  */
 import { Alert } from "react-native";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { SessionProvider } from "@/lib/session";

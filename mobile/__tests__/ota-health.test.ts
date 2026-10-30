@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 const { evaluateHealth, ageHoursFrom, rowsFromDiscover, projectIdFromEnv, discoverQuery, fetchHealthRows } = require("../scripts/ota-health");
 
 const rows = (applied: number, crash = 0, failed = 0, launchCrash = 0) => [
