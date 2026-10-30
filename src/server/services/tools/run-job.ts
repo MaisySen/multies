@@ -11,8 +11,8 @@ import type { AuthContext, Deps } from "../../context";
 import { HttpError, notFound, planLimit } from "../../lib/errors";
 import { audit } from "../audit";
 import { engineFetch, type EngineConfig } from "./engine-client";
-import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "./usage";
-import { TOOL_FACT_KEYS, extForType, isToolOp, toolDef, toolOn, type ToolJobStatus, type ToolOp, type ToolResultFacts } from "@/shared/tools";
+import { chargeJob, readToolState, toolLimits, toolsOnFor, type ToolState } from "./usage";
+import { TOOL_FACT_KEYS, emptyResult, extForType, isToolOp, toolDef, toolOn, type ToolJobStatus, type ToolOp, type ToolResultFacts } from "@/shared/tools";
 
 /** Multipart framing on top of the files themselves (boundaries and part headers). */
 export const MULTIPART_ALLOWANCE = 64 * 1024;
@@ -112,12 +112,9 @@ export async function startToolJob(deps: Deps, auth: RunAuth, op: ToolOp, files:
   } catch { throw engineDown(); }
   if (res.status !== 202) await engineError(res);
   const job = (await res.json()) as { id: string; status: ToolJobStatus };
+  // R66 (MB-256): the audit row now, the run is counted only when it finishes with a result (runToolJob, chargeJob).
   if (o.count !== false) {
-    const now = deps.now();
-    await Promise.all([
-      recordRun(deps.db, auth.orgId, now, body.byteLength),
-      audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email ?? "", action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source: o.source ?? "server", files: files.length, bytes_in: body.byteLength }, ip: o.ip }),
-    ]);
+    await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email ?? "", action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source: o.source ?? "server", files: files.length, bytes_in: body.byteLength }, ip: o.ip });
   }
   return { jobId: job.id, status: job.status, bytesIn: body.byteLength };
 }
@@ -185,11 +182,12 @@ export interface RunToolJobOptions extends StartToolJobOptions {
  */
 export async function runToolJob(deps: Deps, auth: RunAuth, op: ToolOp, files: ToolFileInput[], options: Record<string, string> = {}, o: RunToolJobOptions = {}): Promise<RunToolJobResult> {
   const sleep = o.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
-  const { jobId } = await startToolJob(deps, auth, op, files, options, o);
+  const { jobId, bytesIn } = await startToolJob(deps, auth, op, files, options, o);
   const deadline = Date.now() + (o.timeoutMs ?? 120_000);
   for (;;) {
     const st = await toolJobStatus(deps, auth, jobId);
     if (st.status === "done") {
+      if (o.count !== false && !emptyResult(op, st.result)) await chargeJob(deps.db, auth.orgId, jobId, deps.now(), bytesIn);
       const out: RunToolJobResult = { jobId, status: "done", result: st.result };
       if (o.fetchOutput !== false) {
         const got = await toolJobOutput(deps, auth, jobId);

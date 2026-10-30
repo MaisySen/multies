@@ -19,7 +19,7 @@ import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { requireToolFeature } from "../services/tools/features";
 import { mintToken, readToken } from "../services/tools/tokens";
-import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
+import { chargeJob, readToolState, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
 import { attachments, messages } from "../db/schema";
 import { attachmentBytes } from "../services/mail/store";
 import { mailboxScope } from "../services/team";
@@ -117,20 +117,22 @@ async function engineJob(c: Context<AppEnv>, engine: EngineConfig, op: EditorOp,
   return j;
 }
 
-/** Counts a run (one usage upsert and one audit row without file names). Previews count nothing. */
+/**
+ * Writes the run's audit row (no file names). Previews count nothing. R66 (MB-256): the run itself is counted by
+ * the status read that first sees it finished (chargeJob), so a failed or cancelled run costs nothing.
+ */
 async function countRun(c: Context<AppEnv>, op: EditorOp, jobId: string, source: "upload" | "attachment", files: number, len: number) {
   if (EDITOR_PREVIEW_OPS.includes(op)) return;
   const { auth, deps } = c.var;
-  await Promise.all([
-    recordRun(deps.db, auth.orgId, deps.now(), len),
-    audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: jobId, metadata: { op, source, files, bytes_in: len }, ip: c.var.ip }),
-  ]);
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: jobId, metadata: { op, source, files, bytes_in: len }, ip: c.var.ip });
 }
 
-async function jobFor(c: Context<AppEnv>, tokenKey: string, op: EditorOp, j: Started, name: string): Promise<EditorJob> {
+/** The status token. bytes is set on the one job of a run that is counted when it finishes (never on previews). */
+async function jobFor(c: Context<AppEnv>, tokenKey: string, op: EditorOp, j: Started, name: string, bytes?: number): Promise<EditorJob> {
   const { auth, deps } = c.var;
   // The token's op field is typed for the P1 catalogue; editor ops ride it as their own names.
-  const token = await mintToken(tokenKey, { k: "s", j: j.id, w: auth.orgId, u: auth.userId, o: op as unknown as ToolOp, n: name }, deps.now().getTime());
+  const counted = bytes !== undefined && !EDITOR_PREVIEW_OPS.includes(op);
+  const token = await mintToken(tokenKey, { k: "s", j: j.id, w: auth.orgId, u: auth.userId, o: op as unknown as ToolOp, n: name, ...(counted ? { b: bytes } : {}) }, deps.now().getTime());
   return { token, op, status: j.status, name };
 }
 
@@ -156,7 +158,7 @@ async function startCompare(c: Context<AppEnv>, engine: EngineConfig, tokenKey: 
   ]);
   await countRun(c, "compare", a.id, source, 2, len);
   const out: CompareStart = {
-    report: await jobFor(c, tokenKey, "compare", a, editorResultName("compare", files[1]?.name ?? files[0]?.name)),
+    report: await jobFor(c, tokenKey, "compare", a, editorResultName("compare", files[1]?.name ?? files[0]?.name), len),
     changes: await jobFor(c, tokenKey, "compare", b, editorResultName("compare", files[1]?.name ?? files[0]?.name, "json")),
   };
   return c.json(out, 202);
@@ -195,7 +197,7 @@ export function toolsEditorsRoutes() {
       takePreview(c, op);
       const j = await engineJob(c, engine, op, c.req.raw.body, len, maxBytes, ctype);
       await countRun(c, op, j.id, "upload", 1, len);
-      return c.json(await jobFor(c, tokenKey, op, j, editorResultName(op, c.req.query("name"))), 202);
+      return c.json(await jobFor(c, tokenKey, op, j, editorResultName(op, c.req.query("name")), len), 202);
     })
     // Compare upload: two PDFs, older first. Read once in the Worker, sent to the engine twice (report and change list).
     .post("/compare", async (c) => {
@@ -248,7 +250,7 @@ export function toolsEditorsRoutes() {
       if (body.byteLength > maxBytes) throw new HttpError(413, "too_large", `Attachments can add up to ${Math.round(toolLimits(s.plan).maxBytes / (1024 * 1024))} MB on your plan.`);
       const j = await engineJob(c, engine, op, new Blob([body as BlobPart]).stream(), body.byteLength, maxBytes, req.headers.get("content-type") ?? "");
       await countRun(c, op, j.id, "attachment", 1, body.byteLength);
-      return c.json(await jobFor(c, tokenKey, op, j, editorResultName(op, files[0].name)), 202);
+      return c.json(await jobFor(c, tokenKey, op, j, editorResultName(op, files[0].name), body.byteLength), 202);
     })
     // The other PDFs in an attachment's thread, newest first: what compare offers as the second version.
     .get("/attachments/:id/pdfs", async (c) => {
@@ -287,6 +289,8 @@ export function toolsEditorsRoutes() {
         out.bytes = j.output?.bytes;
         const d = await mintToken(tokenKey, { k: "d", j: t.j, w: t.w, u: auth.userId, o: t.o, n: t.n }, deps.now().getTime());
         out.downloadUrl = `/api/tools/editors/jobs/${d}/download`;
+        // R66 (MB-256): counted once, when it finished (tokens without bytes are previews or compare's second job).
+        if (t.b !== undefined) await chargeJob(deps.db, auth.orgId, t.j, deps.now(), t.b);
       }
       return c.json(out);
     })

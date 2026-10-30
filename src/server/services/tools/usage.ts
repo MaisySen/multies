@@ -28,6 +28,19 @@ export async function readToolState(db: DB, orgId: string, now: Date): Promise<T
   };
 }
 
+/**
+ * R66 (MB-256): counts an engine job once, when it finished with a result. The job id goes into tool_job_charges
+ * first (migration 0099); only the read that inserted it counts the run, so a second status read of the same
+ * finished job (another tab, a page that resumed after a refresh) costs nothing. True when this call counted it.
+ */
+export async function chargeJob(db: DB, orgId: string, jobId: string, now: Date, bytesIn: number): Promise<boolean> {
+  const r = await db.get<{ job_id: string }>(sql`insert into tool_job_charges (job_id, org_id, created_at)
+    values (${jobId}, ${orgId}, ${now.getTime()}) on conflict (job_id) do nothing returning job_id`);
+  if (!r) return false;
+  await recordRun(db, orgId, now, bytesIn);
+  return true;
+}
+
 /** Counts one run against the month and the day, in one statement. */
 export async function recordRun(db: DB, orgId: string, now: Date, bytesIn: number): Promise<void> {
   const b = Math.max(0, Math.floor(bytesIn));
@@ -36,11 +49,12 @@ export async function recordRun(db: DB, orgId: string, now: Date, bytesIn: numbe
     on conflict (org_id, period) do update set runs = runs + 1, bytes_in = bytes_in + excluded.bytes_in`);
 }
 
-/** Housekeeping: day rows older than 2 days and month rows older than 13 months. */
+/** Housekeeping: day rows older than 2 days, month rows older than 13 months, job charge marks older than 2 days. */
 export async function pruneToolUsage(db: DB, now: Date): Promise<void> {
   const day = dayOf(new Date(now.getTime() - 2 * 86_400_000));
   const m = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 13, 1));
   await db.run(sql`delete from tool_usage where (length(period) = 10 and period < ${day}) or (length(period) = 7 and period < ${monthOf(m)})`);
+  await db.run(sql`delete from tool_job_charges where created_at < ${now.getTime() - 2 * 86_400_000}`);
 }
 
 export function toolLimits(plan: PlanId) {

@@ -141,8 +141,9 @@ describe("Tools P1 API", () => {
     expect(sent.ctype).toMatch(/^multipart\/form-data; boundary=/);
     expect(Number(sent.maxBytes)).toBe(20 * 1024 * 1024 + 64 * 1024);
     const now = new Date();
-    const rows = await db.all<{ period: string; runs: number; bytes_in: number }>(sql`select period, runs, bytes_in from tool_usage where org_id = ${orgId} order by period`);
-    expect(rows).toEqual([{ period: monthOf(now), runs: 1, bytes_in: up.sent }, { period: dayOf(now), runs: 1, bytes_in: up.sent }]);
+    const usage = () => db.all<{ period: string; runs: number; bytes_in: number }>(sql`select period, runs, bytes_in from tool_usage where org_id = ${orgId} order by period`);
+    // R66 (MB-256): nothing is counted until the job finishes with a result.
+    expect(await usage()).toEqual([]);
     const auditRows = await db.all<{ action: string; target_type: string; metadata: string }>(sql`select action, target_type, metadata from audit_logs where org_id = ${orgId} and action = 'tools.run'`);
     expect(auditRows).toHaveLength(1);
     expect(JSON.parse(auditRows[0].metadata)).toEqual({ op: "compress", source: "upload", files: 1, bytes_in: up.sent });
@@ -150,6 +151,10 @@ describe("Tools P1 API", () => {
     const st = await c.get(`/api/tools/jobs/${up.body!.token}`);
     expect(st.status).toBe(200);
     expect(st.body).toMatchObject({ status: "done", name: "Secret invoice-compressed.pdf", bytes: PDF.length });
+    expect(await usage()).toEqual([{ period: monthOf(now), runs: 1, bytes_in: up.sent }, { period: dayOf(now), runs: 1, bytes_in: up.sent }]);
+    // A second status read of the same finished job (another tab, a page that resumed) costs nothing.
+    await c.get(`/api/tools/jobs/${up.body!.token}`);
+    expect((await usage()).map((r) => r.runs)).toEqual([1, 1]);
     const dl = await app.request((st.body as { downloadUrl: string }).downloadUrl, { headers: { cookie: c.cookie, host: "localhost" } });
     expect(dl.status).toBe(200);
     expect(dl.headers.get("content-type")).toBe("application/pdf");
@@ -158,7 +163,8 @@ describe("Tools P1 API", () => {
     expect(dl.headers.get("x-content-type-options")).toBe("nosniff");
     expect((await dl.text()).startsWith("%PDF")).toBe(true);
     // A second run adds to the same two rows.
-    await upload(app, c.cookie, "merge", [{ name: "a.pdf", body: PDF }, { name: "b.pdf", body: PDF }]);
+    const second = await upload(app, c.cookie, "merge", [{ name: "a.pdf", body: PDF }, { name: "b.pdf", body: PDF }]);
+    await c.get(`/api/tools/jobs/${second.body!.token}`);
     const after = await db.all<{ runs: number }>(sql`select runs from tool_usage where org_id = ${orgId}`);
     expect(after.map((r) => r.runs)).toEqual([2, 2]);
   });

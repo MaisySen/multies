@@ -186,6 +186,11 @@ describe("Tools P2 editors: API", () => {
     expect(o.body).toMatchObject({ op: "organize", name: "Deck-edited.pdf" });
     const job = [...engine.jobs.values()].find((j) => j.op === "organize")!;
     expect(job.fields.plan).toBe(plan);
+    // R66 (MB-256): counted when the status read sees it finished, once.
+    expect(await runs(db)).toBe(0);
+    expect((await c.get(`/api/tools/editors/jobs/${o.body!.token}`)).body).toMatchObject({ status: "done" });
+    expect(await runs(db)).toBe(1);
+    await c.get(`/api/tools/editors/jobs/${o.body!.token}`);
     expect(await runs(db)).toBe(1);
     const audit = await db.all<{ metadata: string }>(sql`select metadata from audit_logs where action = 'tools.run'`);
     expect(audit).toHaveLength(1);
@@ -210,13 +215,15 @@ describe("Tools P2 editors: API", () => {
     const jobs = [...engine.jobs.values()];
     expect(jobs.map((j) => j.fields.output).sort()).toEqual(["json", "pdf"]);
     for (const j of jobs) expect(j.files).toEqual(["v1.pdf", "v2.pdf"]);
-    expect(await runs(db)).toBe(1);
+    expect(await runs(db)).toBe(0);
     const st = await c.get(`/api/tools/editors/jobs/${body.report.token}`);
+    expect(await runs(db)).toBe(1);
     expect(st.body.result).toEqual({ pages_changed: 2, words_added: 5, words_removed: 3 });
     const ch = await c.get(`/api/tools/editors/jobs/${body.changes.token}`);
     const dl = await app.request(ch.body.downloadUrl, { headers: { cookie, host: "localhost" } });
     expect(dl.headers.get("content-type")).toBe("application/json");
     expect(readCompareChanges(await dl.json()).pages[0]).toMatchObject({ page: 2, added: ["new words"] });
+    expect(await runs(db)).toBe(1); // the change list is the same run
     const inline = await app.request(`${st.body.downloadUrl}?inline=1`, { headers: { cookie, host: "localhost" } });
     expect(inline.headers.get("content-disposition")).toMatch(/^inline/);
     expect((await upload(app, cookie, "/api/tools/editors/compare", ["v1.pdf"])).status).toBe(400);
@@ -279,6 +286,10 @@ describe("Tools P2 editors: API", () => {
       expect(f.status).toBe(202);
       const job = [...engine.jobs.values()].find((j) => j.op === "form-fill")!;
       expect(job.fields).toEqual({ values: "{\"Name\":\"Jo\"}", flatten: "yes" });
+      expect(await runs(db)).toBe(0);
+      await c.get(`/api/tools/editors/jobs/${r.body.report.token}`);
+      await c.get(`/api/tools/editors/jobs/${r.body.changes.token}`);
+      await c.get(`/api/tools/editors/jobs/${f.body.token}`);
       expect(await runs(db)).toBe(2);
       const audit = await db.all<{ metadata: string }>(sql`select metadata from audit_logs where action = 'tools.run'`);
       expect(audit.map((a) => JSON.parse(a.metadata).source)).toEqual(["attachment", "attachment"]);

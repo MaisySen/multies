@@ -9,6 +9,8 @@ import { useConfig } from "@/web/lib/queries";
 import type { ToolsInfo } from "@/shared/tools";
 import type { ToolFeature } from "@/shared/tool-features";
 import type { CompareStart, EditorJob, EditorOp } from "@/shared/tools-editors";
+import { useEffect } from "react";
+import { peekCarried, takeCarried } from "@/web/lib/carried-files";
 
 export class RunError extends Error {
   constructor(message: string, public status = 0, public code?: string) { super(message); }
@@ -43,6 +45,11 @@ function sendForm<T>(path: string, fd: FormData, onPct: (pct: number) => void): 
 /** Where a PDF comes from: a file on this device or a mail attachment (no upload). */
 export type Source = { kind: "file"; file: File } | { kind: "attachment"; id: string; name: string };
 export const sourceName = (s: Source) => (s.kind === "file" ? s.file.name : s.name);
+
+/** R66: the PDFs dropped on the Tools list before this page opened (read in a state initialiser; see useTakeCarried). */
+export const carriedPdfs = (): Source[] => peekCarried().filter((f) => /\.pdf$/i.test(f.name)).map((file) => ({ kind: "file" as const, file }));
+/** Clears the handed over files once the page has them (after the first render, so a strict re-render still sees them). */
+export function useTakeCarried() { useEffect(() => { takeCarried(); }, []); }
 
 /** Starts one engine job on one PDF. */
 export async function start(op: Exclude<EditorOp, "compare">, src: Source, options: Record<string, string> = {}, onPct: (pct: number) => void = () => undefined): Promise<EditorJob> {

@@ -15,7 +15,7 @@ import { Button } from "@/web/components/ui/button";
 import { Card } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { EDITOR_MAX_PAGES, planSummary, turn, type EditorJob, type PlanEntry, type Rotation } from "@/shared/tools-editors";
-import { readThumbnails, start, waitFor, RunError, type Source } from "./runner";
+import { readThumbnails, start, waitFor, RunError, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard } from "./shell";
 
 interface Item { id: string; page: number; rotate: Rotation }
@@ -31,12 +31,12 @@ function PageTile({ item, index, src, onTurn, onDelete, canDelete, disabled }: {
   const label = `Page ${item.page}${item.rotate ? `, turned ${item.rotate === 90 ? "right" : item.rotate === 270 ? "left" : "upside down"}` : ""}`;
   return (
     <li ref={setNodeRef} style={style} data-testid="page-tile" data-page={item.page} data-rotate={item.rotate}
-      className={cn("group relative list-none rounded-xl border bg-elevated p-2 shadow-sm transition-shadow duration-150",
+      className={cn("group relative list-none rounded-xl border bg-elevated p-1.5 shadow-sm sm:p-2 transition-shadow duration-150",
         isDragging ? "z-10 border-brand shadow-lg" : "border-line hover:border-line-strong")}>
       <button type="button" {...attributes} {...listeners} aria-label={`${label}. Position ${index + 1}. Press space to move.`} aria-roledescription="page you can move"
         className="block w-full cursor-grab touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-brand active:cursor-grabbing" disabled={disabled}>
         <span className="relative grid aspect-square w-full place-items-center overflow-hidden rounded-md bg-fill">
-          {src ? <img src={src} alt="" draggable={false} className={cn("max-h-[80%] max-w-[80%] bg-white shadow-sm transition-transform duration-200 motion-reduce:transition-none", ROT_CLASS[item.rotate])} />
+          {src ? <img src={src} alt="" draggable={false} className={cn("max-h-[92%] max-w-[92%] bg-white shadow-sm transition-transform duration-200 motion-reduce:transition-none", ROT_CLASS[item.rotate])} />
             : <span className="text-xs text-muted">Page {item.page}</span>}
           <IconGrip className="absolute left-1.5 top-1.5 h-4 w-4 text-subtle opacity-0 transition-opacity group-hover:opacity-100 max-sm:opacity-100" aria-hidden />
           <span className="absolute bottom-1.5 left-1.5 rounded-md bg-black/60 px-1.5 py-px text-[11px] font-medium tabular-nums text-white" aria-hidden>{index + 1}</span>
@@ -60,7 +60,8 @@ function PageTile({ item, index, src, onTurn, onDelete, canDelete, disabled }: {
 export function PageEditorPage() {
   const [params] = useSearchParams();
   const fromMail = params.get("attachment");
-  const [src, setSrc] = useState<Source | null>(fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : null);
+  const [src, setSrc] = useState<Source | null>(() => (fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : carriedPdfs()[0] ?? null));
+  useTakeCarried();
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const [thumbs, setThumbs] = useState<string[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -153,18 +154,18 @@ export function PageEditorPage() {
 
       {(phase.kind === "edit" || phase.kind === "saving" || (phase.kind === "failed" && phase.back === "edit")) && items.length > 0 && (
         <Card className="space-y-4 p-4" data-testid="page-grid-card">
-          <div className="no-scrollbar flex flex-wrap items-center gap-2 max-sm:-mx-4 max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:px-4">
+          <div className="flex flex-wrap items-center gap-x-1 gap-y-2 sm:gap-2">
             <Button type="button" variant="outline" size="sm" onClick={undo} disabled={!history.length || busy} data-testid="page-undo"><IconUndo className="h-3.5 w-3.5" aria-hidden />Undo</Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => turnAll(-90)} disabled={busy}><IconRotate className="h-3.5 w-3.5 -scale-x-100" aria-hidden />Turn all left</Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => turnAll(90)} disabled={busy}><IconRotate className="h-3.5 w-3.5" aria-hidden />Turn all right</Button>
             <Button type="button" variant="ghost" size="sm" onClick={reset} disabled={busy || unchanged}>Start over</Button>
-            <span className="ml-auto text-[13px] text-muted" data-testid="page-summary">{summary}</span>
+            <span className="ml-auto text-[13px] text-muted max-sm:ml-0 max-sm:w-full" data-testid="page-summary">{summary}</span>
           </div>
           <p className="text-[12.5px] text-muted max-sm:hidden">Drag a page to move it. With the keyboard, focus a page, press space, use the arrow keys, then space again.</p>
           <p className="text-[12.5px] text-muted sm:hidden">Press and hold a page, then drag it.</p>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} accessibility={{ announcements, screenReaderInstructions: { draggable: "To move a page, press space. Use the arrow keys to move it, space to drop it, escape to cancel." } }}>
             <SortableContext items={items.map((i) => i.id)} strategy={rectSortingStrategy}>
-              <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5" aria-label="Pages" data-testid="page-grid">
+              <ol className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3 lg:grid-cols-4" aria-label="Pages" data-testid="page-grid">
                 {items.map((it, i) => (
                   <PageTile key={it.id} item={it} index={i} src={thumbs[it.page - 1]} onTurn={(by) => turnAt(i, by)} onDelete={() => deleteAt(i)} canDelete={items.length > 1} disabled={busy} />
                 ))}

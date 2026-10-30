@@ -977,5 +977,12 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "-- The mail merge daily cap: people reserved per workspace per UTC day, taken in one conditional upsert.\nCREATE TABLE `merge_daily` (\n\t`org_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `day`)\n) WITHOUT ROWID;",
       "-- People who unsubscribed from a workspace's mail merge sends (marketing runs skip them).\nCREATE TABLE `merge_unsubscribes` (\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `email`)\n) WITHOUT ROWID;"
     ]
+  },
+  {
+    "name": "0099_tools_job_charges",
+    "statements": [
+      "-- R66 (MB-256): a Tools run is counted only when its job finishes with a result. One row per engine job that\n-- was counted, so a status read that sees \"done\" again (a second tab, a page that resumed after a refresh) never\n-- counts it twice. Rows carry no file names; the cron prunes them after 2 days with the day rows of tool_usage.\nCREATE TABLE `tool_job_charges` (\n\t`job_id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_at` integer NOT NULL\n) WITHOUT ROWID;",
+      "CREATE INDEX `tool_job_charges_created_idx` ON `tool_job_charges` (`created_at`);"
+    ]
   }
 ];

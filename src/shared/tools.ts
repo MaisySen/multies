@@ -275,7 +275,9 @@ export function resultExt(def: Pick<ToolDef, "ext" | "extBy">, options?: Record<
 export function resultName(op: ToolOp, firstName: string | null | undefined, options?: Record<string, string> | null): string {
   const base = (firstName ?? "").replace(/\.[A-Za-z0-9]{1,8}$/, "").replace(/[^A-Za-z0-9 _.()+-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "document";
   const def = toolDef(op);
-  return `${base}${def.suffix}.${resultExt(def, options)}`;
+  // R66: running a tool on its own result does not stack the suffix ("invoice-compressed-compressed.pdf").
+  const stem = def.suffix && base.toLowerCase().endsWith(def.suffix.toLowerCase()) ? base : `${base}${def.suffix}`;
+  return `${stem}.${resultExt(def, options)}`;
 }
 
 /** The same name with the extension the engine actually produced (null keeps it). */
@@ -301,7 +303,7 @@ export interface PiiMatch { kind: string; text: string; page: number; rect?: num
 export interface ToolsUsage { month: number; day: number }
 export interface ToolsLimits { runsMonthly: number; runsDaily: number; maxBytes: number; maxMergeFiles: number }
 export interface ToolsInfo { enabled: boolean; tools: ToolDef[]; usage: ToolsUsage; limits: ToolsLimits; /** Tools P2 features on for this deployment (TOOLS_FEATURES). */ features: ToolFeature[] }
-export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "expired";
+export type ToolJobStatus = "queued" | "running" | "done" | "failed" | "expired" | "cancelled";
 /** Small facts about a result, never file contents: pages, parts, matches covered. */
 export interface ToolResultFacts {
   pages?: number; parts?: number; matches?: number; phrases?: number; verified?: boolean; pages_changed?: number; pages_with_text?: number;
@@ -318,6 +320,19 @@ export interface ToolJob {
   token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string;
   progress?: { done: number; total: number };
   result?: ToolResultFacts;
+  /** R66 (MB-256): true when this finished run found nothing to do, so it was not counted against the plan. */
+  notCounted?: boolean;
+}
+
+/**
+ * R66 (MB-256): a run is counted only when it finishes with a result. A run that found nothing to work on
+ * (no table in the PDF, no phrase or number matched) finishes "done" but is not counted either.
+ */
+export function emptyResult(op: string, r?: ToolResultFacts | null): boolean {
+  if (!r) return false;
+  if (op === "pdf-tables") return r.tables === 0;
+  if (op === "redact" || op === "pii-find") return r.matches === 0;
+  return false;
 }
 
 /** Tools UX: the remove password tool's op id, for web files whose copy lint reads every word. */

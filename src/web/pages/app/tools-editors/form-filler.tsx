@@ -14,7 +14,7 @@ import { cn } from "@/web/lib/cn";
 import {
   FIELD_VALUE_MAX, fieldLabel, initialValues, missingRequired, readFormFields, valuesToSend, type EditorJob, type FormField, type FormValues,
 } from "@/shared/tools-editors";
-import { readJson, start, useToolFeatures, waitFor, RunError, type Source } from "./runner";
+import { readJson, start, useToolFeatures, waitFor, RunError, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard } from "./shell";
 
 type Phase = { kind: "pick" } | { kind: "reading"; pct: number | null } | { kind: "form" } | { kind: "empty" } | { kind: "filling"; pct: number | null } | { kind: "done"; job: EditorJob } | { kind: "failed"; error: RunError; back: "pick" | "form" };
@@ -78,7 +78,8 @@ export function FormFillerPage() {
   const [params] = useSearchParams();
   const fromMail = params.get("attachment");
   const features = useToolFeatures();
-  const [src, setSrc] = useState<Source | null>(fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : null);
+  const [src, setSrc] = useState<Source | null>(() => (fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : carriedPdfs()[0] ?? null));
+  useTakeCarried();
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const [fields, setFields] = useState<FormField[]>([]);
   const [values, setValues] = useState<FormValues>({});

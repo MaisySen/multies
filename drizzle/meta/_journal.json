@@ -631,6 +631,13 @@
       "when": 1793300008000,
       "tag": "0098_tools_p2_automation",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "6",
+      "when": 1793400000000,
+      "tag": "0099_tools_job_charges",
+      "breakpoints": true
     }
   ]
 }

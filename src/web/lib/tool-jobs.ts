@@ -141,3 +141,49 @@ export function saveFile(file: Blob, name: string) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
+
+/* R66 (MB-257, MB-258, MB-260): cancel on the server, keep a run across refresh and Back, and tell offline apart. */
+
+/** Stops a job on the server and frees its place (a workspace runs two at a time). Never throws: a job already gone is fine. */
+export async function cancelJob(token: string): Promise<void> {
+  try { await api.del(`/tools/jobs/${encodeURIComponent(token)}`); } catch { /* gone already, or offline: it ends on its own */ }
+}
+
+/** True when a request failed because the device is offline or Multies could not be reached (worth retrying). */
+export function isOfflineError(err: unknown): boolean {
+  const e = err as { status?: number; code?: string } | null;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  if (err instanceof TypeError) return true;
+  return !!e && (e.status === 0 || e.code === "network" || e.code === "unreachable");
+}
+
+/** A run kept in this tab's session storage so a refresh or Back finds it again. Status tokens last 2 hours. */
+export interface SavedRun { op: string; token: string; name: string; at: number; before?: number | null }
+const RUN_KEY = "multies.tools.run.";
+const RUN_TTL = 2 * 60 * 60 * 1000;
+
+export function saveRun(r: SavedRun) {
+  try { sessionStorage.setItem(RUN_KEY + r.op, JSON.stringify(r)); } catch { /* private mode */ }
+}
+export function savedRun(op: string, now = Date.now()): SavedRun | null {
+  try {
+    const raw = sessionStorage.getItem(RUN_KEY + op);
+    if (!raw) return null;
+    const r = JSON.parse(raw) as SavedRun;
+    if (!r || typeof r.token !== "string" || typeof r.at !== "number" || r.op !== op || now - r.at > RUN_TTL) { sessionStorage.removeItem(RUN_KEY + op); return null; }
+    return r;
+  } catch { return null; }
+}
+export function clearRun(op: string) {
+  try { sessionStorage.removeItem(RUN_KEY + op); } catch { /* private mode */ }
+}
+/** Every kept run in this tab, newest first (the Tools list shows them so a run left by Back is one tap away). */
+export function savedRuns(now = Date.now()): SavedRun[] {
+  const out: SavedRun[] = [];
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i++) { const k = sessionStorage.key(i); if (k?.startsWith(RUN_KEY)) keys.push(k); }
+    for (const k of keys) { const r = savedRun(k.slice(RUN_KEY.length), now); if (r) out.push(r); }
+  } catch { /* private mode */ }
+  return out.sort((a, b) => b.at - a.at);
+}

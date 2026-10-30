@@ -68,6 +68,12 @@ export interface WorkerEnv {
 
 /** Build-time defaults (set by scripts/build-worker.ts); real env vars win. */
 declare const __MYMAIL_BUILD_ENV__: Record<string, string>;
+/** R66 (MB-259): e-sign's public pages exist only while the feature is on; otherwise /sign/* is any unknown page. */
+async function esignOn(env: WorkerEnv): Promise<boolean> {
+  const { deps } = await getReady(env);
+  return deps.config.tools.enabled && deps.config.tools.features.includes("esign");
+}
+
 /** The built index.html, served by the Worker for every app route. */
 declare const __MYMAIL_SHELL_HTML__: string;
 /** R30: the shell with the landing page prerendered inside, served for "/" only (empty when not built). */
@@ -453,7 +459,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const spec = await builtOpenApi(env, url);
     if (spec) return withSecurityHeaders(spec, apiHeaders);
   }
-  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/d/") || url.pathname.startsWith("/sign/") /* Tools P2: share and signing pages */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
+  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/d/") || (url.pathname.startsWith("/sign/") && await esignOn(env)) /* Tools P2: share and signing pages (R66: /sign is a plain not found page while e-sign is off) */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to

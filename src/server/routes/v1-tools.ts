@@ -21,7 +21,8 @@ import { engineFetch } from "../services/tools/engine-client";
 import {
   checkRunAllowance, engineJobStatus, getWorkflow, listWorkflows, loadAttachmentFiles, runWorkflow, startTokenJob, toolStateOrOff, toolsSetup, type EngineFile,
 } from "../services/tools/automation";
-import { TOOLS, isToolOp, resultName, toolDef, toolTakes, type ToolOp } from "@/shared/tools";
+import { TOOLS, emptyResult, isToolOp, resultName, toolDef, toolTakes, type ToolOp, type ToolResultFacts } from "@/shared/tools";
+import { chargeJob } from "../services/tools/usage";
 import { WORKFLOW_STARTERS, type WorkflowStep } from "@/shared/tools-automation";
 
 const FACT_KEYS = ["pages", "parts", "matches", "phrases", "verified", "pages_changed", "pages_with_text", "steps", "files"];
@@ -109,6 +110,8 @@ export function registerToolsV1Routes(api: OpenAPIHono<AppEnv>) {
       out.result = facts;
       const d = await mintToken(tokenKey, { k: "d", j: t.j, w: t.w, u: auth.userId, o: t.o, n: t.n }, deps.now().getTime());
       out.downloadUrl = `/api/v1/tools/jobs/${d}/download`;
+      // R66 (MB-256): counted once, when it finished with a result.
+      if (t.b !== undefined && !emptyResult(t.o, facts as ToolResultFacts)) await chargeJob(deps.db, auth.orgId, t.j, deps.now(), t.b);
     }
     return c.json(out);
   });

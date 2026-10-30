@@ -3,7 +3,8 @@
  * and download limit, and see each download. The file comes from an upload, a Tools result (?result=<token>) or a
  * mail attachment (?attachment=<id>). Hidden unless GET /api/tools lists the "share" feature.
  */
-import { useRef, useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
+import { peekCarried, takeCarried } from "@/web/lib/carried-files";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
@@ -98,7 +99,8 @@ export function ShareLinksPage() {
   const result = params.get("result");
   const attachment = params.get("attachment");
   const fromName = params.get("name") ?? "";
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(() => (result || attachment ? null : peekCarried()[0] ?? null));
+  useEffect(() => { takeCarried(); }, []);
   const [expires, setExpires] = useState(String(7 * 86_400));
   const [password, setPassword] = useState("");
   const [limit, setLimit] = useState("");

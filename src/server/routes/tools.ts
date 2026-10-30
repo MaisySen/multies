@@ -6,7 +6,7 @@ import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
 import { activeToolFeatures } from "../services/tools/features"; // Tools P2 (17): "index" only with INDEX_DB
-import { recordRun, toolLimits, type ToolState } from "../services/tools/usage";
+import { chargeJob, toolLimits, type ToolState } from "../services/tools/usage";
 import { MULTIPART_ALLOWANCE, assertToolOn, checkRun, engineDown, engineError, pickFacts, toolStateFor } from "../services/tools/run-job";
 import { and, eq, sql } from "drizzle-orm";
 import { inIds } from "../lib/sql-chunks";
@@ -14,7 +14,7 @@ import { z } from "zod";
 import { attachments, messages } from "../db/schema";
 import { attachmentBytes } from "../services/mail/store";
 import { mailboxScope } from "../services/team";
-import { EXT_TYPES, catalogueFor, extForType, isToolOp, resultName, toolDef, toolTakes, withExt, type ToolExt, type ToolJob, type ToolJobStatus, type ToolOp, type ToolResultFacts, type ToolsInfo } from "@/shared/tools";
+import { EXT_TYPES, catalogueFor, emptyResult, extForType, isToolOp, resultName, toolDef, toolTakes, withExt, type ToolExt, type ToolJob, type ToolJobStatus, type ToolOp, type ToolResultFacts, type ToolsInfo } from "@/shared/tools";
 
 /** The custom header the web app sends with an upload. A cross site form cannot set it (it needs a CORS preflight). */
 export const TOOLS_UPLOAD_HEADER = "x-multies-upload";
@@ -47,7 +47,11 @@ const fromAttachmentsSchema = z.object({
 
 interface JobStart { op: ToolOp; files: number; len: number; maxBytes: number; body: ReadableStream<Uint8Array> | null; contentType: string; source: "upload" | "attachment"; firstName?: string; options?: Record<string, string> }
 
-/** Sends the files to the engine, counts the run (one usage upsert, one audit row without file names) and mints the status token. */
+/**
+ * Sends the files to the engine, writes one audit row without file names and mints the status token. R66 (MB-256):
+ * the run is counted later, by the status read that first sees it finished with a result (chargeJob), so a run
+ * that fails, is cancelled or finds nothing to do costs nothing.
+ */
 async function startJob(c: Context<AppEnv>, engine: EngineConfig, tokenKey: string, j: JobStart) {
   const { auth, deps } = c.var;
   const res = await callEngine(c, engine, {
@@ -57,12 +61,9 @@ async function startJob(c: Context<AppEnv>, engine: EngineConfig, tokenKey: stri
   if (res.status !== 202) await engineError(res);
   const job = (await res.json()) as { id: string; status: ToolJobStatus };
   const now = deps.now();
-  await Promise.all([
-    recordRun(deps.db, auth.orgId, now, j.len),
-    audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op: j.op, source: j.source, files: j.files, bytes_in: j.len }, ip: c.var.ip }),
-  ]);
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op: j.op, source: j.source, files: j.files, bytes_in: j.len }, ip: c.var.ip });
   const name = resultName(j.op, j.firstName, j.options);
-  const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: j.op, n: name }, now.getTime());
+  const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: j.op, n: name, b: j.len }, now.getTime());
   const out: ToolJob = { token, op: j.op, status: job.status, name };
   return c.json(out, 202);
 }
@@ -201,8 +202,24 @@ export function toolsRoutes() {
         out.bytes = j.output?.bytes;
         const d = await mintToken(tokenKey, { k: "d", j: t.j, w: t.w, u: auth.userId, o: t.o, n: name }, deps.now().getTime());
         out.downloadUrl = `/api/tools/jobs/${d}/download`;
+        // R66 (MB-256): counted once, here, when it finished with a result (polling before this read no D1).
+        // A token without bytes was minted before R66, when the run was counted at the start.
+        if (emptyResult(t.o, out.result)) out.notCounted = true;
+        else if (t.b !== undefined) await chargeJob(deps.db, auth.orgId, t.j, deps.now(), t.b);
       }
       return c.json(out);
+    })
+    // R66 (MB-257): Cancel stops the job on the engine and frees its place (a workspace runs two at a time).
+    // A cancelled job is never counted. A job that already finished is left alone (its result was counted).
+    .delete("/jobs/:token", async (c) => {
+      const { engine, tokenKey } = setup(c);
+      const { auth, deps } = c.var;
+      const t = await readToken(tokenKey, c.req.param("token"), "s", deps.now().getTime());
+      if (!t || t.w !== auth.orgId) throw notFound("Job");
+      const res = await callEngine(c, engine, { method: "DELETE", path: `/internal/v1/jobs/${t.j}`, ws: auth.orgId, user: auth.userId, maxBytes: 0 });
+      await res.body?.cancel();
+      if (!res.ok && res.status !== 404) await engineError(res);
+      return c.json({ token: c.req.param("token"), op: t.o, status: "cancelled", name: t.n } satisfies ToolJob);
     })
     .get("/jobs/:token/download", async (c) => {
       const { engine, tokenKey } = setup(c);

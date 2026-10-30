@@ -5,6 +5,10 @@ import { MarketingLayout } from "./layouts/marketing";
 import { AuthLayout } from "./layouts/auth";
 import { Landing } from "./pages/landing";
 import { NotFound } from "./pages/not-found";
+import { ToolFeatureGate } from "./components/tools/feature-gate"; // R66 (MB-259)
+
+/** R66 (MB-259): the AI document pages show while any AI feature is on. */
+const AI_FEATURES = ["ask", "translate", "extract", "expenses", "contracts"] as const;
 import { AppSkeleton } from "./layouts/app-skeleton";
 
 // R25: sign-in and the other public pages load on their own, so the landing page carries none of the
@@ -212,14 +216,14 @@ export const router = createBrowserRouter([
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
-      { path: "tools/ai", element: page(<ToolsAiPage />) }, // Tools P2: AI documents
+      { path: "tools/ai", element: page(<ToolFeatureGate features={AI_FEATURES}><ToolsAiPage /></ToolFeatureGate>) }, // Tools P2: AI documents
       { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
-      { path: "files", element: page(<FilesPage />) }, // Tools P2 (16): smart folders
-      { path: "tools/share", element: page(<ShareLinksPage />) }, // Tools P2: share links
-      { path: "tools/sign", element: page(<SignPage />) }, // Tools P2: e-sign
-      { path: "tools/workflows", element: page(<WorkflowsPage />) }, // Tools P2: workflows
-      { path: "tools/templates", element: page(<DocTemplatesPage />) }, // Tools P2: templates
-      { path: "tools/merge", element: page(<MergePage />) }, // Tools P2: mail merge
+      { path: "files", element: page(<ToolFeatureGate features={["folders", "index"]}><FilesPage /></ToolFeatureGate>) }, // Tools P2 (16): smart folders
+      { path: "tools/share", element: page(<ToolFeatureGate features={["share"]}><ShareLinksPage /></ToolFeatureGate>) }, // Tools P2: share links
+      { path: "tools/sign", element: page(<ToolFeatureGate features={["esign"]}><SignPage /></ToolFeatureGate>) }, // Tools P2: e-sign
+      { path: "tools/workflows", element: page(<ToolFeatureGate features={["workflows"]}><WorkflowsPage /></ToolFeatureGate>) }, // Tools P2: workflows
+      { path: "tools/templates", element: page(<ToolFeatureGate features={["templates"]}><DocTemplatesPage /></ToolFeatureGate>) }, // Tools P2: templates
+      { path: "tools/merge", element: page(<ToolFeatureGate features={["merge_mail"]}><MergePage /></ToolFeatureGate>) }, // Tools P2: mail merge
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue

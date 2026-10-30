@@ -11,7 +11,8 @@ import type { ToolOp } from "@/shared/tools";
 export const STATUS_TOKEN_SECONDS = 2 * 60 * 60;
 export const DOWNLOAD_TOKEN_SECONDS = 60 * 60;
 
-export interface ToolToken { k: "s" | "d"; j: string; w: string; u: string; o: ToolOp; n: string; e: number }
+/** b: bytes sent to the engine (status tokens), so the run is counted with its size when it finishes (R66, MB-256). */
+export interface ToolToken { k: "s" | "d"; j: string; w: string; u: string; o: ToolOp; n: string; e: number; b?: number }
 
 const b64u = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 const unb64u = (s: string) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0)));

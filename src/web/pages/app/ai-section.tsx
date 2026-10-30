@@ -33,7 +33,8 @@ export function AiSection() {
   const qc = useQueryClient();
   const status = useAiStatus();
   const config = useConfig();
-  const toolsAi = useAiUsage(!!config.data?.tools);
+  // R66 (MB-259): only asked while an AI document feature is on here (the route answers 404 otherwise).
+  const toolsAi = useAiUsage(!!config.data?.tools && ["ask", "translate", "extract", "expenses", "contracts"].some((f) => (config.data?.toolFeatures as readonly string[] | undefined)?.includes(f)));
   const [provider, setProvider] = useState<AiProviderId>("openai");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");

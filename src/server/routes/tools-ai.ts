@@ -20,7 +20,7 @@ import { mailboxScope } from "../services/team";
 import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
-import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
+import { readToolState, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
 import { requireToolFeature, toolFeatureOn } from "../services/tools/features";
 import { aiUsage, askAi, isTranslateLanguage, TRANSLATE_LANGUAGES, type AiResult } from "../services/tools/ai-meter";
 import {
@@ -102,11 +102,9 @@ async function startEngineJob(c: Context<AppEnv>, op: string, fd: FormData, name
   if (res.status !== 202) await engineFail(res);
   const job = (await res.json()) as { id: string; status: ToolJob["status"] };
   const now = deps.now();
-  await Promise.all([
-    recordRun(deps.db, auth.orgId, now, body.byteLength),
-    audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source, files: 1, bytes_in: body.byteLength }, ip: c.var.ip }),
-  ]);
-  const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: op as ToolOp, n: name }, now.getTime());
+  // R66 (MB-256): counted by the status read that sees it finished (GET /api/tools/jobs/:token), not here.
+  await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source, files: 1, bytes_in: body.byteLength }, ip: c.var.ip });
+  const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: op as ToolOp, n: name, b: body.byteLength }, now.getTime());
   return { token, op: op as ToolOp, status: job.status, name } satisfies ToolJob;
 }
 

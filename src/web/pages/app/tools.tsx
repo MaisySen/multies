@@ -14,7 +14,8 @@ import {
 } from "@/web/components/ui/icon";
 import { api } from "@/web/lib/api";
 import { OptionField, defaultsFor, mb, optionsProblem, optionsToSend, resultLine, visibleOptions, waitLine } from "@/web/components/tools/tool-fields";
-import { attachmentJob, uploadJob } from "@/web/lib/tool-jobs";
+import { attachmentJob, cancelJob, clearRun, isOfflineError, saveRun, savedRun, savedRuns, uploadJob } from "@/web/lib/tool-jobs";
+import { tz } from "@/web/lib/format";
 import { attachToNewEmail } from "@/web/lib/compose-files"; // Tools P2: the one "Attach to a new email" path
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
@@ -22,8 +23,8 @@ import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { ShareResultLinks } from "./tools-share-sign/entry"; // Tools P2: share links and e-sign
 import { isToolOp, toolTakes, type ToolDef, type ToolJob, type ToolOp, type ToolsInfo } from "@/shared/tools";
 import {
-  SECTIONS, STARTERS, buildEntries, carryFiles, entryTakes, middleTruncate, recentKeys, rememberRecent, savedLine,
-  searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
+  SECTIONS, STARTERS, buildEntries, carryFiles, entryTakes, middleTruncate, noRunsLine, recentKeys, rememberRecent, resetWhen, runsLeft, runsLeftLabel,
+  savedLine, searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
 } from "@/web/components/tools/tool-directory";
 import { ToolIcon } from "@/web/components/tools/tool-icon";
 
@@ -33,9 +34,13 @@ const AutoRedactPanel = lazy(() => import("@/web/components/tools/auto-redact").
 type Phase =
   | { kind: "idle" }
   | { kind: "uploading"; pct: number; waking: boolean }
-  | { kind: "working"; job: ToolJob; slow: boolean; since: number }
+  // offline (R66, MB-260): the connection dropped; the job is kept and checked again when the device is back online.
+  | { kind: "working"; job: ToolJob; slow: boolean; since: number; offline?: boolean }
   | { kind: "done"; job: ToolJob }
-  | { kind: "failed"; title: string; message: string; limit?: boolean };
+  | { kind: "failed"; title: string; message: string; limit?: boolean; offline?: boolean };
+
+/** R66 (MB-260): waits before the next status check after a dropped connection: 2 s, 4 s, 8 s, then every 15 s. */
+const offlineDelay = (n: number) => Math.min(15_000, 2000 * 2 ** Math.max(0, n));
 
 /** Options folded under "More options" (only on tools with four or more choices). */
 const ADVANCED: Partial<Record<ToolOp, string[]>> = {
@@ -128,6 +133,10 @@ export function ToolsPage() {
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [fileProblem, setFileProblem] = useState<{ text: string; switchTo?: Entry; files?: File[] } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  /** The original size for a compress result (kept with the run, so a refresh still shows what was saved). */
+  const [before, setBefore] = useState<number | null>(null);
+  /** A short line after Cancel ("Stopped. This run was not counted."). */
+  const [notice, setNotice] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -136,6 +145,9 @@ export function ToolsPage() {
   const extraInput = useRef<HTMLInputElement>(null);
   const abort = useRef<AbortController | null>(null);
   const limits = info.data?.limits;
+  // R66 (MB-255): the tighter of today's and this month's runs, so the header never promises runs Run would refuse.
+  const left = limits && info.data ? runsLeft(info.data.usage, limits) : null;
+  const noneLeft = left?.left === 0;
   const maxFiles = tool ? (tool.maxFiles === "plan" ? limits?.maxMergeFiles ?? 10 : tool.maxFiles) : 1;
   const busy = phase.kind === "uploading" || phase.kind === "working";
   const cap = tool?.maxBytes && limits ? Math.min(tool.maxBytes, limits.maxBytes) : limits?.maxBytes;
@@ -164,11 +176,17 @@ export function ToolsPage() {
 
   // A new tool: fresh options and state; files carried from the last screen stay when the new tool takes them.
   useEffect(() => {
-    setPhase({ kind: "idle" }); setExtraFiles([]); setFileProblem(null); setMoreOpen(false);
+    setPhase({ kind: "idle" }); setExtraFiles([]); setFileProblem(null); setMoreOpen(false); setNotice(null); setBefore(null);
     setOptions(defaultsFor(tool));
     const carried = takeCarried();
     setFiles([]);
     if (tool && carried.length) add(carried, tool);
+    // R66 (MB-258): a run started here before a refresh or Back carries on (or shows its result) instead of being lost.
+    const kept = tool ? savedRun(tool.op) : null;
+    if (tool && kept && !carried.length) {
+      setBefore(kept.before ?? null);
+      setPhase({ kind: "working", job: { token: kept.token, op: tool.op, status: "queued", name: kept.name }, slow: false, since: kept.at });
+    }
     if (op) window.scrollTo({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool?.op]);
@@ -181,28 +199,42 @@ export function ToolsPage() {
   }, [busy]);
 
   // Poll the job until it is done or failed. Polling costs the server no database read.
+  // R66 (MB-260): a dropped connection keeps the job: the page says so, checks again with a growing wait, and at
+  // once when the device comes back online. (MB-258) The run stays in session storage until it is dismissed.
   const workingToken = phase.kind === "working" ? phase.job.token : null;
+  const workingOp = phase.kind === "working" ? phase.job.op : null;
   useEffect(() => {
-    if (!workingToken) return;
+    if (!workingToken || !workingOp) return;
     let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let misses = 0;
     const started = Date.now();
+    const next = (ms: number) => { if (!stop) { clearTimeout(timer); timer = setTimeout(tick, ms); } };
     const tick = async () => {
       try {
         const j = await api.get<ToolJob>(`/tools/jobs/${encodeURIComponent(workingToken)}`);
         if (stop) return;
+        misses = 0;
         if (j.status === "done") { setPhase({ kind: "done", job: j }); qc.invalidateQueries({ queryKey: ["tools"] }); return; }
-        if (j.status === "failed") { setPhase({ kind: "failed", title: "That didn't work", message: j.error ?? "This file could not be processed. Check that it opens on your computer, then try again." }); return; }
-        if (j.status === "expired") { setPhase({ kind: "failed", title: "This result has expired", message: "Results are kept for an hour. Run the tool again." }); return; }
-        setPhase((p) => (p.kind === "working" ? { ...p, job: { ...p.job, progress: j.progress }, slow: Date.now() - started > 8000 } : p));
+        if (j.status === "failed") { clearRun(workingOp); setPhase({ kind: "failed", title: "That didn't work", message: `${j.error ?? "This file could not be processed. Check that it opens on your computer, then try again."} This run was not counted.` }); return; }
+        if (j.status === "expired" || j.status === "cancelled") { clearRun(workingOp); setPhase({ kind: "failed", title: "This result has expired", message: "Results are kept for an hour. Run the tool again." }); return; }
+        setPhase((p) => (p.kind === "working" ? { ...p, offline: false, job: { ...p.job, progress: j.progress }, slow: Date.now() - started > 8000 } : p));
       } catch (err) {
         if (stop) return;
-        if ((err as { status?: number }).status !== 503) { setPhase({ kind: "failed", title: "That didn't work", message: (err as Error).message || "Couldn't check on the file. Try again." }); return; }
+        if (isOfflineError(err)) {
+          setPhase((p) => (p.kind === "working" ? { ...p, offline: true } : p));
+          next(offlineDelay(misses++));
+          return;
+        }
+        if ((err as { status?: number }).status !== 503) { clearRun(workingOp); setPhase({ kind: "failed", title: "That didn't work", message: (err as Error).message || "Couldn't check on the file. Try again." }); return; }
       }
-      if (!stop) setTimeout(tick, Date.now() - started > 20_000 ? 3000 : 1200);
+      next(Date.now() - started > 20_000 ? 3000 : 1200);
     };
-    const t = setTimeout(tick, 900);
-    return () => { stop = true; clearTimeout(t); };
-  }, [workingToken, qc]);
+    const back = () => { misses = 0; next(0); };
+    window.addEventListener("online", back);
+    next(900);
+    return () => { stop = true; clearTimeout(timer); window.removeEventListener("online", back); };
+  }, [workingToken, workingOp, qc]);
 
   // Paste a file (Ctrl or Cmd V) on the list or a tool.
   useEffect(() => {
@@ -233,6 +265,9 @@ export function ToolsPage() {
     if (e.key === op) return;
     rememberRecent(e.key);
     if (e.to) {
+      // R66: a dropped file goes with it to the pages that take one (Edit pages, Fill a form, Compare, Share).
+      const hand = carry ?? (files.length ? files : listFiles);
+      if (!fromMail && hand.length) carryFiles(hand);
       navigate(fromMail && e.takesAttachment ? `${e.to}${e.to.includes("?") ? "&" : "?"}${mailQuery(fromMail.id, fromMail.name)}` : e.to);
       return;
     }
@@ -263,9 +298,14 @@ export function ToolsPage() {
 
   const run = async () => {
     if (!tool || (!fromMail && files.length < tool.minFiles)) return;
+    if (noneLeft) return;
     rememberRecent(tool.op);
+    clearRun(tool.op);
+    setNotice(null);
     const ctrl = new AbortController();
     abort.current = ctrl;
+    const was = tool.op === "compress" && !fromMail ? files[0]?.size ?? null : null;
+    setBefore(was);
     setPhase({ kind: "uploading", pct: 0, waking: false });
     const sent = optionsToSend(tool, options);
     // A sleeping engine answers 503 before any work starts (nothing counted); wait and try again for up to a minute.
@@ -274,7 +314,8 @@ export function ToolsPage() {
         const job = fromMail
           ? await attachmentJob(tool.op, [fromMail.id], sent)
           : await uploadJob(tool.op, files, sent, (pct) => setPhase((p) => (p.kind === "uploading" ? { ...p, pct } : p)), { def: tool, files: extraFiles, signal: ctrl.signal });
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) { void cancelJob(job.token); return; }
+        saveRun({ op: tool.op, token: job.token, name: job.name, at: Date.now(), before: was });
         setPhase({ kind: "working", job, slow: false, since: Date.now() });
         return;
       } catch (err) {
@@ -286,7 +327,14 @@ export function ToolsPage() {
           if (ctrl.signal.aborted) return;
           continue;
         }
+        // R66 (MB-260): offline before the upload finished. Nothing ran and nothing was counted; the files are still
+        // here, so it starts again by itself when the connection is back.
+        if (isOfflineError(err)) {
+          setPhase({ kind: "failed", offline: true, title: "You're offline", message: "Your files are still here. This starts again by itself when you're back online." });
+          return;
+        }
         const limit = e.code === "plan_limit" || e.status === 413;
+        if (e.code === "plan_limit") void qc.invalidateQueries({ queryKey: ["tools"] });
         setPhase({
           kind: "failed", limit,
           title: limit ? "Over your plan's limit" : e.status === 503 ? "Tools are still starting" : e.status === 0 ? "No connection" : "That didn't work",
@@ -296,8 +344,30 @@ export function ToolsPage() {
       }
     }
   };
-  const cancel = () => { abort.current?.abort(); abort.current = null; setPhase({ kind: "idle" }); };
-  const startOver = () => { setFiles([]); setExtraFiles([]); setPhase({ kind: "idle" }); setFileProblem(null); setOptions(defaultsFor(tool)); };
+  // R66 (MB-257): Cancel stops the job on the server too, so its place is free for the next tool and it is not counted.
+  const cancel = () => {
+    abort.current?.abort(); abort.current = null;
+    if (phase.kind === "working") void cancelJob(phase.job.token);
+    if (tool) clearRun(tool.op);
+    setPhase({ kind: "idle" });
+    setNotice("Stopped. This run was not counted.");
+  };
+  const runAgain = () => { if (tool) clearRun(tool.op); setPhase({ kind: "idle" }); };
+  const startOver = () => { if (tool) clearRun(tool.op); setFiles([]); setExtraFiles([]); setPhase({ kind: "idle" }); setFileProblem(null); setOptions(defaultsFor(tool)); setNotice(null); setBefore(null); };
+  // R66 (MB-260): retry an upload that failed offline when the connection is back (and every so often meanwhile).
+  const runRef = useRef(run);
+  runRef.current = run;
+  const offlineRetry = phase.kind === "failed" && !!phase.offline;
+  useEffect(() => {
+    if (!offlineRetry) return;
+    let n = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const again = () => { clearTimeout(timer); void runRef.current(); };
+    const wait = () => { timer = setTimeout(() => { if (navigator.onLine) again(); else wait(); }, offlineDelay(++n)); };
+    window.addEventListener("online", again);
+    wait();
+    return () => { clearTimeout(timer); window.removeEventListener("online", again); };
+  }, [offlineRetry]);
   // Tools UX: run another tool on a finished result (it is fetched once and handed to the list).
   const [chaining, setChaining] = useState(false);
   const chain = async (job: ToolJob) => {
@@ -325,20 +395,23 @@ export function ToolsPage() {
     );
   }
 
-  const left = limits && info.data ? Math.max(0, limits.runsMonthly - info.data.usage.month) : null;
   const usage = left === null ? null : (
-    <span className="inline-flex shrink-0 items-center gap-1.5 self-start whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[12.5px] text-muted tabular-nums sm:self-auto" title={`Up to ${limits?.runsDaily} a day. Runs reset on the 1st.`} data-testid="tools-usage">
-      <span className={`h-1.5 w-1.5 rounded-full ${left === 0 ? "bg-bad" : left < 10 ? "bg-warn" : "bg-ok"}`} aria-hidden />
-      {left === 0 ? "No runs left this month" : `${left} runs left this month`}
+    <span className="inline-flex shrink-0 items-center gap-1.5 self-start whitespace-nowrap rounded-full border border-line px-2.5 py-1 text-[12.5px] text-muted tabular-nums sm:self-auto"
+      title={`Up to ${limits?.runsDaily} runs a day and ${limits?.runsMonthly} a month. ${left.per === "day" ? "Today's" : "This month's"} runs come back ${resetWhen(left, tz())}.`} data-testid="tools-usage">
+      <span className={`h-1.5 w-1.5 rounded-full ${left.left === 0 ? "bg-bad" : left.left < 5 ? "bg-warn" : "bg-ok"}`} aria-hidden />
+      {runsLeftLabel(left)}
     </span>
   );
+
 
   // Entries that take what is in hand (a dropped file, a result, a mail attachment).
   const handName = listFiles[0]?.name ?? (fromMail && !tool ? fromMail.name : null);
   const shownEntries = handName
-    ? entries.filter((e) => entryTakes(e, handName) && (listFiles.length ? !e.to : true))
+    ? entries.filter((e) => entryTakes(e, handName, listFiles.length > 0))
     : entries;
   const found = searchEntries(shownEntries, query);
+  // R66 (MB-258): runs kept in this tab (left by Back or a refresh), newest first, one tap back to their result.
+  const keptRuns = op ? [] : savedRuns().flatMap((r) => { const e = entries.find((x) => x.key === r.op && x.tool && !x.to); return e ? [{ r, e }] : []; }).slice(0, 3);
   const recents = (() => {
     const keys = recentKeys();
     const list = (keys.length ? keys : STARTERS).map((k) => entries.find((e) => e.key === k)).filter((e): e is Entry => !!e);
@@ -349,7 +422,7 @@ export function ToolsPage() {
     <label className={`relative block ${compact ? "" : "max-w-xl"}`}>
       <span className="sr-only">Search tools</span>
       <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" aria-hidden />
-      <input ref={compact ? undefined : search} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={compact ? "Search tools" : "Search tools, like compress or merge"}
+      <input ref={compact ? undefined : search} type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={compact ? "Search tools" : "Search, like compress"}
         onKeyDown={(e) => { if (e.key === "Enter") { const first = searchEntries(shownEntries, query)[0]; if (first) pick(first); } if (e.key === "Escape") setQuery(""); }}
         data-testid={compact ? "tools-search-rail" : "tools-search"}
         className={`w-full rounded-xl border border-line bg-surface pl-9 pr-9 text-[14px] placeholder:text-subtle ${ring} ${compact ? "h-9" : "h-11 max-sm:h-12 max-sm:text-[16px]"}`} />
@@ -401,10 +474,25 @@ export function ToolsPage() {
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading tools">{Array.from({ length: 9 }, (_, i) => <Skeleton key={i} className="h-[62px] rounded-xl" />)}</div>
           ) : (
             <>
+              {!query && !handName && keptRuns.length > 0 && (
+                <section aria-labelledby="tools-kept" data-testid="tools-kept">
+                  <h2 id="tools-kept" className="mb-2 text-[13px] font-semibold text-muted">Your runs in this tab</h2>
+                  <div className="space-y-2">
+                    {keptRuns.map(({ r, e }) => (
+                      <button key={r.op} type="button" onClick={() => pick(e)} data-testid={`kept-${r.op}`}
+                        className={`flex w-full items-center gap-3 rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-[14px] hover:bg-hover max-sm:min-h-11 ${ring}`}>
+                        <ToolIcon e={e} size="sm" />
+                        <span className="min-w-0 flex-1 truncate"><span className="font-medium">{e.name}</span><span className="text-muted">, <MidName name={r.name} phone={20} desk={44} /></span></span>
+                        <span className="shrink-0 text-[13px] font-medium text-brand">Open</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
               {!query && !handName && recents.length > 0 && (
                 <section aria-labelledby="tools-recent">
                   <h2 id="tools-recent" className="mb-2 text-[13px] font-semibold text-muted">{recentKeys().length ? "Recent" : "Popular"}</h2>
-                  <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+                  <div className="flex flex-wrap gap-2 pb-1">
                     {recents.map((e) => (
                       <button key={e.key} type="button" onClick={() => pick(e)} data-testid={`recent-${e.key}`}
                         className={`flex shrink-0 items-center gap-2 rounded-full border border-line bg-surface py-1.5 pl-1.5 pr-3.5 text-[13.5px] font-medium hover:bg-hover max-sm:min-h-11 ${ring}`}>
@@ -434,7 +522,7 @@ export function ToolsPage() {
   const extraOk = !tool.extra || (extraFiles.length >= tool.extra.min && extraFiles.length <= tool.extra.max);
   const mailFits = !!fromMail && tool.minFiles <= 1 && toolTakes(tool, fromMail.name);
   const haveFiles = fromMail ? mailFits : files.length >= tool.minFiles;
-  const ready = haveFiles && !tooBig && !busy && !problem && extraOk;
+  const ready = haveFiles && !tooBig && !busy && !problem && extraOk && !noneLeft;
   const shown = visibleOptions(tool, options);
   const folded = shown.length >= 4 ? (ADVANCED[tool.op] ?? []) : [];
   const essential = shown.filter((o) => !folded.includes(o.name));
@@ -458,7 +546,7 @@ export function ToolsPage() {
           </div>
         </nav>
 
-        <main className="min-w-0">
+        <div className="min-w-0">
           <button type="button" onClick={backToList} className={`mb-3 flex min-h-11 items-center gap-1.5 rounded-lg pr-2 text-[14px] font-medium text-brand lg:hidden ${ring}`} data-testid="tools-back"><IconArrowLeft className="h-4 w-4" aria-hidden />All tools</button>
           <section className="relative space-y-5 rounded-2xl border border-line bg-surface p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] sm:p-6" data-testid="tools-panel" aria-labelledby="tool-title"
             onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && ready) { e.preventDefault(); void run(); } }}>
@@ -473,18 +561,19 @@ export function ToolsPage() {
               </div>
               <div className="max-sm:hidden">{usage}</div>
             </header>
+            {usage && <div className="-mt-2 sm:hidden">{usage}</div>}
             {tool.note && <p className="flex gap-2 rounded-lg bg-fill/60 px-3 py-2 text-[13px] text-muted" data-testid="tools-note"><IconAlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{tool.note}</p>}
 
             {phase.kind === "done" && phase.job.downloadUrl && !tool.flow ? (
-              <ResultCard job={phase.job} tool={tool} before={tool.op === "compress" ? files[0]?.size ?? null : null}
+              <ResultCard job={phase.job} tool={tool} before={tool.op === "compress" ? before ?? files[0]?.size ?? null : null}
                 onAttach={() => attachToNewEmail(navigate, { jobs: [phase.job] })} onChain={() => chain(phase.job)} chaining={chaining}
-                onAgain={() => setPhase({ kind: "idle" })} onStartOver={startOver} />
+                onAgain={runAgain} onStartOver={startOver} />
             ) : (
               <>
                 {fromMail && (
                   <div className="flex items-center gap-3 rounded-xl border border-line px-3 py-3 text-sm" data-testid="tools-from-mail">
                     <IconMail className="h-4 w-4 shrink-0 text-muted" aria-hidden />
-                    <span className="min-w-0 flex-1 truncate"><span className="text-muted">From your mail: </span><span title={fromMail.name}>{fromMail.name}</span></span>
+                    <span className="min-w-0 flex-1 truncate"><span className="text-muted">From your mail: </span><span title={fromMail.name}><MidName name={fromMail.name} phone={18} desk={44} /></span></span>
                     <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={dropMail}>Use another file</Button>
                   </div>
                 )}
@@ -618,7 +707,12 @@ export function ToolsPage() {
                       ) : (
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                           <Button type="button" size="lg" onClick={run} disabled={!ready} data-testid="tools-run" className="max-sm:w-full">{tool.label}</Button>
-                          {hint && <span className="text-[13px] text-muted max-sm:text-center" data-testid="tools-hint">{hint}</span>}
+                          {noneLeft && left ? (
+                            <span className="text-[13px] text-muted max-sm:text-center" data-testid="tools-none-left">
+                              {noRunsLine(left, tz())} <Link to="/app/settings/billing" className="font-medium text-brand hover:underline">See plans</Link>
+                            </span>
+                          ) : hint ? <span className="text-[13px] text-muted max-sm:text-center" data-testid="tools-hint">{hint}</span>
+                            : notice ? <span className="text-[13px] text-muted max-sm:text-center" role="status" data-testid="tools-notice">{notice}</span> : null}
                           {tool.op === "merge" && files.length >= 2 && !hint && <span className="text-[13px] text-muted max-sm:text-center">The order above is the order in the result.</span>}
                         </div>
                       )}
@@ -629,7 +723,7 @@ export function ToolsPage() {
             )}
           </section>
           <p className="mt-3 px-1 text-[12.5px] text-subtle">Files are processed on our document server in Singapore and deleted within an hour.</p>
-        </main>
+        </div>
       </div>
     </div>
   );
@@ -671,7 +765,9 @@ function Progress({ phase, tool, elapsed, waking, onCancel }: { phase: Phase; to
   const uploading = phase.kind === "uploading";
   const p = phase.kind === "working" ? phase.job.progress : undefined;
   const pct = uploading ? (phase.waking ? null : phase.pct) : p && p.total > 0 ? Math.round((p.done / p.total) * 100) : null;
-  const line = uploading ? (phase.waking ? "Starting up" : phase.pct >= 100 ? "Sending to the document engine" : `Uploading ${phase.pct}%`) : phase.kind === "working" ? waitLine(tool, phase.job, phase.slow) : "";
+  const offline = phase.kind === "working" && !!phase.offline;
+  const line = uploading ? (phase.waking ? "Starting up" : phase.pct >= 100 ? "Sending to the document engine" : `Uploading ${phase.pct}%`)
+    : offline ? "You're offline. Waiting to reconnect" : phase.kind === "working" ? waitLine(tool, phase.job, phase.slow) : "";
   const steps = ["Upload", "Work", "Done"];
   const at = uploading ? 0 : 1;
   return (
@@ -698,9 +794,15 @@ function Progress({ phase, tool, elapsed, waking, onCancel }: { phase: Phase; to
           </li>
         ))}
       </ol>
-      {waking && <p className="rounded-lg bg-brand/5 px-3 py-2 text-[13px] text-muted" data-testid="tools-waking">Starting up. The first run after a quiet while can take up to a minute. You can leave this page open.</p>}
+      {offline && <p className="rounded-lg bg-warn/10 px-3 py-2 text-[13px] text-muted" data-testid="tools-offline">The document engine keeps working on your file. This page checks again as soon as you're back online.</p>}
+      {waking && !offline && <p className="rounded-lg bg-brand/5 px-3 py-2 text-[13px] text-muted" data-testid="tools-waking">Starting up. The first run after a quiet while can take up to a minute. You can leave this page open.</p>}
     </div>
   );
+}
+
+/** R66: a long file name cut in the middle, shorter on a phone, so the start and the extension both show. */
+function MidName({ name, phone, desk }: { name: string; phone: number; desk: number }) {
+  return <><span className="sm:hidden">{middleTruncate(name, phone)}</span><span className="max-sm:hidden">{middleTruncate(name, desk)}</span></>;
 }
 
 function ResultCard({ job, tool, before, onAttach, onChain, chaining, onAgain, onStartOver }: {
@@ -716,7 +818,8 @@ function ResultCard({ job, tool, before, onAttach, onChain, chaining, onAgain, o
       <div className="flex items-center gap-3.5 rounded-xl border border-line bg-bg/40 p-3.5">
         <FileBadge name={job.name} big />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-semibold" title={job.name}>{middleTruncate(job.name, 40)}</p>
+          <p className="truncate text-[15px] font-semibold" title={job.name}><MidName name={job.name} phone={26} desk={44} /></p>
+          {job.notCounted && <p className="mt-0.5 text-[13px] text-muted" data-testid="tools-not-counted">Nothing was found, so this run was not counted.</p>}
           {saved ? <p className="mt-0.5 text-[13.5px] font-medium" data-testid="tools-saved">{saved}</p> : null}
           {pct !== null && <div className="mt-1.5 h-1.5 w-full max-w-[220px] overflow-hidden rounded-full bg-fill" aria-hidden><div className="h-full rounded-full bg-ok" style={{ width: `${Math.max(3, pct)}%` }} /></div>}
           {facts && <p className="mt-0.5 text-[13px]" data-testid="tools-facts">{facts}</p>}

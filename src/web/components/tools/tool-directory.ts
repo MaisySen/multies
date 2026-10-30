@@ -31,7 +31,7 @@ const LOOK: Record<string, Look> = {
   organize: { section: "Edit PDF", icon: IconColumns, line: "Reorder, turn or delete pages", words: "page editor reorder delete rotate thumbnails" },
   split: { section: "Edit PDF", icon: IconRowsSplit, line: "Pull pages out into separate PDFs", words: "extract pages separate" },
   rotate: { section: "Edit PDF", icon: IconRotate, line: "Turn pages the right way up", words: "turn landscape upside" },
-  stamp: { section: "Edit PDF", icon: IconClipboardCheck, name: "Stamp and page numbers", line: "Add PAID, page numbers or a header", words: "stamp paid approved page numbers header footer bates" },
+  stamp: { section: "Edit PDF", icon: IconClipboardCheck, name: "Stamp and number pages", line: "Add PAID, page numbers or a header", words: "stamp paid approved page numbers header footer bates" },
   watermark: { section: "Edit PDF", icon: IconShapes, line: "DRAFT or CONFIDENTIAL across pages", words: "draft confidential" },
   "form-fill": { section: "Edit PDF", icon: IconChecklist, line: "Type into a PDF form", words: "form fill fields" },
   compare: { section: "Edit PDF", icon: IconArrowRightLeft, line: "What changed between two versions", words: "diff difference versions contract" },
@@ -100,17 +100,76 @@ export function buildEntries(tools: ToolDef[], features: readonly string[]): Ent
   return [...fromTools, ...pages];
 }
 
-/** Whether an entry can take this file name (used when a file is dropped on the list, or chosen from mail). */
-export function entryTakes(e: Entry, filename: string): boolean {
-  if (e.tool) return e.tool.minFiles <= 1 && !e.tool.extra && toolTakes(e.tool, filename);
+/**
+ * Whether an entry can take this file name (used when a file is dropped on the list, or chosen from mail).
+ * dropped: a file in hand on this device (R66): tools that need more files (Merge, Compare) are offered too, since the
+ * next screen adds the rest, and pages that take a dropped file (Edit pages, Fill a form, Compare, Share) are offered.
+ */
+export function entryTakes(e: Entry, filename: string, dropped = false): boolean {
+  if (dropped && e.to && !CARRY_PAGES.has(e.key)) return false;
+  if (e.tool) return (e.tool.minFiles <= 1 || (dropped && e.tool.maxFiles !== 1)) && !e.tool.extra && toolTakes(e.tool, filename);
   return !!e.takes?.test(filename);
 }
 
-/** Search: every word typed must appear in the name, line or search words. */
+/** R66: pages that pick up a dropped file handed over from the Tools list (carryFiles). */
+export const CARRY_PAGES = new Set(["organize", "form-fill", "compare", "share"]);
+
+const STOP_WORDS = new Set(["a", "an", "the", "to", "and", "or", "of", "for", "with", "my", "into", "in", "on", "from", "as", "file", "files"]);
+const tokens = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+
+/**
+ * Search (R66, tighter): every word typed must start a word in the name, line or search words ("ai" no longer finds
+ * "paid", "word" no longer finds "password"); small words like "to" are skipped. Name matches come first.
+ */
 export function searchEntries(entries: Entry[], query: string): Entry[] {
-  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = tokens(query).filter((w) => !STOP_WORDS.has(w));
   if (!words.length) return entries;
-  return entries.filter((e) => { const hay = `${e.name} ${e.line} ${e.words}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+  const scored: { e: Entry; score: number; i: number }[] = [];
+  entries.forEach((e, i) => {
+    const hay = tokens(`${e.name} ${e.line} ${e.words}`);
+    if (!words.every((w) => hay.some((t) => t.startsWith(w)))) return;
+    const name = tokens(e.name);
+    scored.push({ e, i, score: words.filter((w) => name.some((t) => t.startsWith(w))).length });
+  });
+  return scored.sort((a, b) => b.score - a.score || a.i - b.i).map((x) => x.e);
+}
+
+/** R66 (MB-255): the tighter of today's and this month's runs left, and when that allowance comes back. */
+export interface RunsLeft { left: number; per: "day" | "month"; perDay: number; resetsAt: Date }
+export function runsLeft(usage: { month: number; day: number }, limits: { runsMonthly: number; runsDaily: number }, now = new Date()): RunsLeft {
+  const day = Math.max(0, limits.runsDaily - usage.day);
+  const month = Math.max(0, limits.runsMonthly - usage.month);
+  const y = now.getUTCFullYear(), m = now.getUTCMonth(), d = now.getUTCDate();
+  // The meter counts by UTC day and month (tool_usage periods), so the allowance comes back at UTC midnight.
+  if (day <= month) return { left: day, per: "day", perDay: limits.runsDaily, resetsAt: new Date(Date.UTC(y, m, d + 1)) };
+  return { left: month, per: "month", perDay: limits.runsDaily, resetsAt: new Date(Date.UTC(y, m + 1, 1)) };
+}
+
+/** "12 runs left today", "1 run left this month", "No runs left today". */
+export function runsLeftLabel(r: RunsLeft): string {
+  const when = r.per === "day" ? "today" : "this month";
+  if (r.left === 0) return `No runs left ${when}`;
+  return `${r.left} ${r.left === 1 ? "run" : "runs"} left ${when}`;
+}
+
+/** When runs come back, in the given time zone: "at 11 am tomorrow", "on Sun 1 Nov at 11 am". */
+export function resetWhen(r: RunsLeft, timeZone: string, now = new Date()): string {
+  let tz = timeZone;
+  try { new Intl.DateTimeFormat("en-AU", { timeZone: tz }); } catch { tz = "UTC"; }
+  const key = (d: Date) => d.toLocaleDateString("en-CA", { timeZone: tz });
+  const time = r.resetsAt.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: tz }).replace(":00", "").replace(/\s+/g, " ").toLowerCase();
+  const today = key(now);
+  const tomorrow = key(new Date(now.getTime() + 86_400_000));
+  const day = key(r.resetsAt);
+  if (day === today) return `at ${time} today`;
+  if (day === tomorrow) return `at ${time} tomorrow`;
+  return `on ${r.resetsAt.toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: tz }).replace(",", "")} at ${time}`;
+}
+
+/** The line under a disabled Run when nothing is left: "You have used today's 30 runs. More at 11 am tomorrow." */
+export function noRunsLine(r: RunsLeft, timeZone: string, now = new Date()): string {
+  const used = r.per === "day" ? `today's ${r.perDay} runs` : "this month's runs";
+  return `You have used ${used}. More ${resetWhen(r, timeZone, now)}.`;
 }
 
 /** "Lease agreement 2026 final version.pdf" to "Lease agreem…version.pdf": the start and the end both matter. */
@@ -141,11 +200,8 @@ export function rememberRecent(key: string) {
 /** Shown in Recent before anything has been used. */
 export const STARTERS = ["compress", "merge", "convert", "organize", "esign", "pdf-to-docx"];
 
-/** Files handed from one screen to the next (a dropped file, or a result to run another tool on). Memory only. */
-let carried: File[] = [];
-export const carryFiles = (files: File[]) => { carried = files; };
-export const takeCarried = (): File[] => { const f = carried; carried = []; return f; };
-export const peekCarried = (): File[] => carried;
+/** Files handed from one screen to the next (memory only); kept in their own small module the editors share. */
+export { carryFiles, peekCarried, takeCarried } from "@/web/lib/carried-files";
 
 /**
  * Wakes the document engine (a free host that sleeps) before the first run: one cheap GET through Multies, at most

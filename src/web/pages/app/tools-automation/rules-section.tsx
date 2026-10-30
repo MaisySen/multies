@@ -2,7 +2,7 @@
  * Tools P2 (flag rules): "Before sending" rules. Admins set the workspace rules; anyone can set their own,
  * which win over the workspace. The composer applies them to attachments (mail/compose-attachments.tsx).
  */
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/web/lib/api";
@@ -59,6 +59,14 @@ export function SendRulesSettings({ Section }: { Section: SectionCmp }) {
   const done = (r: RulesState) => { qc.setQueryData(["tools-rules-settings"], r); qc.setQueryData(["tools-rules"], r.effective); toast.success("Rule saved"); };
   const ws = useMutation({ mutationFn: (r: SendRulesRow) => api.put<RulesState>("/tools/rules/workspace", r), onSuccess: (r) => done({ ...r, canEditWorkspace: true }), onError: (e) => showError(e) });
   const mine = useMutation({ mutationFn: (r: SendRulesRow) => api.put<RulesState>("/tools/rules/mine", r), onSuccess: (r) => done({ ...r, canEditWorkspace: q.data?.canEditWorkspace ?? false }), onError: (e) => showError(e) });
+  // R66: "Before sending" on the Tools page links to /app/settings#send-rules; scroll here once the rules have loaded
+  // (the browser's own jump happens before this section exists).
+  const jumped = useRef(false);
+  useEffect(() => {
+    if (jumped.current || !q.data || typeof window === "undefined" || window.location.hash !== "#send-rules") return;
+    jumped.current = true;
+    requestAnimationFrame(() => document.getElementById("send-rules")?.scrollIntoView({ block: "start", behavior: "smooth" }));
+  }, [q.data]);
   if (q.data === null) return null;
   const s = q.data;
   const wsWord = (v: "on" | "off" | null | undefined) => (v === "on" ? "on" : "off");

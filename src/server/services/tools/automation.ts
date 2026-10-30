@@ -103,7 +103,7 @@ export async function engineJobOutput(deps: Deps, engine: EngineConfig, who: { o
   return new Uint8Array(await res.arrayBuffer());
 }
 
-/** Starts a job for a person (counts the run like P1) and mints the status token the P1 poll and download routes read. */
+/** Starts a job for a person (counted like P1 when it finishes) and mints the status token the P1 poll and download routes read. */
 export async function startTokenJob(deps: Deps, auth: Pick<AuthContext, "orgId" | "userId">, op: string, files: EngineFile[], options: Record<string, string>, name: string) {
   const { engine, tokenKey } = toolsSetup(deps);
   const s = await toolStateOrOff(deps, auth.orgId);
@@ -111,9 +111,9 @@ export async function startTokenJob(deps: Deps, auth: Pick<AuthContext, "orgId" 
   const l = checkRunAllowance(s, bytes);
   const id = await submitEngineJob(deps, engine, auth, op, files, options, l.maxBytes);
   const now = deps.now();
-  await recordRun(deps.db, auth.orgId, now, bytes);
+  // R66 (MB-256): the run is counted by the status read that sees it finished (chargeJob), from the bytes in the token.
   // The poll and download routes only need the name and the op; ops outside the P1 list download as octet-stream.
-  const token = await mintToken(tokenKey, { k: "s", j: id, w: auth.orgId, u: auth.userId, o: op as ToolOp, n: name }, now.getTime());
+  const token = await mintToken(tokenKey, { k: "s", j: id, w: auth.orgId, u: auth.userId, o: op as ToolOp, n: name, b: bytes }, now.getTime());
   return { token, op, status: "queued" as const, name, jobId: id };
 }
 

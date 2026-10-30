@@ -8,9 +8,17 @@ import { optionShown, type ToolDef, type ToolJob, type ToolOption } from "@/shar
 export const mb = (n: number) => `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
 export const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : mb(n));
 
+/**
+ * R66: where the screen starts differently from the engine's own default, so Run with nothing changed does
+ * something useful (Stamp and number pages starts with "Page 1 of 9" numbers instead of nothing at all).
+ */
+const SCREEN_DEFAULTS: Record<string, Record<string, string>> = { stamp: { page_numbers: "page n of N" } };
+
 /** The defaults a tool's options start from. */
-export const defaultsFor = (tool: Pick<ToolDef, "options"> | undefined): Record<string, string> =>
-  Object.fromEntries((tool?.options ?? []).map((o) => [o.name, o.default === undefined ? "" : String(o.default)]));
+export const defaultsFor = (tool: (Pick<ToolDef, "options"> & { op?: string }) | undefined): Record<string, string> => ({
+  ...Object.fromEntries((tool?.options ?? []).map((o) => [o.name, o.default === undefined ? "" : String(o.default)])),
+  ...(tool?.op ? SCREEN_DEFAULTS[tool.op] : undefined),
+});
 
 /** The options people fill in, with the ones hidden by another choice left out. */
 export const visibleOptions = (tool: Pick<ToolDef, "options">, values: Record<string, string>) =>
@@ -37,8 +45,17 @@ export function optionProblem(o: ToolOption, v: string): string | null {
 }
 
 /** The first problem with the options as filled in, or null. */
-export const optionsProblem = (tool: Pick<ToolDef, "options">, values: Record<string, string>) =>
-  visibleOptions(tool, values).map((o) => optionProblem(o, values[o.name] ?? "")).find(Boolean) ?? null;
+export const optionsProblem = (tool: Pick<ToolDef, "options"> & { op?: string }, values: Record<string, string>) =>
+  visibleOptions(tool, values).map((o) => optionProblem(o, values[o.name] ?? "")).find(Boolean) ?? toolProblem(tool.op, values);
+
+/** R66: checks across options, so Run is never offered for a run that can only fail (and Stamp always has something to add). */
+export function toolProblem(op: string | undefined, values: Record<string, string>): string | null {
+  if (op !== "stamp") return null;
+  const v = (k: string) => (values[k] ?? "").trim();
+  if (v("stamp") === "custom" && !v("stamp_text")) return "Type the stamp words.";
+  if ((v("stamp") || "none") === "none" && (v("page_numbers") || "none") === "none" && !v("header") && !v("footer")) return "Pick a stamp, page numbers, a header or a footer.";
+  return null;
+}
 
 export function OptionField({ o, value, onChange, disabled, idPrefix = "tools-opt" }: { o: ToolOption; value: string; onChange: (v: string) => void; disabled: boolean; idPrefix?: string }) {
   const id = `${idPrefix}-${o.name}`;

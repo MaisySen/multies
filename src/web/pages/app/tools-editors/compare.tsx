@@ -11,7 +11,7 @@ import { Button } from "@/web/components/ui/button";
 import { Card, StatTile } from "@/web/components/ui/misc";
 import { api } from "@/web/lib/api";
 import { readCompareChanges, type CompareChanges, type EditorJob } from "@/shared/tools-editors";
-import { readJson, startCompare, waitFor, RunError, sourceName, type Source } from "./runner";
+import { readJson, startCompare, waitFor, RunError, sourceName, type Source, carriedPdfs, useTakeCarried } from "./runner";
 import { BusyLine, EditorFrame, ErrorCard, PdfPicker, ResultCard, sizeOf } from "./shell";
 
 type Phase = { kind: "pick" } | { kind: "working"; pct: number | null } | { kind: "done"; report: EditorJob; changes: CompareChanges } | { kind: "failed"; error: RunError };
@@ -66,8 +66,9 @@ function ChangeList({ changes }: { changes: CompareChanges }) {
 export function ComparePage() {
   const [params] = useSearchParams();
   const fromMail = params.get("attachment");
-  const [older, setOlder] = useState<Source | null>(null);
-  const [newer, setNewer] = useState<Source | null>(fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : null);
+  const [older, setOlder] = useState<Source | null>(() => carriedPdfs()[0] ?? null);
+  const [newer, setNewer] = useState<Source | null>(() => (fromMail ? { kind: "attachment", id: fromMail, name: params.get("name") ?? "Attachment.pdf" } : carriedPdfs()[1] ?? null));
+  useTakeCarried();
   const [phase, setPhase] = useState<Phase>({ kind: "pick" });
   const stop = useRef({ stopped: false });
   useEffect(() => () => { stop.current.stopped = true; }, []);
