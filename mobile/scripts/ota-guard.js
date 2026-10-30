@@ -5,7 +5,7 @@
  * since the last store build, phones on that build cannot run the new code, so the update must not go
  * out and a new store build is needed instead. Two independent checks say so:
  *   1. the fingerprint (runtime version) of the project now differs from the one the store build
- *      was made with (store/runtime-versions.json), for either platform;
+ *      was made with (read live by scripts/ota-publish.js from App Store Connect, EAS and Play), for either platform;
  *   2. a file that shapes the native app changed since the store build's commit.
  * Production also needs the same commit on the preview channel first.
  *
@@ -87,7 +87,7 @@ function evaluateGuard(o) {
     const built = o.store && o.store[p] && o.store[p].runtimeVersion;
     const now = o.current && o.current[p];
     if (!built) {
-      problems.push(`No store build is recorded for ${p} in store/runtime-versions.json.`);
+      problems.push(`No live store build was found for ${p}.`);
     } else if (!now) {
       problems.push(`Could not work out the ${p} fingerprint.`);
     } else if (built !== now) {

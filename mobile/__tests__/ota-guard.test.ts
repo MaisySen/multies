@@ -27,7 +27,7 @@ describe("ota guard", () => {
 
   it("refuses when a fingerprint could not be worked out or no store build is recorded", () => {
     expect(evaluateGuard({ ...base, current: { ios: same.ios } }).problems[0]).toMatch(/Could not work out the android fingerprint/);
-    expect(evaluateGuard({ ...base, store: { ios: store.ios } }).problems[0]).toMatch(/No store build is recorded for android/);
+    expect(evaluateGuard({ ...base, store: { ios: store.ios } }).problems[0]).toMatch(/No live store build was found for android/);
   });
 
   it("refuses when native files changed even if the fingerprint did not", () => {

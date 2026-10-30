@@ -3,6 +3,9 @@
 The Multies companion app for iPhone and Android. One TypeScript codebase on Expo (React Native,
 Expo Router), talking to the same API as the web app.
 
+This folder is the one working copy of the app (branch `ota`). Releasing, over the air updates and
+the publish check: RELEASING.md.
+
 | Area | What works |
 | --- | --- |
 | Sign in | The Multies sign in page in the system browser (email and password, Google, Apple or GitHub), Authorization Code with PKCE, then the ID token is traded for a Multies session; the session is kept in the iOS Keychain or Android Keystore |

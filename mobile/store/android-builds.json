@@ -1,0 +1,21 @@
+{
+  "note": "Android bundles are built locally (gradle), so EAS has no record of their runtime. Add a row for every bundle uploaded to Play, with the runtime read from the build (npx expo-updates fingerprint:generate --platform android at the build commit, or the fingerprint in the bundle). scripts/ota-publish.js refuses when Play has a live version code that is missing here. RELEASING.md.",
+  "builds": {
+    "16": {
+      "version": "1.10.0",
+      "runtimeVersion": "5c9046a2b2722bcdb48711f629fb4a38c335e78e",
+      "channel": "production",
+      "commit": "3c232cbf9d06b4cd3f24f02200eb66696141cf04",
+      "uploaded": "2026-10-26",
+      "track": "internal"
+    },
+    "15": {
+      "version": "1.9.3",
+      "runtimeVersion": "e5a5bb6ce563a5072e021a35eb0966285dc7af8a",
+      "channel": "production",
+      "commit": "9ededbe9b5570d6d02752dcc7d8c689ed7af4c1b",
+      "uploaded": "2026-10-26",
+      "track": "internal"
+    }
+  }
+}

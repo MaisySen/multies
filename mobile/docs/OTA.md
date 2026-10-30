@@ -56,8 +56,8 @@ Changes to screens, components, styles, copy, API calls, images and fonts loaded
 - Config plugins, `plugins/`, and native fields in `app.json` (permissions, `infoPlist`, icons,
   splash, entitlements, schemes, notification settings).
 - The guard (below) refuses an update in these cases and says why. The fix is a store build:
-  bump `android.versionCode` in `app.json`, build as in docs/release.md, submit, then update
-  `store/runtime-versions.json` with the new runtime versions and commit.
+  bump `android.versionCode` in `app.json`, build as in docs/release.md, submit, then for Android add the
+  version code and runtime to `store/android-builds.json` (iOS needs nothing). See RELEASING.md.
 
 ## Runbook: how we ship (OTA by default; store builds only for native changes, batched)
 
@@ -65,8 +65,8 @@ Changes to screens, components, styles, copy, API calls, images and fonts loaded
    as a staged rollout. Never cut a store build for a change an update can carry.
 2. A store build is only for native changes (new native package, SDK upgrade, permission, plugin,
    `app.json` native field, privacy manifest). Collect them in "Queued for the next store build"
-   below and ship them together in one build, then record the new runtime versions in
-   `store/runtime-versions.json`. The guard refuses an update that needs native code, so a native
+   below and ship them together in one build, then record Android's runtime in
+   `store/android-builds.json` (RELEASING.md). The guard refuses an update that needs native code, so a native
    change can never reach phones by mistake.
 3. Production is always staged: 10 percent, watch health, 50, watch, 100. A bad update is rolled
    back with one command, and phones already on it leave it at once.
@@ -101,12 +101,13 @@ An urgent fix: `$C npm run ota:production -- --rollout 100 --critical --message 
 update ids critical in the app config; phones that find it download it and restart into it after a
 short notice ("Installing an important update. Multies restarts in a moment.").
 
-The guard (`scripts/ota.js`, `scripts/ota-guard.js`, tests in `__tests__/ota-guard.test.ts`) refuses
-to publish when:
+Publishing goes through `scripts/ota-publish.js` (RELEASING.md; checks in `scripts/ota-guard.js` and
+`scripts/ota-live.js`, tests in `__tests__/ota-guard.test.ts` and `__tests__/ota-live.test.ts`). It reads
+the live store builds from App Store Connect, EAS and Play on every run, and refuses to publish when:
 
 - the working tree has uncommitted changes;
-- the Android or iOS fingerprint differs from the store build recorded in
-  `store/runtime-versions.json`;
+- the Android or iOS fingerprint differs from the runtime of the newest live store build
+  (TestFlight, Play tracks); after publishing it fails unless the update server serves the new id;
 - a native file changed since that build's commit (`plugins/`, `android/`, `ios/`, `patches/`,
   `fingerprint.config.js`, native fields of `app.json`, dependencies in `package.json`);
 - the What's new notes (`src/lib/ota/whats-new.generated.ts`) are out of date with `CHANGELOG.md`;
