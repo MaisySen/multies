@@ -67,8 +67,12 @@ export const organizations = sqliteTable("organizations", {
   channelsAgentAutosend: integer("channels_agent_autosend", { mode: "boolean" }).notNull().default(false),
   /** How the Stripe subscription bills: "month", or "year" when add-ons total under A$5 a month. */
   billingInterval: text("billing_interval", { enum: ["month", "year"] }),
+  /** R62 (0094): shared storage a Business workspace from before the 1,000 GB limit keeps, in MB. Counts only on Business. */
+  legacyStorageMb: integer("legacy_storage_mb"),
+  /** R62 (0094): the workspace's referral code, made the first time an owner opens the referral link. */
+  referralCode: text("referral_code"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug)]);
+}, (t) => [uniqueIndex("organizations_slug_uq").on(t.slug), uniqueIndex("organizations_referral_code_uq").on(t.referralCode).where(sql`${t.referralCode} IS NOT NULL`)]);
 
 /**
  * Paid add-ons on a workspace (extra domains, storage, mailbox packs, the AI assistant,
@@ -399,6 +403,28 @@ export const billingEvents = sqliteTable("billing_events", {
   orgId: text("org_id"),
   createdAt: createdAt(),
 });
+
+/**
+ * R62 (0094): a workspace that signed up through another workspace's referral link. Both get a Stripe balance credit
+ * once the new workspace's first payment has stood for 14 days. No foreign keys: the row is the record of a credit
+ * given, and it stays when either workspace is deleted.
+ */
+export const referrals = sqliteTable("referrals", {
+  id: text("id").primaryKey(),
+  referrerOrgId: text("referrer_org_id").notNull(),
+  referredOrgId: text("referred_org_id").notNull(),
+  code: text("code").notNull(),
+  status: text("status", { enum: ["signed_up", "pending", "credited", "blocked", "void"] }).notNull().default("signed_up"),
+  /** Why a referral was blocked or voided (self_referral_email, self_referral_domain, same_card, member, cap, refunded, ...). */
+  reason: text("reason"),
+  invoiceId: text("invoice_id"),
+  paidAt: ts("paid_at"),
+  eligibleAt: ts("eligible_at"),
+  creditedAt: ts("credited_at"),
+  referrerCreditCents: integer("referrer_credit_cents").notNull().default(0),
+  referredCreditCents: integer("referred_credit_cents").notNull().default(0),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("referrals_referred_uq").on(t.referredOrgId), index("referrals_referrer_idx").on(t.referrerOrgId, t.status, t.creditedAt)]);
 
 /**
  * A mailbox's account on the mail server (Stalwart) that serves IMAP and SMTP for

@@ -891,5 +891,17 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE INDEX `msg_messages_conv_idx` ON `msg_messages` (`conversation_id`,`date`);",
       "CREATE UNIQUE INDEX `msg_messages_external_uq` ON `msg_messages` (`channel_id`,`external_id`);"
     ]
+  },
+  {
+    "name": "0094_r62_pricing_referrals",
+    "statements": [
+      "-- R62 (pricing): Business storage drops from 2,500 GB to 1,000 GB for new Business workspaces. The ones that exist\n-- keep 2,500 GB (2,560,000 MB) through legacy_storage_mb, which only counts while the workspace stays on Business.\nALTER TABLE `organizations` ADD `legacy_storage_mb` integer;",
+      "UPDATE `organizations` SET `legacy_storage_mb` = 2560000 WHERE `plan` = 'business';",
+      "-- R62: each workspace's referral code, made the first time an owner opens the referral link in Billing.\nALTER TABLE `organizations` ADD `referral_code` text;",
+      "CREATE UNIQUE INDEX `organizations_referral_code_uq` ON `organizations` (`referral_code`) WHERE `referral_code` IS NOT NULL;",
+      "-- R62: one row per workspace that signed up through a referral link. status: signed_up (no payment yet), pending (first\n-- payment made, waiting out the refund window), credited, blocked (self referral or over the cap) or void (refunded).\nCREATE TABLE `referrals` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`referrer_org_id` text NOT NULL,\n\t`referred_org_id` text NOT NULL,\n\t`code` text NOT NULL,\n\t`status` text DEFAULT 'signed_up' NOT NULL,\n\t`reason` text,\n\t`invoice_id` text,\n\t`paid_at` integer,\n\t`eligible_at` integer,\n\t`credited_at` integer,\n\t`referrer_credit_cents` integer DEFAULT 0 NOT NULL,\n\t`referred_credit_cents` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `referrals_referred_uq` ON `referrals` (`referred_org_id`);",
+      "CREATE INDEX `referrals_referrer_idx` ON `referrals` (`referrer_org_id`,`status`,`credited_at`);"
+    ]
   }
 ];

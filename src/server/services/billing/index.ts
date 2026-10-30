@@ -3,14 +3,16 @@ import type { AuthContext, Deps } from "../../context";
 import { billingEvents, organizations } from "../../db/schema";
 import { HttpError, badRequest, forbidden } from "../../lib/errors";
 import {
-  ADDONS, ADDON_ORDER, PLANS, PLAN_ORDER, PRICE_CURRENCY, addonLookupKey, chargeFor, effectiveLimits, intervalFor, isAddonId,
-  type AddonId, type AddonQuantities, type BillingInterval, type PlanId,
+  ADDONS, ADDON_ORDER, PLANS, PLAN_ORDER, PRICE_CURRENCY, addonLookupKey, chargeFor, effectiveLimits, intervalFor, isAddonId, yearlyOnly, yearlyPrice,
+  type AddonId, type AddonQuantities, type BillingInterval, type Grandfathered, type PlanId,
 } from "@/shared/plans";
+import { LAUNCH_CODE, LAUNCH_MONTHS, LAUNCH_PERCENT_OFF } from "@/shared/offers";
 import { audit } from "../audit";
 import { getAddons, getOrg, overLimits, setAddons, usage } from "../plans";
 import { sentToday } from "../mail/delivery";
 import { constructWebhookEvent, stripeClient, type Stripe } from "./stripe";
 import { onInvoicePaid, onPaymentFailed, sendingPausedForPayment } from "./dunning";
+import { onReferralPayment, onReferralRefund } from "./referrals";
 
 /** The subscription fields Multies mirrors. */
 export type StripePrice = { id: string; lookup_key?: string | null; metadata?: Record<string, string> | null; recurring?: { interval?: string } | null };
@@ -18,6 +20,8 @@ export type StripeSubscription = Pick<Stripe.Subscription, "id" | "status" | "ca
   customer: string | { id: string };
   items: { data: { id?: string; quantity?: number; price: StripePrice; current_period_end?: number }[] };
   current_period_end?: number;
+  /** R62: discounts on the subscription (the launch code). */
+  discounts?: unknown[] | null;
 };
 
 export const notConnected = () => new HttpError(409, "billing_not_connected", "Billing isn't connected on this deployment. Add-ons apply instantly and nothing is charged.");
@@ -53,25 +57,38 @@ export function addonForPrice(price: StripePrice | undefined): AddonId | null {
 
 const priceCache = new WeakMap<Deps, Map<string, string>>();
 
+type PriceSpec = { name: string; amount: number; interval: BillingInterval; metadata: Record<string, string> };
+
 /**
  * A Stripe price id by lookup key, cached per deployment. Prices are created by
  * `npm run stripe:setup`; in test mode a missing one is created on first use, so a bare
  * test key is enough to try the whole checkout.
+ *
+ * R62: the price found must charge what Multies shows (yearly became ten months for twelve). In test mode a price
+ * with another amount is replaced and its lookup key moved to the new one; in live mode the checkout stops with a
+ * clear error until `npm run stripe:setup --live` has made the right price, so nobody is charged an old amount.
  */
-async function priceByKey(deps: Deps, stripe: Stripe, key: string, create: () => { name: string; amount: number; interval: BillingInterval; metadata: Record<string, string> }) {
+async function priceByKey(deps: Deps, stripe: Stripe, key: string, spec: PriceSpec) {
   const cache = priceCache.get(deps) ?? new Map<string, string>();
   priceCache.set(deps, cache);
   const hit = cache.get(key);
   if (hit) return hit;
   const found = await stripe.prices.list({ lookup_keys: [key], active: true, limit: 1 });
-  let id = found.data[0]?.id;
+  const cents = Math.round(spec.amount * 100);
+  const current = found.data[0] as { id: string; unit_amount?: number | null } | undefined;
+  // A price without an amount in the answer (older fixtures) is taken as it is.
+  const matches = !!current && (current.unit_amount == null || current.unit_amount === cents);
+  let id = matches ? current!.id : undefined;
   if (!id) {
-    if (!deps.config.billing.testMode) throw new HttpError(409, "billing_price_missing", `No Stripe price with lookup key ${key}. Run npm run stripe:setup against this account.`);
-    const spec = create();
+    if (!deps.config.billing.testMode) {
+      throw new HttpError(409, "billing_price_missing", current
+        ? `The Stripe price with lookup key ${key} charges a different amount. Run npm run stripe:setup against this account.`
+        : `No Stripe price with lookup key ${key}. Run npm run stripe:setup against this account.`);
+    }
     const product = await stripe.products.create({ name: spec.name, metadata: spec.metadata });
     const price = await stripe.prices.create({
-      product: product.id, currency: PRICE_CURRENCY, unit_amount: Math.round(spec.amount * 100), recurring: { interval: spec.interval },
-      lookup_key: key, metadata: spec.metadata, tax_behavior: "exclusive",
+      product: product.id, currency: PRICE_CURRENCY, unit_amount: cents, recurring: { interval: spec.interval },
+      lookup_key: key, transfer_lookup_key: !!current, metadata: spec.metadata, tax_behavior: "exclusive",
     });
     id = price.id;
   }
@@ -83,15 +100,15 @@ async function priceByKey(deps: Deps, stripe: Stripe, key: string, create: () =>
 export async function resolvePrice(deps: Deps, stripe: Stripe, plan: PaidPlan): Promise<string> {
   const configured = deps.config.billing.prices[plan];
   if (configured) return configured;
-  return priceByKey(deps, stripe, lookupKey(plan), () => ({ name: `${deps.config.appName} ${PLANS[plan].name}`, amount: PLANS[plan].priceMonthly, interval: "month", metadata: { plan } }));
+  return priceByKey(deps, stripe, lookupKey(plan), { name: `${deps.config.appName} ${PLANS[plan].name}`, amount: PLANS[plan].priceMonthly, interval: "month", metadata: { plan } });
 }
 
-/** The Stripe price for one unit of an add-on, monthly or yearly (twelve times the monthly price). */
+/** The Stripe price for one unit of an add-on, monthly or yearly (R62: ten times the monthly price, two months free). */
 export async function resolveAddonPrice(deps: Deps, stripe: Stripe, id: AddonId, interval: BillingInterval): Promise<string> {
   const a = ADDONS[id];
-  return priceByKey(deps, stripe, addonLookupKey(id, interval), () => ({
-    name: `${deps.config.appName} ${a.name}`, amount: interval === "year" ? a.priceMonthly * 12 : a.priceMonthly, interval, metadata: { addon: id },
-  }));
+  return priceByKey(deps, stripe, addonLookupKey(id, interval), {
+    name: `${deps.config.appName} ${a.name}`, amount: interval === "year" ? yearlyPrice(a.priceMonthly) : a.priceMonthly, interval, metadata: { addon: id },
+  });
 }
 
 /** Statuses where the customer keeps what they pay for. */
@@ -113,6 +130,7 @@ export async function billingOverview(deps: Deps, orgId: string) {
   const [used, sends, addons] = await Promise.all([usage(deps.db, orgId, deps.now()), sentToday(deps.db, orgId, deps.now()), getAddons(deps.db, orgId)]);
   const plan = PLANS[org.plan];
   const base = plan.legacy ? plan.priceMonthly : 0;
+  const monthly = base + ADDON_ORDER.reduce((sum, id) => sum + ADDONS[id].priceMonthly * (addons[id] ?? 0), 0);
   return {
     enabled: deps.config.billing.enabled,
     missing: deps.config.billing.enabled ? [] : deps.config.billing.missing,
@@ -120,8 +138,11 @@ export async function billingOverview(deps: Deps, orgId: string) {
     webhooks: !!deps.config.billing.stripeWebhookSecret,
     plan,
     addons,
-    charge: chargeFor(addons, base),
+    charge: chargeFor(addons, base, org.billingInterval),
     interval: org.billingInterval ?? null,
+    // R62: monthly or yearly (ten months for twelve); below A$5 a month only yearly. The launch code works on monthly.
+    yearlyOnly: yearlyOnly(monthly),
+    offers: { launchCode: LAUNCH_CODE, launchPercentOff: LAUNCH_PERCENT_OFF, launchMonths: LAUNCH_MONTHS },
     catalog: ADDON_ORDER.map((id) => ADDONS[id]),
     subscription: org.stripeSubscriptionId ? {
       status: org.subscriptionStatus, currentPeriodEnd: org.currentPeriodEnd, cancelAtPeriodEnd: org.cancelAtPeriodEnd,
@@ -129,7 +150,7 @@ export async function billingOverview(deps: Deps, orgId: string) {
     hasCustomer: !!org.stripeCustomerId,
     dunning: org.pastDueSince ? { pastDueSince: org.pastDueSince, graceEndsAt: org.graceEndsAt, sendingPaused: sendingPausedForPayment(org, deps.now()) } : null,
     usage: { ...used, sendsToday: sends },
-    limits: effectiveLimits(plan, addons),
+    limits: effectiveLimits(plan, addons, org),
   };
 }
 
@@ -150,8 +171,8 @@ function assertOwner(auth: AuthContext) {
 }
 
 /** Refuses a change that would leave the workspace over its limits. */
-async function assertFits(deps: Deps, orgId: string, plan: PlanId, addons: AddonQuantities) {
-  const over = overLimits(await usage(deps.db, orgId, deps.now()), effectiveLimits(PLANS[plan], addons));
+async function assertFits(deps: Deps, orgId: string, plan: PlanId, addons: AddonQuantities, kept: Grandfathered = {}) {
+  const over = overLimits(await usage(deps.db, orgId, deps.now()), effectiveLimits(PLANS[plan], addons, kept));
   if (over.length) throw badRequest(`Remove some ${over.join(" and ")} first: the workspace would be over its limits without these add-ons.`);
 }
 
@@ -172,13 +193,13 @@ async function addonItems(deps: Deps, stripe: Stripe, addons: AddonQuantities, i
  * on one subscription; with one, the subscription's items change in place (see
  * `updateAddons`). When billing isn't connected (local, demo) they apply instantly.
  */
-export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: Record<string, number>) {
+export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { interval?: BillingInterval } = {}) {
   assertOwner(auth);
   const addons = cleanAddons(input);
   if (!Object.keys(addons).length) throw badRequest("Choose at least one add-on.");
   const org = await getOrg(deps.db, auth.orgId);
   if (!deps.config.billing.enabled) {
-    await assertFits(deps, auth.orgId, org.plan, addons);
+    await assertFits(deps, auth.orgId, org.plan, addons, org);
     await setAddons(deps.db, auth.orgId, addons);
     await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.addons_changed", metadata: { addons, charged: false } });
     return { applied: true as const, url: null };
@@ -187,7 +208,7 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
     throw new HttpError(409, "has_subscription", "You already have a subscription. Change add-ons in place instead.");
   }
   const stripe = client(deps);
-  const interval = intervalFor(addons);
+  const interval = intervalFor(addons, 0, opts.interval);
   const items = await addonItems(deps, stripe, addons, interval);
   const customer = await ensureCustomer(deps, auth);
   const base = `${deps.config.appUrl}/app/settings/billing`;
@@ -196,7 +217,9 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
     line_items: items.map((i) => ({ price: i.price, quantity: i.quantity })),
     subscription_data: { metadata: { orgId: auth.orgId } },
     metadata: { orgId: auth.orgId },
-    allow_promotion_codes: true,
+    // R62: promotion codes (LAUNCH30) on monthly billing only. On a yearly invoice a "first 3 months" coupon would
+    // take its percentage off the whole year, on top of the two free months.
+    allow_promotion_codes: interval === "month",
     // Charge exactly the AUD price everywhere instead of converting to the visitor's currency.
     adaptive_pricing: { enabled: false },
     success_url: `${base}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel_url: `${base}?checkout=cancelled`,
@@ -205,7 +228,7 @@ export async function startAddonCheckout(deps: Deps, auth: AuthContext, input: R
 }
 
 /** Builds the item changes that turn a live subscription into `addons` (and optionally drops a legacy plan). */
-async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean } = {}) {
+async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
   assertOwner(auth);
   const addons = cleanAddons(input);
   const org = await getOrg(deps.db, auth.orgId);
@@ -215,8 +238,13 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   const planItem = sub.items.data.find((i) => planForPrice(deps, i.price));
   const keepPlan = planItem && !opts.dropLegacyPlan;
   const nextPlan: PlanId = keepPlan ? planForPrice(deps, planItem.price)! : "starter";
-  await assertFits(deps, auth.orgId, nextPlan, addons);
-  const interval = intervalFor(addons, keepPlan ? PLANS[nextPlan].priceMonthly : 0);
+  await assertFits(deps, auth.orgId, nextPlan, addons, org);
+  // R62: the interval the customer chose now, else the one the subscription bills at (monthly or yearly stays as it is).
+  const currentInterval = sub.items.data[0]?.price?.recurring?.interval;
+  const chosen = opts.interval ?? (currentInterval === "year" || currentInterval === "month" ? currentInterval : org.billingInterval);
+  const interval = intervalFor(addons, keepPlan ? PLANS[nextPlan].priceMonthly : 0, chosen);
+  // R62: moving to yearly drops the launch discount, which is for monthly billing only.
+  const dropDiscounts = interval === "year" && currentInterval === "month" && (sub.discounts?.length ?? 0) > 0;
   const wanted = await addonItems(deps, stripe, addons, interval);
   const changes: { id?: string; price?: string; quantity?: number; deleted?: boolean }[] = [];
   const used = new Set<string>();
@@ -238,30 +266,30 @@ async function plannedItems(deps: Deps, auth: AuthContext, input: Record<string,
   const more = chargeFor(addons, keepPlan ? PLANS[nextPlan].priceMonthly : 0).monthly >= chargeFor(before, baseBefore).monthly;
   // Additions are charged now for the rest of the period; reductions credit the next invoice.
   const proration = more ? ("always_invoice" as const) : ("create_prorations" as const);
-  return { stripe, org, sub, changes, addons, interval, proration, more, nextPlan };
+  return { stripe, org, sub, changes, addons, interval, proration, more, nextPlan, dropDiscounts };
 }
 
 /** What an add-on change costs today, from Stripe's own proration maths. */
-export async function previewAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean } = {}) {
-  const { stripe, org, sub, changes, interval, proration, more, addons, nextPlan } = await plannedItems(deps, auth, input, opts);
+export async function previewAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
+  const { stripe, org, sub, changes, interval, proration, more, addons, nextPlan, dropDiscounts } = await plannedItems(deps, auth, input, opts);
   const preview = await stripe.invoices.createPreview({
-    customer: org.stripeCustomerId!, subscription: sub.id,
+    customer: org.stripeCustomerId!, subscription: sub.id, ...(dropDiscounts ? { discounts: "" as const } : {}),
     subscription_details: { items: changes, proration_behavior: proration, proration_date: Math.floor(deps.now().getTime() / 1000) },
   });
   const net = preview.lines.data.reduce((sum, l) => sum + l.amount, 0);
-  return { addons, interval, currency: preview.currency, dueNow: more ? Math.max(0, net) : 0, credit: more ? 0 : Math.max(0, -net), charge: chargeFor(addons, PLANS[nextPlan].legacy ? PLANS[nextPlan].priceMonthly : 0) };
+  return { addons, interval, dropsDiscount: dropDiscounts, currency: preview.currency, dueNow: more ? Math.max(0, net) : 0, credit: more ? 0 : Math.max(0, -net), charge: chargeFor(addons, PLANS[nextPlan].legacy ? PLANS[nextPlan].priceMonthly : 0, interval) };
 }
 
 /** Changes add-ons on the one subscription in place, with proration. The webhook syncs too. */
-export async function updateAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean } = {}) {
-  if (!deps.config.billing.enabled) return startAddonCheckout(deps, auth, input);
-  const { stripe, org, sub, changes, addons, interval, proration } = await plannedItems(deps, auth, input, opts);
+export async function updateAddons(deps: Deps, auth: AuthContext, input: Record<string, number>, opts: { dropLegacyPlan?: boolean; interval?: BillingInterval } = {}) {
+  if (!deps.config.billing.enabled) return startAddonCheckout(deps, auth, input, opts);
+  const { stripe, org, sub, changes, addons, interval, proration, dropDiscounts } = await plannedItems(deps, auth, input, opts);
   const updated = await stripe.subscriptions.update(sub.id, {
-    items: changes, proration_behavior: proration, payment_behavior: "pending_if_incomplete",
+    items: changes, proration_behavior: proration, payment_behavior: "pending_if_incomplete", ...(dropDiscounts ? { discounts: "" as const } : {}),
     metadata: { ...(sub.metadata ?? {}), orgId: org.id },
   });
   await syncSubscription(deps, updated as unknown as StripeSubscription);
-  await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.addons_changed", metadata: { addons, interval, proration, dropLegacyPlan: !!opts.dropLegacyPlan } });
+  await audit(deps.db, { orgId: org.id, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.addons_changed", metadata: { addons, interval, proration, dropLegacyPlan: !!opts.dropLegacyPlan, droppedDiscount: dropDiscounts } });
   return { applied: true as const, url: null, interval, pending: !!(updated as unknown as { pending_update?: unknown }).pending_update };
 }
 
@@ -280,7 +308,7 @@ async function liveItem(deps: Deps, auth: AuthContext, plan: PlanId) {
   const price = await resolvePrice(deps, stripe, plan as PaidPlan);
   const upgrade = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan);
   if (!upgrade) {
-    const over = overLimits(await usage(deps.db, auth.orgId, deps.now()), effectiveLimits(PLANS[plan], await getAddons(deps.db, auth.orgId)));
+    const over = overLimits(await usage(deps.db, auth.orgId, deps.now()), effectiveLimits(PLANS[plan], await getAddons(deps.db, auth.orgId), org));
     if (over.length) throw badRequest(`Remove some ${over.join(" and ")} before moving to ${PLANS[plan].name}.`);
   }
   const proration = upgrade ? ("always_invoice" as const) : ("create_prorations" as const);
@@ -458,9 +486,19 @@ export async function handleStripeWebhook(deps: Deps, rawBody: string, signature
           orgId: org.id, action: event.type === "invoice.paid" ? "billing.invoice_paid" : "billing.payment_failed",
           metadata: { amount: obj.amount_paid ?? obj.amount_due, currency: obj.currency, number: obj.number },
         });
-        if (event.type === "invoice.paid") await onInvoicePaid(deps, org, obj);
-        else await onPaymentFailed(deps, org, obj);
+        if (event.type === "invoice.paid") {
+          await onInvoicePaid(deps, org, obj);
+          // R62: a referred workspace's first paid payment starts its referral's refund window. Never fails the webhook.
+          await onReferralPayment(deps, org, obj).catch((err) => deps.reportError?.(err, { where: "referral.payment", org: org.id }));
+        } else await onPaymentFailed(deps, org, obj);
       }
+      break;
+    }
+    // R62: a refund inside the refund window voids the referral (the grant job checks again before crediting).
+    case "charge.refunded": {
+      const org = await findOrg(deps, obj.customer as string);
+      orgId = org?.id ?? null;
+      if (org) await onReferralRefund(deps, org).catch((err) => deps.reportError?.(err, { where: "referral.refund", org: org.id }));
       break;
     }
     default:
