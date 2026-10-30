@@ -27,6 +27,7 @@ import { ProviderFolderNav, moveTargets, useProviderFolders } from "./mail/provi
 import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask, MakeTaskBarButton } from "./work/make-task";
+import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
 import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
 import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
@@ -736,11 +737,14 @@ function ThreadMessage({ m, defaultOpen }: { m: Message; defaultOpen: boolean })
           {m.attachments.length > 0 && (
             <div className="mt-4 flex flex-wrap gap-2">
               {m.attachments.map((a) => (
-                <a key={a.id} href={a.available ? `/api/mail/attachments/${a.id}` : undefined} download={a.filename} aria-disabled={!a.available}
-                  className={cn("flex items-center gap-2.5 rounded-lg border border-line bg-elevated px-3 py-2 text-xs", a.available ? "hover:border-line-strong" : "cursor-not-allowed opacity-60")}
-                  title={a.available ? `Download ${a.filename}` : "Too large to store inline"}>
-                  <IconFile className="h-4 w-4 text-subtle" /><span className="max-w-48 truncate font-medium">{a.filename}</span><span className="text-subtle">{formatBytes(a.sizeBytes)}</span>
-                </a>
+                <span key={a.id} className="flex items-stretch gap-1">
+                  <a href={a.available ? `/api/mail/attachments/${a.id}` : undefined} download={a.filename} aria-disabled={!a.available}
+                    className={cn("flex items-center gap-2.5 rounded-lg border border-line bg-elevated px-3 py-2 text-xs", a.available ? "hover:border-line-strong" : "cursor-not-allowed opacity-60")}
+                    title={a.available ? `Download ${a.filename}` : "Too large to store inline"}>
+                    <IconFile className="h-4 w-4 text-subtle" /><span className="max-w-48 truncate font-medium">{a.filename}</span><span className="text-subtle">{formatBytes(a.sizeBytes)}</span>
+                  </a>
+                  {a.available && <AttachmentTools id={a.id} filename={a.filename} />}
+                </span>
               ))}
             </div>
           )}

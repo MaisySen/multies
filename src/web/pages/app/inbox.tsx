@@ -1,4 +1,5 @@
 import { useSearchParams } from "react-router";
+import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconReply, IconUser } from "@/web/components/ui/icon";
@@ -139,7 +140,12 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
           {(m.codes.length > 0 || m.attachments.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-subtle">
               {m.codes.map((c) => <span key={c} className="rounded border border-line px-1.5 py-0.5 font-mono">code {c}</span>)}
-              {m.attachments.map((a) => <span key={a.id} className="inline-flex items-center gap-1"><IconAttachment className="h-3 w-3" aria-hidden />{a.filename}</span>)}
+              {m.attachments.map((a) => (
+                <span key={a.id} className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1"><IconAttachment className="h-3 w-3" aria-hidden />{a.filename}</span>
+                  {a.url && <AttachmentTools id={a.id} filename={a.filename} compact />}
+                </span>
+              ))}
             </div>
           )}
         </Card>

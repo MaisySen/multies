@@ -10,7 +10,7 @@ import { api, errorMessage } from "@/web/lib/api";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Badge, Card, EmptyState, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
-import { TOOL_GROUPS, isToolOp, type ToolDef, type ToolGroup, type ToolJob, type ToolOp, type ToolOption, type ToolsInfo } from "@/shared/tools";
+import { TOOL_GROUPS, isToolOp, toolTakes, type ToolDef, type ToolGroup, type ToolJob, type ToolOp, type ToolOption, type ToolsInfo } from "@/shared/tools";
 
 type Phase = { kind: "idle" } | { kind: "uploading"; pct: number } | { kind: "working"; job: ToolJob; slow: boolean } | { kind: "done"; job: ToolJob } | { kind: "failed"; message: string; limit?: boolean };
 
@@ -131,6 +131,10 @@ export function ToolsPage() {
   const asked = params.get("op");
   const [op, setOp] = useState<ToolOp>(isToolOp(asked) ? asked : "compress");
   const [options, setOptions] = useState<Record<string, string>>({});
+  // Tools P1: a mail attachment chosen from the attachment's Tools menu (no upload needed).
+  const askedAttachment = params.get("attachment");
+  const [fromMail, setFromMail] = useState<{ id: string; name: string } | null>(askedAttachment ? { id: askedAttachment, name: params.get("name") ?? "Attachment" } : null);
+  useEffect(() => { if (askedAttachment) setFromMail({ id: askedAttachment, name: params.get("name") ?? "Attachment" }); }, [askedAttachment, params]);
   useEffect(() => { if (isToolOp(asked)) { setOp(asked); setFiles([]); setPhase({ kind: "idle" }); } }, [asked]);
   const [files, setFiles] = useState<File[]>([]);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
@@ -138,6 +142,8 @@ export function ToolsPage() {
   const input = useRef<HTMLInputElement>(null);
   const tool = info.data?.tools.find((t) => t.op === op);
   useEffect(() => { setOptions(defaultsFor(tool)); }, [tool]);
+  // Arriving from a mail attachment or a menu entry: bring the chosen tool's panel into view.
+  useEffect(() => { if (tool && (askedAttachment || asked)) document.querySelector("[data-testid=tools-panel]")?.scrollIntoView({ block: "start" }); }, [tool, askedAttachment, asked]);
   const limits = info.data?.limits;
   const maxFiles = tool ? (tool.maxFiles === "plan" ? limits?.maxMergeFiles ?? 10 : tool.maxFiles) : 1;
   const total = files.reduce((n, f) => n + f.size, 0);
@@ -179,10 +185,12 @@ export function ToolsPage() {
   }, [workingToken, qc]);
 
   const run = async () => {
-    if (!tool || files.length < tool.minFiles) return;
+    if (!tool || (!fromMail && files.length < tool.minFiles)) return;
     setPhase({ kind: "uploading", pct: 0 });
     try {
-      const job = await send(op, files, options, (pct) => setPhase({ kind: "uploading", pct }));
+      const job = fromMail
+        ? await api.post<ToolJob>("/tools/jobs/from-attachments", { op, attachmentIds: [fromMail.id], options })
+        : await send(op, files, options, (pct) => setPhase({ kind: "uploading", pct }));
       setPhase({ kind: "working", job, slow: false });
     } catch (err) {
       const e = err as { message: string; code?: string; status?: number };
@@ -203,7 +211,8 @@ export function ToolsPage() {
   const cap = tool?.maxBytes && limits ? Math.min(tool.maxBytes, limits.maxBytes) : limits?.maxBytes;
   const tooBig = !!cap && total > cap;
   const problems = (tool?.options ?? []).map((o) => optionProblem(o, options[o.name] ?? "")).filter(Boolean) as string[];
-  const ready = !!tool && files.length >= tool.minFiles && !tooBig && !busy && problems.length === 0;
+  const mailFits = !!tool && !!fromMail && tool.minFiles <= 1 && toolTakes(tool, fromMail.name);
+  const ready = !!tool && (fromMail ? mailFits : files.length >= tool.minFiles && !tooBig) && !busy && problems.length === 0;
   const left = limits && info.data ? Math.max(0, limits.runsMonthly - info.data.usage.month) : null;
 
   return (
@@ -233,6 +242,16 @@ export function ToolsPage() {
             <h2 className="text-[17px] font-semibold">{tool.label}</h2>
           </div>
           {tool.note && <p className="text-[13px] text-muted" data-testid="tools-note">{tool.note}</p>}
+          {fromMail ? (
+            <div className="flex items-center gap-3 rounded-xl border border-line px-3 py-3 text-sm" data-testid="tools-from-mail">
+              <IconFile className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+              <span className="min-w-0 flex-1 truncate"><span className="text-muted">From your mail: </span>{fromMail.name}</span>
+              <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => { setFromMail(null); setPhase({ kind: "idle" }); }}>Use another file</Button>
+            </div>
+          ) : null}
+          {fromMail ? (
+            !mailFits && <p className="text-[13px] text-muted">{tool.label} does not take this file. Pick another tool, or use another file.</p>
+          ) : (
           <div
             onDragOver={(e) => { e.preventDefault(); if (!busy) setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -247,6 +266,7 @@ export function ToolsPage() {
             <input ref={input} type="file" className="sr-only" accept={tool.accept} multiple={maxFiles > 1} data-testid="tools-input" aria-label={`Choose ${tool.acceptLabel}`}
               onChange={(e) => { add(e.target.files); e.target.value = ""; }} />
           </div>
+          )}
 
           {files.length > 0 && (
             <ul className="divide-y divide-line rounded-xl border border-line" aria-label="Files to use">
