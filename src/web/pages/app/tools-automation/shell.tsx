@@ -3,19 +3,15 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { IconDownload } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
-import { Card, PageHeader } from "@/web/components/ui/misc";
+import { Card } from "@/web/components/ui/misc";
+import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { useAttachToNewEmail } from "@/web/lib/compose-files";
 import type { ToolJob } from "@/shared/tools";
 import { saveFile } from "@/web/lib/tool-jobs";
 
-export function AutoPage({ title, description, children, actions }: { title: string; description: string; children: ReactNode; actions?: ReactNode }) {
-  return (
-    <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-6 sm:px-6">
-      <Link to="/app/tools" className="text-[13px] text-muted hover:text-fg">Tools</Link>
-      <PageHeader title={title} description={description} actions={actions} />
-      {children}
-    </div>
-  );
+/** R69: the shared Tools frame (rail of every tool, All tools, icon, runs left) around each automation page. */
+export function AutoPage({ entryKey, title, description, children, actions, usage = true }: { entryKey: string; title: string; description: string; children: ReactNode; actions?: ReactNode; usage?: boolean }) {
+  return <ToolsFrame entryKey={entryKey} title={title} description={description} actions={actions} usage={usage}>{children}</ToolsFrame>;
 }
 
 /** A finished file: download it or attach it to a new email (an engine result goes by its token, nothing uploaded again). */

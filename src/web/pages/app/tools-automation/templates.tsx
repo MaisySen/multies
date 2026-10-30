@@ -143,7 +143,7 @@ export function TemplatesPage() {
   };
   const subject = t ? `${t.name}${values.invoice_number ? ` ${values.invoice_number}` : values.quote_number ? ` ${values.quote_number}` : values.subject ? `: ${values.subject}` : ""}` : "";
   return (
-    <AutoPage title="Document templates" description="Fill in an invoice, quote or letter, check the preview, and get a PDF to send. Invoices work out line totals, GST and the total for you."
+    <AutoPage entryKey="templates" title="Document templates" description="Fill in an invoice, quote or letter, check the preview, and get a PDF to send. Invoices work out line totals, GST and the total for you."
       actions={<Button variant="secondary" onClick={() => setEditing({})}>New template</Button>}>
       {editing && <CustomEditor start={editing} onDone={() => setEditing(null)} />}
       {q.isPending ? <Skeleton className="h-96 w-full" /> : t && (

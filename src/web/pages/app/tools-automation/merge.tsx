@@ -125,7 +125,7 @@ export function MergePage() {
     onError: (e) => showError(e),
   });
   return (
-    <AutoPage title="Mail merge" description="Send each person their own PDF, made from one template, in their own email from your mailbox.">
+    <AutoPage entryKey="merge_mail" title="Mail merge" description="Send each person their own PDF, made from one template, in their own email from your mailbox.">
       {info.isPending ? <Skeleton className="h-64 w-full" /> : info.data && (
         <>
           <p className="text-sm text-muted" data-testid="merge-cap">Today: {info.data.usedToday} of {info.data.cap} people on your plan. Your normal daily sending limit applies too.</p>

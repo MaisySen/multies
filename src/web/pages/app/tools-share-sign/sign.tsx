@@ -13,7 +13,8 @@ import { api, errorMessage } from "@/web/lib/api";
 import { useConfig, useMailboxes } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
-import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { IconClose, IconDownload, IconFileUp, IconPenLine, IconPlus, IconSend } from "@/web/components/ui/icon";
 import { ESIGN_NOTE, type SignField, type SignPage, type SignRequestInfo, type SignerStatus } from "@/shared/share-sign";
 import type { ToolsInfo } from "@/shared/tools";
@@ -391,8 +392,7 @@ export function SignPage() {
   const request = params.get("request");
   const tab = request ? "requests" : params.get("tab") === "requests" ? "requests" : "new";
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6 max-sm:p-4">
-      <PageHeader eyebrow="Tools" title="E-sign" description="Sign a PDF yourself, or send it for others to sign from your own mailbox." />
+    <ToolsFrame entryKey="esign" title="E-sign" description="Sign a PDF yourself, or send it for others to sign from your own mailbox." wide testId="sign-page">
       <div className="flex gap-2" role="tablist">
         {([["new", "Sign a document"], ["requests", "Requests"]] as const).map(([k, label]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setParams(k === "new" ? {} : { tab: "requests" })}
@@ -400,6 +400,6 @@ export function SignPage() {
         ))}
       </div>
       {!on ? <Skeleton className="h-40 w-full" /> : request ? <RequestDetail id={request} /> : tab === "requests" ? <RequestList /> : <NewDocument />}
-    </div>
+    </ToolsFrame>
   );
 }

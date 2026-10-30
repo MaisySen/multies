@@ -7,12 +7,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { IconClose, IconDownload, IconFileUp, IconMail, IconWrench } from "@/web/components/ui/icon";
+import { IconClose, IconDownload, IconFileUp, IconMail } from "@/web/components/ui/icon";
 import { useAttachToNewEmail } from "@/web/lib/compose-files"; // Tools P2: the one "Attach to a new email" path
 import { api, errorMessage } from "@/web/lib/api";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Badge, Card, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { Field, Input, Select } from "@/web/components/ui/input";
 
 type Feature = "ask" | "translate" | "extract" | "expenses" | "contracts";
@@ -480,8 +481,7 @@ export function ToolsAiPage() {
   if (usage.isLoading) return <div className="mx-auto max-w-4xl p-6"><Skeleton className="h-40" /></div>;
   if (!usage.data || features.length === 0) return <div className="mx-auto max-w-4xl p-6"><PageHeader title="AI document helpers" description="Not available in this workspace." /></div>;
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-4 sm:p-6" data-testid="tools-ai">
-      <PageHeader eyebrow="Tools" title="AI document helpers" description="Summaries, answers, translations and details read from your documents." actions={<Link className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg" to="/app/tools"><IconWrench className="h-4 w-4" />All tools</Link>} />
+    <ToolsFrame entryKey={feature ?? "ask"} title="AI document helpers" description="Summaries, answers, translations and details read from your documents." usage={false} testId="tools-ai">
       <AiUsageLine usage={usage.data} />
       <div role="tablist" aria-label="AI helpers" className="grid grid-cols-2 gap-1 rounded-xl bg-elevated p-1 sm:flex sm:overflow-x-auto">
         {features.map((f) => (
@@ -497,6 +497,6 @@ export function ToolsAiPage() {
         {feature === "contracts" && <ContractPanel src={src} setSrc={setSrc} />}
       </Card>
       <p className="text-xs text-muted">Document text is sent to our infrastructure provider's AI service, or to your workspace's own AI provider when a key is set. It is not used for training and is not kept after the answer.</p>
-    </div>
+    </ToolsFrame>
   );
 }

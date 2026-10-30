@@ -12,7 +12,8 @@ import { api, errorMessage } from "@/web/lib/api";
 import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { Select } from "@/web/components/ui/input";
-import { Badge, Card, EmptyState, Meter, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, Meter, Skeleton } from "@/web/components/ui/misc";
+import { ToolsFrame } from "@/web/components/tools/tools-frame";
 import { IconCopy, IconFileUp, IconLink, IconLock, IconMail, IconTrash } from "@/web/components/ui/icon";
 import { SHARE_EXPIRY_CHOICES, type KeptUsage, type ShareLinkInfo } from "@/shared/share-sign";
 import type { ToolsInfo } from "@/shared/tools";
@@ -128,8 +129,7 @@ export function ShareLinksPage() {
   const field = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand";
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6 max-sm:p-4">
-      <PageHeader eyebrow="Tools" title="Share links" description="Send a big file as a link that expires. Add a password or a download limit, and see every download." />
+    <ToolsFrame entryKey="share" title="Share links" description="Send a big file as a link that expires. Add a password or a download limit, and see every download." usage={false} testId="share-page">
       <Card className="space-y-4 p-5">
         {made?.url ? (
           <div className="space-y-3" data-testid="share-made">
@@ -183,6 +183,6 @@ export function ShareLinksPage() {
         </Card>
         <p className="mt-3 text-[12px] text-muted">Shared files are deleted when the link expires or is turned off. The download log keeps the time, the country and the browser, never the full address.</p>
       </section>
-    </div>
+    </ToolsFrame>
   );
 }

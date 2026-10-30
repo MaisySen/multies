@@ -76,6 +76,9 @@ export function classifyAttachment(input: ClassifyInput): AttachmentFolder {
   else if (has(t, /\bstatement\b/)) s.statement += 1;
   if (has(t, /\bopening balance\b/) && has(t, /\bclosing balance\b/)) s.statement += 2;
   if (has(name, /\bstatement\b/)) s.statement += 2;
+  // R69 (QA5 18): a document headed "Statement" with an amount owing is a statement, even when it lists invoices.
+  if (has(t.slice(0, 200), /\bstatement\b/) && !has(t.slice(0, 200), /\btax invoice\b/)) s.statement += 3;
+  if (has(t, /\b(?:amount owing|balance owing|previous balance|statement date|statement (?:no|number|#)|account summary)\b/)) s.statement += 2;
 
   // ID documents: passport or licence numbers.
   if (has(t, /\bpassport\b/) && (has(t, /\b(?:passport (?:no|number)|nationality|place of birth|date of expiry)\b/) || has(t, /\b[a-z]{1,2}\d{7}\b/))) s.id += 4;

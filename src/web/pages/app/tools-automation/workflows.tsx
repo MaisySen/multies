@@ -125,7 +125,7 @@ export function WorkflowsPage() {
     </Card>
   );
   return (
-    <AutoPage title="Workflows" description="Chain tools into one step, for example clean up a scan, make it searchable, then compress it. Everyone in the workspace can use saved workflows."
+    <AutoPage entryKey="workflows" title="Workflows" description="Chain tools into one step, for example clean up a scan, make it searchable, then compress it. Everyone in the workspace can use saved workflows."
       actions={<Button onClick={() => setEdit({ name: "", steps: [{ op: "ocr", options: {} }, { op: "compress", options: {} }], finish: "download" })}>New workflow</Button>}>
       {attachment && <p className="rounded-lg bg-[#0071E3]/[0.06] px-3 py-2 text-sm">Pick a workflow to run on {attachment.name}.</p>}
       {running && <Runner wf={running} attachment={attachment} onClose={() => setRunning(null)} />}

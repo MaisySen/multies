@@ -4,9 +4,11 @@
  */
 import { useRef, useState, type DragEvent, type ReactNode } from "react";
 import { Link } from "react-router";
-import { IconArrowLeft, IconDownload, IconFile, IconFileUp, IconMail, IconWrench } from "@/web/components/ui/icon";
+import { IconCheckCircle, IconDownload, IconFile, IconFileUp, IconMail, IconWrench } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
-import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
+import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
+import { ToolsFrame } from "@/web/components/tools/tools-frame";
+import { middleTruncate } from "@/web/components/tools/tool-directory";
 import { cn } from "@/web/lib/cn";
 import type { ToolFeature } from "@/shared/tool-features";
 import type { EditorJob } from "@/shared/tools-editors";
@@ -14,17 +16,18 @@ import { sourceName, useAttachToNewEmail, useToolFeatures, type RunError, type S
 
 export const sizeOf = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`);
 
-/** The frame: a back link to Tools, the title, and a plain 404 style message while the feature is off. */
+/** R69: editor feature to its key in the Tools list, so the frame shows the same icon and rail as the tool screens. */
+const ENTRY_KEY: Partial<Record<ToolFeature, string>> = { editor: "organize", forms: "form-fill", compare: "compare" };
+
+/** The frame: the shared Tools frame (rail, All tools, icon, runs left), and a plain message while the feature is off. */
 export function EditorFrame({ feature, title, description, testId, children }: { feature: ToolFeature; title: string; description: string; testId: string; children: ReactNode }) {
   const f = useToolFeatures();
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-5 p-4 sm:p-6" data-testid={testId}>
-      <Link to="/app/tools" className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"><IconArrowLeft className="h-3.5 w-3.5" aria-hidden />Tools</Link>
-      <PageHeader title={title} description={description} />
+    <ToolsFrame entryKey={ENTRY_KEY[feature] ?? feature} title={title} description={description} testId={testId}>
       {!f.ready ? <Skeleton className="h-40 w-full rounded-xl" /> : !f.on(feature) ? (
         <EmptyState icon={<IconWrench />} title="Not available yet" body="This tool is not switched on for your workspace yet." action={<Link to="/app/tools" className="text-sm font-medium text-brand">Back to Tools</Link>} />
       ) : children}
-    </div>
+    </ToolsFrame>
   );
 }
 
@@ -90,26 +93,26 @@ export function ErrorCard({ error, onRetry }: { error: RunError; onRetry?: () =>
   );
 }
 
-/** The finished file: one line of facts, Download, Email it, Start again. */
+/** The finished file: one line of facts, Download, Attach to a new email, Start over (R69: same words as the tool screens; stacks on a phone). */
 export function ResultCard({ job, facts, onAgain, children }: { job: EditorJob; facts?: string | null; onAgain: () => void; children?: ReactNode }) {
   const attach = useAttachToNewEmail();
   // The result rides to the new email as its token: the server reads it from the engine when the email goes.
   const email = () => { if (job.downloadUrl) attach({ jobs: [{ downloadUrl: job.downloadUrl, name: job.name, bytes: job.bytes }] }); };
   return (
-    <Card className="space-y-3 p-4" data-testid="editor-result">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#34C759] text-white [&_svg]:h-[18px] [&_svg]:w-[18px]" aria-hidden><IconFile /></span>
+    <Card className="space-y-4 p-4 sm:p-5" data-testid="editor-result">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#34C759] text-white [&_svg]:h-5 [&_svg]:w-5" aria-hidden><IconCheckCircle /></span>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold" data-testid="editor-result-name">{job.name}</div>
+          <div className="truncate text-[15px] font-semibold" title={job.name} data-testid="editor-result-name">{middleTruncate(job.name, 44)}</div>
           {facts && <div className="text-[13px]" data-testid="editor-facts">{facts}</div>}
           <div className="text-[12.5px] text-muted">{job.bytes ? sizeOf(job.bytes) : "Ready"}. Download within an hour.</div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {job.downloadUrl && <a href={job.downloadUrl} download={job.name} data-testid="editor-download"
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand px-3 text-sm font-medium text-brand-fg hover:opacity-90 max-sm:min-h-11"><IconDownload className="h-4 w-4" aria-hidden />Download</a>}
-          {job.downloadUrl && <Button type="button" variant="outline" onClick={email} data-testid="editor-email"><IconMail className="h-4 w-4" aria-hidden />Email it</Button>}
-          <Button type="button" variant="ghost" onClick={onAgain}>Start again</Button>
-        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2 max-sm:flex-col max-sm:items-stretch">
+        {job.downloadUrl && <a href={job.downloadUrl} download={job.name} data-testid="editor-download"
+          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-brand px-3.5 text-sm font-medium text-brand-fg hover:opacity-90 max-sm:min-h-11"><IconDownload className="h-4 w-4" aria-hidden />Download</a>}
+        {job.downloadUrl && <Button type="button" variant="outline" onClick={email} className="max-sm:min-h-11" data-testid="editor-email"><IconMail className="h-4 w-4" aria-hidden />Attach to a new email</Button>}
+        <Button type="button" variant="ghost" onClick={onAgain} className="max-sm:min-h-11" data-testid="editor-again">Start over</Button>
       </div>
       {children}
     </Card>
