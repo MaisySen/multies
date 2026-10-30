@@ -9,8 +9,9 @@ import { ALL_SCOPES, grantedScopes, hasScope, listedTools, normalizeScopes, rout
 /** R36: per area API key scopes. */
 describe("scope map", () => {
   it("gives every MCP tool a scope, and lists no tool that is gone", () => {
+    // R59: every tool, chat channels (CHAT_CHANNELS) included.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const s = buildMcpServer({ config: { release: "t" } } as any, { orgId: "o", userId: "u", role: "admin", scope: "full", agentId: null } as any, "https://multies.si") as any;
+    const s = buildMcpServer({ config: { release: "t", channels: { enabled: true } } } as any, { orgId: "o", userId: "u", role: "admin", scope: "full", agentId: null } as any, "https://multies.si") as any;
     const tools = Object.entries(s._registeredTools) as [string, { annotations?: { readOnlyHint?: boolean } }][];
     expect(tools.length).toBeGreaterThan(150);
     const missing = tools.filter(([n, t]) => toolScope(n, !!t.annotations?.readOnlyHint) === "full").map(([n]) => n);

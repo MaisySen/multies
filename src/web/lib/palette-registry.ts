@@ -5,7 +5,8 @@
 import { IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[] }
+/** R59: `flag` names a server switch from /api/config; the page is offered only while it is on. */
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
 export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[] }
 
@@ -48,6 +49,7 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-mail-settings", label: "Mail settings", to: "/app/settings/mail", icon: IconMail, keywords: ["signature", "saved replies", "vacation"] },
   { id: "p-connections", label: "Connected mailboxes", to: "/app/settings/connections", icon: IconLink, keywords: ["gmail", "outlook", "imap", "connections"] },
   { id: "p-mail-apps", label: "Mail apps", to: "/app/settings/mail-apps", icon: IconSmartphone, keywords: ["imap", "smtp", "app password", "outlook", "apple mail"] },
+  { id: "p-chat-channels", label: "Chat channels", to: "/app/settings/channels", icon: IconChats, keywords: ["whatsapp", "messenger", "instagram", "chat", "connect"], flag: "chatChannels" },
   { id: "p-developers", label: "Developers", to: "/app/settings/developers", icon: IconKey, keywords: ["api", "webhooks", "keys", "mcp"] },
   { id: "p-sign-up-emails", label: "Sign-up emails", to: "/app/settings/sign-up-emails", icon: IconMention, keywords: ["auth emails", "verification", "hook"] },
   { id: "p-import", label: "Import", to: "/app/settings/import", icon: IconUpload, keywords: ["migrate", "move", "asana", "trello", "jira"] },

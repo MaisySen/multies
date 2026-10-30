@@ -50,6 +50,7 @@ import { savedDashboardRoutes } from "./routes/dashboards";
 import { computedRoutes } from "./routes/computed";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
+import { channelRoutes, metaWebhookRoutes } from "./routes/channels"; // C1: chat channels
 import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { agentRunRoutes, agentRunTaskRoutes } from "./routes/agent-runs-r27"; // R27 (DF-3 slice 2)
 import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
@@ -315,7 +316,7 @@ export function createApp(deps: Deps) {
     const wantsKey = c.req.query("view") === "key" && !!c.req.header("authorization");
     if (!scopeParam && !wantsKey) {
       c.header("cache-control", "public, max-age=3600");
-      return c.json({ release, endpoint: "/api/v1/mcp", tools: mcpCatalog(release) });
+      return c.json({ release, endpoint: "/api/v1/mcp", tools: mcpCatalog(release, !!c.var.deps.config.channels?.enabled) });
     }
     let scope = scopeParam ?? "full";
     if (wantsKey) {
@@ -326,7 +327,7 @@ export function createApp(deps: Deps) {
       if (!auth) return c.json({ error: { code: "unauthorized", message: "That key or token is not valid." } }, 401);
       scope = auth.scope ?? "full";
     }
-    const view = mcpCatalogView(release, scope);
+    const view = mcpCatalogView(release, scope, !!c.var.deps.config.channels?.enabled);
     if (!view.ok) return c.json({ error: { code: "invalid_scope", message: `Unknown scope: ${view.unknown.join(", ")}.` } }, 422);
     c.header("cache-control", wantsKey ? "private, no-store" : "public, max-age=3600");
     return c.json({ release, endpoint: "/api/v1/mcp", scope: view.scope, total: view.total, tools: view.tools });
@@ -335,7 +336,7 @@ export function createApp(deps: Deps) {
     const { mcpCatalogMarkdown } = await import("./services/developer/mcp-catalog");
     c.header("content-type", "text/markdown; charset=utf-8");
     c.header("cache-control", "public, max-age=3600");
-    return c.body(mcpCatalogMarkdown(c.var.deps.config.release));
+    return c.body(mcpCatalogMarkdown(c.var.deps.config.release, !!c.var.deps.config.channels?.enabled));
   });
   app.get("/healthz", health);
 
@@ -371,6 +372,8 @@ export function createApp(deps: Deps) {
       plans: Object.values(PLANS),
       meetings: !!deps.config.meetings,
       scheduling: deps.config.schedulingEnabled,
+      // R59: chat channels (WhatsApp, Messenger, Instagram), CHAT_CHANNELS=on. Off: no pane, menu entry or chat rows.
+      chatChannels: deps.config.channels.enabled,
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
@@ -402,6 +405,7 @@ export function createApp(deps: Deps) {
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
+  app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
   app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
@@ -563,6 +567,7 @@ export function createApp(deps: Deps) {
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/auth-hooks", authHookWebhookRoutes());
   app.route("/api/auth-email-settings", authEmailSettingsRoutes()); // R27: Sign-up emails settings
+  app.route("/api/webhooks/meta", metaWebhookRoutes()); // C1: WhatsApp, Messenger and Instagram webhooks (signed)
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/deliverability", deliverabilityRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());
