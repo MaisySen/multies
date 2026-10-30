@@ -36,6 +36,7 @@ export const SF_SYMBOLS: Partial<Record<IconName, string>> = {
   "cpu": "cpu",
   "dollar-sign": "dollarsign.circle",
   "download": "arrow.down.circle",
+  "wrench": "wrench.and.screwdriver",
   "edit": "square.and.pencil",
   "edit-3": "pencil",
   "external-link": "arrow.up.right.square",
