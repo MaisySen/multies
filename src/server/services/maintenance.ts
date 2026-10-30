@@ -22,6 +22,7 @@ import { crossCheck, recordUptimeCheck } from "./status";
 import "./mail/deliver-job";
 import "./system-mail";
 import "./suite/push";
+import "./billing/referral-job";
 
 /**
  * Periodic housekeeping: drain the job queue, record the uptime self check, re-check

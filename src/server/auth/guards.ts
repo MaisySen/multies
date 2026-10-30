@@ -13,6 +13,7 @@ import { SSO_METHODS } from "./session";
 import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
+import { REFERRAL_COOKIE } from "@/shared/offers";
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session
@@ -73,6 +74,15 @@ export async function resolveAuth(deps: Deps, rawHeaders: Headers): Promise<Auth
     member = (await db.select().from(members).where(eq(members.id, memberId)).get())!;
     requireSso = false;
     await audit(db, { orgId, actorUserId: s.user.id, actorEmail: s.user.email, action: "account.created" });
+    // R62: came through a referral link (the web app keeps the code in a cookie until sign up). Only on this path,
+    // and only when the cookie is there: one indexed read and one write. Never blocks sign in.
+    // The module loads only then, so sign in and every signed in request load nothing new.
+    const cookie = rawHeaders.get("cookie") ?? "";
+    if (cookie.includes(`${REFERRAL_COOKIE}=`)) {
+      const ref = await import("../services/billing/referrals");
+      const refCode = ref.referralCodeFromCookie(cookie);
+      if (refCode) await ref.recordReferralSignup(deps, { orgId, userId: s.user.id, email: s.user.email, code: refCode });
+    }
   }
   if (member.organizationId !== s.session.activeOrganizationId) {
     await db.update(sessions).set({ activeOrganizationId: member.organizationId }).where(eq(sessions.id, s.session.id));

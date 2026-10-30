@@ -5,6 +5,7 @@ import { parseBody, parseQuery, requireAuth } from "../middleware";
 import { audit } from "../services/audit";
 import { billingOverview, changePlan, confirmCheckout, previewAddons, previewPlanChange, handleStripeWebhook, listInvoices, openPortal, startAddonCheckout, startCheckout, updateAddons } from "../services/billing";
 import { getOrg } from "../services/plans";
+import { referralInfo } from "../services/billing/referrals";
 import { Stripe } from "../services/billing/stripe";
 import { HttpError } from "../lib/errors";
 
@@ -21,6 +22,8 @@ const wrapStripe = async <T>(fn: () => Promise<T>): Promise<T> => {
 const AddonsBody = z.object({
   addons: z.record(z.string(), z.number().int().min(0).max(100)),
   dropLegacyPlan: z.boolean().optional(),
+  // R62: monthly or yearly (ten months for twelve). Under A$5 a month it bills yearly whatever is chosen.
+  interval: z.enum(["month", "year"]).optional(),
 });
 
 export function billingRoutes() {
@@ -39,18 +42,20 @@ export function billingRoutes() {
      * this returns a Stripe Checkout URL; with one, the subscription changes in place.
      */
     .post("/addons", async (c) => {
-      const { addons, dropLegacyPlan } = await parseBody(c, AddonsBody);
+      const { addons, dropLegacyPlan, interval } = await parseBody(c, AddonsBody);
       const { auth, deps } = c.var;
       const org = await getOrg(deps.db, auth.orgId);
       const live = !!org.stripeSubscriptionId && ["active", "trialing", "past_due"].includes(org.subscriptionStatus ?? "");
-      const res = await wrapStripe(() => (live ? updateAddons(deps, auth, addons, { dropLegacyPlan }) : startAddonCheckout(deps, auth, addons)));
-      if (res.url) await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.checkout_started", metadata: { addons }, ip: c.var.ip });
+      const res = await wrapStripe(() => (live ? updateAddons(deps, auth, addons, { dropLegacyPlan, interval }) : startAddonCheckout(deps, auth, addons, { interval })));
+      if (res.url) await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "billing.checkout_started", metadata: { addons, interval: interval ?? null }, ip: c.var.ip });
       return c.json(res);
     })
     .post("/addons/preview", async (c) => {
-      const { addons, dropLegacyPlan } = await parseBody(c, AddonsBody);
-      return c.json(await wrapStripe(() => previewAddons(c.var.deps, c.var.auth, addons, { dropLegacyPlan })));
+      const { addons, dropLegacyPlan, interval } = await parseBody(c, AddonsBody);
+      return c.json(await wrapStripe(() => previewAddons(c.var.deps, c.var.auth, addons, { dropLegacyPlan, interval })));
     })
+    // R62: the workspace's referral link and its counts (owners and admins). Makes the code on first open.
+    .get("/referral", async (c) => c.json(await referralInfo(c.var.deps, c.var.auth)))
     .post("/checkout/confirm", async (c) => {
       const { sessionId } = await parseBody(c, z.object({ sessionId: z.string().min(1).max(255) }));
       return c.json(await wrapStripe(() => confirmCheckout(c.var.deps, c.var.auth, sessionId)));

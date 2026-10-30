@@ -28,7 +28,7 @@ export async function setAddons(db: DB, orgId: string, addons: AddonQuantities) 
 export async function getPlan(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const [org, addons] = await Promise.all([getOrg(db, orgId), getAddons(db, orgId)]);
   const base = PLANS[org.plan];
-  return { ...base, limits: effectiveLimits(base, addons), addons };
+  return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 
 /*
@@ -63,7 +63,7 @@ export async function getOrgCached(db: DB, orgId: string): Promise<OrgRow> { ret
 export async function getPlanCached(db: DB, orgId: string): Promise<Plan & { addons: AddonQuantities }> {
   const { org, addons } = await orgEntry(db, orgId);
   const base = PLANS[org.plan];
-  return { ...base, limits: effectiveLimits(base, addons), addons };
+  return { ...base, limits: effectiveLimits(base, addons, org), addons };
 }
 
 /** "2026-10": metered allowances reset on the first of each month (UTC). */

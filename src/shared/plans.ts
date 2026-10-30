@@ -63,6 +63,15 @@ const GB = 1024;
 /** Bytes in a megabyte, for the Tools upload caps. */
 const MB = 1024 * 1024;
 
+/**
+ * R62: Business storage shared by the workspace. Was 2,500 GB; lowered to 1,000 GB because storage past the free
+ * tier costs Multies money and 2,500 GB cost more than the plan's price. Business workspaces that existed before R62
+ * keep 2,500 GB (migration 0094 sets organizations.legacy_storage_mb; see `effectiveLimits`).
+ */
+export const BUSINESS_STORAGE_MB = 1000 * GB;
+/** R62: what the Business workspaces from before R62 keep. */
+export const BUSINESS_STORAGE_MB_BEFORE_R62 = 2500 * GB;
+
 export const PLANS: Record<PlanId, Plan> = {
   starter: {
     id: "starter",
@@ -106,7 +115,7 @@ export const PLANS: Record<PlanId, Plan> = {
     priceMonthly: 49,
     legacy: true,
     limits: {
-      domains: 50, mailboxes: 250, aliases: 5000, storagePerMailboxMb: 50 * GB, storageMb: 2500 * GB, dailySends: 20_000, seats: 100,
+      domains: 50, mailboxes: 250, aliases: 5000, storagePerMailboxMb: 50 * GB, storageMb: BUSINESS_STORAGE_MB, dailySends: 20_000, seats: 100,
       agentInboxes: 50, agentMessagesMonthly: 50_000, agentDailySends: 2000, automationRunsMonthly: 50_000, agentMembers: 100,
       toolRunsMonthly: 5000, toolRunsDaily: 1000, toolMaxBytes: 100 * MB, toolMaxMergeFiles: 50,
     },
@@ -175,9 +184,17 @@ export function isAddonId(v: unknown): v is AddonId {
 
 export type AddonQuantities = Partial<Record<AddonId, number>>;
 
-/** A plan's limits with add-ons on top. */
-export function effectiveLimits(plan: Plan, addons: AddonQuantities = {}): PlanLimits {
+/** What a workspace was promised before a limit changed (organizations.legacy_storage_mb). */
+export interface Grandfathered {
+  /** Shared storage the workspace keeps while it stays on Business; null or 0 means none. */
+  legacyStorageMb?: number | null;
+}
+
+/** A plan's limits with add-ons on top, and any grandfathered storage the workspace keeps. */
+export function effectiveLimits(plan: Plan, addons: AddonQuantities = {}, kept: Grandfathered = {}): PlanLimits {
   const out = { ...plan.limits };
+  // R62: a Business workspace from before the lower limit keeps what it had (only while it stays on Business).
+  if (plan.id === "business" && kept.legacyStorageMb && kept.legacyStorageMb > out.storageMb) out.storageMb = kept.legacyStorageMb;
   for (const id of ADDON_ORDER) {
     const qty = addons[id] ?? 0;
     if (!qty) continue;
@@ -189,28 +206,49 @@ export function effectiveLimits(plan: Plan, addons: AddonQuantities = {}): PlanL
 /**
  * Card fees make tiny monthly charges poor value (1.7 percent plus A$0.30 a charge in
  * Australia), so a subscription whose add-ons total less than this a month is billed
- * once a year at twelve times the monthly price.
+ * once a year.
  */
 export const YEARLY_BELOW_MONTHLY = 5;
 
+/**
+ * R62: yearly billing charges ten months for twelve (two months free), for every yearly subscription: chosen ones
+ * and the ones under A$5 a month that can only bill yearly.
+ */
+export const YEARLY_MONTHS_CHARGED = 10;
+
 export type BillingInterval = "month" | "year";
+
+export function isBillingInterval(v: unknown): v is BillingInterval {
+  return v === "month" || v === "year";
+}
 
 /** Total a month for a set of add-ons, in AUD. */
 export function addonsMonthlyTotal(addons: AddonQuantities): number {
   return ADDON_ORDER.reduce((sum, id) => sum + ADDONS[id].priceMonthly * (addons[id] ?? 0), 0);
 }
 
-/** How a set of add-ons is billed: yearly under A$5 a month (with no legacy plan), else monthly. */
-export function intervalFor(addons: AddonQuantities, basePlanMonthly = 0): BillingInterval {
+/** True when a monthly total is too small to bill monthly (it bills yearly only). */
+export const yearlyOnly = (monthly: number) => monthly > 0 && monthly < YEARLY_BELOW_MONTHLY;
+
+/**
+ * How a set of add-ons is billed: yearly under A$5 a month, otherwise what the customer chose (monthly unless they
+ * picked yearly).
+ */
+export function intervalFor(addons: AddonQuantities, basePlanMonthly = 0, chosen?: BillingInterval | null): BillingInterval {
   const total = basePlanMonthly + addonsMonthlyTotal(addons);
-  return total > 0 && total < YEARLY_BELOW_MONTHLY ? "year" : "month";
+  if (yearlyOnly(total)) return "year";
+  return chosen === "year" && total > 0 ? "year" : "month";
 }
 
-/** What the customer pays per interval, in AUD. */
-export function chargeFor(addons: AddonQuantities, basePlanMonthly = 0) {
+/** The price of one year for something that costs `monthly` a month: ten months. */
+export const yearlyPrice = (monthly: number) => Math.round(monthly * YEARLY_MONTHS_CHARGED * 100) / 100;
+
+/** What the customer pays per interval, in AUD, and what a year saves against paying monthly. */
+export function chargeFor(addons: AddonQuantities, basePlanMonthly = 0, chosen?: BillingInterval | null) {
   const monthly = basePlanMonthly + addonsMonthlyTotal(addons);
-  const interval = intervalFor(addons, basePlanMonthly);
-  return { interval, amount: interval === "year" ? monthly * 12 : monthly, monthly };
+  const interval = intervalFor(addons, basePlanMonthly, chosen);
+  const amount = interval === "year" ? yearlyPrice(monthly) : monthly;
+  return { interval, amount, monthly, yearlySaving: Math.round((monthly * 12 - yearlyPrice(monthly)) * 100) / 100 };
 }
 
 export const addonLookupKey = (id: AddonId, interval: BillingInterval) => `mymail_addon_${id}_${interval === "year" ? "yearly" : "monthly"}`;

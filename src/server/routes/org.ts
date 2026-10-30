@@ -66,7 +66,7 @@ export function orgRoutes() {
       }
       const used = await usage(deps.db, auth.orgId, deps.now());
       const target = PLANS[plan];
-      const over = overLimits(used, effectiveLimits(target, await getAddons(deps.db, auth.orgId)));
+      const over = overLimits(used, effectiveLimits(target, await getAddons(deps.db, auth.orgId), org));
       if (over.length) throw badRequest(`Remove some ${over.join(" and ")} before moving to ${target.name}.`);
       await deps.db.update(organizations).set({ plan }).where(eq(organizations.id, auth.orgId));
       const direction = PLAN_ORDER.indexOf(plan) > PLAN_ORDER.indexOf(org.plan) ? "upgraded" : "downgraded";
