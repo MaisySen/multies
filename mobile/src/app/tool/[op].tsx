@@ -364,8 +364,8 @@ export default function ToolScreen() {
           </View>
           <Text style={{ color: noRuns ? colors.bad : colors.subtle, fontSize: 13.5, fontWeight: "500" }} testID="tool-usage">{runsLeftLabel(left)}</Text>
           {noRuns && phase.kind !== "done" ? (
-            <View style={{ padding: space.md, borderRadius: radius.md, backgroundColor: colors.badSoft }} testID="tool-no-runs-top" accessibilityRole="alert">
-              <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20 }}>{noRunsLine(left)}</Text>
+            <View style={{ padding: space.md, borderRadius: radius.md, backgroundColor: colors.badSoft }} accessibilityRole="alert">
+              <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20 }} testID="tool-no-runs">{noRunsLine(left)}</Text>
             </View>
           ) : null}
         </View>
@@ -459,7 +459,6 @@ export default function ToolScreen() {
 
       {showBottom ? (
         <View style={{ paddingHorizontal: space.lg, paddingTop: space.md, paddingBottom: Math.max(insets.bottom, space.md), gap: space.sm, borderTopWidth: 0.5, borderTopColor: colors.line, backgroundColor: colors.bg }}>
-          {noRuns ? <Text style={{ color: colors.bad, fontSize: 13.5, textAlign: "center" }} testID="tool-no-runs">{noRunsLine(left)}</Text> : null}
           {phase.kind === "review" ? (
             <Button label={ticked.size ? `Black out ${ticked.size} ${ticked.size === 1 ? "item" : "items"}` : "Tick what to black out"} icon="shield" disabled={!ticked.size || noRuns} onPress={burn} testID="tool-burn" />
           ) : (
