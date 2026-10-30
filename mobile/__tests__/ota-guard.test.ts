@@ -78,7 +78,7 @@ describe("native file check", () => {
 describe("bundle env", () => {
   it("bundles each channel with the same API host as its build profile", () => {
     expect(bundleEnv(eas, "production")).toEqual({ EXPO_PUBLIC_API_BASE: "https://multies.si", EXPO_PUBLIC_FEATURE_PUSH_SERVER: "1" });
-    expect(bundleEnv(eas, "preview").EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
+    expect(bundleEnv(eas, "preview").EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
     expect(bundleEnv(eas, "development").EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
     expect(() => bundleEnv(eas, "nope")).toThrow(/No build profile/);
   });

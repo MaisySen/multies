@@ -28,7 +28,8 @@ describe("store config", () => {
   it("talks to multies.si in every build profile, never an old preview or workers.dev host", () => {
     expect(app.extra.apiBase).toBe("https://multies.si");
     expect(eas.build.production.env.EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
-    expect(eas.build.preview.env.EXPO_PUBLIC_API_BASE).toBe("https://multies.si");
+    // Since 1.9.13 the preview channel is tested against staging before the same commit goes to production.
+    expect(eas.build.preview.env.EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
     expect(eas.build.development.env.EXPO_PUBLIC_API_BASE).toBe("https://preview.multies.si");
     for (const text of [JSON.stringify(app), JSON.stringify(eas)]) {
       expect(text).not.toMatch(/tab\.bot|workers\.dev/);
