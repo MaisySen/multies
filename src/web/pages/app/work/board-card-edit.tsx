@@ -5,6 +5,7 @@
  * (lib/inline-task-edit.ts). Keys and pointer presses inside an editor stay inside it, so they never start a drag.
  */
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { IconCalendar, IconCheck, IconFileEdit, IconFlag, IconUser } from "@/web/components/ui/icon";
 import { Menu, MenuItem } from "@/web/components/ui/menu";
@@ -120,33 +121,75 @@ export function CardQuickEdits({ t, project }: { t: Task; project: Project }) {
 /**
  * R70 (MB-251): the card's move handle. Dragging works as before (pointer anywhere on the card, keyboard on this
  * handle); a click or tap now opens a menu: another column of this project, or another project (the task lands in
- * that project's first column). A keyboard press still starts the keyboard drag, so the menu opens on pointer clicks only.
+ * that project's first column). A keyboard press still starts the keyboard drag, so the menu opens on pointer clicks
+ * only. The menu is drawn over the page (a column scrolls and would cut it off); on a phone it is a sheet at the bottom.
  */
 export function MoveHandle({ t, project, dragProps, children }: { t: Task; project: Project; dragProps: Record<string, unknown>; children: React.ReactNode }) {
   const qc = useQueryClient();
   const projects = useProjects();
+  const btn = useRef<HTMLButtonElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  const [at, setAt] = useState<{ top: number; left: number; up: boolean } | null>(null);
+  const phone = typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches;
   const others = (projects.data ?? []).filter((p) => p.id !== project.id && p.statuses.length > 0).slice(0, 8);
+  const close = () => setAt(null);
+  useEffect(() => {
+    if (!at) return;
+    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node) && !btn.current?.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { close(); btn.current?.focus(); }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const items = [...(box.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+        const i = items.indexOf(document.activeElement as HTMLElement);
+        items[(i + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+      }
+    };
+    const onScroll = (e: Event) => { if (!box.current?.contains(e.target as Node)) close(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    setTimeout(() => box.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus(), 0);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", close); };
+  }, [at]);
+  const open = () => {
+    const r = btn.current?.getBoundingClientRect();
+    if (!r) return;
+    const up = window.innerHeight - r.bottom < 320 && r.top > window.innerHeight - r.bottom;
+    setAt({ top: up ? r.top - 6 : r.bottom + 6, left: Math.max(8, Math.min(r.right - 224, window.innerWidth - 232)), up });
+  };
   const toStatus = (s: Project["statuses"][number]) => void editTask(qc, t, { statusId: s.id }, (x) => ({ ...x, statusId: s.id, statusName: s.name, statusColor: s.color, status: s.category }), `Moved to ${s.name}`);
   const toProject = (p: Project) => {
     const s = p.statuses[0];
     void editTask(qc, t, { projectId: p.id, statusId: s.id }, (x) => ({ ...x, projectId: p.id, statusId: s.id, statusName: s.name, statusColor: s.color, status: s.category }), `Moved to ${p.name}`)
       .then((ok) => { if (ok) void qc.invalidateQueries({ queryKey: ["tasks"] }); });
   };
+  const menu = at ? createPortal(
+    <>
+      {phone && <div className="fixed inset-0 z-[60] bg-black/30" aria-hidden onClick={close} />}
+      <div ref={box} role="menu" aria-label={`Move ${t.title}`} data-testid="card-move-menu" onClick={(e) => { if ((e.target as HTMLElement).closest("[role=menuitem]")) close(); }}
+        className={cn("z-[61] animate-pop-in border border-line bg-elevated p-1 shadow-pop",
+          phone ? "fixed inset-x-2 bottom-2 max-h-[70dvh] overflow-y-auto rounded-2xl p-2 pb-[max(8px,env(safe-area-inset-bottom))]" : "fixed max-h-[60vh] w-56 overflow-y-auto rounded-[var(--radius-r14)]")}
+        style={phone ? undefined : { left: at.left, ...(at.up ? { bottom: window.innerHeight - at.top } : { top: at.top }) }}>
+        <div className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium text-subtle">Move to</div>
+        {project.statuses.map((s) => (
+          <MenuItem key={s.id} onSelect={() => s.id !== t.statusId && toStatus(s)} icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />}>
+            <span className="flex-1">{s.name}</span>{s.id === t.statusId && <IconCheck className="h-3.5 w-3.5 text-brand" />}
+          </MenuItem>
+        ))}
+        {others.length > 0 && <div className="mt-1 border-t border-line px-2.5 pb-1 pt-2 text-[11.5px] font-medium text-subtle">Another project</div>}
+        {others.map((p) => (
+          <MenuItem key={p.id} onSelect={() => toProject(p)} icon={<span className="h-2.5 w-2.5 rounded-sm bg-fill" />}><span className="flex-1 truncate">{p.name}</span></MenuItem>
+        ))}
+      </div>
+    </>, document.body) : null;
   return (
-    <Menu align="end" label={`Move ${t.title}`} trigger={
-      <button type="button" {...dragProps} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`} data-testid="card-move"
-        onClickCapture={(e) => { if (e.detail === 0) e.stopPropagation(); }}
-        className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg max-sm:h-9 max-sm:w-9">{children}</button>}>
-      <div className="px-2.5 pb-1 pt-1.5 text-[11.5px] font-medium text-subtle">Move to</div>
-      {project.statuses.map((s) => (
-        <MenuItem key={s.id} onSelect={() => s.id !== t.statusId && toStatus(s)} icon={<span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />}>
-          <span className="flex-1">{s.name}</span>{s.id === t.statusId && <IconCheck className="h-3.5 w-3.5 text-brand" />}
-        </MenuItem>
-      ))}
-      {others.length > 0 && <div className="mt-1 border-t border-line px-2.5 pb-1 pt-2 text-[11.5px] font-medium text-subtle">Another project</div>}
-      {others.map((p) => (
-        <MenuItem key={p.id} onSelect={() => toProject(p)} icon={<span className="h-2.5 w-2.5 rounded-sm bg-fill" />}><span className="flex-1 truncate">{p.name}</span></MenuItem>
-      ))}
-    </Menu>
+    <>
+      <button ref={btn} type="button" {...dragProps} aria-roledescription="Draggable task" aria-label={`Move ${t.title}`} aria-haspopup="menu" aria-expanded={!!at} data-testid="card-move"
+        onClick={(e) => { if (e.detail === 0) return; e.stopPropagation(); if (at) close(); else open(); }}
+        className="grid h-6 w-6 place-items-center rounded text-subtle hover:bg-surface hover:text-fg max-sm:h-9 max-sm:w-9">{children}</button>
+      {menu}
+    </>
   );
 }
