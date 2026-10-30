@@ -12,7 +12,7 @@ import { audit } from "../audit";
 import { createTask } from "../suite/tasks";
 import { sortableId } from "../suite/common";
 import {
-  PROVIDER_LABEL, replyWindow, type ChannelSummary, type ChannelsStatus, type ChatMessage, type ChatTemplate, type ConversationDetail, type ConversationSummary,
+  PROVIDER_LABEL, fillTemplateBody, replyWindow, type ChannelSummary, type ChannelsStatus, type ChatMessage, type ChatTemplate, type ConversationDetail, type ConversationSummary,
 } from "@/shared/channels";
 import { INBOUND_METRIC, MEDIA_INLINE_MAX, snippetOf, utcDay } from "./ingest";
 import { mediaTypeFor } from "./meta";
@@ -42,6 +42,7 @@ async function requireEnabled(deps: Deps, a: AuthContext) {
 export const summarizeChannel = (c: ChannelRow): ChannelSummary => ({
   id: c.id, provider: c.provider, name: c.name, handle: c.handle, status: c.status,
   connectedAt: c.connectedAt.toISOString(), disconnectedAt: c.disconnectedAt ? c.disconnectedAt.toISOString() : null,
+  lastError: c.status === "error" ? (c.lastError ?? "Connect this channel again.") : null,
 });
 
 export async function channelsStatus(deps: Deps, a: AuthContext): Promise<ChannelsStatus> {
@@ -227,6 +228,11 @@ export async function markRead(deps: Deps, a: AuthContext, id: string) {
 
 export const windowClosed = () => new HttpError(409, "window_closed", "More than 24 hours have passed since this customer last wrote, so WhatsApp only allows an approved template. Choose a template to reach them.");
 
+/** One write: the channel shows "Connect again" in Settings and sends stop until an admin reconnects. */
+export async function markNeedsReconnect(deps: Deps, channelId: string, why: string) {
+  await deps.db.update(msgChannels).set({ status: "error", lastError: why.slice(0, 300) }).where(and(eq(msgChannels.id, channelId), eq(msgChannels.status, "active")));
+}
+
 async function storeOutbound(deps: Deps, a: AuthContext, c: ConvRow, ch: ChannelRow, opts: { id?: string; retry?: boolean }, row: Partial<MsgRow>, send: () => Promise<{ externalId: string }>) {
   // Same Idempotency-Key: the retry answers the message the first attempt made instead of sending again.
   if (opts.id && opts.retry) {
@@ -244,6 +250,8 @@ async function storeOutbound(deps: Deps, a: AuthContext, c: ConvRow, ch: Channel
     delivery = "failed";
     error = e instanceof ProviderError ? e.message : e instanceof HttpError ? e.message : "The message could not be sent.";
     if (!(e instanceof ProviderError) && !(e instanceof HttpError)) deps.reportError?.(e, { where: "channels.send" });
+    // An expired or revoked token (Meta error 190) will fail every send: show the channel as needing a reconnect.
+    if (e instanceof ProviderError && e.code === 190) await markNeedsReconnect(deps, ch.id, e.message);
   }
   await deps.db.update(msgMessages).set({ externalId, delivery, error }).where(eq(msgMessages.id, id));
   await deps.db.update(msgConversations).set({ lastMessageAt: now, snippet: snippetOf(base.kind, base.text || base.mediaName || ""), unreadCount: 0 }).where(eq(msgConversations.id, c.id));
@@ -295,8 +303,9 @@ export async function sendTemplate(deps: Deps, a: AuthContext, convId: string, b
   const tpl = (await adapter.listTemplates(creds)).find((t) => t.name === b.name && t.language === b.language);
   if (!tpl) throw new HttpError(422, "validation_failed", "That template is not approved for this number.");
   if (b.params.length !== tpl.params || b.params.some((p) => !p.trim())) throw new HttpError(422, "validation_failed", `Fill in all ${tpl.params} blanks in the template.`);
-  const text = tpl.body.replace(/\{\{(\d{1,2})\}\}/g, (_, n: string) => b.params[Number(n) - 1] ?? "");
-  return storeOutbound(deps, a, c, ch, opts, { kind: "template", text, templateName: tpl.name }, () => adapter.sendTemplate(creds, c.contactExternalId, { name: tpl.name, language: tpl.language, params: b.params.map((p) => p.trim()) }));
+  const values = b.params.map((p) => p.trim());
+  const text = fillTemplateBody(tpl.body, values, tpl.paramNames);
+  return storeOutbound(deps, a, c, ch, opts, { kind: "template", text, templateName: tpl.name }, () => adapter.sendTemplate(creds, c.contactExternalId, { name: tpl.name, language: tpl.language, params: values, paramNames: tpl.paramNames }));
 }
 
 // ---- notes, tasks, media ---------------------------------------------------------------------------------

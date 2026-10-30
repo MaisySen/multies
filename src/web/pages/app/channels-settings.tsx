@@ -52,14 +52,14 @@ export function loadFacebookSdk(appId: string, version: string, timeoutMs = 15_0
 function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: ChannelSummary) => void) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pending = useRef<{ code?: string; ids?: { phoneNumberId: string; wabaId: string }; done?: boolean } | null>(null);
+  const pending = useRef<{ code?: string; ids?: { phoneNumberId: string; wabaId: string; coexistence: boolean }; done?: boolean } | null>(null);
 
   const finish = async () => {
     const p = pending.current;
     if (!p || p.done || !p.code || !p.ids) return;
     p.done = true;
     try {
-      const r = await api.post<{ channel: ChannelSummary }>("/channels/connect", { provider: "whatsapp", code: p.code, wabaId: p.ids.wabaId, phoneNumberId: p.ids.phoneNumberId });
+      const r = await api.post<{ channel: ChannelSummary }>("/channels/connect", { provider: "whatsapp", code: p.code, wabaId: p.ids.wabaId, phoneNumberId: p.ids.phoneNumberId, coexistence: p.ids.coexistence });
       onConnected(r.channel);
     } catch (e) { setError(errorMessage(e, connectErrorCopy("server"))); }
     finally { setBusy(false); pending.current = null; }
@@ -69,7 +69,7 @@ function useEmbeddedSignup(status: ChannelsStatus | undefined, onConnected: (c: 
     const on = (e: MessageEvent) => {
       const ev = parseSignupMessage(e.origin, e.data);
       if (!ev || !pending.current) return;
-      if (ev.kind === "finish") { pending.current.ids = { phoneNumberId: ev.phoneNumberId, wabaId: ev.wabaId }; void finish(); }
+      if (ev.kind === "finish") { pending.current.ids = { phoneNumberId: ev.phoneNumberId, wabaId: ev.wabaId, coexistence: ev.coexistence }; void finish(); }
       else if (ev.kind === "cancel") { setError(connectErrorCopy("cancelled")); setBusy(false); pending.current = null; }
       else { setError(ev.message ? connectErrorCopy("meta_error", ev.message) : connectErrorCopy("no_number")); setBusy(false); pending.current = null; }
     };
@@ -237,6 +237,10 @@ function ChannelList({ title, channels, canManage, onChange }: { title: string; 
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-medium">{c.name}</p>
               <p className="truncate text-[13px] text-muted">{PROVIDER_LABEL[c.provider]}{c.handle && c.handle !== c.name ? ` · ${c.handle}` : ""} · {c.status === "disconnected" && c.disconnectedAt ? `disconnected ${timeAgo(c.disconnectedAt)}` : `connected ${timeAgo(c.connectedAt)}`}</p>
+              {c.status === "error" && c.lastError && <p className="mt-1 text-[13px] text-bad" data-testid="channel-error">{c.lastError}</p>}
+              {c.status === "active" && c.provider === "whatsapp" && Date.now() - Date.parse(c.connectedAt) < 14 * 86_400_000 && (
+                <p className="mt-1 text-[13px] text-muted" data-testid="channel-payment-hint">Add a payment method in WhatsApp Manager so customers keep getting your replies. Meta bills your business directly.</p>
+              )}
             </div>
             {c.status === "active" && <Badge tone="ok"><IconCheckCircle className="h-3 w-3" aria-hidden />Connected</Badge>}
             {c.status === "error" && <Badge tone="bad"><IconWarning className="h-3 w-3" aria-hidden />Needs attention</Badge>}

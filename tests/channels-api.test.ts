@@ -214,6 +214,32 @@ describe("channels: the inbox on the test provider", () => {
     expect((await owner.post(`/api/channels/conversations/${conv.id}/messages`, { text: "x" })).status).toBe(409);
   });
 
+  it("an expired token (Meta error 190) marks the channel as needing a reconnect, with the reason shown to admins", async () => {
+    await setup();
+    const channelId = await connectAndEnable();
+    await customerWrites(channelId, "hello");
+    const conv = (await owner.get("/api/channels/conversations")).body.data[0];
+    const { ProviderError } = await import("@/server/services/channels/provider");
+    mockAdapter().failNext = new ProviderError("The connection to WhatsApp has expired. An admin needs to reconnect the number in Settings.", 190);
+    const r = await owner.post(`/api/channels/conversations/${conv.id}/messages`, { text: "hi" });
+    expect(r.body.message).toMatchObject({ delivery: "failed" });
+    const ch = (await owner.get("/api/channels/status")).body.channels[0];
+    expect(ch).toMatchObject({ status: "error", lastError: expect.stringContaining("reconnect") });
+    expect((await owner.post(`/api/channels/conversations/${conv.id}/messages`, { text: "again" })).status).toBe(409);
+  });
+  it("a business removing the app from its WhatsApp account (PARTNER_APP_UNINSTALLED) marks its channel", async () => {
+    await setup();
+    const channelId = await connectAndEnable();
+    await ctx.db.update(msgChannels).set({ provider: "whatsapp", externalAccountId: "184943124712545" }).where(eq(msgChannels.id, channelId));
+    const { readFileSync } = await import("node:fs");
+    const raw = readFileSync(`${__dirname}/fixtures/meta/whatsapp-account-update-partner-app-uninstalled.json`, "utf8");
+    const { MOCK_APP_SECRET } = await import("@/server/services/channels/webhook");
+    const res = await ctx.app.request("/api/webhooks/meta", { method: "POST", body: raw, headers: { host: "localhost", "content-type": "application/json", "x-hub-signature-256": `sha256=${await hmacSha256Hex(MOCK_APP_SECRET, raw)}` } });
+    expect(res.status).toBe(200);
+    const row = await ctx.db.select().from(msgChannels).where(eq(msgChannels.id, channelId)).get();
+    expect(row).toMatchObject({ status: "error" });
+    expect(row!.lastError).toContain("Connect it again");
+  });
   it("past the daily soft cap text still lands, files are not copied, and admins see the level", async () => {
     await setup({ CHANNELS_MOCK: "on", CHANNELS_DAILY_SOFT_CAP: "2" });
     const channelId = await connectAndEnable();

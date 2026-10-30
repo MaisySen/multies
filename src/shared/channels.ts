@@ -23,6 +23,8 @@ export interface ChannelSummary {
   status: ChannelStatus;
   connectedAt: string;
   disconnectedAt: string | null;
+  /** Why the channel needs attention (status "error"), in plain words. */
+  lastError: string | null;
 }
 
 /** GET /api/channels/status */
@@ -92,10 +94,21 @@ export interface ChatTemplate {
   name: string;
   language: string;
   category: string;
-  /** The body with {{1}} style placeholders. */
+  /** The body with {{1}} style placeholders, or {{name}} ones when paramNames is set. */
   body: string;
-  /** Number of {{n}} placeholders. */
+  /** Number of blanks to fill. */
   params: number;
+  /** For templates made with named blanks ({{first_name}}): the names, in the order the values are sent. */
+  paramNames?: string[];
+}
+
+/** Fills a template body for display: {{1}} by position, {{name}} by paramNames. Empty values keep the blank. */
+export function fillTemplateBody(body: string, values: string[], paramNames?: string[]): string {
+  return body.replace(/\{\{\s*([A-Za-z0-9_]{1,64})\s*\}\}/g, (all, key: string) => {
+    const i = paramNames?.length ? paramNames.indexOf(key) : /^\d+$/.test(key) ? Number(key) - 1 : -1;
+    const v = i >= 0 ? values[i] : undefined;
+    return v && v.trim() ? v : all;
+  });
 }
 
 /** The reply window at `now`, from the customer's last inbound message. */

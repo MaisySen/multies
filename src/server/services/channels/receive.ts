@@ -8,7 +8,9 @@
  */
 import type { Deps } from "../../context";
 import { ingestBatches } from "./ingest";
-import { MOCK_APP_SECRET, parseWebhook, verifySignature } from "./webhook";
+import { and, eq, inArray } from "drizzle-orm";
+import { msgChannels } from "../../db/schema";
+import { MOCK_APP_SECRET, parseAccountUpdates, parseWebhook, verifySignature } from "./webhook";
 
 export async function handleWebhookPost(deps: Deps, raw: string, signature: string | undefined): Promise<{ status: 200 | 401 | 500; work: Promise<unknown> | null }> {
   const { meta, mock } = deps.config.channels;
@@ -17,7 +19,17 @@ export async function handleWebhookPost(deps: Deps, raw: string, signature: stri
   let body: unknown;
   try { body = JSON.parse(raw); } catch { return { status: 200, work: null }; }
   const batches = parseWebhook(body, deps.now());
-  if (!batches.length) return { status: 200, work: null };
+  if (!batches.length) {
+    // A business that removes Multies from its WhatsApp account: its channel shows "Connect again" (rare, one write).
+    const gone = parseAccountUpdates(body).filter((u) => u.event === "PARTNER_APP_UNINSTALLED").map((u) => u.accountId);
+    if (gone.length) {
+      try {
+        await deps.db.update(msgChannels).set({ status: "error", lastError: "This WhatsApp account removed Multies. Connect it again to keep receiving messages." })
+          .where(and(inArray(msgChannels.externalAccountId, gone.slice(0, 50)), eq(msgChannels.provider, "whatsapp"), eq(msgChannels.status, "active")));
+      } catch { return { status: 500, work: null }; }
+    }
+    return { status: 200, work: null };
+  }
   let r: Awaited<ReturnType<typeof ingestBatches>>;
   try {
     r = await ingestBatches(deps, batches);

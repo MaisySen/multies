@@ -103,19 +103,34 @@ export class MetaCloudAdapter implements ProviderAdapter {
     return this.send(c, { to, type, [type]: media });
   }
 
-  sendTemplate(c: ChannelCredentials, to: string, t: { name: string; language: string; params: string[] }) {
-    const components = t.params.length ? [{ type: "body", parameters: t.params.map((text) => ({ type: "text", text })) }] : undefined;
+  sendTemplate(c: ChannelCredentials, to: string, t: { name: string; language: string; params: string[]; paramNames?: string[] }) {
+    // Named templates carry each value's name; positional ones go in order.
+    const parameters = t.params.map((text, i) => (t.paramNames?.[i] ? { type: "text", parameter_name: t.paramNames[i], text } : { type: "text", text }));
+    const components = t.params.length ? [{ type: "body", parameters }] : undefined;
     return this.send(c, { to, type: "template", template: { name: t.name, language: { code: t.language }, ...(components ? { components } : {}) } });
   }
 
   async listTemplates(c: ChannelCredentials): Promise<ChatTemplate[]> {
     if (!c.accountId) return [];
-    const r = await this.call<{ data?: { name?: string; language?: string; status?: string; category?: string; components?: { type?: string; text?: string }[] }[] }>(
-      `${encodeURIComponent(c.accountId)}/message_templates?fields=name,language,status,category,components&limit=100`, { token: c.token });
-    return (r.data ?? []).filter((t) => t.status === "APPROVED" && t.name).map((t) => {
+    type Tpl = { name?: string; language?: string; status?: string; category?: string; parameter_format?: string; components?: { type?: string; format?: string; text?: string; buttons?: { type?: string; url?: string }[] }[] };
+    const r = await this.call<{ data?: Tpl[] }>(
+      `${encodeURIComponent(c.accountId)}/message_templates?fields=name,language,status,category,parameter_format,components&status=APPROVED&limit=100`, { token: c.token });
+    const out: ChatTemplate[] = [];
+    for (const t of r.data ?? []) {
+      if (t.status !== "APPROVED" || !t.name) continue;
+      // Phase 1 fills body blanks only. A template with a picture, video or file header, or blanks in its header or
+      // link buttons, needs more inputs than the composer has; it stays in WhatsApp Manager until template management.
+      const header = t.components?.find((x) => x.type === "HEADER");
+      if (header && (header.format && header.format !== "TEXT" || /\{\{/.test(header.text ?? ""))) continue;
+      if (t.components?.some((x) => x.type === "BUTTONS" && x.buttons?.some((b) => /\{\{/.test(b.url ?? "")))) continue;
       const body = t.components?.find((x) => x.type === "BODY")?.text ?? "";
-      return { name: t.name!, language: t.language ?? "en", category: (t.category ?? "UTILITY").toLowerCase(), body, params: countParams(body) };
-    });
+      const base = { name: t.name, language: t.language ?? "en", category: (t.category ?? "UTILITY").toLowerCase(), body };
+      if (t.parameter_format === "NAMED") {
+        const names = namedParams(body);
+        out.push({ ...base, params: names.length, paramNames: names });
+      } else out.push({ ...base, params: countParams(body) });
+    }
+    return out;
   }
 
   async fetchMedia(c: ChannelCredentials, media: InboundMedia) {
@@ -140,6 +155,13 @@ export function mediaTypeFor(contentType: string): "image" | "video" | "audio" |
   if (contentType === "video/mp4" || contentType === "video/3gpp") return "video";
   if (contentType.startsWith("audio/")) return "audio";
   return "document";
+}
+
+/** The {{name}} blanks of a named template, first appearance order, each once. */
+export function namedParams(body: string): string[] {
+  const names: string[] = [];
+  for (const m of body.matchAll(/\{\{\s*([a-z_][a-z0-9_]{0,63})\s*\}\}/g)) if (!names.includes(m[1])) names.push(m[1]);
+  return names;
 }
 
 export function countParams(body: string): number {

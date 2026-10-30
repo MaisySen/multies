@@ -462,13 +462,13 @@ function TemplateSheet({ open, onClose, conversationId, onSent }: { open: boolea
               <div key={`${t.name}-${t.language}`} className={cn("rounded-xl border transition-colors duration-150", on ? "border-brand bg-brand-soft/40" : "border-line")}>
                 <button type="button" onClick={() => choose(t)} aria-pressed={on} data-testid="template-option" className="block w-full px-3.5 py-3 text-left">
                   <span className="flex items-center gap-2"><span className="text-[14px] font-semibold">{t.name}</span><Badge>{t.category.toLowerCase()}</Badge><span className="ml-auto text-[12px] text-subtle">{t.language}</span></span>
-                  <span className="mt-1 block whitespace-pre-wrap text-[13px] leading-relaxed text-muted">{on ? fillTemplate(t.body, params) : t.body}</span>
+                  <span className="mt-1 block whitespace-pre-wrap text-[13px] leading-relaxed text-muted">{on ? fillTemplate(t.body, params, t.paramNames) : t.body}</span>
                 </button>
                 {on && t.params > 0 && (
                   <div className="space-y-2 border-t border-line px-3.5 py-3">
                     {params.map((v, i) => (
                       <label key={i} className="block">
-                        <span className="mb-1 block text-[12px] font-medium text-subtle">{`Value for {{${i + 1}}}`}</span>
+                        <span className="mb-1 block text-[12px] font-medium text-subtle">{t.paramNames?.[i] ? `Value for ${t.paramNames[i].replace(/_/g, " ")}` : `Value for {{${i + 1}}}`}</span>
                         <Input value={v} onChange={(e) => setParams((ps) => ps.map((p, j) => j === i ? e.target.value : p))} />
                       </label>
                     ))}

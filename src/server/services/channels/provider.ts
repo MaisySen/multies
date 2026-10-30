@@ -63,7 +63,7 @@ export interface ProviderAdapter {
   connect(input: { code: string; accountId: string; externalId: string; coexistence?: boolean }): Promise<ConnectResult>;
   sendText(c: ChannelCredentials, to: string, text: string): Promise<{ externalId: string }>;
   sendFile(c: ChannelCredentials, to: string, file: OutgoingFile, caption: string): Promise<{ externalId: string }>;
-  sendTemplate(c: ChannelCredentials, to: string, t: { name: string; language: string; params: string[] }): Promise<{ externalId: string }>;
+  sendTemplate(c: ChannelCredentials, to: string, t: { name: string; language: string; params: string[]; paramNames?: string[] }): Promise<{ externalId: string }>;
   listTemplates(c: ChannelCredentials): Promise<ChatTemplate[]>;
   /** Downloads an inbound file at once: Meta's media links expire within minutes. */
   fetchMedia(c: ChannelCredentials, media: InboundMedia): Promise<{ bytes: Uint8Array; contentType: string } | null>;

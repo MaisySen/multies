@@ -44,17 +44,17 @@ describe("C1 chat UI logic", () => {
 
   it("reads the Embedded Signup window message only from facebook.com", () => {
     const finish = JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "106540352242922", waba_id: "102290129340398" } });
-    expect(parseSignupMessage("https://www.facebook.com", finish)).toEqual({ kind: "finish", phoneNumberId: "106540352242922", wabaId: "102290129340398" });
+    expect(parseSignupMessage("https://www.facebook.com", finish)).toEqual({ kind: "finish", phoneNumberId: "106540352242922", wabaId: "102290129340398", coexistence: false });
     expect(parseSignupMessage("https://web.facebook.com", finish)?.kind).toBe("finish");
     expect(parseSignupMessage("https://evil.example", finish)).toBeNull();
     expect(parseSignupMessage("https://facebook.com.evil.example", finish)).toBeNull();
-    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING", data: { phone_number_id: "1", waba_id: "2" } }))?.kind).toBe("finish");
+    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING", data: { phone_number_id: "1", waba_id: "2" } }))).toMatchObject({ kind: "finish", coexistence: true });
+    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", messaging_account_ids: ["9"], is_on_biz_app: true } }))).toEqual({ kind: "finish", phoneNumberId: "1", wabaId: "9", coexistence: true });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "CANCEL", data: { current_step: "PHONE_NUMBER_SETUP" } }))).toEqual({ kind: "cancel", step: "PHONE_NUMBER_SETUP" });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "ERROR", data: { error_message: "Number already in use" } }))).toEqual({ kind: "error", message: "Number already in use" });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: {} }))).toEqual({ kind: "error", message: null });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "CANCEL", data: { error_message: "Session expired", error_code: "524126", session_id: "s1" } }))).toEqual({ kind: "error", message: "Session expired" });
     // v5 names the account messaging_account_ids.
-    expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", messaging_account_ids: ["9"], is_on_biz_app: true } }))).toEqual({ kind: "finish", phoneNumberId: "1", wabaId: "9" });
     expect(parseSignupMessage("https://www.facebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH_ONLY_WABA", data: { waba_id: "9" } }))).toEqual({ kind: "error", message: null });
     expect(parseSignupMessage("https://evilfacebook.com", JSON.stringify({ type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { phone_number_id: "1", waba_id: "2" } }))).toBeNull();
     expect(parseSignupMessage("https://www.facebook.com", "not json")).toBeNull();

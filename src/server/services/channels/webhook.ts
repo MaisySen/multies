@@ -106,6 +106,24 @@ function messagingEvent(e: Record<string, unknown>, now: Date): InboundMessage |
   return { externalId: id, from, contactName: null, date: when(e.timestamp, now), kind, text, media: url ? { url } : null };
 }
 
+/** account_update events (for example PARTNER_APP_UNINSTALLED when a business removes our app), by WhatsApp account id. */
+export function parseAccountUpdates(body: unknown): { accountId: string; event: string }[] {
+  const root = obj(body);
+  if (str(root.object, 64) !== "whatsapp_business_account") return [];
+  const out: { accountId: string; event: string }[] = [];
+  for (const entryRaw of arr(root.entry).slice(0, BATCH_MAX)) {
+    for (const chRaw of arr(obj(entryRaw).changes).slice(0, BATCH_MAX)) {
+      const ch = obj(chRaw);
+      if (ch.field !== "account_update") continue;
+      const v = obj(ch.value);
+      const accountId = str(obj(v.waba_info).waba_id, 64);
+      const event = str(v.event, 64);
+      if (accountId && event) out.push({ accountId, event });
+    }
+  }
+  return out;
+}
+
 /** Meta's payload as batches per business endpoint. Unknown objects and fields give an empty list (never a throw). */
 export function parseWebhook(body: unknown, now: Date = new Date()): WebhookBatch[] {
   const root = obj(body);

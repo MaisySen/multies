@@ -2,7 +2,7 @@
  * C1 (chat channels, phase 1): the pure logic behind the chat UI in the shared inbox and Settings, Channels, kept
  * apart from the components so unit tests can run it without a browser.
  */
-import { PROVIDER_LABEL, windowLeftLabel, type ChannelProvider } from "@/shared/channels";
+import { PROVIDER_LABEL, fillTemplateBody, windowLeftLabel, type ChannelProvider } from "@/shared/channels";
 
 /** The mail list views (src/web/pages/app/inbox-assign.tsx). */
 export type MailView = "open" | "mine" | "unassigned" | "assigned" | "waiting" | "done";
@@ -39,16 +39,16 @@ export function closedWindowCopy(provider: ChannelProvider) {
   return `It has been more than 24 hours since this customer wrote, so ${name} only allows an approved template.`;
 }
 
-/** Fills {{1}} style placeholders for the preview; empty values keep the placeholder. */
-export function fillTemplate(body: string, params: string[]) {
-  return body.replace(/\{\{(\d+)\}\}/g, (all, n: string) => { const v = params[Number(n) - 1]; return v && v.trim() ? v : all; });
+/** Fills {{1}} (or, for named templates, {{name}}) placeholders for the preview; empty values keep the placeholder. */
+export function fillTemplate(body: string, params: string[], paramNames?: string[]) {
+  return fillTemplateBody(body, params, paramNames);
 }
 
 /** What the WA_EMBEDDED_SIGNUP window message tells us. Only messages from facebook.com count. */
-export type SignupEvent = { kind: "finish"; phoneNumberId: string; wabaId: string } | { kind: "cancel"; step: string | null } | { kind: "error"; message: string | null };
+export type SignupEvent = { kind: "finish"; phoneNumberId: string; wabaId: string; coexistence: boolean } | { kind: "cancel"; step: string | null } | { kind: "error"; message: string | null };
 export function parseSignupMessage(origin: string, data: unknown): SignupEvent | null {
   if (!/^https:\/\/([a-z0-9-]+\.)*facebook\.com$/.test(origin)) return null;
-  let d: { type?: string; event?: string; data?: { phone_number_id?: string; waba_id?: string; messaging_account_ids?: string[]; current_step?: string; error_message?: string } } | null = null;
+  let d: { type?: string; event?: string; data?: { phone_number_id?: string; waba_id?: string; messaging_account_ids?: string[]; is_on_biz_app?: boolean; current_step?: string; error_message?: string } } | null = null;
   try { d = typeof data === "string" ? JSON.parse(data) : (data as typeof d); } catch { return null; }
   if (!d || typeof d !== "object" || d.type !== "WA_EMBEDDED_SIGNUP") return null;
   const ev = String(d.event ?? "");
@@ -58,7 +58,9 @@ export function parseSignupMessage(origin: string, data: unknown): SignupEvent |
     const phoneNumberId = d.data?.phone_number_id ?? "";
     // v4 sends waba_id; v5 sends messaging_account_ids instead.
     const wabaId = d.data?.waba_id ?? d.data?.messaging_account_ids?.[0] ?? "";
-    return phoneNumberId && wabaId ? { kind: "finish", phoneNumberId, wabaId } : { kind: "error", message: null };
+    // A number shared with the WhatsApp Business app is already registered; the server skips that step.
+    const coexistence = ev === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING" || d.data?.is_on_biz_app === true;
+    return phoneNumberId && wabaId ? { kind: "finish", phoneNumberId, wabaId, coexistence } : { kind: "error", message: null };
   }
   // A problem the person hit in the popup also arrives as CANCEL, with error_message set.
   if (ev === "CANCEL") return d.data?.error_message ? { kind: "error", message: d.data.error_message } : { kind: "cancel", step: d.data?.current_step ?? null };

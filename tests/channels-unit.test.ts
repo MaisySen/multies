@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { parseWebhook, verifyChallenge, verifySignature } from "@/server/services/channels/webhook";
-import { MetaCloudAdapter, countParams, mediaTypeFor, metaErrorWords } from "@/server/services/channels/meta";
+import { MetaCloudAdapter, countParams, mediaTypeFor, metaErrorWords, namedParams } from "@/server/services/channels/meta";
 import { ProviderError } from "@/server/services/channels/provider";
 import { snippetOf } from "@/server/services/channels/ingest";
 import { decryptSecret, encryptSecret, hmacSha256Hex } from "@/server/lib/crypto";
-import { replyWindow, windowLeftLabel, REPLY_WINDOW_MS } from "@/shared/channels";
+import { fillTemplateBody, replyWindow, windowLeftLabel, REPLY_WINDOW_MS } from "@/shared/channels";
 import { loadConfig } from "@/server/config";
 
 /**
@@ -219,6 +219,22 @@ describe("Meta Cloud API adapter (fake fetch)", () => {
     const { f, calls } = fakeFetch({ "/messages": { messages: [{ id: "wamid.T" }] } });
     await new MetaCloudAdapter(cfg, f).sendTemplate(creds, "1", { name: "order_update", language: "en_US", params: ["Ann", "#42"] });
     expect(calls[0].body).toMatchObject({ type: "template", template: { name: "order_update", language: { code: "en_US" }, components: [{ type: "body", parameters: [{ type: "text", text: "Ann" }, { type: "text", text: "#42" }] }] } });
+  });
+  it("named templates: blanks listed by name and sent with parameter_name; headers with pictures or blanks are left out", async () => {
+    const { f, calls } = fakeFetch({ message_templates: { data: [
+      { name: "reservation_confirmation", parameter_format: "NAMED", language: "en_US", status: "APPROVED", category: "UTILITY", components: [{ type: "BODY", text: "Table for {{number_of_guests}} on {{day}}. See you {{day}}!" }, { type: "FOOTER", text: "Lucky Shrub" }] },
+      { name: "with_photo", language: "en_US", status: "APPROVED", category: "MARKETING", components: [{ type: "HEADER", format: "IMAGE" }, { type: "BODY", text: "Hi {{1}}" }] },
+      { name: "header_blank", language: "en_US", status: "APPROVED", category: "MARKETING", components: [{ type: "HEADER", format: "TEXT", text: "Act fast, {{1}}!" }, { type: "BODY", text: "Code {{1}}" }] },
+      { name: "link_blank", language: "en_US", status: "APPROVED", category: "UTILITY", components: [{ type: "BODY", text: "Track it" }, { type: "BUTTONS", buttons: [{ type: "URL", url: "https://x.example/{{1}}" }] }] },
+    ] }, "/messages": { messages: [{ id: "wamid.N" }] } });
+    const a = new MetaCloudAdapter(cfg, f);
+    const list = await a.listTemplates(creds);
+    expect(list).toEqual([{ name: "reservation_confirmation", language: "en_US", category: "utility", body: "Table for {{number_of_guests}} on {{day}}. See you {{day}}!", params: 2, paramNames: ["number_of_guests", "day"] }]);
+    await a.sendTemplate(creds, "1", { name: "reservation_confirmation", language: "en_US", params: ["4", "Saturday"], paramNames: ["number_of_guests", "day"] });
+    expect((calls[1].body as { template: { components: unknown } }).template.components).toEqual([{ type: "body", parameters: [{ type: "text", parameter_name: "number_of_guests", text: "4" }, { type: "text", parameter_name: "day", text: "Saturday" }] }]);
+    expect(fillTemplateBody("Table for {{number_of_guests}} on {{day}}. See you {{day}}!", ["4", ""], ["number_of_guests", "day"])).toBe("Table for 4 on {{day}}. See you {{day}}!");
+    expect(fillTemplateBody("Hi {{1}}, order {{2}}", ["Ann", "#42"])).toBe("Hi Ann, order #42");
+    expect(namedParams("{{a}} {{b_2}} {{a}} {{1}}")).toEqual(["a", "b_2"]);
   });
   it("uploads a file then sends it by media id", async () => {
     const { f, calls } = fakeFetch({ "/media": { id: "MEDIA1" }, "/messages": { messages: [{ id: "wamid.F" }] } });
