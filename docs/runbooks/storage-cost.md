@@ -9,9 +9,9 @@ Written 30 October 2026 (R62). Status: design only. Nothing here has been built 
 - Chat channel files follow the same rule with a 512 KB limit (docs/channels.md).
 
 ## Why this matters for plans
-- A D1 database on the Free plan holds at most 10 GB (500 MB per database on the free tier for new accounts, 10 GB on the paid plan; check the account's current limit in the Cloudflare dashboard before relying on either). Every workspace shares the one production database.
+- Cloudflare documents a size limit per D1 database: 10 GB on Workers Paid, and a much smaller limit (500 MB) on Workers Free. Check the account's plan and the current limit in the Cloudflare dashboard before relying on either number. Every workspace shares the one production database.
 - The plans promise far more than that: Free 3 GB per workspace, each storage pack 20 GB more (up to 50 packs, 1,000 GB), legacy Pro 250 GB, legacy Business 1,000 GB (2,500 GB for the workspaces from before R62).
-- So the database fills long before any single workspace reaches its plan limit. Three or four Free workspaces near 3 GB each would fill a 10 GB database.
+- So the database fills long before any single workspace reaches its plan limit. Three or four Free workspaces near 3 GB each would fill a 10 GB database; on the smaller limit, one would.
 - D1 also bills reads and writes by rows, not bytes, so large rows do not cost more per query, but a full database stops every write for every customer.
 
 ## What storage costs us

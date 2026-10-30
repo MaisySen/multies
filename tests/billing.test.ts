@@ -240,14 +240,14 @@ describe("billing with only a test secret key", () => {
     const a = new Client(ctx.app);
     await a.signup("solo@acme.io");
     expect((await a.get("/api/billing")).body).toMatchObject({ enabled: true, testMode: true, webhooks: false, plan: { id: "starter", name: "Free" } });
-    // A$1 domain + 2 x A$1 agent inboxes = A$3 a month, under A$5, so it bills A$36 a year.
+    // A$1 domain + 2 x A$1 agent inboxes = A$3 a month, under A$5, so it bills yearly: R62, ten months, A$30 a year.
     const co = await a.post("/api/billing/addons", { addons: { domain: 1, agent_inbox: 2 } });
     expect(co.status).toBe(200);
     expect(co.body).toMatchObject({ applied: false, interval: "year" });
     const created = stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/prices").map((c) => new URLSearchParams(c.body));
     expect(created.map((p) => [p.get("lookup_key"), p.get("unit_amount"), p.get("recurring[interval]"), p.get("currency")])).toEqual([
-      ["mymail_addon_domain_yearly", "1200", "year", "aud"],
-      ["mymail_addon_agent_inbox_yearly", "1200", "year", "aud"],
+      ["mymail_addon_domain_yearly", "1000", "year", "aud"],
+      ["mymail_addon_agent_inbox_yearly", "1000", "year", "aud"],
     ]);
     const checkout = new URLSearchParams(stripe.calls.find((c) => c.path === "/v1/checkout/sessions")!.body);
     expect(checkout.get("line_items[0][price]")).toBe("price_auto_mymail_addon_domain_yearly");
@@ -262,7 +262,7 @@ describe("billing with only a test secret key", () => {
     expect(b.addons).toEqual({ domain: 1, agent_inbox: 2 });
     expect(b.interval).toBe("year");
     expect(b.limits).toMatchObject({ domains: 2, agentInboxes: 5, agentMessagesMonthly: 5000, mailboxes: 3 });
-    expect(b.charge).toEqual({ interval: "year", amount: 36, monthly: 3 });
+    expect(b.charge).toEqual({ interval: "year", amount: 30, monthly: 3, yearlySaving: 6 });
 
     const other = new Client(ctx.app);
     await other.signup("other@else.io");
@@ -277,7 +277,7 @@ describe("add-ons on one subscription", () => {
 
   const monthly = (key: string, quantity: number) => ({ id: `si_${key}`, quantity, price: { id: `price_auto_${key}`, lookup_key: key, recurring: { interval: "month" } }, current_period_end: 1792600000 });
 
-  it("changes quantities in place, switches to monthly at A$5 and refuses removals the workspace still uses", async () => {
+  it("changes quantities in place, switches to monthly at A$5 when asked and refuses removals the workspace still uses", async () => {
     const a = new Client(ctx.app);
     await a.signup("owner@acme.io");
     const orgId = (await a.get("/api/account/me")).body.organization.id;
@@ -285,8 +285,9 @@ describe("add-ons on one subscription", () => {
     await postWebhook(ctx.app, { id: "evt_a1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
     expect((await a.get("/api/billing")).body).toMatchObject({ addons: { domain: 1 }, interval: "year", limits: { domains: 2 } });
 
-    // Two mailbox packs (A$6) take the total to A$7: every item moves to monthly prices.
-    const res = await a.post("/api/billing/addons", { addons: { domain: 1, mailboxes: 2 } });
+    // Two mailbox packs (A$6) take the total to A$7, so monthly is allowed (R62: yearly stays unless monthly is chosen):
+    // every item moves to monthly prices.
+    const res = await a.post("/api/billing/addons", { addons: { domain: 1, mailboxes: 2 }, interval: "month" });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ applied: true, interval: "month" });
     const update = new URLSearchParams(stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1").at(-1)!.body);
@@ -332,7 +333,7 @@ describe("add-ons on one subscription", () => {
 
     const preview = await a.post("/api/billing/addons/preview", { addons: { domain: 4, mailboxes: 1 }, dropLegacyPlan: true });
     expect(preview.status).toBe(200);
-    expect(preview.body.charge).toEqual({ interval: "month", amount: 7, monthly: 7 });
+    expect(preview.body.charge).toEqual({ interval: "month", amount: 7, monthly: 7, yearlySaving: 14 });
     const moved = await a.post("/api/billing/addons", { addons: { domain: 4, mailboxes: 1 }, dropLegacyPlan: true });
     expect(moved.status).toBe(200);
     const last = new URLSearchParams(stripe.calls.filter((c) => c.method === "POST" && c.path === "/v1/subscriptions/sub_1").at(-1)!.body);
