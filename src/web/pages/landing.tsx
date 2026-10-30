@@ -6,6 +6,7 @@ import { PlanCards } from "@/web/components/plan-cards";
 import { useConfig } from "@/web/lib/queries";
 import { useStartDemo } from "@/web/lib/demo";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
+import { OFFER_COPY } from "@/shared/offers";
 
 const features = [
   { title: "Mailboxes for your team", body: "Real inboxes for people, aliases for roles. sales@ can reach three founders and a Gmail. Webmail that works on any device." },
@@ -30,7 +31,9 @@ const work = [
 ];
 
 const faqs = [
-  { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person." },
+  { q: "Is it really free?", a: "Yes. One domain, three mailboxes, 3 GB, three agent inboxes, for as long as you like, with no card. Add-ons cost A$1 to A$5 a month each, for the whole business, never per person. Pay yearly and get two months free, or use the code LAUNCH30 for 30 percent off your first 3 months of monthly billing." },
+  // R62: from src/shared/offers.ts, the same words as the pricing page.
+  { q: "Do you reward referrals?", a: OFFER_COPY.referral },
   { q: "What does the AI cost?", a: "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. Multies never resells AI or meters it." },
   { q: "Can an agent send email without me?", a: "Only if you let it. New agents need a person to approve every message. You can relax that to only mail leaving Multies, or turn it off, and set a daily cap and a list of who it may write to." },
   { q: "Do I need to move my domain?", a: "No. Keep your domain wherever it's registered. You add a few DNS records. We show you each one, check them live, and tell you when everything's right." },

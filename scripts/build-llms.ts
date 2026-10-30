@@ -10,6 +10,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capturedExamplesMarkdown } from "../src/server/services/developer/mcp-examples";
 import { CONNECTIONS, RESIDENCY_ANSWER, RESIDENCY_CHECKED, residencyMarkdown, SAFE_TRIAL } from "../src/shared/residency";
+import { ADDONS, ADDON_ORDER, formatPlanPrice } from "../src/shared/plans";
+import { OFFER_COPY } from "../src/shared/offers";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SITE = "https://multies.si";
@@ -49,6 +51,11 @@ export function buildLlms(read: (f: string) => string = (f) => readFileSync(join
     `- Try it without a client mailbox: ${SAFE_TRIAL.map((t) => `${t.title}. ${t.body}`).join(" ")}`,
     `- Connections available today: ${CONNECTIONS.filter((c) => c.status === "available").map((c) => c.name).join("; ")}.`,
     `- Planned, not available yet: ${CONNECTIONS.filter((c) => c.status === "planned").map((c) => c.name).join("; ")}.`,
+    // R62: pricing and offers, from the same sources as /pricing and the terms.
+    `- Pricing (prices in AUD, excluding GST): the Free plan is free forever (1 domain, 3 mailboxes for 3 people, 3 GB, 3 agent inboxes). Add-ons per business, never per person: ${ADDON_ORDER.map((id) => `${ADDONS[id].name} ${formatPlanPrice(ADDONS[id].priceMonthly)} a month per ${ADDONS[id].unit}`).join("; ")}. Details: ${SITE}/pricing`,
+    `- Yearly billing: ${OFFER_COPY.yearly}`,
+    `- Launch code: ${OFFER_COPY.launch}`,
+    `- Referrals: ${OFFER_COPY.referral}`,
     "- Provided by Fintex Australia Pty Ltd under the laws of New South Wales, Australia.",
     "",
     "## Docs",

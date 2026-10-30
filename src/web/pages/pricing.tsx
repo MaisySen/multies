@@ -4,10 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/web/lib/api";
 import { IconMinus, IconPlus } from "@/web/components/ui/icon";
 import { PlanCards } from "@/web/components/plan-cards";
-import { ADDON_ORDER, ADDONS, PLANS, chargeFor, effectiveLimits, formatPlanPrice, type AddonId, type AddonQuantities } from "@/shared/plans";
+import { ADDON_ORDER, ADDONS, PLANS, YEARLY_MONTHS_CHARGED, chargeFor, effectiveLimits, formatPlanPrice, yearlyOnly, type AddonId, type AddonQuantities, type BillingInterval } from "@/shared/plans";
 import { Button } from "@/web/components/ui/button";
 import { LOCALE } from "@/shared/locale";
 import { RESIDENCY_ANSWER } from "@/shared/residency";
+import { OFFER_COPY } from "@/shared/offers";
 
 /** Google Workspace Business Starter, per user a month on an annual plan (Google's Australian price list, read 23 October 2026). */
 const GOOGLE_STARTER_AUD = 9.9;
@@ -30,7 +31,11 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Do guests cost anything?", a: "No. Guests are free on every plan, Free included, and they never count as people on your plan. Invite a client to one project by email: they see its tasks, comments and docs, and can comment and upload files. Nothing else in your workspace." },
   { q: "Why per business and not per person?", a: "Most small teams share mailboxes, and adding a person shouldn't cost another A$10 a month. Add-ons raise limits for the whole workspace." },
   { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. If you want the assistant in the inbox, add your own model provider key in Settings and your provider bills you directly. Multies never resells AI." },
-  { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
+  { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year, at ten times the monthly price. At A$5 or more you choose monthly or yearly." },
+  // R62: the offers come from src/shared/offers.ts, the same source as the terms, billing settings and llms.txt.
+  { q: "Is paying yearly cheaper?", a: OFFER_COPY.yearly },
+  { q: "Is there a launch offer?", a: OFFER_COPY.launch },
+  { q: "Can I earn credit by referring a business?", a: OFFER_COPY.referral },
   { q: "What are agent inboxes?", a: "Email addresses for AI agents. Create one with a single API call or from an MCP client, read threads as JSON, get new mail by webhook or a live stream, and send with caps and an optional human approval step. Every action is in the audit log." },
   // R60 (trust): the facts come from src/shared/residency.ts, the same source as /trust and /privacy.
   { q: "Where is my mail stored?", a: `${RESIDENCY_ANSWER} The full list, store by store, is on our Trust page.` },
@@ -70,7 +75,8 @@ export function PricingPage() {
 function Calculator() {
   const [people, setPeople] = useState(10);
   const [addons, setAddons] = useState<AddonQuantities>({ mailboxes: 2 });
-  const charge = chargeFor(addons);
+  const [interval, setInterval] = useState<BillingInterval>("month");
+  const charge = chargeFor(addons, 0, interval);
   const limits = effectiveLimits(PLANS.starter, addons);
   const google = people * GOOGLE_STARTER_AUD;
   const set = (id: AddonId, n: number) => setAddons({ ...addons, [id]: Math.max(0, Math.min(ADDONS[id].maxQuantity, n)) });
@@ -108,6 +114,18 @@ function Calculator() {
             <p className="mt-1 text-4xl font-semibold tracking-tight tabular-nums" aria-live="polite">
               {charge.amount === 0 ? "A$0" : formatPlanPrice(charge.amount)}<span className="text-base font-normal text-subtle"> {charge.amount === 0 ? "forever" : charge.interval === "year" ? "a year" : "a month"}</span>
             </p>
+            {charge.interval === "year" && charge.amount > 0 && <p className="mt-1 text-sm text-muted">{YEARLY_MONTHS_CHARGED} months for 12: you save {formatPlanPrice(charge.yearlySaving)} a year.</p>}
+            {/* R62: monthly or yearly with two months free; under A$5 a month it bills yearly only. */}
+            {charge.monthly > 0 && !yearlyOnly(charge.monthly) && (
+              <div className="mt-3 inline-flex rounded-lg bg-fill p-0.5 text-[13px]" role="group" aria-label="Billing interval" data-testid="pricing-interval">
+                {(["month", "year"] as const).map((i) => (
+                  <button key={i} type="button" aria-pressed={charge.interval === i} onClick={() => setInterval(i)}
+                    className={`rounded-md px-3 py-1 transition-colors motion-reduce:transition-none ${charge.interval === i ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg"}`}>
+                    {i === "month" ? "Monthly" : "Yearly, 2 months free"}
+                  </button>
+                ))}
+              </div>
+            )}
             {charge.amount > 0 && <LocalPrice aud={charge.amount} />}
             <p className="mt-3 text-sm text-muted">
               {limits.domains} domain{limits.domains === 1 ? "" : "s"}, {limits.mailboxes} mailboxes, {limits.seats} people, {(limits.storageMb / 1024).toLocaleString(LOCALE)} GB and {limits.agentInboxes} agent inboxes. AI is yours to bring, free.
