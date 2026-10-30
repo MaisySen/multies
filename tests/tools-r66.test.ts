@@ -202,7 +202,7 @@ describe("R66 MB-259: held features are a plain not found page", () => {
     const router = readFileSync("src/web/router.tsx", "utf8");
     for (const f of ['features={["merge_mail"]}', 'features={["esign"]}', "features={AI_FEATURES}", 'features={["folders", "index"]}']) expect(router).toContain(f);
     const gate = readFileSync("src/web/components/tools/feature-gate.tsx", "utf8");
-    expect(gate).toContain("<NotFound />");
+    expect(gate).toContain("<NotFound embedded />"); // R67: one main landmark inside the app layout
     expect(gate.slice(gate.indexOf("export function"))).not.toMatch(/admin|legal|signature/i);
     expect(readFileSync("src/entry/worker.ts", "utf8")).toContain('(url.pathname.startsWith("/sign/") && await esignOn(env))');
     expect(readFileSync("src/web/pages/app/ai-section.tsx", "utf8")).toMatch(/useAiUsage\(!!config\.data\?\.tools && \["ask"/);
