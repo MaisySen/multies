@@ -2,13 +2,13 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap } from "@/web/components/ui/icon";
+import { IconWrench, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
 /** R59: `flag` names a server switch from /api/config; the page is offered only while it is on. */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" }
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[] }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -20,6 +20,8 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-docs", label: "Docs", to: "/app/docs", icon: IconDocs, keywords: ["documents", "notes", "wiki", "pages"] },
   { id: "p-meetings", label: "Meetings", to: "/app/meetings", icon: IconVideo, keywords: ["calls", "video", "calendar"] },
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
+  // Tools P1: shown only when the server has Tools on (flag "tools").
+  { id: "p-tools", label: "Tools", to: "/app/tools", icon: IconWrench, keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf"], flag: "tools" },
   { id: "p-goals", label: "Goals", to: "/app/goals", icon: IconTarget, keywords: ["okr", "objectives"] },
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
   { id: "p-deals", label: "Deals", to: "/app/deals", icon: IconHandshake, keywords: ["crm", "pipeline", "sales"] },
@@ -65,6 +67,9 @@ export const PALETTE_ACTIONS: PaletteAction[] = [
   { id: "invite", label: "Invite a teammate", icon: IconAssign, kind: "navigate", to: "/app/settings/team", keywords: ["member", "team"] },
   { id: "api-key", label: "Create an API key", icon: IconKey, kind: "navigate", to: "/app/settings/developers", keywords: ["developer", "token"] },
   { id: "app-password", label: "Set up Outlook or Apple Mail", icon: IconSmartphone, kind: "navigate", to: "/app/settings/mail-apps", keywords: ["imap", "smtp", "app password", "thunderbird", "phone"] },
+  { id: "tools-compress", label: "Compress PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=compress", keywords: ["smaller pdf", "reduce size", "tools"], flag: "tools" },
+  { id: "tools-merge", label: "Merge PDFs", icon: IconWrench, kind: "navigate", to: "/app/tools?op=merge", keywords: ["combine pdf", "join pdf", "tools"], flag: "tools" },
+  { id: "tools-convert", label: "Convert to PDF", icon: IconWrench, kind: "navigate", to: "/app/tools?op=convert", keywords: ["word to pdf", "docx", "excel", "powerpoint", "tools"], flag: "tools" },
   { id: "shortcuts", label: "Keyboard shortcuts", icon: IconKeyboard, kind: "shortcuts", keywords: ["keys", "help", "hotkeys"] },
   { id: "theme", label: "Switch light or dark appearance", icon: IconMoon, kind: "theme", keywords: ["theme", "dark mode", "light mode", "appearance"] },
   { id: "api-reference", label: "API reference", icon: IconBook, kind: "external", to: "/api/v1/reference", keywords: ["docs", "openapi"] },
