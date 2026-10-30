@@ -26,16 +26,16 @@ export interface Subprocessor {
 // Source: wrangler.toml ([[d1_databases]] mymail-au, [placement] region aws:ap-southeast-2) and
 // CREDENTIALS (staging D1 region Oceania). Cloudflare treats a location as a hint, not a country.
 export const DATA_REGION: TrustFact[] = [
-  { label: "Database", value: "Our database, primary placed in our hosting provider's Oceania region. Our hosting provider treats this as a location hint and does not promise a country." },
+  { label: "Database", value: "Our database, primary placed in our hosting provider's Oceania region, holds all workspace data, including mail synced from connected mailboxes, attachments and files. Our hosting provider treats this as a location hint and does not promise a country." },
   { label: "App servers", value: "Our app servers run on our hosting provider, placed in Sydney to sit next to the database. Static pages are served from our hosting provider's network worldwide." },
   { label: "Live docs", value: "Co-editing rooms run on our hosting provider, one per doc. The provider chooses where each one runs." },
 ];
 
-// Source: src/server/config.ts (env vars per provider), wrangler.toml secrets list, docs/auth.md
-// (Auth0 tenant in the US region), CREDENTIALS (Sentry and LiveKit US data regions, Resend us-east-1).
+// Source: src/server/config.ts (env vars per provider), wrangler.toml secrets list, CREDENTIALS
+// (Auth0 tenant multies in the AU region since 25 October 2026; the legacy US tenant still signs in older accounts), CREDENTIALS (Sentry and LiveKit US data regions, Resend us-east-1).
 export const SUBPROCESSORS: Subprocessor[] = [
   { name: "Our hosting and database provider", purpose: "Hosting, database, live doc rooms, inbound mail routing, DDoS protection", data: "All service data", where: "Oceania for the database; edge worldwide", when: "always", env: [] },
-  { name: "Our sign in provider", purpose: "Sign in and sign up for people", data: "Name, email, sign in method, second factor enrolment", where: "United States", when: "always", env: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"] },
+  { name: "Our sign in provider", purpose: "Sign in and sign up for people", data: "Name, email, sign in method, second factor enrolment", where: "Australia (accounts made before 25 October 2026: United States until moved)", when: "always", env: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"] },
   { name: "Our outbound email provider", purpose: "Delivers mail you send to addresses outside Multies", data: "Outbound messages and their recipients", where: "United States", when: "always", env: ["RESEND_API_KEY"] },
   { name: "Our error monitoring provider", purpose: "Error and performance monitoring", data: "Error reports with account ids", where: "United States", when: "always", env: ["SENTRY_DSN_API", "SENTRY_DSN_WEB"] },
   { name: "Our payments provider", purpose: "Payments and invoices for paid add ons", data: "Billing contact; card details are held by our payments provider, never by Multies", where: "Australia and United States", when: "always", env: ["STRIPE_SECRET_KEY"] },
@@ -48,7 +48,7 @@ export const SUBPROCESSORS: Subprocessor[] = [
 // Source: docs/runbooks/db-backup-restore.md.
 export const BACKUPS: TrustFact[] = [
   { label: "Point in time restore", value: "Our database provider's point in time restore can bring the database back to any minute in the last 7 days." },
-  { label: "Encrypted exports", value: "Our release runbook takes a full export, encrypted and kept outside the code repository, before any production release that changes the database schema. Every copy is encrypted, and copies older than 30 days are deleted." },
+  { label: "Encrypted exports", value: "Our release runbook takes a full export, encrypted and kept outside the code repository on our operations machine in the United States, before any production release that changes the database schema. Every copy is encrypted, and copies older than 30 days are deleted." },
   { label: "Restores", value: "Our restore runbook loads a backup into a new database and checks it before anything touches production." },
 ];
 

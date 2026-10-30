@@ -7,6 +7,7 @@ import { PlanCards } from "@/web/components/plan-cards";
 import { ADDON_ORDER, ADDONS, PLANS, chargeFor, effectiveLimits, formatPlanPrice, type AddonId, type AddonQuantities } from "@/shared/plans";
 import { Button } from "@/web/components/ui/button";
 import { LOCALE } from "@/shared/locale";
+import { RESIDENCY_ANSWER } from "@/shared/residency";
 
 /** Google Workspace Business Starter, per user a month on an annual plan (Google's Australian price list, read 23 October 2026). */
 const GOOGLE_STARTER_AUD = 9.9;
@@ -31,7 +32,11 @@ const FAQ: { q: string; a: string }[] = [
   { q: "What does AI cost?", a: "Nothing from us. Bring your own AI: connect any AI app or agent through MCP, free. If you want the assistant in the inbox, add your own model provider key in Settings and your provider bills you directly. Multies never resells AI." },
   { q: "Why do small totals bill yearly?", a: "A card payment in Australia costs about 1.7 percent plus 30 cents, so a A$1 monthly charge would lose a third to fees. When your add-ons come to less than A$5 a month we charge once a year at twelve times the monthly price. At A$5 or more it bills monthly." },
   { q: "What are agent inboxes?", a: "Email addresses for AI agents. Create one with a single API call or from an MCP client, read threads as JSON, get new mail by webhook or a live stream, and send with caps and an optional human approval step. Every action is in the audit log." },
-  { q: "Where is my mail stored?", a: "Today mail is stored with Cloudflare, whose database for this region cannot be pinned to Australia. We are moving mail storage to servers in Sydney and will say so here only once it is true." },
+  // R60 (trust): the facts come from src/shared/residency.ts, the same source as /trust and /privacy.
+  { q: "Where is my mail stored?", a: `${RESIDENCY_ANSWER} The full list, store by store, is on our Trust page.` },
+  { q: "Can I try Multies without connecting a client mailbox?", a: "Yes. Open the live demo, a sample workspace with made up mail that needs no sign up and is deleted after 24 hours. Or sign up free and take a test address like yourname@mail.multies.si to send and receive real mail. Connect a client mailbox only when you are ready; removing it deletes our copy." },
+  { q: "Will this mean more admin?", a: "It should mean less. Keep your current address by connecting the mailbox over IMAP, import contacts from Google or any address book as a vCard or CSV file, and run mail, tasks, chat and meetings under one sign in. Multies does not replace accounting or industry specific software; it connects to them through webhooks and the API." },
+  { q: "Does it connect to my CRM or WhatsApp?", a: "Any CRM or platform that can send or receive webhooks, or has an API, can pass leads to and from Multies today. There is no ready made connector for specific industry platforms. WhatsApp enquiries in the shared inbox are planned and not available yet." },
   { q: "I'm on Pro or Business. What changes?", a: "Nothing unless you want it to. Your plan, limits and price stay as they are, and you can add add-ons to the same subscription, or move to Free and keep only the add-ons you use." },
 ];
 
@@ -55,6 +60,7 @@ export function PricingPage() {
             </div>
           ))}
         </dl>
+        <p className="mt-4 text-sm text-muted">Where each kind of data is stored, how to try Multies safely and what it connects to: <Link to="/trust#where" className="font-medium text-brand-hover hover:underline">Trust and data</Link>.</p>
       </section>
     </div>
   );

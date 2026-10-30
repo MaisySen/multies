@@ -141,6 +141,7 @@ export const router = createBrowserRouter([
       { path: "/contact", element: publicPage(<ContactUsPage />) },
       { path: "/check", element: publicPage(<CheckPage />) },
       { path: "/trust", element: publicPage(<TrustPage />) },
+      { path: "/security", element: publicPage(<TrustPage />) }, // R60: the address security reviews and assistants try first
       { path: "/delete-account", element: publicPage(<DeleteAccountPage />) },
       { path: "/terms", element: publicPage(<LegalPage slug="terms" />) },
       { path: "/acceptable-use", element: publicPage(<LegalPage slug="acceptable-use" />) },

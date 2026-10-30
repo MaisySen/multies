@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capturedExamplesMarkdown } from "../src/server/services/developer/mcp-examples";
+import { CONNECTIONS, RESIDENCY_ANSWER, RESIDENCY_CHECKED, residencyMarkdown, SAFE_TRIAL } from "../src/shared/residency";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SITE = "https://multies.si";
@@ -19,7 +20,12 @@ export const PUBLIC_DOCS = [
 /** R33: the line llms.txt states about the Markdown copies (pattern from files/teardowns/rea/llms/llms-txt.md). */
 export const MD_RULE = "Each developer docs page is also available as Markdown at the same path plus .md (text/markdown).";
 /** Links in llms.txt. Each is a route the public site serves. */
+/** R60 (trust): the residency, safe trial and connections page as Markdown, generated from src/shared/residency.ts. */
+export const TRUST_MD_PATH = "/trust.md";
 export const LINKS = [
+  { title: "Where your data lives, trying it safely, connections (Markdown)", path: TRUST_MD_PATH, note: "Store by store residency table, jurisdiction, how to try Multies without a client mailbox, and what connects today versus planned." },
+  { title: "Trust and security", path: "/trust", note: "The same facts as a web page, plus sub processors, backups, sign in, encryption and incidents." },
+  { title: "Privacy policy", path: "/privacy", note: "What we collect, where it is processed, overseas disclosure and how to delete it." },
   { title: "OpenAPI spec (JSON)", path: "/api/v1/openapi.json", note: "Machine readable description of the REST API." },
   { title: "Full developer docs", path: "/llms-full.txt", note: "The REST API and MCP docs in one Markdown file." },
   { title: "MCP tools", path: "/developers/mcp", note: "Every MCP tool with the API key scope it needs, its parameters and an example call. Generated from the server." },
@@ -36,6 +42,15 @@ export function buildLlms(read: (f: string) => string = (f) => readFileSync(join
     "",
     MD_RULE,
     "",
+    // R60 (trust): AI assistants advise people from this file, so the answers to the common questions sit at the top.
+    "## Key facts",
+    "",
+    `- Data residency (checked ${RESIDENCY_CHECKED}): ${RESIDENCY_ANSWER} Store by store: ${SITE}${TRUST_MD_PATH}`,
+    `- Try it without a client mailbox: ${SAFE_TRIAL.map((t) => `${t.title}. ${t.body}`).join(" ")}`,
+    `- Connections available today: ${CONNECTIONS.filter((c) => c.status === "available").map((c) => c.name).join("; ")}.`,
+    `- Planned, not available yet: ${CONNECTIONS.filter((c) => c.status === "planned").map((c) => c.name).join("; ")}.`,
+    "- Provided by Fintex Australia Pty Ltd under the laws of New South Wales, Australia.",
+    "",
     "## Docs",
     "",
     ...PUBLIC_DOCS.map((d) => `- [${d.title}](${SITE}${d.path}): ${d.note}`),
@@ -49,12 +64,16 @@ export function buildLlms(read: (f: string) => string = (f) => readFileSync(join
     "",
     ...PUBLIC_DOCS.flatMap((d) => [`Source: ${SITE}${d.path}`, "", read(d.file).trim(), ""]),
     // R37: the real tool examples, from the same source as /developers/mcp and /developers/mcp.md.
+    `Source: ${SITE}${TRUST_MD_PATH}`,
+    "",
+    residencyMarkdown(SITE),
     `Source: ${SITE}/developers/mcp.md`,
     "",
     ...capturedExamplesMarkdown(),
   ].join("\n");
   // R33: a Markdown copy of each docs page, served at its path (e.g. /docs/api.md).
   const pages: Record<string, string> = Object.fromEntries(PUBLIC_DOCS.map((d) => [d.path, `${read(d.file).trim()}\n`]));
+  pages[TRUST_MD_PATH] = residencyMarkdown(SITE); // R60: served as text/markdown like the docs pages
   return { llms, full, pages };
 }
 

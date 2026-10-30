@@ -15,15 +15,19 @@ const DEFAULT: PageMeta = {
   description: "Professional email on the domain you own, with tasks, team chat, docs and AI agent inboxes built in. Free for small teams, add-ons from A$1 a month.",
 };
 
+/** R60: /trust and /security. The description answers the residency question for readers that only see the head. */
+const TRUST_META = { title: "Security and data | Multies", description: "Where Multies stores each kind of data (workspace data in the Oceania region, sign in in Australia, some services in the United States; not Australia only), how to try it without a client mailbox, connections, backups and incidents." };
+
 export const PUBLIC_META: Record<string, PageMeta> = {
   "/": DEFAULT,
-  "/pricing": { title: "Pricing | Multies", description: "Free for one domain and three mailboxes. Add-ons cost A$1 to A$5 a month for the whole business, never per person. Prices in AUD." },
+  "/pricing": { title: "Pricing | Multies", description: "Free for one domain and three mailboxes. Add-ons cost A$1 to A$5 a month for the whole business, never per person. Prices in AUD. Try it with the live demo or a free test address, no client mailbox needed." },
   "/agents": { title: "Email inboxes for AI agents | Multies", description: "Give each AI agent its own address with one API call. Mail arrives as clean JSON, replies stay in the thread, and a person approves what agents send." },
   "/check": { title: "Check your domain's email | Multies", description: "Free check: see who hosts your domain's mail, whether SPF and DMARC are set, and the steps to switch to Multies without losing a message." },
-  "/trust": { title: "Security and data | Multies", description: "Where Multies stores your data, the services it uses, backups, sign in options, encryption and incident history." },
+  "/trust": TRUST_META,
+  "/security": TRUST_META,
   "/status": { title: "System status | Multies", description: "Live status of Multies' web app, API, inbound mail and outbound delivery." },
   "/changelog": { title: "What's new | Multies", description: "What changed in Multies, newest first: new features, fixes and speed improvements." },
-  "/privacy": { title: "Privacy policy | Multies", description: "What Multies collects, why, where it is processed and how to delete it." },
+  "/privacy": { title: "Privacy policy | Multies", description: "What Multies collects, why, where it is processed and how to delete it. Workspace data, including synced mail, is stored in the Oceania region; some services run in the United States. Not Australia only." },
   "/terms": { title: "Terms of service | Multies", description: "The terms for using Multies' email, work management and agent features." },
   "/acceptable-use": { title: "Acceptable use policy | Multies", description: "What you may and may not send or store with Multies." },
   "/dpa": { title: "Data processing agreement | Multies", description: "How Multies processes personal data on behalf of your business." },
