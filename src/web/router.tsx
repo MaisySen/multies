@@ -84,6 +84,7 @@ const NotificationsPage = lazy(() => notificationPages().then((m) => ({ default:
 const NotificationSettings = lazy(() => notificationPages().then((m) => ({ default: m.NotificationSettings })));
 const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
 const IntegrationsPage = lazy(() => import("./pages/app/work/integrations").then((m) => ({ default: m.IntegrationsPage })));
+const ToolsPage = lazy(() => import("./pages/app/tools").then((m) => ({ default: m.ToolsPage })));
 const SchedulingPage = lazy(() => import("./pages/app/work/scheduling").then((m) => ({ default: m.SchedulingPage })));
 const bookPages = () => import("./pages/book");
 const BookingPage = lazy(() => bookPages().then((m) => ({ default: m.BookingPage })));
@@ -199,6 +200,7 @@ export const router = createBrowserRouter([
       { path: "meetings", element: page(<MeetingsPage />) },
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "scheduling", element: page(<SchedulingPage />) },
+      { path: "tools", element: page(<ToolsPage />) }, // Tools P1
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue

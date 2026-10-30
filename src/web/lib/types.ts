@@ -25,6 +25,8 @@ export interface PublicConfig {
   billingEnabled: boolean;
   /** Booking pages (SCHEDULING_ENABLED). */
   scheduling?: boolean;
+  /** Tools P1: document tools (TOOLS_ENABLED with an engine configured). */
+  tools?: boolean;
   /** Round 25: identity provider connections shown as sign in buttons ("google-oauth2", "windowslive"). */
   socialConnections?: string[];
   /** R43: the import pages say a run carries on after the page closes (BACKGROUND_COPY, set once proven live). */

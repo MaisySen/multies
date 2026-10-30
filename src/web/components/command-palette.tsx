@@ -20,7 +20,7 @@ import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-picker
 import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
-import { useDomains, useMailboxes } from "@/web/lib/queries";
+import { useConfig, useDomains, useMailboxes } from "@/web/lib/queries";
 import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task } from "@/web/pages/app/work/data";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -71,6 +71,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
 
   // Round 20: content from mail, tasks, docs, chat, contacts and deals, searched on the server.
   const content = useContentSearch(search, open && !page);
+  const config = useConfig();
   const taskId = focus.kind === "task" ? focus.id : null;
   const task = useFocusedTask(open ? taskId : null);
   const projects = useProjects();
@@ -88,7 +89,9 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       runCommand(c, ctx);
     },
   });
-  const palette = COMMANDS.filter(inPalette);
+  // Tools P1: the Tools page and its actions show only when the server has Tools on.
+  const toolsOn = !!config.data?.tools;
+  const palette = COMMANDS.filter(inPalette).filter((c) => toolsOn || !c.to?.startsWith("/app/tools"));
   const contextual = palette.filter((c) => c.when && c.when({ focus }) && (c.scope !== "task" || !!task));
   const actions = palette.filter((c) => !c.when && c.group !== "Go to").map(toItem);
   const pages = palette.filter((c) => !c.when && c.group === "Go to").map(toItem);
