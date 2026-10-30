@@ -33,7 +33,7 @@ export default defineConfig({
   use: { baseURL: process.env.E2E_BASE_URL ?? `http://localhost:${PORT}` },
   webServer: process.env.E2E_BASE_URL ? undefined : [
     {
-      command: `rm -rf .data/e2e.db .data/e2e-outbox && PORT=${PORT} DATABASE_PATH=.data/e2e.db OUTBOX_DIR=.data/e2e-outbox DEMO_MODE=true SCHEDULING_ENABLED=true TRUST_PROXY=true E2E_LOCAL_RATE_KEYS=1 AI_FAKE=1 IMPORT_FILES=memory CALLS_TEST_HOOK=true CHANNELS_MOCK=on CHAT_CHANNELS=${process.env.E2E_CHAT_CHANNELS ?? "on"} APP_URL=http://localhost:${PORT} PLATFORM_ADMIN_EMAILS=ops-r35@example.com npx tsx src/entry/node.ts`,
+      command: `rm -rf .data/e2e.db .data/e2e-outbox && PORT=${PORT} DATABASE_PATH=.data/e2e.db OUTBOX_DIR=.data/e2e-outbox DEMO_MODE=true SCHEDULING_ENABLED=true TRUST_PROXY=true E2E_LOCAL_RATE_KEYS=1 AI_FAKE=1 IMPORT_FILES=memory CALLS_TEST_HOOK=true APP_URL=http://localhost:${PORT} PLATFORM_ADMIN_EMAILS=ops-r35@example.com npx tsx src/entry/node.ts`,
       url: `http://localhost:${PORT}/api/health`,
       env: { ...(process.env as Record<string, string>), ...e2eVapid() },
       reuseExistingServer: false,

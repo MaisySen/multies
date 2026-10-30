@@ -15,12 +15,12 @@ import { displayKeys } from "@/web/lib/commands/registry";
 import { hintForUrl, readRecents, recordRecent } from "@/web/lib/palette-recents"; // R36
 import { paletteScore } from "@/web/lib/palette-registry";
 import { openShortcutsSheet } from "@/web/lib/shortcuts";
-import { COMMANDS, TASK_PICKERS, flagOn, inPalette, runCommand, useFocus, type Command as Cmd, type CommandContext, type TaskPickerPage } from "@/web/lib/commands";
+import { COMMANDS, TASK_PICKERS, inPalette, runCommand, useFocus, type Command as Cmd, type CommandContext, type TaskPickerPage } from "@/web/lib/commands";
 import { taskPickerItems, type PickerItem } from "@/web/lib/commands/task-pickers";
 import { typedActionChange, useTypedAction } from "@/web/lib/commands/typed-action"; // R54
 import { useAppearance } from "@/web/components/theme";
 import { ContentGroups, useContentSearch } from "@/web/components/search-results";
-import { useConfig, useDomains, useMailboxes } from "@/web/lib/queries";
+import { useDomains, useMailboxes } from "@/web/lib/queries";
 import { useAssignees, useProjects, useTaskDetail, useTaskMutations, type Task } from "@/web/pages/app/work/data";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
@@ -58,7 +58,6 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   const qc = useQueryClient();
   const domains = useDomains();
   const mailboxes = useMailboxes();
-  const config = useConfig();
   const focus = useFocus();
   const [search, setSearch] = useState("");
   const appearance = useAppearance();
@@ -89,7 +88,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       runCommand(c, ctx);
     },
   });
-  const palette = COMMANDS.filter((c) => inPalette(c) && flagOn(c, config.data)); // R59: switch-gated pages (chat channels)
+  const palette = COMMANDS.filter(inPalette);
   const contextual = palette.filter((c) => c.when && c.when({ focus }) && (c.scope !== "task" || !!task));
   const actions = palette.filter((c) => !c.when && c.group !== "Go to").map(toItem);
   const pages = palette.filter((c) => !c.when && c.group === "Go to").map(toItem);

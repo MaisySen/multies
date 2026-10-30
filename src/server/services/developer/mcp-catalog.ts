@@ -94,12 +94,11 @@ const ARGS: Record<string, Record<string, unknown>> = {
   set_weekly_capacity: { person: "member:usr_8d7c6b5a", points: 20 },
 };
 
-let cached: { release: string; chat: boolean; tools: CatalogTool[] } | null = null;
+let cached: { release: string; tools: CatalogTool[] } | null = null;
 
-/** R59: `chat` lists the chat channel tools too (only when the server runs with CHAT_CHANNELS=on). */
-export function mcpCatalog(release = "dev", chat = false): CatalogTool[] {
-  if (cached && cached.release === release && cached.chat === chat) return cached.tools;
-  const deps = { config: { release, channels: { enabled: chat } } } as unknown as Deps;
+export function mcpCatalog(release = "dev"): CatalogTool[] {
+  if (cached && cached.release === release) return cached.tools;
+  const deps = { config: { release } } as unknown as Deps;
   const server = buildMcpServer(deps, { orgId: "org", userId: "usr", email: "docs", name: "docs", role: "admin", sessionId: "docs", scope: "full", agentId: null } as never, "https://multies.si") as unknown as {
     _registeredTools: Record<string, { title?: string; description?: string; inputSchema?: z.ZodType; annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean } }>;
   };
@@ -126,13 +125,13 @@ export function mcpCatalog(release = "dev", chat = false): CatalogTool[] {
         : { arguments: args, result: RESULTS[name] ?? { content: [{ type: "text", text: "{ ...the result as JSON... }" }] }, resultIsShape: !RESULTS[name] },
     });
   }
-  cached = { release, chat, tools };
+  cached = { release, tools };
   return tools;
 }
 
 /** The catalog as Markdown (for /developers/mcp.md and agents that read Markdown). */
-export function mcpCatalogMarkdown(release = "dev", chat = false): string {
-  const tools = mcpCatalog(release, chat);
+export function mcpCatalogMarkdown(release = "dev"): string {
+  const tools = mcpCatalog(release);
   const out = [
     "# Multies MCP tools",
     "",
@@ -162,10 +161,10 @@ export function mcpCatalogMarkdown(release = "dev", chat = false): string {
  * R37: the tools one scope value can use, the same list an MCP client sees in tools/list when the key
  * (or the connection, with ?tools=scoped) hides the rest. Accepts "full", "read" or a per area list.
  */
-export function mcpCatalogView(release: string, scope: string, chat = false): { ok: true; scope: string; total: number; tools: CatalogTool[] } | { ok: false; unknown: string[] } {
+export function mcpCatalogView(release: string, scope: string): { ok: true; scope: string; total: number; tools: CatalogTool[] } | { ok: false; unknown: string[] } {
   const plain = splitToolList(scope).scope;
   const n = normalizeScopes(plain);
   if (!n.ok) return n;
-  const all = mcpCatalog(release, chat);
+  const all = mcpCatalog(release);
   return { ok: true, scope: n.value, total: all.length, tools: all.filter((t) => canUseTool(n.value, t.name, t.readOnly)) };
 }

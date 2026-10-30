@@ -568,13 +568,6 @@
       "when": 1793000147000,
       "tag": "0088_r48_project_status_counts",
       "breakpoints": true
-    },
-    {
-      "idx": 89,
-      "version": "6",
-      "when": 1793100000000,
-      "tag": "0089_c1_channels",
-      "breakpoints": true
     }
   ]
 }
