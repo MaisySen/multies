@@ -142,9 +142,9 @@ const flagCols = { id: messages.id, remoteUid: messages.remoteUid, isRead: messa
 export function flagWindowQuery(db: Db, mailboxId: string, box: string, lo: number, hi: number) {
   return db.select(flagCols).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box), gte(messages.remoteUid, lo), lte(messages.remoteUid, hi)));
 }
-/** The copies of a few changed UIDs of one folder (messages_mailbox_remote_idx, one probe each). */
+/** The copies of a few changed UIDs of one folder (messages_mailbox_remote_idx, one probe each; at most 90, the bound parameter limit). */
 export function flagRowsQuery(db: Db, mailboxId: string, box: string, uids: number[]) {
-  return db.select(flagCols).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box), inArray(messages.remoteUid, uids)));
+  return db.select(flagCols).from(messages).where(and(eq(messages.mailboxId, mailboxId), eq(messages.remoteBox, box), inArray(messages.remoteUid, uids.slice(0, 90))));
 }
 /** The lowest UID stored from a folder (messages_mailbox_remote_idx: one index row). */
 export function oldestUidQuery(db: Db, mailboxId: string, box: string) {
@@ -470,7 +470,7 @@ async function pullFlags(deps: Deps, c: Connection, session: ImapSession, box: s
   if (incremental && remote.size === 0) { st.f = fp; return []; }
   const changedUids = incremental ? [...remote.keys()].filter((u) => u >= lo && u <= st.last) : [];
   if (incremental && changedUids.length === 0) { st.f = fp; return []; }
-  const local = await (incremental ? flagRowsQuery(deps.db, c.mailboxId, box, changedUids.slice(0, 90)) : flagWindowQuery(deps.db, c.mailboxId, box, lo, st.last));
+  const local = await (incremental ? flagRowsQuery(deps.db, c.mailboxId, box, changedUids) : flagWindowQuery(deps.db, c.mailboxId, box, lo, st.last));
   if (incremental && changedUids.length > 90) {
     // Over 90 changed messages (the bound-parameter limit per statement): read the rest of the window the old way.
     const rest = await flagWindowQuery(deps.db, c.mailboxId, box, lo, st.last);
