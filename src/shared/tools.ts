@@ -164,7 +164,7 @@ export const TOOLS: ToolDef[] = [
     options: [{ name: "password", kind: "password", label: "Current password", required: true, maxLen: 128, help: "Used for this run only and never stored." }] },
   { op: "ocr", group: "Scans", label: "Make searchable (OCR)", blurb: "Read the text in a scanned PDF so you can search and copy it.", accept: PDF, acceptLabel: "a scanned PDF", minFiles: 1, maxFiles: 1, suffix: "-searchable", ext: "pdf", contentType: PDF_TYPE, maxPages: 30, maxBytes: 20 * 1024 * 1024, slow: { secondsPerPage: 6 },
     options: [{ name: "language", kind: "choice", label: "Language", default: "eng", choices: OCR_LANGUAGES}],
-    note: "Up to 30 pages and 20 MB. It reads about one page every few seconds." },
+    note: "Up to 30 pages and 20 MB, or 10 pages for Nepali, Hindi, Chinese, Japanese, Korean, Arabic and Thai. It reads about one page every few seconds." },
 
   // Tools P2, wave 1 (engine ops E1 and E2). Each sits behind its own flag.
   { op: "protect", group: "Protect", feature: "protect", label: "Add a password", blurb: "Lock a PDF so it needs a password to open.", accept: PDF, acceptLabel: "a PDF", minFiles: 1, maxFiles: 1, suffix: "-protected", ext: "pdf", contentType: PDF_TYPE,
@@ -326,11 +326,14 @@ export interface ToolResultFacts {
   // Tools P2 facts (contract): tables found, rows kept and removed, sheets made, fields, files, words changed.
   tables?: number; rows?: number; rows_removed?: number; sheets?: number; fields?: number; fields_filled?: number; files?: number;
   words_added?: number; words_removed?: number; segments_replaced?: number; chars?: number; steps?: number;
+  // R71 (MB-263): compress says what it did: sizes in and out, and true when the file came back as it was.
+  in_bytes?: number; out_bytes?: number; images_changed?: number; already_optimised?: boolean;
 }
 /** The fact keys the server passes through to the browser (small numbers and flags only, never file contents). */
 export const TOOL_FACT_KEYS = [
   "pages", "parts", "matches", "phrases", "verified", "pages_changed", "pages_with_text",
   "tables", "rows", "rows_removed", "sheets", "fields", "fields_filled", "files", "words_added", "words_removed", "segments_replaced", "chars", "steps",
+  "in_bytes", "out_bytes", "images_changed", "already_optimised",
 ] as const;
 export interface ToolJob {
   token: string; op: ToolOp; status: ToolJobStatus; name: string; error?: string; bytes?: number; downloadUrl?: string;
@@ -348,7 +351,24 @@ export function emptyResult(op: string, r?: ToolResultFacts | null): boolean {
   if (!r) return false;
   if (op === "pdf-tables") return r.tables === 0;
   if (op === "redact" || op === "pii-find") return r.matches === 0;
+  if (op === "compress") return compressUnchanged(r.in_bytes, r.out_bytes, r.already_optimised);
   return false;
+}
+
+/**
+ * R71 (MB-263): a compress run that gave the file back as it was, or less than 2% smaller (the result card says
+ * "about the same" then), did nothing for the person, so it is not counted either.
+ */
+export function compressUnchanged(inBytes?: number, outBytes?: number, alreadyOptimised?: boolean): boolean {
+  if (alreadyOptimised === true) return true;
+  if (!inBytes || !outBytes || inBytes <= 0) return false;
+  return outBytes >= inBytes * 0.98;
+}
+
+/** R71 (MB-263): the line a result shows when its run was not counted. */
+export function notCountedLine(op: string): string {
+  if (op === "compress") return "The file did not get smaller, so this run was not counted.";
+  return "Nothing was found, so this run was not counted.";
 }
 
 /** Tools UX: the remove password tool's op id, for web files whose copy lint reads every word. */

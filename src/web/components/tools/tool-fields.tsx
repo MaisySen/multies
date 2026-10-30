@@ -107,7 +107,7 @@ export function resultLine(job: ToolJob): string | null {
     case "merge": case "images-to-pdf": case "ocr": case "to-pdf": return r.pages ? `${n(r.pages, "page", "pages")}.` : null;
     case "protect": return "Locked with your password. Keep the password somewhere safe.";
     case "stamp": return r.pages_changed ? `Added to ${n(r.pages_changed, "page", "pages")}.` : null;
-    case "pdf-tables": return r.tables !== undefined ? (r.tables ? `${n(r.tables, "table", "tables")}, each on its own sheet.` : "No tables were found.") : null;
+    case "pdf-tables": return r.tables !== undefined ? (r.tables ? (r.tables === 1 ? "1 table, on one sheet." : `${r.tables} tables, each on its own sheet.`) : "No tables were found.") : null;
     case "excel-merge": return r.rows !== undefined ? `${n(r.rows, "row", "rows")}${r.sheets ? ` on ${n(r.sheets, "sheet", "sheets")}` : ""}.` : null;
     case "excel-clean": return r.rows !== undefined ? `${n(r.rows, "row", "rows")} kept${r.rows_removed ? `, ${n(r.rows_removed, "row", "rows")} removed` : ""}.` : null;
     case "scan-clean": return r.pages ? `${n(r.pages, "page", "pages")}${r.pages_with_text ? `, text found on ${r.pages_with_text}` : ""}.` : null;

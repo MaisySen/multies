@@ -21,13 +21,13 @@ import { useConfig } from "@/web/lib/queries";
 import { Button } from "@/web/components/ui/button";
 import { EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { ShareResultLinks } from "./tools-share-sign/entry"; // Tools P2: share links and e-sign
-import { isToolOp, toolTakes, type ToolDef, type ToolJob, type ToolOp, type ToolsInfo } from "@/shared/tools";
+import { isToolOp, notCountedLine, ocrPageCap, toolTakes, type ToolDef, type ToolJob, type ToolOp, type ToolsInfo } from "@/shared/tools";
 import {
-  SECTIONS, STARTERS, buildEntries, carryFiles, entryTakes, middleTruncate, noRunsLine, recentKeys, rememberRecent, resetWhen, runsLeft, runsLeftLabel,
+  SECTIONS, STARTERS, buildEntries, carryFiles, entryTakes, middleTruncate, noRunsLine, pagesLine, recentKeys, rememberRecent, resetWhen, runsLeft, runsLeftLabel,
   savedLine, searchEntries, sizeLabel, takeCarried, warmEngine, type Entry,
 } from "@/web/components/tools/tool-directory";
 import { ToolIcon } from "@/web/components/tools/tool-icon";
-import { PdfThumb } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result
+import { PdfThumb, countPdfPages } from "@/web/components/tools/pdf-thumb"; // R70: page 1 of a PDF result; R71: page count before Run
 
 // Tools UX: the auto redact flow is only loaded when someone opens it.
 const AutoRedactPanel = lazy(() => import("@/web/components/tools/auto-redact").then((m) => ({ default: m.AutoRedactPanel })));
@@ -133,6 +133,8 @@ export function ToolsPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [extraFiles, setExtraFiles] = useState<File[]>([]);
   const [fileProblem, setFileProblem] = useState<{ text: string; switchTo?: Entry; files?: File[] } | null>(null);
+  // R71 (MB-264): the chosen PDF's page count, read in the browser, so a page limit shows before Run.
+  const [pageCount, setPageCount] = useState<{ file: File; pages: number } | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   /** The original size for a compress result (kept with the run, so a refresh still shows what was saved). */
   const [before, setBefore] = useState<number | null>(null);
@@ -152,6 +154,16 @@ export function ToolsPage() {
   const maxFiles = tool ? (tool.maxFiles === "plan" ? limits?.maxMergeFiles ?? 10 : tool.maxFiles) : 1;
   const busy = phase.kind === "uploading" || phase.kind === "working";
   const cap = tool?.maxBytes && limits ? Math.min(tool.maxBytes, limits.maxBytes) : limits?.maxBytes;
+  // R71 (MB-264): the page limit for this tool with these options (Nepali and other heavy OCR languages read 10).
+  const pageLimit = tool?.op === "ocr" ? ocrPageCap(options.language) : tool?.maxPages;
+  const firstPdf = tool && pageLimit && maxFiles === 1 && files.length === 1 && /\.pdf$/i.test(files[0].name) ? files[0] : null;
+  useEffect(() => {
+    if (!firstPdf) return;
+    let stop = false;
+    void countPdfPages(firstPdf).then((n) => { if (!stop && n) setPageCount({ file: firstPdf, pages: n }); });
+    return () => { stop = true; };
+  }, [firstPdf]);
+  const tooManyPages = !!firstPdf && !!pageLimit && pageCount?.file === firstPdf && pageCount.pages > pageLimit ? pageCount.pages : 0;
 
   /** Adds files after checking type, count and size, so a wrong file is caught before any upload. */
   const add = useCallback((list: FileList | File[] | null, t: ToolDef | undefined = tool) => {
@@ -523,7 +535,7 @@ export function ToolsPage() {
   const extraOk = !tool.extra || (extraFiles.length >= tool.extra.min && extraFiles.length <= tool.extra.max);
   const mailFits = !!fromMail && tool.minFiles <= 1 && toolTakes(tool, fromMail.name);
   const haveFiles = fromMail ? mailFits : files.length >= tool.minFiles;
-  const ready = haveFiles && !tooBig && !busy && !problem && extraOk && !noneLeft;
+  const ready = haveFiles && !tooBig && !tooManyPages && !busy && !problem && extraOk && !noneLeft;
   const shown = visibleOptions(tool, options);
   const folded = shown.length >= 4 ? (ADVANCED[tool.op] ?? []) : [];
   const essential = shown.filter((o) => !folded.includes(o.name));
@@ -533,6 +545,7 @@ export function ToolsPage() {
     ? (fromMail ? `${tool.label} does not take this file.` : files.length && tool.minFiles > files.length ? `Add ${tool.minFiles - files.length} more to start.` : `Add ${tool.acceptLabel} to start.`)
     : tooBig ? null : problem ?? (!extraOk && tool.extra ? `Add ${tool.extra.label.toLowerCase()}.` : null);
   const e0 = entry ?? { icon: IconFile, section: "Edit PDF" as const, name: tool.label, line: tool.blurb };
+  const splitEntry = tool.op !== "split" ? entries.find((x) => x.key === "split") : undefined;
   const elapsed = phase.kind === "working" ? Math.round((now - phase.since) / 1000) : 0;
   const waking = (phase.kind === "uploading" && phase.waking) || (phase.kind === "working" && cold && elapsed >= 4 && !phase.job.progress);
 
@@ -584,7 +597,7 @@ export function ToolsPage() {
                       <>
                         <span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-brand/10 text-brand [&_svg]:h-6 [&_svg]:w-6" aria-hidden><IconFileUp /></span>
                         <p className="text-[15px] font-semibold"><span className="max-sm:hidden">Drop {tool.acceptLabel} here</span><span className="sm:hidden">Choose {tool.acceptLabel}</span></p>
-                        <p className="mt-1 text-[13px] text-muted">Up to {cap ? mb(cap) : "20 MB"}{maxFiles > 1 ? `, ${maxFiles} files` : ""}{tool.maxPages ? `, ${tool.maxPages} pages` : ""}<span className="max-sm:hidden">. You can also paste a file.</span></p>
+                        <p className="mt-1 text-[13px] text-muted">Up to {cap ? mb(cap) : "20 MB"}{maxFiles > 1 ? `, ${maxFiles} files` : ""}{pageLimit ? `, ${pageLimit} pages` : ""}<span className="max-sm:hidden">. You can also paste a file.</span></p>
                       </>
                     ) : null}
                     <div className={`flex flex-wrap items-center justify-center gap-2 ${files.length ? "" : "mt-4"}`}>
@@ -642,7 +655,14 @@ export function ToolsPage() {
                     ))}
                   </ul>
                 )}
-                {tooBig && cap && <p className="text-sm text-bad" role="alert">These files add up to {mb(total)}. {tool.maxBytes && limits && tool.maxBytes < limits.maxBytes ? `${tool.label} takes up to ${mb(cap)}.` : `Your plan allows ${mb(cap)} a run.`} Remove a file or compress it first.</p>}
+                {tooManyPages > 0 && pageLimit && (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2.5 text-[13.5px]" role="alert" data-testid="tools-too-many-pages">
+                    <IconAlertCircle className="h-4 w-4 shrink-0 text-warn" aria-hidden />
+                    <span className="min-w-0 flex-1">{pagesLine(tool, options.language, tooManyPages, pageLimit)}</span>
+                    {splitEntry && <Button type="button" size="sm" variant="outline" className="max-sm:min-h-11" onClick={() => pick(splitEntry, files)} data-testid="tools-split-instead">Split PDF</Button>}
+                  </div>
+                )}
+                {tooBig && cap && <p className="text-sm text-bad" role="alert">{files.length === 1 ? `This file is ${mb(total)}.` : `These files add up to ${mb(total)}.`} {tool.maxBytes && limits && tool.maxBytes < limits.maxBytes ? `${tool.label} takes up to ${mb(cap)}.` : `Your plan allows ${mb(cap)} a run.`} Remove a file or compress it first.</p>}
 
                 {tool.extra && !fromMail && (
                   <div className="space-y-2" data-testid="tools-extra">
@@ -694,6 +714,9 @@ export function ToolsPage() {
                           <p className="text-[14.5px] font-semibold">{phase.title}</p>
                           <p className="mt-0.5 text-[13.5px] text-muted">{phase.message}</p>
                         </div>
+                        {!phase.limit && splitEntry && files.length === 1 && /\bsplit\b/i.test(phase.message) && (
+                          <Button type="button" size="sm" variant="outline" className="shrink-0 max-sm:ml-8 max-sm:min-h-11" onClick={() => pick(splitEntry, files)} data-testid="tools-error-split">Split PDF</Button>
+                        )}
                         {phase.limit && (
                           <div className="flex shrink-0 gap-2 max-sm:w-full max-sm:pl-8">
                             <Link to="/app/settings/billing" className="inline-flex h-9 items-center rounded-lg border border-line-strong px-3 text-sm font-medium hover:bg-hover max-sm:min-h-11">See plans</Link>
@@ -822,7 +845,7 @@ function ResultCard({ job, tool, before, level, onAttach, onChain, chaining, onA
           : <FileBadge name={job.name} big />}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold" title={job.name}><MidName name={job.name} phone={26} desk={44} /></p>
-          {job.notCounted && <p className="mt-0.5 text-[13px] text-muted" data-testid="tools-not-counted">Nothing was found, so this run was not counted.</p>}
+          {job.notCounted && <p className="mt-0.5 text-[13px] text-muted" data-testid="tools-not-counted">{notCountedLine(job.op)}</p>}
           {saved ? <p className="mt-0.5 text-[13.5px] font-medium" data-testid="tools-saved">{saved}</p> : null}
           {pct !== null && <div className="mt-1.5 h-1.5 w-full max-w-[220px] overflow-hidden rounded-full bg-fill" aria-hidden><div className="h-full rounded-full bg-ok" style={{ width: `${Math.max(3, pct)}%` }} /></div>}
           {facts && <p className="mt-0.5 text-[13px]" data-testid="tools-facts">{facts}</p>}

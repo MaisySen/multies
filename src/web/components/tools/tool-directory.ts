@@ -183,17 +183,29 @@ export function middleTruncate(name: string, max = 34): string {
 /** A plain size: 812 KB, 3.4 MB. */
 export const sizeLabel = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`);
 
-/** "27 KB to 3 KB, 89% smaller" for a compress result. */
+/**
+ * "27 KB to 3 KB, 89% smaller" for a compress result. R71 (MB-263): a level that could not shrink the file names the
+ * next level only when it can help: Light only tidies the file, so Balanced is worth a try when there are pictures;
+ * Balanced already shrinks every large picture, so Smallest would change little and is not offered.
+ */
 export function savedLine(before: number, after: number, level?: string): string | null {
   if (!before || !after) return null;
   const pct = Math.round((1 - after / before) * 100);
   if (pct < 2) {
-    // R70: the engine hands the file back unchanged (or a sliver smaller) when a level cannot shrink it; say what to try next.
     const sizes = after >= before ? `${sizeLabel(before)}, unchanged.` : `${sizeLabel(before)} to ${sizeLabel(after)}, about the same.`;
-    if (level === "light" || level === "medium") return `${sizes} ${level === "light" ? "Light" : "Balanced"} could not make it smaller. Try ${level === "light" ? "Balanced or Smallest" : "Smallest"}.`;
-    return after >= before ? `${sizeLabel(before)} to ${sizeLabel(after)}. This file was already small.` : `${sizes} This file was already small.`;
+    if (level === "light") return `${sizes} Light only tidies the file. If it has photos or scans, Balanced can shrink them.`;
+    return `${sizes} This file was already small.`;
   }
   return `${sizeLabel(before)} to ${sizeLabel(after)}, ${pct}% smaller`;
+}
+
+/** R71 (MB-264): why a chosen PDF is over the page limit, said before Run. */
+export function pagesLine(tool: Pick<ToolDef, "op" | "label" | "maxPages" | "options">, language: string | undefined, pages: number, limit: number): string {
+  if (tool.op === "ocr" && limit < (tool.maxPages ?? limit)) {
+    const lang = tool.options.find((o) => o.name === "language")?.choices?.find((c) => c.value === language)?.label ?? "This language";
+    return `This PDF has ${pages} pages. ${lang} reads up to ${limit} pages a run, so split it into parts of ${limit} pages first.`;
+  }
+  return `This PDF has ${pages} pages. ${tool.label} takes up to ${limit} pages a run, so split it into smaller parts first.`;
 }
 
 const RECENT_KEY = "multies.tools.recent";

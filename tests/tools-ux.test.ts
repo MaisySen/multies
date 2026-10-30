@@ -60,13 +60,13 @@ describe("Tools UX list", () => {
 
   it("says how much smaller a compressed file got", () => {
     expect(savedLine(27 * 1024, 3 * 1024)).toBe("27 KB to 3 KB, 89% smaller");
-    expect(savedLine(3 * 1024, 3 * 1024)).toBe("3 KB to 3 KB. This file was already small.");
-    // R70: a level that could not shrink the file says so and names the stronger level to try.
-    expect(savedLine(960 * 1024, 960 * 1024, "medium")).toBe("960 KB, unchanged. Balanced could not make it smaller. Try Smallest.");
-    expect(savedLine(960 * 1024, 960 * 1024, "light")).toBe("960 KB, unchanged. Light could not make it smaller. Try Balanced or Smallest.");
-    expect(savedLine(960 * 1024, 960 * 1024, "strong")).toBe("960 KB to 960 KB. This file was already small.");
+    expect(savedLine(3 * 1024, 3 * 1024)).toBe("3 KB, unchanged. This file was already small.");
+    // R71 (MB-263): only Light names a next level (Balanced shrinks pictures); Balanced never suggests Smallest.
+    expect(savedLine(960 * 1024, 960 * 1024, "medium")).toBe("960 KB, unchanged. This file was already small.");
+    expect(savedLine(960 * 1024, 960 * 1024, "light")).toBe("960 KB, unchanged. Light only tidies the file. If it has photos or scans, Balanced can shrink them.");
+    expect(savedLine(960 * 1024, 960 * 1024, "strong")).toBe("960 KB, unchanged. This file was already small.");
     expect(savedLine(960 * 1024, 270 * 1024, "medium")).toBe("960 KB to 270 KB, 72% smaller");
-    expect(savedLine(941 * 1024, 940 * 1024, "light")).toBe("941 KB to 940 KB, about the same. Light could not make it smaller. Try Balanced or Smallest.");
+    expect(savedLine(941 * 1024, 940 * 1024, "light")).toBe("941 KB to 940 KB, about the same. Light only tidies the file. If it has photos or scans, Balanced can shrink them.");
     expect(savedLine(941 * 1024, 940 * 1024)).toBe("941 KB to 940 KB, about the same. This file was already small.");
   });
 });

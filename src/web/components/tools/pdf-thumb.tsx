@@ -19,6 +19,27 @@ function loadPdfjs(): Promise<Pdfjs> {
   return loader;
 }
 
+/**
+ * R71 (MB-264): the page count of a PDF the person just chose, read in the browser, so a page limit shows before
+ * Run instead of after the upload. Null when it cannot be read (too big, locked, not a PDF); the server still checks.
+ */
+export async function countPdfPages(file: Blob, maxBytes = 25 * 1024 * 1024): Promise<number | null> {
+  if (file.size > maxBytes) return null;
+  let destroy: (() => void) | null = null;
+  try {
+    const data = new Uint8Array(await file.arrayBuffer());
+    const lib = await loadPdfjs();
+    const task = lib.getDocument({ data, disableAutoFetch: true, stopAtErrors: false });
+    destroy = () => { void task.destroy(); };
+    const doc = await task.promise;
+    return doc.numPages;
+  } catch {
+    return null;
+  } finally {
+    destroy?.();
+  }
+}
+
 export function PdfThumb({ url, bytes, width = 48, fallback }: { url: string; bytes?: number | null; width?: number; fallback: ReactNode }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [state, setState] = useState<"loading" | "ok" | "none">(bytes && bytes > THUMB_MAX_BYTES ? "none" : "loading");
