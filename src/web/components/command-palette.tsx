@@ -5,7 +5,7 @@
  * R54: typed words act ("assign MB-12 to Asha due Fri"): one preview row leads, Enter applies, Undo in the toast.
  * R55: more verbs ("MB-12 done", "MB-12 +urgent -later", "move MB-12 to Website"); the labels in use come from the loaded lists.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { Command } from "cmdk";
 import { useQueryClient } from "@tanstack/react-query";
@@ -184,9 +184,22 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
   );
 
   const taskTitle = task ? `${task.ref} ${task.title}` : "";
+  // R67 (MB-254): Enter pressed while the results for the words just typed are still on their way waits for them, then
+  // opens the top result, so it never opens a row left over from the previous words.
+  const heldEnter = useRef(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!heldEnter.current || content.loading) return;
+    heldEnter.current = false;
+    requestAnimationFrame(() => listRef.current?.querySelector<HTMLElement>("[cmdk-item][data-selected=true], [cmdk-item]")?.click());
+  }, [content.loading, content.data]);
+  useEffect(() => { heldEnter.current = false; }, [open]);
   return (
     <Command.Dialog open={open} onOpenChange={(v) => { if (!v) close(); else onOpenChange(v); }} label="Command menu" filter={paletteScore}
-      onKeyDown={(e) => { if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); } }}
+      onKeyDown={(e) => {
+        if (e.key === "Backspace" && !search && page) { e.preventDefault(); onPage(null); }
+        if (e.key === "Enter" && holdEnter({ search, loading: content.loading, typed: !!typed, page })) { e.preventDefault(); e.stopPropagation(); heldEnter.current = true; }
+      }}
       overlayClassName="fixed inset-0 z-[90] bg-black/40 backdrop-blur-[2px] animate-fade-in motion-reduce:animate-none"
       contentClassName="fixed left-1/2 top-[12vh] z-[100] flex w-[min(640px,calc(100vw-24px))] -translate-x-1/2 flex-col overflow-hidden rounded-xl border border-line-strong bg-surface/95 shadow-pop backdrop-blur-xl backdrop-saturate-150 animate-pop-in motion-reduce:animate-none max-sm:inset-0 max-sm:top-0 max-sm:h-dvh max-sm:w-full max-sm:translate-x-0 max-sm:left-0 max-sm:rounded-none max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:animate-sheet-up">
       {picker && (
@@ -203,7 +216,7 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
         <span className="max-sm:hidden"><Kbd>Esc</Kbd></span>
         <button type="button" onClick={close} className="hidden h-9 shrink-0 rounded-lg px-2 text-[15px] text-brand max-sm:block">Cancel</button>
       </div>
-      <Command.List className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
+      <Command.List ref={listRef} className={cn("max-h-[min(440px,62vh)] overflow-y-auto overscroll-contain py-1 max-sm:max-h-none max-sm:flex-1")}>
         {picker ? (
           <>
             {!task && <div className="px-4 py-8 text-center text-sm text-muted">Loading the task</div>}
@@ -252,4 +265,9 @@ export default function CommandPalette({ open, onOpenChange, onSignOut, page, on
       </div>
     </Command.Dialog>
   );
+}
+
+/** R67 (MB-254): whether Enter waits for the search results of the words in the box (not for typed actions or pickers). */
+export function holdEnter(x: { search: string; loading: boolean; typed: boolean; page: string | null }): boolean {
+  return !x.page && !x.typed && x.loading && x.search.trim().length > 0;
 }
