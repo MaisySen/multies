@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as WebBrowser from "expo-web-browser";
 import { API_BASE } from "@/config";
 import { ActionSheet } from "./action-sheet";
@@ -102,13 +102,23 @@ export function RecentStrip({ entries, onOpen }: { entries: Entry[]; onOpen: (e:
 }
 
 /** A picked file: icon, name truncated in the middle, size, and remove (and move, when the order matters). */
-export function FileChip({ name, size, onRemove, onUp, onDown, index, testID }: { name: string; size?: number; onRemove?: () => void; onUp?: () => void; onDown?: () => void; index?: number; testID?: string }) {
+export function FileChip({ name, size, onRemove, onUp, onDown, index, uri, type, testID }: { name: string; size?: number; onRemove?: () => void; onUp?: () => void; onDown?: () => void; index?: number;
+  /** R70: a photo or scan page shows itself, portrait and big enough to tell pages apart. */
+  uri?: string; type?: string; testID?: string }) {
   const pdf = /\.pdf$/i.test(name);
+  const picture = !!uri && /^(file|content|ph|blob|data|https?):/.test(uri) && (/^image\/(jpeg|png|webp|heic)/.test(type ?? "") || /\.(jpe?g|png|webp|heic)$/i.test(name));
   return (
-    <View testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 56, paddingLeft: space.md, paddingRight: space.xs, borderRadius: radius.md, backgroundColor: colors.elevated }}>
+    <View testID={testID} style={{ flexDirection: "row", alignItems: "center", gap: space.md, minHeight: picture ? 92 : 56, paddingLeft: picture ? space.sm : space.md, paddingVertical: picture ? space.sm : 0, paddingRight: space.xs, borderRadius: radius.md, backgroundColor: colors.elevated }}>
+      {picture ? (
+        <View style={{ width: 56, height: 76 }} testID={testID ? `${testID}-thumb` : undefined}>
+          <Image source={{ uri }} style={{ width: 56, height: 76, borderRadius: 6, backgroundColor: colors.surface }} resizeMode="cover" accessibilityIgnoresInvertColors />
+          {index !== undefined ? <View style={{ position: "absolute", left: 4, top: 4, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center" }}><Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 12 }}>{index + 1}</Text></View> : null}
+        </View>
+      ) : (
       <View style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: pdf ? "rgba(255,59,48,0.14)" : colors.brandSoft, alignItems: "center", justifyContent: "center" }}>
         {index !== undefined ? <Text style={{ color: pdf ? TILE.red : colors.brand, fontWeight: "700", fontSize: 13 }}>{index + 1}</Text> : <Icon name={pdf ? "file-text" : "paperclip"} size={17} color={pdf ? TILE.red : colors.brand} />}
       </View>
+      )}
       <View style={{ flex: 1 }}>
         <Text style={{ color: colors.fg, fontSize: 15, fontWeight: "500" }} numberOfLines={1} accessibilityLabel={name}>{middleTruncate(name, 32)}</Text>
         {size ? <Text style={{ color: colors.subtle, fontSize: 13 }}>{sizeLabel(size)}</Text> : null}
@@ -185,6 +195,13 @@ export function RunSteps({ at, pct, line, elapsed, note, onCancel }: { at: StepK
 }
 
 /** One option: a sheet for long lists, segments for two or three choices, a text field otherwise. */
+/** R70: the picked choice's own line (what a compress level will do), read out when it changes. */
+function ChoiceHint({ o, value }: { o: ToolOption; value: string }) {
+  const hint = o.choices?.find((c) => c.value === (value || String(o.default ?? "")))?.hint;
+  if (!hint) return null;
+  return <Text style={{ color: colors.muted, fontSize: 13.5, lineHeight: 19 }} accessibilityLiveRegion="polite" testID={`opt-${o.name}-hint`}>{hint}</Text>;
+}
+
 export function OptionField({ o, value, error, disabled, onChange }: { o: ToolOption; value: string; error?: string | null; disabled?: boolean; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
   if (o.kind === "json") return null;
@@ -195,6 +212,7 @@ export function OptionField({ o, value, error, disabled, onChange }: { o: ToolOp
         <View style={{ gap: 6 }}>
           <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{o.label}</Text>
           <Segmented label={o.label} value={value || String(o.default ?? o.choices[0].value)} options={o.choices.map((c) => ({ id: c.value, label: c.label }))} onChange={(v) => !disabled && onChange(v)} />
+          <ChoiceHint o={o} value={value} />
           {o.help ? <Text style={{ color: colors.subtle, fontSize: 13 }}>{o.help}</Text> : null}
         </View>
       );
@@ -208,6 +226,7 @@ export function OptionField({ o, value, error, disabled, onChange }: { o: ToolOp
           <Text style={{ flex: 1, color: colors.fg, fontSize: 16 }} numberOfLines={1}>{current?.label ?? "Choose"}</Text>
           <Icon name="chevron-down" size={16} color={colors.subtle} />
         </Pressable>
+        <ChoiceHint o={o} value={value} />
         {o.help ? <Text style={{ color: colors.subtle, fontSize: 13 }}>{o.help}</Text> : null}
         <ActionSheet visible={open} title={o.label} options={o.choices.map((c) => ({ id: c.value, label: c.label, selected: c.value === (current?.value ?? "") }))}
           onClose={() => setOpen(false)} onSelect={(v) => { setOpen(false); onChange(v); }} testID={`opt-${o.name}-sheet`} />

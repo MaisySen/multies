@@ -13,7 +13,7 @@ import {
   type PickedFile, type ToolDef, type ToolJob,
 } from "@/lib/tools";
 import { asPicked, downloadResult, openFile, pickFiles, readResultText, saveToPhone, shareFile, uploadJob } from "@/lib/tools-files";
-import { ADVANCED, buildEntries, middleTruncate, noRunsLine, offlineDelay, runsLeft, savedLine, sizeLabel, waitLine, type Entry } from "@/lib/tool-directory";
+import { ADVANCED, buildEntries, middleTruncate, noRunsLine, offlineDelay, runsLeft, runsLeftLabel, savedLine, sizeLabel, waitLine, type Entry } from "@/lib/tool-directory";
 import { attachToNewEmail, carryFile, clearRun, loadRun, rememberRecent, saveRun, takeCarried, type SavedRun } from "@/lib/tool-run";
 import { groupMatches, parseMatches, phrasesFor, PII_KINDS, type PiiMatch } from "@/lib/auto-redact";
 import { colors, radius, space, TOUCH } from "@/theme";
@@ -348,16 +348,30 @@ export default function ToolScreen() {
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ title: "", headerRight: () => <Button variant="ghost" label="Done" onPress={() => (router.canGoBack() ? router.back() : router.replace("/tools"))} testID="tool-close" style={{ minHeight: 36, paddingHorizontal: 8 }} /> }} />
       <ScrollView contentContainerStyle={{ padding: space.lg, gap: space.lg, paddingBottom: space.xxl * 3 }} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" testID={`tool-screen-${def.op}`}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
-          {entry ? <ToolTile entry={entry} size={44} /> : null}
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: colors.fg, fontSize: 20, fontWeight: "700" }} accessibilityRole="header" numberOfLines={2}>{name}</Text>
-            <Text style={{ color: colors.muted, fontSize: 14.5, lineHeight: 20 }}>{def.blurb}</Text>
+        {/* R70: the same frame as the web Tools pages: All tools, icon, name, one line, runs left, and the no runs note up front. */}
+        <Pressable onPress={() => { tick(); if (router.canGoBack()) router.back(); else router.replace("/tools"); }} accessibilityRole="button" accessibilityLabel="All tools" testID="tool-all-tools"
+          style={{ flexDirection: "row", alignItems: "center", gap: 4, minHeight: TOUCH, alignSelf: "flex-start", marginTop: -space.sm, marginBottom: -space.sm }}>
+          <Icon name="chevron-left" size={18} color={colors.brand} />
+          <Text style={{ color: colors.brand, fontSize: 15, fontWeight: "600" }}>All tools</Text>
+        </Pressable>
+        <View style={{ gap: space.sm }} testID="tool-frame-header">
+          <View style={{ flexDirection: "row", alignItems: "center", gap: space.md }}>
+            {entry ? <ToolTile entry={entry} size={48} /> : null}
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={{ color: colors.fg, fontSize: 20, fontWeight: "700" }} accessibilityRole="header" numberOfLines={2}>{name}</Text>
+              <Text style={{ color: colors.muted, fontSize: 14.5, lineHeight: 20 }}>{def.blurb}</Text>
+            </View>
           </View>
+          <Text style={{ color: noRuns ? colors.bad : colors.subtle, fontSize: 13.5, fontWeight: "500" }} testID="tool-usage">{runsLeftLabel(left)}</Text>
+          {noRuns && phase.kind !== "done" ? (
+            <View style={{ padding: space.md, borderRadius: radius.md, backgroundColor: colors.badSoft }} testID="tool-no-runs-top" accessibilityRole="alert">
+              <Text style={{ color: colors.fg, fontSize: 14, lineHeight: 20 }}>{noRunsLine(left)}</Text>
+            </View>
+          ) : null}
         </View>
 
         {phase.kind === "done" ? (
-          <ResultCard job={phase.job} before={before} fetching={fetching} chainable={resultExt(def, options) !== "zip" && !flow}
+          <ResultCard job={phase.job} before={before} level={def.op === "compress" ? options.level : undefined} fetching={fetching} chainable={resultExt(def, options) !== "zip" && !flow}
             onOpen={() => doOpen(phase.job)} onSave={() => doSave(phase.job)} onShare={() => doShare(phase.job)} onAttach={() => doAttach(phase.job)}
             onChain={() => doChain(phase.job)} onStartOver={startOver} />
         ) : phase.kind === "review" ? (
@@ -376,7 +390,7 @@ export default function ToolScreen() {
                   <>
                     <Text style={{ color: colors.muted, fontSize: 14, fontWeight: "500" }}>{files.length === 1 ? "Your file" : `${files.length} files${def.ordered ? ", in this order" : ""}`}</Text>
                     {files.map((f, i) => (
-                      <FileChip key={`${f.uri}-${i}`} name={f.name} size={f.size} index={def.ordered && files.length > 1 ? i : undefined} testID={`tool-file-${i}`}
+                      <FileChip key={`${f.uri}-${i}`} name={f.name} size={f.size} uri={f.uri} type={f.type} index={def.ordered && files.length > 1 ? i : undefined} testID={`tool-file-${i}`}
                         onRemove={() => setFiles((cur) => cur.filter((_, k) => k !== i))}
                         onUp={def.ordered && i > 0 ? () => setFiles((cur) => { const n = [...cur]; [n[i - 1], n[i]] = [n[i], n[i - 1]]; return n; }) : undefined}
                         onDown={def.ordered && i < files.length - 1 ? () => setFiles((cur) => { const n = [...cur]; [n[i + 1], n[i]] = [n[i], n[i + 1]]; return n; }) : undefined} />
@@ -461,11 +475,11 @@ export default function ToolScreen() {
 }
 
 /** The result: what was made, what it saved, and every next step. */
-function ResultCard({ job, before, fetching, chainable, onOpen, onSave, onShare, onAttach, onChain, onStartOver }: {
-  job: ToolJob; before: number | null; fetching: boolean; chainable: boolean;
+function ResultCard({ job, before, level, fetching, chainable, onOpen, onSave, onShare, onAttach, onChain, onStartOver }: {
+  job: ToolJob; before: number | null; level?: string; fetching: boolean; chainable: boolean;
   onOpen: () => void; onSave: () => void; onShare: () => void; onAttach: () => void; onChain: () => void; onStartOver: () => void;
 }) {
-  const saved = before && job.bytes ? savedLine(before, job.bytes) : null;
+  const saved = before && job.bytes ? savedLine(before, job.bytes, level) : null;
   const facts = resultLine({ ...job, bytes: saved ? undefined : job.bytes });
   return (
     <View style={{ gap: space.md }} testID="tool-done">

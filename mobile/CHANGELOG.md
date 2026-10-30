@@ -3,6 +3,16 @@
 All notable changes to the Multies mobile app. Versions follow the store version (versionName on
 Android, CFBundleShortVersionString on iOS).
 
+## 1.10.2 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
+
+- Compress: pick Light, Balanced or Smallest. Each says what to expect, and scanned PDFs now shrink a
+  lot more. If a level cannot make a file smaller, it says so and names the one to try.
+- Every tool screen has the same frame as multies.si: All tools, the tool's icon, how many runs are
+  left, and a clear note at the top when today's runs are used up, before you pick a file.
+- Photos and scanned pages show as bigger pictures, so you can tell pages apart before you join them.
+
+Carries everything in 1.10.1.
+
 ## 1.10.1 (OTA, runs on Android versionCode 16 and iOS build 20), 31 Oct 2026
 
 - New Tools: the same design as multies.si. Search, your recent tools, and five sections: Edit PDF,

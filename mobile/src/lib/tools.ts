@@ -17,7 +17,8 @@ export interface ToolOption {
   label: string;
   required?: boolean;
   default?: string | number;
-  choices?: { value: string; label: string }[];
+  /** R70: a choice can carry one plain line shown while it is picked (compress levels say what to expect). */
+  choices?: { value: string; label: string; hint?: string }[];
   min?: number;
   max?: number;
   maxLen?: number;

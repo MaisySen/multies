@@ -93,6 +93,11 @@ describe("Tools P2 on the phone: runs left and words", () => {
   it("says what was saved, truncates in the middle, and waits longer each time offline", () => {
     expect(savedLine(27 * 1024, 3 * 1024)).toBe("27 KB to 3 KB, 89% smaller");
     expect(savedLine(10_000, 12_000)).toMatch(/already small/);
+    // R70: a level that could not shrink the file names the stronger one (same words as the web).
+    expect(savedLine(983_040, 983_040, "medium")).toBe("960 KB, unchanged. Balanced could not make it smaller. Try Smallest.");
+    expect(savedLine(983_040, 983_040, "light")).toMatch(/Try Balanced or Smallest\.$/);
+    expect(savedLine(983_040, 983_040, "strong")).toMatch(/already small/);
+    expect(savedLine(963_584, 962_560, "light")).toBe("941 KB to 940 KB, about the same. Light could not make it smaller. Try Balanced or Smallest.");
     expect(middleTruncate("Lease agreement 2026 final version signed.pdf", 30)).toBe("Lease agreement…ion signed.pdf");
     expect(middleTruncate("short.pdf")).toBe("short.pdf");
     expect([0, 1, 2, 3, 9].map(offlineDelay)).toEqual([2000, 4000, 8000, 15000, 15000]);
