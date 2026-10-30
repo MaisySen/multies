@@ -7,6 +7,15 @@ boundaries are approximate; from round 10 on, this file is updated in the same r
 
 ## [Unreleased] (rounds 11 to 15)
 
+### Round 74 (30 Oct 2026)
+
+- Changed: faster first load on a slow phone network. The icon glyphs split into the ones the first screens draw and the rest (first file 39 to 17 KB gzip), the footer legal line no longer pulls the legal documents into the entry (46 to 37 KB gzip), and the command menu and next page prefetch wait until the page has loaded (skipped on slow or data saving connections).
+- Added: Tools screens and the editors ask before a picked, unsaved file is lost (reload, close, or leaving the page) and bring the file back after a reload of the same tab (kept in this browser for an hour, wiped on sign out, 50 MB cap).
+- Added: Split PDF choices (Every page, Every N pages, Two halves, Choose pages) with a live preview of the parts; the same ranges go to the engine.
+- Fixed (MB-271): our own smoke and QA checks send a token (QA_CHECK_TOKEN in x-multies-check); their demos are marked and never count toward the visitors' daily demo cap or the per address limit.
+- Changed (MB-212): Mail with no mailbox offers the free address first when it is on.
+- What's new drops "Free for a small team, and easy to move in" to stay at 14.
+
 ### Round 73 (30 Oct 2026)
 
 - Fixed: a page whose code could not load (offline, a flaky network) no longer reloads the tab or lands on "Multies was updated" or the browser's offline page. Every lazily loaded page and panel retries once, reloads once only when version.json names a newer release, and otherwise shows "Could not load this page" with Retry inside the app frame; it opens by itself when the connection returns. Reload loops are guarded.

@@ -16,6 +16,12 @@ export interface WhatsNewEntry {
 
 export const WHATS_NEW: readonly WhatsNewEntry[] = [
   {
+    id: "2026-10-31-split-keep-faster",
+    date: "2026-10-31",
+    title: "Split in one tap, and your file stays put",
+    body: "Split PDF offers Every page, Every few pages or Two halves, and shows the parts before you run it. A picked file in Tools comes back after a reload, and leaving with it unsaved asks first. The app also opens faster on a slow phone signal.",
+  },
+  {
     id: "2026-10-31-tools-smoother",
     date: "2026-10-31",
     title: "Tools that tell you sooner",
@@ -86,12 +92,6 @@ export const WHATS_NEW: readonly WhatsNewEntry[] = [
     date: "2026-10-29",
     title: "Share a guest invite yourself",
     body: "When an invite email doesn't reach a guest, copy their invite link and send it your own way. Get link on a waiting guest makes a fresh one.",
-  },
-  {
-    id: "2026-10-29-free-and-switch",
-    date: "2026-10-29",
-    title: "Free for a small team, and easy to move in",
-    body: "See what Free includes on one page, and move your work over from eight tools, with a sample file to try first.",
   },
   {
     id: "2026-10-28-whats-new",

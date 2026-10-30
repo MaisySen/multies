@@ -67,7 +67,9 @@ describe("R53 whats-new list", () => {
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-inbox-reply")).toBe(false);
     // R71: "Your whole mailbox syncs by itself" made room for the QA pass 6 fixes.
     expect(WHATS_NEW.some((e) => e.id === "2026-10-29-full-mailbox-sync")).toBe(false);
-    expect(WHATS_NEW[0].id).toBe("2026-10-31-tools-smoother");
+    // R74: "Free for a small team, and easy to move in" made room for Split choices and the kept file.
+    expect(WHATS_NEW.some((e) => e.id === "2026-10-29-free-and-switch")).toBe(false);
+    expect(WHATS_NEW[0].id).toBe("2026-10-31-split-keep-faster");
     for (const id of ["2026-10-28-more-safe-retries", "2026-10-28-lighter-mail-sync", "2026-10-28-safe-retries", "2026-10-28-quicker-task-lists", "2026-10-27-steadier-my-work"]) {
       expect(WHATS_NEW.some((e) => e.id === id), id).toBe(false);
     }
