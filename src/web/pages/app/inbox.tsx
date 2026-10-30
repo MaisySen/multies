@@ -1,5 +1,6 @@
 import { useSearchParams } from "react-router";
 import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
+import { BatchTools } from "@/web/components/tools/batch-tools"; // Tools P2
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconReply, IconUser } from "@/web/components/ui/icon";
@@ -150,6 +151,7 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
           )}
         </Card>
       ))}
+      <BatchTools attachments={t.messages.flatMap((m) => m.attachments.map((a) => ({ id: a.id, filename: a.filename, available: !!a.url })))} /> {/* Tools P2: batch */}
       {t.pendingApprovals.map((a) => <ApprovalCard key={a.id} a={a} compact />)}
       {canReply(t.mailboxId) && t.messages.length > 0 && (
         <div className="flex flex-wrap items-center gap-2" data-testid="inbox-reply-bar">

@@ -3,6 +3,7 @@ import { ImportSection, XeroSection } from "./import-section";
 import { AiSection } from "./ai-section";
 import { SavedRepliesSection } from "./mail/saved-replies";
 import { ReadStatusSection } from "./mail/splits"; // R31
+import { AttachmentIndexSection } from "./attachment-index-settings"; // Tools P2 (17)
 import { ShareLinksSetting } from "./work/share-sheet"; // R26 (MB-87)
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,6 +21,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { timeAgo } from "@/web/lib/format";
 import { cn } from "@/web/lib/cn";
+import { SendRulesSettings } from "./tools-automation/rules-section"; // Tools P2
 import { COUNTRIES, DEFAULT_COUNTRY, DEFAULT_TIMEZONE, LANGUAGES, LOCALE, cleanLocale } from "@/shared/locale";
 
 /**
@@ -188,6 +190,8 @@ export function GeneralSettings() {
       <Section id="share-links" title="Share links" description="Read only links to a doc or a board for people outside the workspace."><ShareLinksSetting /></Section>
       <AiSection />
       <ToolsSection />
+      <AttachmentIndexSection Section={Section} />
+      <SendRulesSettings Section={Section} /> {/* Tools P2: auto rules before sending */}
       <XeroSection />
       <WorkspaceExport />
       <DangerZone />

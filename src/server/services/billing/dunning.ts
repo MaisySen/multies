@@ -9,6 +9,7 @@ import { createElement } from "react";
 import type { Deps } from "../../context";
 import { auditLogs, members, organizations, users } from "../../db/schema";
 import { HttpError } from "../../lib/errors";
+import { EXCL_GST, formatCents, formatMoney, localizeStripeText } from "@/shared/money";
 import { ADDONS, PLANS } from "@/shared/plans";
 // R53 (cold start): templates load on the first billing mail sent, not at isolate startup.
 const tpl = () => import("../../emails");
@@ -25,8 +26,9 @@ export async function billingContacts(deps: Deps, orgId: string) {
   return rows.map((r) => r.email);
 }
 
-export function money(cents: number | null | undefined, currency = "aud") {
-  return new Intl.NumberFormat("en-AU", { style: "currency", currency: currency.toUpperCase() }).format((cents ?? 0) / 100);
+/** Stripe cents for billing mail: "A$3.50" for AUD, the currency code for anything else (src/shared/money.ts). */
+export function money(cents: number | null | undefined, currency: string | null | undefined = "aud") {
+  return formatCents(cents, currency);
 }
 
 /** True once the grace period after a failed payment has run out. */
@@ -72,18 +74,20 @@ export async function onInvoicePaid(deps: Deps, org: Org, inv: InvoiceLike) {
     await audit(deps.db, { orgId: org.id, action: "billing.recovered", metadata: { invoice: inv.number ?? inv.id } });
   }
   if (!inv.amount_paid) return;
-  const lines = (inv.lines?.data ?? []).map((l) => ({ description: l.description ?? "Subscription", amount: money(l.amount, inv.currency) }));
+  const lines = (inv.lines?.data ?? []).map((l) => ({ description: localizeStripeText(l.description ?? "Subscription", inv.currency), amount: money(l.amount, inv.currency) }));
   const total = money(inv.amount_paid, inv.currency);
+  // GST: Multies prices exclude GST. When the invoice adds GST, the lines are before GST and the total includes it.
+  const tax = inv.tax ? money(inv.tax, inv.currency) : undefined;
   const date = new Date((inv.created ?? Math.floor(deps.now().getTime() / 1000)) * 1000).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: org.timezone });
   const number = inv.number ?? inv.id ?? "";
   for (const to of await billingContacts(deps, org.id)) {
     await sendSystemEmail(deps, {
       to, orgId: org.id, template: "receipt", subject: `Receipt ${number} for ${org.name}: ${total}`,
-      text: `Thanks. We received ${total} for ${org.name} on ${date}.${lines.map((l) => `\n${l.description}: ${l.amount}`).join("")}`,
+      text: `Thanks. We received ${total} for ${org.name} on ${date}.${lines.map((l) => `\n${l.description}: ${l.amount}`).join("")}${tax ? `\nLine amounts are ${EXCL_GST}. Total includes GST of ${tax}.` : ""}`,
       action: inv.hosted_invoice_url ? { label: "View invoice", url: inv.hosted_invoice_url } : undefined,
       element: createElement((await tpl()).Receipt, {
         brand: emailBrand(deps), workspace: org.name, number, date, lines, total,
-        tax: inv.tax ? money(inv.tax, inv.currency) : undefined, url: inv.hosted_invoice_url ?? undefined,
+        tax, url: inv.hosted_invoice_url ?? undefined,
       }),
     }).catch(() => undefined);
   }
@@ -134,7 +138,7 @@ export async function maybeUsageAlert(deps: Deps, org: Org, used: number, limit:
     await sendSystemEmail(deps, {
       to, orgId: org.id, template: "usage-alert",
       subject: crossed >= 100 ? `${org.name} reached its daily sending limit` : `${org.name} has used ${crossed}% of its daily sends`,
-      text: `${org.name} has sent to ${used} of ${limit} recipients today on the ${plan.name} plan. The limit resets at midnight UTC. A send boost adds ${boost.grants.dailySends!.toLocaleString("en-AU")} a day for A$${boost.priceMonthly} a month.`,
+      text: `${org.name} has sent to ${used} of ${limit} recipients today on the ${plan.name} plan. The limit resets at midnight UTC. A send boost adds ${boost.grants.dailySends!.toLocaleString("en-AU")} a day for ${formatMoney(boost.priceMonthly)} a month, ${EXCL_GST}.`,
       action: { label: "Add a send boost", url: `${deps.config.appUrl}/app/settings/billing` },
       element: createElement((await tpl()).UsageAlert, { brand: emailBrand(deps), workspace: org.name, metric: "daily sends", used, limit, plan: plan.name, addon: "a send boost" }),
     }).catch(() => undefined);

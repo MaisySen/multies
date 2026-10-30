@@ -16,6 +16,7 @@ import { Dialog } from "@/web/components/ui/dialog";
 import { cn } from "@/web/lib/cn";
 import { Section } from "./settings";
 import { LOCALE } from "@/shared/locale";
+import { EXCL_GST, formatCents } from "@/shared/money";
 import { tz } from "@/web/lib/format";
 
 interface BillingInfo {
@@ -41,7 +42,8 @@ interface AddonPreview { dueNow: number; credit: number; currency: string; charg
 interface ReferralInfo { code: string; link: string; signedUp: number; waiting: number; credited: number; creditedThisYear: number; capPerYear: number; holdDays: number; minCreditCents: number; maxCreditCents: number }
 interface Invoice { id: string; number: string | null; status: string; total: number; currency: string; createdAt: string; hostedUrl: string | null; pdfUrl: string | null }
 
-const money = (cents: number, currency: string) => new Intl.NumberFormat(LOCALE, { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
+/** Stripe amounts (invoices, proration previews) carry their currency: "A$3.50" for AUD (src/shared/money.ts). */
+const money = (cents: number, currency: string) => formatCents(cents, currency);
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" | "neutral" }> = {
   active: { label: "Active", tone: "ok" }, trialing: { label: "Trial", tone: "ok" }, past_due: { label: "Payment overdue", tone: "warn" },
   unpaid: { label: "Unpaid", tone: "bad" }, canceled: { label: "Cancelled", tone: "neutral" }, incomplete: { label: "Incomplete", tone: "warn" },
@@ -156,7 +158,7 @@ export function BillingSettings() {
                   {status && <Badge tone={status.tone} dot>{status.label}</Badge>}
                 </div>
                 <span className="block whitespace-nowrap text-sm text-muted">
-                  {b.charge.amount === 0 ? "A$0, nothing to pay" : `${formatPlanPrice(b.charge.amount)} AUD a ${b.charge.interval === "year" ? "year" : "month"}`}
+                  {b.charge.amount === 0 ? "A$0, nothing to pay" : `${formatPlanPrice(b.charge.amount)} a ${b.charge.interval === "year" ? "year" : "month"}`}
                 </span>
               </div>
             </div>
@@ -196,7 +198,7 @@ export function BillingSettings() {
         )}
       </Section>
 
-      <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. Pay yearly and get two months free. When your add-ons come to less than A$${YEARLY_BELOW_MONTHLY} a month, they bill once a year, so card fees don't eat a A$1 charge.`}>
+      <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. Pay yearly and get two months free. When your add-ons come to less than ${formatPlanPrice(YEARLY_BELOW_MONTHLY)} a month, they bill once a year, so card fees don't eat a A$1 charge. Prices are ${EXCL_GST}.`}>
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
           {ADDON_ORDER.map((id) => {
             const a = ADDONS[id];
@@ -225,7 +227,7 @@ export function BillingSettings() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm">
             <span className="text-muted">{dirty ? "New total: " : "Total: "}</span>
-            <strong className="tabular-nums">{next.amount === 0 ? "A$0" : `${formatPlanPrice(next.amount)} AUD a ${next.interval === "year" ? "year" : "month"}`}</strong>
+            <strong className="tabular-nums">{next.amount === 0 ? "A$0" : `${formatPlanPrice(next.amount)} a ${next.interval === "year" ? "year" : "month"}`}</strong>
             {next.interval === "year" && next.amount > 0 && <span className="text-subtle"> ({YEARLY_MONTHS_CHARGED} months for 12, you save {formatPlanPrice(next.yearlySaving)})</span>}
             {/* R62: monthly or yearly with two months free. Under A$5 a month it is yearly only. */}
             {isOwner && paidFlow && canChooseInterval && (
@@ -285,7 +287,7 @@ export function BillingSettings() {
         footer={<><Button variant="secondary" onClick={() => setReviewing(false)}>Cancel</Button><Button loading={save.isPending} disabled={preview.isPending || !!preview.error} onClick={() => save.mutate()}>Confirm change</Button></>}>
         {preview.isPending ? <Skeleton className="h-5 w-64" /> : preview.error ? <p className="text-sm text-bad">{preview.error.message}</p> : preview.data && (
           <div className="space-y-2 text-sm text-muted">
-            <p>From now on: <strong className="text-fg">{formatPlanPrice(preview.data.charge.amount)} AUD a {preview.data.charge.interval === "year" ? "year" : "month"}</strong>.</p>
+            <p>From now on: <strong className="text-fg">{formatPlanPrice(preview.data.charge.amount)} a {preview.data.charge.interval === "year" ? "year" : "month"}</strong>.</p>
             {preview.data.dropsDiscount && <p>Moving to yearly billing ends your launch discount, which applies to monthly billing only.</p>}
             <p>
               {preview.data.dueNow > 0

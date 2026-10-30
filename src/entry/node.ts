@@ -3,6 +3,7 @@
  *   npm run dev:api   (API on :8787, Vite proxies /api to it)
  *   npm run build && npm start   (one process serves everything)
  */
+import { MemoryToolFileStore } from "../server/services/tools/p2-bindings";
 import { isKnownPage } from "../shared/known-routes";
 import * as Sentry from "@sentry/node";
 import { sentryPrivacy } from "../shared/sentry-scrub";
@@ -16,8 +17,8 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { createApp } from "../server/app";
 import { loadConfig } from "../server/config";
-import { migrate } from "../server/db";
-import { openSqlite } from "../server/db/node";
+import { migrate, migrateIndex } from "../server/db";
+import { indexDbPath, openSqlite } from "../server/db/node";
 import { DohResolver } from "../server/services/dns/resolver";
 import { NodeResolver } from "../server/services/dns/node-resolver";
 import { LogOutbound, ResendOutbound, type OutboundMessage } from "../server/services/mail/outbound";
@@ -50,9 +51,18 @@ import { loginVariant } from "../server/auth/config";
 loadDotEnv();
 const config = loadConfig(process.env);
 if (config.sentry.dsnApi) Sentry.init({ dsn: config.sentry.dsnApi, environment: config.sentry.environment, release: config.release, tracesSampleRate: config.sentry.tracesSampleRate, ...sentryPrivacy });
-const db = openSqlite(process.env.DATABASE_PATH ?? ".data/mymail.db");
+const dbPath = process.env.DATABASE_PATH ?? ".data/mymail.db";
+const db = openSqlite(dbPath);
 const applied = await migrate(db);
 if (applied.length) console.log(`[db] applied migrations: ${applied.join(", ")}`);
+// Tools P2 (17): the attachment text index lives in a second SQLite file (INDEX_DATABASE_PATH, by default next
+// to the main one), the way the Worker uses a second D1 database (INDEX_DB). INDEX_DATABASE_PATH=off leaves it out.
+const indexPath = indexDbPath(dbPath);
+const indexDb = indexPath ? openSqlite(indexPath) : undefined;
+if (indexDb) {
+  const appliedIndex = await migrateIndex(indexDb);
+  if (appliedIndex.length) console.log(`[db] applied index migrations: ${appliedIndex.join(", ")}`);
+}
 
 // Self-hosted installs send through their own mail server when SMTP_HOST is set (src/entry/smtp-outbound.ts).
 const smtp = smtpSettingsFrom(process.env);
@@ -67,7 +77,7 @@ const outbound = config.outbound.driver === "resend"
 const dns = config.dnsResolver === "node" ? new NodeResolver() : new DohResolver();
 
 const deps = {
-  db, config, dns, outbound, now: () => new Date(),
+  db, indexDb, config, dns, outbound, now: () => new Date(),
   // Round 23: AI_FAKE=1 on a localhost APP_URL answers the AI providers locally (end to end tests only).
   fetch: fakeAiAllowed(process.env) ? fakeAiFetch(globalThis.fetch.bind(globalThis)) : globalThis.fetch.bind(globalThis),
   log: jsonLogger({ service: "mymail-api", release: config.release, env: config.sentry.environment }),
@@ -75,6 +85,8 @@ const deps = {
   bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
   // R43: IMPORT_FILES=memory keeps import uploads in this process so the scheduled pass can finish a run (tests).
   importFiles: process.env.IMPORT_FILES === "memory" ? new MemoryImportFileStore() : undefined,
+  // Tools P2: TOOL_FILES=memory keeps share and signing files in this process (tests and local runs).
+  toolFiles: process.env.TOOL_FILES === "memory" ? new MemoryToolFileStore() : undefined,
   reportError: config.sentry.dsnApi ? (err: unknown, context?: Record<string, unknown>) => Sentry.captureException(err, { extra: context }) : undefined,
 };
 const app = createApp(deps);

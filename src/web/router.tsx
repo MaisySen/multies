@@ -85,6 +85,15 @@ const NotificationSettings = lazy(() => notificationPages().then((m) => ({ defau
 const TemplatesPage = lazy(() => import("./pages/app/work/templates").then((m) => ({ default: m.TemplatesPage })));
 const IntegrationsPage = lazy(() => import("./pages/app/work/integrations").then((m) => ({ default: m.IntegrationsPage })));
 const ToolsPage = lazy(() => import("./pages/app/tools").then((m) => ({ default: m.ToolsPage })));
+const ToolsAiPage = lazy(() => import("./pages/app/tools-ai").then((m) => ({ default: m.ToolsAiPage }))); // Tools P2: AI documents
+const ToolsEditorRoute = lazy(() => import("./pages/app/tools-editors/route").then((m) => ({ default: m.ToolsEditorRoute }))); // Tools P2: editors
+const FilesPage = lazy(() => import("./pages/app/files").then((m) => ({ default: m.FilesPage }))); // Tools P2 (16)
+const ShareLinksPage = lazy(() => import("./pages/app/tools-share-sign/share-links").then((m) => ({ default: m.ShareLinksPage }))); // Tools P2: share links
+const SignPage = lazy(() => import("./pages/app/tools-share-sign/sign").then((m) => ({ default: m.SignPage }))); // Tools P2: e-sign
+// Tools P2: automation pages
+const WorkflowsPage = lazy(() => import("./pages/app/tools-automation/workflows").then((m) => ({ default: m.WorkflowsPage })));
+const DocTemplatesPage = lazy(() => import("./pages/app/tools-automation/templates").then((m) => ({ default: m.TemplatesPage })));
+const MergePage = lazy(() => import("./pages/app/tools-automation/merge").then((m) => ({ default: m.MergePage })));
 const SchedulingPage = lazy(() => import("./pages/app/work/scheduling").then((m) => ({ default: m.SchedulingPage })));
 const bookPages = () => import("./pages/book");
 const BookingPage = lazy(() => bookPages().then((m) => ({ default: m.BookingPage })));
@@ -203,6 +212,14 @@ export const router = createBrowserRouter([
       { path: "meetings/:id", element: page(<MeetingPage />) },
       { path: "scheduling", element: page(<SchedulingPage />) },
       { path: "tools", element: page(<ToolsPage />) }, // Tools P1
+      { path: "tools/ai", element: page(<ToolsAiPage />) }, // Tools P2: AI documents
+      { path: "tools/:editor", element: page(<ToolsEditorRoute />) }, // Tools P2: editors (pages, forms, compare)
+      { path: "files", element: page(<FilesPage />) }, // Tools P2 (16): smart folders
+      { path: "tools/share", element: page(<ShareLinksPage />) }, // Tools P2: share links
+      { path: "tools/sign", element: page(<SignPage />) }, // Tools P2: e-sign
+      { path: "tools/workflows", element: page(<WorkflowsPage />) }, // Tools P2: workflows
+      { path: "tools/templates", element: page(<DocTemplatesPage />) }, // Tools P2: templates
+      { path: "tools/merge", element: page(<MergePage />) }, // Tools P2: mail merge
       { path: "deliverability", element: page(<DeliverabilityPage />) },
       { path: "admin", element: page(<AdminPage />) },
       { path: "admin/reports", element: page(<ModerationPage />) }, // R35: moderation queue

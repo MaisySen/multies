@@ -8,7 +8,8 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { TOOLS, resultName, toolDef, toolsForFile, type ToolOp } from "@/shared/tools";
+import { EXT_TYPES, TOOLS, isToolOp, resultName, toolDef, toolExtensions, toolsForFile, type ToolOp } from "@/shared/tools";
+import { isEngineOnlyOp } from "@/server/services/tools/run-job";
 import { deliverInbound } from "@/server/services/mail/delivery";
 
 const ENGINE_KEY = "k".repeat(40);
@@ -19,6 +20,7 @@ interface EngineOp {
   slug: string; accepts: string; min_files: number; max_files: number; output: { name: string; content_type: string };
   options: { name: string; kind: string; label: string; required: boolean; default?: string | number; choices?: string[]; min?: number; max?: number; max_len?: number }[];
   max_pages: number | null; max_bytes: number | null; slow: boolean;
+  accepts_ext?: string[]; outputs?: { name: string; content_type: string }[];
 }
 const ENGINE = (JSON.parse(readFileSync("tests/fixtures/tools-engine-operations.json", "utf8")) as { operations: EngineOp[] }).operations;
 
@@ -89,13 +91,18 @@ const GOOD: Partial<Record<ToolOp, Record<string, string>>> = {
 };
 
 describe("Tools catalogue", () => {
-  it("has the 13 tools the engine publishes, with the same options, caps and result types", () => {
-    expect(TOOLS.map((t) => t.op).sort()).toEqual(ENGINE.map((o) => o.slug).sort());
-    for (const eo of ENGINE) {
+  it("has the tools the engine publishes, with the same options, caps and result types", () => {
+    // Tools P2: every card is an engine op; every engine op is a card or one that only server code runs.
+    const slugs = ENGINE.map((o) => o.slug);
+    for (const t of TOOLS) expect(slugs, t.op).toContain(t.op);
+    for (const s of slugs) expect(isToolOp(s) || isEngineOnlyOp(s), s).toBe(true);
+    for (const eo of ENGINE.filter((o) => isToolOp(o.slug))) {
       const t = toolDef(eo.slug as ToolOp);
       expect(t.minFiles, eo.slug).toBe(eo.min_files);
       if (t.maxFiles !== "plan") expect(t.maxFiles, eo.slug).toBe(eo.max_files);
       expect(t.contentType, eo.slug).toBe(eo.output.content_type);
+      if (eo.accepts_ext) for (const x of eo.accepts_ext) expect(toolExtensions(t), `${eo.slug} takes ${x}`).toContain(x);
+      if (t.extBy) expect(Object.values(t.extBy.exts).map((x) => EXT_TYPES[x]).sort(), eo.slug).toEqual([...new Set((eo.outputs ?? []).map((o) => o.content_type))].sort());
       expect(eo.output.name.endsWith(`.${t.ext}`), eo.slug).toBe(true);
       expect(t.maxPages ?? null, eo.slug).toBe(eo.max_pages);
       expect(t.maxBytes ?? null, eo.slug).toBe(eo.max_bytes);
@@ -103,8 +110,9 @@ describe("Tools catalogue", () => {
       expect(t.options.map((o) => o.name), eo.slug).toEqual(eo.options.map((o) => o.name));
       for (const eopt of eo.options) {
         const o = t.options.find((x) => x.name === eopt.name)!;
-        expect({ kind: o.kind, required: !!o.required, default: o.default, choices: o.choices?.map((ch) => ch.value), min: o.min, max: o.max, maxLen: o.maxLen }, `${eo.slug}.${o.name}`)
-          .toEqual({ kind: eopt.kind, required: eopt.required, default: eopt.default, choices: eopt.choices, min: eopt.min, max: eopt.max, maxLen: eopt.max_len });
+        // Choice values are the contract; their order is how people see them (Multies lists English and Nepali first).
+        expect({ kind: o.kind, required: !!o.required, default: o.default, choices: o.choices?.map((ch) => ch.value).sort(), min: o.min, max: o.max, maxLen: o.maxLen }, `${eo.slug}.${o.name}`)
+          .toEqual({ kind: eopt.kind, required: eopt.required, default: eopt.default, choices: eopt.choices ? [...eopt.choices].sort() : eopt.choices, min: eopt.min, max: eopt.max, maxLen: eopt.max_len });
       }
     }
   });
@@ -122,7 +130,7 @@ describe("Tools catalogue", () => {
 });
 
 describe("Tools P1 API, every tool", () => {
-  it.each(TOOLS.map((t) => t.op))("runs %s: options reach the engine, the result downloads with its own type", async (op) => {
+  it.each(TOOLS.filter((t) => !t.feature).map((t) => t.op))("runs %s: options reach the engine, the result downloads with its own type", async (op) => {
     const { c, app, engine } = await setup();
     const t = toolDef(op);
     const kind = t.accept.includes(".docx") ? "office" : t.accept.includes(".png") ? "image" : "pdf";

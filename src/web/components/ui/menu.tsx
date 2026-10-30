@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type ReactNode, cloneElement, isValidEleme
 import { cn } from "@/web/lib/cn";
 
 /** Small accessible dropdown: click or Enter to open, Esc / outside click to close, arrow keys to move. */
-export function Menu({ trigger, children, align = "end", label }: { trigger: ReactNode; children: ReactNode; align?: "start" | "end"; label?: string }) {
+/** sheet: on a phone the menu opens as a sheet from the bottom of the screen instead of a small dropdown. */
+export function Menu({ trigger, children, align = "end", label, sheet }: { trigger: ReactNode; children: ReactNode; align?: "start" | "end"; label?: string; sheet?: boolean }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -29,8 +30,10 @@ export function Menu({ trigger, children, align = "end", label }: { trigger: Rea
           ? cloneElement(trigger, { "aria-haspopup": "menu", "aria-expanded": open, ...(label && !trigger.props["aria-label"] ? { "aria-label": label } : {}) })
           : trigger}
       </div>
+      {open && sheet && <div className="fixed inset-0 z-40 bg-black/30 sm:hidden" aria-hidden onClick={() => setOpen(false)} />}
       {open && (
-        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop", align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left")}>
+        <div role="menu" onClick={() => setOpen(false)} className={cn("absolute z-50 mt-1.5 min-w-48 animate-pop-in rounded-[var(--radius-r14)] border border-line bg-elevated p-1 shadow-pop", align === "end" ? "right-0 origin-top-right" : "left-0 origin-top-left",
+          sheet && "max-sm:fixed max-sm:inset-x-2 max-sm:bottom-2 max-sm:left-2 max-sm:right-2 max-sm:top-auto max-sm:mt-0 max-sm:max-h-[70dvh] max-sm:overflow-y-auto max-sm:animate-sheet-up max-sm:rounded-2xl max-sm:p-2 max-sm:pb-[max(8px,env(safe-area-inset-bottom))]")}>
           {children}
         </div>
       )}

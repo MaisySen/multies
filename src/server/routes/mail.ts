@@ -8,9 +8,29 @@ import type { Folder } from "@/shared/mail";
 import { attachments, mailboxes, messages } from "../db/schema";
 import { audit } from "../services/audit";
 import { sendMessage } from "../services/mail/send";
+import { toolFilesAsAttachments } from "../services/tools/attach"; // Tools P2
 import { attachmentBytes, storeMessage } from "../services/mail/store";
 import { deleteMessagesPermanently, getMessage, getThread, listMessages, mailboxOverview, presentMessage } from "../services/mail/mailbox-view";
 import { badRequest, notFound, tooMany } from "../lib/errors";
+import { fromB64 } from "../lib/crypto";
+import { COMPOSE_ATTACH_MAX_BYTES, COMPOSE_ATTACH_MAX_FILES, formatMb } from "@/shared/tools-automation";
+
+/** Tools P2: a send from the composer may carry files (base64). */
+const sendWithFilesSchema = sendMessageSchema.extend({
+  attachments: z.array(z.object({ filename: z.string().min(1).max(200), contentType: z.string().max(200).default("application/octet-stream"), data: z.string().max(Math.ceil(COMPOSE_ATTACH_MAX_BYTES * 1.4)) })).max(COMPOSE_ATTACH_MAX_FILES).optional(),
+});
+
+function composeAttachments(files: { filename: string; contentType: string; data: string }[]) {
+  let total = 0;
+  const out = files.map((f) => {
+    let content: Uint8Array;
+    try { content = fromB64(f.data); } catch { throw badRequest(`${f.filename} could not be read. Attach it again.`); }
+    total += content.byteLength;
+    return { filename: f.filename.replace(/[\r\n"\\/]/g, "_"), contentType: /^[\w.+-]+\/[\w.+-]+$/.test(f.contentType) ? f.contentType : "application/octet-stream", content };
+  });
+  if (total > COMPOSE_ATTACH_MAX_BYTES) throw badRequest(`Attachments can add up to ${formatMb(COMPOSE_ATTACH_MAX_BYTES)} in one email.`);
+  return out;
+}
 import { RateLimiter } from "../lib/rate-limit";
 import { idempotency } from "../lib/idempotency";
 import { assertMailboxAccess, mailboxScope } from "../services/team";
@@ -195,9 +215,19 @@ export function mailRoutes() {
     .post("/send", async (c) => {
       const { auth, deps } = c.var;
       if (!sendLimiter.take(auth.userId)) throw tooMany("You're sending very fast. Wait a moment.");
-      const input = await parseBody(c, sendMessageSchema);
+      // Tools P2: the composer can carry attachments (base64, COMPOSE_ATTACH_MAX_BYTES in all), passed to the send service as is.
+      const { attachments: files, ...input } = await parseBody(c, sendWithFilesSchema);
       await assertMailboxAccess(deps.db, auth, input.mailboxId);
-      const result = await sendMessage(deps, auth, input);
+      // Tools P2: Tools results attached in Compose (engine tokens) and composer files (base64, e.g. after an auto rule) ride as ordinary attachments.
+      const { toolFiles, ...plain } = input;
+      // One limit for both kinds: 10 files and 20 MB per email.
+      const fromComposer = files?.length ? composeAttachments(files) : [];
+      const used = { files: fromComposer.length, bytes: fromComposer.reduce((a, f) => a + f.content.byteLength, 0) };
+      const extra = [
+        ...fromComposer,
+        ...(toolFiles?.length ? await toolFilesAsAttachments(deps, auth, toolFiles, used) : []),
+      ];
+      const result = await sendMessage(deps, auth, plain, extra.length ? { attachments: extra } : {});
       // R34: a sending limit queued it until midnight UTC (202 with the reason), not sent.
       if (result.queued) return c.json(result, 202);
       await audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "message.sent", targetType: "message", targetId: result.messageId, metadata: { recipients: [...input.to, ...(input.cc ?? []), ...(input.bcc ?? [])].length }, ip: c.var.ip });

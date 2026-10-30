@@ -17,6 +17,8 @@ import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
 import { shouldAskForSubject, SUBJECT_PROMPT } from "@/web/lib/subject-prompt";
 import { zonedDateTime } from "@/web/lib/format";
 import { RemindSelect, SendLaterMenu, type When } from "./schedules";
+import { AttachButton, AttachmentChips, useComposeFiles } from "./compose-attachments"; // Tools P2: attachments and auto rules
+import { fileToBase64, type ToolFileRef } from "@/web/lib/compose-files";
 
 export interface ComposeDraft {
   mailboxId: string;
@@ -29,6 +31,10 @@ export interface ComposeDraft {
   draftId?: string;
   /** Round 22: the thread a reply belongs to, for live presence ("Maya is also replying"). */
   threadId?: string;
+  /** Tools P2: Tools results to send as attachments (download tokens; the server reads them from the engine at send time). */
+  toolFiles?: ToolFileRef[];
+  /** Tools P2: files attached in this composer (kept in memory only; drafts do not keep them). */
+  files?: File[];
 }
 
 type SendResult = { messageId?: string; internal: string[]; external: { address: string; status: string; detail?: string }[] };
@@ -67,7 +73,8 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   const [askedSubject, setAskedSubject] = useState(false);
   useEffect(() => { (initial.to ? bodyRef : toRef).current?.focus(); if (initial.to) bodyRef.current?.setSelectionRange(0, 0); }, [initial.to]);
   const set = (k: keyof ComposeDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setD((x) => ({ ...x, [k]: e.target.value }));
-  const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text;
+  const att = useComposeFiles(initial.files, initial.toolFiles);
+  const dirty = d.to !== initial.to || d.subject !== initial.subject || d.text !== initial.text || att.count !== (initial.files?.length ?? 0) + (initial.toolFiles?.length ?? 0);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["mail"] });
   // R56 (MB-244): the draft saves itself a moment after typing stops and when the page is hidden, so a reload keeps it in Drafts.
@@ -98,13 +105,16 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     if (!d.to.trim()) { toRef.current?.focus(); return; }
     // A gentle nudge, once: Send again (or "Send anyway") sends it without a subject.
     if (!anyway && shouldAskForSubject(d.subject, askedSubject)) { setAskedSubject(true); return; }
-    const snapshot = { ...d, draftId: takeAutoDraft() ?? d.draftId };
+    if (later && att.count) { toast.error("Scheduled sends can't carry attachments yet.", { description: "Send it now, or remove the files to schedule it." }); return; }
+    const files = att.forSend();
+    const snapshot = { ...d, files, toolFiles: att.tools, draftId: takeAutoDraft() ?? d.draftId };
     const to = [...splitAddrs(d.to), ...splitAddrs(d.cc), ...splitAddrs(d.bcc)];
     // One key per held message: a retried post can never deliver twice.
     const key = `send_${crypto.randomUUID()}`;
     const message = {
       mailboxId: snapshot.mailboxId, to: splitAddrs(snapshot.to), cc: splitAddrs(snapshot.cc), bcc: splitAddrs(snapshot.bcc),
       subject: snapshot.subject, text: snapshot.text, inReplyToId: snapshot.inReplyToId, draftId: snapshot.draftId,
+      ...(snapshot.toolFiles?.length ? { toolFiles: snapshot.toolFiles.map((f) => f.token) } : {}),
     };
     const remind = remindDays;
     if (later) {
@@ -123,7 +133,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     holdMessage({
       seconds: undoSeconds,
       to,
-      send: () => api.post<SendResult>("/mail/send", message, { idempotencyKey: key }),
+      send: async () => api.post<SendResult>("/mail/send", files.length ? { ...message, attachments: await Promise.all(files.map(async (f) => ({ filename: f.name, contentType: f.type || "application/octet-stream", data: await fileToBase64(f) }))) } : message, { idempotencyKey: key }),
       onSent: (r) => {
         void qc.invalidateQueries({ queryKey: ["mail"] });
         void qc.invalidateQueries({ queryKey: ["dashboard"] });
@@ -205,13 +215,16 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
               <button type="button" className="rounded-md px-2 py-1 text-muted hover:bg-hover hover:text-fg" onClick={() => send(true)}>Send anyway</button>
             </div>
           )}
+          <AttachmentChips c={att} />{/* Tools P2: Tools results and local files in one row */}
           <AlsoReplying people={presence.people} />
           <div data-testid="compose-foot" className="flex items-center justify-between gap-2 border-t border-line px-4 py-3 max-sm:px-1.5 max-sm:py-1 max-sm:pb-[max(0.25rem,env(safe-area-inset-bottom))]">
             {/* R48 mobile: on a phone Send is in the header, so this row is one line of 44 px controls even at 360 px. */}
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 max-sm:flex-nowrap max-sm:gap-x-0.5">
               <Button type="submit" disabled={!d.to.trim()} className="max-sm:hidden"><IconSend className="h-4 w-4" />Send</Button>
               {saveState && <span className="text-[12px] text-subtle" role="status" data-testid="draft-autosave">{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved yet"}</span>}
-              <SendLaterMenu disabled={!d.to.trim()} onPick={(when) => send(true, when)} />
+              {/* Tools P2: attachments go now, not later (Tools results are kept for an hour; scheduled sends carry no files yet). */}
+              <SendLaterMenu disabled={!d.to.trim() || att.count > 0} onPick={(when) => send(true, when)} />
+              <AttachButton c={att} />
               <span className="hidden items-center gap-1 text-[11px] text-subtle sm:flex"><Kbd>⌘</Kbd><Kbd>↵</Kbd></span>
               <label className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-[12px] text-muted hover:bg-hover max-sm:ml-0 max-sm:min-h-11 max-sm:px-2" title="How long you have to undo after pressing Send">
                 <IconUndo className="h-3.5 w-3.5" aria-hidden />

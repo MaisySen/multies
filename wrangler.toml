@@ -39,10 +39,15 @@ directory = "dist/worker"
 binding = "ASSETS"
 not_found_handling = "none"
 # robots.txt goes through the Worker so a NOINDEX host (the preview) can answer Disallow: /.
-run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/health", "/healthz"]
+# Tools P2: /d/* (share link pages) and /sign/* (signing pages) are answered by the Worker. Staging inherits this.
+run_worker_first = ["/api/*", "/.well-known/*", "/robots.txt", "/cal/*", "/s/*", "/r/*", "/d/*", "/sign/*", "/health", "/healthz"]
 
-# No Workers AI binding: Multies never pays for AI model calls. The assistant runs on each
-# workspace's own API key (bring your own AI), and agents connect through MCP.
+# Workers AI (Tools P2): document features (ask, translate, invoice reading) use the workspace's own
+# AI key first and otherwise this binding, only inside the account's free daily allocation: the AI meter
+# (src/server/services/tools/ai-meter.ts) stops every call at a hard daily cap below it. The assistant
+# itself still runs on each workspace's own key (bring your own AI), and agents connect through MCP.
+[ai]
+binding = "AI"
 
 [[d1_databases]]
 binding = "DB"
@@ -54,6 +59,15 @@ database_id = "e467919b-f7d8-4961-86b9-9cd861708efc"
 # Migrations run once per deploy, before the new code goes live:
 #   npx wrangler d1 migrations apply mymail-au --remote
 migrations_dir = "drizzle"
+migrations_table = "d1_migrations"
+
+[[d1_databases]]
+binding = "INDEX_DB"
+# Tools P2 (17): attachment text index. Rebuildable, NOT backed up (the main database holds no virtual table).
+#   npx wrangler d1 migrations apply multies-index --remote
+database_name = "multies-index"
+database_id = "d30b4e9f-12ad-400d-8655-8a1ac0d2f4ef"
+migrations_dir = "drizzle-index"
 migrations_table = "d1_migrations"
 
 # Doc co-editing rooms: one Durable Object per doc (src/server/collab/durable-object.ts),
@@ -124,6 +138,8 @@ APP_MODE = "production"
 # Tools (document tools on the private document engine): on in production from R63 (30 October 2026). Set
 # TOOLS_ENABLED = "false" to switch them off everywhere. The engine keys are secrets (DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
 TOOLS_ENABLED = "true"
+# Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.
+TOOLS_FEATURES = ""
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "prod-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
@@ -212,6 +228,14 @@ database_id = "72494627-4880-4fb9-9586-e2175f16e8d3"
 migrations_dir = "drizzle"
 migrations_table = "d1_migrations"
 
+[[env.staging.d1_databases]]
+binding = "INDEX_DB"
+# Tools P2 (17): attachment text index for staging (rebuildable, not backed up).
+database_name = "multies-index-staging"
+database_id = "08d976da-d092-4982-a49b-b5e79b9e1f0d"
+migrations_dir = "drizzle-index"
+migrations_table = "d1_migrations"
+
 [[env.staging.durable_objects.bindings]]
 name = "DOC_ROOMS"
 class_name = "DocRoom"
@@ -264,9 +288,14 @@ name = "RL_APP"
 namespace_id = "2004"
 simple = { limit = 300, period = 60 }
 
+[env.staging.ai]
+binding = "AI"
+
 [env.staging.vars]
 # Tools P1: document tools on staging, through the document engine with the staging key id.
 TOOLS_ENABLED = "true"
+# Tools P2 features (src/shared/tool-features.ts): "all" on staging, only shipped ones on production.
+TOOLS_FEATURES = "all"
 DOC_ENGINE_URL = "https://doctool.multies.si"
 DOC_ENGINE_KEY_ID = "stg-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one

@@ -31,6 +31,16 @@ export interface Deps {
   bodyStore?: import("./services/storage/body-store").BodyStore;
   /** R43: where an import's upload waits so the scheduled pass can finish it after the page closes (Workers KV IMPORT_FILES). */
   importFiles?: import("./services/data-move/kept-file").ImportFileStore;
+  /** Tools P2: Workers AI (binding AI). Call only through the AI meter, which holds the free daily cap. */
+  ai?: import("./services/tools/p2-bindings").AiRunner;
+  /** Tools P2: files kept past one job (share links, signing requests) in KV with their own expiry. */
+  toolFiles?: import("./services/tools/p2-bindings").ToolFileStore;
+  /**
+   * Tools P2 (17): the separate attachment text index database (binding INDEX_DB on Workers, a second SQLite
+   * file on Node). Rebuildable, not backed up, the only place extracted attachment text and its FTS5 table live.
+   * Without it, indexing and search inside attachments stay off.
+   */
+  indexDb?: import("./db").DB;
   /** Opens TCP or TLS connections to mail servers (connected mailboxes). Workers inject cloudflare:sockets; Node uses node:net. */
   openSocket?: import("./services/connect/socket").SocketOpener;
   /** Opens IMAP sessions for connected mailboxes. Defaults to ImapFlow; tests inject an in-memory server. */

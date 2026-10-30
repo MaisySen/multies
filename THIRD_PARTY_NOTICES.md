@@ -35,3 +35,8 @@ SOFTWARE.
 
 Kept in package.json only until every branch has moved to the Icon component (R35); no web code imports it.
 ISC licence, https://lucide.dev/license.
+
+## Dancing Script, Great Vibes, Caveat (e-sign signature fonts)
+
+Tools P2: three script fonts for typed signatures, subset to Latin and converted to WOFF2 in public/fonts/sign/.
+SIL Open Font License 1.1; copyright lines and the full licence are in public/fonts/sign/OFL.txt.

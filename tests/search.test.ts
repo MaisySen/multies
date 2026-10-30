@@ -83,7 +83,7 @@ describe("query handling", () => {
   });
   it("parses types and refuses unknown ones", () => {
     expect(parseTypes("tasks, docs")).toEqual(["tasks", "docs"]);
-    expect(parseTypes("")).toHaveLength(6);
+    expect(parseTypes("")).toHaveLength(7); // Tools P2: attachments (dropped again in searchEverything while the index flag is off)
     expect(() => parseTypes("tasks,secrets")).toThrow(/Unknown type/);
   });
   it("cuts an excerpt around the match", () => {

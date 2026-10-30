@@ -1,3 +1,4 @@
+import { TOOL_FEATURES } from "@/shared/tool-features";
 import { describe, it, expect } from "vitest";
 import { Client as McpClient } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -94,7 +95,10 @@ describe("CHAT_CHANNELS in the web app", () => {
     expect(flagOn(cmd, undefined)).toBe(false);
     expect(flagOn(cmd, { chatChannels: true })).toBe(true);
     // Every other page stays in the menu whatever the switch says (Tools has its own switch, Tools P1).
-    expect(navCommands.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/tools", "/app/settings/channels"]);
-    expect(navCommands.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    // Tools P2 entries also need their own feature on (toolFeatures), so they are left out here.
+    const base = navCommands.filter((c) => !c.toolFeature);
+    expect(base.filter((c) => !flagOn(c, {})).map((c) => c.to)).toEqual(["/app/tools", "/app/settings/channels"]);
+    expect(base.filter((c) => !flagOn(c, { tools: true })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
+    expect(navCommands.filter((c) => !flagOn(c, { tools: true, toolFeatures: [...TOOL_FEATURES] })).map((c) => c.to)).toEqual(["/app/settings/channels"]);
   });
 });

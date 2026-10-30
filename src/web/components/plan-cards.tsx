@@ -36,7 +36,7 @@ export function PlanCards({ ctaTo = "/signup", headingLevel = 3 }: { ctaTo?: str
             );
           })}
         </ul>
-        <p className="mt-4 text-xs text-subtle">Prices in AUD, excluding GST. Pay yearly and get two months free. Under A${YEARLY_BELOW_MONTHLY} a month in total bills once a year, so one extra domain is {formatPlanPrice(yearlyPrice(ADDONS.domain.priceMonthly))} a year.</p>
+        <p className="mt-4 text-xs text-subtle">Prices in AUD, excluding GST. Pay yearly and get two months free. Under {formatPlanPrice(YEARLY_BELOW_MONTHLY)} a month in total bills once a year, so one extra domain is {formatPlanPrice(yearlyPrice(ADDONS.domain.priceMonthly))} a year.</p>
       </div>
     </div>
   );

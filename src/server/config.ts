@@ -1,3 +1,4 @@
+import { parseToolFeatures, type ToolFeature } from "@/shared/tool-features";
 import { z } from "zod";
 import { parseSocialConnections, type SocialConnection } from "./auth/social-connections";
 
@@ -15,7 +16,7 @@ export interface AppConfig {
    * Tools P1: document tools on the private document engine. On only when TOOLS_ENABLED=true and the
    * engine address and both keys are set (DOC_ENGINE_URL, DOC_ENGINE_KEY_ID, DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
    */
-  tools: { enabled: boolean; engine: { url: string; keyId: string; key: string } | null; tokenKey: string | null };
+  tools: { enabled: boolean; engine: { url: string; keyId: string; key: string } | null; tokenKey: string | null; /** Tools P2: the advanced features switched on (TOOLS_FEATURES). */ features: ToolFeature[] };
   appName: string;
   /** Where people reach support (support page, store listings). SUPPORT_EMAIL. */
   supportEmail: string;
@@ -235,6 +236,7 @@ const EnvSchema = z.object({
   CHAT_CHANNELS: z.string().optional(),
   CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   TOOLS_ENABLED: z.string().optional(),
+  TOOLS_FEATURES: z.string().optional(),
   DOC_ENGINE_URL: z.string().optional(),
   DOC_ENGINE_KEY_ID: z.string().optional(),
   DOC_ENGINE_KEY: z.string().optional(),
@@ -434,7 +436,7 @@ function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"])
 }
 
 /** Tools are on only with the switch, an https engine address (http for a local engine in development) and keys of 32+ characters. */
-function toolsConfig(env: { TOOLS_ENABLED?: string; DOC_ENGINE_URL?: string; DOC_ENGINE_KEY_ID?: string; DOC_ENGINE_KEY?: string; TOOLS_TOKEN_KEY?: string; APP_MODE?: string; NODE_ENV?: string }): AppConfig["tools"] {
+function toolsConfig(env: { TOOLS_FEATURES?: string; TOOLS_ENABLED?: string; DOC_ENGINE_URL?: string; DOC_ENGINE_KEY_ID?: string; DOC_ENGINE_KEY?: string; TOOLS_TOKEN_KEY?: string; APP_MODE?: string; NODE_ENV?: string }): AppConfig["tools"] {
   const url = env.DOC_ENGINE_URL?.trim() ?? "";
   const keyId = env.DOC_ENGINE_KEY_ID?.trim() ?? "";
   const key = env.DOC_ENGINE_KEY?.trim() ?? "";
@@ -442,7 +444,8 @@ function toolsConfig(env: { TOOLS_ENABLED?: string; DOC_ENGINE_URL?: string; DOC
   const urlOk = /^https:\/\/[^\s/]+/.test(url) || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url);
   const engine = urlOk && keyId && key.length >= 32 ? { url: url.replace(/\/+$/, ""), keyId, key } : null;
   const on = env.TOOLS_ENABLED === "true" || env.TOOLS_ENABLED === "1";
-  return { enabled: on && !!engine && tokenKey.length >= 32, engine, tokenKey: tokenKey.length >= 32 ? tokenKey : null };
+  const enabled = on && !!engine && tokenKey.length >= 32;
+  return { enabled, engine, tokenKey: tokenKey.length >= 32 ? tokenKey : null, features: enabled ? parseToolFeatures(env.TOOLS_FEATURES) : [] };
 }
 
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {

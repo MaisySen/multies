@@ -577,13 +577,6 @@
       "breakpoints": true
     },
     {
-      "idx": 93,
-      "version": "6",
-      "when": 1793300000000,
-      "tag": "0093_r61_backfill_read_indexes",
-      "breakpoints": true
-    },
-    {
       "idx": 91,
       "version": "6",
       "when": 1793300001000,
@@ -595,13 +588,48 @@
       "version": "6",
       "when": 1793300002000,
       "tag": "0092_tools_switch",
-        "breakpoints": true
-      },
-      {
+      "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "6",
+      "when": 1793300000000,
+      "tag": "0093_r61_backfill_read_indexes",
+      "breakpoints": true
+    },
+    {
       "idx": 94,
       "version": "6",
       "when": 1793400000000,
       "tag": "0094_r62_pricing_referrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "6",
+      "when": 1793300005000,
+      "tag": "0095_tools_p2_ai_meter",
+      "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "6",
+      "when": 1793300006000,
+      "tag": "0096_tools_p2_index",
+      "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "6",
+      "when": 1793300007000,
+      "tag": "0097_tools_p2_share_sign",
+      "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "6",
+      "when": 1793300008000,
+      "tag": "0098_tools_p2_automation",
       "breakpoints": true
     }
   ]

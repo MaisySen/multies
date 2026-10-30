@@ -10,11 +10,12 @@
  * Multies never pays for AI model calls ("bring your own AI"): the assistant runs on the
  * workspace's own API key, and people connect any AI app or agent through MCP.
  */
+import { formatMoney } from "./money";
+
 export const PRICE_CURRENCY = "aud";
 
-/** "A$12" or "A$1.50": the A$ prefix keeps the currency clear to visitors outside Australia. */
-export const formatPlanPrice = (amount: number) =>
-  `A$${new Intl.NumberFormat("en-AU", { minimumFractionDigits: Number.isInteger(amount) ? 0 : 2, maximumFractionDigits: 2 }).format(amount)}`;
+/** "A$12" or "A$1.50": the A$ prefix keeps the currency clear to visitors outside Australia. One formatter: src/shared/money.ts. */
+export const formatPlanPrice = (amount: number) => formatMoney(amount, PRICE_CURRENCY);
 export const PRICE_LABEL = "AUD";
 
 export type PlanId = "starter" | "pro" | "business";

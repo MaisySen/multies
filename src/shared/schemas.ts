@@ -74,6 +74,8 @@ export const sendMessageSchema = z.object({
   draftId: z.string().optional(),
   // MB-61: where replies go (for example a support inbox when sending from no-reply@).
   replyTo: emailSchema.optional(),
+  // Tools P2: Tools results to attach (download tokens; read from the document engine at send time).
+  toolFiles: z.array(z.string().min(1).max(1200)).max(10).optional(),
 });
 
 export const saveDraftSchema = sendMessageSchema.extend({

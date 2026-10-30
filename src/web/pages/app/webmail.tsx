@@ -28,6 +28,8 @@ import { InvoiceReminderDialog } from "./mail/invoice-reminder";
 import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask, MakeTaskBarButton } from "./work/make-task";
 import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
+import { BatchTools } from "@/web/components/tools/batch-tools"; // Tools P2
+import { takePendingCompose } from "@/web/lib/compose-files"; // Tools P2: attachments handed to a new email
 import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
 import { DEFAULT_SPLIT, EditSplitsDialog, ReadStatusLine, SplitTabs, stepSplit, useSplits } from "./mail/splits"; // R31
@@ -305,12 +307,25 @@ export function WebmailPage() {
   // ?compose=1 (from the setup checklist or the command palette) opens a new message once mailboxes load.
   // ?compose=name@example.com (from a contact page) opens it addressed to that person.
   const composeParam = params.get("compose");
-  const wantsCompose = composeParam === "1" || !!composeParam?.includes("@");
+  const handedFiles = useRef<ReturnType<typeof takePendingCompose>>(null);
+  // Tools P2: ?compose=files opens a new message carrying what "Attach to a new email" handed over (lib/compose-files:
+  // Tools result tokens and local files in one row); ?compose=tools is the older name. ?subject= and ?text= prefill
+  // a new message (share links and signing open it with the link in).
+  const wantsCompose = composeParam === "1" || composeParam === "files" || composeParam === "tools" || !!composeParam?.includes("@");
   useEffect(() => {
-    if (!wantsCompose || !mailboxes.length) return;
-    setCompose({ mailboxId: mailboxId || mailboxes[0].id, to: composeParam?.includes("@") ? composeParam : "", subject: "", text: "" });
-    setParams((p) => { const n = new URLSearchParams(p); n.delete("compose"); return n; }, { replace: true });
-  }, [wantsCompose, composeParam, mailboxes, mailboxId, setParams]);
+    if (!wantsCompose) { handedFiles.current = null; return; }
+    if (!mailboxes.length) return;
+    const handed = composeParam === "files" || composeParam === "tools" ? (handedFiles.current ??= takePendingCompose()) : null;
+    setCompose({
+      mailboxId: mailboxId || mailboxes[0].id,
+      to: composeParam?.includes("@") ? composeParam : handed?.to ?? "",
+      subject: handed?.subject ?? (params.get("subject") ?? "").slice(0, 300),
+      text: handed?.text ?? (params.get("text") ?? "").slice(0, 5000),
+      ...(handed?.files?.length ? { files: handed.files } : {}),
+      ...(handed?.toolFiles?.length ? { toolFiles: handed.toolFiles } : {}),
+    });
+    setParams((p) => { const n = new URLSearchParams(p); n.delete("compose"); n.delete("subject"); n.delete("text"); return n; }, { replace: true });
+  }, [wantsCompose, composeParam, mailboxes, mailboxId, setParams, params]);
 
   // R31: mail keys come from the one command registry (lib/commands/modules/mail.ts); this page binds them.
   // R32: a selection counts as focus too, so E, H, # and U reach the page with no message open.
@@ -643,6 +658,7 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
           <Assistant key={last.id} messageId={last.id} onDraft={(text) => reply(false, text)} />
           <div className="mt-6 space-y-4">
             {thread.map((t, i) => <ThreadMessage key={t.id} m={t} defaultOpen={i === thread.length - 1 || !t.isRead} />)}
+            <BatchTools attachments={thread.flatMap((t) => t.attachments)} /> {/* Tools P2: batch */}
           </div>
           <div className="mt-6 flex gap-2 max-sm:hidden">
             <Button variant="secondary" onClick={() => reply(false)}><IconReply className="h-4 w-4" />Reply</Button>

@@ -102,7 +102,7 @@ test("start on Free, then buy an add-on and see the new limits", async ({ page }
   // Two extra domains: A$2 a month in total, under A$5, so it bills A$24 a year.
   await page.getByRole("button", { name: "One more extra domain" }).click();
   await page.getByRole("button", { name: "One more extra domain" }).click();
-  await expect(page.getByText("A$24 AUD a year").first()).toBeVisible();
+  await expect(page.getByText("A$24 a year").first()).toBeVisible();
   await page.getByRole("button", { name: "Apply add-ons" }).click();
   await expect(page.getByText("Add-ons updated")).toBeVisible();
   await expect(page.getByText("0 / 3").first()).toBeVisible();

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactElement } from "react";
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconActivity, IconAgent, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
+import { IconActivity, IconAgent, IconAttachment, IconBell, IconBriefcase, IconCalendarClock, IconChart, IconChats, IconCheck, IconChevronsUpDown, IconClipboardCheck, IconClipboardList, IconClose, IconContacts, IconDashboard, IconDocs, IconFlask, IconGlobe, IconInbox, IconKeyboard, IconLogOut, IconMenu, IconMessageCircle, IconPlug, IconPlus, IconSearch, IconSettings, IconShield, IconShieldCheck, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUserCog, IconVideo, IconWrench, IconZap, type IconComponent } from "@/web/components/ui/icon";
 import { Logo } from "@/web/components/logo";
 import { AppearanceControl } from "@/web/components/theme";
 import { Avatar, Kbd } from "@/web/components/ui/misc";
@@ -85,7 +85,7 @@ const NAV_TINT: Record<string, string> = {
   "/app/contacts": "#A2845E", "/app/time": "#FF9F0A", "/app/forms": "#AF52DE", "/app/dashboards": "#5856D6", "/app/reports": "#32ADE6",
   "/app/portfolio": "#8E6CEF", "/app/templates": "#64D2FF", "/app/automations": "#FFCC00", "/app/mail": "#0071E3", "/app/inbox": "#5E5CE6",
   "/app/mailboxes": "#34C759", "/app/domains": "#0A84FF", "/app/deliverability": "#30D158", "/app/agents": "#636366", "/app/approvals": "#FF9500",
-  "/app/integrations": "#BF5AF2", "/app/tools": "#FF6482", "/app/activity": "#FF453A", "/app/settings": "#8E8E93", "/app/admin": "#1C1C1E",
+  "/app/integrations": "#BF5AF2", "/app/tools": "#FF6482", "/app/files": "#FF9F0A", "/app/activity": "#FF453A", "/app/settings": "#8E8E93", "/app/admin": "#1C1C1E",
 };
 // "Workspace", not "Admin": everyone sees this group (settings, people, billing); the operator's console is gated separately.
 const GROUP_LABEL = { work: "Work", mail: "Mail", admin: "Workspace" } as const;
@@ -98,7 +98,9 @@ function navGroups(items: NavItem[]): { group: NavItem["group"]; items: NavItem[
 }
 
 /** Tools P1: Tools sits under Docs when the server has Tools on. */
-const withTools = (items: NavItem[]): NavItem[] => items.flatMap((n) => (n.to === "/app/docs" ? [n, { to: "/app/tools", label: "Tools", icon: IconWrench, group: "work" as const }] : [n]));
+const withTools = (items: NavItem[], files = false): NavItem[] => items.flatMap((n) => (n.to === "/app/docs" ? [n, { to: "/app/tools", label: "Tools", icon: IconWrench, group: "work" as const },
+  // Tools P2 (16): Files (smart folders of mail attachments) under Tools, while the folders feature is on.
+  ...(files ? [{ to: "/app/files", label: "Files", icon: IconAttachment, group: "work" as const }] : [])] : [n]));
 
 /** The booking page sits under Meetings when the server has scheduling switched on. */
 const withScheduling: NavItem[] = nav.flatMap((n) => (n.to === "/app/meetings" ? [n, { to: "/app/scheduling", label: "Booking page", icon: IconCalendarClock, group: "work" as const }] : [n]));
@@ -204,7 +206,7 @@ export function AppLayout() {
         </button>
       </div>
       <nav className="mt-3 min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-3 max-lg:pb-[calc(0.75rem+env(safe-area-inset-bottom))]" aria-label="App">
-        {navGroups(([...((config.data?.tools ? withTools : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
+        {navGroups(([...((config.data?.tools ? (x: NavItem[]) => withTools(x, !!config.data?.toolFeatures?.includes("folders")) : (x: NavItem[]) => x)(config.data?.scheduling ? withScheduling : nav)), ...(me.data?.user.platformAdmin ? [{ to: "/app/admin", label: "Operator", icon: IconShield, end: false, group: "admin" as const }] : [])] as NavItem[])).map(({ group, items }, gi) => (
           <div key={group} className={cn(gi > 0 && "pt-4 max-lg:pt-5")}>
           <div data-testid="nav-group" className="px-2.5 pb-1 text-[11.5px] font-semibold text-subtle max-lg:pb-1.5 max-lg:text-[12px] max-lg:uppercase max-lg:tracking-[0.05em]">{GROUP_LABEL[group]}</div>
           {/* R46 mobile: on a phone each group is one rounded card, like the system settings lists. */}

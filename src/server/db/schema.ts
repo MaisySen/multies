@@ -709,6 +709,17 @@ export const aiKeys = sqliteTable("ai_keys", {
 });
 
 /**
+ * Tools P2: the AI meter (migration 0095). One row per UTC day per workspace, plus org_id "*" for the
+ * whole account. Written only by services/tools/ai-meter.ts (raw SQL upserts guarded by the caps).
+ */
+export const aiUsageDaily = sqliteTable("ai_usage_daily", {
+  day: text("day").notNull(),
+  orgId: text("org_id").notNull(),
+  units: integer("units").notNull().default(0),
+  calls: integer("calls").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.day, t.orgId] })]);
+
+/**
  * Mail imports from Gmail, Outlook or any IMAP server. A runner (deploy/import-runner,
  * imapsync in Docker) claims queued jobs with IMPORT_RUNNER_TOKEN and copies the mail into
  * the mailbox over IMAP. The source app password is encrypted and wiped when the job ends.
@@ -2182,3 +2193,153 @@ export const msgMessages = sqliteTable("msg_messages", {
   index("msg_messages_conv_idx").on(t.conversationId, t.date),
   uniqueIndex("msg_messages_external_uq").on(t.channelId, t.externalId),
 ]);
+
+
+// Tools P2 (H5, migration 0097): secure share links and e-sign. The files live in KV (deps.toolFiles) with their
+// own expiry; these rows are the ledger of live bytes, the links with their download log and the signing record.
+export const toolFiles = sqliteTable("tool_files", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  kind: text("kind").notNull(),
+  bytes: integer("bytes").notNull(),
+  expiresAt: integer("expires_at").notNull(),
+  deletedAt: integer("deleted_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("tool_files_org_live_idx").on(t.orgId, t.expiresAt), index("tool_files_expiry_idx").on(t.expiresAt)]);
+
+export const toolShares = sqliteTable("tool_shares", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  fileId: text("file_id").notNull(),
+  name: text("name").notNull(),
+  contentType: text("content_type").notNull(),
+  bytes: integer("bytes").notNull(),
+  source: text("source").notNull(),
+  passwordHash: text("password_hash"),
+  maxDownloads: integer("max_downloads"),
+  downloads: integer("downloads").notNull().default(0),
+  wrongTries: integer("wrong_tries").notNull().default(0),
+  lockedUntil: integer("locked_until"),
+  notifyFirst: integer("notify_first").notNull().default(0),
+  notifiedAt: integer("notified_at"),
+  expiresAt: integer("expires_at").notNull(),
+  revokedAt: integer("revoked_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [uniqueIndex("tool_shares_token_idx").on(t.tokenHash), index("tool_shares_org_idx").on(t.orgId, t.createdAt)]);
+
+export const toolShareDownloads = sqliteTable("tool_share_downloads", {
+  id: text("id").primaryKey(),
+  shareId: text("share_id").notNull(),
+  orgId: text("org_id").notNull(),
+  at: integer("at").notNull(),
+  country: text("country"),
+  agent: text("agent"),
+}, (t) => [index("tool_share_downloads_share_idx").on(t.shareId, t.at), index("tool_share_downloads_org_idx").on(t.orgId)]);
+
+export const signRequests = sqliteTable("sign_requests", {
+  id: text("id").primaryKey(),
+  orgId: text("org_id").notNull(),
+  createdBy: text("created_by").notNull(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull(),
+  title: text("title").notNull(),
+  subject: text("subject"),
+  message: text("message"),
+  mailboxId: text("mailbox_id"),
+  inReplyToId: text("in_reply_to_id"),
+  orderMode: text("order_mode").notNull().default("any"),
+  fields: text("fields"),
+  pages: text("pages"),
+  sourceFileId: text("source_file_id").notNull(),
+  sourceSha256: text("source_sha256").notNull(),
+  finalFileId: text("final_file_id"),
+  finalSha256: text("final_sha256"),
+  engineJob: text("engine_job"),
+  engineKind: text("engine_kind"),
+  remindDays: integer("remind_days").notNull().default(0),
+  error: text("error"),
+  expiresAt: integer("expires_at").notNull(),
+  sentAt: integer("sent_at"),
+  completedAt: integer("completed_at"),
+  createdAt: integer("created_at").notNull(),
+}, (t) => [index("sign_requests_org_idx").on(t.orgId, t.createdAt), index("sign_requests_status_idx").on(t.status, t.expiresAt)]);
+
+export const signSigners = sqliteTable("sign_signers", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull(),
+  orgId: text("org_id").notNull(),
+  position: integer("position").notNull(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  tokenHash: text("token_hash"),
+  status: text("status").notNull(),
+  sentAt: integer("sent_at"),
+  remindedAt: integer("reminded_at"),
+  viewedAt: integer("viewed_at"),
+  signedAt: integer("signed_at"),
+  declinedAt: integer("declined_at"),
+  declineReason: text("decline_reason"),
+  signatureFileIds: text("signature_file_ids"),
+}, (t) => [uniqueIndex("sign_signers_token_idx").on(t.tokenHash), index("sign_signers_request_idx").on(t.requestId, t.position)]);
+
+export const signEvents = sqliteTable("sign_events", {
+  id: text("id").primaryKey(),
+  requestId: text("request_id").notNull(),
+  orgId: text("org_id").notNull(),
+  seq: integer("seq").notNull(),
+  at: integer("at").notNull(),
+  signerId: text("signer_id"),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  action: text("action").notNull(),
+  ipCountry: text("ip_country"),
+  detail: text("detail"),
+}, (t) => [index("sign_events_request_idx").on(t.requestId, t.seq)]);
+
+
+/**
+ * Tools P2 (0096): text extracted from mail attachments for search (17) and the smart folder each one is filed in (16).
+ * The extracted text and its full text index live in the separate index database (binding INDEX_DB,
+ * drizzle-index/), never here: the main database holds no virtual table so `wrangler d1 export` works.
+ */
+export const attachmentText = sqliteTable("attachment_text", {
+  id: integer("id").primaryKey(),
+  attachmentId: text("attachment_id").notNull(),
+  orgId: text("org_id").notNull(),
+  mailboxId: text("mailbox_id").notNull(),
+  messageId: text("message_id").notNull(),
+  msgDate: ts("msg_date").notNull(),
+  filename: text("filename").notNull().default(""),
+  sizeBytes: integer("size_bytes").notNull().default(0),
+  /** queued (waiting), pending (engine job running), done (text and folder written), failed, skipped (nothing to read). */
+  status: text("status", { enum: ["queued", "pending", "done", "failed", "skipped"] }).notNull().default("queued"),
+  jobId: text("job_id"),
+  tries: integer("tries").notNull().default(0),
+  chars: integer("chars").notNull().default(0),
+  pagesOcr: integer("pages_ocr").notNull().default(0),
+  class: text("class"),
+  /** 1 when a person moved it to another folder (the rules then leave it alone). */
+  classManual: integer("class_manual", { mode: "boolean" }).notNull().default(false),
+  indexedAt: ts("indexed_at"),
+  updatedAt: ts("updated_at").notNull(),
+}, (t) => [
+  uniqueIndex("attachment_text_attachment_idx").on(t.attachmentId),
+  index("attachment_text_queue_idx").on(t.status, t.msgDate),
+  index("attachment_text_org_idx").on(t.orgId, t.status, t.mailboxId, t.class),
+  index("attachment_text_folder_idx").on(t.orgId, t.class, t.msgDate),
+]);
+
+/** Tools P2 (0096): the attachment indexer's switch, OCR language and daily count per workspace, plus its cursors in row "*". */
+export const attachmentIndexState = sqliteTable("attachment_index_state", {
+  orgId: text("org_id").primaryKey(),
+  mode: text("mode", { enum: ["on", "off"] }),
+  lang: text("lang").notNull().default("eng"),
+  day: text("day").notNull().default(""),
+  n: integer("n").notNull().default(0),
+  hi: integer("hi").notNull().default(0),
+  lo: integer("lo").notNull().default(0),
+  sw: integer("sw").notNull().default(0),
+  updatedAt: ts("updated_at").notNull(),
+});

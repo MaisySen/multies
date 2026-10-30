@@ -1,13 +1,13 @@
 /** The content groups in the command menu (round 20): results from /api/search, opened at their real URL. */
 import { Command } from "cmdk";
-import { IconBriefcase, IconContacts, IconDocs, IconInbox, IconMessageCircle, IconTasks } from "@/web/components/ui/icon";
+import { IconAttachment, IconBriefcase, IconContacts, IconDocs, IconInbox, IconMessageCircle, IconTasks } from "@/web/components/ui/icon";
 import { Spinner } from "@/web/components/ui/spinner";
 import type { SearchType, useContentSearch as UseContentSearch } from "@/web/lib/search";
 
 export { useContentSearch } from "@/web/lib/search";
 
 const ICONS: Record<SearchType, React.ComponentType<{ className?: string }>> = {
-  mail: IconInbox, tasks: IconTasks, docs: IconDocs, chat: IconMessageCircle, contacts: IconContacts, deals: IconBriefcase,
+  mail: IconInbox, tasks: IconTasks, docs: IconDocs, chat: IconMessageCircle, contacts: IconContacts, deals: IconBriefcase, attachments: IconAttachment,
 };
 
 const groupClass = "px-1.5 pb-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-subtle";

@@ -110,6 +110,7 @@ export function Receipt(p: { brand: Brand; workspace: string; number: string; da
         <Row key={l.description}><Column><Text style={{ ...s.p, margin: "4px 0" }}>{l.description}</Text></Column><Column align="right"><Text style={{ ...s.p, margin: "4px 0" }}>{l.amount}</Text></Column></Row>
       ))}
       {p.tax && <Row><Column><Text style={{ ...s.muted, margin: "4px 0" }}>Includes GST</Text></Column><Column align="right"><Text style={{ ...s.muted, margin: "4px 0" }}>{p.tax}</Text></Column></Row>}
+      {p.tax && <Text style={{ ...s.muted, margin: "4px 0" }}>Line amounts are excl. GST.</Text>}
       <Hr style={{ borderColor: "#e4e4e7", margin: "12px 0" }} />
       <Row><Column><Text style={{ ...s.p, fontWeight: 600 }}>Total paid</Text></Column><Column align="right"><Text style={{ ...s.p, fontWeight: 600 }}>{p.total}</Text></Column></Row>
     </Layout>

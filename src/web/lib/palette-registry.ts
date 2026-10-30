@@ -2,13 +2,16 @@
  * R30: what the command menu can jump to and do, in one list, plus its fuzzy matching.
  * tests/palette-r30.test.ts checks every app page in router.tsx has an entry here.
  */
-import { IconWrench, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap } from "@/web/components/ui/icon";
+import { IconWrench, IconPenLine, IconActivity, IconAgent, IconAssign, IconBell, IconBook, IconBriefcase, IconCalendarClock, IconCalendarDays, IconChart, IconChats, IconClipboardCheck, IconClipboardList, IconCompose, IconContacts, IconCreditCard, IconDashboard, IconDocs, IconFilePlus, IconGlobe, IconHandshake, IconInbox, IconKey, IconKeyboard, IconLink, IconMail, IconMention, IconMessageCircle, IconMoon, IconPlug, IconPlus, IconSettings, IconShieldCheck, IconSmartphone, IconSquarePlus, IconTarget, IconTasks, IconTeam, IconTemplate, IconTimer, IconToday, IconTodo, IconUpload, IconUserCog, IconVideo, IconZap, IconAttachment } from "@/web/components/ui/icon";
 
 export type PaletteIcon = React.ComponentType<{ className?: string }>;
-/** R59: `flag` names a server switch from /api/config; the page is offered only while it is on. */
-export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools" }
+/**
+ * R59: `flag` names a server switch from /api/config; the page is offered only while it is on.
+ * Tools P2: `toolFeature` also needs one of these P2 features in /api/config toolFeatures.
+ */
+export interface PalettePage { id: string; label: string; to: string; icon: PaletteIcon; keywords?: string[]; flag?: "chatChannels" | "tools"; toolFeature?: string[] }
 export type PaletteActionKind = "navigate" | "shortcuts" | "theme" | "external";
-export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools" }
+export interface PaletteAction { id: string; label: string; icon: PaletteIcon; kind: PaletteActionKind; to?: string; keywords?: string[]; flag?: "chatChannels" | "tools"; toolFeature?: string[] }
 
 export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-my-work", label: "My Work", to: "/app/my-work", icon: IconToday, keywords: ["today", "due", "home", "mentions"] },
@@ -22,6 +25,16 @@ export const PALETTE_PAGES: PalettePage[] = [
   { id: "p-scheduling", label: "Booking page", to: "/app/scheduling", icon: IconCalendarClock, keywords: ["scheduling", "book", "calendar link"] },
   // Tools P1: shown only when the server has Tools on (flag "tools").
   { id: "p-tools", label: "Tools", to: "/app/tools", icon: IconWrench, keywords: ["pdf", "compress", "merge", "convert", "documents", "word to pdf"], flag: "tools" },
+  { id: "p-tools-ai", label: "AI document helpers", to: "/app/tools/ai", icon: IconWrench, keywords: ["ask a document", "summary", "translate", "invoice", "receipt", "expense report", "contract dates"], flag: "tools", toolFeature: ["ask", "translate", "extract", "expenses", "contracts"] }, // Tools P2
+  // Tools P2: share links and e-sign, each shown only while its feature is on.
+  { id: "p-tools-share", label: "Share links", to: "/app/tools/share", icon: IconLink, keywords: ["send large file", "share file", "download link", "expiring link"], flag: "tools", toolFeature: ["share"] },
+  { id: "p-tools-sign", label: "E-sign", to: "/app/tools/sign", icon: IconPenLine, keywords: ["sign", "signature", "esign", "sign pdf", "request signature"], flag: "tools", toolFeature: ["esign"] },
+  // Tools P2 (H6): automation pages, each behind its own feature.
+  { id: "p-tools-workflows", label: "Tool workflows", to: "/app/tools/workflows", icon: IconWrench, keywords: ["workflow", "chain", "scan", "ocr", "shrink", "protect"], flag: "tools", toolFeature: ["workflows"] },
+  { id: "p-tools-templates", label: "Invoice and letter templates", to: "/app/tools/templates", icon: IconWrench, keywords: ["invoice", "quote", "letter", "gst", "pdf template"], flag: "tools", toolFeature: ["templates"] },
+  { id: "p-tools-merge", label: "Mail merge", to: "/app/tools/merge", icon: IconWrench, keywords: ["merge", "bulk", "personal pdf", "csv", "mailing"], flag: "tools", toolFeature: ["merge_mail"] },
+  // Tools P2 (16, 17): smart folders of mail attachments and search inside them.
+  { id: "p-files", label: "Files", to: "/app/files", icon: IconAttachment, keywords: ["attachments", "smart folders", "invoices", "receipts", "contracts", "search inside attachments"], flag: "tools", toolFeature: ["folders", "index"] },
   { id: "p-goals", label: "Goals", to: "/app/goals", icon: IconTarget, keywords: ["okr", "objectives"] },
   { id: "p-contacts", label: "Contacts", to: "/app/contacts", icon: IconContacts, keywords: ["crm", "people", "companies", "customers"] },
   { id: "p-deals", label: "Deals", to: "/app/deals", icon: IconHandshake, keywords: ["crm", "pipeline", "sales"] },

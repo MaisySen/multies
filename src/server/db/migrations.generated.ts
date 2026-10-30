@@ -922,5 +922,60 @@ export const MIGRATIONS: { name: string; statements: string[] }[] = [
       "CREATE UNIQUE INDEX `referrals_referred_uq` ON `referrals` (`referred_org_id`);",
       "CREATE INDEX `referrals_referrer_idx` ON `referrals` (`referrer_org_id`,`status`,`credited_at`);"
     ]
+  },
+  {
+    "name": "0095_tools_p2_ai_meter",
+    "statements": [
+      "-- Tools P2: the AI meter. One row per UTC day per workspace (org_id) plus one row per day with org_id '*'\n-- holding the whole account's count. Units are the AI service's own daily units, estimated before each call\n-- and reserved here first (one upsert guarded by the cap), then settled to the real figure after the call.\n-- The global row never passes 9,000 so the account stays inside its free daily allocation. The cron prunes\n-- rows older than 2 days. WITHOUT ROWID so a reservation writes only the primary key b-tree row.\nCREATE TABLE `ai_usage_daily` (\n\t`day` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`units` integer DEFAULT 0 NOT NULL,\n\t`calls` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`day`, `org_id`)\n) WITHOUT ROWID;"
+    ]
+  },
+  {
+    "name": "0096_tools_p2_index",
+    "statements": [
+      "-- Tools P2 (17, 16): search inside attachments and smart folders.\n-- attachment_text holds one row per indexed mail attachment: its workspace and mailbox (search follows the\n-- caller's mailbox scope exactly as mail does), the smart folder and the indexing state. The extracted text\n-- itself is NOT here: it lives only in the separate index database (binding INDEX_DB, migrations in\n-- drizzle-index/), which is rebuildable and not backed up, so this database holds no virtual table and\n-- `wrangler d1 export` keeps working. \"id\" is an explicit integer key: the index database's rows carry it\n-- as their rowid, plus the attachment id, so a hit is checked against this row before it is shown.\n-- No triggers anywhere: the indexer writes both databases itself, one attachment at a time, and the\n-- messages table is untouched. A row whose attachment is gone (message deleted) is hidden from search and\n-- folders at once by the join on attachments, and the cron sweep deletes it here and its text there.\nCREATE TABLE `attachment_text` (\n\t`id` integer PRIMARY KEY NOT NULL,\n\t`attachment_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`message_id` text NOT NULL,\n\t`msg_date` integer NOT NULL,\n\t`filename` text DEFAULT '' NOT NULL,\n\t`size_bytes` integer DEFAULT 0 NOT NULL,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`job_id` text,\n\t`tries` integer DEFAULT 0 NOT NULL,\n\t`chars` integer DEFAULT 0 NOT NULL,\n\t`pages_ocr` integer DEFAULT 0 NOT NULL,\n\t`class` text,\n\t`class_manual` integer DEFAULT 0 NOT NULL,\n\t`indexed_at` integer,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `attachment_text_attachment_idx` ON `attachment_text` (`attachment_id`);",
+      "CREATE INDEX `attachment_text_queue_idx` ON `attachment_text` (`status`, `msg_date`);",
+      "CREATE INDEX `attachment_text_org_idx` ON `attachment_text` (`org_id`, `status`, `mailbox_id`, `class`);",
+      "CREATE INDEX `attachment_text_folder_idx` ON `attachment_text` (`org_id`, `class`, `msg_date`);",
+      "-- One row per workspace (switch, OCR language, today's count against the daily cap) and one row \"*\" for the\n-- indexer's own cursors (hi: highest attachment seen, lo: the backfill cursor walking down, sw: the sweep cursor over attachment_text). WITHOUT ROWID:\n-- an update writes only the primary key row.\nCREATE TABLE `attachment_index_state` (\n\t`org_id` text PRIMARY KEY NOT NULL,\n\t`mode` text,\n\t`lang` text DEFAULT 'eng' NOT NULL,\n\t`day` text DEFAULT '' NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\t`hi` integer DEFAULT 0 NOT NULL,\n\t`lo` integer DEFAULT 0 NOT NULL,\n\t`sw` integer DEFAULT 0 NOT NULL,\n\t`updated_at` integer NOT NULL\n) WITHOUT ROWID;"
+    ]
+  },
+  {
+    "name": "0097_tools_p2_share_sign",
+    "statements": [
+      "-- Tools P2 (H5): secure share links and e-sign. Files themselves live in Workers KV with their own expiry\n-- (deps.toolFiles, no R2); D1 holds the small rows: a ledger of every kept file (live bytes per workspace\n-- and in total are capped from it), share links with their download log, and signing requests with their\n-- signers and the signing record (events). Every table carries org_id and an index for each query.\nCREATE TABLE `tool_files` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`bytes` integer NOT NULL,\n\t`expires_at` integer NOT NULL,\n\t`deleted_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `tool_files_org_live_idx` ON `tool_files` (`org_id`,`expires_at`);",
+      "CREATE INDEX `tool_files_expiry_idx` ON `tool_files` (`expires_at`);",
+      "CREATE TABLE `tool_shares` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`file_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`content_type` text NOT NULL,\n\t`bytes` integer NOT NULL,\n\t`source` text NOT NULL,\n\t`password_hash` text,\n\t`max_downloads` integer,\n\t`downloads` integer DEFAULT 0 NOT NULL,\n\t`wrong_tries` integer DEFAULT 0 NOT NULL,\n\t`locked_until` integer,\n\t`notify_first` integer DEFAULT 0 NOT NULL,\n\t`notified_at` integer,\n\t`expires_at` integer NOT NULL,\n\t`revoked_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE UNIQUE INDEX `tool_shares_token_idx` ON `tool_shares` (`token_hash`);",
+      "CREATE INDEX `tool_shares_org_idx` ON `tool_shares` (`org_id`,`created_at`);",
+      "CREATE TABLE `tool_share_downloads` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`share_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`at` integer NOT NULL,\n\t`country` text,\n\t`agent` text\n);",
+      "CREATE INDEX `tool_share_downloads_share_idx` ON `tool_share_downloads` (`share_id`,`at`);",
+      "CREATE INDEX `tool_share_downloads_org_idx` ON `tool_share_downloads` (`org_id`);",
+      "CREATE TABLE `sign_requests` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`created_by` text NOT NULL,\n\t`kind` text NOT NULL,\n\t`status` text NOT NULL,\n\t`title` text NOT NULL,\n\t`subject` text,\n\t`message` text,\n\t`mailbox_id` text,\n\t`in_reply_to_id` text,\n\t`order_mode` text DEFAULT 'any' NOT NULL,\n\t`fields` text,\n\t`pages` text,\n\t`source_file_id` text NOT NULL,\n\t`source_sha256` text NOT NULL,\n\t`final_file_id` text,\n\t`final_sha256` text,\n\t`engine_job` text,\n\t`engine_kind` text,\n\t`remind_days` integer DEFAULT 0 NOT NULL,\n\t`error` text,\n\t`expires_at` integer NOT NULL,\n\t`sent_at` integer,\n\t`completed_at` integer,\n\t`created_at` integer NOT NULL\n);",
+      "CREATE INDEX `sign_requests_org_idx` ON `sign_requests` (`org_id`,`created_at`);",
+      "CREATE INDEX `sign_requests_status_idx` ON `sign_requests` (`status`,`expires_at`);",
+      "CREATE TABLE `sign_signers` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`request_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`position` integer NOT NULL,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`token_hash` text,\n\t`status` text NOT NULL,\n\t`sent_at` integer,\n\t`reminded_at` integer,\n\t`viewed_at` integer,\n\t`signed_at` integer,\n\t`declined_at` integer,\n\t`decline_reason` text,\n\t`signature_file_ids` text\n);",
+      "CREATE UNIQUE INDEX `sign_signers_token_idx` ON `sign_signers` (`token_hash`);",
+      "CREATE INDEX `sign_signers_request_idx` ON `sign_signers` (`request_id`,`position`);",
+      "CREATE TABLE `sign_events` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`request_id` text NOT NULL,\n\t`org_id` text NOT NULL,\n\t`seq` integer NOT NULL,\n\t`at` integer NOT NULL,\n\t`signer_id` text,\n\t`name` text NOT NULL,\n\t`email` text NOT NULL,\n\t`action` text NOT NULL,\n\t`ip_country` text,\n\t`detail` text\n);",
+      "CREATE INDEX `sign_events_request_idx` ON `sign_events` (`request_id`,`seq`);"
+    ]
+  },
+  {
+    "name": "0098_tools_p2_automation",
+    "statements": [
+      "-- Tools P2 (automation): auto rules before sending, saved workflows, document templates and mail merge.\n-- Every table carries org_id; each query the code runs has an index (primary keys cover the per org reads).\n\n-- Auto rules before sending. user_id '' is the workspace default (admins); a person's own row overrides\n-- each rule where its column is not NULL. compress/word_pdf: 'on' | 'off' | NULL (follow the workspace).\nCREATE TABLE `tool_send_rules` (\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`compress` text,\n\t`compress_over_mb` integer,\n\t`word_pdf` text,\n\t`updated_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `user_id`)\n) WITHOUT ROWID;",
+      "-- Saved workflows: 2 to 6 Tools steps run by the engine as one chain job. steps is JSON [{\"op\",\"options\"}].\nCREATE TABLE `tool_workflows` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`steps` text NOT NULL,\n\t`finish` text DEFAULT 'download' NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `tool_workflows_org_idx` ON `tool_workflows` (`org_id`, `updated_at`);",
+      "-- Workspace document templates (HTML with {{field}} placeholders; fields is JSON [{\"key\",\"label\",\"type\"}]).\n-- The three built in templates live in code and are not stored.\nCREATE TABLE `tool_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`kind` text DEFAULT 'custom' NOT NULL,\n\t`name` text NOT NULL,\n\t`html` text NOT NULL,\n\t`fields` text NOT NULL,\n\t`created_by` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `tool_templates_org_idx` ON `tool_templates` (`org_id`, `updated_at`);",
+      "-- Mail merge runs: one personal PDF and one email per person. status: rendering | sending | done | cancelled | failed.\nCREATE TABLE `merge_runs` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`org_id` text NOT NULL,\n\t`user_id` text NOT NULL,\n\t`mailbox_id` text NOT NULL,\n\t`template_id` text NOT NULL,\n\t`subject` text NOT NULL,\n\t`body` text NOT NULL,\n\t`marketing` integer DEFAULT 0 NOT NULL,\n\t`consent_at` integer NOT NULL,\n\t`total` integer NOT NULL,\n\t`sent` integer DEFAULT 0 NOT NULL,\n\t`failed` integer DEFAULT 0 NOT NULL,\n\t`status` text NOT NULL,\n\t`engine_job` text,\n\t`error` text,\n\t`created_at` integer NOT NULL,\n\t`updated_at` integer NOT NULL\n);",
+      "CREATE INDEX `merge_runs_org_idx` ON `merge_runs` (`org_id`, `created_at`);",
+      "CREATE INDEX `merge_runs_status_idx` ON `merge_runs` (`status`, `updated_at`);",
+      "-- One row per person in a run. data is the person's field values (JSON). status: queued | sent | failed | skipped.\nCREATE TABLE `merge_recipients` (\n\t`run_id` text NOT NULL,\n\t`idx` integer NOT NULL,\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`name` text NOT NULL,\n\t`data` text NOT NULL,\n\t`status` text DEFAULT 'queued' NOT NULL,\n\t`error` text,\n\t`sent_at` integer,\n\tPRIMARY KEY(`run_id`, `idx`)\n) WITHOUT ROWID;",
+      "-- The mail merge daily cap: people reserved per workspace per UTC day, taken in one conditional upsert.\nCREATE TABLE `merge_daily` (\n\t`org_id` text NOT NULL,\n\t`day` text NOT NULL,\n\t`n` integer DEFAULT 0 NOT NULL,\n\tPRIMARY KEY(`org_id`, `day`)\n) WITHOUT ROWID;",
+      "-- People who unsubscribed from a workspace's mail merge sends (marketing runs skip them).\nCREATE TABLE `merge_unsubscribes` (\n\t`org_id` text NOT NULL,\n\t`email` text NOT NULL,\n\t`created_at` integer NOT NULL,\n\tPRIMARY KEY(`org_id`, `email`)\n) WITHOUT ROWID;"
+    ]
   }
 ];

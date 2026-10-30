@@ -29,6 +29,8 @@ export interface PublicConfig {
   chatChannels?: boolean;
   /** Tools P1: document tools (TOOLS_ENABLED with an engine configured). */
   tools?: boolean;
+  /** Tools P2: the advanced Tools features on for this deployment (empty when Tools is off). The lead adds it to /api/config. */
+  toolFeatures?: string[];
   /** Round 25: identity provider connections shown as sign in buttons ("google-oauth2", "windowslive"). */
   socialConnections?: string[];
   /** R43: the import pages say a run carries on after the page closes (BACKGROUND_COPY, set once proven live). */

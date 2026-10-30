@@ -17,6 +17,7 @@ export const SCOPE_AREAS = [
   { area: "docs", label: "Docs and forms", read: "docs:read", write: "docs:write", readLabel: "Read", writeLabel: "Create and change", note: "Docs, forms, results and share links." },
   { area: "calendar", label: "Calendar and meetings", read: "calendar:read", write: "calendar:write", readLabel: "Read", writeLabel: "Schedule and change", note: "Meetings, notes, transcripts, calls and booking." },
   { area: "contacts", label: "Contacts and deals", read: "contacts:read", write: "contacts:write", readLabel: "Read", writeLabel: "Create and change", note: "Contacts, companies, deals and timelines." },
+  { area: "tools", label: "Tools", read: "tools:read", write: "tools:run", readLabel: "List tools and read jobs", writeLabel: "Run tools and workflows", note: "Document tools, jobs, downloads and saved workflows." },
   { area: "admin", label: "Workspace admin", read: "admin:read", write: "admin:write", readLabel: "Read", writeLabel: "Change", note: "Domains, mailboxes, aliases, webhooks, integrations, agent members, guests and invites." },
 ] as const;
 
@@ -89,7 +90,8 @@ export function scopeChips(stored: string | null | undefined): string[] {
  * its write scope. A new tool must be added here or tests/api-scopes-r36.test.ts fails; at run time
  * an unlisted tool needs a Full access key.
  */
-const TOOL_AREAS: Record<ScopeArea, string> = {
+// Tools P2: the tools area has REST routes only (no MCP tools yet), so the map is partial.
+const TOOL_AREAS: Partial<Record<ScopeArea, string>> = {
   mail: "list_inboxes list_threads read_thread search search_everything send_email reply wait_for_email snooze_thread schedule_send list_scheduled cancel_scheduled assign_thread unassign_thread set_thread_status list_threads_by_view get_reply_stats list_thread_comments add_thread_comment delete_thread_comment get_thread_presence list_thread_drafts take_over_draft list_snippets render_snippet create_snippet mail_split_list mail_split_create mail_split_update mail_split_delete mail_read_status mail_bulk_action mail_bulk_job list_chat_conversations get_chat_conversation reply_chat list_chat_templates send_chat_template update_chat_conversation add_chat_note",
   tasks: "my_work list_tasks get_task next_task create_task update_task comment_on_task list_projects start_timer stop_timer log_time get_timesheet set_task_blocked_by check_task_schedule reschedule_task set_project_schedule get_report list_people list_custom_fields create_custom_field set_task_fields find_tasks_by_field get_portfolio set_project_health update_project list_templates use_template create_template set_task_repeat list_goals create_goal update_key_result list_notifications list_epics get_epic add_to_epic list_sprints get_sprint create_sprint start_sprint complete_sprint add_to_sprint remove_from_sprint list_triage triage_accept triage_decline triage_merge create_triage_item list_checklist add_checklist_items update_checklist_item reorder_checklist delete_checklist_item checklist_item_to_subtask list_task_watchers watch_task unwatch_task duplicate_task search_tasks start_task_run add_run_step finish_task_run list_task_runs agent_run_cancel notification_list notification_done notification_undone notification_snooze catchup_get get_counts task_triage_list task_triage_action bulk_update_tasks get_workload set_weekly_capacity list_dashboards list_dashboard_widget_types get_dashboard_data create_dashboard add_dashboard_widget get_computed_fields create_formula_field create_rollup_field list_saved_views create_saved_view delete_saved_view get_board_settings set_board_settings list_task_comments edit_task_comment delete_task_comment",
   chat: "list_channels read_channel read_chat_thread post_message message_to_task pin_message react_to_chat_message chat_typing create_report list_blocks add_block remove_block edit_chat_message delete_chat_message",
@@ -99,7 +101,7 @@ const TOOL_AREAS: Record<ScopeArea, string> = {
   admin: "create_agent_inbox set_mailbox_reply_to list_guests invite_guest list_integrations create_incoming_hook list_agent_triggers create_agent_trigger delete_agent_trigger agent_trigger_history list_automation_recipes enable_automation_recipe update_auth_email_hook list_agent_members create_agent_member update_agent_member get_auth_email_settings update_auth_email_settings regenerate_auth_email_secret preview_auth_email send_auth_email_test export_workspace list_data_moves import_file undo_import",
 };
 const TOOL_AREA = new Map<string, ScopeArea>();
-for (const [area, list] of Object.entries(TOOL_AREAS)) for (const n of list.split(" ")) TOOL_AREA.set(n, area as ScopeArea);
+for (const [area, list] of Object.entries(TOOL_AREAS)) for (const n of (list ?? "").split(" ").filter(Boolean)) TOOL_AREA.set(n, area as ScopeArea);
 
 export const toolArea = (name: string): ScopeArea | null => TOOL_AREA.get(name) ?? null;
 export const listedTools = () => [...TOOL_AREA.keys()];
@@ -122,6 +124,7 @@ const ROUTE_AREAS: Record<string, ScopeArea> = {
   docs: "docs", forms: "docs", "share-links": "docs",
   meetings: "calendar", calendar: "calendar", scheduling: "calendar",
   contacts: "contacts", companies: "contacts", deals: "contacts",
+  tools: "tools", // Tools P2: developer API
   domains: "admin", mailboxes: "admin", aliases: "admin", webhooks: "admin", integrations: "admin", "incoming-hooks": "admin", "inbound-keys": "admin", "auth-email-hooks": "admin", "auth-email-settings": "admin", "agent-members": "admin", "agent-triggers": "admin", automations: "admin", "work-imports": "admin", "data-moves": "admin", invites: "admin", guests: "admin", "free-address": "admin",
 };
 /** Exact routes whose area differs from their first segment. */

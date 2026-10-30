@@ -9,6 +9,8 @@ import { Badge } from "@/web/components/ui/misc";
 import { Button } from "@/web/components/ui/button";
 import { Field, Input, Select } from "@/web/components/ui/input";
 import { Section } from "./settings";
+import { AiUsageLine, useAiUsage } from "./tools-ai"; // Tools P2: today's AI use for document helpers
+import { useConfig } from "@/web/lib/queries";
 
 export type AiProviderId = "openai" | "anthropic" | "openrouter" | "groq";
 export interface AiStatus {
@@ -30,6 +32,8 @@ export function AiSection() {
   const me = useMe();
   const qc = useQueryClient();
   const status = useAiStatus();
+  const config = useConfig();
+  const toolsAi = useAiUsage(!!config.data?.tools);
   const [provider, setProvider] = useState<AiProviderId>("openai");
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
@@ -68,6 +72,13 @@ export function AiSection() {
             <div className="sm:col-span-2"><Button type="submit" size="sm" loading={save.isPending} disabled={apiKey.trim().length < 16}>{d?.connected ? "Replace key" : "Save key"}</Button></div>
           </form>
         ) : <p className="text-muted">An admin can add an AI key.</p>}
+        {toolsAi.data && (
+          <div className="space-y-1 border-t border-line pt-4">
+            <p className="font-medium">AI document helpers today</p>
+            <AiUsageLine usage={toolsAi.data} />
+            {!toolsAi.data.ownKey && <p className="text-xs text-muted">Each workspace gets a free daily allowance for summaries, translations and reading invoices. Add a key above to use your own provider instead.</p>}
+          </div>
+        )}
       </div>
     </Section>
   );

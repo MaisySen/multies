@@ -3,6 +3,7 @@
  * for everything else, D1 as the database. Housekeeping runs opportunistically
  * (at most every 10 minutes) and on a cron trigger when one is configured.
  */
+import { kvToolFileStore, type AiRunner } from "../server/services/tools/p2-bindings";
 import { WEB_META_PATHS } from "../server/routes/web-meta-r32"; // R32: /version.json, /llms.txt
 import { isKnownPage } from "../shared/known-routes";
 import { metaFor, SITE_URL } from "../web/components/seo-meta";
@@ -14,11 +15,12 @@ import { configureReporting, flushReporting, reportException, reportingClientExi
 import { drizzle } from "drizzle-orm/d1";
 import { appPrebuild, createApp } from "../server/app";
 import { loadConfig } from "../server/config";
-import { applyMigrations, migrationDriver, schema, type DB } from "../server/db";
+import { applyMigrations, INDEX_MIGRATIONS, migrationDriver, schema, type DB } from "../server/db";
 import { DohResolver } from "../server/services/dns/resolver";
 import { LogOutbound, ResendOutbound } from "../server/services/mail/outbound";
 import { ResilientOutbound } from "../server/services/resilience";
 import { getOrCreateStoredSecret, runMaintenanceIfMigrated } from "../server/services/maintenance";
+import { toolsCronPasses } from "../server/services/tools/p2-cron"; // Tools P2
 import type { Deps, RateLimitBinding } from "../server/context";
 import { API_CSP, appCsp, isHttps, withSecurityHeaders } from "../server/lib/security-headers";
 import { jsonLogger } from "../server/lib/logger";
@@ -121,6 +123,11 @@ function bootWith(env: WorkerEnv, db: DB, vars: Record<string, string | undefine
     reportError: config.sentry.dsnApi ? (err, context) => reportException(err, context) : undefined,
     bodyStore: config.bodyStore ? new S3BodyStore(config.bodyStore) : undefined,
     importFiles: env.IMPORT_FILES ? kvImportFileStore(env.IMPORT_FILES) : undefined, // R43
+    // Tools P2: Workers AI (hard capped by the AI meter) and files kept past one job (KV with expiry, no R2).
+    ai: env.AI ? (env.AI as AiRunner) : undefined,
+    toolFiles: env.IMPORT_FILES ? kvToolFileStore(env.IMPORT_FILES) : undefined,
+    // Tools P2 (17): the attachment text index lives in its own D1 database (no virtual table in the main one).
+    indexDb: env.INDEX_DB ? drizzle(withReadRetry(env.INDEX_DB) as never, { schema }) as unknown as DB : undefined,
     openSocket: workerSocketOpener,
     dispatchMailSync: mailSyncDispatcher(env),
     loadMailBody: mailBodyDispatcher(env),
@@ -379,6 +386,8 @@ async function deployMigrate(request: Request, env: WorkerEnv): Promise<Response
     return Response.json({ error: { code: "not_found", message: "No such endpoint." } }, { status: 404 });
   }
   const applied = await applyMigrations(migrationDriver(env.DB));
+  // Tools P2 (17): the attachment text index database, when bound, has its own migrations (drizzle-index/).
+  if (env.INDEX_DB) applied.push(...(await applyMigrations(migrationDriver(env.INDEX_DB), INDEX_MIGRATIONS)).map((n) => `index:${n}`));
   return Response.json({ ok: true, applied }, { headers: { "cache-control": "no-store" } });
 }
 
@@ -444,7 +453,7 @@ async function serve(request: Request, env: WorkerEnv, ctx: ExecutionContext): P
     const spec = await builtOpenApi(env, url);
     if (spec) return withSecurityHeaders(spec, apiHeaders);
   }
-  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
+  if (url.pathname.startsWith("/api/") || WEB_META_PATHS.has(url.pathname) || url.pathname === "/health" || url.pathname === "/healthz" || url.pathname.startsWith("/cal/") || url.pathname.startsWith("/s/") || url.pathname.startsWith("/d/") || url.pathname.startsWith("/sign/") /* Tools P2: share and signing pages */ || url.pathname === "/.well-known/security.txt" || url.pathname.startsWith("/.well-known/oauth-") || url.pathname === "/.well-known/openid-configuration") {
     const { app, deps } = await getReady(env);
     // Hosts without a cron trigger (the hosted preview) run maintenance from requests.
     // Production and staging have cron triggers and must not: every new isolate used to
@@ -550,6 +559,8 @@ const handler = {
     // R43: what the maintenance run reports is sent before the run ends.
     // R50 (CPU limit): the cron pass rotates its hourly housekeeping across the four passes of each hour.
     ctx.waitUntil(runMaintenanceIfMigrated(deps, { rotate: true }).finally(() => flushReporting()));
+    // Tools P2: share and signing, mail merge, AI usage housekeeping and the attachment index, each on its own.
+    for (const p of toolsCronPasses(deps)) ctx.waitUntil(p);
   },
 };
 

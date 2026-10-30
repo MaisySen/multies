@@ -75,6 +75,7 @@ import { registerTeardownR27Routes } from "./v1-r27-teardown"; // R27 teardown: 
 import { registerCountsR34Routes } from "./counts-r34"; // R34
 import { registerTriageR31Routes } from "./v1-r31-triage"; // R31: notification triage and catch-up
 import { registerTriageR32Routes } from "./v1-r32-triage"; // R32: task triage actions
+import { registerToolsV1Routes } from "./v1-tools"; // Tools P2: developer API
 
 // ---------------------------------------------------------------- schemas
 
@@ -285,6 +286,7 @@ export function v1Routes() {
   for (const r of ["domains", "mailboxes", "aliases", "messages", "webhooks", "auth-email-hooks"]) api.use(`/${r}/*`, apiKeyAuth, workspaceKeyOnly);
   api.use("/free-address", apiKeyAuth, workspaceKeyOnly);
   for (const r of ["agents", "threads", "search", "approvals", "events", "attachments", "mcp", "tasks", "projects", "docs", "contacts", "companies", "deals", "changes", "time", "forms", "reports", "meetings", "fields", "guests", "portfolio", "chat", "templates", "goals", "key-results", "integrations", "incoming-hooks", "scheduling", "people", "agent-members"]) api.use(`/${r}/*`, apiKeyAuth);
+  api.use("/tools/*", apiKeyAuth, workspaceKeyOnly); // Tools P2: developer API ("/x/*" also matches "/x")
   api.use("/work-imports/*", apiKeyAuth);
   api.use("/data-moves", apiKeyAuth);
   api.use("/data-moves/*", apiKeyAuth);
@@ -532,6 +534,7 @@ export function v1Routes() {
   registerCountsR34Routes(api); // R34: unread counts for badges
   registerReportsR35Routes(api); // R35: reports and blocks
   registerTriageR32Routes(api); // R32: task triage actions
+  registerToolsV1Routes(api); // Tools P2: developer API (flag api, scope tools)
   registerAgentTriggerRoutes(api); // R28 (DF-3 slice 3): triggers and GET /agents/me/runs
   registerTeardownR27Routes(api); // R27 teardown: task watchers, duplicate
   registerSprintRoutes(api);

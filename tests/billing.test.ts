@@ -167,12 +167,46 @@ describe("billing with Stripe", () => {
     await postWebhook(ctx.app, { id: "evt_p1", type: "invoice.paid", data: { object: paid } }, "whsec_test", new Date(now));
     expect((await ctx.db.query.organizations.findFirst())!.pastDueSince).toBeNull();
     const receipt = ctx.outbound.sent.find((m) => m.subject.startsWith("Receipt MM-0009"))!;
-    expect(receipt.html).toContain("Payment received: $12.00");
+    expect(receipt.html).toContain("Payment received: A$12.00");
+    expect(receipt.html).toContain("Line amounts are excl. GST.");
     expect(receipt.html).toContain("Includes GST");
     expect(receipt.html).toContain("Multies Pro");
     expect((await a.post("/api/mail/send", { mailboxId: box.id, to: ["x@example.com"], subject: "Hi", text: "Hi" })).body.error.code).not.toBe("payment_required");
     const audit = (await a.get("/api/org/audit")).body.entries.map((e: { action: string }) => e.action);
     expect(audit).toEqual(expect.arrayContaining(["billing.payment_failed", "billing.grace_ended", "billing.recovered", "billing.invoice_paid"]));
+  });
+
+  it("shows A$ on receipts for AUD charges, with Stripe's own line text localised, and a non AUD charge in its own code", async () => {
+    const a = new Client(ctx.app);
+    await a.signup("owner@acme.io");
+    const orgId = (await a.get("/api/account/me")).body.organization.id;
+    stripe.subs.sub_1 = sub("active");
+    await postWebhook(ctx.app, { id: "evt_1", type: "checkout.session.completed", data: { object: { subscription: "sub_1", customer: "cus_123", metadata: { orgId } } } });
+
+    const paid = {
+      id: "in_aud", number: "XDZKRLEW-0001", customer: "cus_123", amount_paid: 350, currency: "aud", hosted_invoice_url: "https://invoice.stripe.com/i/aud",
+      lines: { data: [
+        { description: "1 5 mailboxes \u00d7 Multies Mailbox pack (at $3.00 / month)", amount: 300 },
+        { description: "Unused time on Multies Storage pack (with 30.0% off) after 30 Oct 2026", amount: -140 },
+      ] },
+    };
+    await postWebhook(ctx.app, { id: "evt_aud", type: "invoice.paid", data: { object: paid } });
+    const receipt = ctx.outbound.sent.find((m) => m.subject.startsWith("Receipt XDZKRLEW-0001"))!;
+    expect(receipt.subject).toBe("Receipt XDZKRLEW-0001 for Acme: A$3.50");
+    for (const body of [receipt.html, receipt.text]) {
+      expect(body).toContain("A$3.50");
+      expect(body).toContain("A$3.00 / month");
+      expect(body).toContain("-A$1.40");
+      expect(body).not.toMatch(/(^|[^A-Za-z])\$\d/);
+    }
+    expect(receipt.text).toContain("We received A$3.50 for Acme");
+
+    const usd = { id: "in_usd", number: "USD-0001", customer: "cus_123", amount_paid: 4650, currency: "usd", lines: { data: [{ description: "Multies Mailbox pack (at $3.00 / month)", amount: 4650 }] } };
+    await postWebhook(ctx.app, { id: "evt_usd", type: "invoice.paid", data: { object: usd } });
+    const other = ctx.outbound.sent.find((m) => m.subject.startsWith("Receipt USD-0001"))!;
+    expect(other.subject).toBe("Receipt USD-0001 for Acme: USD 46.50");
+    expect(other.text).toContain("USD 3.00 / month");
+    expect(other.text).not.toContain("A$");
   });
 
   it("changes plans in place with Stripe proration, previewed first", async () => {

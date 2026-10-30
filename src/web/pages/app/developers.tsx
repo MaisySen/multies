@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { IconAgent, IconBook, IconCheck, IconKey, IconPlus, IconSend, IconTrash, IconWebhook } from "@/web/components/ui/icon";
+import { IconAgent, IconBook, IconCheck, IconKey, IconPlus, IconSend, IconTrash, IconWebhook, IconWrench } from "@/web/components/ui/icon";
 import { toast } from "sonner";
 import { api, ApiError } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
@@ -33,6 +33,8 @@ export function DeveloperSettings() {
         {([
           ["/api/v1/reference", "REST API", "Domains, mailboxes, aliases, mail and the work suite, with an OpenAPI spec.", <IconBook key="b" />],
           ["/developers/mcp", "MCP tools", "Every tool an agent can call, with real example results.", <IconAgent key="a" />],
+          // Tools P2: the document tools API (scope tools:read, tools:run), documented in docs/api.md.
+          ["/docs/api.md", "Document tools API", "Compress, convert, OCR and protect files, or run a saved workflow, with curl examples.", <IconWrench key="w" />],
         ] as const).map(([href, title, body, icon]) => (
           <a key={href} href={href} target="_blank" rel="noreferrer"
             className="group flex items-start gap-3 rounded-xl border border-line bg-surface p-4 shadow-card transition-[transform,box-shadow] duration-150 hover:-translate-y-px hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none motion-reduce:hover:translate-y-0">

@@ -29,10 +29,12 @@ import { linkFor } from "./suite/notify";
 import { dateFormat, dayInZone } from "../lib/intl-cache";
 import { inIds } from "../lib/sql-chunks";
 import { notBlockedBy } from "./suite/reports-r35"; // R35
+import { searchAttachmentText } from "./tools/attachment-index"; // Tools P2 (17)
 
-export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals"] as const;
+// Tools P2 (17): "attachments" (text inside mail attachments) is listed only while the deployment has the index feature on.
+export const SEARCH_TYPES = ["mail", "tasks", "docs", "chat", "contacts", "deals", "attachments"] as const;
 export type SearchType = (typeof SEARCH_TYPES)[number];
-export const SEARCH_LABELS: Record<SearchType, string> = { mail: "Mail", tasks: "Tasks", docs: "Docs", chat: "Chat", contacts: "Contacts", deals: "Deals" };
+export const SEARCH_LABELS: Record<SearchType, string> = { mail: "Mail", tasks: "Tasks", docs: "Docs", chat: "Chat", contacts: "Contacts", deals: "Deals", attachments: "Attachments" };
 export const SEARCH_MIN_CHARS = 2;
 export const SEARCH_MAX_CHARS = 100;
 export const SEARCH_DEFAULT_LIMIT = 5;
@@ -199,6 +201,23 @@ async function searchContacts(deps: Deps, orgId: string, term: string, limit: nu
   }));
 }
 
+/**
+ * Tools P2 (17): text inside mail attachments, from the attachment index. The same mailbox scope as mail
+ * (scopeOf), trash left out: one full text statement in the index database, one lookup of the hits in the main
+ * one. Opens the message with the attachment.
+ */
+async function searchAttachments(deps: Deps, actor: SuiteActor, term: string, limit: number): Promise<SearchItem[]> {
+  const scope = await scopeOf(deps, actor);
+  const rows = await searchAttachmentText(deps, actor.orgId, scope, term, { limit });
+  return rows.map((r) => ({
+    type: "attachments" as const, id: r.attachment_id, title: r.filename || "Attachment",
+    subtitle: [r.subject || "(no subject)", r.from_name || r.from_address].filter(Boolean).join(" · "),
+    snippet: (r.snip ?? "").replace(/\s+/g, " ").trim().slice(0, 160),
+    url: `/app/mail?mailbox=${encodeURIComponent(r.mailbox_id)}&folder=${encodeURIComponent(r.folder)}&m=${encodeURIComponent(r.message_id)}&attachment=${encodeURIComponent(r.attachment_id)}`,
+    at: iso(new Date(Number(r.date))),
+  }));
+}
+
 const STAGE_LABEL = { lead: "Lead", qualified: "Qualified", proposal: "Proposal", won: "Won", lost: "Lost" } as const;
 
 async function searchDeals(deps: Deps, orgId: string, term: string, limit: number): Promise<SearchItem[]> {
@@ -234,6 +253,9 @@ export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: st
   let types = opts.types?.length ? SEARCH_TYPES.filter((t) => opts.types!.includes(t)) : [...SEARCH_TYPES];
   // A guest sees one project's tasks, docs and guest channels. Nothing else.
   if (v.kind === "guest") types = types.filter((t) => t === "tasks" || t === "docs" || t === "chat");
+  // Tools P2 (17): attachment text only where the index feature is on and the index database is bound (otherwise the type is unknown to callers).
+  const tools = deps.config.tools;
+  if (!(tools.enabled && tools.features.includes("index") && deps.indexDb)) types = types.filter((t) => t !== "attachments");
   const run = (t: SearchType): Promise<SearchItem[]> => {
     if (v.kind === "guest") {
       if (t === "tasks") return searchTasks(deps, v.orgId, term, limit, v.projectId);
@@ -248,6 +270,7 @@ export async function searchEverything(deps: Deps, v: SearchViewer, rawQuery: st
       case "chat": return searchChat(deps, v, term, limit);
       case "contacts": return searchContacts(deps, a.orgId, term, limit);
       case "deals": return searchDeals(deps, a.orgId, term, limit);
+      case "attachments": return searchAttachments(deps, a, term, limit);
     }
   };
   const done = new Map<SearchType, SearchItem[]>();

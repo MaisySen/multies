@@ -27,6 +27,13 @@ import { domainRoutes } from "./routes/domains";
 import { aliasRoutes, mailboxRoutes } from "./routes/addresses";
 import { freeAddressRoutes } from "./routes/free-address";
 import { toolsRoutes } from "./routes/tools";
+import { activeToolFeatures } from "./services/tools/features"; // Tools P2: "index" only with INDEX_DB
+import { toolsEditorsRoutes } from "./routes/tools-editors"; // Tools P2: editors
+import { toolsAiRoutes } from "./routes/tools-ai"; // Tools P2: AI documents
+import { mailMergeUnsubscribeRoutes, toolsAutomationRoutes } from "./routes/tools-automation"; // Tools P2: automation
+import { sharePublicRoutes, toolsShareRoutes } from "./routes/tools-share"; // Tools P2: share links
+import { esignPublicRoutes, toolsEsignRoutes } from "./routes/tools-esign"; // Tools P2: e-sign
+import { attachmentIndexRoutes } from "./routes/attachment-index"; // Tools P2: attachment index and smart folders
 import { connectionRoutes } from "./routes/connections";
 import { fxRoutes } from "./routes/fx";
 import { orgRoutes } from "./routes/org";
@@ -379,6 +386,8 @@ export function createApp(deps: Deps) {
       chatChannels: deps.config.channels.enabled,
       // Tools P1: whether the Tools page and its menu entries show (TOOLS_ENABLED with an engine configured).
       tools: deps.config.tools.enabled,
+      // Tools P2: the P2 features on here (TOOLS_FEATURES), so menus can follow each flag without another request.
+      toolFeatures: deps.config.tools.enabled ? activeToolFeatures(deps) : [],
       // R43: whether the import pages say a run carries on after the page closes (BACKGROUND_COPY).
       backgroundCopy: !!deps.config.backgroundCopy,
       // Round 25: provider connections shown as sign in buttons (AUTH0_SOCIAL_CONNECTIONS).
@@ -406,7 +415,14 @@ export function createApp(deps: Deps) {
   app.route("/api/domains", domainRoutes());
   app.route("/api/mailboxes", mailboxRoutes());
   app.route("/api/free-address", freeAddressRoutes());
+  app.route("/api/tools/editors", toolsEditorsRoutes()); // Tools P2: editors (page editor, forms, compare)
+  app.route("/api/tools/ai", toolsAiRoutes()); // Tools P2: AI documents (ask, translate, invoices, expenses, contracts)
+  app.route("/api/tools/share", toolsShareRoutes()); // Tools P2: share links
+  app.route("/api/tools/esign", toolsEsignRoutes()); // Tools P2: e-sign
   app.route("/api/tools", toolsRoutes()); // Tools P1: document tools (off unless TOOLS_ENABLED)
+  app.route("/api/tools", toolsAutomationRoutes()); // Tools P2: automation (rules, workflows, templates, mail merge)
+  app.route("/api/mail-merge", mailMergeUnsubscribeRoutes()); // Tools P2: automation (public mail merge unsubscribe)
+  app.route("/api/attachment-files", attachmentIndexRoutes()); // Tools P2: attachment index and smart folders
   app.route("/api/connections", connectionRoutes());
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
@@ -502,6 +518,8 @@ export function createApp(deps: Deps) {
   app.route("/cal", calendarFeedRoutes()); // Round 23: public calendar feed /cal/<token>.ics
   app.route("/api/share-links", shareLinkRoutes()); // R26 (MB-87): read only share links
   app.route("/s", sharePageRoutes()); // R26 (MB-87): the public page /s/<token>
+  app.route("/d", sharePublicRoutes()); // Tools P2: share links, the public page /d/<token>
+  app.route("/sign", esignPublicRoutes()); // Tools P2: e-sign, the public signing page /sign/<token>
   app.route("/r/o", openPixelRoutes()); // R31: read status open image /r/o/<token>.gif (public)
   // The public API is the biggest part of the app to build (about 150 OpenAPI routes, roughly
   // 10 ms of CPU), so it is built the first time an /api/v1 request arrives rather than on

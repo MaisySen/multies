@@ -48,7 +48,7 @@ const E = LEGAL_ENTITY;
  */
 export const PROVIDER_CATEGORIES: string[][] = [
   ["Provider", "What they do for us", "Data", "Where"],
-  ["Our hosting and database provider", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in our hosting provider's Oceania region; edge network worldwide"],
+  ["Our hosting and database provider", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection; when your workspace uses the AI document helpers, also the AI service that reads document text", "All service data", "Primary database in our hosting provider's Oceania region; edge network worldwide; AI service on its network, may be outside Australia"],
   ["Our sign in provider", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
   ["Our outbound email provider", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Our payments provider", "Payments and invoices for paid add ons", "Billing contact; card details are held by our payments provider, never by us", "Australia and United States"],
@@ -57,13 +57,13 @@ export const PROVIDER_CATEGORIES: string[][] = [
   ["Our push notification provider", "Notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
   ["Our document engine host", "Runs our document engine for Tools, only when you use a tool", "Files you run through Tools and their results, deleted within 1 hour", "Singapore"],
   ["A public DNS resolver", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
-  ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
+  ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about, and the AI document helpers send the document text, to that provider, on your account with them", "The email thread or document text you ask about", "Set by the provider you choose"],
 ];
 
 /** The named sub processor list in the Data processing agreement (DPA items 83 and 84). */
 export const SUBPROCESSORS: string[][] = [
   ["Sub processor", "What they do for us", "Data", "Where"],
-  ["Cloudflare", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection", "All service data", "Primary database in Cloudflare's Oceania region; edge network worldwide"],
+  ["Cloudflare", "Hosting, database, live doc rooms, inbound mail routing, edge network and DDoS protection; when the workspace uses the AI document helpers, also the AI service that reads document text", "All service data", "Primary database in Cloudflare's Oceania region; edge network worldwide; AI service on Cloudflare's network, may be outside Australia"],
   ["Auth0 (Okta)", "Sign in and sign up", "Name, email address, sign in method, second factor enrolment", "Australia; accounts made before 25 October 2026 in the United States until moved"],
   ["Resend", "Delivery of mail you send to addresses outside Multies", "Outbound messages and their recipients", "United States"],
   ["Stripe", "Payments and invoices for paid add ons", "Billing contact; card details are held by Stripe, never by us", "Australia and United States"],
@@ -72,7 +72,7 @@ export const SUBPROCESSORS: string[][] = [
   ["Expo", "Push notifications to the Multies phone apps, only when push notifications are turned on", "Device push token and message ids; no message text", "United States"],
   ["Render", "Runs our document engine for Tools, only when you use a tool", "Files you run through Tools and their results, deleted within 1 hour", "Singapore"],
   ["Google Public DNS", "Second resolver for domain checks when the first does not answer", "Domain names being checked; no personal information", "Worldwide"],
-  ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about to that provider, on your account with them", "The email thread you ask the assistant about", "Set by the provider you choose"],
+  ["Your chosen AI provider", "Only if your workspace adds its own API key: the assistant sends the thread you ask about, and the AI document helpers send the document text, to that provider, on your account with them", "The email thread or document text you ask about", "Set by the provider you choose"],
 ];
 
 export const PRIVACY: LegalDoc = {
@@ -141,7 +141,7 @@ export const PRIVACY: LegalDoc = {
       { table: [["Data", "Where", "Notes"], ...WHERE_DATA_LIVES.map((r) => [r.data, r.where, r.detail])] },
     ] },
     { id: "overseas", title: "Overseas disclosure (APP 8)", body: [
-      "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Files you run through Tools are processed on our document engine in Singapore and deleted within 1 hour. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
+      "Multies does not offer Australia only storage. Our primary database, which holds your workspace data including mail synced from connected mailboxes, is placed in our hosting provider's Oceania region, our app servers run in Sydney, and requests first reach the edge location nearest you. Our sign in provider holds accounts in Australia. Files you run through Tools are processed on our document engine in Singapore and deleted within 1 hour. When your workspace uses the AI document helpers, document text may be processed by our infrastructure provider's AI service outside Australia. Some providers listed above process data in the United States, and our encrypted backup copies are kept in the United States. Our Trust page (multies.si/trust) lists where each kind of data lives. We take reasonable steps, including contractual commitments and, for European data, Standard Contractual Clauses, so they handle it consistently with the APPs and the GDPR.",
     ] },
     { id: "cookies", title: "Cookies", body: [
       "We use only cookies that are strictly necessary: a session cookie that keeps you signed in and a short lived cookie that protects sign in. If you open a referral link from another Multies customer, a first party cookie keeps its referral code for up to 30 days so that customer can be credited when you sign up; it holds nothing else and is not shared with anyone. There are no advertising or analytics cookies. If we turn on visitor analytics, it is cookieless and stores nothing on your device. Error monitoring does not set cookies. We show a short notice about this once; closing it saves a small note in your browser's local storage so it stays closed.",
@@ -155,6 +155,16 @@ export const PRIVACY: LegalDoc = {
         "Files you run through Tools: each input file is deleted right after its job, and everything is deleted within 1 hour.",
         "After you delete your account or workspace: removed from the live database straight away, and from backups within 30 days. Every backup copy is encrypted, and copies older than 30 days are deleted.",
         "Request logs: no more than 30 days. Audit logs: for the life of the workspace. Invoices: 7 years, as Australian tax law requires.",
+      ] },
+    ] },
+    // Tools P2: each line applies only when a workspace uses the feature (all off on production until they ship).
+    { id: "tools-p2", title: "Document tools that keep data", body: [
+      { list: [
+        "AI document helpers (ask a document, translate, invoices and receipts, expense reports, contract dates): when your workspace uses them, the document text goes to our infrastructure provider's AI service, or to your workspace's own AI provider when an admin adds a key. It is used only to produce the answer, is not used to train AI models, and is not kept after the answer. We keep a daily count of AI use per workspace (a number, no content) for 2 days.",
+        "Search inside attachments and smart folders: when your workspace uses them, we extract the text of mail attachments and keep it in a separate search index, with the folder each file is sorted into. It is deleted with the message, or when an admin turns search inside attachments off. The search index is not included in backups and can be rebuilt from your mail.",
+        "Share links: when your workspace uses them, the file is kept until the link expires (at most 30 days) or is turned off, then deleted. For each download we record the time, the country and the type of browser, not the full network address. A link password is stored only as a one way hash.",
+        "E-sign: when your workspace uses it, the document is kept for up to 30 days while signatures are collected. The signing record keeps each signer's name and email address, what they did (sent, opened, signed or declined), the time and the country each action came from, and stays with the request until you delete it. People asked to sign need no account; their name and email are used only for the document, reminders and the finished copy.",
+        "Mail merge: when your workspace uses it, the names, email addresses and fields in your list are used only to make each person's PDF and send their email. The PDFs are kept for up to 3 days so sends can be retried, then deleted. Unsubscribe requests are kept so they keep being honoured.",
       ] },
     ] },
     { id: "security", title: "Security", body: [
@@ -192,7 +202,11 @@ export const TERMS: LegalDoc = {
       "Multies is a workspace for email, tasks, chat, docs, calendar and meetings, with an API, webhooks and an MCP server, on the web and in the Multies apps for iPhone and Android. It gives you email in three ways: connect a mailbox you already have at another provider, take a free personal address on mail.multies.si, or host mailboxes and aliases on a domain you own.",
       "When you connect a mailbox from another provider, you confirm you are allowed to use it, and that provider's own terms still apply to it. Multies reads and sends that mailbox's mail over IMAP and SMTP with the app password or sign in you give us. We store it encrypted, use it only to sync and send that mailbox's mail, and delete it when you remove the connection. The original mail stays at your provider; the copy we sync into your workspace is deleted when you remove the connection. Our Privacy policy explains how we handle both.",
       "When you add your own domain, you must own or control it and keep its DNS records in place.",
-      "Tools (compress, merge, convert and the other document tools) are provided as is: check each result before you rely on it or send it. Redact blacks out the whole line that contains a match and turns those pages into images, so their text can no longer be selected or searched. Making scans searchable reads English text only for now.",
+      "Tools (compress, merge, convert and the other document tools) are provided as is: check each result before you rely on it or send it. Redact blacks out the whole line that contains a match and turns those pages into images, so their text can no longer be selected or searched. Making scans searchable reads English text; when your workspace uses more scan languages, those can take a few minutes and make more mistakes. Find sensitive info and smart folders work from patterns in the text and can miss items or get them wrong, so review them before you rely on them.",
+      "When your workspace uses the AI document helpers, answers, translations and extracted details can be wrong. Check them against the document before you rely on them, especially amounts, dates and legal terms.",
+      "When your workspace uses e-sign, Multies records who signed, when and from which country, and adds that record to the signed copy. We do not promise that an electronic signature is legally valid or will be accepted for every document or in every place. Electronic signatures suit most everyday business documents. Some documents, such as wills, powers of attorney and documents that must be witnessed, need a different way of signing. You are responsible for having the right to ask someone to sign.",
+      "When your workspace uses mail merge, the Acceptable use policy applies to every merge: you need each person's consent, and marketing merges carry an unsubscribe line.",
+      "When your workspace uses share links, anyone with the link (and its password, if set) can download the file until it expires, reaches its download limit or is turned off.",
       "We work to keep Multies available and show its current status on our status page. We do not promise a level of availability.",
       "We improve Multies all the time. We may add, change or remove features; if we remove a feature you pay for, we will tell you first and refund the unused part of what you paid for it.",
     ] },
@@ -264,6 +278,7 @@ export const AUP: LegalDoc = {
         "Unsubscribe: it has a working unsubscribe that is honoured within 5 working days and costs nothing to use.",
       ] },
       "The same standards apply to recipients outside Australia, together with their local laws (for example CAN SPAM and GDPR).",
+      "When your workspace uses mail merge, you must have the consent of each person on your list, and every marketing merge must keep the unsubscribe line Multies adds. Multies asks you to confirm consent before each merge, skips people who unsubscribed and limits how many people a merge can reach each day. You remain responsible for your lists and what you send.",
     ] },
     { id: "prohibited", title: "Never allowed", body: [
       { list: [

@@ -34,7 +34,7 @@ export const DATA_REGION: TrustFact[] = [
 // Source: src/server/config.ts (env vars per provider), wrangler.toml secrets list, CREDENTIALS
 // (Auth0 tenant multies in the AU region since 25 October 2026; the legacy US tenant still signs in older accounts), CREDENTIALS (Sentry and LiveKit US data regions, Resend us-east-1).
 export const SUBPROCESSORS: Subprocessor[] = [
-  { name: "Our hosting and database provider", purpose: "Hosting, database, live doc rooms, inbound mail routing, DDoS protection", data: "All service data", where: "Oceania for the database; edge worldwide", when: "always", env: [] },
+  { name: "Our hosting and database provider", purpose: "Hosting, database, live doc rooms, inbound mail routing, DDoS protection; when your workspace uses the AI document helpers, also the AI service that reads document text", data: "All service data", where: "Oceania for the database; edge worldwide; AI service on its network, may be outside Australia", when: "always", env: [] },
   { name: "Our sign in provider", purpose: "Sign in and sign up for people", data: "Name, email, sign in method, second factor enrolment", where: "Australia (accounts made before 25 October 2026: United States until moved)", when: "always", env: ["AUTH0_DOMAIN", "AUTH0_CLIENT_ID", "AUTH0_CLIENT_SECRET"] },
   { name: "Our outbound email provider", purpose: "Delivers mail you send to addresses outside Multies", data: "Outbound messages and their recipients", where: "United States", when: "always", env: ["RESEND_API_KEY"] },
   { name: "Our error monitoring provider", purpose: "Error and performance monitoring", data: "Error reports with account ids", where: "United States", when: "always", env: ["SENTRY_DSN_API", "SENTRY_DSN_WEB"] },
@@ -43,7 +43,7 @@ export const SUBPROCESSORS: Subprocessor[] = [
   { name: "A public DNS resolver", purpose: "Second resolver for DNS lookups when our hosting provider's resolver does not answer (domain checks)", data: "Domain names being checked, no personal data", where: "Worldwide", when: "always", env: [] },
   { name: "Our push notification provider", purpose: "Notifications to the Multies phone apps, only when push notifications are turned on", data: "Device push token and message ids, no message text", where: "United States", when: "optional", env: ["PUSH_ENABLED"] },
   { name: "Our document engine host", purpose: "Runs our document engine for Tools, only when you use a tool", data: "Files you run through Tools and their results, deleted within 1 hour", where: "Singapore", when: "optional", env: ["DOC_ENGINE_URL"] },
-  { name: "Your AI provider", purpose: "Only when your workspace adds its own key: the assistant sends the thread you ask about to that provider", data: "The email thread you ask the assistant about", where: "Set by the provider you choose", when: "optional", env: [] },
+  { name: "Your AI provider", purpose: "Only when your workspace adds its own key: the assistant sends the thread you ask about, and the AI document helpers send the document text, to that provider", data: "The email thread you ask the assistant about, or the text of the document you ask about", where: "Set by the provider you choose", when: "optional", env: [] },
 ];
 
 // Source: docs/runbooks/db-backup-restore.md.

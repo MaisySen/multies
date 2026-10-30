@@ -1,5 +1,5 @@
 import { openSqlite } from "@/server/db/node";
-import { migrate } from "@/server/db";
+import { migrate, migrateIndex } from "@/server/db";
 import { createApp } from "@/server/app";
 import { loadConfig } from "@/server/config";
 import { StaticResolver } from "@/server/services/dns/resolver";
@@ -34,17 +34,20 @@ export function enforceD1VariableLimit(db: ReturnType<typeof openSqlite>) {
   };
 }
 
-export async function makeTestApp(env: Record<string, string> = {}, opts: { fetch?: typeof fetch } = {}) {
+export async function makeTestApp(env: Record<string, string> = {}, opts: { fetch?: typeof fetch; noIndexDb?: boolean } = {}) {
   const db = openSqlite(":memory:");
   await migrate(db);
+  // Tools P2 (17): the separate attachment text index database, as INDEX_DB is on Workers.
+  const indexDb = opts.noIndexDb ? undefined : openSqlite(":memory:");
+  if (indexDb) await migrateIndex(indexDb);
   enforceD1VariableLimit(db);
   const dns = new StaticResolver();
   const outbound = new LogOutbound();
   const fetchImpl = opts.fetch ?? (async () => { throw new Error("network disabled in tests"); });
-  const deps: Deps = { db, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
+  const deps: Deps = { db, indexDb, config: loadConfig({ APP_SECRET: "t".repeat(40), ...env }), dns, outbound, now: () => new Date(), fetch: fetchImpl as typeof fetch, log: nullLogger };
   const app = createApp(deps);
   appDbs.set(app, db);
-  return { app, deps, db, dns, outbound };
+  return { app, deps, db, indexDb, dns, outbound };
 }
 
 /** A tiny cookie-keeping client over `app.request`. */

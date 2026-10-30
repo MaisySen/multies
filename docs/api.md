@@ -21,6 +21,7 @@ A workspace key has **Full access**, **Read only**, or scopes per area that you 
 | Calendar and meetings | `calendar:read` | `calendar:write` |
 | Contacts and deals | `contacts:read` | `contacts:write` |
 | Workspace admin | `admin:read` | `admin:write` |
+| Document tools | `tools:read` | `tools:run` |
 
 A write scope includes its read scope. Every `/api/v1` route and every MCP tool needs one scope (GET needs the read scope, other methods the write scope); the MCP tools page at https://multies.si/developers/mcp shows each tool's. A call without it answers 403 `{"error":{"code":"insufficient_scope","message":"...","required":"tasks:write"}}` (on MCP, a tool error starting `insufficient_scope:`). Full access and Read only keys behave exactly as before. Session endpoints: `GET /api/developer/scopes` (areas and presets), `POST /api/developer/keys` with `scope` as `"full"`, `"read"` or a list, `PATCH /api/developer/keys/{id}` with `{ scope }`.
 
@@ -342,6 +343,52 @@ on read, so a task change costs no extra write; a completed sprint keeps its fin
 - Public API: `GET` and `POST /api/v1/projects/{id}/sprints`, `GET /api/v1/projects/{id}/backlog`, `GET`, `PATCH` and `DELETE /api/v1/sprints/{id}` (`timeZone` on GET), `POST /api/v1/sprints/{id}/start`, `POST /api/v1/sprints/{id}/complete` `{ carry_over: "next" | "backlog" }`, `POST /api/v1/sprints/{id}/tasks` and `/tasks/remove` `{ taskIds }`, `PUT /api/v1/tasks/{id}/points` `{ points }`. Task create and update also take `sprintId` and `points`.
 - Errors: 409 `sprint_already_active` (complete the running one first), 409 `sprint_completed`, 422 when a sprint ends before it starts or a task is in another project.
 - MCP: `list_sprints`, `get_sprint`, `create_sprint`, `start_sprint`, `complete_sprint`, `add_to_sprint`, `remove_from_sprint`.
+
+## Document tools (Tools P2)
+
+The same document tools as the Tools page (compress, merge, convert, OCR, protect, watermark and more), for scripts and agents. A key needs the `tools:read` scope to list tools and read jobs, and `tools:run` to start them. Calls count against the workspace's Tools allowance and the normal `/api/v1` rate limit. Files are processed on the Multies document server in Singapore and deleted from it within an hour; results can be downloaded for a limited time.
+
+| Method | Path | What it does |
+| --- | --- | --- |
+| GET | `/api/v1/tools` | The tools switched on for this workspace, each with its options and file types. |
+| POST | `/api/v1/tools/jobs?op={op}` | Start a job. Send files as `multipart/form-data` (field `files`, one or more, plus options as fields), or JSON `{ "op", "attachmentIds": [...], "options": {...} }` for mail attachments. Answers 202 with `token` and `statusUrl`. |
+| GET | `/api/v1/tools/jobs/{token}` | Job status: `queued`, `running`, `done`, `failed` or `expired`, with `downloadUrl` once done. |
+| GET | `/api/v1/tools/jobs/{token}/download` | The finished file. |
+| POST | `/api/v1/tools/workflows/{id}/run` | Run a saved workflow (or a starter: `starter-scan-searchable`, `starter-shrink-protect`, `starter-word-watermark`) on uploaded files or attachment ids. A workflow with a protect step needs `password` in the request; it is never stored. |
+
+Compress a PDF:
+
+```
+curl -X POST "https://multies.si/api/v1/tools/jobs?op=compress" \
+  -H "Authorization: Bearer $MULTIES_KEY" \
+  -F "files=@report.pdf"
+# {"token":"tj_...","op":"compress","status":"queued","statusUrl":"/api/v1/tools/jobs/tj_..."}
+
+curl "https://multies.si/api/v1/tools/jobs/tj_..." -H "Authorization: Bearer $MULTIES_KEY"
+# {"status":"done","name":"report.pdf","bytes":912384,"downloadUrl":"/api/v1/tools/jobs/tj_.../download"}
+
+curl -o report-small.pdf "https://multies.si/api/v1/tools/jobs/tj_.../download" -H "Authorization: Bearer $MULTIES_KEY"
+```
+
+Make a mail attachment searchable (OCR):
+
+```
+curl -X POST "https://multies.si/api/v1/tools/jobs" \
+  -H "Authorization: Bearer $MULTIES_KEY" -H "Content-Type: application/json" \
+  -d '{"op":"ocr","attachmentIds":["att_123"],"options":{"language":"eng"}}'
+```
+
+Run a workflow:
+
+```
+curl -X POST "https://multies.si/api/v1/tools/workflows/starter-shrink-protect/run" \
+  -H "Authorization: Bearer $MULTIES_KEY" \
+  -F "files=@contract.pdf" -F "password=$PDF_PASSWORD"
+```
+
+Errors use the usual shape. A key without the scope answers 403 `insufficient_scope` with `required`; a workspace without the tool answers 404; over the Tools allowance answers 403 with the plan limit in the message.
+
+In the app (session routes, not the public API): Settings, "Before sending" rules (`GET /api/tools/rules`, `PUT /api/tools/rules/workspace` for admins, `PUT /api/tools/rules/mine`), workflows (`/api/tools/workflows`), document templates (`/api/tools/templates`, `POST /api/tools/templates/{id}/render`) and mail merge (`/api/tools/merge`).
 
 ## MCP tools
 
