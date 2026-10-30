@@ -1,4 +1,5 @@
 import { InboxZeroArt, MailFolderArt, NoSearchResultsArt } from "@/web/components/illustrations";
+import { FreeAddressCard, useFreeAddress } from "@/web/components/free-address"; // R74 (MB-212)
 import { MailSyncBanner } from "@/web/components/mail-sync-progress";
 import { folderEmpty } from "@/web/lib/empty-copy-r36"; // R36
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -419,7 +420,8 @@ export function WebmailPage() {
   if (!mailboxes.length) {
     return (
       <div className="grid h-full place-items-center p-6">
-        <EmptyState icon={<IconInbox />} title="No mailboxes yet" body="Create a mailbox on one of your domains and its mail will show up here." action={<ButtonLink to="/app/mailboxes">Create a mailbox</ButtonLink>} />
+        {/* R74 (MB-212): no domain needed for a first email: the free address is offered right here when it is on. */}
+        <NoMailboxes />
       </div>
     );
   }
@@ -822,4 +824,18 @@ function everythingWords(chosen: string[] | null, total: number | null, where: s
     chosen: left !== null ? `All ${n(left)} selected` : "All selected",
     onAll,
   };
+}
+
+/** R74 (MB-212): Mail with no mailbox. When the free address is on and free to take, it is offered first. */
+function NoMailboxes() {
+  const free = useFreeAddress().data;
+  const offer = !!free?.enabled && !!free.available && !free.addresses[0];
+  return (
+    <div className="w-full max-w-lg space-y-4" data-testid="mail-no-mailboxes">
+      {offer && <FreeAddressCard />}
+      <EmptyState icon={<IconInbox />} title="No mailboxes yet"
+        body={offer ? "Take the free address above, or create a mailbox on a domain you own. Its mail will show up here." : "Create a mailbox on one of your domains and its mail will show up here."}
+        action={<ButtonLink to="/app/mailboxes" variant={offer ? "secondary" : "primary"}>Create a mailbox</ButtonLink>} />
+    </div>
+  );
 }
