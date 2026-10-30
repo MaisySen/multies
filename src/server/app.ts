@@ -50,6 +50,7 @@ import { savedDashboardRoutes } from "./routes/dashboards";
 import { computedRoutes } from "./routes/computed";
 import { triageRoutes } from "./routes/triage";
 import { threadCommentRoutes } from "./routes/thread-comments";
+import { channelRoutes, metaWebhookRoutes } from "./routes/channels"; // C1: chat channels
 import { checklistItemRoutes, checklistTaskRoutes, guestChecklistRoutes } from "./routes/checklists"; // R26 (MB-85)
 import { agentRunRoutes, agentRunTaskRoutes } from "./routes/agent-runs-r27"; // R27 (DF-3 slice 2)
 import { catchupRoutes } from "./routes/catchup-r31"; // R31: catch-up
@@ -402,6 +403,7 @@ export function createApp(deps: Deps) {
   app.route("/api/fx", fxRoutes());
   app.route("/api/aliases", aliasRoutes());
   app.route("/api/org", orgRoutes());
+  app.route("/api/channels", channelRoutes()); // C1: chat channels in the shared inbox
   app.route("/api/mail/snippets", mailSnippetRoutes()); // Round 22: saved replies
   app.route("/api/mail/splits", mailSplitRoutes()); // R31: split inbox
   app.route("/api/counts", countsRoutes()); // R34: unread counts for badges
@@ -563,6 +565,7 @@ export function createApp(deps: Deps) {
   app.route("/api/webhooks/resend", resendWebhookRoutes());
   app.route("/api/auth-hooks", authHookWebhookRoutes());
   app.route("/api/auth-email-settings", authEmailSettingsRoutes()); // R27: Sign-up emails settings
+  app.route("/api/webhooks/meta", metaWebhookRoutes()); // C1: WhatsApp, Messenger and Instagram webhooks (signed)
   app.route("/api/webhooks", providerWebhookRoutes());
   app.route("/api/deliverability", deliverabilityRoutes());
   app.route("/api/inbound-keys", inboundKeyRoutes());

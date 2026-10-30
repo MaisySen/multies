@@ -119,6 +119,14 @@ export interface AppConfig {
   /** Agent inboxes. `sharedDomain` hosts inboxes for workspaces with no domain yet (AGENT_MAIL_DOMAIN). */
   agents: { sharedDomain?: string };
   /**
+   * C1: chat channels (services/channels). `meta` is set only when every Meta app value is present (META_APP_ID,
+   * META_APP_SECRET, META_VERIFY_TOKEN, META_ES_CONFIG_ID); without it Settings shows Coming soon. `mock`
+   * (CHANNELS_MOCK=on) is the local test provider for unit and E2E runs and is refused in production.
+   * `dailySoftCap` (CHANNELS_DAILY_SOFT_CAP, default 2000) is the inbound messages per workspace per UTC day
+   * after which admins are warned and media is no longer copied (text still lands).
+   */
+  channels: { meta?: { appId: string; appSecret: string; verifyToken: string; configId: string; graphVersion: string }; mock: boolean; dailySoftCap: number };
+  /**
    * Free addresses (round 17): a Multies-owned domain that every workspace can take an address on
    * (name@FREE_MAIL_DOMAIN) with no domain of its own. One shared domain, already verified with the
    * outbound provider, so free users never spend the provider's per-account domain slots.
@@ -204,6 +212,13 @@ const EnvSchema = z.object({
   APP_SECRET: z.string().optional(),
   DEMO_MODE: z.string().optional(),
   SCHEDULING_ENABLED: z.string().optional(),
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  META_VERIFY_TOKEN: z.string().optional(),
+  META_ES_CONFIG_ID: z.string().optional(),
+  META_GRAPH_VERSION: z.string().optional(),
+  CHANNELS_MOCK: z.string().optional(),
+  CHANNELS_DAILY_SOFT_CAP: z.string().optional(),
   DNS_RESOLVER: z.enum(["doh", "node"]).optional(),
   MAIL_MX_HOSTS: z.string().optional(),
   MAIL_SPF_INCLUDES: z.string().optional(),
@@ -377,6 +392,20 @@ export function freeMailDomain(raw: string | undefined, appUrl: string | undefin
   return d;
 }
 
+/** C1: the chat channel settings. The Meta app counts as configured only when all four values are set. */
+function channelsConfig(env: z.infer<typeof EnvSchema>, mode: AppConfig["mode"]): AppConfig["channels"] {
+  const id = env.META_APP_ID?.trim(), secret = env.META_APP_SECRET?.trim(), verify = env.META_VERIFY_TOKEN?.trim(), cfg = env.META_ES_CONFIG_ID?.trim();
+  const version = /^v\d{1,3}\.\d$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : "v24.0";
+  const mockAsked = env.CHANNELS_MOCK === "on" || env.CHANNELS_MOCK === "1" || env.CHANNELS_MOCK === "true";
+  if (mockAsked && mode === "production") throw new ConfigError("CHANNELS_MOCK is for local tests only and cannot be on in production.");
+  const cap = Number(env.CHANNELS_DAILY_SOFT_CAP);
+  return {
+    meta: id && secret && verify && cfg ? { appId: id, appSecret: secret, verifyToken: verify, configId: cfg, graphVersion: version } : undefined,
+    mock: mockAsked,
+    dailySoftCap: Number.isFinite(cap) && cap > 0 ? Math.floor(cap) : 2000,
+  };
+}
+
 export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
   const env = EnvSchema.parse(raw);
   const mode = env.APP_MODE ?? (env.NODE_ENV === "production" ? "production" : "development");
@@ -474,6 +503,7 @@ export function loadConfig(raw: Record<string, string | undefined>): AppConfig {
     // Agent inboxes for workspaces with no domain live on the same shared domain as free addresses
     // unless the deployment names a separate one.
     agents: { sharedDomain: (env.AGENT_MAIL_DOMAIN ?? env.FREE_MAIL_DOMAIN)?.toLowerCase() },
+    channels: channelsConfig(env, mode),
     operatorInbox: operatorInbox(env.SUPPORT_EMAIL?.trim() || "support@multies.si", env.OPERATOR_INBOX_ORG_ID, env.OPERATOR_INBOX_ADDRESSES),
     freeMail: {
       domain: freeMailDomain(env.FREE_MAIL_DOMAIN, env.APP_URL),
