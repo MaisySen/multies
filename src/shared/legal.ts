@@ -7,29 +7,8 @@ import { RESIDENCY_ANSWER, WHERE_DATA_LIVES } from "./residency";
  * how Multies works; when the product changes (a new provider, a new plan rule), change the text
  * here and update LEGAL_UPDATED.
  */
-export const LEGAL_ENTITY = {
-  name: "Fintex Australia Pty Ltd",
-  abn: "60 688 406 108",
-  acn: "688 406 108",
-  address: "New South Wales, Australia",
-  // Every public contact uses the company address until the multies.si mailboxes are routed into a read inbox.
-  privacyEmail: "contact@fintex.au",
-  abuseEmail: "contact@fintex.au",
-  supportEmail: "contact@fintex.au",
-  contactEmail: "contact@fintex.au",
-  website: "https://fintex.au",
-};
-
-/**
- * The standard legal line for page footers and the trust page, word for word from the company
- * runbook. Render it with the company name linked to LEGAL_ENTITY.website (see LegalLine).
- */
-export const LEGAL_LINE = {
-  before: "Multies is provided by ",
-  company: LEGAL_ENTITY.name,
-  after: ` (ABN ${LEGAL_ENTITY.abn}), New South Wales, Australia. Contact: ${LEGAL_ENTITY.contactEmail}.`,
-};
-export const LEGAL_LINE_TEXT = LEGAL_LINE.before + LEGAL_LINE.company + LEGAL_LINE.after;
+export { LEGAL_ENTITY, LEGAL_LINE, LEGAL_LINE_TEXT } from "./legal-entity";
+import { LEGAL_ENTITY, LEGAL_LINE_TEXT } from "./legal-entity";
 
 /** The date the current version of every legal document took effect. */
 export const LEGAL_EFFECTIVE = "30 October 2026";

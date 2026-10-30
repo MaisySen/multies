@@ -2,10 +2,14 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
+import { criticalIconFiles } from "./scripts/critical-icons";
 
 // R25: big libraries get chunks of their own, so an app release does not change their hashes (they stay
 // cached) and a page downloads only the libraries it uses. Only libraries the pages already load lazily
 // are named here, plus React, which every page needs.
+const ICON_BASE = /[\\/]src[\\/]web[\\/]components[\\/]ui[\\/](icon\.tsx|icon-base\.tsx)$/;
+const ICON_FILE = /[\\/]src[\\/]web[\\/]components[\\/]ui[\\/]icons[\\/]/;
+const CRITICAL_ICONS = criticalIconFiles(import.meta.dirname);
 const lib = (names: string) => new RegExp(`[\\/]node_modules[\\/](${names})[\\/]`);
 const VENDOR_GROUPS = [
   { name: "vendor-react", test: lib("react|react-dom|scheduler|react-router"), priority: 30 },
@@ -24,7 +28,10 @@ const VENDOR_GROUPS = [
   // R40 (MB-203): the glyphs the build keeps (tree shaken, about 38 KB gzip) ride in ONE chunk with the icon base.
   // Split per page they came out as about 120 files of 300 bytes each, and on a slow phone network every file
   // costs a round trip: My Work alone waited on 50 of them. Pure modules, no imports back into app code.
-  { name: "icons", test: /[\\/]src[\\/]web[\\/]components[\\/]ui[\\/](icons[\\/]|icon\.tsx|icon-base\.tsx)/, priority: 10 },
+  // R74: only the glyphs the first screens draw (entry, app frame, My Work, home page; scripts/critical-icons.ts) stay in
+  // "icons"; the rest (about 180) go to "icons-more", which only the pages that use them load. Two files, not 120.
+  { name: "icons", test: (id: string) => ICON_BASE.test(id) || (ICON_FILE.test(id) && CRITICAL_ICONS.has(path.normalize(id.split("?")[0]))), priority: 11 },
+  { name: "icons-more", test: ICON_FILE, priority: 10 },
 ];
 
 export default defineConfig({

@@ -114,8 +114,14 @@ export function prefetchWhenIdle(paths: string[] = LIKELY_NEXT, win: IdleWindow 
       for (const f of filesFor(paths, map)) dl.add(f);
     });
   };
-  if (typeof win.requestIdleCallback === "function") win.requestIdleCallback(run, { timeout: 4000 });
-  else win.setTimeout(run, 2000);
+  const later = () => {
+    if (typeof win.requestIdleCallback === "function") win.requestIdleCallback(run, { timeout: 4000 });
+    else win.setTimeout(run, 2000);
+  };
+  // R74: not before the opened page has finished loading, so the next pages never share the line with this one.
+  const doc = (win as { document?: Pick<Document, "readyState"> }).document;
+  if (!doc || doc.readyState === "complete" || typeof (win as { addEventListener?: unknown }).addEventListener !== "function") later();
+  else (win as Window).addEventListener("load", later, { once: true });
 }
 
 /** Hover, touch or keyboard focus on a link to one of our pages: warm that page. One listener covers every link. */

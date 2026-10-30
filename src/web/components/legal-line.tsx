@@ -1,4 +1,4 @@
-import { LEGAL_ENTITY, LEGAL_LINE } from "@/shared/legal";
+import { LEGAL_ENTITY, LEGAL_LINE } from "@/shared/legal-entity"; // R74: not the full documents
 
 /** The company's standard legal line, with the company name linked to its website. */
 export function LegalLine({ className }: { className?: string }) {
