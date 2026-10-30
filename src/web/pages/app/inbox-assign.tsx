@@ -57,7 +57,7 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
   const people = (team.data?.members ?? []).filter((m) => m.kind === "human");
   const seg = (v: InboxView, label: string) => (
     <button type="button" onClick={() => set(v)} aria-pressed={view === v}
-      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-10", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
+      className={cn("h-7 rounded-md px-3 text-[13px] font-medium transition-colors max-sm:h-11", view === v ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}>{label}</button>
   );
   return (
     <div className="mb-4 space-y-3">
@@ -70,7 +70,7 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
           {seg("unassigned", "Unassigned")}
           <Select bare aria-label="Assigned to" value={view === "assigned" && assignee ? assignee : ""} onChange={(e) => e.target.value ? set("assigned", e.target.value) : set("open")}
             className={cn("h-7 rounded-md bg-transparent px-2 text-[13px] font-medium outline-none", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted hover:text-fg")}
-            phoneClassName={cn("h-7 max-w-[9rem] rounded-md px-2 max-sm:h-10 text-left text-[13px] font-medium", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted")}>
+            phoneClassName={cn("h-7 max-w-[9rem] rounded-md px-2 max-sm:h-11 text-left text-[13px] font-medium", view === "assigned" ? "bg-elevated text-fg shadow-sm" : "text-muted")}>
             <option value="">Assigned to...</option>
             {people.map((p) => <option key={p.userId} value={p.userId}>{p.name}</option>)}
           </Select>
