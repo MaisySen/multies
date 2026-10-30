@@ -10,7 +10,7 @@ import { Select } from "@/web/components/ui/input";
 import { Kbd } from "@/web/components/ui/misc";
 import { cn } from "@/web/lib/cn";
 import { holdMessage, reopenDraft, useUndoSeconds } from "@/web/lib/undo-send";
-import { createAutosaver, type Autosaver } from "@/web/lib/draft-autosave";
+import { createAutosaver, forgetOpenReply, rememberOpenReply, type Autosaver } from "@/web/lib/draft-autosave";
 import { SavedRepliesButton, useSnippetShortcut } from "./saved-replies";
 import { AlsoReplying, useThreadPresence } from "@/web/lib/thread-presence";
 import { parseUndoSeconds, UNDO_SEND_CHOICES } from "@/shared/undo-send";
@@ -94,8 +94,13 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
     window.addEventListener("pagehide", hide);
     return () => { document.removeEventListener("visibilitychange", hide); window.removeEventListener("pagehide", hide); };
   }, []);
+  // R67 (MB-244): while a reply is open, remember its saved draft so a reload opens this reply again in the thread.
+  useEffect(() => {
+    const id = auto.current?.id();
+    if (saveState === "saved" && d.threadId && id) rememberOpenReply(d.threadId, id);
+  }, [saveState, d.threadId]);
   /** The draft this compose saved on its own, taken over by a send, a manual save or a discard. */
-  const takeAutoDraft = () => auto.current?.stop();
+  const takeAutoDraft = () => { forgetOpenReply(d.threadId); return auto.current?.stop(); };
   const [undoSeconds, setUndoSeconds] = useUndoSeconds();
   // Round 20: "remind me if no reply" (days, 0 is off) and send later, both through the same hold as Send.
   const [remindDays, setRemindDays] = useState(0);
@@ -159,7 +164,7 @@ export function Compose({ initial, mailboxes, onClose }: { initial: ComposeDraft
   });
   // Round 22: while a reply is open, teammates in the thread see "replying".
   const presence = useThreadPresence(d.threadId, "replying");
-  const close = () => (dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose());
+  const close = () => { forgetOpenReply(d.threadId); return dirty && (d.to || d.text.trim() || d.subject) ? saveDraft.mutate() : onClose(); };
   // Round 22: saved replies go in at the cursor; the subject fills only when empty.
   const applySnippet = (next: { subject: string; text: string }, cursor: number) => {
     setD((x) => ({ ...x, ...next }));

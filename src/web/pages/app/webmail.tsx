@@ -29,6 +29,7 @@ import { BYO_AI_LINE, useAiStatus } from "./ai-section";
 import { MakeTask, MakeTaskBarButton } from "./work/make-task";
 import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
 import { BatchTools } from "@/web/components/tools/batch-tools"; // Tools P2
+import { forgetOpenReply, openReplyDraft } from "@/web/lib/draft-autosave"; // R67 (MB-244)
 import { takePendingCompose } from "@/web/lib/compose-files"; // Tools P2: attachments handed to a new email
 import { setFocus, useCommandHandlers } from "@/web/lib/commands";
 import { SCHEDULE_VIEWS, isScheduleView, ReturnedStrip, ScheduleListView, SnoozeMenu, useScheduleList, type ScheduleItem } from "./mail/schedules";
@@ -609,6 +610,20 @@ function Reader({ id, mailboxes, onBack, onMove, onMoveTo, onCompose, onStar }: 
     queryFn: () => api.get<{ message: Message; thread: Message[] }>(`/mail/messages/${id}`),
   });
   useEffect(() => { if (data) qc.invalidateQueries({ queryKey: qk.overview }); }, [data, qc]);
+  // R67 (MB-244): a reply that was open here when the page reloaded opens again, with its saved draft.
+  const resumed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!data || data.message.folder === "drafts") return;
+    const threadId = data.message.threadId;
+    const draftId = openReplyDraft(threadId);
+    if (!draftId || resumed.current === draftId) return;
+    resumed.current = draftId;
+    const target = data.thread[data.thread.length - 1] ?? data.message;
+    api.get<{ message: Message }>(`/mail/messages/${draftId}`).then(({ message: dm }) => {
+      if (dm.folder !== "drafts" || dm.threadId !== threadId) { forgetOpenReply(threadId); return; }
+      onCompose({ mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", ") || undefined, subject: dm.subject, text: dm.text, draftId: dm.id, threadId, inReplyToId: target.id });
+    }, () => forgetOpenReply(threadId));
+  }, [data, onCompose]);
   if (error) return <div className="grid flex-1 place-items-center text-sm text-muted">This message is no longer available.</div>;
   if (isPending || !data) return <div className="flex-1 space-y-4 p-6"><Skeleton className="h-7 w-2/3" /><Skeleton className="h-4 w-1/3" /><Skeleton className="h-48 w-full" /></div>;
   const { message: m, thread } = data;

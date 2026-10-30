@@ -42,3 +42,40 @@ export function createAutosaver<T>(save: (value: T, id: string | undefined) => P
     id: () => id,
   };
 }
+
+/**
+ * R67 (MB-244): a reply that was open when the page reloaded (or the tab crashed) opens again with its draft when the
+ * same thread is opened in this browser. Compose remembers the draft it saved for a thread; Send, Close, and Discard
+ * forget it. Kept for three days in this browser only.
+ */
+const OPEN_REPLY_KEY = "mm-open-reply-drafts";
+const OPEN_REPLY_TTL_MS = 3 * 24 * 3600_000;
+type OpenReplies = Record<string, { draftId: string; at: number }>;
+
+function readOpenReplies(now = Date.now()): OpenReplies {
+  try {
+    const raw = JSON.parse(localStorage.getItem(OPEN_REPLY_KEY) ?? "{}") as OpenReplies;
+    const out: OpenReplies = {};
+    for (const [k, v] of Object.entries(raw)) if (v && typeof v.draftId === "string" && now - v.at < OPEN_REPLY_TTL_MS) out[k] = v;
+    return out;
+  } catch { return {}; }
+}
+function writeOpenReplies(v: OpenReplies) {
+  try { if (Object.keys(v).length) localStorage.setItem(OPEN_REPLY_KEY, JSON.stringify(v)); else localStorage.removeItem(OPEN_REPLY_KEY); } catch { /* storage off: nothing to keep */ }
+}
+export function rememberOpenReply(threadId: string, draftId: string, now = Date.now()) {
+  const all = readOpenReplies(now);
+  all[threadId] = { draftId, at: now };
+  writeOpenReplies(all);
+}
+export function forgetOpenReply(threadId: string | undefined) {
+  if (!threadId) return;
+  const all = readOpenReplies();
+  if (!(threadId in all)) return;
+  delete all[threadId];
+  writeOpenReplies(all);
+}
+/** The draft of a reply that was still open in this thread when the page went away, if any. */
+export function openReplyDraft(threadId: string | undefined, now = Date.now()): string | undefined {
+  return threadId ? readOpenReplies(now)[threadId]?.draftId : undefined;
+}

@@ -1,13 +1,14 @@
 import { useSearchParams } from "react-router";
 import { AttachmentTools } from "./mail/attachment-tools"; // Tools P1
 import { BatchTools } from "@/web/components/tools/batch-tools"; // Tools P2
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { IconAgent, IconArrowLeft, IconAttachment, IconInbox, IconReply, IconUser } from "@/web/components/ui/icon";
 import { Button } from "@/web/components/ui/button";
 import { Compose, type ComposeDraft } from "./mail/compose";
 import { useReopenedDrafts } from "@/web/lib/undo-send";
 import { replyDraftFor } from "./inbox-reply";
+import { forgetOpenReply, openReplyDraft } from "@/web/lib/draft-autosave"; // R67 (MB-244)
 import { api } from "@/web/lib/api";
 import { useMailboxes } from "@/web/lib/queries";
 import { Badge, Card, EmptyState, PageHeader, Skeleton } from "@/web/components/ui/misc";
@@ -116,6 +117,20 @@ export function TeamInboxPage() {
 
 function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack: () => void; canReply: (mailboxId: string) => boolean; own: string[]; onReply: (d: ComposeDraft) => void }) {
   const thread = useQuery({ queryKey: ["team-inbox", id], queryFn: () => api.get<Thread>(`/agents/threads/${id}`) });
+  // R67 (MB-244): a reply that was open here when the page reloaded opens again, with its saved draft.
+  const resumed = useRef<string | null>(null);
+  const data = thread.data;
+  useEffect(() => {
+    if (!data || !data.messages.length || !canReply(data.mailboxId)) return;
+    const draftId = openReplyDraft(data.id);
+    if (!draftId || resumed.current === draftId) return;
+    resumed.current = draftId;
+    const base = replyDraftFor(data, own, false);
+    api.get<{ message: { id: string; folder: string; threadId: string; mailboxId: string; to: { address: string }[]; cc: { address: string }[]; subject: string; text: string } }>(`/mail/messages/${draftId}`).then(({ message: dm }) => {
+      if (dm.folder !== "drafts" || dm.threadId !== data.id) { forgetOpenReply(data.id); return; }
+      onReply({ ...base, mailboxId: dm.mailboxId, to: dm.to.map((a) => a.address).join(", "), cc: dm.cc.map((a) => a.address).join(", "), subject: dm.subject, text: dm.text, draftId: dm.id });
+    }, () => forgetOpenReply(data.id));
+  }, [data, canReply, own, onReply]);
   if (thread.isPending) return <Card className="p-5"><Skeleton className="h-6 w-2/3" /><Skeleton className="mt-4 h-32" /></Card>;
   if (thread.error) return <Card className="p-6 text-sm text-bad">{thread.error.message}</Card>;
   const t = thread.data;
