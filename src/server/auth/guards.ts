@@ -13,7 +13,7 @@ import { SSO_METHODS } from "./session";
 import { workspaceMark } from "./workspace-mark";
 import { DEFAULT_COUNTRY, DEFAULT_TIMEZONE, isCountry } from "@/shared/locale";
 import { autoWorkspaceName } from "@/shared/person-name";
-import { REFERRAL_COOKIE } from "@/shared/offers";
+import { REFERRAL_COOKIE } from "@/shared/referral-link";
 
 /*
  * Route guards. Every route that acts for a person goes through requireAuth (the session

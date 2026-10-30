@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { showError } from "@/web/lib/show-error";
 import { api } from "@/web/lib/api";
 import { useMe } from "@/web/lib/queries";
-import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, chargeFor, type Addon, type AddonId, type AddonQuantities, type BillingInterval, type Plan, type PlanId, formatPlanPrice } from "@/shared/plans";
+import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, YEARLY_MONTHS_CHARGED, chargeFor, yearlyOnly, type Addon, type AddonId, type AddonQuantities, type BillingInterval, type Plan, type PlanId, formatPlanPrice } from "@/shared/plans";
 import { Badge, Card, EmptyState, Skeleton } from "@/web/components/ui/misc";
 import { SkeletonRows } from "@/web/components/ui/skeleton-rows";
 import { UsageRing } from "@/web/components/premium4-r39"; // R39 premium pass 4
@@ -25,8 +25,11 @@ interface BillingInfo {
   webhooks: boolean;
   plan: Plan;
   addons: AddonQuantities;
-  charge: { interval: BillingInterval; amount: number; monthly: number };
+  charge: { interval: BillingInterval; amount: number; monthly: number; yearlySaving: number };
   interval: BillingInterval | null;
+  /** R62: under A$5 a month add-ons bill yearly only. */
+  yearlyOnly: boolean;
+  offers: { launchCode: string; launchPercentOff: number; launchMonths: number };
   catalog: Addon[];
   subscription: { status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null;
   hasCustomer: boolean;
@@ -34,7 +37,8 @@ interface BillingInfo {
   usage: { domains: number; mailboxes: number; agentInboxes: number; aliases: number; seats: number; sendsToday: number; storageMb: number; agentMessages: number };
   limits: Plan["limits"];
 }
-interface AddonPreview { dueNow: number; credit: number; currency: string; charge: BillingInfo["charge"] }
+interface AddonPreview { dueNow: number; credit: number; currency: string; charge: BillingInfo["charge"]; dropsDiscount?: boolean }
+interface ReferralInfo { code: string; link: string; signedUp: number; waiting: number; credited: number; creditedThisYear: number; capPerYear: number; holdDays: number; minCreditCents: number; maxCreditCents: number }
 interface Invoice { id: string; number: string | null; status: string; total: number; currency: string; createdAt: string; hostedUrl: string | null; pdfUrl: string | null }
 
 const money = (cents: number, currency: string) => new Intl.NumberFormat(LOCALE, { style: "currency", currency: currency.toUpperCase() }).format(cents / 100);
@@ -75,17 +79,19 @@ export function BillingSettings() {
   const portal = useMutation({ mutationFn: () => api.post<{ url: string }>("/billing/portal"), onSuccess: (r) => window.location.assign(r.url), onError: (e) => showError(e) });
   const [draft, setDraft] = useState<AddonQuantities | null>(null);
   const [dropLegacy, setDropLegacy] = useState(false);
+  // R62: monthly or yearly (ten months for twelve). Null: keep what the subscription has.
+  const [intervalChoice, setIntervalChoice] = useState<BillingInterval | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [comparing, setComparing] = useState(false); // R39: the plan comparison sheet
   const preview = useQuery({
-    queryKey: ["billing-preview", draft, dropLegacy], enabled: reviewing && !!draft,
-    queryFn: () => api.post<AddonPreview>("/billing/addons/preview", { addons: draft, dropLegacyPlan: dropLegacy }),
+    queryKey: ["billing-preview", draft, dropLegacy, intervalChoice], enabled: reviewing && !!draft,
+    queryFn: () => api.post<AddonPreview>("/billing/addons/preview", { addons: draft, dropLegacyPlan: dropLegacy, ...(intervalChoice ? { interval: intervalChoice } : {}) }),
   });
   const save = useMutation({
-    mutationFn: () => api.post<{ applied: boolean; url: string | null }>("/billing/addons", { addons: draft, dropLegacyPlan: dropLegacy }),
+    mutationFn: () => api.post<{ applied: boolean; url: string | null }>("/billing/addons", { addons: draft, dropLegacyPlan: dropLegacy, ...(intervalChoice ? { interval: intervalChoice } : {}) }),
     onSuccess: (r) => {
       if (r.url) { window.location.assign(r.url); return; }
-      setReviewing(false); setDraft(null); setDropLegacy(false); qc.invalidateQueries(); toast.success("Add-ons updated", { description: "New limits apply straight away." });
+      setReviewing(false); setDraft(null); setDropLegacy(false); setIntervalChoice(null); qc.invalidateQueries(); toast.success("Add-ons updated", { description: "New limits apply straight away." });
     },
     onError: (e) => showError(e),
   });
@@ -99,9 +105,12 @@ export function BillingSettings() {
   const hasLiveSub = !!sub && ["active", "trialing", "past_due"].includes(sub.status ?? "");
   const legacy = !!b.plan.legacy;
   const chosen = draft ?? b.addons;
-  const dirty = !!draft && (JSON.stringify(clean(draft)) !== JSON.stringify(clean(b.addons)) || dropLegacy);
   const base = legacy && !dropLegacy ? b.plan.priceMonthly : 0;
-  const next = chargeFor(chosen, base);
+  const next = chargeFor(chosen, base, intervalChoice ?? b.interval);
+  const intervalChanged = hasLiveSub && !!b.interval && next.amount > 0 && next.interval !== b.interval;
+  const dirty = (!!draft && (JSON.stringify(clean(draft)) !== JSON.stringify(clean(b.addons)) || dropLegacy)) || (!!intervalChoice && intervalChanged);
+  const canChooseInterval = next.monthly > 0 && !yearlyOnly(next.monthly);
+  const pickInterval = (i: BillingInterval) => { setIntervalChoice(i); setDraft(chosen); };
   const setQty = (id: AddonId, qty: number) => setDraft({ ...chosen, [id]: Math.max(0, Math.min(ADDONS[id].maxQuantity, qty)) });
   const onSave = () => (hasLiveSub ? setReviewing(true) : save.mutate());
 
@@ -187,7 +196,7 @@ export function BillingSettings() {
         )}
       </Section>
 
-      <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. When your add-ons come to less than A$${YEARLY_BELOW_MONTHLY} a month, they bill once a year instead, so card fees don't eat a A$1 charge.`}>
+      <Section title="Add-ons" description={`Add only what you need, from A$1 a month. Everything sits on one subscription and one invoice. Pay yearly and get two months free. When your add-ons come to less than A$${YEARLY_BELOW_MONTHLY} a month, they bill once a year, so card fees don't eat a A$1 charge.`}>
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface shadow-card">
           {ADDON_ORDER.map((id) => {
             const a = ADDONS[id];
@@ -217,14 +226,28 @@ export function BillingSettings() {
           <div className="text-sm">
             <span className="text-muted">{dirty ? "New total: " : "Total: "}</span>
             <strong className="tabular-nums">{next.amount === 0 ? "A$0" : `${formatPlanPrice(next.amount)} AUD a ${next.interval === "year" ? "year" : "month"}`}</strong>
-            {next.interval === "year" && next.amount > 0 && <span className="text-subtle"> ({formatPlanPrice(next.monthly)} a month, billed yearly)</span>}
+            {next.interval === "year" && next.amount > 0 && <span className="text-subtle"> ({YEARLY_MONTHS_CHARGED} months for 12, you save {formatPlanPrice(next.yearlySaving)})</span>}
+            {/* R62: monthly or yearly with two months free. Under A$5 a month it is yearly only. */}
+            {isOwner && paidFlow && canChooseInterval && (
+              <div className="mt-2 inline-flex rounded-lg bg-fill p-0.5 text-[13px]" role="group" aria-label="Billing interval" data-testid="billing-interval">
+                {(["month", "year"] as const).map((i) => (
+                  <button key={i} type="button" aria-pressed={next.interval === i} onClick={() => pickInterval(i)}
+                    className={cn("rounded-md px-3 py-1 transition-colors motion-reduce:transition-none", next.interval === i ? "bg-surface font-medium text-fg shadow-sm" : "text-muted hover:text-fg")}>
+                    {i === "month" ? "Monthly" : "Yearly, 2 months free"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {isOwner && paidFlow && !hasLiveSub && next.interval === "month" && next.amount > 0 && (
+              <p className="mt-2 text-xs text-subtle" data-testid="launch-code-hint">New here? Enter {b.offers.launchCode} at checkout for {b.offers.launchPercentOff}% off your first {b.offers.launchMonths} months.</p>
+            )}
           </div>
           {isOwner && (
             <div className="flex flex-wrap items-center gap-3">
               {legacy && hasLiveSub && (
                 <label className="flex items-center gap-2 text-sm text-muted"><input type="checkbox" checked={dropLegacy} onChange={(e) => { setDropLegacy(e.target.checked); setDraft(chosen); }} />Move to Free, keep these add-ons</label>
               )}
-              {draft && <Button variant="secondary" size="sm" onClick={() => { setDraft(null); setDropLegacy(false); }}>Reset</Button>}
+              {draft && <Button variant="secondary" size="sm" onClick={() => { setDraft(null); setDropLegacy(false); setIntervalChoice(null); }}>Reset</Button>}
               <Button disabled={!dirty} loading={save.isPending && !reviewing} onClick={onSave}>
                 {!paidFlow ? "Apply add-ons" : hasLiveSub ? "Review change" : "Continue to checkout"}
               </Button>
@@ -233,6 +256,8 @@ export function BillingSettings() {
         </div>
         {!isOwner && <p className="mt-3 text-xs text-subtle">Only the workspace owner can change add-ons.</p>}
       </Section>
+
+      {paidFlow && (isOwner || me.data?.organization?.role === "admin") && <ReferralSection />}
 
       <Section title="Invoices" description="Receipts for every payment, with PDF downloads.">
         {!b.enabled ? (
@@ -261,6 +286,7 @@ export function BillingSettings() {
         {preview.isPending ? <Skeleton className="h-5 w-64" /> : preview.error ? <p className="text-sm text-bad">{preview.error.message}</p> : preview.data && (
           <div className="space-y-2 text-sm text-muted">
             <p>From now on: <strong className="text-fg">{formatPlanPrice(preview.data.charge.amount)} AUD a {preview.data.charge.interval === "year" ? "year" : "month"}</strong>.</p>
+            {preview.data.dropsDiscount && <p>Moving to yearly billing ends your launch discount, which applies to monthly billing only.</p>}
             <p>
               {preview.data.dueNow > 0
                 ? <>You'll be charged <strong className="text-fg">{money(preview.data.dueNow, preview.data.currency)}</strong> now for the rest of this billing period.</>
@@ -272,6 +298,32 @@ export function BillingSettings() {
         )}
       </Dialog>
     </div>
+  );
+}
+
+/** R62: the workspace's referral link. Both sides get a month of the new workspace's add-ons once its first payment stands. */
+function ReferralSection() {
+  const ref = useQuery({ queryKey: ["billing", "referral"], queryFn: () => api.get<ReferralInfo>("/billing/referral"), staleTime: 60_000 });
+  const copy = async (link: string) => {
+    try { await navigator.clipboard.writeText(link); toast.success("Referral link copied"); } catch { toast("Copy the link from the box"); }
+  };
+  const r = ref.data;
+  return (
+    <Section title="Refer a business" description="When a business signs up with your link and its first payment goes through, you both get a credit worth one month of its add-ons, from A$1 to A$20. Credits come off your next invoices.">
+      {ref.isPending ? <Skeleton className="h-10 w-full" /> : ref.error ? <p className="text-sm text-bad">{ref.error.message}</p> : r && (
+        <div className="space-y-3" data-testid="referral">
+          <div className="flex flex-wrap items-center gap-2">
+            <input readOnly value={r.link} aria-label="Your referral link" onFocus={(e) => e.currentTarget.select()}
+              className="min-w-0 flex-1 rounded-lg border border-line-strong bg-canvas px-3 py-2 font-mono text-[13px]" />
+            <Button variant="secondary" onClick={() => copy(r.link)}>Copy link</Button>
+          </div>
+          <p className="text-sm text-muted">
+            {r.signedUp === 0 ? "No sign ups through your link yet." : `${r.signedUp} signed up, ${r.waiting} waiting for a first payment or the ${r.holdDays} day refund window, ${r.credited} credited.`}
+            {" "}You can earn up to {r.capPerYear} credits a year ({r.creditedThisYear} so far). Referring your own business doesn't count.
+          </p>
+        </div>
+      )}
+    </Section>
   );
 }
 

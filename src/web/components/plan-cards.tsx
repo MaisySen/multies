@@ -1,5 +1,5 @@
 import { IconCheck } from "@/web/components/ui/icon";
-import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, formatPlanPrice } from "@/shared/plans";
+import { ADDON_ORDER, ADDONS, PLANS, YEARLY_BELOW_MONTHLY, formatPlanPrice, yearlyPrice } from "@/shared/plans";
 import { ButtonLink } from "@/web/components/ui/button";
 
 /** Free forever on the left, the add-ons on the right: the whole price list in one glance. */
@@ -36,7 +36,7 @@ export function PlanCards({ ctaTo = "/signup", headingLevel = 3 }: { ctaTo?: str
             );
           })}
         </ul>
-        <p className="mt-4 text-xs text-subtle">Prices in AUD, excluding GST. Under A${YEARLY_BELOW_MONTHLY} a month in total bills once a year, so one extra domain is A$12 a year.</p>
+        <p className="mt-4 text-xs text-subtle">Prices in AUD, excluding GST. Pay yearly and get two months free. Under A${YEARLY_BELOW_MONTHLY} a month in total bills once a year, so one extra domain is {formatPlanPrice(yearlyPrice(ADDONS.domain.priceMonthly))} a year.</p>
       </div>
     </div>
   );

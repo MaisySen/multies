@@ -22,12 +22,7 @@ export const REFERRAL_MAX_CENTS = 2000;
 export const REFERRAL_HOLD_DAYS = 14;
 /** Credits one workspace can earn by referring, in any 365 days. */
 export const REFERRAL_CAP_PER_YEAR = 12;
-/** The query parameter a referral link carries, and the cookie that keeps it until sign up. */
-export const REFERRAL_PARAM = "ref";
-export const REFERRAL_COOKIE = "mm_ref";
-export const REFERRAL_COOKIE_DAYS = 30;
-/** Referral codes: 8 characters from an alphabet without look alike letters. */
-export const REFERRAL_CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
+export { REFERRAL_CODE_RE, REFERRAL_COOKIE, REFERRAL_COOKIE_DAYS, REFERRAL_PARAM } from "./referral-link";
 
 /** One month of a monthly add-on total (A$), as a referral credit in cents within the bounds. */
 export function referralCreditCents(monthlyAud: number): number {
