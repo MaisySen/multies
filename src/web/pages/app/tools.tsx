@@ -132,7 +132,7 @@ export function ToolsPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6" data-testid="tools-page">
-      <PageHeader title="Tools" description="Compress, merge and convert documents without leaving Multies. Files are processed on our document server in Singapore and deleted within an hour." />
+      <PageHeader title="Tools" description="Compress, merge and convert documents without leaving Multies. Files are processed on our document server in Singapore and deleted after 1 hour." />
 
       <div className="grid gap-3 sm:grid-cols-3" role="group" aria-label="Choose a tool">
         {info.isLoading ? [0, 1, 2].map((i) => <Skeleton key={i} className="h-24" />) : info.data?.tools.map((t) => <ToolCard key={t.op} tool={t} active={t.op === op} onPick={() => pick(t.op)} />)}
