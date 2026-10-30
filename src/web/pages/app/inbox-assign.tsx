@@ -62,7 +62,8 @@ export function InboxViewBar({ view, assignee, set, stats, setStats }: ReturnTyp
   return (
     <div className="mb-4 space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Thread view" className="inline-flex items-center gap-0.5 rounded-lg bg-fill p-0.5" data-testid="inbox-views">
+        {/* R67 (MB-252): on a phone the views scroll sideways inside their pill instead of pushing the page wider. */}
+        <div role="group" aria-label="Thread view" className="no-scrollbar inline-flex max-w-full items-center gap-0.5 overflow-x-auto rounded-lg bg-fill p-0.5 [&>*]:shrink-0" data-testid="inbox-views">
           {seg("open", "All")}
           {seg("mine", "Mine")}
           {seg("unassigned", "Unassigned")}
@@ -138,7 +139,7 @@ export function ThreadAssignControls({ threadId }: { threadId: string }) {
   const { state, members } = q.data;
   const myId = me.data?.user.id;
   return (
-    <div className="ml-auto flex shrink-0 items-center gap-1.5" data-testid="thread-assign">
+    <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1.5 max-sm:ml-0 max-sm:w-full max-sm:[&>*]:min-h-11" data-testid="thread-assign">
       <Menu trigger={
         <Button variant="outline" size="sm" loading={assign.isPending} aria-label={state.assignee ? `Assigned to ${state.assignee.name}. Change` : "Assign"}>
           {state.assignee ? <><Avatar label={initials(state.assignee.name)} className="h-5 w-5 text-[9px]" />{state.assignee.name}</> : <><IconAssign className="h-4 w-4" aria-hidden />Assign</>}

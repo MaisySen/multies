@@ -72,7 +72,7 @@ export function TeamInboxPage() {
       <PageHeader title="Shared inbox" description={chatOn ? "Mail and customer chats in one place, with your team and your agents. Agent replies are labelled." : "Your team and your agents on the same threads. Agent replies are labelled, and anything waiting for approval shows in place."} />
       <InboxViewBar {...iv} />
       {chatOn && <div className="-mt-1 mb-4"><ChannelFilterControl filter={filter} set={cf.set} providers={providers} /></div>}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">{/* R67 (MB-252): one column never grows past the phone width */}
         <Card className={cn("overflow-hidden lg:max-h-[calc(100dvh-11rem)] lg:overflow-y-auto", anySelected && "hidden lg:block")}>
           {pending ? <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
             : threads.error ? <p className="p-6 text-sm text-bad">{threads.error.message}</p>
@@ -104,7 +104,7 @@ export function TeamInboxPage() {
               </ul>
             )}
         </Card>
-        <div className={cn("lg:sticky lg:top-6 lg:self-start", !anySelected && "hidden lg:block")}>
+        <div className={cn("min-w-0 lg:sticky lg:top-6 lg:self-start", !anySelected && "hidden lg:block")}>
           {selectedConv && chatOn ? <ChatView id={selectedConv} onBack={() => open(null)} />
             : selected ? <ThreadView id={selected} onBack={() => open(null)} canReply={(mailboxId) => sendable.some((m) => m.id === mailboxId)} own={sendable.map((m) => m.address)} onReply={setCompose} />
             : <Card><EmptyState icon={<IconInbox />} title={chatOn ? "Pick a thread or a chat" : "Pick a thread"} body={chatOn ? "See every message, who wrote it, and reply from here." : "See every message, who wrote it, and what an agent wants to send next."} /></Card>}
@@ -136,9 +136,10 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
   const t = thread.data;
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <button onClick={onBack} className="rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden" aria-label="Back to threads"><IconArrowLeft className="h-4 w-4" /></button>
-        <h2 className="text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
+      {/* R67 (MB-249, MB-252): on a phone the subject takes the whole line and the actions sit under it, nothing cut off. */}
+      <div className="flex flex-wrap items-center gap-2" data-testid="inbox-thread-head">
+        <button onClick={onBack} className="grid shrink-0 place-items-center rounded-md p-1.5 text-muted hover:bg-hover hover:text-fg lg:hidden max-sm:-ml-1.5 max-sm:h-11 max-sm:w-11" aria-label="Back to threads"><IconArrowLeft className="h-4 w-4" /></button>
+        <h2 className="min-w-0 flex-1 basis-[12rem] break-words text-lg font-semibold tracking-tight">{t.subject || "(no subject)"}</h2>
         <ThreadAssignControls threadId={t.id} />
       </div>
       <ThreadCollab threadId={t.id} />
@@ -149,10 +150,10 @@ function ThreadView({ id, onBack, canReply, own, onReply }: { id: string; onBack
             {m.sentBy.type === "agent" ? <Badge tone="brand"><IconAgent className="h-3 w-3" aria-hidden />{m.sentBy.name ?? "Agent"}</Badge>
               : m.sentBy.type === "person" ? <Badge><IconUser className="h-3 w-3" aria-hidden />Team</Badge> : null}
             <span className="font-medium">{m.from.name ?? m.from.address}</span>
-            <span className="text-xs text-subtle">to {m.to.map((x) => x.address).join(", ")}</span>
+            <span className="min-w-0 text-xs text-subtle [overflow-wrap:anywhere]">to {m.to.map((x) => x.address).join(", ")}</span>
             <time className="ml-auto text-xs text-subtle" dateTime={m.date} title={fullDate(m.date)}>{mailDate(m.date)}</time>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fg/90">{m.latestText || m.text}</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-fg/90 [overflow-wrap:anywhere]">{m.latestText || m.text}</p>
           {(m.codes.length > 0 || m.attachments.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-2 text-xs text-subtle">
               {m.codes.map((c) => <span key={c} className="rounded border border-line px-1.5 py-0.5 font-mono">code {c}</span>)}
