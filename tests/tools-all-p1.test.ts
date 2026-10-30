@@ -8,7 +8,8 @@ import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { sql } from "drizzle-orm";
 import { makeTestApp, Client } from "./helpers";
-import { TOOLS, resultName, toolDef, type ToolOp } from "@/shared/tools";
+import { TOOLS, resultName, toolDef, toolsForFile, type ToolOp } from "@/shared/tools";
+import { deliverInbound } from "@/server/services/mail/delivery";
 
 const ENGINE_KEY = "k".repeat(40);
 const ON = { TOOLS_ENABLED: "true", DOC_ENGINE_URL: "https://engine.test", DOC_ENGINE_KEY_ID: "stg-1", DOC_ENGINE_KEY: ENGINE_KEY, TOOLS_TOKEN_KEY: "t".repeat(40) };
@@ -175,5 +176,67 @@ describe("Tools P1 API, every tool", () => {
     const bad = await upload(app, c.cookie, "split", 1, { ranges: "x" });
     expect(bad.status).toBe(422);
     expect(JSON.stringify(bad.body)).toContain("1-3, 5");
+  });
+});
+
+
+describe("Tools P1 from mail attachments", () => {
+  async function withMail() {
+    const engine = fakeEngine();
+    const ctx = await makeTestApp(ON, { fetch: engine.fetch });
+    const c = new Client(ctx.app);
+    await c.signup("owner@acme.io", "Ada Lovelace", "Acme");
+    const domainId = (await c.post("/api/domains", { name: "acme.io" })).body.domain.id;
+    const box = (await c.post("/api/mailboxes", { domainId, localPart: "me", displayName: "Me" })).body.mailbox;
+    await deliverInbound(ctx.deps, {
+      envelopeFrom: "a@example.com", rcptTo: "me@acme.io", sizeBytes: 2000, via: "test",
+      email: { messageId: "<docs@example.com>", from: { address: "a@example.com" }, to: [{ address: "me@acme.io" }], cc: [], subject: "Docs", text: "Attached.", date: new Date(),
+        attachments: [
+          { filename: "Q3 report.pdf", contentType: "application/pdf", content: new TextEncoder().encode(PDF) },
+          { filename: "notes.txt", contentType: "text/plain", content: new TextEncoder().encode("hello") },
+        ], authResults: { spf: "pass", dkim: "pass", dmarc: "pass" }, headers: {} },
+    });
+    const id = (await c.get(`/api/mail/messages?mailboxId=${box.id}&folder=inbox`)).body.messages[0].id;
+    const atts = (await c.get(`/api/mail/messages/${id}`)).body.message.attachments as { id: string; filename: string }[];
+    const pdf = atts.find((a) => a.filename.endsWith(".pdf"))!;
+    const txt = atts.find((a) => a.filename.endsWith(".txt"))!;
+    return { ...ctx, c, engine, pdf, txt };
+  }
+
+  it("offers the tools that take a file, by its type", () => {
+    expect(toolsForFile("Q3 report.pdf").map((t) => t.op)).toContain("redact");
+    expect(toolsForFile("Q3 report.pdf").map((t) => t.op)).not.toContain("merge");
+    expect(toolsForFile("deck.PPTX").map((t) => t.op)).toEqual(["convert"]);
+    expect(toolsForFile("photo.jpg").map((t) => t.op)).toEqual(["images-to-pdf"]);
+    expect(toolsForFile("notes.txt")).toEqual([]);
+  });
+
+  it("runs a tool on an attachment without an upload, with its options, and audits the source", async () => {
+    const { c, db, engine, pdf } = await withMail();
+    const r = await c.post("/api/tools/jobs/from-attachments", { op: "watermark", attachmentIds: [pdf.id], options: { text: "DRAFT", opacity: "30", stray: "x" } });
+    expect(r.status).toBe(202);
+    expect(r.body).toMatchObject({ op: "watermark", name: "Q3 report-watermarked.pdf" });
+    const job = [...engine.jobs.values()][0];
+    expect(job).toMatchObject({ op: "watermark", files: 1, fields: { text: "DRAFT", opacity: "30" } });
+    const rows = await db.all<{ metadata: string }>(sql`select metadata from audit_logs where action = 'tools.run'`);
+    expect(JSON.parse(rows[0].metadata)).toMatchObject({ op: "watermark", source: "attachment", files: 1 });
+    expect(rows[0].metadata).not.toContain("Q3");
+    const st = await c.get(`/api/tools/jobs/${(r.body as { token: string }).token}`);
+    expect(st.body).toMatchObject({ status: "done" });
+  });
+
+  it("refuses a file the tool does not take (422), an unknown attachment (404) and a bad body (400)", async () => {
+    const { c, engine, txt } = await withMail();
+    expect((await c.post("/api/tools/jobs/from-attachments", { op: "compress", attachmentIds: [txt.id] })).status).toBe(422);
+    expect((await c.post("/api/tools/jobs/from-attachments", { op: "compress", attachmentIds: ["att_nope"] })).status).toBe(404);
+    expect((await c.post("/api/tools/jobs/from-attachments", { op: "replace", attachmentIds: [txt.id] })).status).toBe(400);
+    expect(engine.jobs.size).toBe(0);
+  });
+
+  it("does not reach another workspace's attachment", async () => {
+    const { app, pdf } = await withMail();
+    const other = new Client(app);
+    await other.signup(undefined, "Eve", "Other Co");
+    expect((await other.post("/api/tools/jobs/from-attachments", { op: "compress", attachmentIds: [pdf.id] })).status).toBe(404);
   });
 });

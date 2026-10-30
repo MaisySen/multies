@@ -96,6 +96,16 @@ export const TOOL_OPS = TOOLS.map((t) => t.op);
 export const isToolOp = (v: unknown): v is ToolOp => typeof v === "string" && (TOOL_OPS as string[]).includes(v);
 export const toolDef = (op: ToolOp) => TOOLS.find((t) => t.op === op)!;
 
+/** The file extensions a tool takes, from its accept list (".pdf", ".docx", ...). */
+export const toolExtensions = (def: ToolDef) => def.accept.split(",").filter((x) => x.startsWith("."));
+/** Whether a tool takes a file with this name. */
+export function toolTakes(def: ToolDef, filename: string): boolean {
+  const m = /\.[A-Za-z0-9]{1,5}$/.exec(filename);
+  return !!m && toolExtensions(def).includes(m[0].toLowerCase());
+}
+/** The tools a single mail attachment can go straight into (merge needs two files, so it is left out). */
+export const toolsForFile = (filename: string) => TOOLS.filter((t) => t.minFiles <= 1 && toolTakes(t, filename));
+
 /** The result's file name from the first input's name: letters, numbers and simple marks only. */
 export function resultName(op: ToolOp, firstName: string | null | undefined): string {
   const base = (firstName ?? "").replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[^A-Za-z0-9 _.()+-]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "document";

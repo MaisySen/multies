@@ -6,7 +6,12 @@ import { audit } from "../services/audit";
 import { engineFetch, type EngineConfig } from "../services/tools/engine-client";
 import { mintToken, readToken } from "../services/tools/tokens";
 import { readToolState, recordRun, toolLimits, toolsOnFor, type ToolState } from "../services/tools/usage";
-import { TOOLS, isToolOp, resultName, toolDef, type ToolJob, type ToolJobStatus, type ToolResultFacts, type ToolsInfo } from "@/shared/tools";
+import { and, eq, inArray } from "drizzle-orm";
+import { z } from "zod";
+import { attachments, messages } from "../db/schema";
+import { attachmentBytes } from "../services/mail/store";
+import { mailboxScope } from "../services/team";
+import { TOOLS, isToolOp, resultName, toolDef, toolTakes, type ToolJob, type ToolJobStatus, type ToolOp, type ToolResultFacts, type ToolsInfo } from "@/shared/tools";
 
 /** The custom header the web app sends with an upload. A cross site form cannot set it (it needs a CORS preflight). */
 export const TOOLS_UPLOAD_HEADER = "x-multies-upload";
@@ -58,6 +63,46 @@ function pickFacts(r: ToolResultFacts): ToolResultFacts {
   return out as ToolResultFacts;
 }
 
+const fromAttachmentsSchema = z.object({
+  op: z.string().refine(isToolOp).transform((v) => v as ToolOp),
+  attachmentIds: z.array(z.string().min(1).max(64)).min(1).max(50),
+  options: z.record(z.string(), z.string().max(2000)).optional(),
+});
+
+/** The plan and per tool limits for a run of `files` files and `len` bytes (0 when not known yet). */
+function checkRun(op: ToolOp, files: number, len: number, s: ToolState) {
+  const limits = toolLimits(s.plan);
+  const def = toolDef(op);
+  if (files < def.minFiles) throw new HttpError(400, "bad_request", `This tool needs ${def.minFiles} or more files.`);
+  if (def.maxFiles === "plan" && files > limits.maxMergeFiles) throw planLimit(`You can merge up to ${limits.maxMergeFiles} files at once on your plan.`);
+  if (def.maxFiles !== "plan" && files > def.maxFiles) throw new HttpError(400, "bad_request", `${def.label} takes up to ${def.maxFiles} ${def.maxFiles === 1 ? "file" : "files"}.`);
+  if (def.maxBytes && len > def.maxBytes + MULTIPART_ALLOWANCE) throw new HttpError(413, "too_large", `${def.label} takes files up to ${Math.round(def.maxBytes / (1024 * 1024))} MB.`);
+  if (s.month >= limits.runsMonthly) throw planLimit(`Your workspace has used all ${limits.runsMonthly} tool runs this month. They reset on the 1st.`);
+  if (s.day >= limits.runsDaily) throw planLimit(`Your workspace has used all ${limits.runsDaily} tool runs for today. Try again tomorrow.`);
+}
+
+interface JobStart { op: ToolOp; files: number; len: number; maxBytes: number; body: ReadableStream<Uint8Array> | null; contentType: string; source: "upload" | "attachment"; firstName?: string }
+
+/** Sends the files to the engine, counts the run (one usage upsert, one audit row without file names) and mints the status token. */
+async function startJob(c: Context<AppEnv>, engine: EngineConfig, tokenKey: string, j: JobStart) {
+  const { auth, deps } = c.var;
+  const res = await callEngine(c, engine, {
+    method: "POST", path: `/internal/v1/jobs?op=${j.op}`, ws: auth.orgId, user: auth.userId, maxBytes: j.maxBytes,
+    body: j.body, contentLength: j.len, contentType: j.contentType,
+  });
+  if (res.status !== 202) await engineError(res);
+  const job = (await res.json()) as { id: string; status: ToolJobStatus };
+  const now = deps.now();
+  await Promise.all([
+    recordRun(deps.db, auth.orgId, now, j.len),
+    audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op: j.op, source: j.source, files: j.files, bytes_in: j.len }, ip: c.var.ip }),
+  ]);
+  const name = resultName(j.op, j.firstName);
+  const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: j.op, n: name }, now.getTime());
+  const out: ToolJob = { token, op: j.op, status: job.status, name };
+  return c.json(out, 202);
+}
+
 /** Tools: document tools on the private engine (/api/tools). Off (404) unless the deployment turns them on. */
 export function toolsRoutes() {
   return new Hono<AppEnv>()
@@ -78,35 +123,51 @@ export function toolsRoutes() {
       const len = Number(lenHeader);
       const ctype = c.req.header("content-type") ?? "";
       if (!/^multipart\/form-data;\s*boundary=/i.test(ctype)) throw new HttpError(400, "bad_request", "Send the files as a form upload.");
-      const { auth, deps } = c.var;
       const s = await stateFor(c);
       const limits = toolLimits(s.plan);
       const maxBytes = limits.maxBytes + MULTIPART_ALLOWANCE;
       if (len > maxBytes) throw new HttpError(413, "too_large", `Uploads can be up to ${Math.round(limits.maxBytes / (1024 * 1024))} MB on your plan.`);
       const files = Math.max(1, Math.min(1000, Number(c.req.query("files") ?? "1") || 1));
+      checkRun(op, files, len, s);
+      return startJob(c, engine, tokenKey, { op, files, len, maxBytes, body: c.req.raw.body, contentType: ctype, source: "upload", firstName: c.req.query("name") });
+    })
+    // Run a tool straight on mail attachments: the Worker reads them from the workspace's own mail and
+    // sends them on; nothing is uploaded again and nothing new is stored.
+    .post("/jobs/from-attachments", async (c) => {
+      const { engine, tokenKey } = setup(c);
+      const input = fromAttachmentsSchema.safeParse(await c.req.json().catch(() => null));
+      if (!input.success) throw new HttpError(400, "bad_request", "Choose a tool and at least one attachment.");
+      const { op, attachmentIds, options } = input.data;
+      const { auth, deps } = c.var;
+      const s = await stateFor(c);
+      const ids = [...new Set(attachmentIds)];
+      checkRun(op, ids.length, 0, s);
+      const scope = await mailboxScope(deps.db, auth);
+      const rows = await deps.db.select({ a: attachments, mailboxId: messages.mailboxId }).from(attachments)
+        .innerJoin(messages, eq(messages.id, attachments.messageId))
+        .where(and(inArray(attachments.id, ids), eq(messages.orgId, auth.orgId))).all();
+      const byId = new Map(rows.filter((r) => !scope || scope.includes(r.mailboxId)).map((r) => [r.a.id, r.a]));
       const def = toolDef(op);
-      if (files < def.minFiles) throw new HttpError(400, "bad_request", `This tool needs ${def.minFiles} or more files.`);
-      if (def.maxFiles === "plan" && files > limits.maxMergeFiles) throw planLimit(`You can merge up to ${limits.maxMergeFiles} files at once on your plan.`);
-      if (def.maxFiles !== "plan" && files > def.maxFiles) throw new HttpError(400, "bad_request", `${def.label} takes up to ${def.maxFiles} ${def.maxFiles === 1 ? "file" : "files"}.`);
-      if (def.maxBytes && len > def.maxBytes + MULTIPART_ALLOWANCE) throw new HttpError(413, "too_large", `${def.label} takes files up to ${Math.round(def.maxBytes / (1024 * 1024))} MB.`);
-      if (s.month >= limits.runsMonthly) throw planLimit(`Your workspace has used all ${limits.runsMonthly} tool runs this month. They reset on the 1st.`);
-      if (s.day >= limits.runsDaily) throw planLimit(`Your workspace has used all ${limits.runsDaily} tool runs for today. Try again tomorrow.`);
-      const res = await callEngine(c, engine, {
-        method: "POST", path: `/internal/v1/jobs?op=${op}`, ws: auth.orgId, user: auth.userId, maxBytes,
-        body: c.req.raw.body, contentLength: len, contentType: ctype,
-      });
-      if (res.status !== 202) await engineError(res);
-      const job = (await res.json()) as { id: string; status: ToolJobStatus };
-      const now = deps.now();
-      // Two writes a run: the usage rows (one upsert) and the audit row. No file names are kept.
-      await Promise.all([
-        recordRun(deps.db, auth.orgId, now, len),
-        audit(deps.db, { orgId: auth.orgId, actorUserId: auth.userId, actorEmail: auth.email, action: "tools.run", targetType: "tool_job", targetId: job.id, metadata: { op, source: "upload", files, bytes_in: len }, ip: c.var.ip }),
-      ]);
-      const name = resultName(op, c.req.query("name"));
-      const token = await mintToken(tokenKey, { k: "s", j: job.id, w: auth.orgId, u: auth.userId, o: op, n: name }, now.getTime());
-      const out: ToolJob = { token, op, status: job.status, name };
-      return c.json(out, 202);
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(options ?? {})) if (def.options.some((o) => o.name === k) && v.trim() !== "") fd.append(k, v);
+      let first: string | undefined;
+      for (const id of ids) {
+        const a = byId.get(id);
+        if (!a) throw notFound("Attachment");
+        if (!toolTakes(def, a.filename)) throw new HttpError(422, "tool_input", `${def.label} does not take ${a.filename.replace(/[\r\n]/g, " ").slice(0, 80)}.`);
+        const bytes = await attachmentBytes(a, deps.bodyStore);
+        if (!bytes) throw new HttpError(422, "tool_input", "That attachment is not stored, so it cannot be used here.");
+        first ??= a.filename;
+        fd.append("files", new Blob([bytes as BlobPart], { type: a.contentType || "application/octet-stream" }), a.filename.replace(/[\r\n"\\/]/g, "_").slice(0, 120));
+      }
+      const req = new Request("http://tools.local/", { method: "POST", body: fd });
+      const ctype = req.headers.get("content-type") ?? "";
+      const body = new Uint8Array(await req.arrayBuffer());
+      const limits = toolLimits(s.plan);
+      const maxBytes = limits.maxBytes + MULTIPART_ALLOWANCE;
+      if (body.byteLength > maxBytes) throw new HttpError(413, "too_large", `Attachments can add up to ${Math.round(limits.maxBytes / (1024 * 1024))} MB on your plan.`);
+      checkRun(op, ids.length, body.byteLength, s);
+      return startJob(c, engine, tokenKey, { op, files: ids.length, len: body.byteLength, maxBytes, body: new Blob([body]).stream(), contentType: ctype, source: "attachment", firstName: first });
     })
     .get("/jobs/:token", async (c) => {
       const { engine, tokenKey } = setup(c);
