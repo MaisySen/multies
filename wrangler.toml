@@ -121,6 +121,9 @@ simple = { limit = 300, period = 60 }
 
 [vars]
 APP_MODE = "production"
+# Tools P1 (document tools on the private document engine): off on production until the P4 launch.
+# Staging turns it on below; the engine keys are secrets (DOC_ENGINE_KEY, TOOLS_TOKEN_KEY).
+TOOLS_ENABLED = "false"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
 # done email). Proven on production 27 Oct 2026. Set to "false" to go back to "keep this page open".
 BACKGROUND_COPY = "true"
@@ -260,6 +263,10 @@ namespace_id = "2004"
 simple = { limit = 300, period = 60 }
 
 [env.staging.vars]
+# Tools P1: document tools on staging, through the document engine with the staging key id.
+TOOLS_ENABLED = "true"
+DOC_ENGINE_URL = "https://doctool.multies.si"
+DOC_ENGINE_KEY_ID = "stg-1"
 # R43b: imports carry on after their page closes (the upload is kept, the 15 minute pass finishes it and sends one
 # done email). Proven on production 27 Oct 2026. Set to "false" to go back to "keep this page open".
 BACKGROUND_COPY = "true"
