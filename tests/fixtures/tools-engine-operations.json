@@ -1,5 +1,5 @@
 {
- "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops), regenerated 2026-10-30 for the catalogue parity test.",
+ "_note": "Every op exactly as the live engine publishes it at GET /internal/v1/operations (office-toolkit main 0006d0a, 13 P1 + 21 P2 ops; compress level from ee2f946), regenerated 2026-10-30 for the catalogue parity test.",
  "operations": [
   {
    "accepts": "pdf",
@@ -8,7 +8,20 @@
    "max_files": 1,
    "max_pages": null,
    "min_files": 1,
-   "options": [],
+   "options": [
+    {
+     "choices": [
+      "light",
+      "medium",
+      "strong"
+     ],
+     "default": "medium",
+     "kind": "choice",
+     "label": "Level",
+     "name": "level",
+     "required": false
+    }
+   ],
    "output": {
     "content_type": "application/pdf",
     "name": "compressed.pdf"
